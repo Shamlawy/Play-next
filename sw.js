@@ -8,7 +8,7 @@ const SHELL = "play-next-shell";
 const LIVE = "play-next-live";
 const LIVE_KEY = "live-index";
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
-  "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
+  "./logo-192.png", "./logo-512.png", "./logo-mask.png"];
 
 self.addEventListener("install", e => {
   self.skipWaiting();
