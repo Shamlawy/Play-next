@@ -3763,7 +3763,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "163";
+const APP_V = "164";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -12363,10 +12363,10 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   #aiwhy { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center;
     padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.6); opacity: 0; transition: opacity .2s ease; }
   #aiwhy.on { opacity: 1; }
-  #aiwhy .aw { width: 100%; max-width: 520px; max-height: 80vh; overflow: auto; background: #0A0B10; color: #EDEFF5;
+  #aiwhy .awc { width: 100%; max-width: 520px; max-height: 80vh; overflow: auto; background: #0A0B10; color: #EDEFF5;
     border: 1px solid rgba(255,255,255,.08); border-top: 3px solid var(--accent, #6AA8FF); border-radius: 20px; padding: 20px;
     transform: translateY(24px); transition: transform .28s cubic-bezier(.2,.9,.25,1); }
-  #aiwhy.on .aw { transform: none; }
+  #aiwhy.on .awc { transform: none; }
   #aiwhy h4 { margin: 0 0 4px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #9AA3B8; }
   #aiwhy h3 { margin: 0 0 12px; font-size: 20px; }
   #aiwhy .awv { display: inline-block !important; width: fit-content !important; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-bottom: 12px;
@@ -12393,7 +12393,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   const stamp = () => S.played.filter(p => p.real > 0).map(p => p.id + ":" + p.real).join("|");
 
   function paint(o, g, body) {
-    o.querySelector(".aw").innerHTML = `<h4>Why you'll love it</h4><h3>${esc(g.title)}</h3>${body}
+    o.querySelector(".awc").innerHTML = `<h4>Why you'll love it</h4><h3>${esc(g.title)}</h3>${body}
       <div class="awb"><button class="btn ghost" data-awre><span>Ask again</span></button><button class="btn ghost" data-awx><span>Close</span></button></div>`;
   }
   function show(o, g, r) {
@@ -12415,7 +12415,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 30000);
     fetch(SGDB_PROXY + "/why", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ game, taste: pick }), signal: ac.signal })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(r.status === 404 ? "old" : "HTTP " + r.status)))
+      .then(r => r.ok ? r.json() : r.json().catch(() => ({})).then(d => Promise.reject(new Error(r.status === 404 ? "old" : (d && d.error) || "HTTP " + r.status))))
       .then(d => {
         if (!d || !d.text) throw new Error("empty");
         const r = { text: d.text, n: taste.length, k: stamp() };
@@ -12424,7 +12424,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
       })
       .catch(e => { if (!o.isConnected) return;
         paint(o, g, `<p class="awload">${e.message === "old" ? "Your helper doesn't know this trick yet — it needs the new version."
-          : "Couldn't reach the AI right now. Try again in a moment."}</p>`); })
+          : "Couldn't reach the AI right now. Try again in a moment."}</p><p class="awn">${esc(e.message)}</p>`); })
       .finally(() => clearTimeout(to));
   }
   function open(id) {
@@ -12432,7 +12432,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
     const old = document.getElementById("aiwhy"); if (old) old.remove();
     const o = document.createElement("div"); o.id = "aiwhy";
     o.style.setProperty("--accent", g.colour || PALETTE[0]);
-    o.innerHTML = '<div class="aw"></div>';
+    o.innerHTML = '<div class="awc"></div>';
     document.body.appendChild(o);
     requestAnimationFrame(() => o.classList.add("on"));
     const t0 = performance.now();
