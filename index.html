@@ -3824,7 +3824,9 @@ function load() {
   }
   if (S.startTab && S.startTab !== "home") goTab(S.startTab);
   /* only for someone who was already running an older build — not a fresh install */
-  if (S.lastV && S.lastV !== APP_V) { const was = S.lastV || "?"; S.lastV = APP_V; save(); showUpdated(was); }
+  if (S.lastV && S.lastV !== APP_V) { const was = S.lastV || "?"; S.lastV = APP_V; save(); showUpdated(was);
+    /* Nexi walks you through what's new since the version you had */
+    setTimeout(() => { if (typeof nxTour === "function") nxTour(was); }, 2200); }
   else if (!S.lastV) { S.lastV = APP_V; save(); }
   playEnter();
   armFull();
@@ -3845,7 +3847,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "171";
+const APP_V = "172";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6097,6 +6099,7 @@ function openSettings(scope) {
       <label>Intro cutscene on launch</label>
       <div class="chips" id="s-cine"><button class="chip" data-v="on" aria-pressed="${!S.cineOff}"><span>Play every time</span></button><button class="chip" data-v="off" aria-pressed="${!!S.cineOff}"><span>Off</span></button></div>
       <button class="btn ghost" id="s-cine-now"><span>Play it now</span></button>
+      <button class="btn ghost" id="s-whatsnew"><span>✨ Show me what's new</span></button>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
@@ -12730,4 +12733,111 @@ html:not(.fast) #bgart canvas, html:not(.fast) #bgart2 canvas { display: none; }
     toast("Deleted " + g.title);
   }
 })();
+</script>
+
+<style>
+/* v172 what's-new tour: a small card with Nexi's words, while Nexi points at the real button */
+#nxtour { position: fixed; left: 50%; z-index: 100; width: min(92vw, 440px); padding: 16px 16px 14px; border-radius: 18px;
+  background: #0A0B10; color: #EDEFF5; border: 1px solid rgba(255,255,255,.1); border-top: 3px solid #6AA8FF;
+  box-shadow: 0 18px 44px rgba(0,0,0,.6); opacity: 0; transform: translate(-50%, 12px); transition: opacity .2s ease, transform .26s cubic-bezier(.2,.9,.25,1); }
+#nxtour.on { opacity: 1; transform: translate(-50%, 0); }
+#nxtour.bot { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+#nxtour.top { top: calc(16px + env(safe-area-inset-top, 0px)); }
+#nxtour small { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8FB4FF; margin-bottom: 6px; font-weight: 800; }
+#nxtour p { margin: 0 0 12px; line-height: 1.45; font-size: 15px; }
+#nxtour p b { color: #fff; }
+#nxtour .try { display: block; margin: -4px 0 12px; color: #FFD34D; font-weight: 800; font-size: 14px; }
+#nxtour .row2 { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+#nxtour .row2 i { margin-right: auto; font-style: normal; font-size: 12px; color: #7A8296; }
+</style>
+<script>
+/* v172: after every update Nexi shows what's new — where it is, and a nudge to try it.
+   HOW TO ADD ONE: push an entry to WHATS_NEW with the version it shipped in. Each step can open a
+   screen (go), point at a button (at: a selector) and say what it does (say) + what to try (tryIt). */
+const WHATS_NEW = [
+  { v: 163, go: () => nxOpenGame(), at: "#full [data-aiwhy]",
+    say: "<b>✨ Why you'll love it</b> is on every game's page. I read your ratings and tell you why a game fits your taste — or doesn't.",
+    tryIt: "Try it: tap the ✨ button." },
+  { v: 166, go: () => nxOpenGame(), at: "#full [data-resetgame]",
+    say: "<b>↺ Reset scores</b> wipes one game's rating, hype and duels. The game itself stays.",
+    tryIt: "Only tap it when you want a clean slate for this game." },
+  { v: 166, go: () => nxOpenSettings("#s-resetscores"), at: "#s-resetscores",
+    say: "Want a fresh start everywhere? <b>Reset all scores</b> lives in Settings → Your data. Your games and art stay.",
+    tryIt: "Careful — it asks twice before wiping." },
+  { v: 170, go: () => nxHome(), at: null,
+    say: "I also got a lot <b>faster</b>: saving, opening cards, the queue background and tab switches are much smoother now." },
+  { v: 171, go: () => nxQueue(), at: () => $("#p-queue > .row[data-row]") || $("#p-queue > [data-row]"),
+    say: "<b>Swipe a queue card to the left</b> and a red Delete button slides out.",
+    tryIt: "Try it on this card — I'll always ask before deleting. Swipe back to close it." },
+  { v: 172, go: () => nxOpenSettings("#s-whatsnew"), at: "#s-whatsnew",
+    say: "From now on, every update I'll walk you through what's new like this. Missed something? <b>Show me what's new</b> replays it.",
+    tryIt: "That's it — go have fun! 🎮" }
+];
+function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
+function nxOpenGame() {
+  const list = (typeof sortGames === "function" && typeof liveGames === "function") ? sortGames(liveGames()) : S.games;
+  const g = list[0] || S.games[0]; if (!g) return;
+  if ($("#sheet") && $("#sheet").classList.contains("on")) closeEdit();
+  if (!($("#full") && $("#full").classList.contains("on") && hubAt === g.id)) openFull(g.id);
+}
+function nxOpenSettings(sel) {
+  nxShut(); openSettings("app");
+  const el = $(sel), d = el && el.closest("details"); if (d) d.open = true;
+}
+function nxHome() { nxShut(); goTab("home"); }
+function nxQueue() { nxShut(); goTab("queue"); }
+function nxPoint(el) {
+  const b = $("#pnbub"); if (!b || !el) return;
+  document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
+  const r = el.getBoundingClientRect(), sz = 62, W = innerWidth, H = innerHeight;
+  let tx, ty;
+  if (r.right + sz + 16 < W) { tx = r.right + 10; ty = r.top + r.height / 2 - sz / 2; }          /* room beside it */
+  else if (r.left - sz - 16 > 0) { tx = r.left - sz - 10; ty = r.top + r.height / 2 - sz / 2; }
+  else { tx = r.right - sz - 14; ty = r.top - sz - 6 > 20 ? r.top - sz - 6 : r.bottom + 6; }       /* wide: just above or below, never on top of it */
+  tx = Math.max(8, Math.min(W - sz - 8, tx)); ty = Math.max(20, Math.min(H - sz - 20, ty));
+  b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${tx}px,${ty}px,0)` }], { duration: 600, easing: "ease-in-out" });
+  pnBubPlace(tx, ty); pnBubMood("happy", 1200);
+  el.classList.remove("nxhl"); void el.offsetWidth; el.classList.add("nxhl");
+}
+function nxTour(was, all) {
+  const from = all ? 0 : (S.tourFrom == null ? 162 : (parseInt(was, 10) || +APP_V - 1));
+  S.tourFrom = +APP_V; save();
+  const steps = WHATS_NEW.filter(x => x.v > from && x.v <= +APP_V);
+  if (!steps.length || document.getElementById("nxtour")) return;
+  /* wait for the launch cutscene to finish */
+  if (document.documentElement.classList.contains("cine")) return setTimeout(() => nxTour(was, all), 800);
+  const card = document.createElement("div"); card.id = "nxtour"; document.body.appendChild(card);
+  let i = 0, lit = null;
+  const unlit = () => { if (lit) lit.classList.remove("nxhl"); lit = null; };
+  const finish = () => {
+    unlit(); card.classList.remove("on"); setTimeout(() => card.remove(), 250);
+    document.documentElement.classList.remove("nxguide");
+    const b = $("#pnbub"); if (b && typeof pnBubEdge === "function") { const e = pnBubEdge(); pnBubPlace(e.x, e.y); }
+  };
+  const show = () => {
+    const st = steps[i]; unlit();
+    try { st.go && st.go(); } catch (e) {}
+    setTimeout(() => {
+      const el = typeof st.at === "function" ? st.at() : st.at ? document.querySelector(st.at) : null;
+      if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); lit = el; }
+      setTimeout(() => {
+        if (el) nxPoint(el);
+        const r = el ? el.getBoundingClientRect() : null;
+        card.className = (r && r.top + r.height / 2 > innerHeight * 0.55) ? "top" : "bot";
+        card.innerHTML = `<small>New in v${st.v} · Nexi's tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
+          <div class="row2"><i>${i + 1} / ${steps.length}</i>${i < steps.length - 1 ? '<button class="btn ghost" data-nx="skip"><span>Skip</span></button>' : ""}
+          <button class="btn" data-nx="next"><span>${i < steps.length - 1 ? "Next ›" : "Done"}</span></button></div>`;
+        requestAnimationFrame(() => card.classList.add("on"));
+        if (typeof pnBubHush === "function") pnBubHush(); if (typeof pnBubMood === "function") pnBubMood("talk", 1500);
+      }, el ? 450 : 50);
+    }, 350);
+  };
+  card.addEventListener("click", e => {
+    const a = e.target.closest("[data-nx]"); if (!a) return;
+    if (typeof beep === "function") beep("tap");
+    if (a.dataset.nx === "next" && ++i < steps.length) { card.classList.remove("on"); show(); } else finish();
+  });
+  show();
+}
+document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) { e.stopPropagation(); closeEdit(); setTimeout(() => nxTour(null, true), 300); } }, true);
 </script>
