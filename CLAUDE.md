@@ -6,7 +6,7 @@
 - Other files: `sw.js` (service worker), `manifest.webmanifest`, icons.
 
 ## Users — every change must work on both
-- Owner: Samsung Galaxy Z Fold, Chrome, installed to home screen (folded + unfolded widths).
+- Owner: Samsung Galaxy Z Fold 8 Ultra (new, high refresh), Chrome, installed to home screen (folded + unfolded widths).
 - Friend: iPhone 11, Safari, installed to home screen.
 
 ## Helper
@@ -51,3 +51,4 @@
 - v164: "Why" sheet used class `.aw`, which clashed with an existing layout class (broke on wide screens) → renamed `.awc`. Sheet shows the helper's error text. Helper: tries several AI models, returns errors with CORS, and `GET /why` is a health check (open it in a browser).
 - v164 fix: restored the image files removed in v162 (Fortune's Weave cover was one of them).
 - v165: lag fix for owner's older phone. With Speed boost (html.fast, on by default) only the first 4 pieces of a screen cascade in; the rest don't animate (~24% less style/layout/paint per tab switch). Nexi's power-up sparks now stop by themselves after 6s instead of running until a tap. Perf harness: Playwright, 4x CPU throttle, trace RunTask/Paint/Layerize per tab switch.
+- v166: "↺ Reset scores" on each game page (clears rating, hype, category/sub scores, why-tags, its duels, AI answer; game stays played). Settings → Your data → "Reset all scores" (all of the above for every game + all duels + badges; games/art/hours/diary kept; double confirm). Game-page buttons now wrap and stay clear of the side rail on wide screens.
