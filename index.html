@@ -3665,7 +3665,25 @@ document.addEventListener("click", e => {
   goSub(b.dataset.subtab || curTab(), b.dataset.sub);
   beep("tap");
 });
-const esc = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const escRaw = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* v169 speed: an uploaded picture is stored as ~150 KB of text, and every redraw pasted all of them
+   back into the page (25 uploads = ~4 MB to escape, parse and throw away per tap). On screen they now
+   point at a short in-memory link made once per picture. The saved data is untouched, and form boxes
+   that get saved back (escRaw) still hold the real thing. */
+const blobRefs = new Map();
+function blobRef(u) {
+  let r = blobRefs.get(u);
+  if (r) return r;
+  try {
+    const i = u.indexOf(";base64,"); if (i < 0) return u;
+    const bin = atob(u.slice(i + 8)), a = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) a[k] = bin.charCodeAt(k);
+    r = URL.createObjectURL(new Blob([a], { type: u.slice(5, u.indexOf(";")) || "image/png" }));
+  } catch (e) { return u; }
+  blobRefs.set(u, r); return r;
+}
+const bigData = t => typeof t === "string" && t.length > 4096 && t.startsWith("data:image/");
+const esc = t => bigData(t) ? blobRef(t) : escRaw(t);
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function placeholder(g) {
@@ -3780,7 +3798,7 @@ function load() {
         last = Date.now(); reg.update().catch(() => {});
         fetch("./index.html", { cache: "no-cache" }).then(r => r.ok ? r.text() : "").then(t => {
           const m = t.match(/const APP_V = "([^"]+)"/);
-          if (m && m[1] !== APP_V && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName)) location.reload();
+          if (m && m[1] !== APP_V && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName)) { if (saveT) saveNow(); location.reload(); }
         }).catch(() => {});
       });
     }).catch(() => {});
@@ -3792,8 +3810,23 @@ function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
 }
+/* v169 speed: writing the whole save (several MB with uploaded art) took tens of ms, and some taps
+   saved three or four times. Changes now collect and are written once, in a quiet moment; leaving or
+   closing the app writes straight away, so nothing is lost. saveNow() is for the few places that
+   need to know it worked. */
+let saveT = 0;
+const saveIdle = window.requestIdleCallback || (f => setTimeout(f, 0));
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(S)); frAuto(); return true; }
+  /* wait until the screen's animation is done, then write while the phone is idle */
+  if (!saveT) saveT = setTimeout(() => saveIdle(() => { if (saveT) saveNow(); }, { timeout: 1500 }), 1200);
+  try { frAuto(); } catch (e) {}
+  return true;
+}
+addEventListener("visibilitychange", () => { if (document.hidden && saveT) saveNow(); });
+addEventListener("pagehide", () => { if (saveT) saveNow(); });
+function saveNow() {
+  clearTimeout(saveT); saveT = 0;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); return true; }
   catch (e) {
     const m = "Storage full — this change is NOT saved. Remove some character art, or use image URLs instead of uploads.";
     if ($("#f-msg")) $("#f-msg").textContent = m;
@@ -4779,15 +4812,15 @@ function openEdit(id) {
 
     <div class="epanel on" data-ep="game">
     <div class="setgroup"><h4 data-sum="${esc(sums.name)}">Name</h4>
-    <label for="e-title">Title</label><input id="e-title" value="${esc(g.title)}">
-    <label for="e-desc">Why you want it</label><input id="e-desc" value="${esc(g.desc || "")}">
+    <label for="e-title">Title</label><input id="e-title" value="${escRaw(g.title)}">
+    <label for="e-desc">Why you want it</label><input id="e-desc" value="${escRaw(g.desc || "")}">
     <label for="e-about">What it's about</label>
     <textarea id="e-about" rows="4" placeholder="A line or two on the story. The RAWG pull fills this in.">${esc(g.about || "")}</textarea>
     </div>
     <div class="setgroup"><h4 data-sum="${esc(sums.release)}">Release</h4>
     <div class="duo">
       <div><label for="e-date">Release date</label>
-        <div class="rowline"><input id="e-date" type="date" value="${esc(g.date || "")}">
+        <div class="rowline"><input id="e-date" type="date" value="${escRaw(g.date || "")}">
           <button class="icon" id="e-datex" title="Clear the date">✕</button></div>
         <p class="note" id="e-datesay"></p></div>
       <div><label for="e-hours">Hours to beat</label><input id="e-hours" type="number" min="0" value="${g.hours || ""}"></div>
@@ -5519,7 +5552,7 @@ function openEdit(id) {
       if (rec.real > 0 && rec.real !== before) setTimeout(() => allOut(S.games.find(x => x.id === id) || g, rec.real), 350);
     }
     touched();
-    if (save()) toast("Saved");
+    if (saveNow()) toast("Saved");
     const now2 = S.games.find(x => x.id === id);
     const recNow = S.played.find(x => x.id === id);
     if (now2 && recNow && recNow.real && recNow.real !== before) {
@@ -5999,7 +6032,7 @@ function openSettings(scope) {
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Where covers, dates and critic scores come from.">Games database</h4>
       <label for="s-key">RAWG API key</label>
-      <input id="s-key" value="${esc(rawgKey)}" placeholder="Paste key from rawg.io">
+      <input id="s-key" value="${escRaw(rawgKey)}" placeholder="Paste key from rawg.io">
       <button class="btn ghost" id="s-keysave"><span>Save key</span></button>
       <label>SteamGridDB art</label>
       <button class="btn" id="s-sgbulk"><span>✨ Fill missing art for every game</span></button>
@@ -6373,7 +6406,7 @@ function openSettings(scope) {
     btn.disabled = false;
     if (!r.found) { msg.textContent = "Nothing to shrink — every figure is already WebP or a URL."; return; }
     if (!r.changed) { msg.textContent = "Checked " + r.found + ", but WebP wasn't smaller. Left them alone."; return; }
-    if (!save()) { msg.textContent = "Shrunk, but the save failed. Download a backup before you close this."; return; }
+    if (!saveNow()) { msg.textContent = "Shrunk, but the save failed. Download a backup before you close this."; return; }
     msg.textContent = r.changed + " figure" + (r.changed === 1 ? "" : "s") + " shrunk. " +
       was + " KB down to " + storeKb() + " KB — " + r.savedKb + " KB back.";
     toast("Storage: " + was + " KB to " + storeKb() + " KB");
@@ -6754,7 +6787,7 @@ async function resolveLink(value, role) {
 
 function linkRow(id, role, value, hint) {
   return `<label for="${id}">Link — an image, a Steam page, or a github page</label>
-    <input id="${id}" value="${esc(value || "")}" placeholder="${esc(hint || "")}">
+    <input id="${id}" value="${escRaw(value || "")}" placeholder="${esc(hint || "")}">
     <button class="btn ghost" id="${id}-go"><span>Use this link</span></button>
     <p class="note" id="${id}-msg"></p>`;
 }
@@ -6791,7 +6824,7 @@ function bindLink(id, role, onGot) {
 
 function steamPanel(p, value) {
   return `<label for="${p}-steam">Steam link or app ID</label>
-    <input id="${p}-steam" value="${esc(value || "")}" placeholder="https://store.steampowered.com/app/1687950/">
+    <input id="${p}-steam" value="${escRaw(value || "")}" placeholder="https://store.steampowered.com/app/1687950/">
     <button class="btn ghost" id="${p}-steamgo"><span>Find art on Steam</span></button>
     <p class="note" id="${p}-steammsg"></p>
     <div class="steamgrid" id="${p}-steamout"></div>`;
@@ -7587,7 +7620,7 @@ function ringsBlock(g) {
   </div>`;
 }
 /* esc() guards html; a url inside css url() also has to survive quotes and parens */
-const cssUrl = u => String(u == null ? "" : u)
+const cssUrl = u => String(u == null ? "" : bigData(u) ? blobRef(u) : u)
   .replace(/[\r\n]/g, "").replace(/'/g, "%27").replace(/"/g, "%22")
   .replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\\/g, "%5C");
 /* a game you're waiting for can't already have come out — those are leftovers
@@ -11171,12 +11204,12 @@ function pnBubTint(src) {
 /* hold the bubble to dress it up: any picture link, ideally a see-through PNG */
 function pnBubEdit() {
   const ov = document.createElement("div"); ov.id = "bubedit";
-  ov.innerHTML = `<div class="pan"><h4>${esc(pnName())}</h4><input class="bubname" maxlength="16" placeholder="Name" value="${esc(pnName())}">
-    <p class="sub">Your name</p><input class="usname" maxlength="20" placeholder="What should ${esc(pnName())} call you?" value="${esc(S.userName || "")}">
+  ov.innerHTML = `<div class="pan"><h4>${esc(pnName())}</h4><input class="bubname" maxlength="16" placeholder="Name" value="${escRaw(pnName())}">
+    <p class="sub">Your name</p><input class="usname" maxlength="20" placeholder="What should ${esc(pnName())} call you?" value="${escRaw(S.userName || "")}">
     <p class="sub">Badge under ${esc(pnName())}</p><div class="hats bdg">${NX_BADGES.map(([k, l]) => `<button data-bdg="${k}" class="${(S.nxBadge || "count") === k ? "on" : ""}">${l}</button>`).join("")}</div>
     <p class="sub">Friendship level ${nxLv()} · hat</p><div class="hats">${["none", ...nxHats()].map(h => `<button data-hat="${h}" class="${(S.nxHat || "") === h ? "on" : ""}">${h === "none" ? "✖" : h}</button>`).join("")}</div>
     <p class="sub">Paste a picture link. A see-through PNG (a character with no background) floats on its own.</p>
-    <span class="bubpv"></span><input type="url" placeholder="https://…/character.png" value="${esc(S.bubImg || "")}">
+    <span class="bubpv"></span><input type="url" placeholder="https://…/character.png" value="${escRaw(S.bubImg || "")}">
     <div class="ft"><button class="btn ghost" data-face><span>Face</span></button><button class="btn ghost" data-clear><span>My #1 game</span></button><button class="btn" data-ok><span>Save</span></button></div></div>`;
   document.body.appendChild(ov);
   const inp = ov.querySelector("input[type=url]"), pv = ov.querySelector(".bubpv");
@@ -11272,11 +11305,13 @@ og.gain.setValueAtTime(.9,t);og.gain.exponentialRampToValueAtTime(.001,t+.45);o.
 [520,741,1190].forEach((f,i)=>{const r=a.createOscillator(),rg=a.createGain();r.type='square';r.frequency.value=f;
 rg.gain.setValueAtTime(.05/(i+1),t);rg.gain.exponentialRampToValueAtTime(.0005,t+.5);r.connect(rg).connect(m);r.start(t);r.stop(t+.55)})}catch(_){}}
 let lastPair='';
-new MutationObserver(()=>{const r=document.querySelector('.duelrow');if(!r){lastPair='';return}
+/* v169: checked once per frame at most, not on every change anywhere in the app */
+let duelQ=0;new MutationObserver(()=>{if(duelQ)return;duelQ=requestAnimationFrame(duelLook)}).observe(document.body,{childList:true,subtree:true});
+function duelLook(){duelQ=0;const r=document.querySelector('.duelrow');if(!r){lastPair='';return}
 if(r.querySelector('.fxvsb'))return;const v=document.createElement('i');v.className='fxvsb';v.textContent='VS';r.appendChild(v);
 const k=[...r.querySelectorAll('.duelpick')].map(d=>d.dataset.duel).join();if(k===lastPair||still())return;lastPair=k;
 r.classList.add('fxin');setTimeout(()=>{const q=v.getBoundingClientRect();boom();burst(q.left+q.width/2,q.top+q.height/2,18,9,'#EAF2FF')},620);
-setTimeout(()=>r.classList.remove('fxin'),1100)}).observe(document.body,{childList:true,subtree:true});
+setTimeout(()=>r.classList.remove('fxin'),1100)}
 async function shareTop5(){
 const elo=eloTable(),pool=(S.duelPool||"played")==="queue",top=duelPool().slice().sort((x,y)=>(elo[y.id]||0)-(elo[x.id]||0)).slice(0,5);
 if(!top.length)return;try{toast("Making your card…")}catch(_){}
