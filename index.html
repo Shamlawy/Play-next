@@ -3827,7 +3827,8 @@ function load() {
   if (S.lastV && S.lastV !== APP_V) { const was = S.lastV || "?"; S.lastV = APP_V; save(); showUpdated(was);
     /* Nexi walks you through what's new since the version you had */
     setTimeout(() => { if (typeof nxTour === "function") nxTour(was); }, 2200); }
-  else if (!S.lastV) { S.lastV = APP_V; save(); }
+  else if (!S.lastV) { S.lastV = APP_V; S.tourFrom = +APP_V; save(); }
+  else if (S.tourFrom != null && S.tourFrom < +APP_V) setTimeout(() => { if (typeof nxTour === "function") nxTour(null); }, 2200);
   playEnter();
   armFull();
   persistState().then(sayPersist);
@@ -3847,7 +3848,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "172";
+const APP_V = "173";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11084,7 +11085,7 @@ function nxGuide(q) {
     tgt.scrollIntoView({ block: "center", behavior: "smooth" }); setTimeout(() => nxFlyTo(tgt), 480); }, 120);
 }
 function nxFlyTo(el) {
-  const b = $("#pnbub"); if (!b) return; document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
+  const b = $("#pnbub"); if (!b) return; if (typeof nxDress === "function") nxDress(b); document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
   const r = el.getBoundingClientRect(), sz = 62, W = innerWidth;
   const tx = r.right + sz + 16 < W ? Math.min(W - sz - 8, r.right + 12) : Math.max(8, r.left - sz - 12), ty = Math.max(20, Math.min(innerHeight - sz - 20, r.top + r.height / 2 - sz / 2));
   b.style.setProperty("--ex", (tx > r.left ? -5 : 5) + "px"); b.style.setProperty("--ey", "0px");
@@ -12771,7 +12772,10 @@ const WHATS_NEW = [
     tryIt: "Try it on this card — I'll always ask before deleting. Swipe back to close it." },
   { v: 172, go: () => nxOpenSettings("#s-whatsnew"), at: "#s-whatsnew",
     say: "From now on, every update I'll walk you through what's new like this. Missed something? <b>Show me what's new</b> replays it.",
-    tryIt: "That's it — go have fun! 🎮" }
+    tryIt: "That's it — go have fun! 🎮" },
+  { v: 173, go: () => nxHome(), at: null,
+    say: "Skipped a few updates? I now <b>save up everything you missed</b> and show it all, oldest first. Close the app mid-tour and I pick up where we left off. Oh — and you can see my face now, even with the rail open 😄",
+    tryIt: "Nothing to try — just enjoy the view." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -12786,9 +12790,14 @@ function nxOpenSettings(sel) {
 }
 function nxHome() { nxShut(); goTab("home"); }
 function nxQueue() { nxShut(); goTab("queue"); }
-function nxPoint(el) {
+/* v173 with the rail open (or on a phone) the bubble was never dressed, so it showed up as a blank circle */
+function nxDress(b) {
+  if (b.classList.contains("face") || b.classList.contains("img") || b.querySelector(".core").style.backgroundImage) return;
+  try { pnBubFace(); } catch (e) {}
+}
+function nxPoint(el, noHl) {
   const b = $("#pnbub"); if (!b || !el) return;
-  document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
+  nxDress(b); document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
   const r = el.getBoundingClientRect(), sz = 62, W = innerWidth, H = innerHeight;
   let tx, ty;
   if (r.right + sz + 16 < W) { tx = r.right + 10; ty = r.top + r.height / 2 - sz / 2; }          /* room beside it */
@@ -12797,20 +12806,27 @@ function nxPoint(el) {
   tx = Math.max(8, Math.min(W - sz - 8, tx)); ty = Math.max(20, Math.min(H - sz - 20, ty));
   b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${tx}px,${ty}px,0)` }], { duration: 600, easing: "ease-in-out" });
   pnBubPlace(tx, ty); pnBubMood("happy", 1200);
+  if (noHl) return;
   el.classList.remove("nxhl"); void el.offsetWidth; el.classList.add("nxhl");
 }
 function nxTour(was, all) {
-  const from = all ? 0 : (S.tourFrom == null ? 162 : (parseInt(was, 10) || +APP_V - 1));
-  S.tourFrom = +APP_V; save();
+  /* v173 everything since the last tour you finished, so skipped updates stack up; closing the app mid-tour resumes it next time */
+  const w = parseInt(was, 10), from = all ? 0 : Math.min(S.tourFrom == null ? 162 : +S.tourFrom, w > 0 ? w : Infinity);
   const steps = WHATS_NEW.filter(x => x.v > from && x.v <= +APP_V);
-  if (!steps.length || document.getElementById("nxtour")) return;
+  if (!steps.length) { if (!all && S.tourFrom !== +APP_V) { S.tourFrom = +APP_V; save(); } return; }
+  if (document.getElementById("nxtour")) return;
+  const vs = [...new Set(steps.map(x => x.v))];
+  if (!all && vs.length > 1) steps.unshift({ v: vs[vs.length - 1], intro: 1, go: () => nxHome(), at: null,
+    say: `You missed <b>${vs.length} updates</b> (v${vs[0]} → v${vs[vs.length - 1]}). I saved them all up — here's everything, oldest first.` });
   /* wait for the launch cutscene to finish */
   if (document.documentElement.classList.contains("cine")) return setTimeout(() => nxTour(was, all), 800);
+  document.querySelectorAll(".updated button").forEach(x => x.click());   /* the tour says it better, and the toast sat on top of the card */
   const card = document.createElement("div"); card.id = "nxtour"; document.body.appendChild(card);
   let i = 0, lit = null;
   const unlit = () => { if (lit) lit.classList.remove("nxhl"); lit = null; };
   const finish = () => {
     unlit(); card.classList.remove("on"); setTimeout(() => card.remove(), 250);
+    if (!all) { S.tourFrom = +APP_V; save(); }
     document.documentElement.classList.remove("nxguide");
     const b = $("#pnbub"); if (b && typeof pnBubEdge === "function") { const e = pnBubEdge(); pnBubPlace(e.x, e.y); }
   };
@@ -12824,10 +12840,11 @@ function nxTour(was, all) {
         if (el) nxPoint(el);
         const r = el ? el.getBoundingClientRect() : null;
         card.className = (r && r.top + r.height / 2 > innerHeight * 0.55) ? "top" : "bot";
-        card.innerHTML = `<small>New in v${st.v} · Nexi's tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
+        card.innerHTML = `<small>${st.intro ? "While you were away" : `New in v${st.v}`} · Nexi's tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
           <div class="row2"><i>${i + 1} / ${steps.length}</i>${i < steps.length - 1 ? '<button class="btn ghost" data-nx="skip"><span>Skip</span></button>' : ""}
           <button class="btn" data-nx="next"><span>${i < steps.length - 1 ? "Next ›" : "Done"}</span></button></div>`;
         requestAnimationFrame(() => card.classList.add("on"));
+        if (!el) nxPoint(card, 1);   /* nothing to point at: Nexi sits by the card so he's still there */
         if (typeof pnBubHush === "function") pnBubHush(); if (typeof pnBubMood === "function") pnBubMood("talk", 1500);
       }, el ? 450 : 50);
     }, 350);
