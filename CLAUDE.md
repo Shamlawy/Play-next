@@ -12,7 +12,7 @@
 ## Helper
 - Cloudflare Worker: https://playnext-helper.hussamnabil48.workers.dev
 - Proxies SteamGridDB; key is the worker secret `SGDB_KEY`.
-- The worker's code is NOT in this repo. Changes to it must be given to the owner as a complete file to paste, with Workers AI binding named `AI`.
+- Worker code lives in `worker/helper.js` (routes: `/sgdb/...` and `POST /why`). It needs a Workers AI binding named `AI`. It is not auto-deployed: this container can't reach Cloudflare.
 
 ## Look
 - Black / near-black theme.
@@ -44,3 +44,4 @@
 ## Log
 - v161: renamed Index.html → index.html (site root was broken); removed hand-loaded build override; auto-update on return.
 - v162: cleanup. Removed dead code (pnSpeak, 34 unused CSS rules), unused files (key art, duplicate icons). Image sweep now runs only when new elements appear (was every 1.2s forever). Countdown and Grumble timers pause when hidden/off. Idle main-thread work per 10s: 31ms → 15ms; style recalcs 26 → 0.
+- v163: "Why you'll love it" button on each game page. Sends your rated games (3+ needed) to the helper's `/why`, which asks free Workers AI (Llama 3.1 8B). Answer cached per game in `S.aiWhy` until ratings change.

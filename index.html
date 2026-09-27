@@ -3763,7 +3763,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "162";
+const APP_V = "163";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8376,6 +8376,7 @@ function hubMarkup(g) {
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
           <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
+          <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
         </div>
       </div>
     </div>`;
@@ -12355,4 +12356,94 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"My top games"});return;}}
   catch(err){if(err.name==="AbortError")return;}
   toast("This phone can't share images from here, tap Save instead");});
+</script>
+
+<style>
+  /* v163: Why you'll love it — one sheet, fades and slides in, nothing loops */
+  #aiwhy { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.6); opacity: 0; transition: opacity .2s ease; }
+  #aiwhy.on { opacity: 1; }
+  #aiwhy .aw { width: 100%; max-width: 520px; max-height: 80vh; overflow: auto; background: #0A0B10; color: #EDEFF5;
+    border: 1px solid rgba(255,255,255,.08); border-top: 3px solid var(--accent, #6AA8FF); border-radius: 20px; padding: 20px;
+    transform: translateY(24px); transition: transform .28s cubic-bezier(.2,.9,.25,1); }
+  #aiwhy.on .aw { transform: none; }
+  #aiwhy h4 { margin: 0 0 4px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #9AA3B8; }
+  #aiwhy h3 { margin: 0 0 12px; font-size: 20px; }
+  #aiwhy .awv { display: inline-block !important; width: fit-content !important; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-bottom: 12px;
+    background: rgba(255,255,255,.06); color: var(--accent, #6AA8FF); }
+  #aiwhy ul { margin: 0 0 12px; padding-left: 18px; line-height: 1.5; }
+  #aiwhy li { margin-bottom: 8px; }
+  #aiwhy .awn { font-size: 12px; color: #7A8296; margin: 0 0 14px; }
+  #aiwhy .awb { display: flex; gap: 8px; flex-wrap: wrap; }
+  #aiwhy .awload { color: #9AA3B8; margin: 0 0 14px; }
+</style>
+<script>
+/* v163: "Why you'll love it" — sends your ratings and this game to your Cloudflare
+   helper, which asks free Workers AI why it fits your taste (or doesn't).
+   Answers are kept per game until you rate something new. */
+(function () {
+  const LABEL = {}; WHY_GROUPS.forEach(([, xs]) => xs.forEach(([k, l]) => { LABEL[k] = l; }));
+  const rated = skip => S.played.filter(p => p.real > 0 && p.id !== skip).map(p => {
+    const g = S.games.find(x => x.id === p.id); if (!g) return null;
+    const m = g.mine || {};
+    return { title: g.title, score: p.real, again: !!p.again, genres: platList(g.genres).slice(0, 3),
+      liked: whyOf(g).map(k => LABEL[k]).filter(Boolean).slice(0, 6),
+      parts: RATINGS.filter(([k]) => m[k] > 0).map(([k, l]) => l + " " + m[k]) };
+  }).filter(Boolean).sort((a, b) => b.score - a.score);
+  const stamp = () => S.played.filter(p => p.real > 0).map(p => p.id + ":" + p.real).join("|");
+
+  function paint(o, g, body) {
+    o.querySelector(".aw").innerHTML = `<h4>Why you'll love it</h4><h3>${esc(g.title)}</h3>${body}
+      <div class="awb"><button class="btn ghost" data-awre><span>Ask again</span></button><button class="btn ghost" data-awx><span>Close</span></button></div>`;
+  }
+  function show(o, g, r) {
+    const lines = String(r.text || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const vl = lines.find(x => /^verdict\s*:/i.test(x));
+    const verdict = vl ? vl.replace(/^verdict\s*:\s*/i, "").replace(/[*_]/g, "") : "";
+    const pts = lines.filter(x => x !== vl).map(x => x.replace(/^[-*•\d.)\s]+/, "").replace(/\*\*/g, "")).filter(Boolean).slice(0, 5);
+    paint(o, g, `${verdict ? `<span class="awv">${esc(verdict)}</span>` : ""}<ul>${pts.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      <p class="awn">Based on ${r.n} game${r.n === 1 ? "" : "s"} you've rated.</p>`);
+  }
+  function ask(o, g) {
+    const taste = rated(g.id);
+    if (taste.length < 3) { paint(o, g, `<p class="awload">Rate at least 3 games you've finished and I can tell you how this one fits your taste.</p>`); return; }
+    paint(o, g, `<p class="awload">Reading your ratings…</p>`);
+    const pick = taste.length > 18 ? taste.slice(0, 12).concat(taste.slice(-6)) : taste;
+    const me = S.played.find(p => p.id === g.id);
+    const game = { title: g.title, genres: platList(g.genres).slice(0, 4), platforms: platList(g.platforms).slice(0, 4),
+      about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && me.real > 0), myScore: me && me.real || null };
+    const ac = new AbortController(), to = setTimeout(() => ac.abort(), 30000);
+    fetch(SGDB_PROXY + "/why", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game, taste: pick }), signal: ac.signal })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(r.status === 404 ? "old" : "HTTP " + r.status)))
+      .then(d => {
+        if (!d || !d.text) throw new Error("empty");
+        const r = { text: d.text, n: taste.length, k: stamp() };
+        S.aiWhy = S.aiWhy || {}; S.aiWhy[g.id] = r; save();
+        if (o.isConnected) show(o, g, r);
+      })
+      .catch(e => { if (!o.isConnected) return;
+        paint(o, g, `<p class="awload">${e.message === "old" ? "Your helper doesn't know this trick yet — it needs the new version."
+          : "Couldn't reach the AI right now. Try again in a moment."}</p>`); })
+      .finally(() => clearTimeout(to));
+  }
+  function open(id) {
+    const g = S.games.find(x => x.id === id); if (!g) return;
+    const old = document.getElementById("aiwhy"); if (old) old.remove();
+    const o = document.createElement("div"); o.id = "aiwhy";
+    o.style.setProperty("--accent", g.colour || PALETTE[0]);
+    o.innerHTML = '<div class="aw"></div>';
+    document.body.appendChild(o);
+    requestAnimationFrame(() => o.classList.add("on"));
+    const t0 = performance.now();
+    o.addEventListener("click", e => {
+      if (performance.now() - t0 < 400) return;   /* the tap that opened it */
+      if (e.target.closest("[data-awre]")) { e.stopPropagation(); return ask(o, g); }
+      if (e.target === o || e.target.closest("[data-awx]")) { o.classList.remove("on"); setTimeout(() => o.remove(), 220); }
+    });
+    const hit = S.aiWhy && S.aiWhy[id];
+    if (hit && hit.k === stamp()) show(o, g, hit); else ask(o, g);
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-aiwhy]"); if (b) { e.stopPropagation(); if (typeof beep === "function") beep("tap"); open(b.dataset.aiwhy); } }, true);
+})();
 </script>
