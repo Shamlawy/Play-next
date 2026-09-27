@@ -3068,6 +3068,23 @@ html.still .ccov,html.still .ccov img{animation:none}
 <div id="sheet"><div class="sheet-in" id="sheet-in"></div></div>
 
 <script>
+/* v169 speed: building a date/number formatter is slow, and the app formats dates for every card on
+   every redraw. Keep one formatter per locale+options and reuse it — same output, a fraction of the cost. */
+(function () {
+  const DT = new Map(), NF = new Map(), dP = Date.prototype, nP = Number.prototype;
+  const oD = dP.toLocaleDateString, oS = dP.toLocaleString, oN = nP.toLocaleString;
+  const has = (o, ks) => ks.some(k => o[k] !== undefined);
+  const fmt = (map, Ctor, loc, o) => { const k = String(loc) + "|" + JSON.stringify(o); let f = map.get(k); if (!f) { f = new Ctor(loc, o); map.set(k, f); } return f; };
+  dP.toLocaleDateString = function (loc, o) {
+    try { if (isNaN(this)) return oD.call(this, loc, o); o = Object.assign({}, o);
+      if (!has(o, ["weekday", "year", "month", "day", "dateStyle", "timeStyle"])) { o.year = o.month = o.day = "numeric"; }
+      return fmt(DT, Intl.DateTimeFormat, loc, o).format(this); } catch (e) { return oD.call(this, loc, o); } };
+  dP.toLocaleString = function (loc, o) {
+    try { if (isNaN(this)) return oS.call(this, loc, o); o = Object.assign({}, o);
+      if (!has(o, ["weekday", "year", "month", "day", "dayPeriod", "hour", "minute", "second", "fractionalSecondDigits", "dateStyle", "timeStyle"])) { o.year = o.month = o.day = o.hour = o.minute = o.second = "numeric"; }
+      return fmt(DT, Intl.DateTimeFormat, loc, o).format(this); } catch (e) { return oS.call(this, loc, o); } };
+  nP.toLocaleString = function (loc, o) { try { return fmt(NF, Intl.NumberFormat, loc, o || {}).format(this); } catch (e) { return oN.call(this, loc, o); } };
+})();
 const KEY = "gq:data", KKEY = "gq:rawgkey", BKEY = "gq:boost", GKEY = "gq:sgdbkey";
 /* Paste your Worker address between the quotes and everyone who opens this file
    gets the better data with nothing to set up. Leave it empty and the app runs
@@ -3770,7 +3787,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "168";
+const APP_V = "169";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -12503,4 +12520,34 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   -webkit-mask-image: none !important; mask-image: none !important; border-radius: 50% !important;
   -webkit-backface-visibility: visible; backface-visibility: visible;
   box-shadow: 0 0 7px 1px rgba(143,208,255,.45); }
+</style>
+
+<style>
+/* v169 speed: these animations changed colours/sizes/positions, which makes the phone redraw on every frame.
+   Same looks, now moved or faded instead, which the graphics chip does on its own. */
+/* "Out now" tag shine: a sliding highlight instead of a scrolling background */
+.tag.st-fresh { animation: none !important; background: #4DA3FF; position: relative; overflow: hidden; isolation: isolate; }
+.tag.st-fresh::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(234,242,255,.95) 50%, transparent 70%);
+  transform: translateX(-100%); animation: freshSweep 2.4s linear infinite; }
+@keyframes freshSweep { to { transform: translateX(100%); } }
+/* progress bars grow by scaling, not by changing width */
+.lx-bar .tr i { animation-name: lxbarS !important; transform-origin: left center; }
+@keyframes lxbarS { from { transform: scaleX(0); } }
+/* card-flip shine slides across instead of repainting */
+.hflip>.plate::after { background-size: 100% 100% !important; }
+@keyframes flShine { 0% { opacity: 0; transform: translateX(70%); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateX(-70%); } }
+/* launch intro bar */
+#pnboot i { left: -30% !important; transform: translateX(140vw) skewX(-12deg); }
+@keyframes pbBar { from { transform: translateX(140vw) skewX(-12deg); } to { transform: translateX(0) skewX(-12deg); } }
+/* boss eyes blink by squashing */
+@keyframes fxbl { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.12); } }
+/* home ring glow: spun with a blur on it (a looping blur); now a plain disc with a painted soft edge */
+.ring .blob { filter: none !important; box-shadow: 0 0 6px 1px rgba(143,208,255,.5); }
+/* HP bar glint slides; the liquid edge and ripple hold still (they repainted every frame, forever) */
+.fxhp i::before { right: auto !important; width: 40%; background-size: 100% 100% !important; }
+@keyframes fxglint { from { transform: translateX(0); } to { transform: translateX(140%); } }
+.fxhp i::after { animation: none !important; }
+.fxhp i, .fxhp.hpjolt i { animation-name: none !important; }
+.fxhp.hpjolt i { animation: hpshake .6s ease-out .5s !important; }
 </style>
