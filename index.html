@@ -2917,8 +2917,8 @@ html.still .hacc-ring{animation:none}
 .fr-list li{display:flex;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:14px}
 .fr-list li b{color:var(--volt);font-weight:600;white-space:nowrap}
 /* v143: loading shimmer */
-:where(img[src]:not([data-ld])){background:linear-gradient(100deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.13) 50%,rgba(255,255,255,.03) 70%) var(--ink);background-size:250% 100%;animation:pnShim 1.1s linear infinite}
-@keyframes pnShim{from{background-position:120% 0}to{background-position:-120% 0}}
+:where(img[src]:not([data-ld])){background:linear-gradient(100deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.13) 50%,rgba(255,255,255,.03) 70%) var(--ink);background-size:250% 100%;animation:pnShim 1.1s ease-in-out infinite alternate}
+@keyframes pnShim{from{opacity:.55}to{opacity:1}}
 html.still :where(img[src]:not([data-ld])){animation:none}
 .fr-sync{font-size:13px;color:var(--mute);margin:-6px 0 14px}
 /* v144: launch intro */
@@ -3770,7 +3770,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "167";
+const APP_V = "168";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10256,8 +10256,12 @@ let pnSkipFlip = 0;
     if (live) document.querySelectorAll("[data-row]").forEach(r => before[r.dataset.row] = r.getBoundingClientRect().top);
     const out = _rq.apply(this, arguments);
     if (live) document.querySelectorAll("[data-row]").forEach(r => { const t = before[r.dataset.row]; if (t == null) return;
-      const dy = t - r.getBoundingClientRect().top; if (!dy || Math.abs(dy) > innerHeight * 2) return;
-      r.style.animation = "none"; r.animate([{ translate: `0 ${dy}px`, zIndex: 2 }, { translate: "0 0", zIndex: 2 }], { duration: 560, easing: "cubic-bezier(.2,.9,.25,1)" }); });
+      const now = r.getBoundingClientRect().top, dy = t - now; if (!dy || Math.abs(dy) > innerHeight * 2) return;
+      if ((t > innerHeight && now > innerHeight) || (t < -200 && now < -200)) return;   /* off screen both times: nobody sees it glide */
+      /* z-index in the keyframes kept this off the GPU and re-drew every row each frame; set it on the side instead */
+      r.style.animation = "none"; r.style.zIndex = "2";
+      const a = r.animate([{ translate: `0 ${dy}px` }, { translate: "0 0" }], { duration: 560, easing: "cubic-bezier(.2,.9,.25,1)" });
+      a.onfinish = a.oncancel = () => { r.style.zIndex = ""; }; });
     return out; }; }
 /* live countdown — one ticker for the whole app, only the changed digit animates */
 setInterval(() => {
