@@ -7733,6 +7733,21 @@ function hubJump(img, id) {
   openFull(id);
 }
 
+/* v170 speed: opening or closing a card used to rebuild all ~60 rows (about 1,800 elements) on every tap.
+   Now, when only some rows changed, just those are swapped in; anything unusual falls back to a full draw. */
+function qPatch(el, head, parts, empty) {
+  const c = el._qc, ids = parts.map(p => p[0]).join("|");
+  const full = () => { el.innerHTML = head + (empty || parts.map(p => p[1]).join("")); el._qc = empty ? null : { head, ids, rows: new Map(parts) }; };
+  if (empty || !c || c.head !== head || c.ids !== ids) return full();
+  for (const [id, html] of parts) {
+    if (c.rows.get(id) === html) continue;
+    const old = [...el.children].find(x => x.dataset && x.dataset.row === id), t = document.createElement("template");
+    t.innerHTML = html.trim();
+    if (!old || t.content.children.length !== 1) return full();
+    old.replaceWith(t.content.firstElementChild);
+  }
+  c.rows = new Map(parts);
+}
 function renderQueue() {
   const el = $("#p-queue");
   const all = allGames();
@@ -7885,7 +7900,7 @@ function renderQueue() {
       <span class="tag st-${isFresh(g) ? "fresh" : g.state || "upcoming"}">${isFresh(g) ? "Out now" : ((STATES.find(s => s[0] === (g.state || "upcoming")) || [, ""])[1] || "").split(",")[0]}</span>
     </div></div>`;
 
-  el.innerHTML = `
+  const head = `
     ${nudgeBar()}
     <div class="tabbar"><h3>Queue</h3><span class="tcount">${
       S.games.length ? S.games.filter(g => !isPlayed(g)).length + " waiting · " + S.played.length + " played" : ""
@@ -7914,8 +7929,9 @@ function renderQueue() {
       })()}
       <button class="chip" id="fx-radar"><span>Radar</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
     </div>
-    ${sorted.length ? sorted.map((g, i) => g.id === activeId ? big(g, i + 1) : row(g, i + 1)).join("")
-      : '<p class="empty">Nothing here right now. Try another filter.</p>'}`;
+    `;
+  qPatch(el, head, sorted.map((g, i) => [g.id, g.id === activeId ? big(g, i + 1) : row(g, i + 1)]),
+    sorted.length ? "" : '<p class="empty">Nothing here right now. Try another filter.</p>');
 
   countUp(el);
   const heroChanged = activeId && activeId !== lastHero;
@@ -7930,6 +7946,7 @@ function renderQueue() {
      Only in My order — in any other sort the position isn't yours to set, so a
      long press opens the game's own page instead, as it always did. */
   el.querySelectorAll("[data-row]").forEach(r => {
+    if (r._qb) return; r._qb = 1;   /* rows kept from the last draw already have these */
     let hold = null, y0 = 0;
     const stop = () => { if (hold) { clearTimeout(hold); hold = null; } };
     const arm = y => {
