@@ -2806,6 +2806,8 @@ html.still .hflip>.plate{transition:none}
   .panel.enter > :nth-child(10) { animation-delay: 405ms; }
   .panel.enter > :nth-child(n+11) { animation-delay: 450ms; }
   @keyframes pnCascade { from { opacity: 0; transform: translateY(16px); } }
+  /* v165 speed boost: only the first few pieces glide in; the rest start below the fold where nobody sees them anyway */
+  html.fast .panel.enter > :nth-child(n+5) { animation: none; }
   /* colour changes and presses ease instead of snapping (only where nothing else is already set) */
   :where(button, .chip, .icon, a, input, select, textarea, .row, .libcard) {
     transition: background-color .25s ease, color .25s ease, border-color .25s ease, box-shadow .3s ease, opacity .25s ease,
@@ -3763,7 +3765,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "164";
+const APP_V = "165";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11532,7 +11534,7 @@ function pnPowerUp(line) {
     const cat = document.createElement("div"); cat.id = "ssjcatch";
     cat.style.cssText = "position:fixed;inset:0;z-index:93;background:transparent";
     setTimeout(() => { document.body.appendChild(cat); cat.addEventListener("pointerdown", e => { e.preventDefault(); end(); }, { once: true }); }, 400);
-    pnPowerUp.end = end;
+    pnPowerUp.end = end; setTimeout(() => { if (pnPowerUp.end === end) end(); }, 6000);
   }, 850);
 }
 

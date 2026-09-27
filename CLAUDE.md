@@ -50,3 +50,4 @@
 - v163: "Why you'll love it" button on each game page. Sends your rated games (3+ needed) to the helper's `/why`, which asks free Workers AI (Llama 3.1 8B). Answer cached per game in `S.aiWhy` until ratings change.
 - v164: "Why" sheet used class `.aw`, which clashed with an existing layout class (broke on wide screens) → renamed `.awc`. Sheet shows the helper's error text. Helper: tries several AI models, returns errors with CORS, and `GET /why` is a health check (open it in a browser).
 - v164 fix: restored the image files removed in v162 (Fortune's Weave cover was one of them).
+- v165: lag fix for owner's older phone. With Speed boost (html.fast, on by default) only the first 4 pieces of a screen cascade in; the rest don't animate (~24% less style/layout/paint per tab switch). Nexi's power-up sparks now stop by themselves after 6s instead of running until a tap. Perf harness: Playwright, 4x CPU throttle, trace RunTask/Paint/Layerize per tab switch.
