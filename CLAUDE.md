@@ -37,6 +37,12 @@
 - Bump `SHELL` in `sw.js` only if the cache must be wiped.
 - The old in-app "Load a new version" / "Feed me a new version" upload was removed (v161): a hand-loaded copy used to override GitHub updates forever.
 
+## What's new tour (required on every release)
+- After an update, Nexi runs a tour (`nxTour`) of every `WHATS_NEW` entry newer than the version the phone had.
+- Every user-facing change MUST add a `WHATS_NEW` entry (in the v172 script near the end of `index.html`) with: `v` = the new `APP_V`, `go` (open the right screen: `nxOpenGame()`, `nxQueue()`, `nxHome()`, `nxOpenSettings(sel)` or custom), `at` (selector or function returning the element to point at, or null), `say` (what it does, can use <b>), `tryIt` (what to try).
+- Test the tour in Playwright (set `S.lastV` to the previous version and reload) at 412 and 900 widths.
+- Settings → This build → "Show me what's new" replays every entry.
+
 ## Future selling plan
 - Credit RAWG with a link.
 - Users bring their own Steam / SteamGridDB keys.
@@ -60,3 +66,4 @@
 - v170 (perf round 4): renderQueue uses qPatch(): if the header and row order are unchanged, only rows whose HTML changed are swapped (template → replaceWith); otherwise full innerHTML. Row listener binding guarded with r._qb so kept rows aren't double-bound. Card open click task 275→78ms (4x).
 - v170 (perf round 5): #fx sparks canvas is display:none unless sparks are flying (was an always-on full-screen layer). Final bench (4x throttle, 60 games, 25 uploaded covers) vs pre-perf build: worst frame 500→167ms folded, 483→183ms unfolded; dropped frames 290→114 folded, 868→467 unfolded. Bench tip: set S.fxSeen/S.fxCal when seeding or the "Out now" overlay covers the app.
 - v171: swipe a queue card (row or open hero) left → red Delete button (confirm; removes game, played entry, its duels, AI answer). Only children slide (`translate` via --sx); `.qdel` sits at z-index -1 inside the row. Horizontal swipe cancels the long-press reorder (synthetic touchcancel) and stops touchend propagation so the sub-tab swipe doesn't fire. Rows have touch-action: pan-y.
+- v172: Nexi's what's-new tour (WHATS_NEW + nxTour, card #nxtour, Nexi points via nxPoint without covering the target). First run shows v163–v172 features. Replay button #s-whatsnew.
