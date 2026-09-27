@@ -134,12 +134,6 @@
     .hero.heroin .plate-in > :first-child { animation: heroimg .38s cubic-bezier(.16,1,.3,1) .04s backwards; }
     @keyframes heroin { from { opacity: 0; transform: translateY(10px) scale(.985); } }
     @keyframes heroimg { from { opacity: 0; transform: translateX(-18px) rotate(-2deg); } }
-    .slashfx i { will-change: left; }
-    .slashfx { position: fixed; inset: 0; z-index: 9999; pointer-events: none; overflow: hidden; }
-    .slashfx i { position: absolute; top: -20%; bottom: -20%; left: -70%; width: 55%;
-      transform: skewX(-18deg); background: linear-gradient(90deg, var(--edge), var(--volt) 70%, var(--ice));
-      box-shadow: 0 0 40px var(--volt); animation: slash .44s cubic-bezier(.7,0,.3,1) forwards; }
-    .slashfx i + i { width: 22%; background: var(--void); box-shadow: none; animation-delay: .06s; }
     @keyframes slash { to { left: 135%; } }
   }
 
@@ -764,12 +758,8 @@
     .hub-fig { width: var(--kw, 54%); }
     .hub-foot { padding: 14px 28px 20px; }
   }
-  .fullbody { max-width: 620px; margin: 0 auto; padding: 4px 16px 48px; }
   .fullx { position: fixed; top: 12px; right: 12px; z-index: 4; background: rgba(4,6,14,.72); }
   @media (prefers-reduced-motion: no-preference) {
-    #full.on .fullshot img { animation: fadein .35s ease both; }
-    #full .hub.noanim .fullshot img, #full .hub.noanim .fullbody { animation: none; }
-    #full.on .fullbody { animation: peekin .34s cubic-bezier(.16,1,.3,1) both; }
   }
   .libcard { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
     text-align: left; color: inherit; font: inherit; }
@@ -991,7 +981,6 @@
   }
   html.round .hub-dots i { border-radius: 999px; }
   html.round .vtog, html.round .vpill button, html.round .vslide { border-radius: 999px; }
-  html.round .vsep { border-radius: 0; }
   html.round .cov::after { clip-path: none; border-radius: var(--r, 18px); inset: 12px -8px -8px 12px; }
   html.round .duelpick img, html.round .peektop img, html.round .libcard img,
   html.round .hub-fig.cover, html.round .dart, html.round .z-cov, html.round .z-art,
@@ -1156,13 +1145,6 @@
   }
   html.still .vslide { transition: none; }
   .vpill [data-view][aria-pressed="true"] { color: var(--void); box-shadow: none; }
-  .vsep { width: 1px; align-self: stretch; margin: 4px 4px; background: rgba(234,242,255,.18); flex: none; }
-  .vtog { border-left: 1px solid rgba(234,242,255,.18); margin-left: 4px; padding-left: 16px; }
-  .vpill > .vtog:first-of-type:not(:nth-child(2)) { border-left: 0; margin-left: 0; padding-left: 15px; }
-  .vtog[aria-pressed="true"] {
-    color: var(--ice); background: rgba(234,242,255,.16);
-    box-shadow: inset 0 0 0 1px rgba(234,242,255,.28);
-  }
   .vpill.on { display: flex; }
   .vpill button {
     border: 0; background: none; color: var(--mute); cursor: pointer; font: inherit;
@@ -1172,9 +1154,6 @@
   .vpill [data-view][aria-pressed="true"] { background: none; color: var(--void); box-shadow: none; }
   html.rail .vpill { left: calc(50% + (var(--railw, 92px) + 16px) / 2); }
   html.rail.railoff .vpill { left: calc(50% + 13px); }
-
-  .cell.haspip { cursor: pointer; }
-  .cell.haspip:hover, .cell.haspip:focus-visible { outline: 1px solid var(--volt); outline-offset: -1px; }
   #peek { position: fixed; inset: 0; z-index: 60; display: none; background: rgba(2,4,10,.74); overflow-y: auto; padding: 16px; }
   #peek.on { display: block; }
   .peekin { max-width: 540px; margin: 7vh auto; position: relative; display: grid; gap: 12px; }
@@ -1632,8 +1611,6 @@
   #bgtint { position: fixed; inset: 0; z-index: 0; pointer-events: none;
     background: linear-gradient(180deg, rgba(4,6,14,.42) 0%, rgba(4,6,14,.7) 45%, rgba(4,6,14,.88) 100%); }
 
-  .versus { text-align: center; font-weight: 900; font-style: italic; font-variation-settings: "wdth" 68; font-size: 20px; text-transform: uppercase; margin: 0 0 14px; color: var(--volt); }
-
   .cal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .cal-head h3 { margin: 0; flex: 1; font-size: 20px; font-weight: 900; font-style: italic; font-variation-settings: "wdth" 70; text-transform: uppercase; }
   /* minmax(0,1fr) or a long game title widens its column and shoves the week off-screen */
@@ -1798,9 +1775,6 @@
   .distlab span { flex: 1; text-align: center; font-size: 10px; color: var(--mute); font-weight: 800; }
 /* FX pack: Atlus-style shards + duel slash */
 #fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999}
-.fxslash{position:fixed;left:-20%;right:-20%;top:50%;height:90px;margin-top:-45px;pointer-events:none;z-index:9998;
-background:linear-gradient(90deg,transparent,#4DA3FF 30%,#EAF2FF 50%,#4DA3FF 70%,transparent);mix-blend-mode:screen;
-transform:skewY(-7deg) scaleX(0);animation:fxs .45s cubic-bezier(.16,1,.3,1) forwards}
 @keyframes fxs{40%{transform:skewY(-7deg) scaleX(1);opacity:.9}100%{transform:skewY(-7deg) scaleX(1) scaleY(.02);opacity:0}}
 .fxcut{position:fixed;pointer-events:none;z-index:9998;overflow:hidden}
 .fxcut::before{content:"";position:absolute;inset:0;background:#0a1430;animation:fxdim .5s ease forwards}
@@ -1998,7 +1972,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   .lx-card h3 { margin: 0 0 10px; font-size: 20px; }
   .lx-card p { margin: 0; font-size: 14px; line-height: 1.55; color: #B9C8EA; }
   .lx-card .hub-chips { margin-top: 12px; }
-  .lx-foot { position: absolute; z-index: 2; right: 18px; bottom: 14px; font-size: 11px; color: rgba(234,242,255,.6); }
   @keyframes lxin { from { opacity: 0; transform: translateX(-30px); } }
   @keyframes lxcard { from { opacity: 0; transform: translate(40px, -50%); } }
   @keyframes lxzoom { from { transform: scale(1.12); opacity: .4; } }
@@ -2053,12 +2026,8 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   .lxl.reading .lx-desc::after { opacity: 0; pointer-events: none; }
   .lxl .lx-art { grid-row: 1; display: grid; place-items: center; touch-action: pan-y; }
   .lxl .lx-art::after { display: none; }
-  .lx-blur { position: absolute; inset: -30px; width: calc(100% + 60px); height: calc(100% + 60px); object-fit: cover;
-    filter: blur(28px) brightness(.45) saturate(1.3); }
   .lxl .lx-art img.lx-box { position: relative; inset: auto; width: auto; height: auto; max-width: 78%; max-height: 86%;
     object-fit: contain; border-radius: 10px; box-shadow: 0 30px 60px rgba(0,0,0,.6); animation: lxbox .6s cubic-bezier(.22,1,.36,1) both; }
-  .lxl.fromr .lx-box { animation-name: lxboxr; } .lxl.froml .lx-box { animation-name: lxboxl; }
-  .lxl.fromr .lx-panel > *, .lxl.froml .lx-panel > * { animation: lxstep .45s cubic-bezier(.22,1,.36,1) both; }
   @keyframes lxbox { from { opacity: 0; transform: scale(.9) translateY(14px); } }
   @keyframes lxboxr { from { opacity: 0; transform: translateX(60px) scale(.94); } }
   @keyframes lxboxl { from { opacity: 0; transform: translateX(-60px) scale(.94); } }
@@ -2084,7 +2053,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   .lxl { position: relative; grid-template-rows: 1fr; }
   .lxl .lx-art img.lx-box { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
     object-fit: cover; border-radius: 0; box-shadow: none; }
-  .lx-blur { display: none; }
   .lx-strip { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 5;
     border: 1px solid var(--edge); border-radius: 14px; background: rgba(8,15,36,.82);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 16px 40px rgba(0,0,0,.55);
@@ -2477,9 +2445,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   #hrail .tb.on { background: var(--volt); color: var(--void); }
   #hrail .tb:active { transform: scale(.88); }
   #hrail .act.sm { width: 36px; height: 30px; border-radius: 12px; font-size: 14px; background: transparent; color: var(--mute); }
-  #hrailtab { display: none; position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 41; width: 22px; height: 84px;
-    border: 0; border-radius: 14px 0 0 14px; background: var(--volt); color: var(--void); font-weight: 900; cursor: pointer; }
-  @media (min-width: 620px) { html.railhide #hrailtab { display: block; } }
+  @media (min-width: 620px) { }
 
   /* ===== v81 bigger ring, breathing room, filled deck cards, stack editor ===== */
   .dash.pnfit > .k-ring { justify-content: flex-start; }
@@ -2792,13 +2758,6 @@ html.still .tile:active,html.still .btn:active,html.still .chip:active,html.stil
 .dy-more{width:100%;margin-top:10px;background:none;border:1px dashed var(--steel);border-radius:12px;padding:10px;color:var(--mute);font:inherit;cursor:pointer}
 .dy-c{display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:14px}.dy-c small{color:var(--mute);font-size:11px}
 .dy-c input{width:18px;height:18px;accent-color:var(--volt)}
-.dy-wl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.dy-wl>div{display:grid;justify-items:center;gap:4px;background:var(--void);border:1px solid var(--steel);border-radius:14px;padding:10px 4px}
-.dy-wl button{background:var(--steel);border:0;border-radius:10px;color:var(--ice);font:inherit;font-weight:800;padding:8px 0;width:90%;cursor:pointer;transition:scale .3s cubic-bezier(.34,1.56,.64,1)}
-.dy-wl button:active{scale:.92}
-.dy-wl [data-k="w"][data-by="1"]{background:#1f7a4d}.dy-wl [data-k="l"][data-by="1"]{background:#8a2438}
-.dy-wl b{font-size:22px}.dy-wl .dy-mn{background:none;color:var(--mute);padding:0;font-size:16px}
-.dy-wl b.bump{animation:dyBump .35s cubic-bezier(.34,1.56,.64,1)}
 @keyframes dyBump{50%{scale:1.35}}
 html.still #diary,html.still .dy-in{transition:none}
 #fxboss .imm{margin-top:22px}#fxboss .imm h3{margin:0 0 4px;font:900 italic 18px inherit;color:#8FD0FF;letter-spacing:1px}#fxboss .imm p{margin:0 0 10px;color:#7C92C4;font-size:12px;line-height:1.5}#fxboss .imm .at{opacity:.75}
@@ -3783,19 +3742,28 @@ function load() {
   }
   if (S.startTab && S.startTab !== "home") goTab(S.startTab);
   /* only for someone who was already running an older build — not a fresh install */
-  /* a file just loaded through Settings always gets the popup, even if its number wasn't bumped */
-  let just = null; try { just = localStorage.getItem("pn-just"); localStorage.removeItem("pn-just"); } catch (e) {}
-  if (just || (S.lastV && S.lastV !== APP_V)) { const was = S.lastV || "?"; S.lastV = APP_V; save(); showUpdated(was); }
+  if (S.lastV && S.lastV !== APP_V) { const was = S.lastV || "?"; S.lastV = APP_V; save(); showUpdated(was); }
   else if (!S.lastV) { S.lastV = APP_V; save(); }
   playEnter();
   armFull();
   persistState().then(sayPersist);
   if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+      /* coming back to the app after a while: if GitHub has a newer build, load it */
+      let last = Date.now();
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden || Date.now() - last < 600000) return;
+        last = Date.now(); reg.update().catch(() => {});
+        fetch("./index.html", { cache: "no-cache" }).then(r => r.ok ? r.text() : "").then(t => {
+          const m = t.match(/const APP_V = "([^"]+)"/);
+          if (m && m[1] !== APP_V && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName)) location.reload();
+        }).catch(() => {});
+      });
+    }).catch(() => {});
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "160";
+const APP_V = "163";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -3900,45 +3868,6 @@ document.addEventListener("fullscreenchange", () => {
   if (b) b.setAttribute("aria-pressed", String(fsOn()));
 });
 
-/* The worker holds any hand-loaded index.html in its own cache and serves that
-   instead of the hosted one. Game data is in localStorage against the origin, so
-   swapping the build never touches it. */
-function swTell(msg, want) {
-  const sw = navigator.serviceWorker;
-  if (!sw) return Promise.reject(new Error("no worker"));
-  /* the first load after a registration isn't controlled yet, so fall back to
-     whatever the registration has running rather than giving up */
-  const find = sw.controller ? Promise.resolve(sw.controller)
-    : sw.ready.then(reg => reg && (reg.active || reg.waiting)).catch(() => null);
-  return find.then(target => {
-    if (!target) throw new Error("no worker");
-    return new Promise((res, rej) => {
-      let timer = 0;
-      const stop = () => { clearTimeout(timer); sw.removeEventListener("message", done); ch.port1.onmessage = null; };
-      const done = e => {
-        const t = (e.data || {}).type;
-        if (t === want || t === "live-fail") { stop(); res(e.data); }
-      };
-      const ch = new MessageChannel();
-      ch.port1.onmessage = done;
-      sw.addEventListener("message", done);
-      try { target.postMessage(msg, [ch.port2]); }
-      catch (err) { try { target.postMessage(msg); } catch (e2) { stop(); return rej(e2); } }
-      timer = setTimeout(() => { stop(); rej(new Error("timeout")); }, 8000);
-    });
-  });
-}
-
-/* A build that won't boot would strand the button that fixes it, so the file is
-   checked for the pieces this app cannot run without before it is stored. */
-function buildLooksSane(html) {
-  if (html.length < 60000) return "That file is too small to be this app.";
-  const needs = ['id="p-queue"', 'id="full"', "<nav>", "function openFull", "localStorage"];
-  const miss = needs.filter(n => html.indexOf(n) < 0);
-  if (miss.length) return "That doesn't look like Play next — no " + miss[0] + ".";
-  if (html.indexOf("APP_V") < 0) return "That build is older than the update system. Upload it to GitHub instead.";
-  return "";
-}
 
 /* Android may evict a site's storage when the phone runs low on space. Asking
    for persistence takes that off the table. Chrome decides on its own — installed
@@ -6066,16 +5995,11 @@ function openSettings(scope) {
     </div>` : ""}
     </div>
 
-    <div class="setgroup" data-scope="app"><h4 data-sum="${APP_V}" data-desc="Load the HTML file Claude sends you.">This build</h4>
-      <p class="note">Running version ${APP_V}<span id="s-live"></span></p>
-      <label for="s-newfile">Load a new version</label>
-      <input id="s-newfile" type="file" accept=".html,text/html">
-      <p class="note" id="s-new-msg">Pick the HTML file I send you. It replaces the app from the next reload. Your games, ratings and duels are kept.</p>
-      <button class="btn ghost" id="s-revert"><span>Back to the hosted version</span></button>
+    <div class="setgroup" data-scope="app"><h4 data-sum="${APP_V}" data-desc="Version and intro cutscene.">This build</h4>
+      <p class="note">Running version ${APP_V}. Updates arrive on their own.</p>
       <label>Intro cutscene on launch</label>
       <div class="chips" id="s-cine"><button class="chip" data-v="on" aria-pressed="${!S.cineOff}"><span>Play every time</span></button><button class="chip" data-v="off" aria-pressed="${!!S.cineOff}"><span>Off</span></button></div>
       <button class="btn ghost" id="s-cine-now"><span>Play it now</span></button>
-      <p class="note">If a build ever fails to open, add <b>?fresh</b> to the end of the address and it will undo itself.</p>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
@@ -6393,42 +6317,10 @@ function openSettings(scope) {
     rd.onload = () => takeBackup(readBackup(rd.result));
     rd.readAsText(f);
   };
-  if ($("#s-newfile")) {
-    const say = t => { if ($("#s-new-msg")) $("#s-new-msg").textContent = t; toast(t); };
-    swTell({ type: "has-live" }, "live-state")
-      .then(d => { if ($("#s-live")) $("#s-live").textContent = d.on ? " — hand-loaded" : " — hosted"; })
-      .catch(() => { if ($("#s-live")) $("#s-live").textContent = " — no worker, open it from the web address"; });
-
-    $("#s-newfile").onchange = e => {
-      const f = e.target.files[0]; if (!f) return;
-      say("Reading " + f.name + "…");
-      const rd = new FileReader();
-      rd.onerror = () => say("Couldn't read that file.");
-      rd.onload = () => {
-        const html = String(rd.result || "");
-        const bad = buildLooksSane(html);
-        if (bad) { say(bad + " Nothing was changed."); e.target.value = ""; return; }
-        swTell({ type: "put-live", html: html }, "live-ok")
-          .then(d => {
-            if (d.type === "live-fail") { say("The worker refused it: " + d.why); return; }
-            say("Stored. Reloading…");
-            try { localStorage.setItem("pn-just", "1"); } catch (e) {}
-            setTimeout(() => location.reload(), 600);
-          })
-          .catch(() => say("No service worker yet — close the app, open it again, then try once more."));
-      };
-      rd.readAsText(f);
-    };
-  }
   if ($("#s-cine")) $("#s-cine").onclick = e => { const b = e.target.closest(".chip"); if (!b) return;
     S.cineOff = b.dataset.v === "off"; save(); [...$("#s-cine").children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
     toast(S.cineOff ? "Intro cutscene off" : "Intro plays every launch"); };
   if ($("#s-cine-now")) $("#s-cine-now").onclick = () => { if (typeof closeSettings === "function") try { closeSettings(); } catch (x) {} setTimeout(() => window.pnCinema && pnCinema(), 300); };
-  if ($("#s-revert")) $("#s-revert").onclick = () => {
-    swTell({ type: "drop-live" }, "live-dropped")
-      .then(() => { toast("Back to the hosted build"); setTimeout(() => location.reload(), 500); })
-      .catch(() => toast("No service worker running"));
-  };
   if ($("#s-full") && installed()) {
     $("#s-full").closest(".setgroup") && $("#s-full").remove();
   } else if ($("#s-full")) {
@@ -7248,7 +7140,7 @@ setTimeout(() => { frPublish(); frPull(); }, 4000);
 const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") i.setAttribute("data-ld", ""); };
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) i.setAttribute("data-ld", ""); });
-pnSweep(); setInterval(pnSweep, 1200);
+pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
 /* v144: launch intro, skipped by a tap, off when motion is off */
 (function () {
   const b = document.getElementById("pnboot");
@@ -8484,6 +8376,7 @@ function hubMarkup(g) {
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
           <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
+          <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
         </div>
       </div>
     </div>`;
@@ -10358,6 +10251,7 @@ let pnSkipFlip = 0;
     return out; }; }
 /* live countdown — one ticker for the whole app, only the changed digit animates */
 setInterval(() => {
+  if (document.hidden) return;
   document.querySelectorAll("[data-cd-to]").forEach(cd => {
     let ms = new Date(cd.dataset.cdTo + "T00:00:00") - new Date(); if (ms < 0) ms = 0;
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
@@ -10975,12 +10869,6 @@ function pnSndWire(ov) { ov.querySelector(".snd").onclick = e => { e.stopPropaga
   if (pnMode() !== "voice") pnHush(); pnBubSay([pnMode() === "mute" ? "Silent mode 🔇" : "Retro blips 🔊", ""]); }; }
 /* phone's built-in voice: Nexi narrates high and bright; Grum is deep and slow; the hero sounds plain */
 const pnHush = () => { try { speechSynthesis.cancel(); } catch (e) {} };
-function pnSpeak(text, quoteWho) { if (pnMode() !== "voice" || !window.speechSynthesis) return; pnHush();
-  const v = speechSynthesis.getVoices().find(v => /^en/i.test(v.lang));
-  const cast = { nexi: [1.6, 1.05], grum: [.2, .78], hero: [1, .95] };
-  text.split(/("[^"]*")/).forEach(part => { const q = part.startsWith('"'), t = part.replace(/"/g, "").trim(); if (!t) return;
-    const [pitch, rate] = cast[q ? quoteWho : "nexi"], u = new SpeechSynthesisUtterance(t.replace(/Nexi/g, pnName()));
-    if (v) u.voice = v; u.pitch = pitch; u.rate = rate; speechSynthesis.speak(u); }); }
 function pnStory(i, fresh) {
   const c = PN_STORY[i], ov = document.createElement("div"); ov.id = "pnstory"; let pg = 0, typing = 0;
   ov.innerHTML = `<div class="pan" style="--go:${Math.min(1, .15 + pnSt() / 10)}"><div class="orbs"><i class="b"></i><i class="g"></i></div>
@@ -11662,7 +11550,7 @@ function pnPowerUp(line) {
     const a = arcG();
     if (a === 0) return [`${hp}h of unfinished games… delicious 😈`, "Every game you don't finish makes me stronger.",
       "Go on, add another one. I dare you.", "That little blue thing thinks it can stop me. Cute.",
-      "Got a new version? Tap me. I'll eat that too 🍽️", `${L.length} games in my belly and counting.`,
+      `${L.length} games in my belly and counting.`,
       q ? `Don't you DARE play ${q.g.title}. It'd only take you ${q.h}h… 😠` : "Mine. All of it.",
       "I can hear your backlog breathing. It's beautiful.", "Nexi glows. I LOOM. There's a difference.",
       "Another trailer? Another wishlist? Yesss. Feed the shadow.", "I was a finished game once. Just kidding. I never finish anything 😈",
@@ -11737,10 +11625,7 @@ function pnPowerUp(line) {
   #grumpop .ghp { height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
   #grumpop .ghp i { display: block; height: 100%; background: linear-gradient(90deg, #6a2cff, var(--ge)); border-radius: 4px; transition: width .8s cubic-bezier(.2,.9,.3,1); }
   #grumpop .gs { font-size: 13px; color: #A99BD0; margin: 6px 0 16px; }
-  #grumpop .gfeed { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 16px; cursor: pointer; font-weight: 700;
     background: linear-gradient(135deg, #2a1350, #12082a); border: 1.5px dashed rgba(170,120,255,.55); transition: scale .2s ease, border-color .3s; color: #EDE4FF !important; }
-  #grumpop .gfeed span { color: #EDE4FF !important; }
-  #grumpop .gfeed:active { scale: .97; border-color: var(--ge); }
   #grumpop .gmsg { font-size: 13px; color: #A99BD0; margin: 10px 0 14px; }
   #grumpop .grw { display: flex; gap: 8px; } #grumpop .grw button { flex: 1; }
   .still #grum *, .still #grumpop * { animation: none !important; }
@@ -11761,7 +11646,7 @@ function pnPowerUp(line) {
   const glide = (tx, ty, ms) => new Promise(res => { const fx = gx, fy = gy, t0 = performance.now();
     const st = t => { const k = Math.min(1, (t - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       raw(fx + (tx - fx) * e, fy + (ty - fy) * e); if (k < 1) requestAnimationFrame(st); else res(); }; requestAnimationFrame(st); });
-  setInterval(() => { if (busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
+  setInterval(() => { if (!S.grum || document.hidden || busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
     const tx = sideX(); if (Math.abs(tx - gx) > 4) { busy = true; glide(tx, gy, 900).then(() => busy = false); } }, 800);
   /* he swells with your backlog: bigger pile, bigger Grumble */
   const look = () => { const a = arcG(); g.classList.remove("g0", "g1", "g2"); g.classList.add("g" + a);
@@ -11798,7 +11683,6 @@ function pnPowerUp(line) {
       <p class="gq">"${esc(pick(lines()))}"</p>
       <div class="ghp"><i style="width:0%"></i></div>
       <div class="gs">Backlog HP ${hp} / ${mx}</div>
-      <label class="gfeed"><input type="file" accept=".html,text/html" hidden><span>🍽️ Feed me a new version</span></label>
       <p class="gmsg">Running v${esc(APP_V)}. Your games, ratings and duels are kept.</p>
       <div class="grw"><button class="btn ghost" id="fx-boss"><span>Face the Shadow</span></button><button class="btn ghost gre"><span>Replay intro</span></button><button class="btn ghost gx"><span>Close</span></button></div></div>`;
     document.body.appendChild(o);
@@ -11807,20 +11691,6 @@ function pnPowerUp(line) {
     const t0 = performance.now();  /* a finger tap sends a late click that landed on the backdrop and shut the menu instantly */
     o.addEventListener("click", e => { if (performance.now() - t0 < 450) return; if (e.target.closest(".gre")) { o.remove(); if (window.pnCinema) pnCinema(); return; }
       if (e.target === o || e.target.closest(".gx") || e.target.closest("#fx-boss")) setTimeout(() => o.remove(), 0); });
-    o.querySelector("input").onchange = e => {
-      const f = e.target.files[0]; if (!f) return; msg("Chewing on " + f.name + "…");
-      const rd = new FileReader(); rd.onerror = () => msg("Couldn't read that file. Blegh.");
-      rd.onload = () => { const html = String(rd.result || ""), bad = buildLooksSane(html);
-        if (bad) { msg(bad + " I spat it out, nothing changed."); e.target.value = ""; return; }
-        swTell({ type: "put-live", html }, "live-ok").then(d => {
-          if (d.type === "live-fail") { msg("It didn't go down: " + d.why); return; }
-          g.classList.remove("gulp"); void g.offsetWidth; g.classList.add("gulp");
-          msg("Nom. Tasty update 😋 Reloading…"); try { localStorage.setItem("pn-just", "1"); } catch (x) {}
-          setTimeout(() => location.reload(), 900);
-        }).catch(() => msg("No service worker yet. Close the app, open it again, then feed me once more."));
-      };
-      rd.readAsText(f);
-    };
   }
 
   /* reacts when your backlog grows or shrinks */
@@ -12486,4 +12356,94 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"My top games"});return;}}
   catch(err){if(err.name==="AbortError")return;}
   toast("This phone can't share images from here, tap Save instead");});
+</script>
+
+<style>
+  /* v163: Why you'll love it — one sheet, fades and slides in, nothing loops */
+  #aiwhy { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.6); opacity: 0; transition: opacity .2s ease; }
+  #aiwhy.on { opacity: 1; }
+  #aiwhy .aw { width: 100%; max-width: 520px; max-height: 80vh; overflow: auto; background: #0A0B10; color: #EDEFF5;
+    border: 1px solid rgba(255,255,255,.08); border-top: 3px solid var(--accent, #6AA8FF); border-radius: 20px; padding: 20px;
+    transform: translateY(24px); transition: transform .28s cubic-bezier(.2,.9,.25,1); }
+  #aiwhy.on .aw { transform: none; }
+  #aiwhy h4 { margin: 0 0 4px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #9AA3B8; }
+  #aiwhy h3 { margin: 0 0 12px; font-size: 20px; }
+  #aiwhy .awv { display: inline-block !important; width: fit-content !important; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-bottom: 12px;
+    background: rgba(255,255,255,.06); color: var(--accent, #6AA8FF); }
+  #aiwhy ul { margin: 0 0 12px; padding-left: 18px; line-height: 1.5; }
+  #aiwhy li { margin-bottom: 8px; }
+  #aiwhy .awn { font-size: 12px; color: #7A8296; margin: 0 0 14px; }
+  #aiwhy .awb { display: flex; gap: 8px; flex-wrap: wrap; }
+  #aiwhy .awload { color: #9AA3B8; margin: 0 0 14px; }
+</style>
+<script>
+/* v163: "Why you'll love it" — sends your ratings and this game to your Cloudflare
+   helper, which asks free Workers AI why it fits your taste (or doesn't).
+   Answers are kept per game until you rate something new. */
+(function () {
+  const LABEL = {}; WHY_GROUPS.forEach(([, xs]) => xs.forEach(([k, l]) => { LABEL[k] = l; }));
+  const rated = skip => S.played.filter(p => p.real > 0 && p.id !== skip).map(p => {
+    const g = S.games.find(x => x.id === p.id); if (!g) return null;
+    const m = g.mine || {};
+    return { title: g.title, score: p.real, again: !!p.again, genres: platList(g.genres).slice(0, 3),
+      liked: whyOf(g).map(k => LABEL[k]).filter(Boolean).slice(0, 6),
+      parts: RATINGS.filter(([k]) => m[k] > 0).map(([k, l]) => l + " " + m[k]) };
+  }).filter(Boolean).sort((a, b) => b.score - a.score);
+  const stamp = () => S.played.filter(p => p.real > 0).map(p => p.id + ":" + p.real).join("|");
+
+  function paint(o, g, body) {
+    o.querySelector(".aw").innerHTML = `<h4>Why you'll love it</h4><h3>${esc(g.title)}</h3>${body}
+      <div class="awb"><button class="btn ghost" data-awre><span>Ask again</span></button><button class="btn ghost" data-awx><span>Close</span></button></div>`;
+  }
+  function show(o, g, r) {
+    const lines = String(r.text || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const vl = lines.find(x => /^verdict\s*:/i.test(x));
+    const verdict = vl ? vl.replace(/^verdict\s*:\s*/i, "").replace(/[*_]/g, "") : "";
+    const pts = lines.filter(x => x !== vl).map(x => x.replace(/^[-*•\d.)\s]+/, "").replace(/\*\*/g, "")).filter(Boolean).slice(0, 5);
+    paint(o, g, `${verdict ? `<span class="awv">${esc(verdict)}</span>` : ""}<ul>${pts.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      <p class="awn">Based on ${r.n} game${r.n === 1 ? "" : "s"} you've rated.</p>`);
+  }
+  function ask(o, g) {
+    const taste = rated(g.id);
+    if (taste.length < 3) { paint(o, g, `<p class="awload">Rate at least 3 games you've finished and I can tell you how this one fits your taste.</p>`); return; }
+    paint(o, g, `<p class="awload">Reading your ratings…</p>`);
+    const pick = taste.length > 18 ? taste.slice(0, 12).concat(taste.slice(-6)) : taste;
+    const me = S.played.find(p => p.id === g.id);
+    const game = { title: g.title, genres: platList(g.genres).slice(0, 4), platforms: platList(g.platforms).slice(0, 4),
+      about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && me.real > 0), myScore: me && me.real || null };
+    const ac = new AbortController(), to = setTimeout(() => ac.abort(), 30000);
+    fetch(SGDB_PROXY + "/why", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game, taste: pick }), signal: ac.signal })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(r.status === 404 ? "old" : "HTTP " + r.status)))
+      .then(d => {
+        if (!d || !d.text) throw new Error("empty");
+        const r = { text: d.text, n: taste.length, k: stamp() };
+        S.aiWhy = S.aiWhy || {}; S.aiWhy[g.id] = r; save();
+        if (o.isConnected) show(o, g, r);
+      })
+      .catch(e => { if (!o.isConnected) return;
+        paint(o, g, `<p class="awload">${e.message === "old" ? "Your helper doesn't know this trick yet — it needs the new version."
+          : "Couldn't reach the AI right now. Try again in a moment."}</p>`); })
+      .finally(() => clearTimeout(to));
+  }
+  function open(id) {
+    const g = S.games.find(x => x.id === id); if (!g) return;
+    const old = document.getElementById("aiwhy"); if (old) old.remove();
+    const o = document.createElement("div"); o.id = "aiwhy";
+    o.style.setProperty("--accent", g.colour || PALETTE[0]);
+    o.innerHTML = '<div class="aw"></div>';
+    document.body.appendChild(o);
+    requestAnimationFrame(() => o.classList.add("on"));
+    const t0 = performance.now();
+    o.addEventListener("click", e => {
+      if (performance.now() - t0 < 400) return;   /* the tap that opened it */
+      if (e.target.closest("[data-awre]")) { e.stopPropagation(); return ask(o, g); }
+      if (e.target === o || e.target.closest("[data-awx]")) { o.classList.remove("on"); setTimeout(() => o.remove(), 220); }
+    });
+    const hit = S.aiWhy && S.aiWhy[id];
+    if (hit && hit.k === stamp()) show(o, g, hit); else ask(o, g);
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-aiwhy]"); if (b) { e.stopPropagation(); if (typeof beep === "function") beep("tap"); open(b.dataset.aiwhy); } }, true);
+})();
 </script>

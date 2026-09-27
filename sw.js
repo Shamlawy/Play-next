@@ -1,12 +1,7 @@
-/* Two caches:
-   SHELL   — the hosted files, for offline.
-   LIVE    — an index.html you loaded by hand from Settings. When it holds
-             something, it wins over the hosted copy for page loads.
-   Escape hatch: <url>?fresh empties LIVE and falls through to the network, so a
-   broken upload can always be undone from the address bar. */
-const SHELL = "play-next-shell";
-const LIVE = "play-next-live";
-const LIVE_KEY = "live-index";
+/* Page is network-first so a push to GitHub shows on the next open; the cache
+   is only for offline. Bump SHELL to wipe old caches (including the old
+   hand-loaded "play-next-live" one). */
+const SHELL = "play-next-shell-2";
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
   "./logo-192.png", "./logo-512.png", "./logo-mask.png"];
 
@@ -17,26 +12,8 @@ self.addEventListener("install", e => {
 
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys()
-    .then(k => Promise.all(k.filter(n => n !== SHELL && n !== LIVE).map(n => caches.delete(n))))
+    .then(k => Promise.all(k.filter(n => n !== SHELL).map(n => caches.delete(n))))
     .then(() => self.clients.claim()));
-});
-
-self.addEventListener("message", e => {
-  const m = e.data || {};
-  if (m.type === "put-live") {
-    e.waitUntil(caches.open(LIVE)
-      .then(c => c.put(LIVE_KEY, new Response(m.html, { headers: { "Content-Type": "text/html; charset=utf-8" } })))
-      .then(() => e.source && e.source.postMessage({ type: "live-ok" }))
-      .catch(err => e.source && e.source.postMessage({ type: "live-fail", why: String(err) })));
-  }
-  if (m.type === "drop-live") {
-    e.waitUntil(caches.delete(LIVE)
-      .then(() => e.source && e.source.postMessage({ type: "live-dropped" })));
-  }
-  if (m.type === "has-live") {
-    e.waitUntil(caches.open(LIVE).then(c => c.match(LIVE_KEY))
-      .then(r => e.source && e.source.postMessage({ type: "live-state", on: !!r })));
-  }
 });
 
 self.addEventListener("fetch", e => {
@@ -47,31 +24,13 @@ self.addEventListener("fetch", e => {
 
   const isPage = r.mode === "navigate" ||
     url.pathname.endsWith("/") || url.pathname.endsWith("/index.html");
-
-  if (isPage && url.searchParams.has("fresh")) {
-    e.respondWith(caches.delete(LIVE).then(() => fetch(r)).catch(() => caches.match("./index.html")));
-    return;
-  }
-
-  if (isPage) {
-    e.respondWith(
-      caches.open(LIVE).then(c => c.match(LIVE_KEY)).then(hit => {
-        if (hit) return hit;
-        return fetch(r).then(res => {
-          const copy = res.clone();
-          caches.open(SHELL).then(c => c.put(r, copy)).catch(() => {});
-          return res;
-        }).catch(() => caches.match(r).then(m => m || caches.match("./index.html")));
-      })
-    );
-    return;
-  }
+  /* pages skip the browser's HTTP cache so a fresh push is never held back */
+  const get = isPage ? fetch(r.url, { cache: "no-cache", credentials: "same-origin" }) : fetch(r);
 
   e.respondWith(
-    fetch(r).then(res => {
-      const copy = res.clone();
-      caches.open(SHELL).then(c => c.put(r, copy)).catch(() => {});
+    get.then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put(r, copy)).catch(() => {}); }
       return res;
-    }).catch(() => caches.match(r))
+    }).catch(() => caches.match(r).then(m => m || (isPage ? caches.match("./index.html") : undefined)))
   );
 });
