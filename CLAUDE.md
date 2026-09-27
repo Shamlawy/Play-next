@@ -43,3 +43,4 @@
 
 ## Log
 - v161: renamed Index.html → index.html (site root was broken); removed hand-loaded build override; auto-update on return.
+- v162: cleanup. Removed dead code (pnSpeak, 34 unused CSS rules), unused files (key art, duplicate icons). Image sweep now runs only when new elements appear (was every 1.2s forever). Countdown and Grumble timers pause when hidden/off. Idle main-thread work per 10s: 31ms → 15ms; style recalcs 26 → 0.

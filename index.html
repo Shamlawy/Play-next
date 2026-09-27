@@ -134,12 +134,6 @@
     .hero.heroin .plate-in > :first-child { animation: heroimg .38s cubic-bezier(.16,1,.3,1) .04s backwards; }
     @keyframes heroin { from { opacity: 0; transform: translateY(10px) scale(.985); } }
     @keyframes heroimg { from { opacity: 0; transform: translateX(-18px) rotate(-2deg); } }
-    .slashfx i { will-change: left; }
-    .slashfx { position: fixed; inset: 0; z-index: 9999; pointer-events: none; overflow: hidden; }
-    .slashfx i { position: absolute; top: -20%; bottom: -20%; left: -70%; width: 55%;
-      transform: skewX(-18deg); background: linear-gradient(90deg, var(--edge), var(--volt) 70%, var(--ice));
-      box-shadow: 0 0 40px var(--volt); animation: slash .44s cubic-bezier(.7,0,.3,1) forwards; }
-    .slashfx i + i { width: 22%; background: var(--void); box-shadow: none; animation-delay: .06s; }
     @keyframes slash { to { left: 135%; } }
   }
 
@@ -764,12 +758,8 @@
     .hub-fig { width: var(--kw, 54%); }
     .hub-foot { padding: 14px 28px 20px; }
   }
-  .fullbody { max-width: 620px; margin: 0 auto; padding: 4px 16px 48px; }
   .fullx { position: fixed; top: 12px; right: 12px; z-index: 4; background: rgba(4,6,14,.72); }
   @media (prefers-reduced-motion: no-preference) {
-    #full.on .fullshot img { animation: fadein .35s ease both; }
-    #full .hub.noanim .fullshot img, #full .hub.noanim .fullbody { animation: none; }
-    #full.on .fullbody { animation: peekin .34s cubic-bezier(.16,1,.3,1) both; }
   }
   .libcard { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
     text-align: left; color: inherit; font: inherit; }
@@ -991,7 +981,6 @@
   }
   html.round .hub-dots i { border-radius: 999px; }
   html.round .vtog, html.round .vpill button, html.round .vslide { border-radius: 999px; }
-  html.round .vsep { border-radius: 0; }
   html.round .cov::after { clip-path: none; border-radius: var(--r, 18px); inset: 12px -8px -8px 12px; }
   html.round .duelpick img, html.round .peektop img, html.round .libcard img,
   html.round .hub-fig.cover, html.round .dart, html.round .z-cov, html.round .z-art,
@@ -1156,13 +1145,6 @@
   }
   html.still .vslide { transition: none; }
   .vpill [data-view][aria-pressed="true"] { color: var(--void); box-shadow: none; }
-  .vsep { width: 1px; align-self: stretch; margin: 4px 4px; background: rgba(234,242,255,.18); flex: none; }
-  .vtog { border-left: 1px solid rgba(234,242,255,.18); margin-left: 4px; padding-left: 16px; }
-  .vpill > .vtog:first-of-type:not(:nth-child(2)) { border-left: 0; margin-left: 0; padding-left: 15px; }
-  .vtog[aria-pressed="true"] {
-    color: var(--ice); background: rgba(234,242,255,.16);
-    box-shadow: inset 0 0 0 1px rgba(234,242,255,.28);
-  }
   .vpill.on { display: flex; }
   .vpill button {
     border: 0; background: none; color: var(--mute); cursor: pointer; font: inherit;
@@ -1172,9 +1154,6 @@
   .vpill [data-view][aria-pressed="true"] { background: none; color: var(--void); box-shadow: none; }
   html.rail .vpill { left: calc(50% + (var(--railw, 92px) + 16px) / 2); }
   html.rail.railoff .vpill { left: calc(50% + 13px); }
-
-  .cell.haspip { cursor: pointer; }
-  .cell.haspip:hover, .cell.haspip:focus-visible { outline: 1px solid var(--volt); outline-offset: -1px; }
   #peek { position: fixed; inset: 0; z-index: 60; display: none; background: rgba(2,4,10,.74); overflow-y: auto; padding: 16px; }
   #peek.on { display: block; }
   .peekin { max-width: 540px; margin: 7vh auto; position: relative; display: grid; gap: 12px; }
@@ -1632,8 +1611,6 @@
   #bgtint { position: fixed; inset: 0; z-index: 0; pointer-events: none;
     background: linear-gradient(180deg, rgba(4,6,14,.42) 0%, rgba(4,6,14,.7) 45%, rgba(4,6,14,.88) 100%); }
 
-  .versus { text-align: center; font-weight: 900; font-style: italic; font-variation-settings: "wdth" 68; font-size: 20px; text-transform: uppercase; margin: 0 0 14px; color: var(--volt); }
-
   .cal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .cal-head h3 { margin: 0; flex: 1; font-size: 20px; font-weight: 900; font-style: italic; font-variation-settings: "wdth" 70; text-transform: uppercase; }
   /* minmax(0,1fr) or a long game title widens its column and shoves the week off-screen */
@@ -1798,9 +1775,6 @@
   .distlab span { flex: 1; text-align: center; font-size: 10px; color: var(--mute); font-weight: 800; }
 /* FX pack: Atlus-style shards + duel slash */
 #fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999}
-.fxslash{position:fixed;left:-20%;right:-20%;top:50%;height:90px;margin-top:-45px;pointer-events:none;z-index:9998;
-background:linear-gradient(90deg,transparent,#4DA3FF 30%,#EAF2FF 50%,#4DA3FF 70%,transparent);mix-blend-mode:screen;
-transform:skewY(-7deg) scaleX(0);animation:fxs .45s cubic-bezier(.16,1,.3,1) forwards}
 @keyframes fxs{40%{transform:skewY(-7deg) scaleX(1);opacity:.9}100%{transform:skewY(-7deg) scaleX(1) scaleY(.02);opacity:0}}
 .fxcut{position:fixed;pointer-events:none;z-index:9998;overflow:hidden}
 .fxcut::before{content:"";position:absolute;inset:0;background:#0a1430;animation:fxdim .5s ease forwards}
@@ -1998,7 +1972,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   .lx-card h3 { margin: 0 0 10px; font-size: 20px; }
   .lx-card p { margin: 0; font-size: 14px; line-height: 1.55; color: #B9C8EA; }
   .lx-card .hub-chips { margin-top: 12px; }
-  .lx-foot { position: absolute; z-index: 2; right: 18px; bottom: 14px; font-size: 11px; color: rgba(234,242,255,.6); }
   @keyframes lxin { from { opacity: 0; transform: translateX(-30px); } }
   @keyframes lxcard { from { opacity: 0; transform: translate(40px, -50%); } }
   @keyframes lxzoom { from { transform: scale(1.12); opacity: .4; } }
@@ -2053,12 +2026,8 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   .lxl.reading .lx-desc::after { opacity: 0; pointer-events: none; }
   .lxl .lx-art { grid-row: 1; display: grid; place-items: center; touch-action: pan-y; }
   .lxl .lx-art::after { display: none; }
-  .lx-blur { position: absolute; inset: -30px; width: calc(100% + 60px); height: calc(100% + 60px); object-fit: cover;
-    filter: blur(28px) brightness(.45) saturate(1.3); }
   .lxl .lx-art img.lx-box { position: relative; inset: auto; width: auto; height: auto; max-width: 78%; max-height: 86%;
     object-fit: contain; border-radius: 10px; box-shadow: 0 30px 60px rgba(0,0,0,.6); animation: lxbox .6s cubic-bezier(.22,1,.36,1) both; }
-  .lxl.fromr .lx-box { animation-name: lxboxr; } .lxl.froml .lx-box { animation-name: lxboxl; }
-  .lxl.fromr .lx-panel > *, .lxl.froml .lx-panel > * { animation: lxstep .45s cubic-bezier(.22,1,.36,1) both; }
   @keyframes lxbox { from { opacity: 0; transform: scale(.9) translateY(14px); } }
   @keyframes lxboxr { from { opacity: 0; transform: translateX(60px) scale(.94); } }
   @keyframes lxboxl { from { opacity: 0; transform: translateX(-60px) scale(.94); } }
@@ -2084,7 +2053,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   .lxl { position: relative; grid-template-rows: 1fr; }
   .lxl .lx-art img.lx-box { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
     object-fit: cover; border-radius: 0; box-shadow: none; }
-  .lx-blur { display: none; }
   .lx-strip { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 5;
     border: 1px solid var(--edge); border-radius: 14px; background: rgba(8,15,36,.82);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 16px 40px rgba(0,0,0,.55);
@@ -2477,9 +2445,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px #4DA3FF,inset 0 0 20px #4DA3FF;text
   #hrail .tb.on { background: var(--volt); color: var(--void); }
   #hrail .tb:active { transform: scale(.88); }
   #hrail .act.sm { width: 36px; height: 30px; border-radius: 12px; font-size: 14px; background: transparent; color: var(--mute); }
-  #hrailtab { display: none; position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 41; width: 22px; height: 84px;
-    border: 0; border-radius: 14px 0 0 14px; background: var(--volt); color: var(--void); font-weight: 900; cursor: pointer; }
-  @media (min-width: 620px) { html.railhide #hrailtab { display: block; } }
+  @media (min-width: 620px) { }
 
   /* ===== v81 bigger ring, breathing room, filled deck cards, stack editor ===== */
   .dash.pnfit > .k-ring { justify-content: flex-start; }
@@ -2792,13 +2758,6 @@ html.still .tile:active,html.still .btn:active,html.still .chip:active,html.stil
 .dy-more{width:100%;margin-top:10px;background:none;border:1px dashed var(--steel);border-radius:12px;padding:10px;color:var(--mute);font:inherit;cursor:pointer}
 .dy-c{display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:14px}.dy-c small{color:var(--mute);font-size:11px}
 .dy-c input{width:18px;height:18px;accent-color:var(--volt)}
-.dy-wl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.dy-wl>div{display:grid;justify-items:center;gap:4px;background:var(--void);border:1px solid var(--steel);border-radius:14px;padding:10px 4px}
-.dy-wl button{background:var(--steel);border:0;border-radius:10px;color:var(--ice);font:inherit;font-weight:800;padding:8px 0;width:90%;cursor:pointer;transition:scale .3s cubic-bezier(.34,1.56,.64,1)}
-.dy-wl button:active{scale:.92}
-.dy-wl [data-k="w"][data-by="1"]{background:#1f7a4d}.dy-wl [data-k="l"][data-by="1"]{background:#8a2438}
-.dy-wl b{font-size:22px}.dy-wl .dy-mn{background:none;color:var(--mute);padding:0;font-size:16px}
-.dy-wl b.bump{animation:dyBump .35s cubic-bezier(.34,1.56,.64,1)}
 @keyframes dyBump{50%{scale:1.35}}
 html.still #diary,html.still .dy-in{transition:none}
 #fxboss .imm{margin-top:22px}#fxboss .imm h3{margin:0 0 4px;font:900 italic 18px inherit;color:#8FD0FF;letter-spacing:1px}#fxboss .imm p{margin:0 0 10px;color:#7C92C4;font-size:12px;line-height:1.5}#fxboss .imm .at{opacity:.75}
@@ -3804,7 +3763,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "161";
+const APP_V = "162";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -7181,7 +7140,7 @@ setTimeout(() => { frPublish(); frPull(); }, 4000);
 const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") i.setAttribute("data-ld", ""); };
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) i.setAttribute("data-ld", ""); });
-pnSweep(); setInterval(pnSweep, 1200);
+pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
 /* v144: launch intro, skipped by a tap, off when motion is off */
 (function () {
   const b = document.getElementById("pnboot");
@@ -10291,6 +10250,7 @@ let pnSkipFlip = 0;
     return out; }; }
 /* live countdown — one ticker for the whole app, only the changed digit animates */
 setInterval(() => {
+  if (document.hidden) return;
   document.querySelectorAll("[data-cd-to]").forEach(cd => {
     let ms = new Date(cd.dataset.cdTo + "T00:00:00") - new Date(); if (ms < 0) ms = 0;
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
@@ -10908,12 +10868,6 @@ function pnSndWire(ov) { ov.querySelector(".snd").onclick = e => { e.stopPropaga
   if (pnMode() !== "voice") pnHush(); pnBubSay([pnMode() === "mute" ? "Silent mode 🔇" : "Retro blips 🔊", ""]); }; }
 /* phone's built-in voice: Nexi narrates high and bright; Grum is deep and slow; the hero sounds plain */
 const pnHush = () => { try { speechSynthesis.cancel(); } catch (e) {} };
-function pnSpeak(text, quoteWho) { if (pnMode() !== "voice" || !window.speechSynthesis) return; pnHush();
-  const v = speechSynthesis.getVoices().find(v => /^en/i.test(v.lang));
-  const cast = { nexi: [1.6, 1.05], grum: [.2, .78], hero: [1, .95] };
-  text.split(/("[^"]*")/).forEach(part => { const q = part.startsWith('"'), t = part.replace(/"/g, "").trim(); if (!t) return;
-    const [pitch, rate] = cast[q ? quoteWho : "nexi"], u = new SpeechSynthesisUtterance(t.replace(/Nexi/g, pnName()));
-    if (v) u.voice = v; u.pitch = pitch; u.rate = rate; speechSynthesis.speak(u); }); }
 function pnStory(i, fresh) {
   const c = PN_STORY[i], ov = document.createElement("div"); ov.id = "pnstory"; let pg = 0, typing = 0;
   ov.innerHTML = `<div class="pan" style="--go:${Math.min(1, .15 + pnSt() / 10)}"><div class="orbs"><i class="b"></i><i class="g"></i></div>
@@ -11691,7 +11645,7 @@ function pnPowerUp(line) {
   const glide = (tx, ty, ms) => new Promise(res => { const fx = gx, fy = gy, t0 = performance.now();
     const st = t => { const k = Math.min(1, (t - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       raw(fx + (tx - fx) * e, fy + (ty - fy) * e); if (k < 1) requestAnimationFrame(st); else res(); }; requestAnimationFrame(st); });
-  setInterval(() => { if (busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
+  setInterval(() => { if (!S.grum || document.hidden || busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
     const tx = sideX(); if (Math.abs(tx - gx) > 4) { busy = true; glide(tx, gy, 900).then(() => busy = false); } }, 800);
   /* he swells with your backlog: bigger pile, bigger Grumble */
   const look = () => { const a = arcG(); g.classList.remove("g0", "g1", "g2"); g.classList.add("g" + a);
