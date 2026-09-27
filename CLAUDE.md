@@ -14,6 +14,9 @@
 - Proxies SteamGridDB; key is the worker secret `SGDB_KEY`.
 - Worker code lives in `worker/helper.js` (routes: `/sgdb/...` and `POST /why`). It needs a Workers AI binding named `AI`. It is not auto-deployed: this container can't reach Cloudflare.
 
+## Files
+- Never delete image/files in the repo root, even if `index.html` doesn't mention them: the owner's saved games (in the phone's storage) can link to them directly (e.g. `fefw-key-art.jpg` = Fire Emblem Fortune's Weave art).
+
 ## Look
 - Black / near-black theme.
 - When the owner shares a reference design: copy its layout and style, not its colours.
@@ -46,3 +49,4 @@
 - v162: cleanup. Removed dead code (pnSpeak, 34 unused CSS rules), unused files (key art, duplicate icons). Image sweep now runs only when new elements appear (was every 1.2s forever). Countdown and Grumble timers pause when hidden/off. Idle main-thread work per 10s: 31ms → 15ms; style recalcs 26 → 0.
 - v163: "Why you'll love it" button on each game page. Sends your rated games (3+ needed) to the helper's `/why`, which asks free Workers AI (Llama 3.1 8B). Answer cached per game in `S.aiWhy` until ratings change.
 - v164: "Why" sheet used class `.aw`, which clashed with an existing layout class (broke on wide screens) → renamed `.awc`. Sheet shows the helper's error text. Helper: tries several AI models, returns errors with CORS, and `GET /why` is a health check (open it in a browser).
+- v164 fix: restored the image files removed in v162 (Fortune's Weave cover was one of them).
