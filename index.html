@@ -3823,11 +3823,13 @@ function load() {
     setTimeout(() => toast("Merged " + d + " duplicate played entr" + (d === 1 ? "y" : "ies")), 700);
   }
   if (S.startTab && S.startTab !== "home") goTab(S.startTab);
+  /* v173 one time: everyone gets the whole tour again from the start (the owner missed the first one) */
+  if (S.lastV && !S.tourRedo) { S.tourRedo = 1; S.tourFrom = 162; S.tourAt = null; save(); }
   /* only for someone who was already running an older build — not a fresh install */
   if (S.lastV && S.lastV !== APP_V) { const was = S.lastV || "?"; S.lastV = APP_V; save(); showUpdated(was);
     /* Nexi walks you through what's new since the version you had */
     setTimeout(() => { if (typeof nxTour === "function") nxTour(was); }, 2200); }
-  else if (!S.lastV) { S.lastV = APP_V; S.tourFrom = +APP_V; save(); }
+  else if (!S.lastV) { S.lastV = APP_V; S.tourFrom = +APP_V; S.tourRedo = 1; save(); }
   else if (S.tourFrom != null && S.tourFrom < +APP_V) setTimeout(() => { if (typeof nxTour === "function") nxTour(null); }, 2200);
   playEnter();
   armFull();
@@ -12774,7 +12776,7 @@ const WHATS_NEW = [
     say: "From now on, every update I'll walk you through what's new like this. Missed something? <b>Show me what's new</b> replays it.",
     tryIt: "That's it — go have fun! 🎮" },
   { v: 173, go: () => nxHome(), at: null,
-    say: "Skipped a few updates? I now <b>save up everything you missed</b> and show it all, oldest first. Close the app mid-tour and I pick up where we left off. Oh — and you can see my face now, even with the rail open 😄",
+    say: "Skipped a few updates? I now <b>save up everything you missed</b> and show it all, oldest first. Close the app mid-tour and I remember the exact step we were on. Oh — and you can see my face now, even with the rail open 😄",
     tryIt: "Nothing to try — just enjoy the view." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
@@ -12822,11 +12824,14 @@ function nxTour(was, all) {
   if (document.documentElement.classList.contains("cine")) return setTimeout(() => nxTour(was, all), 800);
   document.querySelectorAll(".updated button").forEach(x => x.click());   /* the tour says it better, and the toast sat on top of the card */
   const card = document.createElement("div"); card.id = "nxtour"; document.body.appendChild(card);
-  let i = 0, lit = null;
+  /* closed the app mid-tour? carry on from the step you were on */
+  const at = !all && S.tourAt && S.tourAt.from === from && S.tourAt.n === steps.length ? Math.min(S.tourAt.i, steps.length - 1) : 0;
+  let i = at, lit = null;
+  const mark = () => { if (!all) { S.tourAt = { from, n: steps.length, i }; saveNow(); } };
   const unlit = () => { if (lit) lit.classList.remove("nxhl"); lit = null; };
   const finish = () => {
     unlit(); card.classList.remove("on"); setTimeout(() => card.remove(), 250);
-    if (!all) { S.tourFrom = +APP_V; save(); }
+    if (!all) { S.tourFrom = +APP_V; S.tourAt = null; save(); }
     document.documentElement.classList.remove("nxguide");
     const b = $("#pnbub"); if (b && typeof pnBubEdge === "function") { const e = pnBubEdge(); pnBubPlace(e.x, e.y); }
   };
@@ -12840,7 +12845,7 @@ function nxTour(was, all) {
         if (el) nxPoint(el);
         const r = el ? el.getBoundingClientRect() : null;
         card.className = (r && r.top + r.height / 2 > innerHeight * 0.55) ? "top" : "bot";
-        card.innerHTML = `<small>${st.intro ? "While you were away" : `New in v${st.v}`} · Nexi's tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
+        card.innerHTML = `<small>${i === at && at > 0 ? "Picking up where we left off" : st.intro ? "While you were away" : `New in v${st.v}`} · Nexi's tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
           <div class="row2"><i>${i + 1} / ${steps.length}</i>${i < steps.length - 1 ? '<button class="btn ghost" data-nx="skip"><span>Skip</span></button>' : ""}
           <button class="btn" data-nx="next"><span>${i < steps.length - 1 ? "Next ›" : "Done"}</span></button></div>`;
         requestAnimationFrame(() => card.classList.add("on"));
@@ -12852,7 +12857,7 @@ function nxTour(was, all) {
   card.addEventListener("click", e => {
     const a = e.target.closest("[data-nx]"); if (!a) return;
     if (typeof beep === "function") beep("tap");
-    if (a.dataset.nx === "next" && ++i < steps.length) { card.classList.remove("on"); show(); } else finish();
+    if (a.dataset.nx === "next" && ++i < steps.length) { mark(); card.classList.remove("on"); show(); } else finish();
   });
   show();
 }
