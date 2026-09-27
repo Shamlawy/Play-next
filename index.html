@@ -3778,7 +3778,7 @@ const coverPos = g => {
   return (x === 50 && y === 50) ? "" : "object-position:" + x + "% " + y + "%";
 };
 
-const cover = g => g.img || placeholder(g);
+const cover = g => (g.img && !String(g.img).startsWith(PIC) ? g.img : "") || placeholder(g);
 
 function seed() {
   const s = [
@@ -3794,8 +3794,93 @@ function seed() {
     date: "", hours: 0, status: "tba", hype: 7, ord: i + 1
   }));
 }
+/* v174: uploaded pictures live in IndexedDB, not in the ~5 MB localStorage save (the iPhone hits that
+   limit first). S in memory still holds the real data: links, so nothing else in the app changes;
+   only the copy written to localStorage swaps each big picture for a short "pnimg:<key>" token.
+   A token is only ever written once its picture is safely stored, so the save is always complete. */
+const PIC = "pnimg:";
+const picDb = { db: null, ok: false, hold: false, have: new Map(), keyOf: new Map(), pend: new Map(), lastLen: 0 };
+function picKey(s) {
+  let k = picDb.keyOf.get(s); if (k) return k;
+  let h1 = 0x811c9dc5, h2 = 5381;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = (Math.imul(h2, 33) + c) | 0; }
+  k = (h1 >>> 0).toString(36) + "." + (h2 >>> 0).toString(36) + "." + s.length.toString(36);
+  picDb.keyOf.set(s, k); return k;
+}
+/* Safari has been known to leave an open request hanging, so give up after a few seconds */
+function picOpen() {
+  return new Promise(res => {
+    let done = 0; const fin = v => { if (!done) { done = 1; res(v); } };
+    setTimeout(() => fin(null), 4000);
+    try {
+      const rq = indexedDB.open("playnext-pics", 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore("p");
+      rq.onsuccess = () => fin(rq.result);
+      rq.onerror = rq.onblocked = () => fin(null);
+    } catch (e) { fin(null); }
+  });
+}
+function picAll(db) {
+  return new Promise(res => {
+    const out = new Map();
+    try {
+      const rq = db.transaction("p").objectStore("p").openCursor();
+      rq.onsuccess = () => { const c = rq.result; if (c) { out.set(String(c.key), c.value); c.continue(); } else res(out); };
+      rq.onerror = () => res(null);
+    } catch (e) { res(null); }
+  });
+}
+/* every place in the save that holds a token: [object, field, key] */
+function picFind(o, out) {
+  out ||= [];
+  if (o && typeof o === "object") for (const f in o) {
+    const v = o[f];
+    if (typeof v === "string") { if (v.startsWith(PIC)) out.push([o, f, v.slice(PIC.length)]); }
+    else if (v && typeof v === "object") picFind(v, out);
+  }
+  return out;
+}
+function picPut(key, v) {
+  if (!picDb.db || picDb.pend.has(key)) return;
+  picDb.pend.set(key, v);
+  const done = ok => {
+    picDb.pend.delete(key);
+    if (ok) { picDb.have.set(key, v.length); picDb.keyOf.set(v, key); }
+    if (!picDb.pend.size) save();   /* write again, now with the short tokens */
+  };
+  try {
+    const tx = picDb.db.transaction("p", "readwrite");
+    tx.objectStore("p").put(v, key);
+    tx.oncomplete = () => done(true); tx.onerror = tx.onabort = () => done(false);
+  } catch (e) { done(false); }
+}
+function picDrop(keys) {
+  if (!keys.length || !picDb.db) return;
+  try { const st = picDb.db.transaction("p", "readwrite").objectStore("p"); keys.forEach(k => { st.delete(k); picDb.have.delete(k); }); } catch (e) {}
+}
+/* runs once at start: learn what's stored, then put any pictures the save points at back into S */
+function picBoot(toks) {
+  if (!("indexedDB" in window)) { picBack(toks, null); return; }
+  picOpen().then(db => db ? picAll(db).then(all => ({ db, all })) : null).then(r => {
+    if (!r || !r.all) { picBack(toks, null); return; }
+    picDb.db = r.db; picDb.ok = true;
+    r.all.forEach((v, k) => { picDb.have.set(k, v.length); picDb.keyOf.set(v, k); });
+    picBack(toks, r.all);
+  });
+}
+function picBack(toks, all) {
+  let lost = 0;
+  toks.forEach(([o, f, k]) => { const v = all && all.get(k); if (v) o[f] = v; else { o[f] = PIC + k; lost++; } });
+  picDb.hold = false;
+  if (toks.length) { try { render(); if (typeof pnBubFace === "function") pnBubFace(); } catch (e) {} }
+  if (lost && !all) setTimeout(() => toast("Couldn't open your uploaded pictures — close the app and open it again"), 1500);
+  else if (saveT) { clearTimeout(saveT); saveT = 0; save(); }
+}
+const picKb = () => Math.round([...picDb.have.values()].reduce((a, n) => a + n, 0) * 2 / 1024);
 function load() {
   try { const r = localStorage.getItem(KEY); if (r) S = JSON.parse(r); } catch (e) {}
+  /* v174: big pictures come back from IndexedDB a moment later; until then nothing is written */
+  { const toks = picFind(S); toks.forEach(([o, f]) => o[f] = ""); picDb.hold = toks.length > 0; picBoot(toks); }
   try { rawgKey = localStorage.getItem(KKEY) || ""; } catch (e) {}
   try { sgdbKey = localStorage.getItem(GKEY) || ""; } catch (e) {}
   try { boostUrl = localStorage.getItem(BKEY) || BOOST_DEFAULT; } catch (e) { boostUrl = BOOST_DEFAULT; }
@@ -3850,7 +3935,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "173";
+const APP_V = "174";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -3871,8 +3956,25 @@ addEventListener("visibilitychange", () => { if (document.hidden && saveT) saveN
 addEventListener("pagehide", () => { if (saveT) saveNow(); });
 function saveNow() {
   clearTimeout(saveT); saveT = 0;
-  try { localStorage.setItem(KEY, JSON.stringify(S)); return true; }
+  /* v174: pictures are still coming back from IndexedDB; writing now would save them as blanks */
+  if (picDb.hold) { save(); return true; }
+  const used = new Set(); let fresh = 0;
+  const rep = picDb.ok ? (k, v) => {
+    if (typeof v !== "string" || v.length <= 4096 || !v.startsWith("data:image/")) return v;
+    const key = picKey(v);
+    if (picDb.have.has(key)) { used.add(key); return PIC + key; }
+    picPut(key, v); fresh++; return v;   /* kept inline until it's safely stored, then saved again */
+  } : undefined;
+  try {
+    const txt = JSON.stringify(S, rep);
+    localStorage.setItem(KEY, txt); picDb.lastLen = txt.length;
+    /* pictures nothing points at any more (deleted game, replaced art) */
+    if (picDb.ok && !picDb.pend.size) picDrop([...picDb.have.keys()].filter(k => !used.has(k)));
+    return true;
+  }
   catch (e) {
+    /* a new upload didn't fit inline; it's being stored on its own and the save reruns when it lands */
+    if (fresh) return true;
     const m = "Storage full — this change is NOT saved. Remove some character art, or use image URLs instead of uploads.";
     if ($("#f-msg")) $("#f-msg").textContent = m;
     toast("Storage full — not saved");
@@ -4063,7 +4165,12 @@ function setupRail() {
   });
 }
 
+const storeNote = () => picDb.ok
+  ? "Your games use about " + storeKb() + " KB of the ~5,000 KB the browser allows. Uploaded pictures (" + picKb() + " KB) are kept separately and don't count towards it."
+  : "Using about " + storeKb() + " KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.";
 function storeKb() {
+  /* v174: what's in localStorage (the part with the ~5 MB limit); pictures are counted by picKb() */
+  if (picDb.lastLen) return Math.round(picDb.lastLen * 2 / 1024);
   try { return Math.round(JSON.stringify(S).length * 2 / 1024); } catch (e) { return 0; }
 }
 
@@ -5462,11 +5569,7 @@ function openEdit(id) {
     $("#e-msg").textContent = "Art will be removed when you save.";
   };
   $("#e-cancel").onclick = closeEdit;
-  $("#e-del").onclick = () => {
-    S.games = S.games.filter(x => x.id !== id);
-    S.played = S.played.filter(p => p.id !== id);
-    save(); closeEdit(); render();
-  };
+  $("#e-del").onclick = () => { closeEdit(); delGame(id); };
   const FIELD_NAMES = {
     title: "Title", desc: "Why you want it", about: "What it's about", date: "Release date",
     hours: "Hours to beat", status: "Date certainty", hype: "Hype", state: "Where it stands",
@@ -6106,7 +6209,7 @@ function openSettings(scope) {
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
-      <p class="note" id="s-store">Using about ${storeKb()} KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.</p>
+      <p class="note" id="s-store">${storeNote()}</p>
 
       <p class="note" id="s-persist">Checking storage protection…</p>
       <button class="btn ghost" id="s-shrink"><span>Shrink stored art</span></button>
@@ -6440,7 +6543,6 @@ function openSettings(scope) {
   if ($("#s-persist")) persistState().then(sayPersist);
   if ($("#s-shrink")) $("#s-shrink").onclick = async () => {
     const btn = $("#s-shrink"), msg = $("#s-shrink-msg");
-    const was = storeKb();
     btn.disabled = true;
     msg.textContent = "Reading the art…";
     let r;
@@ -6454,12 +6556,12 @@ function openSettings(scope) {
     if (!r.changed) { msg.textContent = "Checked " + r.found + ", but WebP wasn't smaller. Left them alone."; return; }
     if (!saveNow()) { msg.textContent = "Shrunk, but the save failed. Download a backup before you close this."; return; }
     msg.textContent = r.changed + " figure" + (r.changed === 1 ? "" : "s") + " shrunk. " +
-      was + " KB down to " + storeKb() + " KB — " + r.savedKb + " KB back.";
-    toast("Storage: " + was + " KB to " + storeKb() + " KB");
+      r.savedKb + " KB back.";
+    toast("Storage: " + r.savedKb + " KB back");
     if ($("#s-store")) $("#s-store").textContent =
-      "Using about " + storeKb() + " KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.";
+      storeNote();
   };
-  if ($("#s-bkmake")) $("#s-bkmake").onclick = () => { $("#s-bk").value = backupText(); toast("Text ready — " + storeKb() + " KB, copy all of it"); };
+  if ($("#s-bkmake")) $("#s-bkmake").onclick = () => { const t = backupText(); $("#s-bk").value = t; toast("Text ready — " + Math.round(t.length * 2 / 1024) + " KB, copy all of it"); };
   if ($("#s-bkload")) $("#s-bkload").onclick = () => takeBackup(readBackup($("#s-bk").value));
   if ($("#s-wipe")) $("#s-wipe").onclick = () => {
     if (!confirm("Delete every game and score? Make a backup first.")) return;
@@ -7907,7 +8009,7 @@ function renderQueue() {
     </div></div>`;
 
   const head = `
-    ${nudgeBar()}
+    ${nudgeBar()}${typeof staleBar === "function" ? staleBar() : ""}
     <div class="tabbar"><h3>Queue</h3><span class="tcount">${
       S.games.length ? S.games.filter(g => !isPlayed(g)).length + " waiting · " + S.played.length + " played" : ""
     }</span>
@@ -9627,7 +9729,7 @@ function tasteAnalytics() {
 
     ${genreChart()}
 
-    })()}
+    ${typeof tasteMonths === "function" ? tasteMonths() : ""}
 
     ${ahead.length ? `<label>Still to come</label>
       ${ahead.slice(0, 6).map(g => `<div class="row slab" style="--accent:${esc(g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
@@ -9641,7 +9743,7 @@ function tasteAnalytics() {
     <div class="stats">
       <div class="stat"><b>${(S.duels || []).length}</b><span>duels answered</span></div>
       <div class="stat"><b>${duelCover().pct}<i>%</i></b><span>of pairs judged</span></div>
-      <div class="stat"><b>${storeKb()}<i>kb</i></b><span>stored on this phone</span></div>
+      <div class="stat"><b>${storeKb() + picKb()}<i>kb</i></b><span>stored on this phone</span></div>
     </div>`;
 }
 
@@ -9690,9 +9792,9 @@ function renderTaste() {
     S.duelPool = b.dataset.v; save(); renderTaste(); beep("tap");
   };
   if ($("#duel-clear")) $("#duel-clear").onclick = () => {
-    if (!confirm("Clear every duel answer? The standings go with them.")) return;
+    const was = S.duels;
     S.duels = []; save(); renderTaste(); if (S.sort === "duel") renderQueue();
-    toast("Duels cleared"); beep("back");
+    undoBar("Duels cleared", () => { S.duels = was; }); beep("back");
   };
   if ($("#duel-skip")) $("#duel-skip").onclick = () => {
     if (!duelPair) return;
@@ -9715,6 +9817,9 @@ function stopTimer(quiet) {
   const h = liveTimerHours();
   if (g && h > 0.0005) {
     g.logged = Math.round((loggedOf(g) + h) * 100) / 100;
+    /* v174: hours per month for Analytics, and "you touched this game" for Nexi's reminder */
+    { const mo = new Date().toLocaleDateString("en-CA").slice(0, 7); (S.hrsLog ||= {})[mo] = Math.round(((S.hrsLog[mo] || 0) + h) * 100) / 100; }
+    g.onAt = Date.now();
     if (!quiet && h > 0.25) react("hours", g, hms(h));
   }
   S.timer = null;
@@ -9804,7 +9909,7 @@ function openDiary(id, mins) {
         const n = box.querySelector(".dy-n").value.trim();
         if (pick < 0 && !n) { toast("Pick a mood or write a note"); return; }
         if (cur) Object.assign(cur, { m: pick, n, w, l, d });
-        else g.diary.push({ t: Date.now(), m: pick, n, min: mins || 0 });
+        else { g.diary.push({ t: Date.now(), m: pick, n, min: mins || 0 }); g.onAt = Date.now(); }
         save(); beep("add"); toast("Saved to diary"); dyClose();
         if (typeof hubAt !== "undefined" && hubAt === id && $("#full.on")) openFull(id);
       }
@@ -12584,27 +12689,36 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
 (function () {
   function wipe(ids) {
     const all = !ids, has = id => all || ids.includes(id);
+    /* v174: keep what's about to go, so Undo can put it back (references only, nothing big is copied) */
+    const was = { g: S.games.filter(g => has(g.id)).map(g => [g, g.hype, g.mine, g.subs, g.why]),
+      p: S.played.filter(p => has(p.id)).map(p => [p, p.real, p.again, p.runs]),
+      duels: S.duels, ai: S.aiWhy ? Object.assign({}, S.aiWhy) : null, badges: S.badges };
+    const put = (o, k, v) => { if (v === undefined) delete o[k]; else o[k] = v; };
     S.games.forEach(g => { if (!has(g.id)) return; delete g.hype; delete g.mine; delete g.subs; delete g.why; });
     S.played.forEach(p => { if (!has(p.id)) return; p.real = 0; delete p.again; delete p.runs; });
     S.duels = all ? [] : S.duels.filter(d => !has(d.a) && !has(d.b));
     if (S.aiWhy) { if (all) S.aiWhy = {}; else ids.forEach(id => delete S.aiWhy[id]); }
     if (all) delete S.badges;
     save(); try { render(); } catch (e) {}
+    return () => {
+      was.g.forEach(([g, h, m, sb, w]) => { put(g, "hype", h); put(g, "mine", m); put(g, "subs", sb); put(g, "why", w); });
+      was.p.forEach(([p, r, a, n]) => { put(p, "real", r); put(p, "again", a); put(p, "runs", n); });
+      S.duels = was.duels; if (was.ai) S.aiWhy = was.ai; if (all) put(S, "badges", was.badges);
+    };
   }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-resetgame]");
     if (b) {
       e.stopPropagation();
       const id = b.dataset.resetgame, g = S.games.find(x => x.id === id); if (!g) return;
-      if (!confirm("Reset every score for " + g.title + "? Its rating, hype, category scores and duels are cleared. The game itself stays.")) return;
-      wipe([id]); if (typeof openFull === "function") openFull(id); toast("Scores reset for " + g.title);
+      const back = wipe([id]); if (typeof openFull === "function") openFull(id);
+      undoBar("Scores reset for " + g.title, () => { back(); if (typeof openFull === "function" && document.querySelector("#full.on")) openFull(id); });
       return;
     }
     if (e.target.closest("#s-resetscores")) {
       e.stopPropagation();
-      if (!confirm("Reset ALL scores, duels, rankings, taste and badges? Your games stay. This can't be undone without a backup.")) return;
-      if (!confirm("Last check: really wipe every score?")) return;
-      wipe(null); toast("All scores reset");
+      if (!confirm("Reset ALL scores, duels, rankings, taste and badges? Your games stay. You'll get a few seconds to undo it.")) return;
+      undoBar("All scores reset", wipe(null));
     }
   }, true);
 })();
@@ -12723,18 +12837,199 @@ html:not(.fast) #bgart canvas, html:not(.fast) #bgart2 canvas { display: none; }
     if (Date.now() - eat < 400) { e.stopPropagation(); e.preventDefault(); return; }
     if (open) { e.stopPropagation(); e.preventDefault(); close(open); }
   }, true);
+  /* v174: no "are you sure?" — the delete happens and an Undo bar gives it back */
   function del(r) {
-    const id = r && r.dataset.row, g = S.games.find(x => x.id === id); if (!g) return;
-    if (!confirm("Delete " + g.title + "? Its scores, duels and diary go with it.")) { close(r); return; }
-    S.games = S.games.filter(x => x.id !== id);
-    S.played = S.played.filter(p => p.id !== id);
-    S.duels = (S.duels || []).filter(d => d.a !== id && d.b !== id);
-    if (S.aiWhy) delete S.aiWhy[id];
-    if (focusId === id) focusId = null;
-    open = null; save(); render();
-    if (typeof beep === "function") beep("back");
-    toast("Deleted " + g.title);
+    const id = r && r.dataset.row; if (!S.games.some(x => x.id === id)) return;
+    open = null; delGame(id);
   }
+})();
+</script>
+
+<style>
+/* v174 undo bar: slides up above the dock for a few seconds after a delete or reset */
+#undo { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+  display: flex; align-items: center; gap: 14px; max-width: min(92vw, 440px); padding: 10px 10px 10px 16px;
+  border-radius: 14px; background: #0A0B10; color: #EDEFF5; border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 14px 34px rgba(0,0,0,.6); font-size: 14px; font-weight: 700;
+  opacity: 0; transform: translate(-50%, 20px); pointer-events: none; transition: opacity .18s ease, transform .24s cubic-bezier(.2,.9,.25,1); }
+#undo.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#undo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#undo button { flex: none; border: 0; border-radius: 10px; padding: 9px 16px; background: var(--volt, #FFD34D); color: var(--void, #04060E);
+  font: inherit; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; font-size: 13px; cursor: pointer; }
+</style>
+<script>
+/* v174: undo instead of "are you sure?". The change happens straight away; the bar offers it back
+   for 6 seconds. restore() puts the old data back, then everything is redrawn and saved. */
+function undoBar(msg, restore) {
+  let bar = document.getElementById("undo");
+  if (!bar) { bar = document.createElement("div"); bar.id = "undo"; bar.setAttribute("role", "status");
+    bar.innerHTML = '<span></span><button type="button">Undo</button>'; document.body.appendChild(bar); }
+  bar.querySelector("span").textContent = msg;
+  /* sit just above whatever is parked at the bottom (the view pill, the dock) */
+  let lift = 18;
+  ["#vpill", "html.dock nav"].forEach(q => { const el = document.querySelector(q); if (!el || !el.offsetHeight) return;
+    const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 140 && r.top < innerHeight) lift = Math.max(lift, innerHeight - r.top + 10); });
+  bar.style.bottom = lift + "px";
+  clearTimeout(bar._t);
+  bar.querySelector("button").onclick = () => {
+    clearTimeout(bar._t); bar.classList.remove("on"); bar.querySelector("button").onclick = null;
+    try { restore(); } catch (e) {}
+    save(); try { render(); } catch (e) {}
+    if (typeof beep === "function") beep("add");
+    toast("Undone");
+  };
+  bar.classList.add("on");
+  bar._t = setTimeout(() => { bar.classList.remove("on"); bar.querySelector("button").onclick = null; }, 6000);
+}
+/* delete a game and everything hanging off it; Undo puts each piece back where it was */
+function delGame(id) {
+  const i = S.games.findIndex(x => x.id === id); if (i < 0) return;
+  const g = S.games[i], pl = S.played, du = S.duels || [], ai = S.aiWhy && S.aiWhy[id];
+  S.games = S.games.filter(x => x.id !== id);
+  S.played = pl.filter(p => p.id !== id);
+  S.duels = du.filter(d => d.a !== id && d.b !== id);
+  if (S.aiWhy) delete S.aiWhy[id];
+  if (typeof focusId !== "undefined" && focusId === id) focusId = null;
+  if (S.timer && S.timer.id === id) stopTimer(true);
+  save(); render();
+  if (typeof beep === "function") beep("back");
+  undoBar("Deleted " + g.title, () => {
+    if (S.games.some(x => x.id === id)) return;
+    S.games.splice(Math.min(i, S.games.length), 0, g);
+    S.played = S.played.concat(pl.filter(p => p.id === id));
+    S.duels = S.duels.concat(du.filter(d => d.a === id || d.b === id));
+    if (ai) (S.aiWhy ||= {})[id] = ai;
+  });
+}
+</script>
+
+<style>
+/* v174 Nexi remembers: a quiet card at the top of the queue, same family as the backup nudge */
+.nudge.nxstale { border-left-color: var(--volt); }
+.nxstale img { width: 34px; height: 46px; object-fit: cover; border-radius: 6px; flex: none; }
+.nxstale .t { flex: 1 1 180px; min-width: 0; }
+@media (min-width: 620px) {   /* clear of the side rail, like the game page's buttons (v166) */
+  html.pnrail:not(.railhide):not(.railleft) .nxstale { margin-right: 96px; }
+  html.pnrail.railleft:not(.railhide) .nxstale { margin-left: 96px; }
+}
+/* v174 month charts on Analytics: the same bars as "How you score things", rounded at the data end */
+.dist.mo i { border-radius: 4px 4px 0 0; }
+.distlab.mo span { flex: 1; text-align: center; font-size: 10px; color: var(--mute); font-weight: 800; line-height: 1.3; }
+.distlab.mo b { display: block; color: var(--ice); font-size: 12px; font-variant-numeric: tabular-nums; }
+</style>
+<script>
+/* v174 Nexi remembers: a game sitting in "Playing now" that you haven't touched (timer, diary, or
+   saying you're still on it) for three weeks gets a nudge — bump it, keep it, or drop it. */
+const STALE_DAYS = 21;
+function staleSweep() {
+  let ch = 0;
+  S.games.forEach(g => {
+    if ((g.state || "") === "playing") {
+      if (!g.onAt) { g.onAt = Math.max(0, ...(g.diary || []).map(e => e.t || 0)) || Date.now(); ch++; }
+    } else if (g.onAt) { delete g.onAt; ch++; }
+  });
+  if (ch) save();
+}
+function staleGame() {
+  const cut = Date.now() - STALE_DAYS * 864e5;
+  return S.games.filter(g => (g.state || "") === "playing" && g.onAt && g.onAt < cut && !(S.timer && S.timer.id === g.id))
+    .sort((a, b) => a.onAt - b.onAt)[0] || null;
+}
+function staleBar() {
+  staleSweep();
+  const g = staleGame(); if (!g) return "";
+  const wk = Math.floor((Date.now() - g.onAt) / (7 * 864e5));
+  return `<div class="nudge nxstale" style="--accent:${esc(g.colour || PALETTE[0])}">
+    <img decoding="async" src="${esc(cover(g))}" alt="">
+    <span class="t"><b>${esc(pnName())}: you haven't touched ${esc(g.title)} in ${wk} weeks.</b> Drop it or bump it?</span>
+    <span class="nudge-acts">
+      <button class="chip" data-stale="bump" data-id="${g.id}"><span>Bump to #1</span></button>
+      <button class="chip" data-stale="keep" data-id="${g.id}"><span>Still on it</span></button>
+      <button class="chip" data-stale="drop" data-id="${g.id}"><span>Drop it</span></button>
+    </span></div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-stale]"); if (!b) return;
+  const g = S.games.find(x => x.id === b.dataset.id); if (!g) return;
+  const act = b.dataset.stale;
+  if (act === "bump") {
+    g.ord = Math.min(0, ...S.games.map(x => x.ord || 0)) - 1; g.onAt = Date.now();
+    toast(g.title + " is #1 in your order");
+  } else if (act === "keep") {
+    g.onAt = Date.now(); toast("Got it — I'll check again in 3 weeks");
+  } else if (act === "drop") {
+    const was = g.onAt; g.state = "dropped"; delete g.onAt;
+    save(); render(); beep("back");
+    undoBar("Dropped " + g.title, () => { g.state = "playing"; g.onAt = was; });
+    return;
+  }
+  save(); render(); beep("tap");
+});
+/* the first draw happened before this script loaded */
+try { staleSweep(); if (staleGame()) renderQueue(); if (subOf("taste") === "analytics") renderTaste(); } catch (e) {}
+/* Nexi says it out loud once a day, if he's on screen */
+setTimeout(() => {
+  try {
+    staleSweep(); const g = staleGame(); const td = new Date().toLocaleDateString("en-CA");
+    if (!g || S.staleSaid === td || !nxOn() || document.getElementById("nxtour")) return;
+    S.staleSaid = td; save();
+    pnBubSay(["You haven't touched " + g.title + " in a while… drop it or bump it? It's at the top of your queue.", ""]);
+  } catch (e) {}
+}, 9000);
+
+/* v174 Analytics: what happened month by month, and which genres you finish vs drop */
+function tasteMonths() {
+  const now = new Date(), mos = [];
+  for (let i = 5; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    mos.push({ k: d.toLocaleDateString("en-CA").slice(0, 7), l: d.toLocaleDateString("en-GB", { month: "short" }) }); }
+  const fin = mos.map(m => (S.played || []).filter(p => String(p.t || "").slice(0, 7) === m.k).length);
+  const hrs = mos.map(m => num((S.hrsLog || {})[m.k], 0, 0, 1000));
+  const bars = (vals, fmt, what) => { const top = Math.max(1, ...vals);
+    return `<div class="dist mo" role="img" aria-label="${esc(what)} for the last six months">${vals.map((v, i) =>
+      `<span title="${esc(mos[i].l + ": " + fmt(v))}"><i class="${v ? "" : "pale"}" style="height:${Math.round(v / top * 100)}%"></i></span>`).join("")}</div>
+      <div class="distlab mo">${mos.map((m, i) => `<span>${esc(m.l)}<b>${fmt(vals[i])}</b></span>`).join("")}</div>`; };
+  const finN = fin.reduce((a, b) => a + b, 0), hrsN = hrs.reduce((a, b) => a + b, 0);
+
+  /* finished vs dropped, per genre: only games you actually started and stopped one way or the other */
+  const by = {};
+  S.games.forEach(g => {
+    const done = isPlayed(g), drop = isDropped(g); if (!done && !drop) return;
+    platList(g.genres).forEach(x => { const r = by[x] ||= { f: 0, d: 0 }; done ? r.f++ : r.d++; });
+  });
+  const gl = Object.entries(by).map(([name, r]) => ({ name, f: r.f, n: r.f + r.d, pct: Math.round(r.f / (r.f + r.d) * 100) }))
+    .filter(x => x.n >= 2).sort((a, b) => a.pct - b.pct || b.n - a.n);
+  const low = gl[0];
+
+  return `
+    <label>Finished, month by month</label>
+    ${bars(fin, v => String(v), "Games finished")}
+    <p class="note">${finN ? finN + " game" + (finN === 1 ? "" : "s") + " finished in the last six months." : "Nothing marked played in the last six months yet."}</p>
+
+    <label>Hours on the timer, month by month</label>
+    ${bars(hrs, v => v ? (v < 10 ? v.toFixed(1) : String(Math.round(v))) + "h" : "0", "Hours logged")}
+    <p class="note">${hrsN ? "About " + (hrsN < 10 ? hrsN.toFixed(1) : Math.round(hrsN)) + "h logged in the last six months." : "Start the timer from Plan → Timer when you play and your hours fill in here."} Counted from v174 onwards.</p>
+
+    <label>What you finish vs drop</label>
+    ${gl.length ? gl.slice(0, 8).map(x => `<div class="bar2"><span class="bl2">${esc(x.name)}</span>
+        <span class="bt2"><i style="width:${Math.max(2, x.pct)}%"></i></span>
+        <span class="bv2">${x.pct}%</span></div>`).join("") + `
+      <p class="note">Share of games in each genre you finished rather than dropped. ${low && low.pct < 50
+        ? "You drop more <b>" + esc(low.name.toLowerCase()) + "</b> than you finish (" + (low.n - Math.round(low.pct * low.n / 100)) + " of " + low.n + ")."
+        : "No genre you drop more than you finish."}</p>`
+      : '<p class="empty">Once a genre has two games that are either played or dropped, this shows which ones you see through.</p>'}`;
+}
+
+/* v174 home-screen shortcuts (long-press the app icon on Android): ?go=add / queue / tonight */
+(function () {
+  let go = ""; try { go = new URLSearchParams(location.search).get("go") || ""; } catch (e) {}
+  if (!go) return;
+  try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) {}
+  setTimeout(() => {
+    if (go === "add") goTab("add");
+    else if (go === "queue") { goTab("games"); goSub("games", "queue"); }
+    else if (go === "tonight") { goTab("home");
+      setTimeout(() => { const t = document.querySelector(".k-tonight"); if (t) t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 400); }
+  }, 60);
 })();
 </script>
 
@@ -12766,18 +13061,33 @@ const WHATS_NEW = [
     tryIt: "Only tap it when you want a clean slate for this game." },
   { v: 166, go: () => nxOpenSettings("#s-resetscores"), at: "#s-resetscores",
     say: "Want a fresh start everywhere? <b>Reset all scores</b> lives in Settings → Your data. Your games and art stay.",
-    tryIt: "Careful — it asks twice before wiping." },
+    tryIt: "It asks once, then gives you a few seconds to undo." },
   { v: 170, go: () => nxHome(), at: null,
     say: "I also got a lot <b>faster</b>: saving, opening cards, the queue background and tab switches are much smoother now." },
   { v: 171, go: () => nxQueue(), at: () => $("#p-queue > .row[data-row]") || $("#p-queue > [data-row]"),
     say: "<b>Swipe a queue card to the left</b> and a red Delete button slides out.",
-    tryIt: "Try it on this card — I'll always ask before deleting. Swipe back to close it." },
+    tryIt: "Try it on this card — you get an Undo button right after. Swipe back to close it." },
   { v: 172, go: () => nxOpenSettings("#s-whatsnew"), at: "#s-whatsnew",
     say: "From now on, every update I'll walk you through what's new like this. Missed something? <b>Show me what's new</b> replays it.",
     tryIt: "That's it — go have fun! 🎮" },
   { v: 173, go: () => nxHome(), at: null,
     say: "Skipped a few updates? I now <b>save up everything you missed</b> and show it all, oldest first. Close the app mid-tour and I remember the exact step we were on. Oh — and you can see my face now, even with the rail open 😄",
-    tryIt: "Nothing to try — just enjoy the view." }
+    tryIt: "Nothing to try — just enjoy the view." },
+  { v: 174, go: () => nxQueue(), at: () => $("#p-queue > .row[data-row]") || $("#p-queue > [data-row]"),
+    say: "No more \"are you sure?\" pop-ups. Delete a game or reset scores and it just happens — with an <b>Undo</b> button for 6 seconds in case you slipped.",
+    tryIt: "Try it: swipe this card left, tap Delete, then tap Undo." },
+  { v: 174, go: () => nxQueue(), at: () => $(".nxstale"),
+    say: "I now <b>keep an eye on Playing now</b>. If you haven't touched a game for 3 weeks (no timer, no diary), I'll ask right here: bump it to #1, keep it, or drop it.",
+    tryIt: "Nothing to do — I'll speak up when one goes quiet." },
+  { v: 174, go: () => { nxShut(); goTab("taste"); goSub("taste", "analytics"); }, at: () => $(".dist.mo"),
+    say: "Taste → Analytics has new charts: <b>games finished each month</b>, <b>timer hours each month</b>, and <b>which genres you finish vs drop</b>.",
+    tryIt: "Scroll down Analytics to see them. Timer hours count from today." },
+  { v: 174, go: () => nxHome(), at: null,
+    say: "On Android: <b>press and hold the Play next icon</b> on your home screen for shortcuts — Add a game, your Queue, and Tonight's pick.",
+    tryIt: "Try it next time you're on your home screen." },
+  { v: 174, go: () => nxHome(), at: null,
+    say: "Your uploaded pictures now live in their <b>own storage space</b>, so the app shouldn't say \"Storage full\" any more. I moved them for you — nothing to do.",
+    tryIt: "That's everything for this update 🎮" }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
