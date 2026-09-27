@@ -3464,14 +3464,54 @@ function applyBg() {
   }
   if (!src) { layers.forEach(l => { l.style.opacity = "0"; l.dataset.src = ""; }); return; }
   const shown = layers[bgSlot];
-  if (shown.dataset.src === src) { shown.style.opacity = "var(--bgo, .58)"; return; }
+  if (shown.dataset.src === src) {
+    /* Speed boost switched since this was drawn: bring it in line */
+    if (bgBaked() && shown.style.backgroundImage !== "none") bgBake(shown, src, () => {});
+    else if (!bgBaked() && shown.style.backgroundImage === "none") shown.style.backgroundImage = `url("${src}")`;
+    shown.style.opacity = "var(--bgo, .58)"; return;
+  }
   const next = layers[1 - bgSlot];
-  next.style.backgroundImage = `url("${src}")`;
   next.dataset.src = src;
+  bgSlot = 1 - bgSlot;
+  if (bgBaked()) {
+    /* v170: blur it once into a small canvas and let the stretch keep it soft, instead of a live
+       blur filter the phone re-ran on every frame (the queue dropped most frames with it on) */
+    bgBake(next, src, () => { if (next.dataset.src !== src) return; next.style.opacity = "var(--bgo, .58)"; shown.style.opacity = "0"; });
+    return;
+  }
+  next.style.backgroundImage = `url("${src}")`;
   next.style.opacity = "var(--bgo, .58)";
   shown.style.opacity = "0";
-  bgSlot = 1 - bgSlot;
 }
+const bgBaked = () => document.documentElement.classList.contains("fast");
+function bgBake(layer, src, done) {
+  const im = new Image(), tok = layer._bgTok = (layer._bgTok || 0) + 1;
+  im.decoding = "async";
+  im.onload = () => {
+    if (layer._bgTok !== tok) return;
+    let c = layer.querySelector("canvas");
+    if (!c) { c = document.createElement("canvas"); layer.appendChild(c); }
+    const W = innerWidth, H = innerHeight, x = c.getContext("2d");
+    const blur = S.bgBlur == null ? 5 : +S.bgBlur, live = x && "filter" in x;
+    /* Chrome: a quarter-size canvas with the real blur. Safari has no canvas blur: go smaller so the stretch does it */
+    const k = live ? 0.25 : 1 / Math.max(3, blur + 1);
+    c.width = Math.max(8, Math.round(W * k)); c.height = Math.max(8, Math.round(H * k));
+    if (!x) return done();
+    const r = Math.max(c.width / im.naturalWidth, c.height / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r;
+    if (live) x.filter = `blur(${(blur * k).toFixed(2)}px) saturate(1.3)`;
+    x.clearRect(0, 0, c.width, c.height);
+    x.drawImage(im, (c.width - w) / 2, (c.height - h) / 2, w, h);
+    layer.style.backgroundImage = "none"; layer._bgW = W; layer._bgH = H;
+    done();
+  };
+  im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
+  im.src = bigData(src) ? blobRef(src) : src;
+}
+/* folding or unfolding changes the screen shape: redraw the shown background to fit */
+addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout(() => {
+  if (!bgBaked()) return;
+  [$("#bgart"), $("#bgart2")].forEach(l => { if (l && l.dataset.src && l._bgW && (l._bgW !== innerWidth || l._bgH !== innerHeight)) bgBake(l, l.dataset.src, () => {}); });
+}, 250); }, { passive: true });
 
 const $ = s => document.querySelector(s);
 let AC, userTouched = false;
@@ -3805,7 +3845,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "169";
+const APP_V = "170";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -12579,6 +12619,20 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
 @keyframes fxbl { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.12); } }
 /* home ring glow: spun with a blur on it (a looping blur); now a plain disc with a painted soft edge */
 .ring .blob { filter: none !important; box-shadow: 0 0 6px 1px rgba(143,208,255,.5); }
+/* frosted glass on panels that are ~90% solid anyway: the blur barely showed but cost a full re-blur
+   of whatever is behind them on every frame. Slightly more solid backgrounds keep the same look. */
+html.fast #full .hub .fullx, html.fast #fxrad .x, html.fast #fxboss .x, html.fast .lx-card, html.fast .lx-strip,
+html.fast #loadbar, html.fast #pnstory { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.fast .lx-strip { background: rgba(8,15,36,.94); }
+html.fast #loadbar { background: rgba(8,15,36,.96); }
+html.fast #pnstory { background: rgba(2,4,10,.94); }
+/* the queue background is pre-blurred into a canvas (bgBake), so no live filter and no quarter-size trick */
+html.fast #bgart, html.fast #bgart2 { filter: none !important; inset: 0 !important; width: auto !important; height: auto !important;
+  transform: translateZ(0) !important; }
+#bgart canvas, #bgart2 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+html:not(.fast) #bgart canvas, html:not(.fast) #bgart2 canvas { display: none; }
+/* pressing a shelf cover animated its glow blur; now only the lift animates */
+.sb { transition: transform .3s cubic-bezier(.2,.9,.3,1.3) !important; }
 /* HP bar glint slides; the liquid edge and ripple hold still (they repainted every frame, forever) */
 .fxhp i::before { right: auto !important; width: 40%; background-size: 100% 100% !important; }
 @keyframes fxglint { from { transform: translateX(0); } to { transform: translateX(140%); } }
