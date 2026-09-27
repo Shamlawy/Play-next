@@ -11307,14 +11307,15 @@ load();
 /* FX pack */
 (()=>{
 const still=()=>document.documentElement.classList.contains('still')||matchMedia('(prefers-reduced-motion: reduce)').matches;
-const cv=document.createElement('canvas');cv.id='fx';document.body.appendChild(cv);
+/* v170: the full-screen sparks canvas only exists on screen while sparks fly; the rest of the time it was one more full-screen layer to blend every frame */
+const cv=document.createElement('canvas');cv.id='fx';cv.style.display='none';document.body.appendChild(cv);
 const g=cv.getContext('2d'),D=Math.min(devicePixelRatio||1,2);let W,H;
 const size=()=>{W=innerWidth;H=innerHeight;cv.width=W*D;cv.height=H*D;g.setTransform(D,0,0,D,0,0)};
 size();addEventListener('resize',size);
 const P=[],R=[];let run=false;
 function burst(x,y,n,sp,c){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=sp*(.4+Math.random());
 P.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:Math.random()*6.283,vr:(Math.random()-.5)*.4,s:3+Math.random()*5,l:1,c})}
-R.push({x,y,r:4,l:1,c});if(!run){run=true;requestAnimationFrame(tick)}}
+R.push({x,y,r:4,l:1,c});if(!run){run=true;cv.style.display='';requestAnimationFrame(tick)}}
 function tick(){g.clearRect(0,0,W,H);
 for(let i=P.length;i--;){const p=P[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.92;p.vy=p.vy*.92+.15;p.r+=p.vr;p.l-=.028;
 if(p.l<=0){P.splice(i,1);continue}
@@ -11322,7 +11323,7 @@ g.save();g.translate(p.x,p.y);g.rotate(p.r);g.globalAlpha=p.l;g.fillStyle=p.c;
 g.beginPath();g.moveTo(0,-p.s);g.lineTo(p.s*.45,p.s);g.lineTo(-p.s*.45,p.s*.4);g.fill();g.restore()}
 for(let i=R.length;i--;){const r=R[i];r.r+=(60-r.r)*.18;r.l-=.05;if(r.l<=0){R.splice(i,1);continue}
 g.globalAlpha=r.l;g.strokeStyle=r.c;g.lineWidth=2.5;g.beginPath();g.arc(r.x,r.y,r.r,0,6.283);g.stroke()}
-g.globalAlpha=1;if(P.length||R.length)requestAnimationFrame(tick);else{run=false;g.clearRect(0,0,W,H)}}
+g.globalAlpha=1;if(P.length||R.length)requestAnimationFrame(tick);else{run=false;g.clearRect(0,0,W,H);cv.style.display='none'}}
 let tc=null,tr=null;
 const reset=()=>{if(tc){tc.style.transform='';tc.classList.remove('fxt');tc=null}};
 let AC;
