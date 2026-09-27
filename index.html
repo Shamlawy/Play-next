@@ -3770,7 +3770,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "166";
+const APP_V = "167";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -12489,3 +12489,14 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   }, true);
 })();
 </script>
+
+<style>
+/* v167 Nexi's glow sometimes showed as a square box. Three stacked fixes (blur, clip-path, mask) each
+   add a separate layer the phone can drop mid-spin, and then the disc's square corners show.
+   Plain rounded corners are drawn into the disc itself, so there is nothing left to lose; the soft
+   edge comes from a painted shadow instead of a blur. */
+#pnbub .aura { filter: none !important; clip-path: none !important; -webkit-clip-path: none !important;
+  -webkit-mask-image: none !important; mask-image: none !important; border-radius: 50% !important;
+  -webkit-backface-visibility: visible; backface-visibility: visible;
+  box-shadow: 0 0 7px 1px rgba(143,208,255,.45); }
+</style>
