@@ -3830,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "179";
+const APP_V = "180";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4915,8 +4915,8 @@ function openEdit(id) {
     <div class="rowline"><input id="e-runs" type="range" min="1" max="12" step="1" value="${num(played.runs, 1, 1, 12)}">
       <span class="v" id="e-runs-v">${num(played.runs, 1, 1, 12)}×</span></div>
     <label for="e-fin">When you finished it</label>
-    <input id="e-fin" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(played.t || "") ? played.t : "")}" max="${new Date().toLocaleDateString("en-CA")}">
-    <p class="note">Your monthly and yearly recaps count it in this month. Not sure of the day? Any day in the right month is fine.</p>
+    <div id="e-fin">${finPick(played.t)}</div>
+    <p class="note">Pick the month. Your monthly and yearly recaps count the game there.</p>
     <label>What got you about it</label>
     <p class="note">Pick as many as fit, or none. This is the only thing here that isn't a score — it's what turns "you rate RPGs highly" into "you rate games with characters you care about highly". Most of these come from Quantic Foundry's motivation model, built from over a million players; the story ones are here because a question about one game needs them and a question about players doesn't.</p>
     <div id="e-why">${WHY_GROUPS.map(([head, list]) => `
@@ -5275,7 +5275,7 @@ function openEdit(id) {
       editing.real = Number(ev2.target.value);
       $("#e-real-v").textContent = Number(ev2.target.value).toFixed(1);
     };
-    if ($("#e-fin")) $("#e-fin").oninput = ev2 => { editing.fin = ev2.target.value; };
+    if ($("#e-fin")) finWire($("#e-fin"), t => { editing.fin = t; });
     if ($("#e-runs")) $("#e-runs").oninput = ev2 => {
       editing.runs = Number(ev2.target.value);
       $("#e-runs-v").textContent = ev2.target.value + "×";
@@ -11706,6 +11706,42 @@ async function wrCard(d) {
   }, "image/png");
 }
 
+/* ===== v180 finish month picker: no native date box (it wouldn't open for the owner) — a year and twelve month buttons ===== */
+const FIN_M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function finPick(t, year) {
+  const now = new Date(), ok = /^\d{4}-\d{2}/.test(t || ""), ty = ok ? +t.slice(0, 4) : null, tm = ok ? +t.slice(5, 7) - 1 : null;
+  const Y = year || ty || now.getFullYear();
+  return `<div class="finpk" data-y="${Y}" data-t="${esc(t || "")}">
+    <div class="fy"><button type="button" data-fy="-1" aria-label="Year before">‹</button><b>${Y}</b>
+      <button type="button" data-fy="1" aria-label="Year after"${Y >= now.getFullYear() ? " disabled" : ""}>›</button></div>
+    <div class="fm">${FIN_M.map((m, i) => `<button type="button" data-fm="${i}" aria-pressed="${Y === ty && i === tm}"${
+      Y === now.getFullYear() && i > now.getMonth() ? " disabled" : ""}>${m}</button>`).join("")}</div></div>`;
+}
+function finWire(root, onPick) {
+  root.onclick = e => {
+    const pk = root.querySelector(".finpk"); if (!pk) return;
+    const y = e.target.closest("[data-fy]"), m = e.target.closest("[data-fm]");
+    if (y) { e.preventDefault(); root.innerHTML = finPick(pk.dataset.t, +pk.dataset.y + +y.dataset.fy); beep("tap"); return; }
+    if (!m || m.disabled) return;
+    e.preventDefault();
+    const Y = +pk.dataset.y, M = +m.dataset.fm, old = pk.dataset.t, now = new Date();
+    /* keep the day if it stays in the same month; otherwise mid-month (or today, for this month) */
+    let d = old && old.slice(0, 7) === Y + "-" + String(M + 1).padStart(2, "0") ? +old.slice(8, 10) : 15;
+    if (Y === now.getFullYear() && M === now.getMonth()) d = Math.min(d, now.getDate());
+    const t = Y + "-" + String(M + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+    root.innerHTML = finPick(t, Y); beep("tap"); onPick(t);
+  };
+}
+/* the month under a game on the Top board: tap it to change when you finished */
+function openFinDate(id) {
+  const g = S.games.find(x => x.id === id), rec = (S.played || []).find(x => x.id === id); if (!g || !rec) return;
+  const box = dyBox();
+  dyShow(box, `<div class="dy-h"><b>🏁 When did you finish ${esc(g.title)}?</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">Pick the month. Your recaps count the game there.</p><div id="fin-sheet">${finPick(rec.t)}</div>`, () => {});
+  finWire(box.querySelector("#fin-sheet"), t => { rec.t = t; saveNow(); renderPlayed(); toast("Finished in " + FIN_M[+t.slice(5, 7) - 1] + " " + t.slice(0, 4)); setTimeout(dyClose, 350); });
+}
+document.addEventListener("click", e => { const f = e.target.closest("[data-findate]"); if (!f) return; e.stopPropagation(); e.preventDefault(); beep("tap"); openFinDate(f.dataset.findate); }, true);
+
 load();
 /* FX pack */
 (()=>{
@@ -12636,7 +12672,7 @@ function pnBoard(done){
       <span></span>
       <div class="pnb-s"><div class="pnb-r">${i+1}</div>
         <div class="pnb-n"><i>★</i><b class="pnb-v" data-v="${(+x.real).toFixed(1)}">${(+x.real).toFixed(1)}</b><small>/10</small></div>
-        <div class="pnb-c">${mon(x.t)}</div></div></button>`).join("")}
+        <div class="pnb-c" data-findate="${x.id}" title="Change when you finished it">${mon(x.t)} ✎</div></div></button>`).join("")}
     ${rows.length>8?`<button class="chip" data-pnall style="margin-top:8px"><span>${S.boardAll?"Show top 8":"See all "+rows.length}</span></button>`:""}
   </div>`;
 }
@@ -13216,7 +13252,10 @@ const WHATS_NEW = [
     tryIt: "Fix the dates on the games you finished a while ago." },
   { v: 179, go: () => nxHome(), at: () => $("#p-home .dxcomp") || $("#p-home .dxplay"),
     say: "Competitive games like FC or Chess never really finish, so under <b>Playing now</b> they show <b>⚔ Competitive</b> and your win rate from the diary instead of an empty progress bar. And the recaps wait for a few play sessions before naming your most-played game.",
-    tryIt: "Log wins and losses in a competitive game's diary to see your win rate here." }
+    tryIt: "Log wins and losses in a competitive game's diary to see your win rate here." },
+  { v: 180, go: () => { nxShut(); goTab("played"); }, at: () => $("#p-played [data-findate]"),
+    say: "Changing when you finished a game is easier now: <b>tap the month under any game</b> on the Top board and pick the right one. Edit → Played has the same month picker, so there's no fiddly date box any more.",
+    tryIt: "Tap a month under one of your games." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13816,4 +13855,17 @@ html.still #sheet-in.drill details.grp[open] { animation: none; }
   color: var(--volt); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: transform .2s ease; }
 @keyframes sFlash { 0%, 100% { opacity: 1; } 30%, 70% { opacity: .35; } }
 .sflash { animation: sFlash .5s ease 3; color: var(--volt) !important; }
+</style>
+<style>
+/* ===== v180 finish month picker ===== */
+.finpk { margin: 6px 0 4px; }
+.finpk .fy { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.finpk .fy b { font-size: 18px; font-weight: 800; }
+.finpk .fy button { width: 44px; height: 40px; border-radius: 12px; border: 1px solid var(--edge); background: var(--void); color: var(--ice); font-size: 20px; cursor: pointer; }
+.finpk button:disabled { opacity: .3; cursor: default; }
+.finpk .fm { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.finpk .fm button { padding: 11px 0; border-radius: 12px; border: 1px solid var(--edge); background: var(--void); color: var(--ice); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform .2s ease, background-color .2s ease; }
+.finpk .fm button[aria-pressed="true"] { background: var(--volt); color: var(--void); border-color: var(--volt); }
+.finpk button:not(:disabled):active { transform: scale(.94); }
+.pnb-c[data-findate] { cursor: pointer; }
 </style>
