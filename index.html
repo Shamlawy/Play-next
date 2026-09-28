@@ -13894,7 +13894,8 @@ html.still #sheet-in.drill details.grp[open] { animation: none; }
 </style>
 <style>
 /* ===== v181 theme picker ===== */
-.thpick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0; }
+.thpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; margin: 6px 0; }
+.thpick .chip span { font-size: 13.5px; white-space: nowrap; }
 .thpick .chip { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px; justify-content: flex-start; }
 .thpick .chip i { width: 22px; height: 22px; border-radius: 50%; flex: none; background: linear-gradient(135deg, var(--ta), var(--tb)); box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
 .thpick .chip[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--void), 0 0 0 4px var(--ta); }
