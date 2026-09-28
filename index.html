@@ -3072,6 +3072,9 @@ const STATES = [["upcoming", "Upcoming"], ["backlog", "Out, not played"], ["play
   ["played", "Played it"], ["dropped", "Started and dropped"]];
 const isDropped = g => (g && g.state) === "dropped";
 const isPlayed = g => S.played.some(p => p.id === (g && g.id));
+/* v184: a played record has a score when it holds a number 0–10; a real 0 is marked z:1 (old saves used 0 for
+   "no score yet"). dk:1 = "Don't remember": shown as Unscored and left out of every stat. */
+function scored(p) { return !!p && !p.dk && typeof p.real === "number" && (p.real > 0 || (p.real === 0 && p.z === 1)); }
 const playedRec = g => S.played.find(p => p.id === (g && g.id));
 /* keep the played record in step with the state you picked */
 /* One record per game. Where a game ended up with several, take the best
@@ -3173,13 +3176,13 @@ function gateBlock(what) {
    outside every year rather than being guessed into one. */
 function yearsWithPlays() {
   const set = new Set();
-  (S.played || []).forEach(p2 => { if (p2.real > 0 && p2.t) set.add(p2.t.slice(0, 4)); });
+  (S.played || []).forEach(p2 => { if (scored(p2) && p2.t) set.add(p2.t.slice(0, 4)); });
   return [...set].sort().reverse();
 }
 
 function yearReport(y) {
   const rows = (S.played || [])
-    .filter(p2 => p2.real > 0 && p2.t && p2.t.slice(0, 4) === String(y))
+    .filter(p2 => scored(p2) && p2.t && p2.t.slice(0, 4) === String(y))
     .map(p2 => ({ ...p2, g: S.games.find(x => x.id === p2.id) }))
     .filter(x => x.g);
   if (!rows.length) return null;
@@ -3943,7 +3946,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "183";
+const APP_V = "184";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5027,8 +5030,9 @@ function openEdit(id) {
     </div>
     ${played ? `<div class="setgroup"><h4 data-sum="${esc(played.real || "—")}/10">Played</h4>
     <label for="e-real">What it actually deserved</label>
-    <div class="rowline"><input id="e-real" type="range" min="1" max="10" step="0.5" value="${num(played.real, 5, 1, 10)}">
-      <span class="v" id="e-real-v">${num(played.real, 5, 1, 10).toFixed(1)}</span></div>
+    <div class="rowline"><input id="e-real" type="range" min="0" max="10" step="0.5" value="${scored(played) ? played.real : 5}">
+      <span class="v" id="e-real-v">${played.dk ? "Unscored" : scored(played) ? (+played.real).toFixed(1) : "—"}</span></div>
+    <div class="chips"><button class="chip" id="e-dk" type="button" aria-pressed="${!!played.dk}"><span>🤷 Don't remember</span></button></div>
     <p class="note">You hyped it ${g.hype || "—"}/10 before playing.</p>
     <label for="e-runs">Times through</label>
     <div class="rowline"><input id="e-runs" type="range" min="1" max="12" step="1" value="${num(played.runs, 1, 1, 12)}">
@@ -5391,9 +5395,12 @@ function openEdit(id) {
     beep("tap");
   };
   $("#e-real").oninput = ev2 => {
-      editing.real = Number(ev2.target.value);
+      editing.real = Number(ev2.target.value); editing.dk = false;
       $("#e-real-v").textContent = Number(ev2.target.value).toFixed(1);
+      if ($("#e-dk")) $("#e-dk").setAttribute("aria-pressed", "false");
     };
+    if ($("#e-dk")) $("#e-dk").onclick = () => { editing.dk = $("#e-dk").getAttribute("aria-pressed") !== "true";
+      $("#e-dk").setAttribute("aria-pressed", String(editing.dk)); if (editing.dk) { editing.real = undefined; $("#e-real-v").textContent = "Unscored"; } beep("tap"); };
     if ($("#e-fin")) finWire($("#e-fin"), t => { editing.fin = t; });
     if ($("#e-runs")) $("#e-runs").oninput = ev2 => {
       editing.runs = Number(ev2.target.value);
@@ -5687,7 +5694,7 @@ function openEdit(id) {
   }
   $("#e-save").onclick = () => {
     const next = collectEdit();
-    delete next.real; delete next.runs;
+    delete next.real; delete next.runs; delete next.dk;
     Object.assign(S.games.find(x => x.id === id), next);
     const wantState = editing.state || g.state || "upcoming";
     syncPlayed(S.games.find(x => x.id === id) || g, wantState);
@@ -5695,12 +5702,13 @@ function openEdit(id) {
     const rec = S.played.find(x => x.id === id);
     if (rec) {
       if (played) {
-        rec.real = num(editing.real, rec.real, 0, 10);
+        if (editing.dk) scoreWrite(rec, "dk");
+        else if (editing.real != null && !isNaN(editing.real)) scoreWrite(rec, num(editing.real, rec.real, 0, 10));
         rec.runs = num(editing.runs, num(rec.runs, 1, 1, 12), 1, 12);
         if (editing.again != null) rec.again = editing.again;
         if (/^\d{4}-\d{2}-\d{2}$/.test(editing.fin || "")) rec.t = editing.fin;
       }
-      if (rec.real > 0 && rec.real !== before) setTimeout(() => allOut(S.games.find(x => x.id === id) || g, rec.real), 350);
+      if (scored(rec) && rec.real !== before) setTimeout(() => allOut(S.games.find(x => x.id === id) || g, rec.real), 350);
     }
     touched();
     if (saveNow()) toast("Saved");
@@ -5761,6 +5769,20 @@ function openSettings(scope) {
       <label for="s-standn">Places in the standings</label>
       <div class="rowline"><input id="s-standn" type="range" min="2" max="10" value="${num(S.standN, 4, 2, 10)}">
         <span class="v" id="s-standn-v">${num(S.standN, 4, 2, 10)}</span></div>
+    </div>
+
+    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="How your next game gets picked.">On deck</h4>
+      <p class="note">On deck is my top 3 from your queue: games like the ones you rank highest, on the machine you're playing on, and out now. Number 1 is the pick on Home.</p>
+      <label>Your platform right now</label>
+      <div class="chips" id="s-curplat">
+        ${[...new Set(["Switch"].concat(S.games.flatMap(g => platList(g.platforms))).concat(["any"]))].slice(0, 10).map(v =>
+          `<button class="chip" data-v="${escRaw(v)}" aria-pressed="${curPlat() === v}"><span>${v === "any" ? "Any" : escRaw(v)}</span></button>`).join("")}
+      </div>
+      <label>On deck row in the queue</label>
+      <div class="chips" id="s-deck">
+        ${[["on", "Show it"], ["off", "Hide it"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.deckOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges, rating rings and the art behind each row.">Queue cards</h4>
@@ -6396,6 +6418,8 @@ function openSettings(scope) {
   pick("#s-fast", v => S.fast = v === "on");
   pick("#s-fps", v => S.fps = v === "on");
   pick("#s-grum", v => S.grum = v === "on");
+  pick("#s-curplat", v => { S.curPlat = v; deckMemo = null; }, () => render());
+  pick("#s-deck", v => S.deckOff = v === "off", () => renderQueue());
   pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
@@ -6654,7 +6678,7 @@ const liveGames = () => S.showPlayed ? allGames() : S.games.filter(g => !isPlaye
 
 const SORTS = [
   ["date", "Soonest"], ["hype", "Most hyped"], ["expect", "What I'd expect"],
-  ["duel", "Duel order"], ["overall", "My rating"],
+  ["ondeck", "On deck (my pick)"], ["duel", "Duel order"], ["overall", "My rating"],
   ["story", "Story"], ["music", "Music"], ["gameplay", "Gameplay"], ["replay", "Replayability"],
   ["visuals", "Visuals"], ["world", "World"], ["chars", "Characters"], ["pace", "Pacing"],
   ["longest", "Longest"], ["shortest", "Shortest"]
@@ -6713,6 +6737,7 @@ function sortGames(list) {
   if (m === "hype") return byNum(g => g.hype || 0);
   if (m === "expect") return byNum(g => { const e = expected(g); return e == null ? (g.hype || 0) - 0.01 : e; });
   if (m === "duel") { const t = eloTable(); return byNum(g => t[g.id] || 1500); }
+  if (m === "ondeck") { const o = onDeckScores(); return byNum(g => o[g.id] != null ? o[g.id] : -1); }
   if (m === "overall") return byNum(avgScore);
   if (RATINGS.some(([k]) => k === m)) return byNum(g => { const v = (g.mine || {})[m]; return v > 0 ? v : -1; });
   if (m === "longest") return byNum(g => hrsOf(g) || 0);
@@ -7202,7 +7227,7 @@ function eloTable() {
     const ea = 1 / (1 + Math.pow(10, (t[d.b] - t[d.a]) / 400));
     /* a draw is real information: it says these two sit at the same height,
        so it pulls them together rather than being thrown away */
-    const sa = d.w === "draw" ? .5 : d.w === d.a ? 1 : 0;
+    const sa = duelResult(d);
     t[d.a] += ELO_K * (sa - ea);
     t[d.b] += ELO_K * ((1 - sa) - (1 - ea));
   });
@@ -7211,7 +7236,7 @@ function eloTable() {
 const duelCount = id => (S.duels || []).filter(d => d.a === id || d.b === id).length;
 const playedRows = () => (S.played || [])
   .map(p => ({ ...p, g: S.games.find(x => x.id === p.id) }))
-  .filter(x => x.g && x.real > 0);
+  .filter(x => x.g && scored(x));
 
 /* how far your hype runs from the verdict */
 function hypeBias() {
@@ -7259,7 +7284,7 @@ const frB64 = u => { let s = ""; u.forEach(c => s += String.fromCharCode(c)); re
 const frU8 = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 const frPipe = async (u, t) => new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(t)).arrayBuffer());
 function frMine() {
-  const real = {}; (S.played || []).forEach(p => { if (p.real > 0) real[p.id] = p.real; });
+  const real = {}; (S.played || []).forEach(p => { if (scored(p)) real[p.id] = p.real; });
   return S.games.filter(g => !isDropped(g)).map(g => ({ title: g.title, hype: num(g.hype, 0, 0, 10), real: real[g.id] || 0, gen: platList(g.genres) }));
 }
 async function frPack() {
@@ -7286,18 +7311,18 @@ function frCompare(f) {
   const mine = new Map(me.map(x => [key(x.title), x]));
   const both = [], only = [];
   them.forEach(t => { const m = mine.get(key(t.title)); if (m) both.push({ t: m.title, a: val(m), b: val(t) }); else only.push(t); });
-  const scored = both.filter(x => x.a > 0 && x.b > 0);
+  const both2 = both.filter(x => x.a > 0 && x.b > 0);
   const top = list => { const c = {}; list.filter(x => val(x) >= 7).forEach(x => x.gen.forEach(n => c[n] = (c[n] || 0) + 1));
     return new Set(Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 8).map(e => e[0])); };
   const A = top(me), B = top(them), shared = [...A].filter(x => B.has(x)), uni = new Set([...A, ...B]).size;
-  const vSim = scored.length ? Math.max(0, 100 - scored.reduce((s, x) => s + Math.abs(x.a - x.b), 0) / scored.length * 12.5) : null;
+  const vSim = both2.length ? Math.max(0, 100 - both2.reduce((s, x) => s + Math.abs(x.a - x.b), 0) / both2.length * 12.5) : null;
   const gSim = uni ? shared.length / uni * 100 : null;
-  const w = vSim == null ? 0 : gSim == null ? 1 : Math.min(1, scored.length / 5) * .8;
+  const w = vSim == null ? 0 : gSim == null ? 1 : Math.min(1, both2.length / 5) * .8;
   const pct = vSim == null && gSim == null ? null : Math.round((vSim || 0) * w + (gSim || 0) * (1 - w));
   const gap = x => Math.abs(x.a - x.b);
   return { pct, both, genres: shared.slice(0, 4),
-    hyped: scored.filter(x => x.a >= 7 && x.b >= 7).sort((x, y) => (y.a + y.b) - (x.a + x.b)).slice(0, 5),
-    split: scored.filter(x => gap(x) >= 3).sort((x, y) => gap(y) - gap(x)).slice(0, 5),
+    hyped: both2.filter(x => x.a >= 7 && x.b >= 7).sort((x, y) => (y.a + y.b) - (x.a + x.b)).slice(0, 5),
+    split: both2.filter(x => gap(x) >= 3).sort((x, y) => gap(y) - gap(x)).slice(0, 5),
     theirs: only.filter(x => val(x) >= 6).sort((x, y) => val(y) - val(x)).slice(0, 6) };
 }
 const frRead = p => p >= 80 ? "Same wavelength. Their picks are safe bets for you."
@@ -7320,7 +7345,7 @@ function tasteFriend() {
     ${c.genres.length ? `<p class="fr-gen">You both go for ${c.genres.map(esc).join(", ")}.</p>` : ""}
     ${list("You both rate high", c.hyped.map(two))}
     ${list("Where you split", c.split.map(two))}
-    ${list(`On ${who}'s list, not yours`, c.theirs.map(x => `<li><span>${esc(x.title)}</span><b>${x.real > 0 ? "scored " + x.real : "hype " + x.hype}</b></li>`))}
+    ${list(`On ${who}'s list, not yours`, c.theirs.map(x => `<li><span>${esc(x.title)}</span><b>${scored(x) ? "scored " + x.real : "hype " + x.hype}</b></li>`))}
     ${f.s ? "" : `<p class="fr-sync">Ask ${who} for a new code to switch on live updates.</p>`}${acts}${S.syncOn ? `<p class="fr-sync">${S.syncErr ? "Live sync is off: " + esc(S.syncErr) + "." : "Your list updates for them automatically."}</p>` : ""}${box}<button class="chip" id="fr-drop"><span>Remove ${who}</span></button>`;
 }
 function friendWire(el) {
@@ -8080,6 +8105,7 @@ function renderQueue() {
       })()}
       <button class="chip" data-shuffle><span>🔀 Shuffle</span></button><button class="chip" id="fx-radar"><span>Radar</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
     </div>
+    ${onDeckStrip()}
     `;
   qPatch(el, head, sorted.map((g, i) => [g.id, g.id === activeId ? big(g, i + 1) : row(g, i + 1)]),
     sorted.length ? "" : '<p class="empty">Nothing here right now. Try another filter.</p>');
@@ -8649,7 +8675,7 @@ function hubMarkup(g) {
         <div class="hub-data">${stats.map(([v, l]) =>
           `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="hub-acts">
-          ${!g.comp && (p || !isUpcoming(g)) ? `<button class="chip hot" data-qscore="${g.id}"><span>⭐ ${p && p.real > 0 ? "Score · " + p.real : "Score it"}</span></button>` : ""}
+          ${!g.comp && (p || !isUpcoming(g)) ? `<button class="chip hot" data-qscore="${g.id}"><span>⭐ ${p && scored(p) ? "Score · " + p.real : "Score it"}</span></button>` : ""}
           ${p && !g.comp ? `<button class="chip hot" data-qduel="${g.id}"><span>⚔️ Duel it</span></button>` : ""}
           <button class="chip" data-fulledit="${g.id}"><span>Edit</span></button>
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
@@ -9221,7 +9247,7 @@ function renderPlayed() {
     })()}
     ${(() => {
       /* finished shelf: every scored game, best on the left, tap to open */
-      const sh = done.filter(x => x.real > 0).sort((a, b) => b.real - a.real); setTimeout(pnShelf, 30);
+      const sh = done.filter(x => scored(x)).sort((a, b) => b.real - a.real); setTimeout(pnShelf, 30);
       if (!sh.length) return "";
       return `<div class="shelf"><label>Finished shelf · ${sh.length}</label>
         <div class="shelf-row" id="shelf-row">${sh.map((x, i) => `<button class="sb" data-edit="${x.id}" style="--i:${Math.min(i, 12)};--accent:${esc(x.g.colour)}"
@@ -9230,7 +9256,7 @@ function renderPlayed() {
     })()}
     ${(() => {
       /* started and dropped counts as an opinion — it belongs in here with the rest */
-      const toScore = S.games.filter(g => !isUpcoming(g) && !(playedRec(g) || {}).real);
+      const toScore = S.games.filter(g => !isUpcoming(g) && !scored(playedRec(g)) && !(playedRec(g) || {}).dk && !g.comp);
       if (!toScore.length) return '<p class="empty">Everything you\'ve played has a verdict. Nothing waiting.</p>';
       const waiting = toScore.filter(g => isPlayed(g)).length;
       return `<label>Finished one? Tap it, then tap the score it really deserves.</label>
@@ -9241,20 +9267,20 @@ function renderPlayed() {
     })()}
     ${done.length ? `<label>Hype vs reality</label>
       ${done.map(x => {
-        const scored = x.real > 0;
-        const d = scored ? x.real - x.g.hype : 0;
-        return `<div class="row slab${scored ? "" : " unscored"}" style="--accent:${esc(x.g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
+        const sc = scored(x);
+        const d = sc ? x.real - x.g.hype : 0;
+        return `<div class="row slab${sc ? "" : " unscored"}" style="--accent:${esc(x.g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
           <img decoding="async" src="${esc(cover(x.g))}" alt=""><span class="name">${esc(x.g.title)}</span>
-          <span class="score">${scored ? x.g.hype + " → " + x.real : "not scored yet"}</span>
+          <span class="score">${sc ? x.g.hype + " → " + x.real : x.dk ? "Unscored" : "not scored yet"}</span>
           ${num(x.runs, 1, 1, 99) > 1 ? `<span class="when">${num(x.runs, 1, 1, 99)}× through</span>` : ""}
-          ${scored ? `<span class="gap ${d < 0 ? "over" : "under"}">${d > 0 ? "+" : ""}${d}</span>` : ""}
+          ${sc ? `<span class="gap ${d < 0 ? "over" : "under"}">${d > 0 ? "+" : ""}${d}</span>` : ""}
           <button class="icon${x.again ? " again" : ""}" data-again="${x.id}"
             title="${x.again ? "In the replay list" : "Want to play it again"}">↻</button>
           <button class="icon" data-edit="${x.id}" title="Edit ${esc(x.g.title)}">✎</button>
         </div></div>`;
       }).join("")}
       <p class="note">Red means you hyped it more than it deserved.${
-        done.some(x => !(x.real > 0))
+        done.some(x => !(scored(x)))
           ? " Anything showing <b>not scored yet</b> is waiting on a verdict — it counts towards nothing until you give it one."
           : ""}</p>` : ""}
     ${droppedBlock(quit)}`;
@@ -9270,7 +9296,8 @@ function renderPlayed() {
     toast(p.again ? "Added to Replay" : "Removed from Replay");
     beep("tap");
   });
-  el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
+  el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { qScore(b.dataset.open); });
+  if (0) el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
     const g = S.games.find(x => x.id === b.dataset.open);
     $("#scorebox").innerHTML = `<label>Real score for ${esc(g.title)}</label>
       <div class="chips">${Array.from({ length: 10 }, (_, i) => `<button class="chip" data-score="${i + 1}"><span>${i + 1}</span></button>`).join("")}</div>`;
@@ -9522,45 +9549,47 @@ function duelCover() {
 /* ---- Taste, in four rooms ---- */
 
 function tasteDuels() {
-  duelPair = pickDuel();
-  const elo = eloTable();
-  const all = (S.duels || []).length;
+  /* v184: duels are between games you've played and scored; the order they build is your ranking */
+  duelPair = qDuelPair(null);
+  const t = rankTable(), list = rankedGames();
   const settled = (S.duels || []).filter(d => d.w).length;
-  const c = duelCover();
-  const standings = duelPool().slice()
-    .sort((x, y) => (elo[y.id] || 0) - (elo[x.id] || 0));
-  const pool = (S.duelPool || "played") === "queue" ? "queue" : "played";
+  const sure = list.filter(g => confOf(t.n[g.id]) >= 2).length;
   return `
-    <div class="chips" id="duel-pool">${[["played", "Games you've played"], ["queue", "Your queue"]]
-      .map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${pool === v}"><span>${l}</span></button>`).join("")}</div>
-    <label>${pool === "queue" ? "Which one first?" : "Which one was better?"}${
-      duelPair && duelFix && duelFix.found ? ` <b style="color:var(--volt)">Round ${duelFix.found.round} of ${
-        duelFix.found.rounds}</b> \u00b7 match ${duelFix.found.match} of ${duelFix.found.inRound}` : ""}</label>
+    <label>Which one was better?${duelPair ? ` <b style="color:var(--volt)">#${t.pos[duelPair[0].id] + 1} vs #${t.pos[duelPair[1].id] + 1}</b>` : ""}</label>
     ${duelPair ? `<div class="duelrow">${duelCard(duelPair[0])}${duelCard(duelPair[1])}</div>
-      <div class="chips"><button class="chip" id="duel-skip"><span>Draw \u2014 too close to call</span></button></div>`
-      : `<p class="empty">${duelPool().length < 2
-        ? "Add a second game and you can start comparing."
-        : "Every pair has been judged \u2014 the fixture list is finished. The standings below are as settled as they get. Add a game, or clear the duels to run it again."}</p>`}
+      <div class="chips tdw"><button class="chip" data-tdw="e0"><span>‹ Slight edge</span></button><button class="chip" data-tdw="d"><span>Even</span></button>
+        <button class="chip" data-tdw="e1"><span>Slight edge ›</span></button><button class="chip" data-tdw="s"><span>Skip</span></button></div>`
+      : `<p class="empty">${list.length < 2
+        ? "Duels compare games you've played and scored. Score two and they can face off."
+        : "Every close pair is settled. Your ranking below is as sure as it gets. Score another game and it joins in."}</p>`}
 
     <div class="stats">
       <div class="stat"><b>${settled}</b><span>duels settled</span></div>
-      <div class="stat"><b>${c.pct}<i>%</i></b><span>of pairs judged</span></div>
-      <div class="stat"><b>${(S.duels || []).filter(d => d.w === "draw").length}</b><span>drawn</span></div>
+      <div class="stat"><b>${sure}<i>/${list.length}</i></b><span>ranks you can trust</span></div>
+      <div class="stat"><b>${(S.duels || []).filter(d => d.w && d.w !== "draw" && d.e).length}</b><span>slight edges</span></div>
     </div>
 
-    ${settled ? `<label>Standings</label><div class="chips"><button class="chip" id="fx-share"><span>Share my top 5</span></button></div>
-      ${standings.map((g, i) => `
-        <div class="row slab" style="--accent:${esc(g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
-          <span class="rank">${String(i + 1).padStart(2, "0")}</span>
+    ${list.length ? `<label>Your ranking</label><div class="chips"><button class="chip" id="fx-share"><span>Share my top 5</span></button></div>
+      <div class="rkl">${list.map((g, i) => `
+        <button class="rkr" data-opg="${g.id}" style="--accent:${esc(g.colour)}">
+          <span class="rn">${i + 1}</span>${tierBadge(t.sc[g.id])}
           <span class="name">${esc(g.title)}</span>
-          <span class="score">${Math.round(elo[g.id] || 1500)}</span>
-          <span class="when">${duelCount(g.id)} duel${duelCount(g.id) === 1 ? "" : "s"}</span>
-        </div></div>`).join("")}
-      <p class="note">${c.judged} of ${c.pairs} possible pairings judged. Pick \u201cDuel order\u201d in the queue\u2019s sort menu to use this ranking.</p>`
-      : '<p class="note">Answer enough of these and the order below becomes one you never consciously chose.</p>'}
+          ${confDots(t.n[g.id])}<small class="rsc">${t.sc[g.id]}</small></button>`).join("")}</div>
+      <p class="note">The letter comes from your score (S 9+, A 7½+, B 6+, C below). The order comes from your duels. The dots show how sure the rank is: more duels, more dots.</p>`
+      : '<p class="note">Score the games you\'ve played and they line up here, best first.</p>'}
     ${(S.duels || []).length ? `<div class="chips"><button class="chip warn" id="duel-clear"><span>Clear every duel</span></button></div>
-      <p class="note">Wipes all ${(S.duels || []).length} answers and the standings built from them. Your games and scores are untouched.</p>` : ""}`;
+      <p class="note">Wipes all ${(S.duels || []).length} answers and the ranking built from them. Your games and scores are untouched.</p>` : ""}`;
 }
+/* taste-tab duel buttons: the covers are a clear win, the chips an edge or an even call */
+function tasteDuelPick(k) {
+  const pr = duelPair; if (!pr) return;
+  if (k === "s") { S.duelSkip ||= []; S.duelSkip.push(pairKey2(pr[0].id, pr[1].id)); beep("back"); renderTaste(); return; }
+  const edge = k[0] === "e", side = edge ? +k[1] : +k, w = k === "d" ? "draw" : pr[side].id;
+  const r = qDuelRecord(pr[0], pr[1], w, edge);
+  if (w !== "draw") { const o = r.before.indexOf(w), n = r.after.indexOf(w); toast(`${pr[side].title}: ${o > n ? "↑" + (o - n) + " → " : ""}#${n + 1}`); beep("tap"); } else beep("back");
+  renderTaste(); if (S.sort === "duel") renderQueue();
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-tdw]"); if (b) { e.stopPropagation(); tasteDuelPick(b.dataset.tdw); } }, true);
 
 /* the sentences the app is willing to say about you, each one earned */
 function playerRead() {
@@ -9837,6 +9866,7 @@ function renderTaste() {
   });
   el.querySelectorAll("[data-duel]").forEach(btn => btn.onclick.real = () => {
     if (!duelPair) return;
+    if (view === "duels") return tasteDuelPick(String(duelPair.findIndex(g => g.id === btn.dataset.duel)));
     const w = btn.dataset.duel;
     const rb = duelRanks();
     S.duels.push({ a: duelPair[0].id, b: duelPair[1].id, w, t: new Date().toISOString().slice(0, 10) });
@@ -10363,7 +10393,9 @@ function renderHome() {
 
   /* the recommendation: whatever sits top of the duel ranking and is still
      waiting. Falls back to plain hype before any duels exist. */
-  const ranked = live.slice().sort((a, b) =>
+  /* v184: the pick is On deck #1 (close to your top-ranked games, on your machine, your duels); then the rest */
+  const deck = onDeckScores(), dv = g => deck[g.id] != null ? deck[g.id] : -1;
+  const ranked = live.slice().sort((a, b) => dv(b) - dv(a) ||
     (elo[b.id] || 1500) - (elo[a.id] || 1500) || (b.hype || 0) - (a.hype || 0));
   const pick = ranked[0];
   const runner = ranked[1];
@@ -10391,7 +10423,7 @@ function renderHome() {
   const worst = rows.slice().sort((a, b) => a.d - b.d)[0];
 
   /* played, but never given a score — the thing that silently starves every stat */
-  const unrated = (S.played || []).filter(pp => !(pp.real > 0))
+  const unrated = (S.played || []).filter(pp => !(scored(pp)))
     .map(pp => S.games.find(x => x.id === pp.id)).filter(Boolean);
 
   const gen = genrePattern();
@@ -10511,8 +10543,8 @@ function renderHome() {
 
       ${(() => {
         if (!on("swing")) return "";
-        const scored = (S.played || []).filter(x => x.real > 0);
-        const last = scored[scored.length - 1];
+        const scd = (S.played || []).filter(x => scored(x));
+        const last = scd[scd.length - 1];
         const lg = last && S.games.find(x => x.id === last.id);
         const rel = lg ? relationship(lg, last) : null;
         return rel ? `<button class="tile go2 wide k-swing" data-home-open="${lg.id}">
@@ -10583,7 +10615,7 @@ function renderHome() {
   {
     const G = id => id && S.games.find(x => x.id === id);
     const far = rows.slice().sort((a2, b2) => Math.abs(b2.d) - Math.abs(a2.d))[0];
-    const topReal = (S.played || []).filter(x => x.real > 0).sort((a2, b2) => b2.real - a2.real)[0];
+    const topReal = (S.played || []).filter(x => scored(x)).sort((a2, b2) => b2.real - a2.real)[0];
     const lastDuel = (S.duels || []).filter(d => d.w && d.w !== "draw").slice(-1)[0];
     const byGenre = n => S.games.find(x => platList(x.genres).includes(n));
     const peakM = months.indexOf(Math.max(...months));
@@ -11166,7 +11198,7 @@ function pnNext() { const now = new Date();
   return g ? { g, days: Math.ceil((new Date(g.date + "T00:00:00") - now) / 864e5) } : null; }
 const NX_BADGES = [["count", "⏳ Countdown"], ["streak", "🔥 Streak"], ["level", "💙 Level"], ["hours", "🎮 Queue hours"], ["verdict", "✍️ To score"], ["off", "✖ Off"]];
 function pnBubBadge() { const b = $("#pnbub"); if (!b) return; const n = pnNext(), t = new Date().toLocaleDateString("en-CA"), m = S.nxBadge || "count";
-  const un = (S.played || []).filter(p => !(p.real > 0)).length, hrs = S.games.filter(g => !isPlayed(g)).reduce((a, g) => a + (num(hrsOf(g), 0, 0, 1000) || 0), 0);
+  const un = (S.played || []).filter(p => !(scored(p))).length, hrs = S.games.filter(g => !isPlayed(g)).reduce((a, g) => a + (num(hrsOf(g), 0, 0, 1000) || 0), 0);
   b.querySelector(".badge").textContent = m === "off" ? "" : m === "streak" ? (S.nxStreak ? "🔥" + S.nxStreak.n : "")
     : m === "level" ? "Lv " + nxLv() : m === "hours" ? (hrs ? Math.round(hrs) + "h" : "") : m === "verdict" ? (un ? "✍️" + un : "")
     : S.games.some(g => g.date === t && !isPlayed(g)) ? "TODAY" : n ? n.days + "d" : ""; }
@@ -11461,9 +11493,9 @@ function pnBubLines() {
   const hours = live.reduce((a, g) => a + (hrsOf(g) || 0), 0);
   const fut = S.games.filter(g => g.date && new Date(g.date + "T00:00:00") > now && !isPlayed(g)).sort((a, b) => a.date < b.date ? -1 : 1)[0];
   const days = fut ? Math.ceil((new Date(fut.date + "T00:00:00") - now) / 864e5) : 0;
-  const un = played.filter(p => !(p.real > 0)).length;
+  const un = played.filter(p => !(scored(p))).length;
   const out = S.games.filter(g => typeof isFresh === "function" && isFresh(g))[0];
-  const best = played.filter(p => p.real > 0).sort((a, b) => b.real - a.real)[0], bestG = best && S.games.find(g => g.id === best.id);
+  const best = played.filter(p => scored(p)).sort((a, b) => b.real - a.real)[0], bestG = best && S.games.find(g => g.id === best.id);
   const hr = now.getHours();
   const imm = S.games.filter(g => g.comp && !isDropped(g));
   if (imm.length) {
@@ -11726,8 +11758,8 @@ function wrData(Y, M) {
   const wd = Array(7).fill(0); ses.forEach(s => { wd[new Date(s.s).getDay()] += sessH(s); });
   const day = hours ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][wd.indexOf(Math.max(...wd))] : "";
   const fin = (S.played || []).filter(p => inY(p.t) && G(p.id));
-  const scored = fin.filter(p => p.real > 0).sort((a, b) => b.real - a.real);
-  const miss = scored.map(p => ({ p, g: G(p.id) })).filter(x => x.g.hype > 0).map(x => ({ ...x, d: x.p.real - x.g.hype }))
+  const scd = fin.filter(p => scored(p)).sort((a, b) => b.real - a.real);
+  const miss = scd.map(p => ({ p, g: G(p.id) })).filter(x => x.g.hype > 0).map(x => ({ ...x, d: x.p.real - x.g.hype }))
     .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
   const duels = (S.duels || []).filter(d => inY(d.t) && d.w && d.w !== "draw");
   const wins = {}; duels.forEach(d => { if (G(d.w)) wins[d.w] = (wins[d.w] || 0) + 1; });
@@ -11741,7 +11773,7 @@ function wrData(Y, M) {
   const now = new Date(), cur = now.getFullYear() === Y && (M == null ? !wrLate() : now.getMonth() === M);
   return { Y, M, mon: M != null, label: M == null ? String(Y) : WR_MONTHS[M] + " " + Y, sofar: cur, ses, hours,
     thin: ses.length < 3,   /* v179 sessions only started in v177: too few to say "most played" or count hours */ top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
-    fin: fin.map(p => G(p.id)), best: scored[0] && { g: G(scored[0].id), real: scored[0].real }, miss,
+    fin: fin.map(p => G(p.id)), best: scd[0] && { g: G(scd[0].id), real: scd[0].real }, miss,
     duels: duels.length, champ: champ && { g: G(champ), n: wins[champ] }, out, added, dia: dia.length, mood };
 }
 /* the four numbers on the last slide and the card; before there are sessions, other numbers stand in */
@@ -12037,102 +12069,16 @@ function uSheet() {
 document.addEventListener("click", e => { if (e.target.closest("#s-usage")) { e.stopPropagation(); uSheet(); } }, true);
 
 /* ---- quick duel: one tap opens it, one tap decides, the next pair is already there ---- */
-const SCORE_LO = 1, SCORE_STEP = 0.5;
-const playedPool = () => S.games.filter(g => isPlayed(g) && !g.comp);
-const pairKey = (a, b) => [a, b].sort().join("|");
-/* two played games you haven't compared yet, as close in the ranking as possible (a close call says the most) */
-function qDuelPair(focusId) {
-  const pool = playedPool(); if (pool.length < 2) return null;
-  const seen = new Set((S.duels || []).map(d => pairKey(d.a, d.b)));
-  const elo = eloTable(), E = g => elo[g.id] || 1500;
-  let best = null, bd = Infinity;
-  const tryPair = (a, b) => { if (a === b || seen.has(pairKey(a.id, b.id))) return;
-    const d = Math.abs(E(a) - E(b)) + Math.random() * 18 + (duelCount(a.id) + duelCount(b.id)) * 2; if (d < bd) { bd = d; best = [a, b]; } };
-  const f = focusId && pool.find(g => g.id === focusId);
-  if (f) pool.forEach(b => tryPair(f, b));
-  else for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) tryPair(pool[i], pool[j]);
-  return best && Math.random() < .5 ? [best[1], best[0]] : best;
-}
-const playedRank = () => { const e = eloTable(); return playedPool().sort((a, b) => (e[b.id] || 1500) - (e[a.id] || 1500)).map(g => g.id); };
-let qdFocus = null, qdToday = 0, qdLast = "";
-function qDuelRecord(a, b, w) {
-  const before = playedRank();
-  S.duels.push({ a: a.id, b: b.id, w, t: new Date().toISOString().slice(0, 10) });
-  save();
-  const after = playedRank();
-  const dn = S.duels.filter(x => x.w).length;
-  if (dn && dn % 10 === 0) setTimeout(() => react("duels", null, dn), 900);
-  return { before, after };
-}
-function qDuel(focusId, note) {
-  if (focusId !== undefined) qdFocus = focusId || null;
-  const pr = qDuelPair(qdFocus) || (qdFocus ? qDuelPair(null) : null);
-  if (qdFocus && pr && !pr.some(g => g.id === qdFocus)) qdFocus = null;
-  const box = dyBox();
-  const card = (g, s) => `<button class="qd-g" data-qdw="${s}" style="--accent:${esc(g.colour || PALETTE[0])}">
-      <img decoding="async" src="${esc(cover(g))}" alt=""><b>${esc(g.title)}</b></button>`;
-  dyShow(box, `<div class="dy-h"><b>⚔️ Which was better?</b><button class="dy-x" aria-label="Close">✕</button></div>
-    ${note ? `<p class="qd-note">${note}</p>` : ""}
-    ${pr ? `<div class="qd-row">${card(pr[0], 0)}<span class="qd-vs">VS</span>${card(pr[1], 1)}</div>
-      <div class="qd-acts"><button class="qd-draw" data-qdw="d">Too close to call</button><button class="qd-skip" data-qdw="s">Skip</button></div>
-      <p class="qd-meta">${qdToday ? qdToday + " settled just now · " : ""}${S.duels.filter(x => x.w).length} duels in all${qdFocus ? " · " + esc((S.games.find(g => g.id === qdFocus) || {}).title || "") + " vs the games nearest it" : ""}</p>`
-      : `<p class="dy-empty">${playedPool().length < 2 ? "Duels compare games you've played. Mark two games as played and they can face off." : "Every pair of played games has been compared. Finish another game and it joins in."}</p>`}`,
-    e => {
-      const b = e.target.closest("[data-qdw]"); if (!b || !pr || box._busy) return;
-      const k = b.dataset.qdw;
-      if (k === "s") { beep("back"); qdFocus = null; return qDuel(undefined); }
-      const w = k === "d" ? "draw" : pr[+k].id;
-      const r = qDuelRecord(pr[0], pr[1], w); qdToday++;
-      uCount("o", "duel");
-      let msg = "";
-      if (w === "draw") { beep("back"); msg = "Called it even."; }
-      else {
-        const g = pr[+k], o = r.before.indexOf(g.id), n = r.after.indexOf(g.id);
-        msg = o > n ? `<b>${esc(g.title)}</b> <span class="qd-up">↑${o - n}</span> now #${n + 1}` : `<b>${esc(g.title)}</b> holds #${n + 1}`;
-        beep("tap");
-        box._busy = 1; b.classList.add("win"); const other = box.querySelector(`[data-qdw="${1 - k}"]`); if (other) other.classList.add("lose");
-        if (navigator.vibrate) try { navigator.vibrate(18); } catch (x) {}
-      }
-      setTimeout(() => { box._busy = 0; qdLast = msg; qDuel(undefined, msg); }, w === "draw" ? 60 : calm() ? 120 : 420);
-      clearTimeout(qDuel.r); qDuel.r = setTimeout(() => { renderTaste(); if (S.sort === "duel") renderQueue(); }, 50);
-    });
-}
+const SCORE_LO = 0, SCORE_STEP = 0.5;
+let qdFocus = null, qdToday = 0;
 /* close the sheet: the screens behind it catch up once */
 { const _dc = dyClose; dyClose = function () { const had = qdToday; qdToday = 0; const out = _dc.apply(this, arguments); if (had) setTimeout(() => { renderHome(); if (hubAt && $("#full.on")) openFull(hubAt); }, 320); return out; }; }
 
-/* ---- quick score: one tap on the number saves it ---- */
-function qScore(id) {
-  const g = S.games.find(x => x.id === id); if (!g) return;
-  const rec = playedRec(g), cur = rec && rec.real > 0 ? rec.real : null;
-  const ints = []; for (let v = SCORE_LO; v <= 10; v++) ints.push(v);
-  const halves = []; for (let v = SCORE_LO + .5; v < 10; v++) halves.push(v);
-  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score it</b><button class="dy-x" aria-label="Close">✕</button></div>
-    <div class="qs-g" style="--accent:${esc(g.colour || PALETTE[0])}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b>
-      <small>${cur != null ? "Now " + cur + "/10 · tap to change" : isPlayed(g) ? "Played, not scored yet" : "Scoring it marks it played"}${g.hype > 0 ? " · hype was " + g.hype : ""}</small></span><em class="qs-v">${cur != null ? cur : "–"}</em></div>
-    <div class="qs-grid" style="--n:${ints.length}">${ints.map((v, i) => `<button class="qs-i${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 1}/span 2">${v}</button>`).join("")}
-      ${halves.map((v, i) => `<button class="qs-h${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 2}/span 2">${String(v).replace(/^(\d+)\.5$/, "$1½")}</button>`).join("")}</div>
-    <p class="qd-meta">Top row whole points, bottom row halves.</p>`,
-    e => {
-      const b = e.target.closest("[data-qs]"); if (!b) return;
-      const v = +b.dataset.qs;
-      qScoreSet(g, v);
-      b.classList.add("on"); const ev = dyBox().querySelector(".qs-v"); if (ev) ev.textContent = v;
-      setTimeout(dyClose, 260);
-    });
-}
-function qScoreSet(g, v) {
-  const had = (playedRec(g) || {}).real || 0;
-  if (!isPlayed(g)) { g.state = "played"; syncPlayed(g, "played"); }
-  const rec = playedRec(g); if (!rec) return;
-  rec.real = v; rec.t = rec.t || new Date().toISOString().slice(0, 10);
-  uCount("o", "score"); touched(); beep("add");
-  setTimeout(() => { render(); if (hubAt === g.id && $("#full.on")) openFull(g.id); if (v !== had) allOut(g, v); }, 280);
-}
 /* which game? unscored ones you've played first, then what you're playing, then the rest to re-score */
 function qScorePick() {
-  const un = S.games.filter(g => isPlayed(g) && !((playedRec(g) || {}).real > 0) && !g.comp);
+  const un = S.games.filter(g => isPlayed(g) && !(scored(playedRec(g))) && !g.comp);
   const pl = S.games.filter(g => !isPlayed(g) && g.state === "playing" && !g.comp);
-  const done = S.games.filter(g => isPlayed(g) && (playedRec(g) || {}).real > 0).slice(-6).reverse();
+  const done = S.games.filter(g => isPlayed(g) && scored(playedRec(g))).slice(-6).reverse();
   const row = (g, s) => `<button class="dy-g" data-g="${g.id}" style="--accent:${esc(g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${s}</small></span><em>›</em></button>`;
   dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score a game</b><button class="dy-x" aria-label="Close">✕</button></div>
     ${un.length ? `<p class="dy-q">Played, no score yet</p><div class="dy-gl">${un.map(g => row(g, "Needs a verdict")).join("")}</div>` : ""}
@@ -12148,6 +12094,304 @@ document.addEventListener("click", e => {
   if (s) { if (s.dataset.qscore) qScore(s.dataset.qscore); else qScorePick(); }
   else { qdToday = 0; qDuel(d.dataset.qduel || null); }
 }, true);
+/* ===== v184 ranking: scores 0–10 (or Don't remember), tiers from the score, the order from duels ===== */
+/* a duel's result for side a: win 1, slight edge .75, even .5 */
+function duelResult(d) {
+  if (!d || !d.w || d.w === "draw") return .5;
+  const s = d.e ? .75 : 1;
+  return d.w === d.a ? s : 1 - s;
+}
+const TIERS = [["S", 9], ["A", 7.5], ["B", 6], ["C", -1]];
+const tierOf = v => v == null ? "" : TIERS.find(t => v >= t[1])[0];
+const tierBadge = v => { const t = tierOf(v); return t ? `<span class="tier t${t}">${t}</span>` : ""; };
+/* how sure the rank is, from how many duels a game has had */
+const confOf = n => n >= 6 ? 3 : n >= 3 ? 2 : n >= 1 ? 1 : 0;
+const CONF_WORD = ["Not duelled yet", "A first guess", "Fairly sure", "Settled"];
+const confDots = n => { const c = confOf(n); return `<span class="conf c${c}" title="${CONF_WORD[c]} · ${n} duel${n === 1 ? "" : "s"}">${[1, 2, 3].map(i => `<i${i <= c ? ' class="on"' : ""}></i>`).join("")}</span>`; };
+const scoreTxt = p => p && p.dk ? "Unscored" : scored(p) ? String(p.real) : "Not scored yet";
+
+/* The ranking. Every scored, played game starts at its score; each duel pulls the two games apart (or
+   together, for an even call) and the score keeps pulling back a little, so a single duel can't throw a
+   game miles away. Order-independent, so the same duels always give the same list. */
+let rankMemo = null;
+function rankTable() {
+  const pool = S.games.filter(g => isPlayed(g) && !g.comp && scored(playedRec(g)));
+  const sig = pool.map(g => g.id + ":" + playedRec(g).real).join(",") + "|" + (S.duels || []).length + "|" + ((S.duels || []).slice(-1)[0] || {}).w;
+  if (rankMemo && rankMemo.sig === sig) return rankMemo;
+  const ids = new Set(pool.map(g => g.id)), sc = {}, r = {}, n = {};
+  pool.forEach(g => { sc[g.id] = r[g.id] = playedRec(g).real; n[g.id] = 0; });
+  const ds = (S.duels || []).filter(d => d.w && ids.has(d.a) && ids.has(d.b));
+  ds.forEach(d => { n[d.a]++; n[d.b]++; });
+  const T = .6, LAMBDA = .4, LR = .1;
+  for (let it = 0; it < 90; it++) {
+    const gr = {}; pool.forEach(g => gr[g.id] = -2 * LAMBDA * (r[g.id] - sc[g.id]));
+    ds.forEach(d => { const p = 1 / (1 + Math.exp(-(r[d.a] - r[d.b]) / T)), y = duelResult(d); gr[d.a] += (y - p) / T; gr[d.b] -= (y - p) / T; });
+    pool.forEach(g => r[g.id] += LR * gr[g.id]);
+  }
+  const order = pool.slice().sort((a, b) => r[b.id] - r[a.id] || sc[b.id] - sc[a.id] || a.title.localeCompare(b.title)).map(g => g.id);
+  const pos = {}; order.forEach((id, i) => pos[id] = i);
+  return rankMemo = { sig, order, pos, r, n, sc };
+}
+const rankOf = id => { const t = rankTable(); return t.pos[id] == null ? null : t.pos[id] + 1; };
+const rankedGames = () => rankTable().order.map(id => S.games.find(g => g.id === id)).filter(Boolean);
+
+/* duels are for games you've played and scored; the next pair is two games sitting close together
+   that you haven't compared, with the least-duelled first. Pairs the ranking already calls
+   (more than ~3 points apart) are skipped: that answer is known. */
+const pairKey2 = (a, b) => [a, b].sort().join("|");
+function qDuelPair(focusId) {
+  const t = rankTable(), pool = rankedGames(); if (pool.length < 2) return null;
+  if ((S.duelSkip || []).length > 120) S.duelSkip = S.duelSkip.slice(-120);
+  const seen = new Set((S.duels || []).map(d => pairKey2(d.a, d.b)).concat((S.duelSkip || []).slice(-40)));
+  let best = null, bd = Infinity;
+  const tryPair = (a, b) => {
+    if (a === b || seen.has(pairKey2(a.id, b.id))) return;
+    const gap = Math.abs(t.r[a.id] - t.r[b.id]); if (gap > 3 && !focusId) return;
+    const d = gap + .12 * (t.n[a.id] + t.n[b.id]) + Math.random() * .35;
+    if (d < bd) { bd = d; best = [a, b]; } };
+  const f = focusId && pool.find(g => g.id === focusId);
+  if (f) pool.forEach(b => tryPair(f, b));
+  else for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) tryPair(pool[i], pool[j]);
+  return best && Math.random() < .5 ? [best[1], best[0]] : best;
+}
+function playedRank() { return rankTable().order.slice(); }
+function qDuelRecord(a, b, w, edge) {
+  const before = playedRank();
+  const d = { a: a.id, b: b.id, w, t: new Date().toISOString().slice(0, 10) };
+  if (edge) d.e = 1;
+  S.duels.push(d);
+  const after = playedRank();
+  /* the biggest climb and the days you duelled feed the duel badges */
+  if (w !== "draw") { const o = before.indexOf(w), nn = after.indexOf(w); if (o > nn) S.climbMax = Math.max(S.climbMax || 0, o - nn); }
+  const td = d.t; S.duelDays ||= []; if (!S.duelDays.includes(td)) { S.duelDays.push(td); if (S.duelDays.length > 400) S.duelDays.shift(); }
+  if (edge) S.edgeN = (S.edgeN || 0) + 1;
+  save();
+  const dn = S.duels.filter(x => x.w).length;
+  if (dn && dn % 10 === 0) setTimeout(() => react("duels", null, dn), 900);
+  return { before, after };
+}
+/* the quick duel sheet, now with a slight-edge call either side of "even" */
+function qDuel(focusId, note) {
+  if (focusId !== undefined) qdFocus = focusId || null;
+  const pr = qDuelPair(qdFocus) || (qdFocus ? qDuelPair(null) : null);
+  if (qdFocus && pr && !pr.some(g => g.id === qdFocus)) qdFocus = null;
+  const box = dyBox(), t = rankTable();
+  const card = (g, s) => `<button class="qd-g" data-qdw="${s}" style="--accent:${esc(g.colour || PALETTE[0])}">
+      <img decoding="async" src="${esc(cover(g))}" alt=""><b>${esc(g.title)}</b>
+      <small class="qd-rk">#${t.pos[g.id] + 1} ${tierBadge(t.sc[g.id])}${confDots(t.n[g.id])}</small></button>`;
+  dyShow(box, `<div class="dy-h"><b>⚔️ Which was better?</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${note ? `<p class="qd-note">${note}</p>` : ""}
+    ${pr ? `<div class="qd-row">${card(pr[0], 0)}<span class="qd-vs">VS</span>${card(pr[1], 1)}</div>
+      <div class="qd-acts"><button data-qdw="e0">‹ Slight edge</button><button data-qdw="d">Even</button><button data-qdw="e1">Slight edge ›</button></div>
+      <div class="qd-acts"><button class="qd-skip" data-qdw="s">Skip this pair</button></div>
+      <p class="qd-meta">${qdToday ? qdToday + " settled just now · " : ""}${S.duels.filter(x => x.w).length} duels in all${qdFocus ? " · " + esc((S.games.find(g => g.id === qdFocus) || {}).title || "") + " vs the games nearest it" : ""}</p>`
+      : `<p class="dy-empty">${rankedGames().length < 2 ? "Duels compare games you've played and scored. Score two games and they can face off." : "Nothing close is left to compare: every nearby pair is settled. Score or finish another game and it joins in."}</p>`}`,
+    e => {
+      const b = e.target.closest("[data-qdw]"); if (!b || !pr || box._busy) return;
+      const k = b.dataset.qdw;
+      if (k === "s") { beep("back"); S.duelSkip ||= []; S.duelSkip.push(pairKey2(pr[0].id, pr[1].id)); qdFocus = null; return qDuel(undefined); }
+      const edge = k[0] === "e", side = edge ? +k[1] : +k;
+      const w = k === "d" ? "draw" : pr[side].id;
+      const r = qDuelRecord(pr[0], pr[1], w, edge); qdToday++;
+      uCount("o", "duel");
+      let msg = "";
+      if (w === "draw") { beep("back"); msg = "Called it even."; }
+      else {
+        const g = pr[side], o = r.before.indexOf(g.id), n = r.after.indexOf(g.id);
+        msg = (edge ? "Just ahead: " : "") + (o > n ? `<b>${esc(g.title)}</b> <span class="qd-up">↑${o - n}</span> now #${n + 1}` : `<b>${esc(g.title)}</b> holds #${n + 1}`);
+        beep("tap");
+        box._busy = 1; const cardEl = box.querySelector(`[data-qdw="${side}"]`), other = box.querySelector(`[data-qdw="${1 - side}"]`);
+        if (cardEl) cardEl.classList.add("win"); if (other) other.classList.add(edge ? "near" : "lose");
+        if (navigator.vibrate) try { navigator.vibrate(18); } catch (x) {}
+      }
+      setTimeout(() => { box._busy = 0; qDuel(undefined, msg); }, w === "draw" ? 60 : calm() ? 120 : 420);
+      clearTimeout(qDuel.r); qDuel.r = setTimeout(() => { renderTaste(); if (S.sort === "duel") renderQueue(); }, 50);
+    });
+}
+
+/* ---- scoring: 0–10 in halves, or Don't remember ---- */
+function qScore(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const rec = playedRec(g), cur = scored(rec) ? rec.real : null;
+  const ints = []; for (let v = SCORE_LO; v <= 10; v++) ints.push(v);
+  const halves = []; for (let v = SCORE_LO + .5; v < 10; v++) halves.push(v);
+  const rk = rankOf(g.id);
+  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score it</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <div class="qs-g" style="--accent:${esc(g.colour || PALETTE[0])}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b>
+      <small>${rec && rec.dk ? "Unscored (you don't remember)" : cur != null ? (rk ? "#" + rk + " · " : "") + "tap to change" : isPlayed(g) ? "Played, not scored yet" : "Scoring it marks it played"}${g.hype > 0 ? " · hype was " + g.hype : ""}</small></span>
+      <em class="qs-v">${cur != null ? cur + tierBadge(cur) : "–"}</em></div>
+    <div class="qs-grid" style="--n:${ints.length}">${ints.map((v, i) => `<button class="qs-i${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 1}/span 2">${v}</button>`).join("")}
+      ${halves.map((v, i) => `<button class="qs-h${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 2}/span 2">${String(v).replace(/^(\d+)\.5$/, "$1½")}</button>`).join("")}</div>
+    <p class="qd-meta">Top row whole points, bottom row halves. 9+ is S tier, 7½+ A, 6+ B.</p>
+    <button class="dy-more qs-dk${rec && rec.dk ? " on" : ""}" data-qs="dk">🤷 Don't remember</button>`,
+    e => {
+      const b = e.target.closest("[data-qs]"); if (!b) return;
+      const v = b.dataset.qs === "dk" ? "dk" : +b.dataset.qs;
+      qScoreSet(g, v);
+      b.classList.add("on"); const ev = dyBox().querySelector(".qs-v"); if (ev) ev.innerHTML = v === "dk" ? "–" : v + tierBadge(v);
+      setTimeout(dyClose, 260);
+    });
+}
+function scoreWrite(rec, v) {
+  if (v === "dk") { rec.real = 0; rec.dk = 1; delete rec.z; return; }
+  rec.real = v; delete rec.dk;
+  if (v === 0) rec.z = 1; else delete rec.z;
+}
+function qScoreSet(g, v) {
+  const had = scored(playedRec(g)) ? playedRec(g).real : null;
+  if (!isPlayed(g)) { g.state = "played"; syncPlayed(g, "played"); }
+  const rec = playedRec(g); if (!rec) return;
+  scoreWrite(rec, v); rec.t = rec.t || new Date().toISOString().slice(0, 10);
+  uCount("o", "score"); touched(); beep("add");
+  setTimeout(() => { render(); if (hubAt === g.id && $("#full.on")) openFull(g.id);
+    if (v !== "dk" && v !== had) { allOut(g, v); const rk = rankOf(g.id); if (rk) setTimeout(() => toast(`${g.title}: #${rk} · ${tierOf(v)} tier`), calm() ? 400 : 3000); } }, 280);
+}
+/* one time: the old "0" meant "no score yet"; those become Unscored */
+function scoreMigrate() {
+  if (S.scoreMig) return;
+  let n = 0;
+  (S.played || []).forEach(p => { if (!(p.real > 0) && !p.z && !p.dk) { p.real = 0; p.dk = 1; n++; } });
+  S.scoreMig = 1; if (n) save();
+}
+
+/* ---- taste signals: games you add or remove, trailers you open ---- */
+const sigTags = g => [...new Set(platList(g && g.genres).map(x => x.toLowerCase()))].slice(0, 6);
+function sigAdd(k, g) {
+  if (!g) return;
+  S.sig ||= []; S.sig.push({ t: Date.now(), k, id: g.id, n: String(g.title || "").slice(0, 60), tg: sigTags(g) });
+  if (S.sig.length > 400) S.sig.splice(0, S.sig.length - 400);
+}
+let sigIds = null;
+function sigWatch() {
+  if (sigIds && sigIds._S !== S) sigIds = null;   /* a different save was loaded: start watching afresh */
+  const now = new Map(S.games.map(g => [g.id, g]));
+  if (sigIds) {
+    now.forEach((g, id) => { if (!sigIds.has(id)) sigAdd("add", g); });
+    sigIds.forEach((g, id) => { if (!now.has(id)) sigAdd("remove", g); });
+    S.games.forEach(g => { const was = sigIds.get(g.id); if (was && was._st !== "dropped" && g.state === "dropped") sigAdd("drop", g); });
+  }
+  sigIds = new Map(S.games.map(g => [g.id, Object.assign({ _st: g.state }, { id: g.id, title: g.title, genres: g.genres })]));
+  sigIds._S = S;
+}
+{ const _sv = save; save = function () { try { sigWatch(); } catch (e) {} return _sv.apply(this, arguments); }; }
+
+/* ---- what your duels (and adds, removes, trailers) say about you ---- */
+const TAG_WORD = { rpg: "RPGs", strategy: "Strategy games", adventure: "Adventure games", action: "Action games", platformer: "Platformers", simulation: "Sims",
+  "visual novel": "Visual novels", roguelike: "Roguelikes", shooter: "Shooters", puzzle: "Puzzle games", sports: "Sports games", racing: "Racing games", fighting: "Fighting games", horror: "Horror games" };
+const tagWord = t => TAG_WORD[t] || (t.charAt(0).toUpperCase() + t.slice(1) + " games");
+function tasteInsights() {
+  const out = [], t = rankTable(), G = id => S.games.find(g => g.id === id);
+  const ds = (S.duels || []).filter(d => d.w && t.pos[d.a] != null && t.pos[d.b] != null);
+  /* how a kind of game does in duels against games that aren't that kind */
+  const feats = {};
+  const add = (key, label, g) => { (feats[key] ||= { label, ids: new Set() }).ids.add(g.id); };
+  rankedGames().forEach(g => { platList(g.genres).forEach(x => add("g:" + x.toLowerCase(), tagWord(x.toLowerCase()), g));
+    whyOf(g).forEach(w => { const l = (WHY.find(x => x[0] === w) || [])[1]; if (l) add("w:" + w, "Games you loved for “" + l.toLowerCase() + "”", g); }); });
+  const rows = [];
+  Object.values(feats).forEach(f => {
+    if (f.ids.size < 2) return;
+    let won = 0, n = 0;
+    ds.forEach(d => { const ia = f.ids.has(d.a), ib = f.ids.has(d.b); if (ia === ib) return; n++; const y = duelResult(d); won += ia ? y : 1 - y; });
+    if (n >= 4) rows.push({ l: f.label, pct: Math.round(won / n * 100), n });
+  });
+  rows.sort((a, b) => Math.abs(b.pct - 50) - Math.abs(a.pct - 50));
+  rows.slice(0, 3).forEach(r => out.push({ ic: r.pct >= 50 ? "📈" : "📉", txt: `<b>${esc(r.l)}</b> win <b>${r.pct}%</b> of their duels`, sub: `${r.n} duels against other kinds of game` }));
+  /* your S tier in one line */
+  const sTier = rankedGames().filter(g => tierOf(t.sc[g.id]) === "S");
+  if (sTier.length >= 2) { const c = {}; sTier.forEach(g => platList(g.genres).forEach(x => c[x] = (c[x] || 0) + 1));
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    if (top && top[1] >= Math.ceil(sTier.length / 2)) out.push({ ic: "👑", txt: `${top[1]} of your ${sTier.length} S-tier games are <b>${esc(tagWord(top[0].toLowerCase()))}</b>`, sub: "The top of your ranking" }); }
+  /* signals from the last 90 days */
+  const since = Date.now() - 90 * 864e5, sig = (S.sig || []).filter(x => x.t > since);
+  const count = k => { const c = {}; sig.filter(x => x.k === k).forEach(x => x.tg.forEach(tg => c[tg] = (c[tg] || 0) + 1)); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]; };
+  const ad = count("add"); if (ad && ad[1] >= 2) out.push({ ic: "➕", txt: `Lately you add a lot of <b>${esc(tagWord(ad[0]))}</b> (${ad[1]})`, sub: "From the games you added in the last 3 months" });
+  const rm = [...(count("remove") ? [count("remove")] : []), ...(count("drop") ? [count("drop")] : [])].sort((a, b) => b[1] - a[1])[0];
+  if (rm && rm[1] >= 2) out.push({ ic: "🚪", txt: `<b>${esc(tagWord(rm[0]))}</b> are the ones you drop or delete most`, sub: "From games you removed or dropped" });
+  const tr = count("trailer"); if (tr && tr[1] >= 2) out.push({ ic: "🎬", txt: `You open trailers for <b>${esc(tagWord(tr[0]))}</b> the most`, sub: `${tr[1]} trailers lately` });
+  return out;
+}
+function insightsBlock() {
+  const ins = tasteInsights(), t = rankTable(), n = (S.duels || []).filter(d => d.w).length;
+  const top = rankedGames().slice(0, 5);
+  return `<div class="tins"><div class="tins-h"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>⚔️ Duel</span></button></div>
+    ${ins.length ? ins.map(x => `<div class="tin"><span class="ti">${x.ic}</span><span><span class="tt">${x.txt}</span><small>${esc(x.sub)}</small></span></div>`).join("")
+      : `<p class="note">${n < 4 ? "Settle a few duels and I'll start spotting patterns, like which kinds of game win." : "Nothing stands out yet. More duels, and games added or removed, sharpen this."}</p>`}
+    ${top.length ? `<div class="tins-rk">${top.map((g, i) => `<button class="rk" data-opg="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<span>${esc(g.title)}</span>${confDots(t.n[g.id])}<small>${t.sc[g.id]}</small></button>`).join("")}</div>` : ""}
+  </div>`;
+}
+{ const _rt = renderTaste; renderTaste = function () {
+  const out = _rt.apply(this, arguments), v = subOf("taste"), el = $("#p-taste");
+  if (el && (v === "psych" || v === "patterns")) { const h = el.querySelector(".tabbar"); if (h) h.insertAdjacentHTML("afterend", insightsBlock()); }
+  return out; }; }
+
+/* ---- On deck: what to play next = close to the games you rank highest + on the machine you're on + your duels ---- */
+const curPlat = () => S.curPlat || "Switch";
+const onPlat = g => { const p = curPlat().toLowerCase(); if (p === "any") return true; return platList(g.platforms).some(x => x.toLowerCase().includes(p)); };
+let deckMemo = null;
+function onDeckScores() {
+  const live = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp);
+  const t = rankTable(), fav = rankedGames();
+  const sig = live.map(g => g.id + g.genres + g.platforms + g.hype + g.state).join() + t.sig + curPlat() + (S.duels || []).length;
+  if (deckMemo && deckMemo.sig === sig) return deckMemo.s;
+  const elo = eloTable(), tags = g => new Set(platList(g.genres).map(x => x.toLowerCase()));
+  const favW = fav.map((g, i) => ({ tg: tags(g), w: Math.max(.15, 1 - i / Math.max(4, fav.length)) * (t.sc[g.id] / 10) }));
+  const sim = g => { const a = tags(g); if (!a.size || !favW.length) return 0;
+    let s = 0, W = 0; favW.forEach(f => { const inter = [...a].filter(x => f.tg.has(x)).length, uni = new Set([...a, ...f.tg]).size || 1; s += f.w * inter / uni; W += f.w; });
+    return W ? s / W : 0; };
+  const sims = live.map(sim), smax = Math.max(.001, ...sims);
+  const el = live.map(g => elo[g.id] || 1500), emin = Math.min(...el, 1500), emax = Math.max(...el, 1500);
+  const s = {};
+  live.forEach((g, i) => {
+    const out = g.state === "backlog" || g.state === "playing" || isFresh(g) || (g.date && new Date(g.date + "T00:00:00") <= new Date());
+    s[g.id] = .45 * (sims[i] / smax) + .2 * (emax > emin ? (el[i] - emin) / (emax - emin) : .5) + .2 * (onPlat(g) ? 1 : 0)
+      + .1 * num(g.hype, 5, 0, 10) / 10 + (g.state === "playing" ? .08 : 0) + (out ? 1 : 0);   /* out now always beats not out yet */
+  });
+  deckMemo = { sig, s };
+  return s;
+}
+function onDeck(n) {
+  const s = onDeckScores();
+  return Object.keys(s).sort((a, b) => s[b] - s[a]).slice(0, n || 3).map(id => S.games.find(g => g.id === id)).filter(Boolean);
+}
+/* why this one, in a few words */
+function deckWhy(g) {
+  if (!g) return "";
+  const fav = rankedGames().slice(0, 6), tg = new Set(platList(g.genres).map(x => x.toLowerCase()));
+  const like = fav.find(f => platList(f.genres).some(x => tg.has(x.toLowerCase())));
+  const bits = [];
+  if (like) bits.push("like your #" + (rankOf(like.id)) + " " + like.title);
+  if (onPlat(g) && curPlat() !== "any") bits.push("on " + curPlat());
+  if (g.state === "playing") bits.push("you've started it");
+  else if (!(g.state === "backlog" || isFresh(g))) bits.push(g.date ? "out " + shortDate(g.date) : "not out yet");
+  return bits.join(" · ");
+}
+function onDeckStrip() {
+  if (S.deckOff) return "";
+  const d = onDeck(3); if (!d.length) return "";
+  return `<div class="deck"><span class="deck-h">On deck</span>${d.map((g, i) => `<button class="deck-g" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
+    <img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${i + 1}. ${esc(g.title)}</b><small>${esc(deckWhy(g))}</small></span></button>`).join("")}</div>`;
+}
+
+/* ---- Home: Nexi on top, saying your top 3 and what to play next ---- */
+function nxHomeLine() {
+  const t = rankTable(), top = rankedGames().slice(0, 3), pick = onDeck(1)[0];
+  if (!top.length && !pick) return "";
+  const nm = S.userName ? esc(S.userName) : "";
+  const say = pick ? `${nm ? nm + ", p" : "P"}lay <button class="nxl-g" data-home-open="${pick.id}">${esc(pick.title)}</button> next${deckWhy(pick) ? ` <small>(${esc(deckWhy(pick))})</small>` : ""}.` : `Score a game you've played and I'll start ranking.`;
+  return `<div class="nxhome"><button class="nxh-face" data-qduel="" aria-label="Duel with Nexi"><span class="eyes"><i></i><i></i></span></button>
+    <div class="nxh-say"><p>${say}</p>
+    ${top.length ? `<div class="nxh-top"><span>Your top ${top.length}</span>${top.map((g, i) => `<button data-home-open="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<em>${esc(g.title)}</em></button>`).join("")}</div>` : ""}</div></div>`;
+}
+
+
+document.addEventListener("click", e => { const b = e.target.closest("[data-opg]"); if (!b) return; e.stopPropagation(); hubReturn = null; beep("open"); openFull(b.dataset.opg); }, true);
+{ const _rh = renderHome; renderHome = function () {
+  const out = _rh.apply(this, arguments), el = $("#p-home");
+  if (el && !S.nxHomeOff) { el.querySelectorAll(".nxhome").forEach(x => x.remove()); el.insertAdjacentHTML("afterbegin", nxHomeLine()); }
+  return out; }; }
+{ const _xf = xFeatures; xFeatures = function () { try { scoreMigrate(); if (!sigIds) sigWatch(); } catch (e) {} return _xf.apply(this, arguments); }; }
+{ const _ab = applyBackup; applyBackup = function () { sigIds = null; rankMemo = deckMemo = null; const o = _ab.apply(this, arguments); sigWatch(); return o; }; }
+{ const _mb = mergeBackup; mergeBackup = function () { const o = _mb.apply(this, arguments); sigIds = null; sigWatch(); return o; }; }
 load();
 /* FX pack */
 (()=>{
@@ -12404,7 +12648,7 @@ document.querySelectorAll(".panel").forEach(pnl => new MutationObserver(ms => ms
 const PN_EVO = [0, 5, 10, 20, 35];
 function pnEvo() {
   const b = $("#pnbub"); if (!b) return;
-  const n = (S.played || []).filter(p => p.real > 0).length;
+  const n = (S.played || []).filter(p => scored(p)).length;
   let st = 1; PN_EVO.forEach((t, i) => { if (n >= t) st = i + 1; });
   b.classList.remove("evo1", "evo2", "evo3", "evo4", "evo5"); b.classList.add("evo" + st);
   let orb = b.querySelector(".orb"); if (!orb) { orb = document.createElement("span"); orb.className = "orb"; b.prepend(orb); }
@@ -12419,13 +12663,13 @@ function pnEvo() {
   }
 }
 function pnEvoLine() {
-  const n = (S.played || []).filter(p => p.real > 0).length, nxt = PN_EVO.find(t => t > n);
+  const n = (S.played || []).filter(p => scored(p)).length, nxt = PN_EVO.find(t => t > n);
   const st = PN_EVO.filter(t => n >= t).length;
   return nxt ? `Stage ${st} right now. ${nxt - n} more finished game${nxt - n === 1 ? "" : "s"} and I evolve again 👀` : "Final stage reached ✨ I'm basically a legend now.";
 }
 /* v131 daily hot take: one cheeky line a day, built from your own scores */
 function pnTake() {
-  const sc = (S.played || []).filter(p => p.real > 0).map(p => ({ ...p, g: S.games.find(g => g.id === p.id) })).filter(x => x.g), T = [];
+  const sc = (S.played || []).filter(p => scored(p)).map(p => ({ ...p, g: S.games.find(g => g.id === p.id) })).filter(x => x.g), T = [];
   const words = {}; sc.filter(x => x.real >= 9).forEach(x => { const w = x.g.title.split(/[\s:]+/)[0]; if (w.length > 2) words[w] = (words[w] || 0) + 1; });
   const top = Object.entries(words).sort((a, b) => b[1] - a[1])[0];
   if (top && top[1] >= 2) T.push(`${top[1]} ${top[0]} games at 9+… we get it, you have a type 😏`);
@@ -12813,7 +13057,7 @@ function pnPowerUp(line) {
     /* the story is built from their own games */
     const bl = S.games.filter(g => !g.comp && !isPlayed(g) && !isDropped(g) && (g.state === "backlog" || g.state === "playing" || isOutNow(g)));
     const hrs = bl.reduce((a, g) => a + (+hrsOf(g) || 20), 0), waiting = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp).length;
-    const fin = (S.played || []).filter(p => p.real > 0).map(p => ({ ...p, g: S.games.find(x => x.id === p.id) })).filter(x => x.g).sort((a, b) => b.real - a.real);
+    const fin = (S.played || []).filter(p => scored(p)).map(p => ({ ...p, g: S.games.find(x => x.id === p.id) })).filter(x => x.g).sort((a, b) => b.real - a.real);
     const top = (typeof pnLastRanked !== "undefined" && pnLastRanked[0]) ? pnLastRanked[0].title : "";
     if (hadRail) { H.classList.add("railhide"); try { pnBubFace(); } catch (e) {} }
     const b0 = { x: N.x, y: N.y };
@@ -13057,7 +13301,7 @@ html.still .pnb-row,html.still .pnb-n{animation:none}
 <script>
 /* v147 Top board in Played, plus a share-as-image button */
 function pnBoardRows(done){
-  return (done||[]).filter(x=>x.real>0).sort((a,b)=>b.real-a.real||(b.t||"").localeCompare(a.t||""));
+  return (done||[]).filter(x=>scored(x)).sort((a,b)=>b.real-a.real||(b.t||"").localeCompare(a.t||""));
 }
 let pnArtOpen=false;
 function pnBoard(done){
@@ -13077,7 +13321,7 @@ function pnBoard(done){
         <div class="pnb-p"><span>${x.g.comp?"⚔️ Endless":"⏱ "+hrs(x.g)}</span><span>${x.g.hype>0?"Hype "+x.g.hype+" → "+x.real:"No hype logged"}</span></div></div>
       <span></span>
       <div class="pnb-s"><div class="pnb-r">${i+1}</div>
-        <div class="pnb-n"><i>★</i><b class="pnb-v" data-v="${(+x.real).toFixed(1)}">${(+x.real).toFixed(1)}</b><small>/10</small></div>
+        <div class="pnb-n">${typeof tierBadge==="function"?tierBadge(+x.real):""}<b class="pnb-v sm" data-v="${(+x.real).toFixed(1)}">${(+x.real).toFixed(1)}</b>${typeof confDots==="function"?confDots(rankTable().n[x.id]||0):""}</div>
         <div class="pnb-c" data-findate="${x.id}" title="Change when you finished it">${mon(x.t)} ✎</div></div></button>`).join("")}
     ${rows.length>8?`<button class="chip" data-pnall style="margin-top:8px"><span>${S.boardAll?"Show top 8":"See all "+rows.length}</span></button>`:""}
   </div>`;
@@ -13176,7 +13420,7 @@ html.still #pbdpop,html.still #pbdpop .pbd-i,html.still .pbd-b.new .pbd-i{animat
 /* v150 badges: worked out from what you've done, saved with the date you earned them */
 function pnBadgeStats(){
   const done=(S.played||[]).map(p=>({...p,g:S.games.find(g=>g.id===p.id)})).filter(x=>x.g);
-  const rated=done.filter(x=>x.real>0), hyped=rated.filter(x=>x.g.hype>0);
+  const rated=done.filter(x=>scored(x)), hyped=rated.filter(x=>x.g.hype>0);
   const hrs=x=>num(x.g.hours,0,0,1000), yrs={}, gen=new Set();
   done.forEach(x=>{const y=(x.t||"").slice(0,4);if(y)yrs[y]=(yrs[y]||0)+1;platList(x.g.genres).forEach(n=>gen.add(n));});
   return{n:done.length,maxH:Math.max(0,...done.map(hrs)),exact:hyped.filter(x=>+x.real===+x.g.hype).length,
@@ -13352,14 +13596,14 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
    Answers are kept per game until you rate something new. */
 (function () {
   const LABEL = {}; WHY_GROUPS.forEach(([, xs]) => xs.forEach(([k, l]) => { LABEL[k] = l; }));
-  const rated = skip => S.played.filter(p => p.real > 0 && p.id !== skip).map(p => {
+  const rated = skip => S.played.filter(p => scored(p) && p.id !== skip).map(p => {
     const g = S.games.find(x => x.id === p.id); if (!g) return null;
     const m = g.mine || {};
     return { title: g.title, score: p.real, again: !!p.again, genres: platList(g.genres).slice(0, 3),
       liked: whyOf(g).map(k => LABEL[k]).filter(Boolean).slice(0, 6),
       parts: RATINGS.filter(([k]) => m[k] > 0).map(([k, l]) => l + " " + m[k]) };
   }).filter(Boolean).sort((a, b) => b.score - a.score);
-  const stamp = () => S.played.filter(p => p.real > 0).map(p => p.id + ":" + p.real).join("|");
+  const stamp = () => S.played.filter(p => scored(p)).map(p => p.id + ":" + p.real).join("|");
 
   function paint(o, g, body) {
     o.querySelector(".awc").innerHTML = `<h4>Why you'll love it</h4><h3>${esc(g.title)}</h3>${body}
@@ -13380,7 +13624,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
     const pick = taste.length > 18 ? taste.slice(0, 12).concat(taste.slice(-6)) : taste;
     const me = S.played.find(p => p.id === g.id);
     const game = { title: g.title, genres: platList(g.genres).slice(0, 4), platforms: platList(g.platforms).slice(0, 4),
-      about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && me.real > 0), myScore: me && me.real || null };
+      about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && scored(me)), myScore: me && me.real || null };
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 30000);
     fetch(SGDB_PROXY + "/why", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ game, taste: pick }), signal: ac.signal })
@@ -14610,3 +14854,125 @@ WHATS_NEW.push(
     tryIt: "Have a look in a week or two." }
 );
 </script>
+<script>
+/* ---- badges that keep going as you duel ---- */
+PN_BADGES.push(
+  ["duel10", "🗡️", "First blood", "Settle 10 duels", s => s.duels, 10],
+  ["duel100", "⚖️", "The arbiter", "Settle 100 duels", s => s.duels, 100],
+  ["duel250", "🏛️", "Supreme court", "Settle 250 duels", s => s.duels, 250],
+  ["climb5", "🧗", "Big climb", "Lift a game 5 places in one duel", s => s.climb, 5],
+  ["duelday7", "📆", "Regular", "Duel on 7 different days", s => s.dDays, 7],
+  ["edge10", "🤏", "Fine margins", "Call a slight edge 10 times", s => s.edge, 10],
+  ["settled3", "🔒", "Podium locked", "Your top 3 each have 6+ duels", s => s.top3, 3]);
+{ const _bs = pnBadgeStats; pnBadgeStats = function () {
+  const s = _bs.apply(this, arguments), t = rankTable();
+  s.duels = (S.duels || []).filter(d => d.w).length; s.climb = S.climbMax || 0; s.dDays = (S.duelDays || []).length; s.edge = S.edgeN || 0;
+  s.top3 = t.order.slice(0, 3).filter(id => t.n[id] >= 6).length;
+  return s; }; }
+
+/* ---- the Top board and the duel standings read the ranking ---- */
+pnBoardRows = function (done) {
+  const t = rankTable();
+  return (done || []).filter(x => t.pos[x.id] != null).sort((a, b) => t.pos[a.id] - t.pos[b.id]);
+};
+try { renderPlayed(); } catch (e) {}
+GROUP_ICON["On deck"] = "🎯";
+GROUP_KEYS["On deck"] = ["curPlat", "deckOff"];
+WHATS_NEW.push(
+  { v: 184, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); qScore(g.id); } }, at: () => $("#diary .qs-grid"),
+    say: "Scores now go from <b>0 to 10</b> in halves. Can't remember how good it was? Tap <b>🤷 Don't remember</b>: it shows as Unscored and stays out of your stats. Your old “0” scores became Unscored.",
+    tryIt: "Your score gives the game a tier: S (9+), A (7½+), B (6+) or C." },
+  { v: 184, go: () => { dyClose(); nxShut(); goTab("played"); }, at: () => $("#p-played .pnb-row"),
+    say: "Your <b>ranking</b> is here. The letter is the tier from your score, but the <b>order comes from your duels</b>: two games with the same score get sorted by which one you picked. The dots show how sure each rank is.",
+    tryIt: "More duels = more dots." },
+  { v: 184, go: () => { nxShut(); qdToday = 0; qDuel(null); }, at: () => $("#diary .qd-acts"),
+    say: "Duels only pit games you've <b>played</b> against each other, and I pick pairs sitting close in your ranking. If it's close, tap <b>Slight edge</b> instead of Even. Each pick shows how far a game climbs.",
+    tryIt: "Settle a few, then close this." },
+  { v: 184, go: () => { dyClose(); nxShut(); goTab("taste"); }, at: () => $("#p-taste .tins"),
+    say: "The Taste tab now learns from your <b>duels</b> and from the games you <b>add or remove</b>. It tells you things like which kinds of game win most of their duels.",
+    tryIt: "Check back after a few more duels." },
+  { v: 184, go: () => { nxShut(); goTab("queue"); }, at: () => $("#p-queue .deck"),
+    say: "<b>On deck</b>: my top 3 from your queue. Games like the ones you rank highest, on your current platform (Switch), and out now. Number 1 is my pick on Home. Change your platform in the Queue's Customise.",
+    tryIt: "Tap one to open it." },
+  { v: 184, go: () => nxHome(), at: () => $("#p-home .nxhome"),
+    say: "I'm at the top of Home now. I tell you <b>what to play next</b> and your <b>top 3</b>. Tap me for a quick duel. And there are new badges for duelling: 10, 100 and 250 duels, big climbs, and more.",
+    tryIt: "Tap my face to duel." }
+);
+</script>
+<style>
+/* ===== v184 ranking: tiers, confidence dots, On deck, Nexi on Home, insights ===== */
+:root { --tS: #FFD34D; }
+.tier { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 6px; font: 900 12px/1 Archivo, sans-serif; font-style: italic; letter-spacing: 0; vertical-align: middle; }
+.tier.tS { background: var(--tS); color: #1a1200; }
+.tier.tA { background: var(--volt); color: var(--void); }
+.tier.tB { background: rgba(var(--vrgb), .22); color: var(--ice); border: 1px solid rgba(var(--vrgb), .5); }
+.tier.tC { background: transparent; color: var(--mute); border: 1px solid var(--steel); }
+.conf { display: inline-flex; gap: 2px; vertical-align: middle; }
+.conf i { width: 5px; height: 5px; border-radius: 50%; background: var(--steel); }
+.conf i.on { background: var(--volt); }
+.conf.c3 i.on { background: #3FD9A4; }
+.qd-rk { display: flex; gap: 6px; align-items: center; color: var(--mute); font-size: 12px; }
+.qd-g.near { transform: scale(.96); opacity: .7; }
+.qd-acts + .qd-acts { margin-top: 6px; }
+.qs-dk { margin-top: 12px; }
+.qs-dk.on { border-style: solid; border-color: var(--volt); color: var(--ice); }
+.qs-v .tier { margin-left: 6px; font-size: 13px; }
+.qs-grid { --n: 11; }
+/* the Top board: rank first, then tier, the score small */
+.pnb-r { width: auto; height: auto; border: 0; border-radius: 0; background: none !important; color: var(--ice) !important;
+  font: 900 italic calc(clamp(46px,12vw,68px)*(.45 + var(--pbs,.75)*.55))/1 "Archivo", system-ui, sans-serif; letter-spacing: -.03em; }
+.pnb-r { display: flex !important; align-items: flex-start; }
+.pnb-r::before { content: "#"; font-size: .42em; color: var(--volt); margin: .12em 2px 0 0; }
+.pnb-row.top .pnb-r { color: var(--tS) !important; }
+.pnb-n { display: flex; align-items: center; gap: 6px; justify-content: center; font: 700 13px "Poppins", sans-serif !important; margin: 6px 0 6px !important; }
+.pnb-v.sm { font-size: 13px !important; opacity: .75; font-weight: 700; }
+.pnb-n .conf { margin-left: 2px; }
+/* ranking list in Taste → Duels */
+.rkl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 8px 0; }
+.rkr { width: 100%; min-width: 0; }
+.rkr { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: var(--ink); border: 0; border-left: 3px solid var(--accent); color: var(--ice); font: inherit; text-align: left; cursor: pointer; }
+.rkr .rn { font: 900 italic 20px Archivo, sans-serif; min-width: 30px; color: var(--ice); }
+.rkr .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkr .rsc { color: var(--mute); font-size: 12px; min-width: 26px; text-align: right; }
+.chips.tdw { justify-content: center; }
+/* insights */
+.tins { margin: 6px 0 18px; padding: 14px; border-radius: 18px; background: var(--ink); border: 1px solid rgba(var(--vrgb), .25); }
+.tins-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tins-h h4 { margin: 0; font-size: 15px; }
+.tin { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--steel); }
+.tin:first-of-type { border-top: 0; }
+.tin .ti { font-size: 20px; line-height: 1.2; }
+.tin .tt { display: block; font-size: 14px; }
+.tin small { color: var(--mute); font-size: 12px; }
+.tins-rk { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; padding-bottom: 2px; scrollbar-width: none; }
+.tins-rk .rk { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--void); border: 1px solid var(--steel); color: var(--ice); font: inherit; font-size: 13px; cursor: pointer; max-width: 240px; }
+.tins-rk .rk span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tins-rk .rk small { color: var(--mute); }
+/* On deck in the queue */
+.deck { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 14px; position: relative; }
+.deck-h { grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--volt); }
+.deck-g { display: flex; gap: 8px; align-items: center; min-width: 0; padding: 7px; border-radius: 14px; background: var(--ink); border: 1px solid var(--steel); border-bottom: 2px solid var(--accent); color: var(--ice); font: inherit; text-align: left; cursor: pointer; }
+.deck-g img { width: 34px; aspect-ratio: 3/4; object-fit: cover; border-radius: 6px; flex: 0 0 auto; }
+.deck-g span { min-width: 0; }
+.deck-g b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deck-g small { display: block; color: var(--mute); font-size: 10.5px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+@media (max-width: 520px) { .deck { grid-template-columns: 1fr; } .deck-g small { -webkit-line-clamp: 1; } }
+/* Nexi on top of Home */
+.nxhome { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 12px; }
+.nxh-face { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; position: relative;
+  background: radial-gradient(circle at 35% 30%, #1d2a55, #070b1c 70%); box-shadow: 0 0 0 2px rgba(var(--vrgb), .55), 0 6px 22px rgba(var(--vrgb), .35); }
+.nxh-face .eyes { position: absolute; inset: 0; display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: -2px; }
+.nxh-face .eyes i { width: 8px; height: 12px; border-radius: 50%; background: #EAF2FF; box-shadow: 0 0 8px rgba(var(--vrgb), .9); animation: nxhBlink 5s infinite; }
+@keyframes nxhBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+html.still .nxh-face .eyes i { animation: none; }
+.nxh-say { position: relative; flex: 1; min-width: 0; padding: 10px 14px; border-radius: 4px 18px 18px 18px; background: var(--ink); border: 1px solid rgba(var(--vrgb), .28); }
+.nxh-say p { margin: 0; font-size: 14.5px; line-height: 1.4; }
+.nxh-say p small { color: var(--mute); font-size: 12px; }
+.nxl-g { background: none; border: 0; padding: 0; color: var(--volt); font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(var(--vrgb), .4); text-underline-offset: 3px; }
+.nxh-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.nxh-top > span { flex: 1 0 100%; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.nxh-top button { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 5px; padding: 4px 9px 4px 5px; border-radius: 999px; background: var(--void); border: 1px solid var(--steel); color: var(--ice); font: inherit; font-size: 12.5px; cursor: pointer; }
+.nxh-top button b { font: 900 italic 13px Archivo, sans-serif; color: var(--mute); padding-left: 3px; }
+.nxh-top button em { font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+@media (max-width: 520px) { .nxh-top button { flex-basis: 100%; } .nxh-top { gap: 4px; } .nxh-top button em { font-size: 12.5px; } }
+</style>
