@@ -3946,7 +3946,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "184";
+const APP_V = "185";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6118,6 +6118,24 @@ function openSettings(scope) {
       </div>
     </div>
 
+    <div class="setgroup" data-scope="app"><h4 data-desc="Personality, chat memory and nudges.">Nexi</h4>
+      <label>Personality</label>
+      <p class="note">Same tips and picks, a different voice.</p>
+      <div class="chips" id="s-persona">
+        ${NX_PERSONAS.map(([v, l, e]) => `<button class="chip" data-v="${v}" aria-pressed="${nxP() === v}"><span>${e} ${l}</span></button>`).join("")}
+      </div>
+      <label>Nudges</label>
+      <p class="note">Two a day, at slightly different times inside the hours you usually open the app: a close duel, tonight's pick, a tip, a badge you're close to, or a release. Works on Android, and on iPhone once the app is on your Home Screen.</p>
+      <div class="chips" id="s-nudge">
+        ${[["off", "Off"], ["on", "2 a day"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.nudgeOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <button class="btn ghost" id="s-nudgetest"><span>Send me a test nudge</span></button>
+      <label>Chat memory</label>
+      <p class="note">${S.nxMem ? "Nexi remembers: " + escRaw(S.nxMem) : "After you chat, Nexi keeps a short note about you here, so the next chat picks up where you left off."}</p>
+      ${S.nxMem ? '<button class="btn ghost" id="s-nxforget"><span>Forget it</span></button>' : ""}
+      <button class="btn" data-nxchat=""><span>💬 Chat with Nexi</span></button>
+    </div>
+
     <div class="setgroup" data-scope="app"><h4 data-desc="Diary and Timer. Off unless you want them.">Extra features</h4>
       <label>Play diary</label>
       <p class="note">A 📓 Diary button on each game for notes, moods and wins/losses.</p>
@@ -6418,6 +6436,8 @@ function openSettings(scope) {
   pick("#s-fast", v => S.fast = v === "on");
   pick("#s-fps", v => S.fps = v === "on");
   pick("#s-grum", v => S.grum = v === "on");
+  pick("#s-persona", v => S.nxPersona = v, () => { renderHome(); try { pnBubSay(["That's me now. " + nxPName() + ", at your service.", ""]); } catch (e) {} });
+  if ($("#s-nxforget")) $("#s-nxforget").onclick = () => { if (!confirm("Forget what Nexi remembers about you?")) return; S.nxMem = ""; save(); openSettings("app"); };
   pick("#s-curplat", v => { S.curPlat = v; deckMemo = null; }, () => render());
   pick("#s-deck", v => S.deckOff = v === "off", () => renderQueue());
   pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
@@ -8031,6 +8051,7 @@ function renderQueue() {
           ${g.learn ? `<p class="note2"><b>Learn</b> ${esc(g.learn)}</p>` : ""}
           ${g.tips ? `<p class="note2"><b>Play it</b> ${esc(g.tips)}</p>` : ""}
           ${hrsOf(g) ? `<p class="evenings">About ${Math.ceil(hrsOf(g) / (S.evening || 2))} evenings at ${S.evening || 2} hours a night</p>` : ""}
+          ${simBack(g)}
           <button class="btn ghost fliphint" data-unflipbtn style="display:block;margin:12px auto 0"><span>↻ Tap to flip back</span></button>
         </div></div></div></div>
       ${g.platforms && (S.platPos || "inline") !== "inline" ? `<div class="plats pos-${esc(S.platPos)}">${platList(g.platforms).map(x =>
@@ -8681,6 +8702,8 @@ function hubMarkup(g) {
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
           <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
+          <button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button>
+          <button class="chip" data-sim="${g.id}"><span>🔍 Similar</span></button>
           <button class="chip" data-lists="${g.id}"><span>📋 Lists${(g.lists || []).length ? " · " + g.lists.length : ""}</span></button>
           <button class="chip" data-sess="${g.id}"><span>⏱ Sessions${sessOf(g.id).length ? " · " + sessOf(g.id).length : ""}</span></button>
           <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
@@ -11259,7 +11282,7 @@ function nxAskName() {
   document.body.appendChild(ov); const inp = ov.querySelector(".un"); setTimeout(() => inp.focus(), 300);
   ov.onclick = e => { const ok = e.target.closest("[data-ok]"); if (!ok && !e.target.closest("[data-x]") && e.target !== ov) return;
     S.nxAsked = 1; if (ok && inp.value.trim()) S.userName = inp.value.trim(); save(); ov.remove();
-    pnBubMood("happy", 1800); setTimeout(() => pnBubSay([S.userName ? `Nice to meet you, ${S.userName}! Heads up: we're still in beta, so I'm learning as we go 🧪` : "No worries. You can tell me your name later: hold me → 🎨", ""]), 400); };
+    pnBubMood("happy", 1800); setTimeout(() => pnBubSay([S.userName ? `Nice to meet you, ${S.userName}! I'll learn your taste as we go 🎮` : "No worries. You can tell me your name later: hold me → 🎨", ""]), 400); };
 }
 /* Nexi's story: 10 chapters. 1–8 unlock one a day, 9–10 unlock only by finishing games. Each chapter unlocks new lines */
 const PN_STORY = [
@@ -11480,7 +11503,7 @@ function pnBubWheel() {
   ov.onclick = e => { const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
     if (a === "power") pnPowerUp();
     else if (a === "edit") pnBubEdit();
-    else if (a === "story") pnLore(); else if (a === "ask") nxAsk();
+    else if (a === "story") pnLore(); else if (a === "ask") nxChat();
     else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") qDuel(); else if (a === "score") qScorePick(); else if (a === "add") goTab("add");
     else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); }
     else { pnBubMood(a, a === "nap" ? 4000 : 2600); if (a === "love") pnBubBurst(); } };
@@ -11540,10 +11563,10 @@ function pnBubLines() {
   if (S.userName) { const hh = new Date().getHours(), n = S.userName;
     L.push([hh < 12 ? `Morning, ${n} ☀️` : hh < 18 ? `Hey ${n} 👋 Good day so far?` : `Evening, ${n} 🌙 Game time?`, hh >= 18 ? "pick" : ""]);
     L.push([`${n}. Nice name. Very main-character energy 😎`, ""]); }
-  L.push(["We're still in beta 🧪 If I get something wrong, that's why. I'm learning.", ""]);
+  L.push(["Every duel you settle makes my picks sharper 🎯", ""]);
   L.push(["Beta life: the more you use the app, the smarter I get 🧠", ""]);
   L.push([`Friendship level ${nxLv()} 💙 ${10 - (S.nxXP || 0) % 10} more XP to the next one.`, ""]);
-  if (nxPeak()) L.push([`So far you usually show up around ${nxPeak()}. Still learning though, it's beta 🕙`, "pick"]);
+  if (nxPeak()) L.push([`So far you usually show up around ${nxPeak()}. I time my nudges around it 🕙`, "pick"]);
   if (S.nxStreak && S.nxStreak.n > 1) L.push([`${S.nxStreak.n}-day streak 🔥 Don't break it on me.`, ""]);
   const sk = Object.entries(S.nxSkip || {}).sort((a, b) => b[1] - a[1])[0], skg = sk && sk[1] >= 3 && S.games.find(g => g.id === sk[0] && !isPlayed(g));
   if (skg) L.push([`You keep skipping ${skg.title}. Is it the game… or is it you? 🤔`, skg.id]);
@@ -11579,7 +11602,7 @@ function pnBubShow() {
   let bl = pnBubBored; pnBubBored = null;
   if (!S.bubBorn) { S.bubBorn = new Date().toLocaleDateString("en-CA"); save(); }
   if (!nxHabits.done) { nxHabits.done = 1; setTimeout(nxHabits, 0); }
-  if (!S.bubMet) { S.bubMet = 1; save(); bl = `Hi! I'm ${pnName()} 👋 Hold me for shortcuts, poke me if you dare. (We're in beta, so bear with me 🧪)`; } if (bl) pnBubMood("bored", 4000);
+  if (!S.bubMet) { S.bubMet = 1; save(); bl = `Hi! I'm ${pnName()} 👋 Hold me for shortcuts, poke me if you dare. Ask me anything with 💬`; } if (bl) pnBubMood("bored", 4000);
   const td = new Date().toLocaleDateString("en-CA");
   if (S.bubDay !== td && S.bubBorn && S.bubBorn.slice(5) === td.slice(5) && S.bubBorn !== td) { S.bubDay = td; save(); pnBubBurst();
     bl = `It's my birthday! 🎂 ${+td.slice(0, 4) - +S.bubBorn.slice(0, 4)} year${+td.slice(0, 4) - +S.bubBorn.slice(0, 4) === 1 ? "" : "s"} of guarding your queue from Grumble.`; }
@@ -12392,6 +12415,304 @@ document.addEventListener("click", e => { const b = e.target.closest("[data-opg]
 { const _xf = xFeatures; xFeatures = function () { try { scoreMigrate(); if (!sigIds) sigWatch(); } catch (e) {} return _xf.apply(this, arguments); }; }
 { const _ab = applyBackup; applyBackup = function () { sigIds = null; rankMemo = deckMemo = null; const o = _ab.apply(this, arguments); sigWatch(); return o; }; }
 { const _mb = mergeBackup; mergeBackup = function () { const o = _mb.apply(this, arguments); sigIds = null; sigWatch(); return o; }; }
+/* ===== v185 Nexi + discovery: personalities, AI chat with a memory, competitive chat, nudges, similar games, trailers ===== */
+const HELPER = "https://playnext-helper.hussamnabil48.workers.dev";
+/* ---- personalities: same tips, different voice ---- */
+const NX_PERSONAS = [
+  ["hype", "Hype Buddy", "🔥", "Loud, happy, cheers every win"],
+  ["butler", "Calm Butler", "🎩", "Polite and calm, lots of tips"],
+  ["coach", "Chill Coach", "🧢", "Relaxed, one small step at a time"],
+  ["rival", "Sarcastic Rival", "😏", "Teases you, still helps"],
+  ["bard", "Story Bard", "🪕", "Turns your games into a saga"],
+  ["nerd", "Stats Nerd", "🤓", "Numbers and patterns"]];
+const nxP = () => NX_PERSONAS.some(p => p[0] === S.nxPersona) ? S.nxPersona : "hype";
+const nxPName = () => (NX_PERSONAS.find(p => p[0] === nxP()) || NX_PERSONAS[0])[1];
+const EMO = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2194}-\u{21FF}]\u{FE0F}?/gu;
+const nxHash = t => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return Math.abs(h); };
+const NX_OPEN = {
+  butler: ["Very good. ", "If I may: ", "A small observation: ", ""],
+  coach: ["No rush. ", "Easy does it: ", "Small step: ", ""],
+  rival: ["Oh look. ", "Fine. ", "Not bad, for you. ", "Hmph. "],
+  bard: ["Hark! ", "Lo! ", "And so the tale goes: ", ""],
+  nerd: ["Data point: ", "Fun stat: ", "Per my numbers: ", ""],
+  hype: ["", "YO! ", "Okay okay okay! ", ""]
+};
+const NX_CLOSE = { butler: "", coach: " 🧢", rival: [" Try to keep up.", " You're welcome.", ""], bard: " ✨", nerd: " 📊", hype: ["", " 🔥", " LET'S GO!"] };
+/* re-voice a plain line; plain text only (HTML lines keep their own wording) */
+function nxVoice(txt) {
+  const p = nxP(); txt = String(txt || ""); if (!txt || p === "hype" && !S.nxPersona) return txt;
+  const h = nxHash(txt), pick = a => Array.isArray(a) ? a[h % a.length] : a;
+  let t = txt;
+  if (p === "butler") t = t.replace(EMO, "").replace(/!+/g, ".").replace(/\s{2,}/g, " ").trim();
+  if (p === "coach") t = t.replace(/!+/g, ".").replace(/\s{2,}/g, " ").trim();
+  if (p === "rival") t = t.replace(/ 😤| 🥲| 💪| 🥳| 🎉/g, "");
+  if (p === "hype") t = t.replace(/\.(\s|$)/, "!$1");
+  const o = pick(NX_OPEN[p]) || "";
+  if (o && !/^(hi|hey|yo|hello|it's my)/i.test(t)) t = o + t;         /* openers end in . : or ! so names keep their capitals */
+  return (t + (pick(NX_CLOSE[p]) || "")).replace(/\s+$/, "");
+}
+{ const _say = pnBubSay; pnBubSay = function (line) {
+  if (!line) { const L = pnBubLines(); if (!L.length) return; line = L[Math.floor(Math.random() * L.length)]; }
+  const [txt, act] = Array.isArray(line) ? line : [line, ""];
+  return _say.call(this, [nxVoice(txt), act]); }; }
+
+/* ---- competitive games: Nexi comments, never keeps score ---- */
+const NX_COMP = [
+  [/\b(ea sports )?fc ?\d*\b|fifa/i, ["{t}: weekend league energy? Hydrate between matches ⚽", "Tip for {t}: patience in the final third wins more than sprinting at everyone.", "A couple of {t} matches, then a story game? Balance 😌", "{t} is the one game that never leaves your list. Respect ⚽"]],
+  [/mobile legends|mlbb/i, ["{t}: remember to check the map every few seconds 🗺️", "One more ranked game of {t}? Stop after a win, feel great 🏆", "Tip for {t}: buy items for the enemy team you're facing, not the same build every game.", "{t} teammates… I believe in you 😅"]],
+  [/chess/i, ["{t} tip: before every move, check what your opponent's last move threatens ♟️", "A daily {t} puzzle keeps you sharp. Five minutes 🧠", "{t}: develop knights before bishops, castle early, and the middle game gets easier.", "Blitz or rapid today? Rapid if you want to get better at {t} ♟️"]],
+  [/./, ["{t} is endless, so I never nag you about finishing it 😌", "Quick {t} session before your story game?"]]
+];
+function nxCompLines() {
+  return S.games.filter(g => g.comp && !isDropped(g)).map(g => {
+    const set = NX_COMP.find(([re]) => re.test(g.title))[1];
+    return set.map(l => [l.replace(/\{t\}/g, g.title), ""]);
+  }).flat();
+}
+{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments) || []; try { const c = nxCompLines(); c.sort(() => Math.random() - .5).slice(0, 2).forEach(x => L.push(x)); } catch (e) {} return L; }; }
+
+/* ---- Nexi chat (free Workers AI through the helper; no keys in the app) ---- */
+function nxContext() {
+  const t = rankTable(), rk = rankedGames().slice(0, 15).map((g, i) => `${i + 1}. ${g.title} (${tierOf(t.sc[g.id])} ${t.sc[g.id]}${platList(g.genres).length ? ", " + platList(g.genres).slice(0, 2).join("/") : ""})`);
+  const deck = onDeck(3), q = sortGames(S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp));
+  const queue = deck.concat(q.filter(g => !deck.includes(g))).slice(0, 15).map(g => `${g.title}${platList(g.genres).length ? " [" + platList(g.genres).slice(0, 2).join("/") + "]" : ""}${g.date ? " (" + (isOutNow(g) ? "out" : "out " + g.date) + ")" : ""}`);
+  return { name: S.userName || "", ranking: rk, queue, platform: curPlat() === "any" ? "" : curPlat(),
+    playing: S.games.filter(g => g.state === "playing" && !g.comp).map(g => g.title),
+    competitive: S.games.filter(g => g.comp && !isDropped(g)).map(g => g.title),
+    insights: tasteInsights().map(x => x.txt.replace(/<[^>]+>/g, "")) };
+}
+async function nxPost(path, body) {
+  const r = await fetch(HELPER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error || "The helper said " + r.status);
+  return j;
+}
+let nxBusy = false, nxSinceMem = 0;
+const NX_ASKS = () => { const p = S.games.find(g => g.state === "playing" && !g.comp), top = rankedGames()[0];
+  return ["What should I play next?", "Explain my taste", p ? "Tips for " + p.title : "Give me a gaming tip", top ? "Something new like " + top.title : "Recommend me a game"]; };
+function nxChat(prefill) {
+  uCount("o", "chat");
+  const box = dyBox(), log = (S.nxChat ||= []);
+  const bub = m => `<div class="nc-m ${m.role === "user" ? "me" : "nx"}">${m.role === "user" ? "" : '<span class="nc-f"><i></i><i></i></span>'}<p>${esc(m.content).replace(/\n/g, "<br>")}</p></div>`;
+  dyShow(box, `<div class="dy-h"><b>💬 ${esc(pnName())} <small class="nc-p">${esc(nxPName())}</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+    <div class="nc-pers">${NX_PERSONAS.map(([k, l, e]) => `<button data-pers="${k}" aria-pressed="${nxP() === k}">${e} ${esc(l)}</button>`).join("")}</div>
+    <div class="nc-log">${log.length ? log.slice(-20).map(bub).join("") : `<div class="nc-m nx"><span class="nc-f"><i></i><i></i></span><p>${esc(nxVoice(`Ask me what to play next, why you like what you like, or for tips on a game. I know your ranking and your queue.`))}</p></div>`}
+      ${nxBusy ? '<div class="nc-m nx"><span class="nc-f"><i></i><i></i></span><p class="nc-dots"><i></i><i></i><i></i></p></div>' : ""}</div>
+    <div class="nc-asks">${NX_ASKS().map(q => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join("")}<button data-act="duel">⚔️ Duel</button><button data-act="find">⚙ Find a setting</button></div>
+    <div class="nc-in"><input class="nc-q" maxlength="300" placeholder="Ask ${esc(pnName())}…" value="${esc(prefill || "")}" enterkeyhint="send"><button class="nc-go" aria-label="Send">➤</button></div>
+    ${S.nxMem ? `<details class="nc-mem"><summary>🧠 What I remember about you</summary><p>${esc(S.nxMem)}</p><button data-act="forget">Forget this</button></details>` : ""}`,
+    e => {
+      const pe = e.target.closest("[data-pers]"); if (pe) { S.nxPersona = pe.dataset.pers; save(); beep("tap"); renderHome(); return nxChat(box.querySelector(".nc-q").value); }
+      const a = e.target.closest("[data-ask]"); if (a) return nxSend(a.dataset.ask);
+      const ac = e.target.closest("[data-act]");
+      if (ac) { const k = ac.dataset.act;
+        if (k === "duel") { qdToday = 0; return qDuel(null); }
+        if (k === "find") { dyClose(); return setTimeout(nxAsk, 320); }
+        if (k === "forget" && confirm("Forget everything Nexi remembers about you?")) { S.nxMem = ""; save(); return nxChat(); } }
+      if (e.target.closest(".nc-go")) nxSend(box.querySelector(".nc-q").value);
+    });
+  const q = box.querySelector(".nc-q"); q.addEventListener("keydown", e => { if (e.key === "Enter") nxSend(q.value); });
+  const lg = box.querySelector(".nc-log"); lg.scrollTop = lg.scrollHeight;
+}
+async function nxSend(text) {
+  text = String(text || "").trim(); if (!text || nxBusy) return;
+  const log = (S.nxChat ||= []); log.push({ role: "user", content: text.slice(0, 300), t: Date.now() });
+  nxBusy = true; nxChat(); beep("tap");
+  let reply;
+  try { const j = await nxPost("/chat", { persona: nxP(), memory: S.nxMem || "", context: nxContext(), messages: log.slice(-10).map(m => ({ role: m.role, content: m.content })) });
+    reply = String(j.text || "").slice(0, 1500) || "…"; }
+  catch (e) { reply = e instanceof TypeError ? "I can't reach my helper right now (offline?). Try again in a bit." : "Hmm, that didn't work: " + e.message; log.push({ role: "assistant", content: reply, t: Date.now(), err: 1 }); }
+  if (reply && !(log[log.length - 1] || {}).err) log.push({ role: "assistant", content: reply, t: Date.now() });
+  if (log.length > 40) log.splice(0, log.length - 40);
+  nxBusy = false; save();
+  if ($("#diary.on .nc-log")) nxChat();
+  if (!(log[log.length - 1] || {}).err && ++nxSinceMem >= 1) nxRemember();
+}
+/* after each chat, Nexi rewrites a short summary of you (kept on the phone, sent back with the next chat) */
+async function nxRemember() {
+  clearTimeout(nxRemember.t);
+  nxRemember.t = setTimeout(async () => {
+    const log = (S.nxChat || []).filter(m => !m.err).slice(-8); if (!log.length) return;
+    try { const j = await nxPost("/chat/memory", { memory: S.nxMem || "", messages: log.map(m => ({ role: m.role, content: m.content })) });
+      if (j.memory) { S.nxMem = String(j.memory).slice(0, 700); nxSinceMem = 0; save(); } } catch (e) {}
+  }, 4000);
+}
+
+/* ---- similar games: from your library, and new ones from RAWG ---- */
+const simTags = g => new Set(platList(g.genres).map(x => "g:" + x.toLowerCase()).concat(whyOf(g).map(w => "w:" + w)));
+function simLocal(g, n) {
+  const a = simTags(g); if (!a.size) return [];
+  return S.games.filter(x => x.id !== g.id).map(x => { const b = simTags(x), inter = [...a].filter(k => b.has(k)).length;
+    return { g: x, s: inter / (new Set([...a, ...b]).size || 1) + (inter && platList(x.platforms).some(p => platList(g.platforms).includes(p)) ? .05 : 0) }; })
+    .filter(x => x.s > .15).sort((p, q) => q.s - p.s).slice(0, n || 6);
+}
+const normT = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+async function simRawg(g) {
+  const c = (S.simCache ||= {})[g.id];
+  if (c && Date.now() - c.t < 14 * 864e5) return c.l;
+  if (!rawgKey) throw new Error("nokey");
+  const api = p => fetch("https://api.rawg.io/api/" + p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(rawgKey)).then(r => { if (!r.ok) throw new Error("RAWG said " + r.status); return r.json(); });
+  let id = g.rawgId;
+  if (!id) { const s = await api("games?search=" + encodeURIComponent(g.title) + "&page_size=1"); id = s.results && s.results[0] && s.results[0].id; }
+  if (!id) return [];
+  const d = await api("games/" + id);
+  const gen = (d.genres || []).slice(0, 2).map(x => x.id).join(","), tags = (d.tags || []).filter(t => t.language === "eng").slice(0, 3).map(x => x.id).join(",");
+  const r = await api("games?page_size=20&ordering=-rating&exclude_additions=true" + (gen ? "&genres=" + gen : "") + (tags ? "&tags=" + tags : ""));
+  const mine = new Set(S.games.map(x => normT(x.title)));
+  const l = (r.results || []).filter(h => h.id !== id && !mine.has(normT(h.name))).slice(0, 8)
+    .map(h => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
+      genres: (h.genres || []).map(x => ({ name: x.name })), tags: (h.tags || []).slice(0, 8).map(x => ({ name: x.name, language: x.language })), platforms: (h.platforms || []).map(x => ({ platform: { name: x.platform.name } })) }));
+  S.simCache[g.id] = { t: Date.now(), l }; save();
+  return l;
+}
+/* add a RAWG result without going through the Add form */
+function simAdd(h) { try { fill(h); $("#f-save").click(); uCount("o", "add"); } catch (e) { toast("Couldn't add it"); } }
+function openSimilar(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  uCount("o", "similar");
+  const loc = simLocal(g, 6);
+  const row = x => `<button class="dy-g" data-opg="${x.g.id}" style="--accent:${esc(x.g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><span><b>${esc(x.g.title)}</b><small>${esc(isPlayed(x.g) ? (rankOf(x.g.id) ? "Your #" + rankOf(x.g.id) : "Played") : x.g.state === "playing" ? "Playing now" : "In your queue")} · ${Math.round(x.s * 100)}% alike</small></span><em>›</em></button>`;
+  const box = dyBox();
+  dyShow(box, `<div class="dy-h"><b>🔍 Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">${esc(nxVoice(loc.length ? "Here's what fits, from your games and a few new ones." : "Nothing in your library is close. Here are some new ones."))}</p>
+    ${loc.length ? `<p class="dy-q"><b>In your library</b></p><div class="dy-gl">${loc.map(row).join("")}</div>
+      <button class="dy-more" data-simq="${g.id}">Show these in the queue</button>` : ""}
+    <p class="dy-q" style="margin-top:14px"><b>New to you</b> <small>from RAWG</small></p><div class="sim-new"><p class="dy-empty">Looking…</p></div>
+    <button class="dy-more" data-trailer="${g.id}">▶ Watch the ${esc(g.title)} trailer</button>`,
+    e => {
+      const q = e.target.closest("[data-simq]"); if (q) { dyClose(); nxShut(); simFilter(q.dataset.simq); goTab("queue"); return; }
+      const a = e.target.closest("[data-simadd]"); if (a) { const h = (box._hits || [])[+a.dataset.simadd]; if (h) { dyClose(); simAdd(h); } return; }
+      const tr = e.target.closest("[data-ytq]"); if (tr) { trailer(tr.dataset.ytq); return; }
+    });
+  simRawg(g).then(l => {
+    const el = box.querySelector(".sim-new"); if (!el) return; box._hits = l;
+    el.innerHTML = l.length ? `<div class="dy-gl">${l.map((h, i) => `<div class="dy-g sim-h"><img decoding="async" src="${esc(h.background_image)}" alt="" onerror="this.style.visibility='hidden'">
+      <span><b>${esc(h.name)}</b><small>${esc([h.released ? h.released.slice(0, 4) : "", h.genres.slice(0, 2).map(x => x.name).join(", "), h.metacritic ? "MC " + h.metacritic : ""].filter(Boolean).join(" · "))}</small></span>
+      <button class="sim-yt" data-ytq="${esc(h.name)}" aria-label="Trailer">▶</button><button class="hitadd" data-simadd="${i}" aria-label="Add ${esc(h.name)}">＋</button></div>`).join("")}</div>` : '<p class="dy-empty">RAWG had nothing close.</p>';
+  }).catch(e => { const el = box.querySelector(".sim-new"); if (el) el.innerHTML = `<p class="dy-empty">${e.message === "nokey" ? "Add your RAWG key (Settings → Games database) and I'll find new ones too." : "Couldn't reach RAWG right now."}</p>`; });
+}
+/* the Games filter: "Like <game>" sits with Everything / Out / Upcoming / your lists */
+function simFilter(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  for (let i = QFILTERS.length - 1; i >= 0; i--) if (/^S:/.test(QFILTERS[i][0])) QFILTERS.splice(i, 1);
+  QFILTERS.push(["S:" + id, "Like " + g.title]); QICON["S:" + id] = "🔍";
+  S.qFilter = "S:" + id; save(); renderQueue();
+}
+{ const _qc = qCounts; qCounts = function () { const c = _qc.apply(this, arguments); QFILTERS.forEach(([k]) => { if (/^S:/.test(k)) { const g = S.games.find(x => x.id === k.slice(2)); c[k] = g ? simLocal(g, 99).length : 0; } }); return c; }; }
+{ const _ql = queueList; queueList = function () { const f = qNow(); if (/^S:/.test(f)) { const g = S.games.find(x => x.id === f.slice(2)); return g ? simLocal(g, 99).map(x => x.g) : []; } return _ql.apply(this, arguments); }; }
+function simRestore() { if (/^S:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { const g = S.games.find(x => x.id === S.qFilter.slice(2)); if (g) { QFILTERS.push([S.qFilter, "Like " + g.title]); QICON[S.qFilter] = "🔍"; } } }
+/* the back of a queue card: a few games like it, the trailer, more */
+function simBack(g) {
+  const l = simLocal(g, 3);
+  return `<div class="simback"><span class="sb-h">Like this</span>${l.map(x => `<button class="sb-g" data-opg="${x.g.id}" title="${esc(x.g.title)}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><small>${esc(x.g.title)}</small></button>`).join("")}
+    <span class="sb-acts"><button class="chip" data-sim="${g.id}"><span>🔍 More like it</span></button><button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button></span></div>`;
+}
+
+/* ---- trailers: a YouTube search, so it always finds the latest one ---- */
+function trailer(title, g) {
+  if (g) sigAdd("trailer", g); uCount("o", "trailer"); save();
+  window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(title + " trailer"), "_blank", "noopener");
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-trailer]"), s = e.target.closest("[data-sim]"), c = e.target.closest("[data-nxchat]");
+  if (!t && !s && !c) return;
+  e.stopPropagation(); e.preventDefault();
+  if (t) { const g = S.games.find(x => x.id === t.dataset.trailer); if (g) trailer(g.title, g); }
+  else if (s) { beep("open"); openSimilar(s.dataset.sim); }
+  else { beep("open"); nxChat(); }
+}, true);
+
+/* ---- nudges: 2 a day, at slightly random times inside the hours you usually open the app ---- */
+function nxWindow() {
+  const H = S.nxHours || [], tot = H.reduce((a, b) => a + b, 0);
+  if (tot < 6) return [18, 22];
+  const mx = Math.max(...H), hot = H.map((v, h) => v >= mx * .25 ? h : -1).filter(h => h >= 0 && h >= 8);
+  if (!hot.length) return [18, 22];
+  let a = Math.min(...hot), b = Math.max(...hot) + 1; if (b - a < 3) { a = Math.max(8, a - 1); b = Math.min(23, b + 1); }
+  return [a, Math.min(23, b)];
+}
+function nxNudgeText(kind, n) {
+  const t = rankTable(), top = rankedGames(), deck = onDeck(3), nm = S.userName ? S.userName + ", " : "";
+  const pr = qDuelPair(null);
+  if (kind === "duel" && pr) return ["⚔️ Close call", nxVoice(`${pr[0].title} or ${pr[1].title}? They're neck and neck in your ranking. One tap settles it.`), "duel"];
+  if (kind === "next" && deck[n % Math.max(1, deck.length)]) { const g = deck[n % deck.length]; return ["🎮 Tonight's pick", nxVoice(`${nm}${g.title} is looking good for tonight${deckWhy(g) ? " (" + deckWhy(g) + ")" : ""}.`), "next"]; }
+  if (kind === "release") { const g = S.games.filter(x => x.date && !isPlayed(x)).map(x => ({ x, d: Math.ceil((new Date(x.date + "T00:00:00") - new Date()) / 864e5) })).filter(o => o.d >= 0 && o.d <= 7).sort((a, b) => a.d - b.d)[0];
+    if (g) return ["📅 Coming up", nxVoice(g.d === 0 ? `${g.x.title} is out today! Party time.` : `${g.x.title} is out in ${g.d} day${g.d === 1 ? "" : "s"}.`), "release"]; }
+  if (kind === "badge") { const st = pnBadgeStats(), got = S.badges || {};
+    const b = PN_BADGES.filter(x => !got[x[0]]).map(x => ({ x, left: x[5] - x[4](st) })).filter(o => o.left > 0 && o.left <= Math.max(3, o.x[5] * .2)).sort((a, b) => a.left - b.left)[0];
+    if (b) return ["🏅 Almost there", nxVoice(`${b.left} more and you unlock ${b.x[1]} ${b.x[2]} (${b.x[3].toLowerCase()}).`), "badge"]; }
+  if (kind === "tip") { const c = nxCompLines(), tips = c.concat([["Close duel? Tap Slight edge instead of Even. It counts as half a win.", ""], ["Your ranking dots fill up as you duel. Three dots means that rank is settled.", ""], ["Tap 🔍 More like it on the back of a card to find games like it.", ""]]);
+    return ["💡 Tip", nxVoice(tips[n % tips.length][0]), "tip"]; }
+  if (top[0]) return ["👑 Your #1", nxVoice(`${top[0].title} is still your #1. Anything coming for the crown?`), "duel"];
+  return null;
+}
+function nxPlan(days) {
+  const out = [], [a, b] = nxWindow(), kinds = ["next", "duel", "tip", "badge", "release"];
+  let k = (S.nudgeK || 0);
+  const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
+  for (let d = 0; d < (days || 5); d++) {
+    const base = new Date(); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + d);
+    const mid = (a + b) / 2, t1 = rnd(a, Math.max(a + .5, mid - .5)), t2 = rnd(Math.min(b - .5, mid + .5), b);
+    [t1, t2].forEach(h => {
+      const at = base.getTime() + h * 36e5; if (at < Date.now() + 20 * 60000) return;
+      let m = null; for (let i = 0; i < kinds.length && !m; i++) m = nxNudgeText(kinds[(k + i) % kinds.length], k + d);
+      k++; if (m) out.push({ at: Math.round(at), title: m[0], body: m[1], tag: m[2], url: "./?nudge=" + m[2] });
+    });
+  }
+  S.nudgeK = k % 1000;
+  return out;
+}
+const b64uToU8 = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+async function nudgeOn(quiet) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    if (!quiet) toast(/iPhone|iPad/.test(navigator.userAgent) && !installed() ? "On iPhone, add Play next to your Home Screen first, then turn nudges on there" : "This browser can't do notifications"); return false; }
+  const perm = Notification.permission === "granted" ? "granted" : quiet ? Notification.permission : await Notification.requestPermission();
+  if (perm !== "granted") { if (!quiet) toast("Notifications are blocked for this app"); return false; }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) { const k = await fetch(HELPER + "/nudge/key").then(r => r.json());
+    if (!k.key) throw new Error(k.error || "no key"); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(k.key) }); }
+  if (!S.nudgeId) S.nudgeId = frRid(24).replace(/[^A-Za-z0-9_-]/g, "x");
+  const plan = nxPlan(5);
+  await nxPost("/nudge", { id: S.nudgeId, sub: sub.toJSON(), plan });
+  /* Android can also wake the app by itself now and then: keep a copy the service worker can read */
+  try { const c = await caches.open("play-next-nudge"); await c.put("./nudge-plan.json", new Response(JSON.stringify({ plan, shown: [] }))); } catch (e) {}
+  try { if (reg.periodicSync) await reg.periodicSync.register("nudge", { minInterval: 6 * 36e5 }); } catch (e) {}
+  S.nudgeAt = Date.now(); S.nudgeOn = true; save();
+  return true;
+}
+async function nudgeOff() {
+  S.nudgeOn = false; save();
+  try { await nxPost("/nudge", { id: S.nudgeId, off: 1 }); } catch (e) {}
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); if (reg.periodicSync) await reg.periodicSync.unregister("nudge"); } catch (e) {}
+}
+/* the next few days are re-planned each time you open the app (so they talk about what's true now) */
+setTimeout(() => { if (S.nudgeOn && Date.now() - (S.nudgeAt || 0) > 4 * 36e5) nudgeOn(true).catch(() => {}); }, 6000);
+document.addEventListener("click", async e => {
+  const b = e.target.closest("#s-nudge [data-v]"); if (!b) return;
+  e.stopPropagation();
+  const on = b.dataset.v === "on";
+  [...b.parentElement.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+  if (on) { try { const ok = await nudgeOn(false); if (ok) toast(nxVoice("Nudges on: 2 a day, around when you usually play.")); else b.parentElement.children[0].click(); }
+    catch (err) { toast("Couldn't turn nudges on: " + (err.message || err)); S.nudgeOn = false; save(); } }
+  else { await nudgeOff(); toast("Nudges off"); }
+}, true);
+document.addEventListener("click", async e => { if (!e.target.closest("#s-nudgetest")) return; e.stopPropagation();
+  try { if (!S.nudgeOn) return toast("Turn nudges on first"); await nudgeOn(true); const j = await nxPost("/nudge/test", { id: S.nudgeId }); toast(j.ok ? "Sent! It should pop up in a moment" : "The push service said " + j.status); }
+  catch (err) { toast("Test failed: " + (err.message || err)); } }, true);
+/* opened from a nudge: go where it points */
+{ const q = new URLSearchParams(location.search).get("nudge");
+  if (q) setTimeout(() => { uCount("o", "nudge"); history.replaceState(null, "", location.pathname);
+    if (q === "duel") { qdToday = 0; qDuel(null); } else if (q === "next") { const g = onDeck(1)[0]; if (g) openFull(g.id); } else if (q === "badge") goTab("played"); }, 1800); }
+
+{ const _xf2 = xFeatures; xFeatures = function () { try { simRestore(); } catch (e) {} return _xf2.apply(this, arguments); }; }
+/* Home: Nexi's line in the chosen voice; tapping Nexi opens the chat */
+{ const _nl = nxHomeLine; nxHomeLine = function () {
+  const pick = onDeck(1)[0], out = _nl.apply(this, arguments); if (!out || !pick) return out;
+  const G = `<button class="nxl-g" data-home-open="${pick.id}">${esc(pick.title)}</button>`, why = deckWhy(pick), nm = S.userName ? esc(S.userName) : "";
+  const W = { hype: `${nm ? nm + ", p" : "P"}lay ${G} next!`, butler: `May I suggest ${G} next${nm ? ", " + nm : ""}.`, coach: `Next up, no pressure: ${G}.`,
+    rival: `Obviously it's ${G} next. Try to keep up${nm ? ", " + nm : ""}.`, bard: `Your next quest${nm ? ", " + nm : ""}: ${G}.`, nerd: `Best match for you next: ${G}.` }[nxP()];
+  return out.replace(/<p>[\s\S]*?<\/p>/, `<p>${W}${why ? ` <small>(${esc(why)})</small>` : ""}</p>`).replace('data-qduel="" aria-label="Duel with Nexi"', 'data-nxchat="" aria-label="Chat with Nexi"'); }; }
 load();
 /* FX pack */
 (()=>{
@@ -14895,8 +15216,8 @@ WHATS_NEW.push(
     say: "<b>On deck</b>: my top 3 from your queue. Games like the ones you rank highest, on your current platform (Switch), and out now. Number 1 is my pick on Home. Change your platform in the Queue's Customise.",
     tryIt: "Tap one to open it." },
   { v: 184, go: () => nxHome(), at: () => $("#p-home .nxhome"),
-    say: "I'm at the top of Home now. I tell you <b>what to play next</b> and your <b>top 3</b>. Tap me for a quick duel. And there are new badges for duelling: 10, 100 and 250 duels, big climbs, and more.",
-    tryIt: "Tap my face to duel." }
+    say: "I'm at the top of Home now. I tell you <b>what to play next</b> and your <b>top 3</b>. And there are new badges for duelling: 10, 100 and 250 duels, big climbs, and more.",
+    tryIt: "Tap a game's name to open it." }
 );
 </script>
 <style>
@@ -14975,4 +15296,63 @@ html.still .nxh-face .eyes i { animation: none; }
 .nxh-top button b { font: 900 italic 13px Archivo, sans-serif; color: var(--mute); padding-left: 3px; }
 .nxh-top button em { font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @media (max-width: 520px) { .nxh-top button { flex-basis: 100%; } .nxh-top { gap: 4px; } .nxh-top button em { font-size: 12.5px; } }
+</style>
+<script>
+/* ===== v185 what's new ===== */
+GROUP_ICON["Nexi"] = "🤖";
+GROUP_KEYS["Nexi"] = ["nxPersona"];
+SET_QUICK.push(["🤖", "Nexi's personality", "Nexi", "Personality"]);
+WHATS_NEW.push(
+  { v: 185, go: () => { nxShut(); nxChat(); }, at: () => $("#diary .nc-in"),
+    say: "You can <b>chat with me</b> now! Ask what to play next, why you like what you like, or for tips on a game. I know your ranking and your queue, and I keep a short memory of our chats so next time I remember.",
+    tryIt: "Tap me on Home, or hold me and tap 💬." },
+  { v: 185, go: () => { nxShut(); nxChat(); }, at: () => $("#diary .nc-pers"),
+    say: "Pick my <b>personality</b>: Hype Buddy, Calm Butler, Chill Coach, Sarcastic Rival, Story Bard or Stats Nerd. Same tips, different voice.",
+    tryIt: "Try the Sarcastic Rival. I dare you." },
+  { v: 185, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Nudges" }); }, at: () => $("#s-nudge"),
+    say: "Want a nudge? I can send <b>2 a day</b>, at slightly different times inside the hours you usually play: a close duel, tonight's pick, a tip, a badge you're close to, or a release. Always friendly, never guilt.",
+    tryIt: "Turn them on here. On iPhone, the app has to be on the Home Screen." },
+  { v: 185, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
+    say: "<b>🔍 Similar</b> finds games like this one: from your own library, and new ones from RAWG you can add with one tap. <b>▶ Trailer</b> opens its trailer on YouTube. Both are on the back of queue cards too.",
+    tryIt: "Tap 🔍 Similar." }
+);
+</script>
+<style>
+/* ===== v185 Nexi chat, personalities, similar games ===== */
+.nc-p { font-size: 11px; color: var(--mute); font-weight: 600; margin-left: 6px; }
+.nc-pers { display: flex; gap: 6px; overflow-x: auto; margin: 10px -2px 0; padding: 2px; scrollbar-width: none; }
+.nc-pers button { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--steel); background: var(--void); color: var(--mute); font: inherit; font-size: 12.5px; cursor: pointer; }
+.nc-pers button[aria-pressed="true"] { border-color: var(--volt); color: var(--ice); background: rgba(var(--vrgb), .16); }
+.nc-log { display: grid; gap: 8px; margin: 12px 0 8px; max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; }
+.nc-m { display: flex; gap: 8px; align-items: flex-end; }
+.nc-m p { margin: 0; padding: 9px 12px; border-radius: 16px; font-size: 14.5px; line-height: 1.45; max-width: 82%; }
+.nc-m.nx p { background: var(--void); border: 1px solid rgba(var(--vrgb), .25); border-bottom-left-radius: 4px; }
+.nc-m.me { justify-content: flex-end; }
+.nc-m.me p { background: var(--volt); color: var(--void); border-bottom-right-radius: 4px; }
+.nc-f { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: flex; gap: 4px; align-items: center; justify-content: center; background: radial-gradient(circle at 35% 30%, #1d2a55, #070b1c 70%); box-shadow: 0 0 0 1.5px rgba(var(--vrgb), .55); }
+.nc-f i { width: 4px; height: 7px; border-radius: 50%; background: #EAF2FF; }
+.nc-dots { display: flex; gap: 4px; }
+.nc-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--mute); animation: ncDot 1s infinite; }
+.nc-dots i:nth-child(2) { animation-delay: .15s; } .nc-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes ncDot { 50% { opacity: .3; transform: translateY(-3px); } }
+.nc-asks { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.nc-asks button { padding: 6px 10px; border-radius: 12px; border: 1px dashed var(--steel); background: none; color: var(--ice); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.nc-in { display: flex; gap: 8px; }
+.nc-q { flex: 1; min-width: 0; background: var(--void); border: 1px solid var(--steel); border-radius: 14px; padding: 11px 12px; color: var(--ice); font: inherit; font-size: 16px; }
+.nc-go { width: 46px; border-radius: 14px; border: 0; background: var(--volt); color: var(--void); font-size: 18px; cursor: pointer; }
+.nc-mem { margin-top: 12px; color: var(--mute); font-size: 13px; }
+.nc-mem summary { cursor: pointer; }
+.nc-mem p { margin: 6px 0; color: var(--ice); }
+.nc-mem button { background: none; border: 0; color: var(--hot); font: inherit; font-size: 13px; padding: 0; cursor: pointer; }
+/* similar games */
+.sim-h { cursor: default; }
+.sim-h img { width: 64px !important; aspect-ratio: 16/10 !important; }
+.sim-yt { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--steel); background: none; color: var(--ice); cursor: pointer; }
+.sim-h .hitadd { width: 34px; height: 34px; font-size: 20px; border: 0; cursor: pointer; }
+.simback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.sb-h { flex: 1 0 100%; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.sb-g { width: 64px; display: grid; gap: 3px; justify-items: center; background: none; border: 0; color: var(--ice); padding: 0; cursor: pointer; }
+.sb-g img { width: 52px; aspect-ratio: 3/4; object-fit: cover; border-radius: 8px; }
+.sb-g small { font-size: 10px; max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 </style>
