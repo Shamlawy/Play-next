@@ -3830,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "176";
+const APP_V = "177";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5599,7 +5599,7 @@ const HOME_TILES = [
   ["duels", "Duels"], ["stand", "Standings"], ["coverage", "Settle a duel"],
   ["unrated", "Needs a verdict"], ["tonight", "Tonight"], ["trap", "Hype trap"], ["swing", "Furthest from hype"],
   ["genre", "Genre lean"], ["hours", "Queue hours donut"], ["year", "Year"],
-  ["queue", "Queue count"], ["playing", "Playing now"]
+  ["queue", "Queue count"], ["playing", "Playing now"], ["sessions", "Play sessions"], ["wrapped", "Year wrapped"]
 ];
 const SCOPE_NAME = { home: "Home", games: "Games", plan: "Plan", taste: "Taste", app: "App" };
 function openSettings(scope) {
@@ -6267,7 +6267,7 @@ function openSettings(scope) {
   };
   if ($("#s-resetall")) $("#s-resetall").onclick = () => {
     const keep = { games: S.games, duels: S.duels, played: S.played,
-      edits: S.edits, lastBackup: S.lastBackup, timer: S.timer };
+      edits: S.edits, lastBackup: S.lastBackup, timer: S.timer, sessions: S.sessions };
     S = Object.assign({}, keep);
     save(); applyLook(); applyBg(); render(); renderPill(); openSettings();
     toast("Every setting back to default"); beep("add");
@@ -8321,7 +8321,8 @@ function timerView() {
         <div class="ptrack"><i style="width:${p.toFixed(1)}%;background:${esc(g.colour)}"></i></div>
       </div></div>`;
     }).join("")}
-    <p class="note">One session at a time. It keeps counting if you close the app, and pausing writes the hours onto the game.</p>
+    ${sessRecent(8)}
+    <p class="note">One session at a time. It keeps counting if you close the app, and pausing writes the hours onto the game and keeps the session (tap a game's ⏱ Sessions to see them all).</p>
   </div>`;
 }
 const hms = h => {
@@ -8476,6 +8477,7 @@ function hubMarkup(g) {
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
           <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
+          <button class="chip" data-sess="${g.id}"><span>⏱ Sessions${sessOf(g.id).length ? " · " + sessOf(g.id).length : ""}</span></button>
           <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
           <button class="chip" data-resetgame="${g.id}"><span>↺ Reset scores</span></button>
         </div>
@@ -10224,6 +10226,32 @@ function renderHome() {
       <div class="tile full k-taste"><h5>Your taste shape</h5>${radarBlock("home")}</div>
       ${genreChart("home") ? `<div class="tile full k-hours"><h5>Where your hours go</h5>${genreChart("home")}</div>` : ""}
 
+      ${(() => {
+        if (!on("wrapped")) return "";
+        const Y = new Date().getFullYear(), wd = wrData(Y), late = wrLate();
+        const hero = wd.top ? wd.top.g : wd.best ? wd.best.g : wd.fin[0] || pick;
+        return `<button class="tile go2 k-wrap" data-wrapped${hero ? ` data-bg="${hero.id}"` : ""}>
+          <h5>${Y} ${late ? "wrapped" : "so far"}</h5>
+          <div class="big word">${late ? "Your year in games ✨" : "Your year so far"}</div>
+          <p class="sub">${wd.fin.length} finished · ${fmtH(wd.hours)} played · ${wd.duels} duels — tap to watch</p>
+        </button>`;
+      })()}
+      ${(() => {
+        if (!on("sessions")) return "";
+        const now = new Date(); now.setHours(0, 0, 0, 0);
+        const from = now.getTime() - 6 * 864e5, wk = (S.sessions || []).filter(x => x.s >= from);
+        const per = Array(7).fill(0); wk.forEach(x => { const k = Math.floor((new Date(x.s).setHours(0, 0, 0, 0) - from) / 864e5); if (k >= 0 && k < 7) per[k] += sessH(x); });
+        const top = Math.max(.5, ...per), st = sessStats(wk);
+        const byG = {}; wk.forEach(x => { byG[x.g] = (byG[x.g] || 0) + sessH(x); });
+        const gid = Object.keys(byG).sort((a2, b2) => byG[b2] - byG[a2])[0];
+        const dl = i => new Date(from + i * 864e5).toLocaleDateString("en-GB", { weekday: "narrow" });
+        return `<button class="tile go2 k-sess" data-home-tab="timer"${gid ? ` data-bg="${gid}"` : ""}>
+          <h5>Play sessions</h5>
+          <div class="big">${st.n}<em> this week</em></div>
+          <span class="ss-wk">${per.map((h, i) => `<span><i style="transform:scaleY(${(h / top).toFixed(3)})"></i><small>${dl(i)}</small></span>`).join("")}</span>
+          <p class="sub">${st.n ? fmtH(st.tot) + " played · longest " + fmtH(st.best) : "No sessions in the last 7 days — start the timer and they land here"}</p>
+        </button>`;
+      })()}
       ${!on("read") ? "" : !analysisReady().ok ? `<button class="tile go2" data-home-tab="played">
         <h5>Your read</h5>
         <div class="big">${analysisReady().have}<em>/${analysisReady().need}</em></div>
@@ -10367,9 +10395,13 @@ function renderHome() {
     el.querySelectorAll(".dash > .tile").forEach(t => {
       if (t.classList.contains("imgcard") || t.classList.contains("k-taste")) return;
       const h = ((t.querySelector("h5") || {}).textContent || "").trim();
-      const g = G(t.dataset.homeOpen) || want[h] || pick, src = g && (bgSource(g) || g.img);
+      const g = G(t.dataset.homeOpen) || G(t.dataset.bg) || want[h] || pick, src = g && (bgSource(g) || g.img);
       if (!src) return;
-      t.classList.add("dxbg"); t.style.setProperty("--bgi", `url('${cssUrl(src)}')`);
+      /* v177 the picture goes on only when the card is actually on screen (most sit hidden in the stacks) */
+      t.classList.add("dxbg"); t._bgi = `url('${cssUrl(src)}')`;
+      const io = renderHome.bgIO || (renderHome.bgIO = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach(e => {
+        if (e.isIntersecting) { e.target.style.setProperty("--bgi", e.target._bgi); renderHome.bgIO.unobserve(e.target); } }), { rootMargin: "60px" }) : null);
+      if (io) io.observe(t); else t.style.setProperty("--bgi", t._bgi);
       if (/^#[0-9a-f]{6}$/i.test(g.colour || "")) t.style.setProperty("--bgt", g.colour + "57");
     });
   }
@@ -10744,7 +10776,7 @@ function pnStack(root) {
   const B = kids.filter(x => x !== pick && x !== ring && x !== cd && x !== up && !C.includes(x) && !x.classList.contains("k-taste") && !C.includes(x) && x.id !== "hintbub");
   const mk = (key, all, vert) => {
     const cfg = (S.stackCfg || {})[key] || {}, ord = cfg.order || [], hid = new Set(cfg.hidden || []);
-    all = all.slice().sort((a, b) => { const ia = ord.indexOf(pnCardId(a)), ib = ord.indexOf(pnCardId(b)); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+    all = all.slice().sort((a, b) => { const ia = ord.indexOf(pnCardId(a)), ib = ord.indexOf(pnCardId(b)); return (ia < 0 ? -1 : ia) - (ib < 0 ? -1 : ib); });   /* v177 cards new since you last ordered the stack show first */
     pnStackAll[key] = all.map(x => ({ id: pnCardId(x), name: pnCardName(x) }));
     const items = all.filter(x => !hid.has(pnCardId(x)));
     if (!items.length) { const w0 = document.createElement("div"); w0.className = "stkw " + key; w0.dataset.key = key;
@@ -11396,6 +11428,248 @@ bindSteam("f", (role, url, id) => {
   else if (role === "autofit") { form.artSize = 34; form.artH = 30; form.keySize = 62; }
   else form.art = url;
 });
+/* ===== v177 play sessions: every timer run (or quick log) is kept with its date ===== */
+const SESS_W = 16;                                   /* weeks shown in the activity grid */
+const sessH = s => Math.max(0, (s.e - s.s) / 36e5);
+const sessOf = id => (S.sessions || []).filter(s => s.g === id);
+const fmtH = h => { const m = Math.round(h * 60); return m < 60 ? m + "m" : Math.floor(m / 60) + "h" + (m % 60 ? " " + String(m % 60).padStart(2, "0") + "m" : ""); };
+const sessDay = t => new Date(t).toLocaleDateString("en-CA");
+function sessAdd(id, s, e) {
+  S.sessions ||= [];
+  S.sessions.push({ g: id, s: Math.round(s), e: Math.round(e) });
+  if (S.sessions.length > 4000) S.sessions.splice(0, S.sessions.length - 4000);
+}
+/* the timer already writes the hours onto the game; now it also keeps the session, and asks how it felt */
+{ const _st = stopTimer; stopTimer = function (quiet) {
+  const t = S.timer && S.timer.id ? { id: S.timer.id, from: S.timer.from } : null, h = liveTimerHours();
+  if (t && h > 1 / 120) sessAdd(t.id, t.from, Date.now());      /* before the timer screen redraws, so it lists this one */
+  const out = _st.apply(this, arguments);
+  if (t && h > 1 / 120) {
+    if (!quiet && h >= 1 / 6) setTimeout(() => { if (!$("#diary.on")) openDiary(t.id, Math.round(h * 60)); }, 700); }
+  return out; }; }
+
+/* a small grid, one square per day, columns are weeks (oldest on the left) */
+function sessHeat(list, colour, weeks) {
+  const per = {}; list.forEach(s => { const d = sessDay(s.s); per[d] = (per[d] || 0) + sessH(s); });
+  const top = Math.max(1, ...Object.values(per));
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const start = new Date(today); start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weeks - 1) * 7);
+  let cells = "";
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const k = d.toLocaleDateString("en-CA"), h = per[k] || 0, fut = d > today;
+    const lv = !h ? 0 : h / top > .75 ? 4 : h / top > .45 ? 3 : h / top > .2 ? 2 : 1;
+    cells += `<i class="l${lv}${fut ? " fut" : ""}" title="${esc(d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }))}${h ? " · " + fmtH(h) : ""}"></i>`;
+  }
+  return `<div class="ss-heat" style="--c:${esc(colour || "#4DA3FF")};--w:${weeks}">${cells}</div>`;
+}
+function sessStats(list) {
+  const tot = list.reduce((a, s) => a + sessH(s), 0), best = list.reduce((a, s) => Math.max(a, sessH(s)), 0);
+  return { n: list.length, tot, best, avg: list.length ? tot / list.length : 0 };
+}
+function openSessions(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const box = dyBox(), list = sessOf(id).sort((a, b) => b.s - a.s), st = sessStats(list);
+  const before = Math.max(0, loggedOf(g) - st.tot);
+  const moodOn = d => { const e = (g.diary || []).filter(x => sessDay(x.t) === d).slice(-1)[0]; return e && MOODS[e.m] ? MOODS[e.m][0] : ""; };
+  const tm = t => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  dyShow(box, `<div class="dy-h"><b>⏱ ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <div class="ss-st"><div><b>${st.n}</b><small>sessions</small></div><div><b>${fmtH(st.tot)}</b><small>played</small></div>
+      <div><b>${st.n ? fmtH(st.avg) : "—"}</b><small>average</small></div><div><b>${st.n ? fmtH(st.best) : "—"}</b><small>longest</small></div></div>
+    ${sessHeat(list, g.colour, SESS_W)}
+    <p class="dy-q">Played without the timer? Log it:</p>
+    <div class="ss-q">${[[30, "+30 min"], [60, "+1 h"], [120, "+2 h"], [180, "+3 h"]].map(([m, l]) => `<button data-add="${m}">${l}</button>`).join("")}</div>
+    ${S.timer && S.timer.id === id ? '<button class="dy-s" data-stop>■ Stop the timer and log it</button>'
+      : '<button class="dy-s ghost" data-start>▶ Start the timer</button>'}
+    ${list.length ? `<div class="dy-l">${list.slice(0, 40).map(s => `<div class="dy-e ss-e"><span class="dy-em">${moodOn(sessDay(s.s)) || "•"}</span>
+      <span><small>${esc(new Date(s.s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }))} · ${tm(s.s)}–${tm(s.e)}</small>${fmtH(sessH(s))}</span>
+      <button class="dy-d" data-del="${s.s}" aria-label="Delete this session">✕</button></div>`).join("")}</div>`
+      : '<p class="dy-empty">No sessions yet. Every time you stop the timer, the session lands here.</p>'}
+    ${before > 0.05 ? `<p class="dy-empty">Plus ${fmtH(before)} logged before sessions were kept.</p>` : ""}`,
+  e => {
+    const a = e.target.closest("[data-add]");
+    if (a) { const m = +a.dataset.add, now = Date.now(); sessAdd(id, now - m * 6e4, now);
+      g.logged = Math.round((loggedOf(g) + m / 60) * 100) / 100; save(); beep("add"); toast("Logged " + fmtH(m / 60)); return openSessions(id); }
+    const d = e.target.closest("[data-del]");
+    if (d) { const s = (S.sessions || []).find(x => x.g === id && x.s === +d.dataset.del); if (!s) return;
+      S.sessions = S.sessions.filter(x => x !== s); g.logged = Math.max(0, Math.round((loggedOf(g) - sessH(s)) * 100) / 100);
+      save(); beep("back"); return openSessions(id); }
+    if (e.target.closest("[data-start]")) { dyClose(); startTimer(id); goTab("timer"); return; }
+    if (e.target.closest("[data-stop]")) { dyClose(); stopTimer(); return; }
+  });
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-sess]"); if (b) { e.stopPropagation(); beep("tap"); openSessions(b.dataset.sess); } }, true);
+
+/* the latest sessions across every game, for the Timer screen */
+function sessRecent(n) {
+  const list = (S.sessions || []).slice().sort((a, b) => b.s - a.s).slice(0, n);
+  if (!list.length) return "";
+  return `<label>Recent sessions</label><div class="ss-rec">${list.map(s => { const g = S.games.find(x => x.id === s.g); if (!g) return "";
+    return `<button class="ss-r" data-sess="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}"><img decoding="async" src="${esc(cover(g))}" alt="">
+      <span><b>${esc(g.title)}</b><small>${esc(new Date(s.s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }))}</small></span><em>${fmtH(sessH(s))}</em></button>`; }).join("")}</div>`;
+}
+
+/* ===== v177 your year, wrapped: a story Nexi walks you through, ending in a card you can share ===== */
+function wrData(Y) {
+  const inY = t => t && String(typeof t === "number" ? sessDay(t) : t).startsWith(String(Y));
+  const G = id => S.games.find(x => x.id === id);
+  const ses = (S.sessions || []).filter(s => inY(s.s) && G(s.g));
+  const hours = ses.reduce((a, s) => a + sessH(s), 0);
+  const byG = {}; ses.forEach(s => { byG[s.g] = (byG[s.g] || { h: 0, n: 0 }); byG[s.g].h += sessH(s); byG[s.g].n++; });
+  const topId = Object.keys(byG).sort((a, b) => byG[b].h - byG[a].h)[0];
+  const longest = ses.slice().sort((a, b) => sessH(b) - sessH(a))[0];
+  const wd = Array(7).fill(0); ses.forEach(s => { wd[new Date(s.s).getDay()] += sessH(s); });
+  const day = hours ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][wd.indexOf(Math.max(...wd))] : "";
+  const fin = (S.played || []).filter(p => inY(p.t) && G(p.id));
+  const scored = fin.filter(p => p.real > 0).sort((a, b) => b.real - a.real);
+  const miss = scored.map(p => ({ p, g: G(p.id) })).filter(x => x.g.hype > 0).map(x => ({ ...x, d: x.p.real - x.g.hype }))
+    .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+  const duels = (S.duels || []).filter(d => inY(d.t) && d.w && d.w !== "draw");
+  const wins = {}; duels.forEach(d => { if (G(d.w)) wins[d.w] = (wins[d.w] || 0) + 1; });
+  const champ = Object.keys(wins).sort((a, b) => wins[b] - wins[a])[0];
+  const today = new Date().toLocaleDateString("en-CA");
+  const out = S.games.filter(g => g.date && inY(g.date) && g.date <= today);
+  const added = S.games.filter(g => inY(g.added));
+  const dia = S.games.flatMap(g => (g.diary || []).filter(e => inY(e.t)));
+  const mc = Array(MOODS.length).fill(0); dia.forEach(e => { if (MOODS[e.m]) mc[e.m]++; });
+  const mood = dia.length ? mc.indexOf(Math.max(...mc)) : -1;
+  return { Y, ses, hours, top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
+    fin: fin.map(p => G(p.id)), best: scored[0] && { g: G(scored[0].id), real: scored[0].real }, miss,
+    duels: duels.length, champ: champ && { g: G(champ), n: wins[champ] }, out, added, dia: dia.length, mood };
+}
+const wrH = h => h >= 10 ? Math.round(h) : h > 0.05 ? h.toFixed(1) : 0;
+const wrLate = () => new Date().getMonth() === 11;       /* December: the real thing, not "so far" */
+function wrSlides(d) {
+  const Y = d.Y, art = g => g && (bgSource(g) || g.img), cov = g => esc(cover(g)), T = [];
+  const sofar = !wrLate() && Y === new Date().getFullYear();
+  T.push({ k: "intro", bg: "volt", html: `<small class="wr-k">Play next presents</small><h1 class="wr-huge">${Y}</h1><h2 class="wr-big">${sofar ? "so far" : "wrapped"}</h2>`,
+    say: sofar ? "It's not over yet, but I peeked at your year 👀 Tap to go on." : "I kept notes all year. Ready? 👀" });
+  if (d.hours > 0.05) T.push({ k: "hours", bg: "void", html: `<small class="wr-k">You played</small><h1 class="wr-huge">${wrH(d.hours)}<em>h</em></h1>
+      <p class="wr-p">across <b>${d.ses.length}</b> session${d.ses.length === 1 ? "" : "s"}${d.day ? ` · your gaming day was <b>${d.day}</b>` : ""}</p>
+      ${d.longest ? `<p class="wr-p dim">Longest run: ${fmtH(d.longest.h)} of ${esc(d.longest.g.title)}</p>` : ""}`,
+    say: d.hours > 150 ? "That's a LOT of hours. I'm so proud 🥹" : d.hours > 30 ? "Solid year of playing. Respect 🎮" : "Every hour counts. Quality over quantity 😌" });
+  if (d.top) T.push({ k: "top", bg: "art", art: art(d.top.g), html: `<small class="wr-k">Your most-played</small>
+      <img class="wr-cov" decoding="async" src="${cov(d.top.g)}" alt=""><h2 class="wr-big">${esc(d.top.g.title)}</h2>
+      <p class="wr-p"><b>${fmtH(d.top.h)}</b> over ${d.top.n} session${d.top.n === 1 ? "" : "s"}</p>`, say: "You two were inseparable 💙" });
+  if (d.fin.length) T.push({ k: "fin", bg: "ice", html: `<small class="wr-k">You finished</small><h1 class="wr-huge">${d.fin.length}</h1>
+      <h2 class="wr-big">game${d.fin.length === 1 ? "" : "s"}</h2><div class="wr-row">${d.fin.slice(0, 6).map((g, i) =>
+        `<img decoding="async" src="${cov(g)}" alt="" style="--i:${i}">`).join("")}</div>`,
+    say: d.fin.length >= 10 ? "Grumble is SHAKING right now 😤" : "One less game in the queue each time. Love that." });
+  if (d.best) T.push({ k: "best", bg: "hot", html: `<small class="wr-k">Game of your year</small>
+      <img class="wr-cov" decoding="async" src="${cov(d.best.g)}" alt=""><h2 class="wr-big">${esc(d.best.g.title)}</h2>
+      <p class="wr-p"><b>${d.best.real}/10</b> — your highest score</p>`, say: "Honestly? Good taste. I approve ✨" });
+  if (d.miss && Math.abs(d.miss.d) >= 1) { const up = d.miss.d > 0; T.push({ k: "miss", bg: "art", art: art(d.miss.g), html:
+      `<small class="wr-k">${up ? "Biggest surprise" : "Biggest letdown"}</small><h2 class="wr-big">${esc(d.miss.g.title)}</h2>
+      <div class="wr-vs"><span><small>you hyped</small><b>${d.miss.g.hype}</b></span><i>→</i><span><small>it earned</small><b>${d.miss.p.real}</b></span></div>`,
+    say: up ? "Didn't see that coming, did you? 😏" : "Hype got you on this one 😬" }); }
+  if (d.duels) T.push({ k: "duels", bg: "void", html: `<small class="wr-k">You settled</small><h1 class="wr-huge">${d.duels}</h1><h2 class="wr-big">duel${d.duels === 1 ? "" : "s"}</h2>
+      ${d.champ ? `<p class="wr-p">Champion: <b>${esc(d.champ.g.title)}</b> with ${d.champ.n} win${d.champ.n === 1 ? "" : "s"}</p>` : ""}`, say: "The arena never sleeps ⚔️" });
+  if (d.out.length || d.added.length) T.push({ k: "wait", bg: "volt", html: `${d.out.length ? `<small class="wr-k">The wait ended for</small><h1 class="wr-huge">${d.out.length}</h1>
+      <h2 class="wr-big">game${d.out.length === 1 ? "" : "s"}</h2><div class="wr-row">${d.out.slice(0, 6).map((g, i) => `<img decoding="async" src="${cov(g)}" alt="" style="--i:${i}">`).join("")}</div>` : ""}
+      ${d.added.length ? `<p class="wr-p">and you added <b>${d.added.length}</b> new game${d.added.length === 1 ? "" : "s"} to the queue</p>` : ""}`,
+    say: d.added.length > d.fin.length ? "You added more than you finished… classic 😅" : "Nice balance this year." });
+  if (d.mood >= 0 && d.dia >= 3) T.push({ k: "mood", bg: "void", html: `<small class="wr-k">Your vibe</small><div class="wr-emo">${MOODS[d.mood][0]}</div>
+      <h2 class="wr-big">${esc(MOODS[d.mood][1])}</h2><p class="wr-p">across ${d.dia} diary entries</p>`, say: "Your diary told me everything 📓" });
+  T.push({ k: "end", bg: "void", html: `<small class="wr-k">${Y}${sofar ? " so far" : ""} in games</small><div class="wr-grid">
+      <div><b>${wrH(d.hours)}h</b><small>played</small></div><div><b>${d.ses.length}</b><small>sessions</small></div>
+      <div><b>${d.fin.length}</b><small>finished</small></div><div><b>${d.duels}</b><small>duels</small></div></div>
+      ${d.top ? `<p class="wr-p">Most played: <b>${esc(d.top.g.title)}</b></p>` : ""}${d.best ? `<p class="wr-p">Game of the year: <b>${esc(d.best.g.title)}</b></p>` : ""}
+      <div class="wr-acts"><button class="btn" data-wr="share"><span>Share my card</span></button><button class="btn ghost" data-wr="again"><span>Watch again</span></button></div>`,
+    say: sofar ? "Come back in December for the full thing 🎁" : "Same time next year? 😄", stay: 1 });
+  return T;
+}
+function openWrapped(Y) {
+  Y = Y || new Date().getFullYear();
+  if ($("#wrap")) return;
+  const d = wrData(Y), T = wrSlides(d), H = document.documentElement;
+  const o = document.createElement("div"); o.id = "wrap"; o.setAttribute("role", "dialog"); o.setAttribute("aria-label", Y + " wrapped");
+  o.innerHTML = `<div class="wr-bars">${T.map(() => "<i><b></b></i>").join("")}</div><button class="wr-x" aria-label="Close">✕</button>
+    <div class="wr-stage"></div><div class="wr-say"><p></p></div>`;
+  document.body.appendChild(o); H.classList.add("wrapping");
+  requestAnimationFrame(() => o.classList.add("on"));
+  const b = $("#pnbub"), stage = o.querySelector(".wr-stage"), bars = [...o.querySelectorAll(".wr-bars i")], say = o.querySelector(".wr-say p");
+  if (b) { H.classList.add("nxguide"); try { nxDress(b); } catch (e) {} }
+  let i = -1, held = false;
+  const go = n => {
+    if (n < 0) n = 0; if (n >= T.length) return close();
+    i = n; const s = T[i]; o.dataset.bg = s.bg;
+    bars.forEach((x, k) => { x.className = k < i ? "done" : k === i ? (s.stay ? "done" : "now") : ""; });
+    stage.innerHTML = `<div class="wr-s bg-${s.bg}">${s.art ? `<div class="wr-art" style="background-image:url('${esc(cssUrl(s.art))}')"></div>` : ""}<div class="wr-in">${s.html}</div></div>`;
+    say.textContent = s.say; say.parentNode.classList.remove("on"); void say.offsetWidth; say.parentNode.classList.add("on");
+    if (b) { pnBubPlace(14, innerHeight - 62 - 40); try { pnBubMood("talk", 1600); } catch (e) {} }
+    beep(i ? "tap" : "open");
+  };
+  const close = () => {
+    o.classList.remove("on"); H.classList.remove("wrapping", "nxguide"); setTimeout(() => o.remove(), 300);
+    if (b && typeof pnBubEdge === "function") { const e = pnBubEdge(); pnBubPlace(e.x, e.y); }
+    S.wrapSeen = Y; save();
+  };
+  /* the bar's own animation moves the story on, so there's no timer to keep in step */
+  o.addEventListener("animationend", e => { if (e.target.parentNode === bars[i] && e.animationName === "wrBar") go(i + 1); });
+  o.addEventListener("click", async e => {
+    if (e.target.closest(".wr-x")) return close();
+    const a = e.target.closest("[data-wr]");
+    if (a) { if (a.dataset.wr === "again") return go(0); return wrCard(d); }
+    if (held) { held = false; return; }
+    go(e.clientX < innerWidth * .3 ? i - 1 : i + 1);
+  });
+  /* hold to pause, like a story */
+  let ht = 0;
+  o.addEventListener("pointerdown", e => { if (e.target.closest("button")) return; ht = setTimeout(() => { held = true; o.classList.add("paused"); }, 260); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => o.addEventListener(ev, () => { clearTimeout(ht); o.classList.remove("paused"); }));
+  document.addEventListener("keydown", function k(e) { if (!document.body.contains(o)) return document.removeEventListener("keydown", k);
+    if (e.key === "Escape") close(); if (e.key === "ArrowRight") go(i + 1); if (e.key === "ArrowLeft") go(i - 1); });
+  go(0);
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-wrapped]"); if (b) { e.stopPropagation(); openWrapped(); } }, true);
+
+/* the share card: one tall picture with the year's numbers */
+async function wrCard(d) {
+  toast("Making your card…");
+  try { await document.fonts.ready; } catch (e) {}
+  const ld = src => new Promise(r => { if (!src) return r(null); const i = new Image(); if (!src.startsWith("data:") && !src.startsWith("blob:")) i.crossOrigin = "anonymous"; i.onload = () => r(i); i.onerror = () => r(null); i.src = cssUrl(src); });
+  const hero = d.top ? d.top.g : d.best ? d.best.g : d.fin[0];
+  const im = hero ? await ld(bgSource(hero) || cover(hero)) : null, cv = hero ? await ld(cover(hero)) : null;
+  const W = 1080, H = 1920, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  x.fillStyle = "#04060E"; x.fillRect(0, 0, W, H);
+  if (im) { const r = Math.max(W / im.width, 900 / im.height); x.globalAlpha = .55; x.drawImage(im, (W - im.width * r) / 2, 0, im.width * r, im.height * r); x.globalAlpha = 1; }
+  const gr = x.createLinearGradient(0, 300, 0, 1000); gr.addColorStop(0, "rgba(4,6,14,0)"); gr.addColorStop(1, "#04060E"); x.fillStyle = gr; x.fillRect(0, 0, W, 1000);
+  x.fillStyle = "#4DA3FF"; x.save(); x.beginPath(); x.rect(0, 0, W, 1000); x.clip(); x.transform(1, 0, -.22, 1, 0, 0); x.fillRect(1010, 0, 40, H); x.fillRect(1070, 0, 14, H); x.restore();
+  x.fillStyle = "#fff"; x.font = "italic 900 150px Archivo, sans-serif"; x.fillText(String(d.Y), 70, 230);
+  x.fillStyle = "#4DA3FF"; x.font = "italic 900 84px Archivo, sans-serif"; x.fillText(wrLate() ? "WRAPPED" : "SO FAR", 76, 320);
+  if (cv) { x.save(); x.translate(W / 2, 700); x.rotate(-.06); const cw = 380, ch = 520;
+    x.fillStyle = "#fff"; x.fillRect(-cw / 2 - 12, -ch / 2 - 12, cw + 24, ch + 24);
+    const r = Math.max(cw / cv.width, ch / cv.height), sw = cw / r, sh = ch / r; x.drawImage(cv, (cv.width - sw) / 2, (cv.height - sh) / 2, sw, sh, -cw / 2, -ch / 2, cw, ch); x.restore(); }
+  x.textAlign = "center"; x.fillStyle = "#EAF2FF"; x.font = "600 34px Poppins, sans-serif";
+  if (d.top) { x.fillText("MOST PLAYED", W / 2, 1040); x.font = "italic 900 64px Archivo, sans-serif"; x.fillStyle = "#fff";
+    let t = d.top.g.title; while (x.measureText(t).width > 940 && t.length > 4) t = t.slice(0, -2); x.fillText(t === d.top.g.title ? t : t + "…", W / 2, 1115); }
+  const cells = [[wrH(d.hours) + "h", "PLAYED"], [d.ses.length, "SESSIONS"], [d.fin.length, "FINISHED"], [d.duels, "DUELS"]];
+  cells.forEach(([v, l], k) => { const cx = 270 + (k % 2) * 540, cy = 1270 + Math.floor(k / 2) * 230;
+    x.fillStyle = "#101C40"; x.beginPath(); x.roundRect ? x.roundRect(cx - 230, cy - 90, 460, 190, 36) : x.rect(cx - 230, cy - 90, 460, 190); x.fill();
+    x.fillStyle = "#fff"; x.font = "900 86px Archivo, sans-serif"; x.fillText(String(v), cx, cy + 20);
+    x.fillStyle = "#7C92C4"; x.font = "600 28px Poppins, sans-serif"; x.fillText(l, cx, cy + 70); });
+  if (d.best) { x.fillStyle = "#EAF2FF"; x.font = "500 36px Poppins, sans-serif"; let t = "Game of the year: " + d.best.g.title;
+    while (x.measureText(t).width > 960 && t.length > 10) t = t.slice(0, -2); x.fillText(t, W / 2, 1760); }
+  x.textAlign = "left"; x.fillStyle = "#fff"; x.font = "italic 900 44px Archivo, sans-serif"; x.fillText("PLAY NEXT", 70, 1870);
+  c.toBlob(bl => {
+    if (!bl) { toast("Couldn't make the card. Try again."); return; }
+    document.querySelectorAll(".ccov").forEach(e => e.remove());
+    const url = URL.createObjectURL(bl), file = new File([bl], "play-next-" + d.Y + ".png", { type: "image/png" });
+    const o = document.createElement("div"); o.className = "ccov"; o.style.zIndex = 9001;
+    o.innerHTML = `<img src="${url}" alt="${d.Y} wrapped card"><div class="ccov-acts"><button class="btn" data-cc="share"><span>Share</span></button>
+      <button class="btn ghost" data-cc="close"><span>Close</span></button></div>`;
+    o.onclick = async e => {
+      const a = e.target.closest("[data-cc]"); if (!a && e.target !== o) return;
+      if (a && a.dataset.cc === "share") {
+        try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (err) { if (err.name === "AbortError") return; }
+        const l = document.createElement("a"); l.href = url; l.download = file.name; document.body.appendChild(l); l.click(); l.remove(); return;
+      }
+      o.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    document.body.appendChild(o);
+  }, "image/png");
+}
+
 load();
 /* FX pack */
 (()=>{
@@ -12880,7 +13154,14 @@ const WHATS_NEW = [
   { v: 176, go: () => { nxHome(); setTimeout(() => { const m = $("#p-home .dxmore"); if (m) m.scrollIntoView({ block: "center" }); }, 300); },
     at: () => $("#p-home .dxmore .stkw"),
     say: "The cards under <b>More for you</b> aren't plain any more — each one sits on the backdrop of the game it's talking about.",
-    tryIt: "Swipe through a stack to see them change." }
+    tryIt: "Swipe through a stack to see them change." },
+  { v: 177, go: () => nxOpenGame(), at: "#full [data-sess]",
+    say: "I now keep every <b>play session</b>. Stop the timer and it's saved with the date, and I ask how it felt. Each game has <b>⏱ Sessions</b>: your stats, a calendar of the days you played, and quick +30 min / +1 h buttons for when you played without the timer.",
+    tryIt: "Tap ⏱ Sessions to see this game's history." },
+  { v: 177, go: () => { nxHome(); setTimeout(() => { const w = $("#p-home .k-wrap"); if (w) { w.scrollIntoView({ block: "center" }); const st = w.closest(".stk"); if (st) st.scrollTo({ top: w.offsetTop - st.offsetTop, left: w.offsetLeft - st.offsetLeft }); } }, 300); },
+    at: () => $("#p-home .k-wrap"),
+    say: "<b>Your year, wrapped!</b> I host a little story of your gaming year: hours played, your most-played game, games finished, your game of the year, biggest surprise… and it ends with a card you can share. It's “so far” until December, then it's the real thing.",
+    tryIt: "Tap the card to watch. Tap right to skip, left to go back, hold to pause." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13079,7 +13360,7 @@ document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) {
 .dxq .dxorb small { font-size: 10.5px; margin-top: 2px; }
 html.still .dxorb .blob, html.still .dxorb::before { animation: none; }
 /* v176 More for you: each card sits on its game's backdrop, darkened so the text still reads */
-.dash .tile.dxbg { background-color: var(--ink) !important;
+.dash .tile.dxbg { --bgi: none; background-color: var(--ink) !important;
   background-image: linear-gradient(0deg, rgba(4,6,14,.97) 16%, rgba(4,6,14,.7) 52%, rgba(4,6,14,.38) 100%),
     linear-gradient(135deg, var(--bgt, rgba(47,107,255,.34)), transparent 60%), var(--bgi) !important;
   background-size: cover !important; background-position: center 30% !important; }
@@ -13203,4 +13484,89 @@ html.fast.first .dxw > :nth-child(n+5), html.still .dxw > * { animation: none; }
   html.onhome:not(.rail):not(.dock) #p-home { padding-top: 0; margin-top: 0; }
   html.onhome:not(.rail):not(.dock) #p-home > .dxw { border-top-color: transparent; }
 }
+</style>
+<style>
+/* ===== v177 play sessions ===== */
+.ss-st { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 14px; }
+.ss-st div { background: var(--void); border: 1px solid var(--steel); border-radius: 14px; padding: 9px 4px 7px; text-align: center; }
+.ss-st b { display: block; font-size: 17px; font-weight: 800; line-height: 1.1; }
+.ss-st small { font-size: 10.5px; color: var(--mute); }
+.ss-heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; margin-bottom: 4px; }
+.ss-heat i { aspect-ratio: 1; border-radius: 3px; background: rgba(234,242,255,.07); }
+.ss-heat i.fut { background: transparent; }
+.ss-heat i.l1 { background: var(--c); opacity: .3; } .ss-heat i.l2 { background: var(--c); opacity: .55; }
+.ss-heat i.l3 { background: var(--c); opacity: .8; } .ss-heat i.l4 { background: var(--c); }
+.ss-q { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+.ss-q button { background: var(--void); border: 1px solid var(--steel); border-radius: 12px; padding: 10px 0; color: var(--ice); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform .2s ease; }
+.ss-q button:active, .ss-r:active { transform: scale(.94); }
+.dy-s.ghost { background: transparent; border: 1.5px solid var(--volt); color: var(--ice); }
+.ss-e > span:nth-child(2) { font-weight: 700; }
+.ss-rec { display: grid; gap: 8px; margin: 6px 0 14px; }
+.ss-r { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 12px 7px 7px; border: 1px solid var(--steel); border-left: 3px solid var(--accent);
+  border-radius: 14px; background: var(--ink); color: var(--ice); font: inherit; text-align: left; cursor: pointer; transition: transform .2s ease; }
+.ss-r img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: none; }
+.ss-r span { flex: 1; min-width: 0; display: flex; flex-direction: column; } .ss-r b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-r small { color: var(--mute); font-size: 12px; } .ss-r em { font-style: normal; font-weight: 800; color: var(--volt); }
+/* the week, one bar a day, on Home */
+.k-sess .ss-wk { display: flex; align-items: flex-end; gap: 6px; height: 64px; margin: 10px 0 6px; width: 100%; }
+.k-sess .ss-wk > span { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.k-sess .ss-wk i { flex: 1; width: 100%; max-width: 26px; border-radius: 6px; background: var(--volt); transform-origin: bottom; min-height: 0; }
+.k-sess .ss-wk small { font-size: 10px; color: var(--mute); }
+.dash .tile.k-wrap .big.word { font-size: 24px; }
+
+/* ===== v177 your year, wrapped ===== */
+#wrap { position: fixed; inset: 0; z-index: 98; background: #000; opacity: 0; transition: opacity .3s ease; overflow: hidden; touch-action: manipulation;
+  -webkit-user-select: none; user-select: none; font-family: "Poppins", system-ui, sans-serif; color: #fff; }
+#wrap.on { opacity: 1; }
+html.wrapping #pnbubmsg { display: none !important; }
+.wr-bars { position: absolute; left: 12px; right: 56px; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 4; display: flex; gap: 4px; }
+.wr-bars i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
+.wr-bars b { display: block; height: 100%; background: #fff; transform: scaleX(0); transform-origin: left; }
+.wr-bars i.done b { transform: none; }
+.wr-bars i.now b { animation: wrBar 6.5s linear forwards; }
+#wrap.paused .wr-bars i.now b, #wrap.paused .wr-in > * { animation-play-state: paused; }
+@keyframes wrBar { to { transform: none; } }
+#wrap[data-bg="ice"] .wr-bars i { background: rgba(4,6,14,.18); } #wrap[data-bg="ice"] .wr-bars b { background: #04060E; }
+#wrap[data-bg="ice"] .wr-x { background: rgba(4,6,14,.12); color: #04060E; }
+.wr-x { position: absolute; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 2px); z-index: 5; width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: rgba(0,0,0,.35); color: #fff; font-size: 17px; cursor: pointer; }
+.wr-stage, .wr-s { position: absolute; inset: 0; }
+.wr-s { display: flex; align-items: center; justify-content: center; padding: 80px 26px 140px; overflow: hidden; }
+.wr-s.bg-void { background: radial-gradient(120% 80% at 80% 0%, #102a66 0%, #04060E 60%); }
+.wr-s.bg-volt { background: linear-gradient(160deg, #4DA3FF, #1f4fd8); }
+.wr-s.bg-ice { background: linear-gradient(160deg, #EAF2FF, #b9d3ff); color: #04060E; }
+.wr-s.bg-hot { background: linear-gradient(160deg, #FF5470, #8a1a3a); }
+.wr-s.bg-art { background: #04060E; }
+.wr-art { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: .5; }
+.wr-s.bg-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #04060E 18%, rgba(4,6,14,.55) 60%, rgba(4,6,14,.3)); }
+.wr-in { position: relative; z-index: 2; width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.wr-in > * { animation: wrUp .7s cubic-bezier(.16,1,.3,1) both; }
+.wr-in > :nth-child(2) { animation-delay: .12s; } .wr-in > :nth-child(3) { animation-delay: .24s; }
+.wr-in > :nth-child(4) { animation-delay: .36s; } .wr-in > :nth-child(n+5) { animation-delay: .48s; }
+@keyframes wrUp { from { opacity: 0; transform: translateY(34px) scale(.96); } }
+.wr-k { font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
+.wr-huge { margin: 0; font: italic 900 clamp(96px, 34vw, 200px)/.88 "Archivo", system-ui, sans-serif; letter-spacing: -.04em; }
+.wr-huge em { font-size: .45em; font-style: italic; margin-left: 4px; }
+.wr-big { margin: 0; font: italic 900 clamp(34px, 11vw, 64px)/1 "Archivo", system-ui, sans-serif; letter-spacing: -.02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.wr-p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; } .wr-p.dim { opacity: .7; font-size: 14px; margin-top: 2px; }
+.wr-cov { width: min(46vw, 210px); aspect-ratio: 3 / 4; object-fit: cover; border-radius: 18px; margin: 12px 0 14px; transform: rotate(-4deg);
+  box-shadow: 0 24px 50px rgba(0,0,0,.6); border: 3px solid rgba(255,255,255,.9); }
+.wr-row { display: flex; margin-top: 18px; padding-left: 10px; }
+.wr-row img { width: 74px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; margin-left: -12px; border: 2px solid rgba(255,255,255,.9);
+  transform: rotate(calc((var(--i) - 2.5) * 5deg)); box-shadow: 0 10px 20px rgba(0,0,0,.4); }
+.wr-vs { display: flex; align-items: center; gap: 18px; margin-top: 14px; }
+.wr-vs span { display: flex; flex-direction: column; } .wr-vs small { font-size: 12px; opacity: .75; text-transform: uppercase; letter-spacing: .1em; }
+.wr-vs b { font: italic 900 84px/1 "Archivo", system-ui, sans-serif; } .wr-vs i { font-style: normal; font-size: 40px; opacity: .6; }
+.wr-emo { font-size: 120px; line-height: 1.1; }
+.wr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; margin: 10px 0 8px; }
+.wr-grid div { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 18px; padding: 16px 14px; }
+.wr-grid b { display: block; font: italic 900 40px/1 "Archivo", system-ui, sans-serif; } .wr-grid small { font-size: 12px; opacity: .7; }
+.wr-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.wr-say { position: absolute; left: 86px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 34px); z-index: 3; pointer-events: none; }
+.wr-say p { display: inline-block; margin: 0; padding: 11px 15px; border-radius: 18px 18px 18px 4px; background: #fff; color: #04060E; font-size: 14px; font-weight: 500; line-height: 1.4;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35); opacity: 0; transform: translateY(10px) scale(.96); transform-origin: left bottom; }
+.wr-say.on p { animation: wrSay .5s cubic-bezier(.34,1.56,.64,1) .45s forwards; }
+@keyframes wrSay { to { opacity: 1; transform: none; } }
+html.still .wr-in > *, html.still .wr-say.on p { animation: none; opacity: 1; transform: none; }
+@media (min-width: 620px) { .wr-s { padding: 90px 60px 150px; } .wr-huge { font-size: 170px; } }
 </style>
