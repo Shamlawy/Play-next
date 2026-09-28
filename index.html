@@ -3946,7 +3946,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "185";
+const APP_V = "186";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -12540,29 +12540,61 @@ async function nxRemember() {
 
 /* ---- similar games: from your library, and new ones from RAWG ---- */
 const simTags = g => new Set(platList(g.genres).map(x => "g:" + x.toLowerCase()).concat(whyOf(g).map(w => "w:" + w)));
+/* v186: a tag counts for more the rarer it is in your library, so sharing "JRPG" or "Turn-based" beats
+   sharing "Adventure" or "Action" (which used to make almost anything look alike) */
 function simLocal(g, n) {
   const a = simTags(g); if (!a.size) return [];
-  return S.games.filter(x => x.id !== g.id).map(x => { const b = simTags(x), inter = [...a].filter(k => b.has(k)).length;
-    return { g: x, s: inter / (new Set([...a, ...b]).size || 1) + (inter && platList(x.platforms).some(p => platList(g.platforms).includes(p)) ? .05 : 0) }; })
-    .filter(x => x.s > .15).sort((p, q) => q.s - p.s).slice(0, n || 6);
+  const all = S.games.map(x => [x, simTags(x)]), N = all.length, df = {};
+  all.forEach(([, t]) => t.forEach(k => df[k] = (df[k] || 0) + 1));
+  const w = k => Math.log((N + 1) / ((df[k] || 0) + .5));
+  return all.filter(([x]) => x.id !== g.id).map(([x, b]) => {
+    let inter = 0, uni = 0, shared = 0;
+    new Set([...a, ...b]).forEach(k => { const v = w(k); uni += v; if (a.has(k) && b.has(k)) { inter += v; shared++; } });
+    return { g: x, s: uni ? inter / uni : 0, n: shared }; })
+    .filter(x => x.s > .22 && x.n >= 1).sort((p, q) => q.s - p.s).slice(0, n || 6);
 }
 const normT = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+/* v186 RAWG matches: the game's distinctive tags (JRPG, Anime, Turn-Based Combat…, not Singleplayer or
+   Steam Achievements), one popular-first query per tag, plus its own series; then each candidate is scored by
+   how many of those tags and genres it really shares. Obscure games with a handful of ratings are dropped. */
+const SIM_GENERIC = new Set(["singleplayer", "multiplayer", "steam-achievements", "full-controller-support", "partial-controller-support", "steam-cloud",
+  "steam-trading-cards", "steam-leaderboards", "steam-workshop", "controller", "great-soundtrack", "atmospheric", "2d", "3d", "first-person", "third-person",
+  "co-op", "online-co-op", "local-co-op", "cooperative", "online-multiplayer", "local-multiplayer", "pvp", "online-pvp", "pve", "split-screen", "vr", "free-to-play",
+  "early-access", "exclusive", "true-exclusive", "console-exclusives", "in-app-purchases", "remote-play-together", "cross-platform-multiplayer",
+  "family-sharing", "tv", "stats", "achievements", "steam-turn-notifications", "includes-level-editor", "moddable", "mods", "good", "classic", "fun",
+  "addictive", "masterpiece", "replay-value", "great-story", "story", "beautiful", "colorful", "cute", "funny", "difficult", "short", "casual", "indie"]);
 async function simRawg(g) {
-  const c = (S.simCache ||= {})[g.id];
+  if (S.simCache) delete S.simCache;                 /* the old matches were poor: start again */
+  const c = (S.simCache2 ||= {})[g.id];
   if (c && Date.now() - c.t < 14 * 864e5) return c.l;
   if (!rawgKey) throw new Error("nokey");
   const api = p => fetch("https://api.rawg.io/api/" + p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(rawgKey)).then(r => { if (!r.ok) throw new Error("RAWG said " + r.status); return r.json(); });
   let id = g.rawgId;
-  if (!id) { const s = await api("games?search=" + encodeURIComponent(g.title) + "&page_size=1"); id = s.results && s.results[0] && s.results[0].id; }
+  if (!id) { const s = await api("games?search=" + encodeURIComponent(g.title) + "&search_precise=true&page_size=1"); id = s.results && s.results[0] && s.results[0].id; }
   if (!id) return [];
   const d = await api("games/" + id);
-  const gen = (d.genres || []).slice(0, 2).map(x => x.id).join(","), tags = (d.tags || []).filter(t => t.language === "eng").slice(0, 3).map(x => x.id).join(",");
-  const r = await api("games?page_size=20&ordering=-rating&exclude_additions=true" + (gen ? "&genres=" + gen : "") + (tags ? "&tags=" + tags : ""));
-  const mine = new Set(S.games.map(x => normT(x.title)));
-  const l = (r.results || []).filter(h => h.id !== id && !mine.has(normT(h.name))).slice(0, 8)
-    .map(h => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
-      genres: (h.genres || []).map(x => ({ name: x.name })), tags: (h.tags || []).slice(0, 8).map(x => ({ name: x.name, language: x.language })), platforms: (h.platforms || []).map(x => ({ platform: { name: x.platform.name } })) }));
-  S.simCache[g.id] = { t: Date.now(), l }; save();
+  const tags = (d.tags || []).filter(t => (t.language || "eng") === "eng" && !SIM_GENERIC.has(t.slug) && t.games_count >= 150)
+    .sort((x, y) => x.games_count - y.games_count).slice(0, 5);
+  const tw = {}; tags.forEach(t => tw[t.slug] = 1 / Math.log10(Math.max(20, t.games_count)));
+  const gens = new Set((d.genres || []).map(x => x.slug).filter(x => x !== "indie" && x !== "casual"));
+  const pool = new Map(), mine = new Set(S.games.map(x => normT(x.title))), me = normT(d.name || g.title);
+  const take = (list, bonus) => (list || []).forEach(h => {
+    if (!h || h.id === id || mine.has(normT(h.name)) || normT(h.name) === me) return;
+    const cur = pool.get(h.id); if (cur) { cur.bonus = Math.max(cur.bonus, bonus); return; }
+    pool.set(h.id, { h, bonus }); });
+  const qs = tags.slice(0, 3).map(t => api("games?page_size=40&ordering=-added&exclude_additions=true&tags=" + t.slug).then(r => take(r.results, 0)).catch(() => {}));
+  qs.push(api("games/" + id + "/game-series?page_size=20").then(r => take(r.results, 1.2)).catch(() => {}));
+  await Promise.all(qs);
+  const scored = [...pool.values()].map(({ h, bonus }) => {
+    const ht = new Set((h.tags || []).map(t => t.slug)), hg = new Set((h.genres || []).map(x => x.slug || normT(x.name)));
+    const tagHit = Object.keys(tw).filter(k => ht.has(k)), genHit = [...gens].filter(x => hg.has(x)).length;
+    const pop = Math.log10(Math.max(1, h.added || h.ratings_count || 1));
+    return { h, bonus, n: tagHit.length, s: tagHit.reduce((a, k) => a + tw[k], 0) * 2 + genHit * .35 + bonus + pop * .12 + (h.metacritic ? h.metacritic / 400 : 0) };
+  }).filter(x => (x.n >= 2 || x.bonus) && ((x.h.added || 0) >= 300 || x.h.metacritic || x.bonus) && !/\b(dlc|soundtrack|season pass|artbook|expansion pack)\b/i.test(x.h.name))
+    .sort((a, b) => b.s - a.s);
+  const l = scored.slice(0, 8).map(({ h }) => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
+    genres: (h.genres || []).map(x => ({ name: x.name })), tags: (h.tags || []).filter(t => (t.language || "eng") === "eng").slice(0, 8).map(x => ({ name: x.name, language: "eng" })), platforms: (h.platforms || []).map(x => ({ platform: { name: x.platform.name } })) }));
+  S.simCache2[g.id] = { t: Date.now(), l }; save();
   return l;
 }
 /* add a RAWG result without going through the Add form */
@@ -15345,7 +15377,12 @@ WHATS_NEW.push(
 .nc-mem p { margin: 6px 0; color: var(--ice); }
 .nc-mem button { background: none; border: 0; color: var(--hot); font: inherit; font-size: 13px; padding: 0; cursor: pointer; }
 /* similar games */
-.sim-h { cursor: default; }
+/* v186: the list's column never grows past the sheet (a long title used to widen it, and the sheet slid sideways) */
+.dy-gl { grid-template-columns: minmax(0, 1fr); }
+.dy-in { overflow-x: hidden; overscroll-behavior-x: none; }
+.sim-h { cursor: default; min-width: 0; }
+.sim-h > span { flex: 1; min-width: 0; }
+.sim-h small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sim-h img { width: 64px !important; aspect-ratio: 16/10 !important; }
 .sim-yt { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--steel); background: none; color: var(--ice); cursor: pointer; }
 .sim-h .hitadd { width: 34px; height: 34px; font-size: 20px; border: 0; cursor: pointer; }
@@ -15356,3 +15393,11 @@ WHATS_NEW.push(
 .sb-g small { font-size: 10px; max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 </style>
+<script>
+/* ===== v186 what's new ===== */
+WHATS_NEW.push(
+  { v: 186, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
+    say: "<b>🔍 Similar</b> is much smarter now. It matches on what makes a game distinctive (like JRPG, turn-based or dating sim, not just “Adventure”), adds games from the same series, and skips obscure ones. The list also stays put now instead of sliding sideways.",
+    tryIt: "Try it on your #1." }
+);
+</script>
