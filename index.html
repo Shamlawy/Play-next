@@ -3840,7 +3840,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "181";
+const APP_V = "182";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4768,7 +4768,7 @@ const GROUP_KEYS = {
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
   "The backdrop": ["bgMode", "bgOpacity", "bgBlur", "bgImg", "bgQueueOnly"],
   "Labels on the board": ["flowTitle", "flowDate"],
-  "Your evening": ["evening"],
+  "Your evening": ["evening", "playStyle"],
   "The web": ["webGrid"],
   "Conclusions": ["analysisAt"],
   "Sound and reactions": ["sound", "reactions"],
@@ -4858,8 +4858,13 @@ function openEdit(id) {
         <div class="rowline"><input id="e-date" type="date" value="${escRaw(g.date || "")}">
           <button class="icon" id="e-datex" title="Clear the date">✕</button></div>
         <p class="note" id="e-datesay"></p></div>
-      <div><label for="e-hours">Hours to beat</label><input id="e-hours" type="number" min="0" value="${g.hours || ""}"></div>
+      <div><label for="e-hours">Main story (hours)</label><input id="e-hours" type="number" min="0" value="${g.hours || ""}"></div>
     </div>
+    <div class="duo">
+      <div><label for="e-hoursx">Story + extras</label><input id="e-hoursx" type="number" min="0" value="${g.hoursX || ""}" placeholder="${g.hours ? "≈ " + Math.round(g.hours * 1.5) : ""}"></div>
+      <div><label for="e-hours100">Everything (100%)</label><input id="e-hours100" type="number" min="0" value="${g.hours100 || ""}" placeholder="${g.hours ? "≈ " + Math.round(g.hoursX ? g.hoursX * 1.6 : g.hours * 2.4) : ""}"></div>
+    </div>
+    <p class="note">You play <b>${esc((PLAY_STYLES.find(x => x[0] === playStyle()) || PLAY_STYLES[0])[1].toLowerCase())}</b>, so that number is the one used for evenings and plans. Leave the others blank and a typical estimate is used.</p>
     <label>Date certainty</label>
     <div class="chips" id="e-status">${["confirmed", "rumoured", "tba"].map(v =>
       `<button class="chip" data-v="${v}" aria-pressed="${g.status === v}"><span>${v}</span></button>`).join("")}</div>
@@ -5463,7 +5468,7 @@ function openEdit(id) {
   };
   const FIELD_NAMES = {
     title: "Title", desc: "Why you want it", about: "What it's about", date: "Release date",
-    hours: "Hours to beat", status: "Date certainty", hype: "Hype", state: "Where it stands",
+    hours: "Main story hours", hoursX: "Story + extras hours", hours100: "100% hours", status: "Date certainty", hype: "Hype", state: "Where it stands",
     platforms: "Platforms", genres: "Genres", learn: "What I can learn", tips: "How to play it",
     critic: "Critic score", colour: "Colour", img: "Cover", art: "Character art",
     hero: "Backdrop", bgOff: "Backdrop off", key: "Hub figure", artSize: "Art width", artH: "Art height",
@@ -5555,6 +5560,8 @@ function openEdit(id) {
       })(),
       date: $("#e-date").value,
       hours: +$("#e-hours").value || 0,
+      hoursX: $("#e-hoursx") ? +$("#e-hoursx").value || 0 : (g.hoursX || 0),
+      hours100: $("#e-hours100") ? +$("#e-hours100").value || 0 : (g.hours100 || 0),
       status: $("#e-date").value
         ? (editing.status === "tba" ? "confirmed" : (editing.status || g.status || "confirmed"))
         : "tba",
@@ -5930,6 +5937,10 @@ function openSettings(scope) {
       <label for="s-evening">Hours you play per evening</label>
       <div class="rowline"><input id="s-evening" type="range" min="1" max="8" step="0.5" value="${evening}">
         <span class="v" id="s-evening-v">${evening}h</span></div>
+      <label>How you play</label>
+      <div class="chips" id="s-playstyle">${PLAY_STYLES.map(([v, l]) =>
+        `<button class="chip" data-v="${v}" aria-pressed="${playStyle() === v}"><span>${l}</span></button>`).join("")}</div>
+      <p class="note">Every "hours to beat", evening count and plan uses this. Games without their own extras or 100% hours get a typical estimate from the main story.</p>
     </div>
 
     <div class="setgroup" data-scope="taste" data-sub="analytics"><h4 data-desc="The scaffolding behind your taste shape.">The web</h4>
@@ -6191,6 +6202,7 @@ function openSettings(scope) {
     apply(b.dataset.v); save(); applyLook(); applyBg(); if (after) after(); beep("tap");
   }; };
   pick("#s-sound", v => { S.sound = v === "on"; if (S.sound) beep("add"); });
+  pick("#s-playstyle", v => S.playStyle = v, () => { render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-theme", v => { S.theme = v; S.paperCol = theme().b; }, () => { const c = document.querySelector('#sheet-in input[type="color"]'); if (c) c.value = theme().b; renderHome(); });
   pick("#s-motion", v => S.motion = v !== "off");
   pick("#s-hubanim", v => { S.hubAnim = v !== "off"; applyHubAnim(); });
@@ -6513,7 +6525,7 @@ function days(d) {
   const n = Math.ceil((new Date(d) - new Date()) / 86400000);
   return n > 0 ? n + (n === 1 ? " day away" : " days away") : n === 0 ? "Out today" : "Out now";
 }
-const line = g => [g.date ? days(g.date) : "No date yet", g.hours ? g.hours + "h to beat" : "", "hype " + (g.hype || "-") + "/10"].filter(Boolean).join("  ·  ");
+const line = g => [g.date ? days(g.date) : "No date yet", hrsOf(g) ? hrsOf(g) + "h to beat" : "", "hype " + (g.hype || "-") + "/10"].filter(Boolean).join("  ·  ");
 const allGames = () => S.games.slice();
 const liveGames = () => S.showPlayed ? allGames() : S.games.filter(g => !isPlayed(g) && !isDropped(g));
 
@@ -6545,17 +6557,20 @@ function isOutNow(g) {
    question cut finer: what have I not played. One control, not two. */
 /* the last view you picked is remembered in S.qFilter and survives a reload;
    Everything is only the starting point, not something it falls back to. */
-function qNow() { return QFILTERS.some(x => x[0] === S.qFilter) ? S.qFilter : "all"; }
+function qNow() { return QFILTERS.some(x => x[0] === S.qFilter) || (/^L:/.test(S.qFilter || "") && (S.lists || []).some(l => "L:" + l.id === S.qFilter)) ? S.qFilter : "all"; }
 function qWaiting() { return S.games.filter(g => !isPlayed(g) && !isDropped(g)); }
 function qCounts() {
   const w = qWaiting();
-  return {
+  const c = {
     all: allGames().length, done: allGames().filter(isPlayed).length,
     out: w.filter(isOutNow).length, soon: w.filter(g => !isOutNow(g)).length
   };
+  (S.lists || []).forEach(l => { c["L:" + l.id] = S.games.filter(g => (g.lists || []).includes(l.id)).length; });
+  return c;
 }
 function queueList() {
   const f = qNow();
+  if (f.startsWith("L:")) return allGames().filter(g => (g.lists || []).includes(f.slice(2)));
   if (f === "all") return allGames();
   if (f === "done") return allGames().filter(isPlayed);
   const w = qWaiting();
@@ -6577,8 +6592,8 @@ function sortGames(list) {
   if (m === "duel") { const t = eloTable(); return byNum(g => t[g.id] || 1500); }
   if (m === "overall") return byNum(avgScore);
   if (RATINGS.some(([k]) => k === m)) return byNum(g => { const v = (g.mine || {})[m]; return v > 0 ? v : -1; });
-  if (m === "longest") return byNum(g => g.hours || 0);
-  if (m === "shortest") return byNum(g => (g.hours ? -g.hours : -99999));
+  if (m === "longest") return byNum(g => hrsOf(g) || 0);
+  if (m === "shortest") return byNum(g => (hrsOf(g) ? -hrsOf(g) : -99999));
   if (m === "date") {
     const now = Date.now();
     const tier = g => !g.date ? 1 : (new Date(g.date).getTime() >= now ? 0 : 2);
@@ -7461,7 +7476,7 @@ function pillBars(items, fmt) {
 function genreSplit(games, key) {
   const by = {};
   games.forEach(g => {
-    const v = key === "hours" ? num(g.hours, 0, 0, 1000) : 1;
+    const v = key === "hours" ? num(hrsOf(g), 0, 0, 1000) : 1;
     if (!v) return;
     const ls = platList(g.genres);
     if (!ls.length) { by["Unsorted"] = (by["Unsorted"] || 0) + v; return; }
@@ -7477,7 +7492,7 @@ function genreSplit(games, key) {
 /* the chart itself, shared by Home and Taste */
 function genreChart(scope) {
   const live = S.games.filter(g => !isPlayed(g) && !isDropped(g));
-  const hours = live.reduce((a, g) => a + num(g.hours, 0, 0, 1000), 0);
+  const hours = live.reduce((a, g) => a + hrsOf(g), 0);
   const byH = genreSplit(live, "hours");
   const useH = byH.length >= 2 && hours > 0;
   const bars = useH ? byH : genreSplit(S.games, "count");
@@ -7820,7 +7835,7 @@ function renderQueue() {
               typeof cd.v === "number" ? `<span data-count="${cd.v}">0</span>` : cd.v
             }</b><span>${cd.l}</span></div>
             <div class="stat" style="animation-delay:110ms"><b>${
-              g.hours ? `<span data-count="${g.hours}">0</span><i>h</i>` : "—"
+              hrsOf(g) ? `<span data-count="${hrsOf(g)}">0</span><i>h</i>` : "—"
             }</b><span>to beat</span></div>
             <div class="stat" style="animation-delay:160ms"><b>${
               g.hype ? `<span data-count="${g.hype}">0</span>` : "—"
@@ -7867,7 +7882,7 @@ function renderQueue() {
           ${ringsBlock(g)}` : ""}
           ${g.learn ? `<p class="note2"><b>Learn</b> ${esc(g.learn)}</p>` : ""}
           ${g.tips ? `<p class="note2"><b>Play it</b> ${esc(g.tips)}</p>` : ""}
-          ${g.hours ? `<p class="evenings">About ${Math.ceil(g.hours / (S.evening || 2))} evenings at ${S.evening || 2} hours a night</p>` : ""}
+          ${hrsOf(g) ? `<p class="evenings">About ${Math.ceil(hrsOf(g) / (S.evening || 2))} evenings at ${S.evening || 2} hours a night</p>` : ""}
           <button class="btn ghost fliphint" data-unflipbtn style="display:block;margin:12px auto 0"><span>↻ Tap to flip back</span></button>
         </div></div></div></div>
       ${g.platforms && (S.platPos || "inline") !== "inline" ? `<div class="plats pos-${esc(S.platPos)}">${platList(g.platforms).map(x =>
@@ -7929,13 +7944,16 @@ function renderQueue() {
       </span>
       <span class="qsplit" aria-hidden="true"></span>
       ${(() => { const c = qCounts(), on = qNow();
-        const lab = (QFILTERS.find(x => x[0] === on) || QFILTERS[0])[1];
+        const ol = on.startsWith("L:") ? (S.lists || []).find(l => "L:" + l.id === on) : null;
+        const lab = ol ? ol.n : (QFILTERS.find(x => x[0] === on) || QFILTERS[0])[1];
         return `<span class="sortmenu">
           <button class="chip" id="qview" data-qopen="1" aria-expanded="false" aria-pressed="true"
-            >${QICON[on]}<span>${esc(lab)}</span><small>${c[on]}</small><b class="qcar">\u25BE</b></button>
+            >${ol ? `<i class="qle">${esc(ol.e)}</i>` : QICON[on]}<span>${esc(lab)}</span><small>${c[on]}</small><b class="qcar">\u25BE</b></button>
           <div class="sortpop qpop" id="qviewpop" hidden>${QFILTERS.map(([v, l]) =>
             `<button data-qfilter="${v}" aria-pressed="${on === v}">${QICON[v]}<span>${esc(l)}</span><small>${c[v]}</small></button>`
-          ).join("")}</div></span>`;
+          ).join("")}${(S.lists || []).length ? '<i class="qsep">Your lists</i>' : ""}${(S.lists || []).map(l =>
+            `<button data-qfilter="L:${l.id}" aria-pressed="${on === "L:" + l.id}"><i class="qle">${esc(l.e)}</i><span>${esc(l.n)}</span><small>${c["L:" + l.id]}</small></button>`).join("")}
+            <button class="act" data-lists="">📋 ${(S.lists || []).length ? "Manage lists" : "Make a list"}</button></div></span>`;
       })()}
       <button class="chip" data-shuffle><span>🔀 Shuffle</span></button><button class="chip" id="fx-radar"><span>Radar</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
     </div>
@@ -8099,7 +8117,7 @@ function renderCal() {
         <button class="crow slab" data-node="${g.id}" style="--accent:${esc(g.colour)}">
           <img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt="">
           <span class="cr-in"><b>${esc(g.title)}</b><small>${esc(days(g.date) || shortDate(g.date))}${
-            g.hours ? " · " + g.hours + "h" : ""}</small></span>
+            hrsOf(g) ? " · " + hrsOf(g) + "h" : ""}</small></span>
           ${(() => {
             /* the count you actually care about is how far off it is, not which square it sits in */
             const left = Math.ceil((new Date(g.date) - new Date()) / 86400000);
@@ -8146,7 +8164,7 @@ function libValue(g, key, rank) {
   if (key === "date") return g.date ? esc(shortDate(g.date)) : "TBA";
   if (key === "days") return g.date ? esc(days(g.date)) : "TBA";
   if (key === "hype") return (g.hype || "—") + "/10";
-  if (key === "hours") return g.hours ? g.hours + "h" : "—";
+  if (key === "hours") return hrsOf(g) ? hrsOf(g) + "h" : "—";
   if (key === "critic") return g.critic ? String(g.critic) : "—";
   if (key === "state") return esc((STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1]);
   if (key === "rank") return String(rank).padStart(2, "0");
@@ -8229,6 +8247,18 @@ function wireReel(box) {
 const playingNow = () => S.games.filter(g => (g.state || "") === "playing");
 const dailyOf = g => num(g.daily, 0, 0, 12);
 const loggedOf = g => num(g.logged, 0, 0, 100000);
+/* v182 time to beat by how you play: main story (the old single number), story + extras, or everything.
+   A game without the extra numbers gets a typical estimate from its main story (x1.5, x2.4). */
+const PLAY_STYLES = [["main", "Main story"], ["extras", "Story + extras"], ["all", "Everything (100%)"]];
+const playStyle = () => PLAY_STYLES.some(x => x[0] === S.playStyle) ? S.playStyle : "main";
+function hrsOf(g) {
+  if (!g || g.comp) return 0;
+  const m = num(g.hours, 0, 0, 1000), x = num(g.hoursX, 0, 0, 3000), a = num(g.hours100, 0, 0, 5000), st = playStyle();
+  if (st === "extras") return x || Math.round(m * 1.5);
+  if (st === "all") return a || (x ? Math.round(x * 1.6) : Math.round(m * 2.4));
+  return m || x || a;
+}
+const hrsGuess = g => { const st = playStyle(); return st === "extras" ? !num(g.hoursX, 0, 0, 3000) : st === "all" ? !num(g.hours100, 0, 0, 5000) : false; };
 const liveTimerHours = () =>
   S.timer && S.timer.from ? Math.max(0, (Date.now() - S.timer.from) / 3600000) : 0;
 function planView() {
@@ -8246,7 +8276,7 @@ function planView() {
 
   const row = g => {
     const d = dailyOf(g), done = loggedOf(g) + (S.timer && S.timer.id === g.id ? liveTimerHours() : 0);
-    const total = g.hours || 0;
+    const total = hrsOf(g) || 0;
     const pct = total ? Math.min(100, (done / total) * 100) : 0;
     const leftH = Math.max(0, total - done);
     const evenings = d > 0 && leftH > 0 ? Math.ceil(leftH / d) : 0;
@@ -8300,7 +8330,7 @@ function timerView() {
   const t = S.timer, on = t && t.id;
   const tg = on ? S.games.find(x => x.id === t.id) : null;
   const elapsed = liveTimerHours();
-  const tgTotal = tg ? (tg.hours || 0) : 0;
+  const tgTotal = tg ? (hrsOf(tg) || 0) : 0;
   const tgDone = tg ? loggedOf(tg) + elapsed : 0;
   const pct = tgTotal ? Math.min(100, (tgDone / tgTotal) * 100) : 0;
   const C = 2 * Math.PI * 46;
@@ -8333,7 +8363,7 @@ function timerView() {
     </div>
     ${list.map(g => {
       const done = loggedOf(g) + (on === g.id ? elapsed : 0);
-      const total = g.hours || 0;
+      const total = hrsOf(g) || 0;
       const p = total ? Math.min(100, (done / total) * 100) : 0;
       return `<div class="prow slab" style="--accent:${esc(g.colour)}"><div style="width:100%">
         <div class="phead">
@@ -8453,7 +8483,7 @@ function hubMarkup(g) {
   const chips = platList(g.genres).slice(0, 3);
   const stats = [
     [g.date ? shortDate(g.date) : "TBA", "release"],
-    g.hours ? [g.hours + "h", Math.max(1, Math.round(g.hours / ev2)) + " evenings"] : null,
+    hrsOf(g) ? [hrsOf(g) + "h", Math.max(1, Math.round(hrsOf(g) / ev2)) + " evenings"] : null,
     [(g.hype || "—") + "/10", "hype"],
     (() => {
       const x = isPlayed(g) ? null : expected(g);
@@ -8500,6 +8530,7 @@ function hubMarkup(g) {
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
           <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
+          <button class="chip" data-lists="${g.id}"><span>📋 Lists${(g.lists || []).length ? " · " + g.lists.length : ""}</span></button>
           <button class="chip" data-sess="${g.id}"><span>⏱ Sessions${sessOf(g.id).length ? " · " + sessOf(g.id).length : ""}</span></button>
           <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
           <button class="chip" data-resetgame="${g.id}"><span>↺ Reset scores</span></button>
@@ -8518,7 +8549,7 @@ function lxPage(g, list) {
     ["Release", g.date ? shortDate(g.date) + " · " + days(g.date) : "TBA"],
     ["Status", state + (g.status ? " · " + g.status : "")],
     g.platforms ? ["Platforms", platList(g.platforms).slice(0, 3).join(", ")] : null,
-    g.hours ? ["Length", g.hours + "h · " + Math.max(1, Math.round(g.hours / num(S.evening, 4, 1, 12))) + " evenings"] : null,
+    hrsOf(g) ? ["Length", hrsOf(g) + "h · " + Math.max(1, Math.round(hrsOf(g) / num(S.evening, 4, 1, 12))) + " evenings"] : null,
     g.critic ? ["Critics", g.critic] : null,
     p && p.real ? ["Deserved", p.real + "/10"] : null
   ].filter(Boolean);
@@ -8971,7 +9002,7 @@ function openPeek(ids) {
       </div>
       <div class="scores">
         <div class="sc"><b>${g.date ? shortDate(g.date) : "TBA"}</b><span>${esc(g.status || "")}</span></div>
-        ${g.hours ? `<div class="sc"><b>${g.hours}h</b><span>about ${Math.max(1, Math.round(g.hours / ev2))} evenings</span></div>` : ""}
+        ${hrsOf(g) ? `<div class="sc"><b>${hrsOf(g)}h</b><span>about ${Math.max(1, Math.round(hrsOf(g) / ev2))} evenings</span></div>` : ""}
         <div class="sc"><b>${g.hype || "—"}</b><span>hype</span></div>
         ${g.critic ? `<div class="sc"><b>${g.critic}</b><span>critics</span></div>` : ""}
       </div>
@@ -9345,7 +9376,7 @@ const conf = n => n < 3 ? "far too little to trust" : n < 6 ? "thin \u2014 treat
 
 const duelCard = g => `<button class="duelpick" data-duel="${g.id}" style="--accent:${esc(g.colour)}">
     <img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt=""><b>${esc(g.title)}</b>
-    <small>${g.date ? shortDate(g.date) : "no date"}${g.hours ? " \u00b7 " + g.hours + "h" : ""}</small></button>`;
+    <small>${g.date ? shortDate(g.date) : "no date"}${hrsOf(g) ? " \u00b7 " + hrsOf(g) + "h" : ""}</small></button>`;
 
 /* how much of the ranking is actually settled: pairs judged out of pairs possible */
 function duelCover() {
@@ -9574,7 +9605,7 @@ function tasteAnalytics() {
   const all = S.games;
   const rows = playedRows();
   const live = all.filter(g => !isPlayed(g) && !isDropped(g));
-  const hours = live.reduce((a, g) => a + num(g.hours, 0, 0, 1000), 0);
+  const hours = live.reduce((a, g) => a + hrsOf(g), 0);
   const logged = all.reduce((a, g) => a + loggedOf(g), 0) + liveTimerHours();
   const ev = num(S.evening, 4, 1, 12);
   const avgReal = rows.length ? rows.reduce((a, x) => a + x.real, 0) / rows.length : 0;
@@ -10066,7 +10097,7 @@ function dxHome(o) {
   const img = g => esc(cover(g)), wide = g => esc(bgSource(g) || cover(g));
   const col = g => esc(g.colour || PALETTE[0]);
   const genre = g => platList(g.genres)[0] || ((STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1]);
-  const when = g => g.date ? (days(g.date).startsWith("Out") ? days(g.date) : shortDate(g.date)) : g.hours ? "≈ " + num(g.hours, 0, 0, 1000) + "h" : "No date yet";
+  const when = g => g.date ? (days(g.date).startsWith("Out") ? days(g.date) : shortDate(g.date)) : hrsOf(g) ? "≈ " + num(hrsOf(g), 0, 0, 1000) + "h" : "No date yet";
 
   const head = `<div class="dxhead" style="grid-area:h">
     <div class="dxtabs"><b>Play next${cnt ? ` <i>(${live.length})</i>` : ""}</b>
@@ -10115,7 +10146,7 @@ function dxHome(o) {
   cards = cards.concat(ranked.filter(g => !cards.includes(g))).slice(0, 3);
   const playing = on("playing") && cards.length ? `<div class="dxplay" style="grid-area:r"><span class="dxt">${ptitle}</span>
     <div class="row3">${cards.map(g => {
-      const done = loggedOf(g) + (S.timer && S.timer.id === g.id ? liveTimerHours() : 0), total = num(g.hours, 0, 0, 1000);
+      const done = loggedOf(g) + (S.timer && S.timer.id === g.id ? liveTimerHours() : 0), total = num(hrsOf(g), 0, 0, 1000);
       const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0, hy = num(g.hype, 0, 0, 10), st = Math.round(hy / 2);
       /* v179 competitive games never "finish": show the diary's win rate instead of a progress bar */
       const dy = g.diary || [], W = dy.reduce((a, e) => a + (e.w || 0), 0), Lo = dy.reduce((a, e) => a + (e.l || 0), 0), Dr = dy.reduce((a, e) => a + (e.d || 0), 0);
@@ -10130,7 +10161,7 @@ function dxHome(o) {
   /* queue hours as a donut, split by the games that hold the most */
   let stat = "";
   if (on("hours")) {
-    const byH = live.map(g => ({ g, h: num(g.hours, 0, 0, 1000) || 0 })).filter(x => x.h > 0).sort((a, b) => b.h - a.h);
+    const byH = live.map(g => ({ g, h: num(hrsOf(g), 0, 0, 1000) || 0 })).filter(x => x.h > 0).sort((a, b) => b.h - a.h);
     const segs = byH.slice(0, 3).map((x, n) => ({ l: x.g.title, v: x.h, c: DX_RING[n] }));
     const rest = byH.slice(3).reduce((a, x) => a + x.h, 0);
     if (rest) segs.push({ l: "Other", v: rest, c: DX_RING[3] });
@@ -10138,7 +10169,7 @@ function dxHome(o) {
     let at = 0;
     const arcs = segs.map(s => { const len = Math.max(0.5, s.v / hours * C - gap), d = `<circle r="${R}" cx="50" cy="50" stroke="${s.c}"
         stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-at).toFixed(1)}"/>`; at += s.v / hours * C; return d; }).join("");
-    stat = `<div class="dxstat" style="grid-area:s"><div class="dxst"><span><b>Your statistic</b><small>Queue hours</small></span>
+    stat = `<div class="dxstat" style="grid-area:s"><div class="dxst"><span><b>Your statistic</b><small>Queue hours${playStyle() === "main" ? "" : " · " + esc((PLAY_STYLES.find(x => x[0] === playStyle()) || [])[1] || "")}</small></span>
         <button type="button" class="ic" data-home-tab="plan" aria-label="Plan">${DX_ICO.chart}</button></div>
       <div class="donut"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="trk" r="${R}" cx="50" cy="50"/>${arcs}</svg>
         <span class="core"><small>Queue hours</small><b>${hours ? Math.round(hours).toLocaleString() + "h" : "—h"}</b>
@@ -10215,7 +10246,7 @@ function renderHome() {
   const b = hypeBias();
   const cats = categoryPull().filter(c => c.r != null).sort((x, y) => Math.abs(y.r) - Math.abs(x.r));
   const topCat = cats[0];
-  const hours = live.reduce((a, g) => a + (num(g.hours, 0, 0, 1000) || 0), 0);
+  const hours = live.reduce((a, g) => a + (hrsOf(g) || 0), 0);
   const ev = num(S.evening, 4, 1, 12);
 
   /* how much of the ranking is actually settled: pairs judged out of pairs possible */
@@ -11004,7 +11035,7 @@ function pnNext() { const now = new Date();
   return g ? { g, days: Math.ceil((new Date(g.date + "T00:00:00") - now) / 864e5) } : null; }
 const NX_BADGES = [["count", "⏳ Countdown"], ["streak", "🔥 Streak"], ["level", "💙 Level"], ["hours", "🎮 Queue hours"], ["verdict", "✍️ To score"], ["off", "✖ Off"]];
 function pnBubBadge() { const b = $("#pnbub"); if (!b) return; const n = pnNext(), t = new Date().toLocaleDateString("en-CA"), m = S.nxBadge || "count";
-  const un = (S.played || []).filter(p => !(p.real > 0)).length, hrs = S.games.filter(g => !isPlayed(g)).reduce((a, g) => a + (num(g.hours, 0, 0, 1000) || 0), 0);
+  const un = (S.played || []).filter(p => !(p.real > 0)).length, hrs = S.games.filter(g => !isPlayed(g)).reduce((a, g) => a + (num(hrsOf(g), 0, 0, 1000) || 0), 0);
   b.querySelector(".badge").textContent = m === "off" ? "" : m === "streak" ? (S.nxStreak ? "🔥" + S.nxStreak.n : "")
     : m === "level" ? "Lv " + nxLv() : m === "hours" ? (hrs ? Math.round(hrs) + "h" : "") : m === "verdict" ? (un ? "✍️" + un : "")
     : S.games.some(g => g.date === t && !isPlayed(g)) ? "TODAY" : n ? n.days + "d" : ""; }
@@ -11020,7 +11051,7 @@ function nxPickShow() {
   if (!g) { nxSkipNow = []; pnBubMood("sad", 2000); return pnBubSay(["Nothing out and unplayed right now. Grum's got nothing either 🤷", ""]); }
   pnBubMood("happy", 1500);
   const R = pnLastRanked.findIndex(x => x.id === g.id), sk = (S.nxSkip || {})[g.id] || 0;
-  const why = [R >= 0 ? `#${R + 1} in your ranking` : "", isFresh(g) ? "out now" : "", num(g.hours, 0, 0, 1000) ? `${num(g.hours, 0, 0, 1000)}h to beat` : "", sk ? `skipped ${sk}×` : ""].filter(Boolean).join(" · ");
+  const why = [R >= 0 ? `#${R + 1} in your ranking` : "", isFresh(g) ? "out now" : "", num(hrsOf(g), 0, 0, 1000) ? `${num(hrsOf(g), 0, 0, 1000)}h to beat` : "", sk ? `skipped ${sk}×` : ""].filter(Boolean).join(" · ");
   const ov = document.createElement("div"); ov.id = "nxpick";
   ov.innerHTML = `<div class="pan"><small>${esc(pnName())} PICKS</small><div class="cv" style="background-image:url('${cssUrl(cover(g))}')"></div>
     <h3>${esc(g.title)}</h3><p>${esc(why)}</p><div class="ft"><button class="btn ghost" data-no><span>Nah, next</span></button><button class="btn" data-go><span>Let's go 🎮</span></button></div></div>`;
@@ -11296,7 +11327,7 @@ function pnBubLines() {
   const pickOne = a => a[Math.floor(Math.random() * a.length)];
   const live = S.games.filter(g => !isPlayed(g));
   const played = (S.played || []), duels = (S.duels || []).filter(d => d.w).length;
-  const hours = live.reduce((a, g) => a + (num(g.hours, 0, 0, 1000) || 0), 0);
+  const hours = live.reduce((a, g) => a + (hrsOf(g) || 0), 0);
   const fut = S.games.filter(g => g.date && new Date(g.date + "T00:00:00") > now && !isPlayed(g)).sort((a, b) => a.date < b.date ? -1 : 1)[0];
   const days = fut ? Math.ceil((new Date(fut.date + "T00:00:00") - now) / 864e5) : 0;
   const un = played.filter(p => !(p.real > 0)).length;
@@ -11758,6 +11789,62 @@ function openFinDate(id) {
 }
 document.addEventListener("click", e => { const f = e.target.closest("[data-findate]"); if (!f) return; e.stopPropagation(); e.preventDefault(); beep("tap"); openFinDate(f.dataset.findate); }, true);
 
+/* ===== v182 your own lists: shelves you name yourself ("Co-op", "Short ones"), a game can sit in several ===== */
+const LIST_EMO = ["⭐", "🛋️", "🤝", "⚡", "🌙", "🔥", "🎯", "📚", "🧩", "👻", "🏆", "💤"];
+function listNew(name, emo) {
+  S.lists ||= [];
+  const l = { id: "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), n: String(name).trim().slice(0, 32) || "My list", e: emo || "⭐" };
+  S.lists.push(l); return l;
+}
+function listDrop(id) {
+  S.lists = (S.lists || []).filter(l => l.id !== id);
+  S.games.forEach(g => { if (g.lists) g.lists = g.lists.filter(x => x !== id); });
+  if (S.qFilter === "L:" + id) S.qFilter = "all";
+}
+function openLists(gid, editId) {
+  const g = gid && S.games.find(x => x.id === gid), box = dyBox(), L = S.lists || [];
+  let emo = LIST_EMO[L.length % LIST_EMO.length];
+  const count = l => S.games.filter(x => (x.lists || []).includes(l.id)).length;
+  const row = l => g
+    ? `<button type="button" class="ls-r${(g.lists || []).includes(l.id) ? " on" : ""}" data-lt="${l.id}"><span class="e">${esc(l.e)}</span><span class="n">${esc(l.n)}<small>${count(l)} game${count(l) === 1 ? "" : "s"}</small></span><i>${(g.lists || []).includes(l.id) ? "✓" : "+"}</i></button>`
+    : editId === l.id
+      ? `<div class="ls-r"><span class="e">${esc(l.e)}</span><input class="ls-in" data-ren="${l.id}" value="${escRaw(l.n)}" maxlength="32"><button type="button" class="ls-b" data-rsave="${l.id}">Save</button></div>`
+      : `<div class="ls-r"><span class="e">${esc(l.e)}</span><button type="button" class="n" data-lshow="${l.id}">${esc(l.n)}<small>${count(l)} game${count(l) === 1 ? "" : "s"} · show in queue</small></button>
+        <button type="button" class="ls-b" data-redit="${l.id}" aria-label="Rename">✎</button><button type="button" class="ls-b del" data-ldel="${l.id}" aria-label="Delete">🗑</button></div>`;
+  dyShow(box, `<div class="dy-h"><b>📋 ${g ? "Lists for " + esc(g.title) : "Your lists"}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">${g ? "Tap a list to put this game in it (or take it out). A game can be in as many as you like." : "Your own shelves. Pick one in the Queue's filter menu to see just those games."}</p>
+    ${L.length ? `<div class="ls-l">${L.map(row).join("")}</div>` : '<p class="dy-empty">No lists yet. Make your first one below.</p>'}
+    <div class="ls-new"><small>New list</small><div class="ls-emo">${LIST_EMO.map(x => `<button type="button" data-emo="${x}"${x === emo ? ' class="on"' : ""}>${x}</button>`).join("")}</div>
+      <div class="ls-mk"><input class="ls-in" id="ls-name" maxlength="32" placeholder="e.g. Co-op with a friend" enterkeyhint="done"><button type="button" class="ls-b go" data-lmake>${g ? "Make + add" : "Make"}</button></div></div>`,
+  e => {
+    const t = e.target.closest("[data-lt]");
+    if (t) { const id = t.dataset.lt; g.lists = (g.lists || []).includes(id) ? g.lists.filter(x => x !== id) : [...(g.lists || []), id]; touched(); beep("tap"); listsChanged(gid); return openLists(gid); }
+    const em = e.target.closest("[data-emo]");
+    if (em) { emo = em.dataset.emo; box.querySelectorAll("[data-emo]").forEach(b => b.classList.toggle("on", b === em)); beep("tap"); return; }
+    if (e.target.closest("[data-lmake]")) {
+      const name = box.querySelector("#ls-name").value.trim(); if (!name) { toast("Give the list a name"); box.querySelector("#ls-name").focus(); return; }
+      const l = listNew(name, emo); if (g) g.lists = [...(g.lists || []), l.id];
+      touched(); beep("add"); toast("Made “" + l.n + "”"); listsChanged(gid); return openLists(gid);
+    }
+    const sh = e.target.closest("[data-lshow]");
+    if (sh) { S.qFilter = "L:" + sh.dataset.lshow; save(); dyClose(); if (typeof closeFull === "function" && $("#full.on")) closeFull(); goTab("queue"); renderQueue(); return; }
+    const re = e.target.closest("[data-redit]"); if (re) return openLists(null, re.dataset.redit);
+    const rs = e.target.closest("[data-rsave]");
+    if (rs) { const l = (S.lists || []).find(x => x.id === rs.dataset.rsave), v = box.querySelector(`[data-ren="${rs.dataset.rsave}"]`).value.trim(); if (l && v) l.n = v.slice(0, 32); touched(); listsChanged(); return openLists(null); }
+    const dl = e.target.closest("[data-ldel]");
+    if (dl) { const l = (S.lists || []).find(x => x.id === dl.dataset.ldel); if (!l || !confirm("Delete the list “" + l.n + "”? The games stay, only the list goes.")) return;
+      listDrop(l.id); touched(); beep("back"); listsChanged(); return openLists(null); }
+  });
+  const nm = box.querySelector("#ls-name"); if (nm) nm.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); box.querySelector("[data-lmake]").click(); } });
+}
+function listsChanged(gid) {
+  if (typeof renderQueue === "function") renderQueue();   /* the filter menu in its header lists them */
+  const chip = gid && document.querySelector(`#full [data-lists="${gid}"] span`), g = gid && S.games.find(x => x.id === gid);
+  if (chip && g) chip.textContent = "📋 Lists" + ((g.lists || []).length ? " · " + g.lists.length : "");
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-lists]"); if (!b) return; e.stopPropagation(); beep("tap");
+  const pop = b.closest(".sortpop"); if (pop) pop.hidden = true; openLists(b.dataset.lists || null); }, true);
+
 load();
 /* FX pack */
 (()=>{
@@ -12120,7 +12207,7 @@ function pnPowerUp(line) {
   const $g = s => document.querySelector(s);
   const arcG = () => (typeof pnArc === "function" ? pnArc() : 0);
   const hpG = () => S.games.filter(g => !g.comp && !isPlayed(g) && g.state !== "played" && !isDropped(g) &&
-    (g.state === "backlog" || g.state === "playing" || isOutNow(g))).map(g => ({ g, h: +g.hours || 20 }));
+    (g.state === "backlog" || g.state === "playing" || isOutNow(g))).map(g => ({ g, h: +hrsOf(g) || 20 }));
   const hpNow = () => hpG().reduce((a, x) => a + x.h, 0);
   const pick = a => a[Math.floor(Math.random() * a.length)];
   const lines = () => {
@@ -12422,7 +12509,7 @@ function pnPowerUp(line) {
     const hadRail = !H.classList.contains("railhide");
     /* the story is built from their own games */
     const bl = S.games.filter(g => !g.comp && !isPlayed(g) && !isDropped(g) && (g.state === "backlog" || g.state === "playing" || isOutNow(g)));
-    const hrs = bl.reduce((a, g) => a + (+g.hours || 20), 0), waiting = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp).length;
+    const hrs = bl.reduce((a, g) => a + (+hrsOf(g) || 20), 0), waiting = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp).length;
     const fin = (S.played || []).filter(p => p.real > 0).map(p => ({ ...p, g: S.games.find(x => x.id === p.id) })).filter(x => x.g).sort((a, b) => b.real - a.real);
     const top = (typeof pnLastRanked !== "undefined" && pnLastRanked[0]) ? pnLastRanked[0].title : "";
     if (hadRail) { H.classList.add("railhide"); try { pnBubFace(); } catch (e) {} }
@@ -13278,7 +13365,13 @@ const WHATS_NEW = [
   { v: 181, go: () => { nxShut(); openSettings("app"); setTimeout(() => { if (typeof setJump === "function") setJump({ scope: "app", group: "Look of the app", text: "Theme" }); }, 150); },
     at: () => $("#s-theme"),
     say: "<b>One-tap themes</b>: Midnight, Crimson, Emerald, Amethyst, Sunset and Mono. Same black app, a different accent colour everywhere. Settings → Look of the app, or <b>Theme</b> under Most used.",
-    tryIt: "Try a colour. You can always switch back to Midnight." }
+    tryIt: "Try a colour. You can always switch back to Midnight." },
+  { v: 182, go: () => nxOpenGame(), at: "#full [data-lists]",
+    say: "Make <b>your own lists</b>, like “Co-op with a friend”, “Short ones” or “Comfort games”. Tap <b>📋 Lists</b> on any game to put it in one (or make a new one). A game can be in as many as you like.",
+    tryIt: "Then open the Queue's filter menu (the “Everything ▾” button): your lists are there." },
+  { v: 182, go: () => { nxShut(); setJump({ scope: "plan", sub: "plan", group: "Your evening", text: "How you play" }); }, at: () => $("#s-playstyle"),
+    say: "Tell me <b>how you play</b>: main story, story + extras, or everything (100%). Every “hours to beat”, evening count and plan follows it. Each game can have all three numbers in Edit → Release, and blanks get a typical estimate.",
+    tryIt: "Pick your style. The hours on Home and in the Queue change with it." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13709,7 +13802,7 @@ const SET_QUICK = [
   ["🔊", "Sound", "Sound and reactions", "Sounds"], ["😤", "Grumble", "Sound and reactions", "Grumble"],
   ["🎞️", "Animations", "Motion", "Animations"], ["⚡", "Speed boost", "Motion", "Speed boost"],
   ["🎨", "Theme", "Look of the app", "Theme"], ["🧭", "Tabs & start screen", "Getting around", ""],
-  ["💾", "Backup", "Your data", "Backup"], ["✨", "What's new", "This build", ""]
+  ["💾", "Backup", "Your data", "Backup"], ["✨", "What's new", "This build", ""], ["🎯", "Play style", "Your evening", "How you play", "plan", "plan"]
 ];
 const clean = t => String(t || "").trim().replace(/\s+/g, " ");
 let setIdx = null;
@@ -13807,7 +13900,7 @@ function calmSheet(settings) {
   bar.addEventListener("click", e => {
     const r = e.target.closest("[data-sr]"); if (r) { beep("tap"); return setJump(res._hits[+r.dataset.sr]); }
     const q = e.target.closest("[data-sq]");
-    if (q) { const [, , group, text] = SET_QUICK[+q.dataset.sq]; beep("tap"); setJump({ scope: "app", group, text, head: !text }); }
+    if (q) { const [, , group, text, scope, sub] = SET_QUICK[+q.dataset.sq]; beep("tap"); setJump({ scope: scope || "app", sub: sub || "", group, text, head: !text }); }
   });
 }
 /* one section at a time: opening one hides the rest, closing it brings the list back where you were */
@@ -13924,7 +14017,7 @@ function shWhy(g) {
   const t = g.desc || g.about; if (t) return t;
   const bits = [];
   if (g.date) bits.push(days(g.date).startsWith("Out") ? "It's out and waiting for you." : "It lands " + shortDate(g.date) + " — " + days(g.date) + ".");
-  if (g.hours) bits.push("About " + Math.max(1, Math.round(g.hours / num(S.evening, 4, 1, 12))) + " evenings at your usual pace.");
+  if (hrsOf(g)) bits.push("About " + Math.max(1, Math.round(hrsOf(g) / num(S.evening, 4, 1, 12))) + " evenings at your usual pace.");
   if (g.hype) bits.push("You hyped it " + g.hype + "/10.");
   return bits.join(" ") || "No notes on this one yet. Add some in Edit and they'll show here.";
 }
@@ -13940,7 +14033,7 @@ function openShuffle(mode) {
       <span class="sv">${esc(shShort(x.title))}</span><img decoding="async" src="${esc(cover(x))}" alt="">${x.hype ? `<em>🔥 ${x.hype}</em>` : ""}</button>` : "";
   const card = x => {
     const nm = shShort(x.title), L = nm.length, fs = L <= 6 ? 1 : L <= 10 ? .78 : L <= 16 ? .58 : .46;
-    const chips = [x.hype ? "🔥 " + x.hype + "/10" : "", x.hours ? x.hours + "h" : "", x.date ? (days(x.date).startsWith("Out") ? "Out now" : shortDate(x.date)) : "No date",
+    const chips = [x.hype ? "🔥 " + x.hype + "/10" : "", hrsOf(x) ? hrsOf(x) + "h" : "", x.date ? (days(x.date).startsWith("Out") ? "Out now" : shortDate(x.date)) : "No date",
       platList(x.genres)[0] || ""].filter(Boolean);
     const from = Math.max(0, Math.min(st.i - 2, st.deck.length - 6)), strip = st.deck.slice(from, from + 6);
     const art = bgSource(x);
@@ -13998,7 +14091,7 @@ function openShuffle(mode) {
           <span><b>${esc(y.title)}</b><small>${esc(y.state === "playing" ? "Playing now" : y.date ? days(y.date) : "No date yet")}</small></span>
           ${shOut(y) && y.state !== "playing" ? `<button type="button" data-shplay="${y.id}">▶ Play now</button>` : ""}
           <button type="button" class="ghost" data-shopen="${y.id}">${SH_ICO.open}</button></div>`).join("")}
-        <div class="sh-acts"><button type="button" class="btn" data-sh="again"><span>Shuffle again</span></button>
+        <div class="sh-acts">${P.length > 1 ? '<button type="button" class="btn ghost" data-shlist><span>📋 Save as a list</span></button>' : ""}<button type="button" class="btn" data-sh="again"><span>Shuffle again</span></button>
           ${st.i < st.deck.length ? '<button type="button" class="btn ghost" data-sh="resume"><span>Keep going</span></button>' : ""}</div></div>`;
   };
   /* drag the card: it follows your finger, tilts, and shows which way you're leaning */
@@ -14029,6 +14122,9 @@ function openShuffle(mode) {
     const sd = e.target.closest("[data-shside]"); if (sd) { st.i += sd.dataset.shside === "r" ? 1 : -1; beep("tap"); return paint(true); }
     const pl = e.target.closest("[data-shplay]");
     if (pl) { const y = S.games.find(v => v.id === pl.dataset.shplay); if (y) { y.state = "playing"; touched(); render(); toast(y.title + " is now Playing"); beep("add"); results(); } return; }
+    if (e.target.closest("[data-shlist]")) { const l = listNew("Tempted · " + new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" }), "🎯");
+      st.picks.forEach(id => { const y = S.games.find(v => v.id === id); if (y && !(y.lists || []).includes(l.id)) y.lists = [...(y.lists || []), l.id]; });
+      touched(); toast("Saved as “" + l.n + "” — find it in the Queue filter"); beep("add"); e.target.closest("[data-shlist]").remove(); return; }
     const op = e.target.closest("[data-shopen]"); if (op) { close(); hubReturn = null; setTimeout(() => openFull(op.dataset.shopen), 200); return; }
     const a = e.target.closest("[data-sh]"); if (!a || a.disabled) return;
     const k = a.dataset.sh;
@@ -14124,4 +14220,30 @@ html.shuffling #pnbub, html.shuffling #pnbubmsg { visibility: hidden; }
   .sh-side.l { left: calc(50% - 220px - 150px); } .sh-side.r { right: calc(50% - 220px - 150px); }
 }
 html.still .sh-card { transition: none !important; }
+</style>
+<style>
+/* ===== v182 lists ===== */
+.ls-l { display: grid; gap: 8px; margin-top: 10px; }
+.ls-r { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--steel); background: var(--void);
+  color: var(--ice); font: inherit; text-align: left; cursor: pointer; transition: transform .2s ease, border-color .2s ease; }
+.ls-r.on { border-color: var(--volt); }
+.ls-r:active { transform: scale(.97); }
+.ls-r .e { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 19px; background: rgba(var(--vrgb), .12); flex: none; }
+.ls-r .n { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 700; font-size: 14.5px; background: none; border: 0; color: inherit; font-family: inherit; text-align: left; padding: 0; cursor: pointer; }
+.ls-r .n small { font-weight: 500; font-size: 12px; color: var(--mute); }
+.ls-r > i { font-style: normal; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.07); font-weight: 800; flex: none; }
+.ls-r.on > i { background: var(--volt); color: var(--void); }
+.ls-b { flex: none; height: 36px; min-width: 36px; padding: 0 12px; border-radius: 12px; border: 0; background: rgba(255,255,255,.07); color: var(--ice); font: inherit; font-weight: 700; cursor: pointer; }
+.ls-b.go { background: var(--volt); color: var(--void); }
+.ls-b.del { background: rgba(255,84,112,.14); }
+.ls-in { flex: 1; min-width: 0; width: auto; border-radius: 12px; border: 1px solid var(--steel); background: var(--void); color: var(--ice); padding: 9px 12px; font: inherit; font-size: 16px; }
+.ls-new { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--steel); }
+.ls-new small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin-bottom: 8px; }
+.ls-emo { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
+.ls-emo button { height: 40px; border-radius: 12px; border: 1px solid var(--steel); background: var(--void); font-size: 19px; cursor: pointer; }
+.ls-emo button.on { border-color: var(--volt); background: rgba(var(--vrgb), .16); }
+.ls-mk { display: flex; gap: 8px; }
+.qpop .qle { font-style: normal; font-size: 14px; width: 16px; text-align: center; }
+#qview .qle { font-style: normal; }
+.qpop .qsep { display: block; font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); padding: 10px 12px 4px; }
 </style>
