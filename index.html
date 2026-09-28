@@ -3493,7 +3493,8 @@ function bgBake(layer, src, done) {
     done();
   };
   im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
-  im.src = bigData(src) ? blobRef(src) : src;
+  /* v183: it gets blurred to a quarter size anyway, so the light copy is plenty */
+  im.src = liteFor(src) || (bigData(src) ? blobRef(src) : src);
 }
 /* folding or unfolding changes the screen shape: redraw the shown background to fit */
 addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout(() => {
@@ -3711,7 +3712,109 @@ function blobRef(u) {
   blobRefs.set(u, r); return r;
 }
 const bigData = t => typeof t === "string" && t.length > 4096 && t.startsWith("data:image/");
-const esc = t => bigData(t) ? blobRef(t) : escRaw(t);
+const esc = t => { const l = liteFor(t); return l ? escRaw(l) : bigData(t) ? blobRef(t) : escRaw(t); };
+/* v183 lag fix: the first time a picture shows, a light copy stands in (Steam 1x, RAWG resized, SteamGridDB
+   thumb, or a downscaled copy of an upload). Once the screen settles the full picture is decoded off to the
+   side and swapped in where it's shown big (liteUp). A picture that has had its full copy shown once in this
+   session stays full. Only a light copy that is known to load is ever used, so a bad guess costs nothing. */
+const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set();
+let LITE_OK = null;
+function liteFor(t) {
+  if (typeof t !== "string" || t.length < 8) return null;
+  const c0 = t.charCodeAt(0);
+  if (c0 !== 104 && c0 !== 100 && !(t.length < 300 && /^[\w\-./%]+\.(jpe?g|png|webp)$/i.test(t))) return null;
+  if (LITE_WARM.has(t)) return null;
+  const l = LITE.get(t); if (l) return l;
+  if (LITE_BAD.has(t) || LITE_Q.has(t)) return null;
+  const k = liteKind(t); if (!k) { LITE_BAD.add(t); return null; }
+  if (k === "remote") {
+    /* already checked on an earlier visit: use it straight away */
+    if (LITE_OK == null) { try { LITE_OK = JSON.parse(localStorage.getItem("gq:lite") || "{}"); } catch (e) { LITE_OK = {}; } }
+    const g = liteGuess(t), w = LITE_OK[g];
+    if (w > 0) { LITE.set(t, g); LITE_W.set(g, w); LITE_FULL.set(g, t); return g; }
+    if (w === 0) { LITE_BAD.add(t); return null; }
+  }
+  LITE_Q.add(t); liteKick();
+  return null;
+}
+/* where a lighter copy of a remote picture lives */
+function liteGuess(u) {
+  let m;
+  if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/steam\/apps\/\d+\/)(library_600x900_2x|library_hero)\.jpg(\?.*)?$/))) return m[1] + (m[2] === "library_hero" ? "library_hero_blur" : "library_600x900") + ".jpg";
+  if ((m = u.match(/^https:\/\/media\.rawg\.io\/media\/(games|screenshots)\/(.+)$/))) return "https://media.rawg.io/media/resize/640/-/" + m[1] + "/" + m[2];
+  if ((m = u.match(/^(https:\/\/cdn\d*\.steamgriddb\.com\/)(grid|hero)\/([^/?#]+)\.(png|jpe?g|webp)$/))) return m[1] + (m[2] === "grid" ? "thumb" : "hero_thumb") + "/" + m[3] + ".jpg";
+  return "";
+}
+const liteKind = u => /^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 60000 ? "data"
+  : liteGuess(u) ? "remote" : /\.(jpe?g|png|webp)$/i.test(u) && (u.indexOf(location.origin + "/") === 0 || !/^[a-z]+:/i.test(u)) ? "file" : "";
+function liteKick() {
+  if (liteKick.t) return;
+  liteKick.t = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteRun, { timeout: 3000 }), 400);
+}
+async function liteRun() {
+  liteKick.t = 0;
+  if (LITE_OK == null) { try { LITE_OK = JSON.parse(localStorage.getItem("gq:lite") || "{}"); } catch (e) { LITE_OK = {}; } }
+  const list = [...LITE_Q].slice(0, 6);
+  for (const u of list) {
+    LITE_Q.delete(u);
+    try {
+      const k = liteKind(u);
+      if (k === "remote") {
+        const l = liteGuess(u), known = LITE_OK[l];
+        if (known === 0) { LITE_BAD.add(u); continue; }
+        const w = known || await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i.naturalWidth || 1); i.onerror = no; i.src = l; });
+        if (!known) { LITE_OK[l] = w; liteSave(); }
+        LITE.set(u, l); LITE_W.set(l, w); LITE_FULL.set(l, u);
+      } else {
+        const r0 = await fetch(u); if (!r0.ok) throw new Error("no file"); const blob = await r0.blob();
+        const bm = await createImageBitmap(blob);
+        const W = 520; if (bm.width <= W * 1.3) { LITE_BAD.add(u); bm.close && bm.close(); continue; }
+        const c = document.createElement("canvas"); c.width = W; c.height = Math.round(bm.height * W / bm.width);
+        c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height); bm.close && bm.close();
+        const out = await new Promise(ok => c.toBlob(ok, /^data:image\/png/.test(u) || /\.png$/i.test(u) ? "image/png" : "image/webp", 0.82));
+        if (!out) { LITE_BAD.add(u); continue; }
+        const l = URL.createObjectURL(out);
+        LITE.set(u, l); LITE_W.set(l, W); LITE_FULL.set(l, k === "data" ? blobRef(u) : u);
+      }
+    } catch (e) {
+      LITE_BAD.add(u);
+      const l = liteGuess(u); if (l && LITE_OK) { LITE_OK[l] = 0; liteSave(); }
+    }
+  }
+  if (LITE_Q.size) liteKick();
+}
+function liteSave() { clearTimeout(liteSave.t); liteSave.t = setTimeout(() => { try { const k = Object.keys(LITE_OK); if (k.length > 600) k.slice(0, k.length - 600).forEach(x => delete LITE_OK[x]); localStorage.setItem("gq:lite", JSON.stringify(LITE_OK)); } catch (e) {} }, 2000); }
+/* swap light copies for the real thing where they're shown bigger than the light copy can carry */
+function liteUp() {
+  if (!LITE_FULL.size) return;
+  const dpr = Math.min(3, devicePixelRatio || 1), H = innerHeight, Wd = innerWidth;
+  const seen = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > -40 && r.top < H + 40 && r.right > 0 && r.left < Wd ? r : null; };
+  const go = (lite, apply) => {
+    const full = LITE_FULL.get(lite), src = full;
+    const im = new Image(); im.decoding = "async"; im.src = src;
+    (im.decode ? im.decode() : new Promise(ok => { im.onload = ok; })).then(() => {
+      const orig = [...LITE.entries()].find(([, v]) => v === lite); if (orig) LITE_WARM.add(orig[0]);
+      apply(src);
+    }).catch(() => {});
+  };
+  document.querySelectorAll("img").forEach(i => {
+    const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || i._lu) return;
+    const r = seen(i); if (!r || !i.complete) return;
+    if (r.width * dpr <= (LITE_W.get(s) || 600) * 1.15) return;
+    i._lu = 1; go(s, f => { if (i.getAttribute("src") === s) i.src = f; });
+  });
+  document.querySelectorAll('[style*="url("]').forEach(el => {
+    const st = el.getAttribute("style") || ""; if (el._lu === st) return;
+    const hit = [...st.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map(m => m[2]).find(u => LITE_FULL.has(u));
+    if (!hit) return;
+    const r = seen(el); if (!r) return;
+    if (r.width * dpr <= (LITE_W.get(hit) || 600) * 1.15) return;
+    el._lu = st; go(hit, f => { const now = el.getAttribute("style") || ""; if (now.indexOf(hit) >= 0) el.setAttribute("style", now.split(hit).join(cssUrl(f))); });
+  });
+}
+{ let q = 0; const kick = () => { clearTimeout(q); q = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteUp, { timeout: 1500 }), 650); };
+  new MutationObserver(() => { if (LITE_FULL.size) kick(); }).observe(document.documentElement, { childList: true, subtree: true });
+  addEventListener("scroll", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true }); addEventListener("resize", kick); }
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function placeholder(g) {
@@ -3840,7 +3943,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "182";
+const APP_V = "183";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4310,13 +4413,14 @@ async function searchRawg() {
     const d = await r.json();
     const hits = d.results || [];
     if (!hits.length) { $("#q-msg").textContent = "Nothing found. Try a shorter title."; return; }
-    $("#q-msg").textContent = "Tap one to fill the form.";
+    $("#q-msg").textContent = "Tap ＋ to add it straight away, or tap the game to check the details first.";
     $("#hits").innerHTML = hits.map((h, i) => `
       <button class="hit" data-i="${i}">
         <img src="${esc(h.background_image || "")}" alt="" onerror="this.style.visibility='hidden'">
         <span><b>${esc(h.name)}</b><small>${h.released ? esc(shortDate(h.released)) + " " + new Date(h.released).getFullYear() : "no date"}${h.playtime ? " · ~" + h.playtime + "h" : ""}${h.metacritic ? " · MC " + h.metacritic : ""}${h.genres && h.genres.length ? " · " + esc(h.genres.slice(0, 2).map(g => g.name).join(", ")) : ""}</small></span>
+        <span class="hitadd" role="button" aria-label="Add ${esc(h.name)} now">＋</span>
       </button>`).join("");
-    $("#hits").querySelectorAll(".hit").forEach(b => b.onclick = () => fill(hits[+b.dataset.i]));
+    $("#hits").querySelectorAll(".hit").forEach(b => b.onclick = e => { fill(hits[+b.dataset.i]); if (e.target.closest(".hitadd")) { uCount("o", "add"); $("#f-save").click(); } });
   } catch (e) {
     $("#q-msg").textContent = "Search failed: " + e.message + " If it keeps failing, your browser may be blocking the request from a local file — fill the form by hand instead.";
   }
@@ -5992,6 +6096,21 @@ function openSettings(scope) {
       </div>
     </div>
 
+    <div class="setgroup" data-scope="app"><h4 data-desc="Diary and Timer. Off unless you want them.">Extra features</h4>
+      <label>Play diary</label>
+      <p class="note">A 📓 Diary button on each game for notes, moods and wins/losses.</p>
+      <div class="chips" id="s-xdiary">
+        ${[["off", "Hidden"], ["on", "Show it"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.diaryOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Play timer</label>
+      <p class="note">The Timer page under Plan, ⏱ Sessions on each game, and the Play sessions card on Home.</p>
+      <div class="chips" id="s-xtimer">
+        ${[["off", "Hidden"], ["on", "Show it"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.timerOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+    </div>
+
     <div class="setgroup" data-scope="app"><h4 data-desc="Animation everywhere, and the parts that cost the most.">Motion</h4>
       <label>Animations</label>
       <label>Animations</label>
@@ -6117,6 +6236,8 @@ function openSettings(scope) {
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
+      <button class="btn ghost" id="s-usage"><span>📊 Your usage (private)</span></button>
+      <p class="note">Which screens you visit and what you open, counted per version so you can compare before and after a change. Only on this phone and in your backups.</p>
       <p class="note" id="s-store">Using about ${storeKb()} KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.</p>
 
       <p class="note" id="s-persist">Checking storage protection…</p>
@@ -6147,10 +6268,10 @@ function openSettings(scope) {
       <input id="s-bkfile" type="file" accept=".json,application/json,text/plain">
       <label>Put my RAWG key in the file</label>
       <div class="chips" id="s-bkkey">
-        ${[["no", "Leave it out"], ["yes", "Include it"]].map(([v, l]) =>
+        ${[["no", "Always leave it out"], ["yes", "Ask me each time"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.bkKey ? "yes" : "no") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <p class="note">Include it and whoever you send the file to can search with your quota.</p>
+      <p class="note">Include it and whoever you send the file to can search with your quota. Your friend-sync id and token are never put in a backup.</p>
       <label for="s-bk">Or as text, if you must</label>
       <textarea id="s-bk" placeholder="Tap Make text, or paste a backup here and restore."></textarea>
       <button class="btn ghost" id="s-bkmake"><span>Make text</span></button>
@@ -6275,6 +6396,8 @@ function openSettings(scope) {
   pick("#s-fast", v => S.fast = v === "on");
   pick("#s-fps", v => S.fps = v === "on");
   pick("#s-grum", v => S.grum = v === "on");
+  pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
+  pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
   if ($("#s-papercol")) swatchRow($("#s-papercol"), S.paperCol || "#2F6BFF", c => {
     S.paperCol = c; save(); applyLook();
@@ -6475,7 +6598,7 @@ function openSettings(scope) {
     if ($("#s-store")) $("#s-store").textContent =
       "Using about " + storeKb() + " KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.";
   };
-  if ($("#s-bkmake")) $("#s-bkmake").onclick = () => { $("#s-bk").value = backupText(); toast("Text ready — " + storeKb() + " KB, copy all of it"); };
+  if ($("#s-bkmake")) $("#s-bkmake").onclick = () => { $("#s-bk").value = backupText(bkAskKey()); toast("Text ready — " + storeKb() + " KB, copy all of it"); };
   if ($("#s-bkload")) $("#s-bkload").onclick = () => takeBackup(readBackup($("#s-bk").value));
   if ($("#s-wipe")) $("#s-wipe").onclick = () => {
     if (!confirm("Delete every game and score? Make a backup first.")) return;
@@ -7685,7 +7808,7 @@ function ringsBlock(g) {
   </div>`;
 }
 /* esc() guards html; a url inside css url() also has to survive quotes and parens */
-const cssUrl = u => String(u == null ? "" : bigData(u) ? blobRef(u) : u)
+const cssUrl = u => String(u == null ? "" : liteFor(u) || (bigData(u) ? blobRef(u) : u))
   .replace(/[\r\n]/g, "").replace(/'/g, "%27").replace(/"/g, "%22")
   .replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\\/g, "%5C");
 /* a game you're waiting for can't already have come out — those are leftovers
@@ -8526,6 +8649,8 @@ function hubMarkup(g) {
         <div class="hub-data">${stats.map(([v, l]) =>
           `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="hub-acts">
+          ${!g.comp && (p || !isUpcoming(g)) ? `<button class="chip hot" data-qscore="${g.id}"><span>⭐ ${p && p.real > 0 ? "Score · " + p.real : "Score it"}</span></button>` : ""}
+          ${p && !g.comp ? `<button class="chip hot" data-qduel="${g.id}"><span>⚔️ Duel it</span></button>` : ""}
           <button class="chip" data-fulledit="${g.id}"><span>Edit</span></button>
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
@@ -9167,16 +9292,20 @@ function renderPlayed() {
    text backups kept getting truncated by chat apps, so a file is the main path now
    and every failure says which failure it was */
 const BK_V = 11;
-function backupText() {
+/* v183: the sync id and its secret token never go in a backup (a restored copy would publish as you).
+   The RAWG key only goes in when you say yes at the moment you make the file. */
+const BK_SECRET = ["rawgKey", "syncTok", "syncPub", "syncSig", "syncErr", "syncOn"];
+function backupText(withKey) {
   const out = Object.assign({}, S, { v: BK_V });
-  delete out.rawgKey;
-  if (S.bkKey && rawgKey) out.rawgKey = rawgKey;
+  BK_SECRET.forEach(k => delete out[k]);
+  if (withKey && rawgKey) out.rawgKey = rawgKey;
   return JSON.stringify(out);
 }
+const bkAskKey = () => !!(S.bkKey && rawgKey && confirm("Put your RAWG key in this backup?\n\nOK = include it (whoever gets the file can use your key)\nCancel = leave it out"));
 function downloadBackup() {
   const name = "play-next-backup-" + new Date().toISOString().slice(0, 10) + ".json";
   try {
-    const url = URL.createObjectURL(new Blob([backupText()], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([backupText(bkAskKey())], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url; a.download = name; a.style.display = "none";
     document.body.appendChild(a);
@@ -9214,6 +9343,7 @@ function readBackup(raw) {
 }
 function applyBackup(d) {
   const key = d.rawgKey;
+  d = Object.assign({}, d); BK_SECRET.forEach(k => delete d[k]);   /* an older file may still carry them: this phone keeps its own */
   S = Object.assign(S, d);
   S.games = (S.games || []).filter(g => g && g.id && g.title);
   S.duels ||= []; S.played ||= [];
@@ -10116,7 +10246,7 @@ function dxHome(o) {
         <span class="st">${DX_ICO.flame}${pick.hype ? "Hype " + esc(String(pick.hype)) : "No hype yet"}</span>
         ${live.length > 1 ? `<button type="button" class="cb" data-pickone title="I'll pick one" aria-label="I'll pick one">${DX_ICO.dice}</button>` : '<span class="cb ghost"></span>'}
         <span class="play" aria-hidden="true">${DX_ICO.play}</span>
-        <button type="button" class="cb" data-dxtab="taste" title="Settle a duel" aria-label="Settle a duel">${DX_ICO.duel}</button>
+        <button type="button" class="cb" data-qduel="" title="Settle a duel" aria-label="Settle a duel">${DX_ICO.duel}</button>
         <span class="tm">${settled ? settled + " duel" + (settled === 1 ? "" : "s") : "#1 of " + live.length}</span>
       </span>
     </div>` : `<div class="dxhero empty" style="grid-area:p"><span class="top"><span class="tt"><small>Play this next</small><b>Add a game and this fills in</b></span></span>
@@ -10273,6 +10403,7 @@ function renderHome() {
   const peak = Math.max(1, ...months);
 
   const off = new Set(S.homeHide || []);
+  if (!S.timerOn) off.add("sessions");   /* v183: the timer is an extra now; its card goes with it */
   const on = k => !off.has(k);
   const tint = S.homeTint !== false;
   const tile = (cls, head, body) => `<div class="tile ${cls}"><h5>${head}</h5>${body}</div>`;
@@ -11307,7 +11438,7 @@ function pnBubWheel() {
   const ov = document.createElement("div"); ov.id = "bubwheel";
   const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🤧", "sneeze"], ["🎨", "edit"]];
   const cx = pnBubX + 31, cy = pnBubY + 31, right = cx > innerWidth / 2;
-  const acts = [["🎲", "pick"], ["⚔️", "duel"], ["📓", "diary"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"]];
+  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"]];
   const btn = (e, a, i, ang, r, c) => { ang = ang * Math.PI / 180;
     const x = Math.max(6, Math.min(innerWidth - 52, cx - 23 + r * Math.cos(ang))), y = Math.max(6, Math.min(innerHeight - 52, cy - 23 + r * Math.sin(ang)));
     return `<button class="${c}" data-a="${a}" style="--i:${i};--sx:${cx - 23}px;--sy:${cy - 23}px;transform:translate(${x}px,${y}px)">${e}</button>`; };
@@ -11318,7 +11449,7 @@ function pnBubWheel() {
     if (a === "power") pnPowerUp();
     else if (a === "edit") pnBubEdit();
     else if (a === "story") pnLore(); else if (a === "ask") nxAsk();
-    else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") goTab("taste"); else if (a === "add") goTab("add");
+    else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") qDuel(); else if (a === "score") qScorePick(); else if (a === "add") goTab("add");
     else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); }
     else { pnBubMood(a, a === "nap" ? 4000 : 2600); if (a === "love") pnBubBurst(); } };
 }
@@ -11516,7 +11647,7 @@ function sessAdd(id, s, e) {
   if (t && h > 1 / 120) sessAdd(t.id, t.from, Date.now());      /* before the timer screen redraws, so it lists this one */
   const out = _st.apply(this, arguments);
   if (t && h > 1 / 120) {
-    if (!quiet && h >= 1 / 6) setTimeout(() => { if (!$("#diary.on")) openDiary(t.id, Math.round(h * 60)); }, 700); }
+    if (!quiet && h >= 1 / 6 && S.diaryOn) setTimeout(() => { if (!$("#diary.on")) openDiary(t.id, Math.round(h * 60)); }, 700); }
   return out; }; }
 
 /* a small grid, one square per day, columns are weeks (oldest on the left) */
@@ -11845,6 +11976,178 @@ function listsChanged(gid) {
 document.addEventListener("click", e => { const b = e.target.closest("[data-lists]"); if (!b) return; e.stopPropagation(); beep("tap");
   const pop = b.closest(".sortpop"); if (pop) pop.hidden = true; openLists(b.dataset.lists || null); }, true);
 
+/* ===== v183 cleanup: extras behind toggles, a private usage counter, and 1–2 tap duel / score / add ===== */
+/* Diary and Timer are extras now: off unless switched on in Settings → Extra features (like Grumble) */
+const PLAN_TIMER = ["timer", "Timer"];
+function xFeatures() {
+  const h = document.documentElement;
+  h.classList.toggle("nodiary", !S.diaryOn); h.classList.toggle("notimer", !S.timerOn);
+  const has = SUBS.plan.some(x => x[0] === "timer");
+  if (S.timerOn && !has) SUBS.plan.push(PLAN_TIMER);
+  if (!S.timerOn && has) SUBS.plan.splice(SUBS.plan.findIndex(x => x[0] === "timer"), 1);
+}
+{ const _al = applyLook; applyLook = function () { try { xFeatures(); } catch (e) {} return _al.apply(this, arguments); }; }
+
+/* ---- private usage counter: which screens you visit and what you open, per app version, so a change
+   can be judged before/after. Only ever shown to you (Settings → Your data); it rides along in backups. ---- */
+const uDay = () => new Date().toLocaleDateString("en-CA");
+function uCount(kind, key) {
+  if (!S || !S.games) return;
+  const td = uDay(), u = S.usage ||= { since: td };
+  u.v ||= {}; u.o ||= {}; u.days ||= {}; u.byV ||= {};
+  u[kind][key] = (u[kind][key] || 0) + 1;
+  const bv = u.byV[APP_V] ||= { since: td, v: {}, o: {}, days: 0, last: "" };
+  bv[kind][key] = (bv[kind][key] || 0) + 1;
+  if (bv.last !== td) { bv.days++; bv.last = td; }
+  u.days[td] = (u.days[td] || 0) + 1;
+  const ks = Object.keys(u.days); if (ks.length > 150) ks.sort().slice(0, ks.length - 150).forEach(k => delete u.days[k]);
+  save();
+}
+let uLast = "";
+const uScreen = tab => tab + (SUBS[tab] ? "/" + subOf(tab) : "");
+function uVisit(tab) { const k = uScreen(tab); if (k !== uLast) { uLast = k; uCount("v", k); } }
+{ const _pt = paintTab; paintTab = function (tab) { const out = _pt.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
+{ const _gs = goSub; goSub = function (tab) { const out = _gs.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
+{ const _of = openFull; openFull = function (id) { if (hubAt !== id || !$("#full.on")) uCount("o", "game"); return _of.apply(this, arguments); }; }
+{ const _oe = openEdit; openEdit = function () { uCount("o", "edit"); return _oe.apply(this, arguments); }; }
+{ const _os = openSettings; openSettings = function (sc) { if (!openSettings.tplOnly) uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : "")); return _os.apply(this, arguments); }; openSettings.tplOnly = false; }
+setTimeout(() => { uCount("o", "app"); uVisit(curTab()); }, 0);
+{ let away = 0; document.addEventListener("visibilitychange", () => {
+  if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 30 * 60000) uCount("o", "app"); }); }
+document.addEventListener("click", e => { const b = e.target.closest("[data-shuffle]"); if (b) uCount("o", "shuffle"); }, true);
+const U_NAMES = { app: "Opened the app", game: "Game pages", settings: "Settings", edit: "Edit a game", duel: "Quick duels", score: "Quick scores", shuffle: "Shuffler", add: "Games added", chat: "Nexi chats" };
+function uSheet() {
+  const u = S.usage || {}, byV = u.byV || {}, vs = Object.keys(byV).sort((a, b) => b - a).slice(0, 4);
+  const per = (n, d) => d ? (n / d).toFixed(1) : "0";
+  const sum = o => Object.values(o || {}).reduce((a, x) => a + x, 0);
+  const nice = k => { const [t, s] = k.split("/"); return (SCOPE_NAME[t] || (t === "add" ? "Add" : t)) + (s ? " › " + (subLabel(t, s) || s) : ""); };
+  const top = o => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
+  const all = top(u.v).slice(0, 12), opens = top(u.o);
+  dyShow(dyBox(), `<div class="dy-h"><b>📊 Your usage <small class="u-pv">private</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">Counted on this phone since ${esc(u.since || uDay())}. Nobody sees this but you; it's in your backups so you can compare later.</p>
+    ${vs.length ? `<div class="u-t"><div class="u-r u-h"><span>Version</span><span>Days</span><span>Visits/day</span><span>Opens/day</span></div>
+      ${vs.map(v => { const b = byV[v]; return `<div class="u-r"><span>v${esc(v)}${v === APP_V ? " (now)" : ""}</span><span>${b.days}</span><span>${per(sum(b.v), b.days)}</span><span>${per(sum(b.o), b.days)}</span></div>`; }).join("")}</div>` : ""}
+    <label>Screens you visit most</label>
+    <div class="u-t">${all.map(([k, n]) => `<div class="u-r u-2"><span>${esc(nice(k))}</span><span>${n}</span></div>`).join("") || '<p class="dy-empty">Nothing yet.</p>'}</div>
+    <label>Things you open</label>
+    <div class="u-t">${opens.map(([k, n]) => `<div class="u-r u-2"><span>${esc(U_NAMES[k.split("/")[0]] || k)}${k.includes("/") ? " › " + esc(SCOPE_NAME[k.split("/")[1]] || k.split("/")[1]) : ""}</span><span>${n}</span></div>`).join("") || '<p class="dy-empty">Nothing yet.</p>'}</div>
+    <button class="dy-more u-reset">Start counting again</button>`,
+    e => { if (e.target.closest(".u-reset") && confirm("Clear the usage counts?")) { S.usage = { since: uDay() }; save(); uSheet(); } });
+}
+document.addEventListener("click", e => { if (e.target.closest("#s-usage")) { e.stopPropagation(); uSheet(); } }, true);
+
+/* ---- quick duel: one tap opens it, one tap decides, the next pair is already there ---- */
+const SCORE_LO = 1, SCORE_STEP = 0.5;
+const playedPool = () => S.games.filter(g => isPlayed(g) && !g.comp);
+const pairKey = (a, b) => [a, b].sort().join("|");
+/* two played games you haven't compared yet, as close in the ranking as possible (a close call says the most) */
+function qDuelPair(focusId) {
+  const pool = playedPool(); if (pool.length < 2) return null;
+  const seen = new Set((S.duels || []).map(d => pairKey(d.a, d.b)));
+  const elo = eloTable(), E = g => elo[g.id] || 1500;
+  let best = null, bd = Infinity;
+  const tryPair = (a, b) => { if (a === b || seen.has(pairKey(a.id, b.id))) return;
+    const d = Math.abs(E(a) - E(b)) + Math.random() * 18 + (duelCount(a.id) + duelCount(b.id)) * 2; if (d < bd) { bd = d; best = [a, b]; } };
+  const f = focusId && pool.find(g => g.id === focusId);
+  if (f) pool.forEach(b => tryPair(f, b));
+  else for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) tryPair(pool[i], pool[j]);
+  return best && Math.random() < .5 ? [best[1], best[0]] : best;
+}
+const playedRank = () => { const e = eloTable(); return playedPool().sort((a, b) => (e[b.id] || 1500) - (e[a.id] || 1500)).map(g => g.id); };
+let qdFocus = null, qdToday = 0, qdLast = "";
+function qDuelRecord(a, b, w) {
+  const before = playedRank();
+  S.duels.push({ a: a.id, b: b.id, w, t: new Date().toISOString().slice(0, 10) });
+  save();
+  const after = playedRank();
+  const dn = S.duels.filter(x => x.w).length;
+  if (dn && dn % 10 === 0) setTimeout(() => react("duels", null, dn), 900);
+  return { before, after };
+}
+function qDuel(focusId, note) {
+  if (focusId !== undefined) qdFocus = focusId || null;
+  const pr = qDuelPair(qdFocus) || (qdFocus ? qDuelPair(null) : null);
+  if (qdFocus && pr && !pr.some(g => g.id === qdFocus)) qdFocus = null;
+  const box = dyBox();
+  const card = (g, s) => `<button class="qd-g" data-qdw="${s}" style="--accent:${esc(g.colour || PALETTE[0])}">
+      <img decoding="async" src="${esc(cover(g))}" alt=""><b>${esc(g.title)}</b></button>`;
+  dyShow(box, `<div class="dy-h"><b>⚔️ Which was better?</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${note ? `<p class="qd-note">${note}</p>` : ""}
+    ${pr ? `<div class="qd-row">${card(pr[0], 0)}<span class="qd-vs">VS</span>${card(pr[1], 1)}</div>
+      <div class="qd-acts"><button class="qd-draw" data-qdw="d">Too close to call</button><button class="qd-skip" data-qdw="s">Skip</button></div>
+      <p class="qd-meta">${qdToday ? qdToday + " settled just now · " : ""}${S.duels.filter(x => x.w).length} duels in all${qdFocus ? " · " + esc((S.games.find(g => g.id === qdFocus) || {}).title || "") + " vs the games nearest it" : ""}</p>`
+      : `<p class="dy-empty">${playedPool().length < 2 ? "Duels compare games you've played. Mark two games as played and they can face off." : "Every pair of played games has been compared. Finish another game and it joins in."}</p>`}`,
+    e => {
+      const b = e.target.closest("[data-qdw]"); if (!b || !pr || box._busy) return;
+      const k = b.dataset.qdw;
+      if (k === "s") { beep("back"); qdFocus = null; return qDuel(undefined); }
+      const w = k === "d" ? "draw" : pr[+k].id;
+      const r = qDuelRecord(pr[0], pr[1], w); qdToday++;
+      uCount("o", "duel");
+      let msg = "";
+      if (w === "draw") { beep("back"); msg = "Called it even."; }
+      else {
+        const g = pr[+k], o = r.before.indexOf(g.id), n = r.after.indexOf(g.id);
+        msg = o > n ? `<b>${esc(g.title)}</b> <span class="qd-up">↑${o - n}</span> now #${n + 1}` : `<b>${esc(g.title)}</b> holds #${n + 1}`;
+        beep("tap");
+        box._busy = 1; b.classList.add("win"); const other = box.querySelector(`[data-qdw="${1 - k}"]`); if (other) other.classList.add("lose");
+        if (navigator.vibrate) try { navigator.vibrate(18); } catch (x) {}
+      }
+      setTimeout(() => { box._busy = 0; qdLast = msg; qDuel(undefined, msg); }, w === "draw" ? 60 : calm() ? 120 : 420);
+      clearTimeout(qDuel.r); qDuel.r = setTimeout(() => { renderTaste(); if (S.sort === "duel") renderQueue(); }, 50);
+    });
+}
+/* close the sheet: the screens behind it catch up once */
+{ const _dc = dyClose; dyClose = function () { const had = qdToday; qdToday = 0; const out = _dc.apply(this, arguments); if (had) setTimeout(() => { renderHome(); if (hubAt && $("#full.on")) openFull(hubAt); }, 320); return out; }; }
+
+/* ---- quick score: one tap on the number saves it ---- */
+function qScore(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const rec = playedRec(g), cur = rec && rec.real > 0 ? rec.real : null;
+  const ints = []; for (let v = SCORE_LO; v <= 10; v++) ints.push(v);
+  const halves = []; for (let v = SCORE_LO + .5; v < 10; v++) halves.push(v);
+  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score it</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <div class="qs-g" style="--accent:${esc(g.colour || PALETTE[0])}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b>
+      <small>${cur != null ? "Now " + cur + "/10 · tap to change" : isPlayed(g) ? "Played, not scored yet" : "Scoring it marks it played"}${g.hype > 0 ? " · hype was " + g.hype : ""}</small></span><em class="qs-v">${cur != null ? cur : "–"}</em></div>
+    <div class="qs-grid" style="--n:${ints.length}">${ints.map((v, i) => `<button class="qs-i${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 1}/span 2">${v}</button>`).join("")}
+      ${halves.map((v, i) => `<button class="qs-h${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 2}/span 2">${String(v).replace(/^(\d+)\.5$/, "$1½")}</button>`).join("")}</div>
+    <p class="qd-meta">Top row whole points, bottom row halves.</p>`,
+    e => {
+      const b = e.target.closest("[data-qs]"); if (!b) return;
+      const v = +b.dataset.qs;
+      qScoreSet(g, v);
+      b.classList.add("on"); const ev = dyBox().querySelector(".qs-v"); if (ev) ev.textContent = v;
+      setTimeout(dyClose, 260);
+    });
+}
+function qScoreSet(g, v) {
+  const had = (playedRec(g) || {}).real || 0;
+  if (!isPlayed(g)) { g.state = "played"; syncPlayed(g, "played"); }
+  const rec = playedRec(g); if (!rec) return;
+  rec.real = v; rec.t = rec.t || new Date().toISOString().slice(0, 10);
+  uCount("o", "score"); touched(); beep("add");
+  setTimeout(() => { render(); if (hubAt === g.id && $("#full.on")) openFull(g.id); if (v !== had) allOut(g, v); }, 280);
+}
+/* which game? unscored ones you've played first, then what you're playing, then the rest to re-score */
+function qScorePick() {
+  const un = S.games.filter(g => isPlayed(g) && !((playedRec(g) || {}).real > 0) && !g.comp);
+  const pl = S.games.filter(g => !isPlayed(g) && g.state === "playing" && !g.comp);
+  const done = S.games.filter(g => isPlayed(g) && (playedRec(g) || {}).real > 0).slice(-6).reverse();
+  const row = (g, s) => `<button class="dy-g" data-g="${g.id}" style="--accent:${esc(g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${s}</small></span><em>›</em></button>`;
+  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score a game</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${un.length ? `<p class="dy-q">Played, no score yet</p><div class="dy-gl">${un.map(g => row(g, "Needs a verdict")).join("")}</div>` : ""}
+    ${pl.length ? `<p class="dy-q">Playing now</p><div class="dy-gl">${pl.map(g => row(g, "Finished it?")).join("")}</div>` : ""}
+    ${done.length ? `<p class="dy-q">Change a score</p><div class="dy-gl">${done.map(g => row(g, (playedRec(g) || {}).real + "/10")).join("")}</div>` : ""}
+    ${!un.length && !pl.length && !done.length ? '<p class="dy-empty">Nothing to score yet. Mark a game as played first.</p>' : ""}`,
+    e => { const r = e.target.closest("[data-g]"); if (r) { beep("tap"); qScore(r.dataset.g); } });
+}
+document.addEventListener("click", e => {
+  const s = e.target.closest("[data-qscore]"), d = e.target.closest("[data-qduel]");
+  if (!s && !d) return;
+  e.stopPropagation(); e.preventDefault(); beep("open");
+  if (s) { if (s.dataset.qscore) qScore(s.dataset.qscore); else qScorePick(); }
+  else { qdToday = 0; qDuel(d.dataset.qduel || null); }
+}, true);
 load();
 /* FX pack */
 (()=>{
@@ -14247,3 +14550,63 @@ html.still .sh-card { transition: none !important; }
 #qview .qle { font-style: normal; }
 .qpop .qsep { display: block; font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); padding: 10px 12px 4px; }
 </style>
+<style>
+/* ===== v183 extras off by default, quick duel / score sheets, usage table, quick add ===== */
+html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-start], html.notimer [data-home-tab="timer"] { display: none !important; }
+.hub-acts .chip.hot { border-color: rgba(var(--vrgb), .55); background: rgba(var(--vrgb), .14); }
+.hit { position: relative; }
+.hitadd { margin-left: auto; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--volt); color: var(--void); font-size: 22px; font-weight: 800; }
+.hitadd:active { transform: scale(.9); }
+.qd-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-top: 12px; }
+.qd-g { display: grid; gap: 8px; justify-items: center; background: var(--void); border: 1px solid var(--steel); border-bottom: 3px solid var(--accent); border-radius: 16px; padding: 10px 8px 12px; color: var(--ice); font: inherit; cursor: pointer; transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s; min-width: 0; }
+.qd-g:active { transform: scale(.96); }
+.qd-g img { width: 100%; max-width: 150px; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; }
+.qd-g b { font-size: 14px; line-height: 1.25; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.qd-g.win { transform: scale(1.05); border-color: var(--accent); }
+.qd-g.lose { transform: scale(.9); opacity: .4; }
+.qd-vs { font: 900 italic 16px Archivo, sans-serif; color: var(--mute); }
+.qd-acts { display: flex; gap: 8px; margin-top: 12px; }
+.qd-acts button { flex: 1; background: none; border: 1px dashed var(--steel); border-radius: 12px; padding: 10px; color: var(--mute); font: inherit; font-size: 14px; cursor: pointer; }
+.qd-note { margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; background: rgba(var(--vrgb), .12); font-size: 14px; }
+.qd-up { color: #3FD9A4; font-weight: 800; }
+.qd-meta { color: var(--mute); font-size: 12px; margin: 10px 0 0; text-align: center; }
+.qs-g { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 8px; border-radius: 14px; background: var(--void); border-left: 3px solid var(--accent); }
+.qs-g img { width: 46px; aspect-ratio: 3/4; object-fit: cover; border-radius: 8px; }
+.qs-g span { flex: 1; min-width: 0; } .qs-g b { display: block; } .qs-g small { color: var(--mute); font-size: 12px; }
+.qs-v { font: 900 italic 30px Archivo, sans-serif; color: var(--volt); font-style: normal; min-width: 52px; text-align: right; }
+.qs-grid { display: grid; grid-template-columns: repeat(calc(var(--n) * 2), 1fr); gap: 6px 2px; margin-top: 14px; }
+.qs-grid button { height: 44px; border-radius: 12px; border: 1px solid var(--steel); background: var(--void); color: var(--ice); font: 800 16px inherit; cursor: pointer; margin: 0 1px; }
+.qs-grid .qs-h { height: 34px; font-size: 12px; color: var(--mute); grid-row: 2; }
+.qs-grid .qs-i { grid-row: 1; }
+.qs-grid button.on { background: var(--volt); color: var(--void); border-color: var(--volt); }
+.qs-grid button:active { transform: scale(.92); }
+.u-pv { font-size: 11px; color: var(--mute); font-weight: 600; margin-left: 6px; }
+.u-t { display: grid; gap: 2px; margin: 6px 0 12px; }
+.u-r { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 8px; padding: 7px 10px; border-radius: 10px; background: var(--void); font-size: 13px; }
+.u-r.u-2 { grid-template-columns: 1fr auto; }
+.u-r.u-h { background: none; color: var(--mute); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.u-r span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+<script>
+/* ===== v183 what's new + settings extras ===== */
+GROUP_ICON["Extra features"] = "🧪";
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn"];
+SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
+WHATS_NEW.push(
+  { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
+    say: "Duels are quicker now: tap <b>⚔</b> and a pair of games you've played pops up. One tap picks the winner and the next pair is already there. I pick games that sit close in your ranking, and show when one climbs (↑2).",
+    tryIt: "Tap ⚔ and settle a couple." },
+  { v: 183, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-qscore]",
+    say: "Every game page has <b>⭐ Score it</b> and <b>⚔ Duel it</b> right at the front. Scoring is one tap on the number (the bottom row is the halves).",
+    tryIt: "Tap ⭐ and give it a score." },
+  { v: 183, go: () => { nxShut(); goTab("add"); }, at: "#q",
+    say: "Adding a game: search, then tap the blue <b>＋</b> next to it. It goes straight into your queue with its art. Tap the game itself if you want to check the details first.",
+    tryIt: "Search for something you want to play." },
+  { v: 183, go: () => { nxShut(); setJump({ scope: "app", group: "Extra features", text: "Play diary" }); }, at: () => $("#s-xdiary"),
+    say: "Tidier app: the <b>Diary</b> and the <b>Timer</b> are hidden now, like Grumble. Switch either back on here in <b>Extra features</b>. Your old entries are all still there.",
+    tryIt: "Only turn on what you actually use." },
+  { v: 183, go: () => { nxShut(); setJump({ scope: "app", group: "Your data", text: "" }); }, at: () => $("#s-usage"),
+    say: "Game cards open faster: I show a light copy of the art first and swap in the sharp one a moment later, and pictures are kept on your phone. Also new: <b>📊 Your usage</b>, a private count of which screens you use, per version, so we can see what's worth keeping.",
+    tryIt: "Have a look in a week or two." }
+);
+</script>
