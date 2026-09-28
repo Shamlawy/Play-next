@@ -3830,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "175";
+const APP_V = "176";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10349,6 +10349,30 @@ function renderHome() {
       <i>\u2728</i><span>Not sure? <b>I'll pick one</b></span></button>` : ""}`;
 
   pnRail(ranked);
+  /* v176 every card under "More for you" gets the backdrop of the game it's about */
+  {
+    const G = id => id && S.games.find(x => x.id === id);
+    const far = rows.slice().sort((a2, b2) => Math.abs(b2.d) - Math.abs(a2.d))[0];
+    const topReal = (S.played || []).filter(x => x.real > 0).sort((a2, b2) => b2.real - a2.real)[0];
+    const lastDuel = (S.duels || []).filter(d => d.w && d.w !== "draw").slice(-1)[0];
+    const byGenre = n => S.games.find(x => platList(x.genres).includes(n));
+    const peakM = months.indexOf(Math.max(...months));
+    const mostH = live.slice().sort((a2, b2) => num(b2.hours, 0, 0, 1000) - num(a2.hours, 0, 0, 1000))[0];
+    const want = {
+      "Your read": far ? far.g : topReal && G(topReal.id), "What decides it": topReal && G(topReal.id),
+      "Duels": lastDuel && G(lastDuel.w), "Settle a duel": runner, "Needs a verdict": unrated[0],
+      "Furthest from your hype": best && best.g, "Genre lean": genUp && byGenre(genUp.name), "Standings": pick,
+      "Where your hours go": mostH, "Where the year bunches up": live.find(x => x.date && new Date(x.date).getMonth() === peakM)
+    };
+    el.querySelectorAll(".dash > .tile").forEach(t => {
+      if (t.classList.contains("imgcard") || t.classList.contains("k-taste")) return;
+      const h = ((t.querySelector("h5") || {}).textContent || "").trim();
+      const g = G(t.dataset.homeOpen) || want[h] || pick, src = g && (bgSource(g) || g.img);
+      if (!src) return;
+      t.classList.add("dxbg"); t.style.setProperty("--bgi", `url('${cssUrl(src)}')`);
+      if (/^#[0-9a-f]{6}$/i.test(g.colour || "")) t.style.setProperty("--bgt", g.colour + "57");
+    });
+  }
   dxWire(el);
   el.onclick = e => {
     if (e.target.closest("#hintbub, [data-pickone]")) {
@@ -12852,7 +12876,11 @@ const WHATS_NEW = [
     tryIt: "Flip between Grid and Swipe here." },
   { v: 175, go: () => nxHome(), at: () => $("#p-home .dxorb"),
     say: "My <b>glowing ring</b> is back! The swirl from the old Queue hours tile now spins round your queue count on Home — same glow as mine 😄",
-    tryIt: "Tap it to jump to your games." }
+    tryIt: "Tap it to jump to your games." },
+  { v: 176, go: () => { nxHome(); setTimeout(() => { const m = $("#p-home .dxmore"); if (m) m.scrollIntoView({ block: "center" }); }, 300); },
+    at: () => $("#p-home .dxmore .stkw"),
+    say: "The cards under <b>More for you</b> aren't plain any more — each one sits on the backdrop of the game it's talking about.",
+    tryIt: "Swipe through a stack to see them change." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13050,6 +13078,14 @@ document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) {
 .dxq .dxorb b { font-size: clamp(34px, 10vw, 58px); color: #fff; text-shadow: none; }
 .dxq .dxorb small { font-size: 10.5px; margin-top: 2px; }
 html.still .dxorb .blob, html.still .dxorb::before { animation: none; }
+/* v176 More for you: each card sits on its game's backdrop, darkened so the text still reads */
+.dash .tile.dxbg { background-color: var(--ink) !important;
+  background-image: linear-gradient(0deg, rgba(4,6,14,.97) 16%, rgba(4,6,14,.7) 52%, rgba(4,6,14,.38) 100%),
+    linear-gradient(135deg, var(--bgt, rgba(47,107,255,.34)), transparent 60%), var(--bgi) !important;
+  background-size: cover !important; background-position: center 30% !important; }
+.stkw.sC .stk > .tile.dxbg { background-image: linear-gradient(0deg, rgba(4,6,14,.95), rgba(4,6,14,.78) 60%, rgba(4,6,14,.55)), var(--bgi) !important; }
+.dash .tile.dxbg::before { display: none; }
+.dash .tile.dxbg h5 { text-shadow: 0 1px 8px rgba(0,0,0,.7); }
 @media (prefers-reduced-motion: reduce) { .dxorb .blob, .dxorb::before { animation: none; } }
 @media (min-width: 620px) { .dxq .dxorb b { font-size: clamp(40px, 5.4vw, 60px); } }
 
