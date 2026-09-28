@@ -3072,6 +3072,9 @@ const STATES = [["upcoming", "Upcoming"], ["backlog", "Out, not played"], ["play
   ["played", "Played it"], ["dropped", "Started and dropped"]];
 const isDropped = g => (g && g.state) === "dropped";
 const isPlayed = g => S.played.some(p => p.id === (g && g.id));
+/* v184: a played record has a score when it holds a number 0–10; a real 0 is marked z:1 (old saves used 0 for
+   "no score yet"). dk:1 = "Don't remember": shown as Unscored and left out of every stat. */
+function scored(p) { return !!p && !p.dk && typeof p.real === "number" && (p.real > 0 || (p.real === 0 && p.z === 1)); }
 const playedRec = g => S.played.find(p => p.id === (g && g.id));
 /* keep the played record in step with the state you picked */
 /* One record per game. Where a game ended up with several, take the best
@@ -3173,13 +3176,13 @@ function gateBlock(what) {
    outside every year rather than being guessed into one. */
 function yearsWithPlays() {
   const set = new Set();
-  (S.played || []).forEach(p2 => { if (p2.real > 0 && p2.t) set.add(p2.t.slice(0, 4)); });
+  (S.played || []).forEach(p2 => { if (scored(p2) && p2.t) set.add(p2.t.slice(0, 4)); });
   return [...set].sort().reverse();
 }
 
 function yearReport(y) {
   const rows = (S.played || [])
-    .filter(p2 => p2.real > 0 && p2.t && p2.t.slice(0, 4) === String(y))
+    .filter(p2 => scored(p2) && p2.t && p2.t.slice(0, 4) === String(y))
     .map(p2 => ({ ...p2, g: S.games.find(x => x.id === p2.id) }))
     .filter(x => x.g);
   if (!rows.length) return null;
@@ -3493,7 +3496,8 @@ function bgBake(layer, src, done) {
     done();
   };
   im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
-  im.src = bigData(src) ? blobRef(src) : src;
+  /* v183: it gets blurred to a quarter size anyway, so the light copy is plenty */
+  im.src = liteFor(src) || (bigData(src) ? blobRef(src) : src);
 }
 /* folding or unfolding changes the screen shape: redraw the shown background to fit */
 addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout(() => {
@@ -3711,7 +3715,109 @@ function blobRef(u) {
   blobRefs.set(u, r); return r;
 }
 const bigData = t => typeof t === "string" && t.length > 4096 && t.startsWith("data:image/");
-const esc = t => bigData(t) ? blobRef(t) : escRaw(t);
+const esc = t => { const l = liteFor(t); return l ? escRaw(l) : bigData(t) ? blobRef(t) : escRaw(t); };
+/* v183 lag fix: the first time a picture shows, a light copy stands in (Steam 1x, RAWG resized, SteamGridDB
+   thumb, or a downscaled copy of an upload). Once the screen settles the full picture is decoded off to the
+   side and swapped in where it's shown big (liteUp). A picture that has had its full copy shown once in this
+   session stays full. Only a light copy that is known to load is ever used, so a bad guess costs nothing. */
+const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set();
+let LITE_OK = null;
+function liteFor(t) {
+  if (typeof t !== "string" || t.length < 8) return null;
+  const c0 = t.charCodeAt(0);
+  if (c0 !== 104 && c0 !== 100 && !(t.length < 300 && /^[\w\-./%]+\.(jpe?g|png|webp)$/i.test(t))) return null;
+  if (LITE_WARM.has(t)) return null;
+  const l = LITE.get(t); if (l) return l;
+  if (LITE_BAD.has(t) || LITE_Q.has(t)) return null;
+  const k = liteKind(t); if (!k) { LITE_BAD.add(t); return null; }
+  if (k === "remote") {
+    /* already checked on an earlier visit: use it straight away */
+    if (LITE_OK == null) { try { LITE_OK = JSON.parse(localStorage.getItem("gq:lite") || "{}"); } catch (e) { LITE_OK = {}; } }
+    const g = liteGuess(t), w = LITE_OK[g];
+    if (w > 0) { LITE.set(t, g); LITE_W.set(g, w); LITE_FULL.set(g, t); return g; }
+    if (w === 0) { LITE_BAD.add(t); return null; }
+  }
+  LITE_Q.add(t); liteKick();
+  return null;
+}
+/* where a lighter copy of a remote picture lives */
+function liteGuess(u) {
+  let m;
+  if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/steam\/apps\/\d+\/)(library_600x900_2x|library_hero)\.jpg(\?.*)?$/))) return m[1] + (m[2] === "library_hero" ? "library_hero_blur" : "library_600x900") + ".jpg";
+  if ((m = u.match(/^https:\/\/media\.rawg\.io\/media\/(games|screenshots)\/(.+)$/))) return "https://media.rawg.io/media/resize/640/-/" + m[1] + "/" + m[2];
+  if ((m = u.match(/^(https:\/\/cdn\d*\.steamgriddb\.com\/)(grid|hero)\/([^/?#]+)\.(png|jpe?g|webp)$/))) return m[1] + (m[2] === "grid" ? "thumb" : "hero_thumb") + "/" + m[3] + ".jpg";
+  return "";
+}
+const liteKind = u => /^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 60000 ? "data"
+  : liteGuess(u) ? "remote" : /\.(jpe?g|png|webp)$/i.test(u) && (u.indexOf(location.origin + "/") === 0 || !/^[a-z]+:/i.test(u)) ? "file" : "";
+function liteKick() {
+  if (liteKick.t) return;
+  liteKick.t = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteRun, { timeout: 3000 }), 400);
+}
+async function liteRun() {
+  liteKick.t = 0;
+  if (LITE_OK == null) { try { LITE_OK = JSON.parse(localStorage.getItem("gq:lite") || "{}"); } catch (e) { LITE_OK = {}; } }
+  const list = [...LITE_Q].slice(0, 6);
+  for (const u of list) {
+    LITE_Q.delete(u);
+    try {
+      const k = liteKind(u);
+      if (k === "remote") {
+        const l = liteGuess(u), known = LITE_OK[l];
+        if (known === 0) { LITE_BAD.add(u); continue; }
+        const w = known || await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i.naturalWidth || 1); i.onerror = no; i.src = l; });
+        if (!known) { LITE_OK[l] = w; liteSave(); }
+        LITE.set(u, l); LITE_W.set(l, w); LITE_FULL.set(l, u);
+      } else {
+        const r0 = await fetch(u); if (!r0.ok) throw new Error("no file"); const blob = await r0.blob();
+        const bm = await createImageBitmap(blob);
+        const W = 520; if (bm.width <= W * 1.3) { LITE_BAD.add(u); bm.close && bm.close(); continue; }
+        const c = document.createElement("canvas"); c.width = W; c.height = Math.round(bm.height * W / bm.width);
+        c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height); bm.close && bm.close();
+        const out = await new Promise(ok => c.toBlob(ok, /^data:image\/png/.test(u) || /\.png$/i.test(u) ? "image/png" : "image/webp", 0.82));
+        if (!out) { LITE_BAD.add(u); continue; }
+        const l = URL.createObjectURL(out);
+        LITE.set(u, l); LITE_W.set(l, W); LITE_FULL.set(l, k === "data" ? blobRef(u) : u);
+      }
+    } catch (e) {
+      LITE_BAD.add(u);
+      const l = liteGuess(u); if (l && LITE_OK) { LITE_OK[l] = 0; liteSave(); }
+    }
+  }
+  if (LITE_Q.size) liteKick();
+}
+function liteSave() { clearTimeout(liteSave.t); liteSave.t = setTimeout(() => { try { const k = Object.keys(LITE_OK); if (k.length > 600) k.slice(0, k.length - 600).forEach(x => delete LITE_OK[x]); localStorage.setItem("gq:lite", JSON.stringify(LITE_OK)); } catch (e) {} }, 2000); }
+/* swap light copies for the real thing where they're shown bigger than the light copy can carry */
+function liteUp() {
+  if (!LITE_FULL.size) return;
+  const dpr = Math.min(3, devicePixelRatio || 1), H = innerHeight, Wd = innerWidth;
+  const seen = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > -40 && r.top < H + 40 && r.right > 0 && r.left < Wd ? r : null; };
+  const go = (lite, apply) => {
+    const full = LITE_FULL.get(lite), src = full;
+    const im = new Image(); im.decoding = "async"; im.src = src;
+    (im.decode ? im.decode() : new Promise(ok => { im.onload = ok; })).then(() => {
+      const orig = [...LITE.entries()].find(([, v]) => v === lite); if (orig) LITE_WARM.add(orig[0]);
+      apply(src);
+    }).catch(() => {});
+  };
+  document.querySelectorAll("img").forEach(i => {
+    const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || i._lu) return;
+    const r = seen(i); if (!r || !i.complete) return;
+    if (r.width * dpr <= (LITE_W.get(s) || 600) * 1.15) return;
+    i._lu = 1; go(s, f => { if (i.getAttribute("src") === s) i.src = f; });
+  });
+  document.querySelectorAll('[style*="url("]').forEach(el => {
+    const st = el.getAttribute("style") || ""; if (el._lu === st) return;
+    const hit = [...st.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map(m => m[2]).find(u => LITE_FULL.has(u));
+    if (!hit) return;
+    const r = seen(el); if (!r) return;
+    if (r.width * dpr <= (LITE_W.get(hit) || 600) * 1.15) return;
+    el._lu = st; go(hit, f => { const now = el.getAttribute("style") || ""; if (now.indexOf(hit) >= 0) el.setAttribute("style", now.split(hit).join(cssUrl(f))); });
+  });
+}
+{ let q = 0; const kick = () => { clearTimeout(q); q = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteUp, { timeout: 1500 }), 650); };
+  new MutationObserver(() => { if (LITE_FULL.size) kick(); }).observe(document.documentElement, { childList: true, subtree: true });
+  addEventListener("scroll", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true }); addEventListener("resize", kick); }
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function placeholder(g) {
@@ -3840,7 +3946,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "182";
+const APP_V = "185";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4310,13 +4416,14 @@ async function searchRawg() {
     const d = await r.json();
     const hits = d.results || [];
     if (!hits.length) { $("#q-msg").textContent = "Nothing found. Try a shorter title."; return; }
-    $("#q-msg").textContent = "Tap one to fill the form.";
+    $("#q-msg").textContent = "Tap ＋ to add it straight away, or tap the game to check the details first.";
     $("#hits").innerHTML = hits.map((h, i) => `
       <button class="hit" data-i="${i}">
         <img src="${esc(h.background_image || "")}" alt="" onerror="this.style.visibility='hidden'">
         <span><b>${esc(h.name)}</b><small>${h.released ? esc(shortDate(h.released)) + " " + new Date(h.released).getFullYear() : "no date"}${h.playtime ? " · ~" + h.playtime + "h" : ""}${h.metacritic ? " · MC " + h.metacritic : ""}${h.genres && h.genres.length ? " · " + esc(h.genres.slice(0, 2).map(g => g.name).join(", ")) : ""}</small></span>
+        <span class="hitadd" role="button" aria-label="Add ${esc(h.name)} now">＋</span>
       </button>`).join("");
-    $("#hits").querySelectorAll(".hit").forEach(b => b.onclick = () => fill(hits[+b.dataset.i]));
+    $("#hits").querySelectorAll(".hit").forEach(b => b.onclick = e => { fill(hits[+b.dataset.i]); if (e.target.closest(".hitadd")) { uCount("o", "add"); $("#f-save").click(); } });
   } catch (e) {
     $("#q-msg").textContent = "Search failed: " + e.message + " If it keeps failing, your browser may be blocking the request from a local file — fill the form by hand instead.";
   }
@@ -4923,8 +5030,9 @@ function openEdit(id) {
     </div>
     ${played ? `<div class="setgroup"><h4 data-sum="${esc(played.real || "—")}/10">Played</h4>
     <label for="e-real">What it actually deserved</label>
-    <div class="rowline"><input id="e-real" type="range" min="1" max="10" step="0.5" value="${num(played.real, 5, 1, 10)}">
-      <span class="v" id="e-real-v">${num(played.real, 5, 1, 10).toFixed(1)}</span></div>
+    <div class="rowline"><input id="e-real" type="range" min="0" max="10" step="0.5" value="${scored(played) ? played.real : 5}">
+      <span class="v" id="e-real-v">${played.dk ? "Unscored" : scored(played) ? (+played.real).toFixed(1) : "—"}</span></div>
+    <div class="chips"><button class="chip" id="e-dk" type="button" aria-pressed="${!!played.dk}"><span>🤷 Don't remember</span></button></div>
     <p class="note">You hyped it ${g.hype || "—"}/10 before playing.</p>
     <label for="e-runs">Times through</label>
     <div class="rowline"><input id="e-runs" type="range" min="1" max="12" step="1" value="${num(played.runs, 1, 1, 12)}">
@@ -5287,9 +5395,12 @@ function openEdit(id) {
     beep("tap");
   };
   $("#e-real").oninput = ev2 => {
-      editing.real = Number(ev2.target.value);
+      editing.real = Number(ev2.target.value); editing.dk = false;
       $("#e-real-v").textContent = Number(ev2.target.value).toFixed(1);
+      if ($("#e-dk")) $("#e-dk").setAttribute("aria-pressed", "false");
     };
+    if ($("#e-dk")) $("#e-dk").onclick = () => { editing.dk = $("#e-dk").getAttribute("aria-pressed") !== "true";
+      $("#e-dk").setAttribute("aria-pressed", String(editing.dk)); if (editing.dk) { editing.real = undefined; $("#e-real-v").textContent = "Unscored"; } beep("tap"); };
     if ($("#e-fin")) finWire($("#e-fin"), t => { editing.fin = t; });
     if ($("#e-runs")) $("#e-runs").oninput = ev2 => {
       editing.runs = Number(ev2.target.value);
@@ -5583,7 +5694,7 @@ function openEdit(id) {
   }
   $("#e-save").onclick = () => {
     const next = collectEdit();
-    delete next.real; delete next.runs;
+    delete next.real; delete next.runs; delete next.dk;
     Object.assign(S.games.find(x => x.id === id), next);
     const wantState = editing.state || g.state || "upcoming";
     syncPlayed(S.games.find(x => x.id === id) || g, wantState);
@@ -5591,12 +5702,13 @@ function openEdit(id) {
     const rec = S.played.find(x => x.id === id);
     if (rec) {
       if (played) {
-        rec.real = num(editing.real, rec.real, 0, 10);
+        if (editing.dk) scoreWrite(rec, "dk");
+        else if (editing.real != null && !isNaN(editing.real)) scoreWrite(rec, num(editing.real, rec.real, 0, 10));
         rec.runs = num(editing.runs, num(rec.runs, 1, 1, 12), 1, 12);
         if (editing.again != null) rec.again = editing.again;
         if (/^\d{4}-\d{2}-\d{2}$/.test(editing.fin || "")) rec.t = editing.fin;
       }
-      if (rec.real > 0 && rec.real !== before) setTimeout(() => allOut(S.games.find(x => x.id === id) || g, rec.real), 350);
+      if (scored(rec) && rec.real !== before) setTimeout(() => allOut(S.games.find(x => x.id === id) || g, rec.real), 350);
     }
     touched();
     if (saveNow()) toast("Saved");
@@ -5657,6 +5769,20 @@ function openSettings(scope) {
       <label for="s-standn">Places in the standings</label>
       <div class="rowline"><input id="s-standn" type="range" min="2" max="10" value="${num(S.standN, 4, 2, 10)}">
         <span class="v" id="s-standn-v">${num(S.standN, 4, 2, 10)}</span></div>
+    </div>
+
+    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="How your next game gets picked.">On deck</h4>
+      <p class="note">On deck is my top 3 from your queue: games like the ones you rank highest, on the machine you're playing on, and out now. Number 1 is the pick on Home.</p>
+      <label>Your platform right now</label>
+      <div class="chips" id="s-curplat">
+        ${[...new Set(["Switch"].concat(S.games.flatMap(g => platList(g.platforms))).concat(["any"]))].slice(0, 10).map(v =>
+          `<button class="chip" data-v="${escRaw(v)}" aria-pressed="${curPlat() === v}"><span>${v === "any" ? "Any" : escRaw(v)}</span></button>`).join("")}
+      </div>
+      <label>On deck row in the queue</label>
+      <div class="chips" id="s-deck">
+        ${[["on", "Show it"], ["off", "Hide it"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.deckOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges, rating rings and the art behind each row.">Queue cards</h4>
@@ -5992,6 +6118,39 @@ function openSettings(scope) {
       </div>
     </div>
 
+    <div class="setgroup" data-scope="app"><h4 data-desc="Personality, chat memory and nudges.">Nexi</h4>
+      <label>Personality</label>
+      <p class="note">Same tips and picks, a different voice.</p>
+      <div class="chips" id="s-persona">
+        ${NX_PERSONAS.map(([v, l, e]) => `<button class="chip" data-v="${v}" aria-pressed="${nxP() === v}"><span>${e} ${l}</span></button>`).join("")}
+      </div>
+      <label>Nudges</label>
+      <p class="note">Two a day, at slightly different times inside the hours you usually open the app: a close duel, tonight's pick, a tip, a badge you're close to, or a release. Works on Android, and on iPhone once the app is on your Home Screen.</p>
+      <div class="chips" id="s-nudge">
+        ${[["off", "Off"], ["on", "2 a day"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.nudgeOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <button class="btn ghost" id="s-nudgetest"><span>Send me a test nudge</span></button>
+      <label>Chat memory</label>
+      <p class="note">${S.nxMem ? "Nexi remembers: " + escRaw(S.nxMem) : "After you chat, Nexi keeps a short note about you here, so the next chat picks up where you left off."}</p>
+      ${S.nxMem ? '<button class="btn ghost" id="s-nxforget"><span>Forget it</span></button>' : ""}
+      <button class="btn" data-nxchat=""><span>💬 Chat with Nexi</span></button>
+    </div>
+
+    <div class="setgroup" data-scope="app"><h4 data-desc="Diary and Timer. Off unless you want them.">Extra features</h4>
+      <label>Play diary</label>
+      <p class="note">A 📓 Diary button on each game for notes, moods and wins/losses.</p>
+      <div class="chips" id="s-xdiary">
+        ${[["off", "Hidden"], ["on", "Show it"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.diaryOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Play timer</label>
+      <p class="note">The Timer page under Plan, ⏱ Sessions on each game, and the Play sessions card on Home.</p>
+      <div class="chips" id="s-xtimer">
+        ${[["off", "Hidden"], ["on", "Show it"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.timerOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+    </div>
+
     <div class="setgroup" data-scope="app"><h4 data-desc="Animation everywhere, and the parts that cost the most.">Motion</h4>
       <label>Animations</label>
       <label>Animations</label>
@@ -6117,6 +6276,8 @@ function openSettings(scope) {
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
+      <button class="btn ghost" id="s-usage"><span>📊 Your usage (private)</span></button>
+      <p class="note">Which screens you visit and what you open, counted per version so you can compare before and after a change. Only on this phone and in your backups.</p>
       <p class="note" id="s-store">Using about ${storeKb()} KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.</p>
 
       <p class="note" id="s-persist">Checking storage protection…</p>
@@ -6147,10 +6308,10 @@ function openSettings(scope) {
       <input id="s-bkfile" type="file" accept=".json,application/json,text/plain">
       <label>Put my RAWG key in the file</label>
       <div class="chips" id="s-bkkey">
-        ${[["no", "Leave it out"], ["yes", "Include it"]].map(([v, l]) =>
+        ${[["no", "Always leave it out"], ["yes", "Ask me each time"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.bkKey ? "yes" : "no") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <p class="note">Include it and whoever you send the file to can search with your quota.</p>
+      <p class="note">Include it and whoever you send the file to can search with your quota. Your friend-sync id and token are never put in a backup.</p>
       <label for="s-bk">Or as text, if you must</label>
       <textarea id="s-bk" placeholder="Tap Make text, or paste a backup here and restore."></textarea>
       <button class="btn ghost" id="s-bkmake"><span>Make text</span></button>
@@ -6275,6 +6436,12 @@ function openSettings(scope) {
   pick("#s-fast", v => S.fast = v === "on");
   pick("#s-fps", v => S.fps = v === "on");
   pick("#s-grum", v => S.grum = v === "on");
+  pick("#s-persona", v => S.nxPersona = v, () => { renderHome(); try { pnBubSay(["That's me now. " + nxPName() + ", at your service.", ""]); } catch (e) {} });
+  if ($("#s-nxforget")) $("#s-nxforget").onclick = () => { if (!confirm("Forget what Nexi remembers about you?")) return; S.nxMem = ""; save(); openSettings("app"); };
+  pick("#s-curplat", v => { S.curPlat = v; deckMemo = null; }, () => render());
+  pick("#s-deck", v => S.deckOff = v === "off", () => renderQueue());
+  pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
+  pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
   if ($("#s-papercol")) swatchRow($("#s-papercol"), S.paperCol || "#2F6BFF", c => {
     S.paperCol = c; save(); applyLook();
@@ -6475,7 +6642,7 @@ function openSettings(scope) {
     if ($("#s-store")) $("#s-store").textContent =
       "Using about " + storeKb() + " KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.";
   };
-  if ($("#s-bkmake")) $("#s-bkmake").onclick = () => { $("#s-bk").value = backupText(); toast("Text ready — " + storeKb() + " KB, copy all of it"); };
+  if ($("#s-bkmake")) $("#s-bkmake").onclick = () => { $("#s-bk").value = backupText(bkAskKey()); toast("Text ready — " + storeKb() + " KB, copy all of it"); };
   if ($("#s-bkload")) $("#s-bkload").onclick = () => takeBackup(readBackup($("#s-bk").value));
   if ($("#s-wipe")) $("#s-wipe").onclick = () => {
     if (!confirm("Delete every game and score? Make a backup first.")) return;
@@ -6531,7 +6698,7 @@ const liveGames = () => S.showPlayed ? allGames() : S.games.filter(g => !isPlaye
 
 const SORTS = [
   ["date", "Soonest"], ["hype", "Most hyped"], ["expect", "What I'd expect"],
-  ["duel", "Duel order"], ["overall", "My rating"],
+  ["ondeck", "On deck (my pick)"], ["duel", "Duel order"], ["overall", "My rating"],
   ["story", "Story"], ["music", "Music"], ["gameplay", "Gameplay"], ["replay", "Replayability"],
   ["visuals", "Visuals"], ["world", "World"], ["chars", "Characters"], ["pace", "Pacing"],
   ["longest", "Longest"], ["shortest", "Shortest"]
@@ -6590,6 +6757,7 @@ function sortGames(list) {
   if (m === "hype") return byNum(g => g.hype || 0);
   if (m === "expect") return byNum(g => { const e = expected(g); return e == null ? (g.hype || 0) - 0.01 : e; });
   if (m === "duel") { const t = eloTable(); return byNum(g => t[g.id] || 1500); }
+  if (m === "ondeck") { const o = onDeckScores(); return byNum(g => o[g.id] != null ? o[g.id] : -1); }
   if (m === "overall") return byNum(avgScore);
   if (RATINGS.some(([k]) => k === m)) return byNum(g => { const v = (g.mine || {})[m]; return v > 0 ? v : -1; });
   if (m === "longest") return byNum(g => hrsOf(g) || 0);
@@ -7079,7 +7247,7 @@ function eloTable() {
     const ea = 1 / (1 + Math.pow(10, (t[d.b] - t[d.a]) / 400));
     /* a draw is real information: it says these two sit at the same height,
        so it pulls them together rather than being thrown away */
-    const sa = d.w === "draw" ? .5 : d.w === d.a ? 1 : 0;
+    const sa = duelResult(d);
     t[d.a] += ELO_K * (sa - ea);
     t[d.b] += ELO_K * ((1 - sa) - (1 - ea));
   });
@@ -7088,7 +7256,7 @@ function eloTable() {
 const duelCount = id => (S.duels || []).filter(d => d.a === id || d.b === id).length;
 const playedRows = () => (S.played || [])
   .map(p => ({ ...p, g: S.games.find(x => x.id === p.id) }))
-  .filter(x => x.g && x.real > 0);
+  .filter(x => x.g && scored(x));
 
 /* how far your hype runs from the verdict */
 function hypeBias() {
@@ -7136,7 +7304,7 @@ const frB64 = u => { let s = ""; u.forEach(c => s += String.fromCharCode(c)); re
 const frU8 = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 const frPipe = async (u, t) => new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(t)).arrayBuffer());
 function frMine() {
-  const real = {}; (S.played || []).forEach(p => { if (p.real > 0) real[p.id] = p.real; });
+  const real = {}; (S.played || []).forEach(p => { if (scored(p)) real[p.id] = p.real; });
   return S.games.filter(g => !isDropped(g)).map(g => ({ title: g.title, hype: num(g.hype, 0, 0, 10), real: real[g.id] || 0, gen: platList(g.genres) }));
 }
 async function frPack() {
@@ -7163,18 +7331,18 @@ function frCompare(f) {
   const mine = new Map(me.map(x => [key(x.title), x]));
   const both = [], only = [];
   them.forEach(t => { const m = mine.get(key(t.title)); if (m) both.push({ t: m.title, a: val(m), b: val(t) }); else only.push(t); });
-  const scored = both.filter(x => x.a > 0 && x.b > 0);
+  const both2 = both.filter(x => x.a > 0 && x.b > 0);
   const top = list => { const c = {}; list.filter(x => val(x) >= 7).forEach(x => x.gen.forEach(n => c[n] = (c[n] || 0) + 1));
     return new Set(Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 8).map(e => e[0])); };
   const A = top(me), B = top(them), shared = [...A].filter(x => B.has(x)), uni = new Set([...A, ...B]).size;
-  const vSim = scored.length ? Math.max(0, 100 - scored.reduce((s, x) => s + Math.abs(x.a - x.b), 0) / scored.length * 12.5) : null;
+  const vSim = both2.length ? Math.max(0, 100 - both2.reduce((s, x) => s + Math.abs(x.a - x.b), 0) / both2.length * 12.5) : null;
   const gSim = uni ? shared.length / uni * 100 : null;
-  const w = vSim == null ? 0 : gSim == null ? 1 : Math.min(1, scored.length / 5) * .8;
+  const w = vSim == null ? 0 : gSim == null ? 1 : Math.min(1, both2.length / 5) * .8;
   const pct = vSim == null && gSim == null ? null : Math.round((vSim || 0) * w + (gSim || 0) * (1 - w));
   const gap = x => Math.abs(x.a - x.b);
   return { pct, both, genres: shared.slice(0, 4),
-    hyped: scored.filter(x => x.a >= 7 && x.b >= 7).sort((x, y) => (y.a + y.b) - (x.a + x.b)).slice(0, 5),
-    split: scored.filter(x => gap(x) >= 3).sort((x, y) => gap(y) - gap(x)).slice(0, 5),
+    hyped: both2.filter(x => x.a >= 7 && x.b >= 7).sort((x, y) => (y.a + y.b) - (x.a + x.b)).slice(0, 5),
+    split: both2.filter(x => gap(x) >= 3).sort((x, y) => gap(y) - gap(x)).slice(0, 5),
     theirs: only.filter(x => val(x) >= 6).sort((x, y) => val(y) - val(x)).slice(0, 6) };
 }
 const frRead = p => p >= 80 ? "Same wavelength. Their picks are safe bets for you."
@@ -7197,7 +7365,7 @@ function tasteFriend() {
     ${c.genres.length ? `<p class="fr-gen">You both go for ${c.genres.map(esc).join(", ")}.</p>` : ""}
     ${list("You both rate high", c.hyped.map(two))}
     ${list("Where you split", c.split.map(two))}
-    ${list(`On ${who}'s list, not yours`, c.theirs.map(x => `<li><span>${esc(x.title)}</span><b>${x.real > 0 ? "scored " + x.real : "hype " + x.hype}</b></li>`))}
+    ${list(`On ${who}'s list, not yours`, c.theirs.map(x => `<li><span>${esc(x.title)}</span><b>${scored(x) ? "scored " + x.real : "hype " + x.hype}</b></li>`))}
     ${f.s ? "" : `<p class="fr-sync">Ask ${who} for a new code to switch on live updates.</p>`}${acts}${S.syncOn ? `<p class="fr-sync">${S.syncErr ? "Live sync is off: " + esc(S.syncErr) + "." : "Your list updates for them automatically."}</p>` : ""}${box}<button class="chip" id="fr-drop"><span>Remove ${who}</span></button>`;
 }
 function friendWire(el) {
@@ -7685,7 +7853,7 @@ function ringsBlock(g) {
   </div>`;
 }
 /* esc() guards html; a url inside css url() also has to survive quotes and parens */
-const cssUrl = u => String(u == null ? "" : bigData(u) ? blobRef(u) : u)
+const cssUrl = u => String(u == null ? "" : liteFor(u) || (bigData(u) ? blobRef(u) : u))
   .replace(/[\r\n]/g, "").replace(/'/g, "%27").replace(/"/g, "%22")
   .replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\\/g, "%5C");
 /* a game you're waiting for can't already have come out — those are leftovers
@@ -7883,6 +8051,7 @@ function renderQueue() {
           ${g.learn ? `<p class="note2"><b>Learn</b> ${esc(g.learn)}</p>` : ""}
           ${g.tips ? `<p class="note2"><b>Play it</b> ${esc(g.tips)}</p>` : ""}
           ${hrsOf(g) ? `<p class="evenings">About ${Math.ceil(hrsOf(g) / (S.evening || 2))} evenings at ${S.evening || 2} hours a night</p>` : ""}
+          ${simBack(g)}
           <button class="btn ghost fliphint" data-unflipbtn style="display:block;margin:12px auto 0"><span>↻ Tap to flip back</span></button>
         </div></div></div></div>
       ${g.platforms && (S.platPos || "inline") !== "inline" ? `<div class="plats pos-${esc(S.platPos)}">${platList(g.platforms).map(x =>
@@ -7957,6 +8126,7 @@ function renderQueue() {
       })()}
       <button class="chip" data-shuffle><span>🔀 Shuffle</span></button><button class="chip" id="fx-radar"><span>Radar</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
     </div>
+    ${onDeckStrip()}
     `;
   qPatch(el, head, sorted.map((g, i) => [g.id, g.id === activeId ? big(g, i + 1) : row(g, i + 1)]),
     sorted.length ? "" : '<p class="empty">Nothing here right now. Try another filter.</p>');
@@ -8526,10 +8696,14 @@ function hubMarkup(g) {
         <div class="hub-data">${stats.map(([v, l]) =>
           `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="hub-acts">
+          ${!g.comp && (p || !isUpcoming(g)) ? `<button class="chip hot" data-qscore="${g.id}"><span>⭐ ${p && scored(p) ? "Score · " + p.real : "Score it"}</span></button>` : ""}
+          ${p && !g.comp ? `<button class="chip hot" data-qduel="${g.id}"><span>⚔️ Duel it</span></button>` : ""}
           <button class="chip" data-fulledit="${g.id}"><span>Edit</span></button>
           <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
           <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
           <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
+          <button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button>
+          <button class="chip" data-sim="${g.id}"><span>🔍 Similar</span></button>
           <button class="chip" data-lists="${g.id}"><span>📋 Lists${(g.lists || []).length ? " · " + g.lists.length : ""}</span></button>
           <button class="chip" data-sess="${g.id}"><span>⏱ Sessions${sessOf(g.id).length ? " · " + sessOf(g.id).length : ""}</span></button>
           <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
@@ -9096,7 +9270,7 @@ function renderPlayed() {
     })()}
     ${(() => {
       /* finished shelf: every scored game, best on the left, tap to open */
-      const sh = done.filter(x => x.real > 0).sort((a, b) => b.real - a.real); setTimeout(pnShelf, 30);
+      const sh = done.filter(x => scored(x)).sort((a, b) => b.real - a.real); setTimeout(pnShelf, 30);
       if (!sh.length) return "";
       return `<div class="shelf"><label>Finished shelf · ${sh.length}</label>
         <div class="shelf-row" id="shelf-row">${sh.map((x, i) => `<button class="sb" data-edit="${x.id}" style="--i:${Math.min(i, 12)};--accent:${esc(x.g.colour)}"
@@ -9105,7 +9279,7 @@ function renderPlayed() {
     })()}
     ${(() => {
       /* started and dropped counts as an opinion — it belongs in here with the rest */
-      const toScore = S.games.filter(g => !isUpcoming(g) && !(playedRec(g) || {}).real);
+      const toScore = S.games.filter(g => !isUpcoming(g) && !scored(playedRec(g)) && !(playedRec(g) || {}).dk && !g.comp);
       if (!toScore.length) return '<p class="empty">Everything you\'ve played has a verdict. Nothing waiting.</p>';
       const waiting = toScore.filter(g => isPlayed(g)).length;
       return `<label>Finished one? Tap it, then tap the score it really deserves.</label>
@@ -9116,20 +9290,20 @@ function renderPlayed() {
     })()}
     ${done.length ? `<label>Hype vs reality</label>
       ${done.map(x => {
-        const scored = x.real > 0;
-        const d = scored ? x.real - x.g.hype : 0;
-        return `<div class="row slab${scored ? "" : " unscored"}" style="--accent:${esc(x.g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
+        const sc = scored(x);
+        const d = sc ? x.real - x.g.hype : 0;
+        return `<div class="row slab${sc ? "" : " unscored"}" style="--accent:${esc(x.g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
           <img decoding="async" src="${esc(cover(x.g))}" alt=""><span class="name">${esc(x.g.title)}</span>
-          <span class="score">${scored ? x.g.hype + " → " + x.real : "not scored yet"}</span>
+          <span class="score">${sc ? x.g.hype + " → " + x.real : x.dk ? "Unscored" : "not scored yet"}</span>
           ${num(x.runs, 1, 1, 99) > 1 ? `<span class="when">${num(x.runs, 1, 1, 99)}× through</span>` : ""}
-          ${scored ? `<span class="gap ${d < 0 ? "over" : "under"}">${d > 0 ? "+" : ""}${d}</span>` : ""}
+          ${sc ? `<span class="gap ${d < 0 ? "over" : "under"}">${d > 0 ? "+" : ""}${d}</span>` : ""}
           <button class="icon${x.again ? " again" : ""}" data-again="${x.id}"
             title="${x.again ? "In the replay list" : "Want to play it again"}">↻</button>
           <button class="icon" data-edit="${x.id}" title="Edit ${esc(x.g.title)}">✎</button>
         </div></div>`;
       }).join("")}
       <p class="note">Red means you hyped it more than it deserved.${
-        done.some(x => !(x.real > 0))
+        done.some(x => !(scored(x)))
           ? " Anything showing <b>not scored yet</b> is waiting on a verdict — it counts towards nothing until you give it one."
           : ""}</p>` : ""}
     ${droppedBlock(quit)}`;
@@ -9145,7 +9319,8 @@ function renderPlayed() {
     toast(p.again ? "Added to Replay" : "Removed from Replay");
     beep("tap");
   });
-  el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
+  el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { qScore(b.dataset.open); });
+  if (0) el.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
     const g = S.games.find(x => x.id === b.dataset.open);
     $("#scorebox").innerHTML = `<label>Real score for ${esc(g.title)}</label>
       <div class="chips">${Array.from({ length: 10 }, (_, i) => `<button class="chip" data-score="${i + 1}"><span>${i + 1}</span></button>`).join("")}</div>`;
@@ -9167,16 +9342,20 @@ function renderPlayed() {
    text backups kept getting truncated by chat apps, so a file is the main path now
    and every failure says which failure it was */
 const BK_V = 11;
-function backupText() {
+/* v183: the sync id and its secret token never go in a backup (a restored copy would publish as you).
+   The RAWG key only goes in when you say yes at the moment you make the file. */
+const BK_SECRET = ["rawgKey", "syncTok", "syncPub", "syncSig", "syncErr", "syncOn"];
+function backupText(withKey) {
   const out = Object.assign({}, S, { v: BK_V });
-  delete out.rawgKey;
-  if (S.bkKey && rawgKey) out.rawgKey = rawgKey;
+  BK_SECRET.forEach(k => delete out[k]);
+  if (withKey && rawgKey) out.rawgKey = rawgKey;
   return JSON.stringify(out);
 }
+const bkAskKey = () => !!(S.bkKey && rawgKey && confirm("Put your RAWG key in this backup?\n\nOK = include it (whoever gets the file can use your key)\nCancel = leave it out"));
 function downloadBackup() {
   const name = "play-next-backup-" + new Date().toISOString().slice(0, 10) + ".json";
   try {
-    const url = URL.createObjectURL(new Blob([backupText()], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([backupText(bkAskKey())], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url; a.download = name; a.style.display = "none";
     document.body.appendChild(a);
@@ -9214,6 +9393,7 @@ function readBackup(raw) {
 }
 function applyBackup(d) {
   const key = d.rawgKey;
+  d = Object.assign({}, d); BK_SECRET.forEach(k => delete d[k]);   /* an older file may still carry them: this phone keeps its own */
   S = Object.assign(S, d);
   S.games = (S.games || []).filter(g => g && g.id && g.title);
   S.duels ||= []; S.played ||= [];
@@ -9392,45 +9572,47 @@ function duelCover() {
 /* ---- Taste, in four rooms ---- */
 
 function tasteDuels() {
-  duelPair = pickDuel();
-  const elo = eloTable();
-  const all = (S.duels || []).length;
+  /* v184: duels are between games you've played and scored; the order they build is your ranking */
+  duelPair = qDuelPair(null);
+  const t = rankTable(), list = rankedGames();
   const settled = (S.duels || []).filter(d => d.w).length;
-  const c = duelCover();
-  const standings = duelPool().slice()
-    .sort((x, y) => (elo[y.id] || 0) - (elo[x.id] || 0));
-  const pool = (S.duelPool || "played") === "queue" ? "queue" : "played";
+  const sure = list.filter(g => confOf(t.n[g.id]) >= 2).length;
   return `
-    <div class="chips" id="duel-pool">${[["played", "Games you've played"], ["queue", "Your queue"]]
-      .map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${pool === v}"><span>${l}</span></button>`).join("")}</div>
-    <label>${pool === "queue" ? "Which one first?" : "Which one was better?"}${
-      duelPair && duelFix && duelFix.found ? ` <b style="color:var(--volt)">Round ${duelFix.found.round} of ${
-        duelFix.found.rounds}</b> \u00b7 match ${duelFix.found.match} of ${duelFix.found.inRound}` : ""}</label>
+    <label>Which one was better?${duelPair ? ` <b style="color:var(--volt)">#${t.pos[duelPair[0].id] + 1} vs #${t.pos[duelPair[1].id] + 1}</b>` : ""}</label>
     ${duelPair ? `<div class="duelrow">${duelCard(duelPair[0])}${duelCard(duelPair[1])}</div>
-      <div class="chips"><button class="chip" id="duel-skip"><span>Draw \u2014 too close to call</span></button></div>`
-      : `<p class="empty">${duelPool().length < 2
-        ? "Add a second game and you can start comparing."
-        : "Every pair has been judged \u2014 the fixture list is finished. The standings below are as settled as they get. Add a game, or clear the duels to run it again."}</p>`}
+      <div class="chips tdw"><button class="chip" data-tdw="e0"><span>‹ Slight edge</span></button><button class="chip" data-tdw="d"><span>Even</span></button>
+        <button class="chip" data-tdw="e1"><span>Slight edge ›</span></button><button class="chip" data-tdw="s"><span>Skip</span></button></div>`
+      : `<p class="empty">${list.length < 2
+        ? "Duels compare games you've played and scored. Score two and they can face off."
+        : "Every close pair is settled. Your ranking below is as sure as it gets. Score another game and it joins in."}</p>`}
 
     <div class="stats">
       <div class="stat"><b>${settled}</b><span>duels settled</span></div>
-      <div class="stat"><b>${c.pct}<i>%</i></b><span>of pairs judged</span></div>
-      <div class="stat"><b>${(S.duels || []).filter(d => d.w === "draw").length}</b><span>drawn</span></div>
+      <div class="stat"><b>${sure}<i>/${list.length}</i></b><span>ranks you can trust</span></div>
+      <div class="stat"><b>${(S.duels || []).filter(d => d.w && d.w !== "draw" && d.e).length}</b><span>slight edges</span></div>
     </div>
 
-    ${settled ? `<label>Standings</label><div class="chips"><button class="chip" id="fx-share"><span>Share my top 5</span></button></div>
-      ${standings.map((g, i) => `
-        <div class="row slab" style="--accent:${esc(g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
-          <span class="rank">${String(i + 1).padStart(2, "0")}</span>
+    ${list.length ? `<label>Your ranking</label><div class="chips"><button class="chip" id="fx-share"><span>Share my top 5</span></button></div>
+      <div class="rkl">${list.map((g, i) => `
+        <button class="rkr" data-opg="${g.id}" style="--accent:${esc(g.colour)}">
+          <span class="rn">${i + 1}</span>${tierBadge(t.sc[g.id])}
           <span class="name">${esc(g.title)}</span>
-          <span class="score">${Math.round(elo[g.id] || 1500)}</span>
-          <span class="when">${duelCount(g.id)} duel${duelCount(g.id) === 1 ? "" : "s"}</span>
-        </div></div>`).join("")}
-      <p class="note">${c.judged} of ${c.pairs} possible pairings judged. Pick \u201cDuel order\u201d in the queue\u2019s sort menu to use this ranking.</p>`
-      : '<p class="note">Answer enough of these and the order below becomes one you never consciously chose.</p>'}
+          ${confDots(t.n[g.id])}<small class="rsc">${t.sc[g.id]}</small></button>`).join("")}</div>
+      <p class="note">The letter comes from your score (S 9+, A 7½+, B 6+, C below). The order comes from your duels. The dots show how sure the rank is: more duels, more dots.</p>`
+      : '<p class="note">Score the games you\'ve played and they line up here, best first.</p>'}
     ${(S.duels || []).length ? `<div class="chips"><button class="chip warn" id="duel-clear"><span>Clear every duel</span></button></div>
-      <p class="note">Wipes all ${(S.duels || []).length} answers and the standings built from them. Your games and scores are untouched.</p>` : ""}`;
+      <p class="note">Wipes all ${(S.duels || []).length} answers and the ranking built from them. Your games and scores are untouched.</p>` : ""}`;
 }
+/* taste-tab duel buttons: the covers are a clear win, the chips an edge or an even call */
+function tasteDuelPick(k) {
+  const pr = duelPair; if (!pr) return;
+  if (k === "s") { S.duelSkip ||= []; S.duelSkip.push(pairKey2(pr[0].id, pr[1].id)); beep("back"); renderTaste(); return; }
+  const edge = k[0] === "e", side = edge ? +k[1] : +k, w = k === "d" ? "draw" : pr[side].id;
+  const r = qDuelRecord(pr[0], pr[1], w, edge);
+  if (w !== "draw") { const o = r.before.indexOf(w), n = r.after.indexOf(w); toast(`${pr[side].title}: ${o > n ? "↑" + (o - n) + " → " : ""}#${n + 1}`); beep("tap"); } else beep("back");
+  renderTaste(); if (S.sort === "duel") renderQueue();
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-tdw]"); if (b) { e.stopPropagation(); tasteDuelPick(b.dataset.tdw); } }, true);
 
 /* the sentences the app is willing to say about you, each one earned */
 function playerRead() {
@@ -9707,6 +9889,7 @@ function renderTaste() {
   });
   el.querySelectorAll("[data-duel]").forEach(btn => btn.onclick.real = () => {
     if (!duelPair) return;
+    if (view === "duels") return tasteDuelPick(String(duelPair.findIndex(g => g.id === btn.dataset.duel)));
     const w = btn.dataset.duel;
     const rb = duelRanks();
     S.duels.push({ a: duelPair[0].id, b: duelPair[1].id, w, t: new Date().toISOString().slice(0, 10) });
@@ -10116,7 +10299,7 @@ function dxHome(o) {
         <span class="st">${DX_ICO.flame}${pick.hype ? "Hype " + esc(String(pick.hype)) : "No hype yet"}</span>
         ${live.length > 1 ? `<button type="button" class="cb" data-pickone title="I'll pick one" aria-label="I'll pick one">${DX_ICO.dice}</button>` : '<span class="cb ghost"></span>'}
         <span class="play" aria-hidden="true">${DX_ICO.play}</span>
-        <button type="button" class="cb" data-dxtab="taste" title="Settle a duel" aria-label="Settle a duel">${DX_ICO.duel}</button>
+        <button type="button" class="cb" data-qduel="" title="Settle a duel" aria-label="Settle a duel">${DX_ICO.duel}</button>
         <span class="tm">${settled ? settled + " duel" + (settled === 1 ? "" : "s") : "#1 of " + live.length}</span>
       </span>
     </div>` : `<div class="dxhero empty" style="grid-area:p"><span class="top"><span class="tt"><small>Play this next</small><b>Add a game and this fills in</b></span></span>
@@ -10233,7 +10416,9 @@ function renderHome() {
 
   /* the recommendation: whatever sits top of the duel ranking and is still
      waiting. Falls back to plain hype before any duels exist. */
-  const ranked = live.slice().sort((a, b) =>
+  /* v184: the pick is On deck #1 (close to your top-ranked games, on your machine, your duels); then the rest */
+  const deck = onDeckScores(), dv = g => deck[g.id] != null ? deck[g.id] : -1;
+  const ranked = live.slice().sort((a, b) => dv(b) - dv(a) ||
     (elo[b.id] || 1500) - (elo[a.id] || 1500) || (b.hype || 0) - (a.hype || 0));
   const pick = ranked[0];
   const runner = ranked[1];
@@ -10261,7 +10446,7 @@ function renderHome() {
   const worst = rows.slice().sort((a, b) => a.d - b.d)[0];
 
   /* played, but never given a score — the thing that silently starves every stat */
-  const unrated = (S.played || []).filter(pp => !(pp.real > 0))
+  const unrated = (S.played || []).filter(pp => !(scored(pp)))
     .map(pp => S.games.find(x => x.id === pp.id)).filter(Boolean);
 
   const gen = genrePattern();
@@ -10273,6 +10458,7 @@ function renderHome() {
   const peak = Math.max(1, ...months);
 
   const off = new Set(S.homeHide || []);
+  if (!S.timerOn) off.add("sessions");   /* v183: the timer is an extra now; its card goes with it */
   const on = k => !off.has(k);
   const tint = S.homeTint !== false;
   const tile = (cls, head, body) => `<div class="tile ${cls}"><h5>${head}</h5>${body}</div>`;
@@ -10380,8 +10566,8 @@ function renderHome() {
 
       ${(() => {
         if (!on("swing")) return "";
-        const scored = (S.played || []).filter(x => x.real > 0);
-        const last = scored[scored.length - 1];
+        const scd = (S.played || []).filter(x => scored(x));
+        const last = scd[scd.length - 1];
         const lg = last && S.games.find(x => x.id === last.id);
         const rel = lg ? relationship(lg, last) : null;
         return rel ? `<button class="tile go2 wide k-swing" data-home-open="${lg.id}">
@@ -10452,7 +10638,7 @@ function renderHome() {
   {
     const G = id => id && S.games.find(x => x.id === id);
     const far = rows.slice().sort((a2, b2) => Math.abs(b2.d) - Math.abs(a2.d))[0];
-    const topReal = (S.played || []).filter(x => x.real > 0).sort((a2, b2) => b2.real - a2.real)[0];
+    const topReal = (S.played || []).filter(x => scored(x)).sort((a2, b2) => b2.real - a2.real)[0];
     const lastDuel = (S.duels || []).filter(d => d.w && d.w !== "draw").slice(-1)[0];
     const byGenre = n => S.games.find(x => platList(x.genres).includes(n));
     const peakM = months.indexOf(Math.max(...months));
@@ -11035,7 +11221,7 @@ function pnNext() { const now = new Date();
   return g ? { g, days: Math.ceil((new Date(g.date + "T00:00:00") - now) / 864e5) } : null; }
 const NX_BADGES = [["count", "⏳ Countdown"], ["streak", "🔥 Streak"], ["level", "💙 Level"], ["hours", "🎮 Queue hours"], ["verdict", "✍️ To score"], ["off", "✖ Off"]];
 function pnBubBadge() { const b = $("#pnbub"); if (!b) return; const n = pnNext(), t = new Date().toLocaleDateString("en-CA"), m = S.nxBadge || "count";
-  const un = (S.played || []).filter(p => !(p.real > 0)).length, hrs = S.games.filter(g => !isPlayed(g)).reduce((a, g) => a + (num(hrsOf(g), 0, 0, 1000) || 0), 0);
+  const un = (S.played || []).filter(p => !(scored(p))).length, hrs = S.games.filter(g => !isPlayed(g)).reduce((a, g) => a + (num(hrsOf(g), 0, 0, 1000) || 0), 0);
   b.querySelector(".badge").textContent = m === "off" ? "" : m === "streak" ? (S.nxStreak ? "🔥" + S.nxStreak.n : "")
     : m === "level" ? "Lv " + nxLv() : m === "hours" ? (hrs ? Math.round(hrs) + "h" : "") : m === "verdict" ? (un ? "✍️" + un : "")
     : S.games.some(g => g.date === t && !isPlayed(g)) ? "TODAY" : n ? n.days + "d" : ""; }
@@ -11096,7 +11282,7 @@ function nxAskName() {
   document.body.appendChild(ov); const inp = ov.querySelector(".un"); setTimeout(() => inp.focus(), 300);
   ov.onclick = e => { const ok = e.target.closest("[data-ok]"); if (!ok && !e.target.closest("[data-x]") && e.target !== ov) return;
     S.nxAsked = 1; if (ok && inp.value.trim()) S.userName = inp.value.trim(); save(); ov.remove();
-    pnBubMood("happy", 1800); setTimeout(() => pnBubSay([S.userName ? `Nice to meet you, ${S.userName}! Heads up: we're still in beta, so I'm learning as we go 🧪` : "No worries. You can tell me your name later: hold me → 🎨", ""]), 400); };
+    pnBubMood("happy", 1800); setTimeout(() => pnBubSay([S.userName ? `Nice to meet you, ${S.userName}! I'll learn your taste as we go 🎮` : "No worries. You can tell me your name later: hold me → 🎨", ""]), 400); };
 }
 /* Nexi's story: 10 chapters. 1–8 unlock one a day, 9–10 unlock only by finishing games. Each chapter unlocks new lines */
 const PN_STORY = [
@@ -11307,7 +11493,7 @@ function pnBubWheel() {
   const ov = document.createElement("div"); ov.id = "bubwheel";
   const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🤧", "sneeze"], ["🎨", "edit"]];
   const cx = pnBubX + 31, cy = pnBubY + 31, right = cx > innerWidth / 2;
-  const acts = [["🎲", "pick"], ["⚔️", "duel"], ["📓", "diary"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"]];
+  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"]];
   const btn = (e, a, i, ang, r, c) => { ang = ang * Math.PI / 180;
     const x = Math.max(6, Math.min(innerWidth - 52, cx - 23 + r * Math.cos(ang))), y = Math.max(6, Math.min(innerHeight - 52, cy - 23 + r * Math.sin(ang)));
     return `<button class="${c}" data-a="${a}" style="--i:${i};--sx:${cx - 23}px;--sy:${cy - 23}px;transform:translate(${x}px,${y}px)">${e}</button>`; };
@@ -11317,8 +11503,8 @@ function pnBubWheel() {
   ov.onclick = e => { const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
     if (a === "power") pnPowerUp();
     else if (a === "edit") pnBubEdit();
-    else if (a === "story") pnLore(); else if (a === "ask") nxAsk();
-    else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") goTab("taste"); else if (a === "add") goTab("add");
+    else if (a === "story") pnLore(); else if (a === "ask") nxChat();
+    else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") qDuel(); else if (a === "score") qScorePick(); else if (a === "add") goTab("add");
     else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); }
     else { pnBubMood(a, a === "nap" ? 4000 : 2600); if (a === "love") pnBubBurst(); } };
 }
@@ -11330,9 +11516,9 @@ function pnBubLines() {
   const hours = live.reduce((a, g) => a + (hrsOf(g) || 0), 0);
   const fut = S.games.filter(g => g.date && new Date(g.date + "T00:00:00") > now && !isPlayed(g)).sort((a, b) => a.date < b.date ? -1 : 1)[0];
   const days = fut ? Math.ceil((new Date(fut.date + "T00:00:00") - now) / 864e5) : 0;
-  const un = played.filter(p => !(p.real > 0)).length;
+  const un = played.filter(p => !(scored(p))).length;
   const out = S.games.filter(g => typeof isFresh === "function" && isFresh(g))[0];
-  const best = played.filter(p => p.real > 0).sort((a, b) => b.real - a.real)[0], bestG = best && S.games.find(g => g.id === best.id);
+  const best = played.filter(p => scored(p)).sort((a, b) => b.real - a.real)[0], bestG = best && S.games.find(g => g.id === best.id);
   const hr = now.getHours();
   const imm = S.games.filter(g => g.comp && !isDropped(g));
   if (imm.length) {
@@ -11377,10 +11563,10 @@ function pnBubLines() {
   if (S.userName) { const hh = new Date().getHours(), n = S.userName;
     L.push([hh < 12 ? `Morning, ${n} ☀️` : hh < 18 ? `Hey ${n} 👋 Good day so far?` : `Evening, ${n} 🌙 Game time?`, hh >= 18 ? "pick" : ""]);
     L.push([`${n}. Nice name. Very main-character energy 😎`, ""]); }
-  L.push(["We're still in beta 🧪 If I get something wrong, that's why. I'm learning.", ""]);
+  L.push(["Every duel you settle makes my picks sharper 🎯", ""]);
   L.push(["Beta life: the more you use the app, the smarter I get 🧠", ""]);
   L.push([`Friendship level ${nxLv()} 💙 ${10 - (S.nxXP || 0) % 10} more XP to the next one.`, ""]);
-  if (nxPeak()) L.push([`So far you usually show up around ${nxPeak()}. Still learning though, it's beta 🕙`, "pick"]);
+  if (nxPeak()) L.push([`So far you usually show up around ${nxPeak()}. I time my nudges around it 🕙`, "pick"]);
   if (S.nxStreak && S.nxStreak.n > 1) L.push([`${S.nxStreak.n}-day streak 🔥 Don't break it on me.`, ""]);
   const sk = Object.entries(S.nxSkip || {}).sort((a, b) => b[1] - a[1])[0], skg = sk && sk[1] >= 3 && S.games.find(g => g.id === sk[0] && !isPlayed(g));
   if (skg) L.push([`You keep skipping ${skg.title}. Is it the game… or is it you? 🤔`, skg.id]);
@@ -11416,7 +11602,7 @@ function pnBubShow() {
   let bl = pnBubBored; pnBubBored = null;
   if (!S.bubBorn) { S.bubBorn = new Date().toLocaleDateString("en-CA"); save(); }
   if (!nxHabits.done) { nxHabits.done = 1; setTimeout(nxHabits, 0); }
-  if (!S.bubMet) { S.bubMet = 1; save(); bl = `Hi! I'm ${pnName()} 👋 Hold me for shortcuts, poke me if you dare. (We're in beta, so bear with me 🧪)`; } if (bl) pnBubMood("bored", 4000);
+  if (!S.bubMet) { S.bubMet = 1; save(); bl = `Hi! I'm ${pnName()} 👋 Hold me for shortcuts, poke me if you dare. Ask me anything with 💬`; } if (bl) pnBubMood("bored", 4000);
   const td = new Date().toLocaleDateString("en-CA");
   if (S.bubDay !== td && S.bubBorn && S.bubBorn.slice(5) === td.slice(5) && S.bubBorn !== td) { S.bubDay = td; save(); pnBubBurst();
     bl = `It's my birthday! 🎂 ${+td.slice(0, 4) - +S.bubBorn.slice(0, 4)} year${+td.slice(0, 4) - +S.bubBorn.slice(0, 4) === 1 ? "" : "s"} of guarding your queue from Grumble.`; }
@@ -11516,7 +11702,7 @@ function sessAdd(id, s, e) {
   if (t && h > 1 / 120) sessAdd(t.id, t.from, Date.now());      /* before the timer screen redraws, so it lists this one */
   const out = _st.apply(this, arguments);
   if (t && h > 1 / 120) {
-    if (!quiet && h >= 1 / 6) setTimeout(() => { if (!$("#diary.on")) openDiary(t.id, Math.round(h * 60)); }, 700); }
+    if (!quiet && h >= 1 / 6 && S.diaryOn) setTimeout(() => { if (!$("#diary.on")) openDiary(t.id, Math.round(h * 60)); }, 700); }
   return out; }; }
 
 /* a small grid, one square per day, columns are weeks (oldest on the left) */
@@ -11595,8 +11781,8 @@ function wrData(Y, M) {
   const wd = Array(7).fill(0); ses.forEach(s => { wd[new Date(s.s).getDay()] += sessH(s); });
   const day = hours ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][wd.indexOf(Math.max(...wd))] : "";
   const fin = (S.played || []).filter(p => inY(p.t) && G(p.id));
-  const scored = fin.filter(p => p.real > 0).sort((a, b) => b.real - a.real);
-  const miss = scored.map(p => ({ p, g: G(p.id) })).filter(x => x.g.hype > 0).map(x => ({ ...x, d: x.p.real - x.g.hype }))
+  const scd = fin.filter(p => scored(p)).sort((a, b) => b.real - a.real);
+  const miss = scd.map(p => ({ p, g: G(p.id) })).filter(x => x.g.hype > 0).map(x => ({ ...x, d: x.p.real - x.g.hype }))
     .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
   const duels = (S.duels || []).filter(d => inY(d.t) && d.w && d.w !== "draw");
   const wins = {}; duels.forEach(d => { if (G(d.w)) wins[d.w] = (wins[d.w] || 0) + 1; });
@@ -11610,7 +11796,7 @@ function wrData(Y, M) {
   const now = new Date(), cur = now.getFullYear() === Y && (M == null ? !wrLate() : now.getMonth() === M);
   return { Y, M, mon: M != null, label: M == null ? String(Y) : WR_MONTHS[M] + " " + Y, sofar: cur, ses, hours,
     thin: ses.length < 3,   /* v179 sessions only started in v177: too few to say "most played" or count hours */ top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
-    fin: fin.map(p => G(p.id)), best: scored[0] && { g: G(scored[0].id), real: scored[0].real }, miss,
+    fin: fin.map(p => G(p.id)), best: scd[0] && { g: G(scd[0].id), real: scd[0].real }, miss,
     duels: duels.length, champ: champ && { g: G(champ), n: wins[champ] }, out, added, dia: dia.length, mood };
 }
 /* the four numbers on the last slide and the card; before there are sessions, other numbers stand in */
@@ -11845,6 +12031,688 @@ function listsChanged(gid) {
 document.addEventListener("click", e => { const b = e.target.closest("[data-lists]"); if (!b) return; e.stopPropagation(); beep("tap");
   const pop = b.closest(".sortpop"); if (pop) pop.hidden = true; openLists(b.dataset.lists || null); }, true);
 
+/* ===== v183 cleanup: extras behind toggles, a private usage counter, and 1–2 tap duel / score / add ===== */
+/* Diary and Timer are extras now: off unless switched on in Settings → Extra features (like Grumble) */
+const PLAN_TIMER = ["timer", "Timer"];
+function xFeatures() {
+  const h = document.documentElement;
+  h.classList.toggle("nodiary", !S.diaryOn); h.classList.toggle("notimer", !S.timerOn);
+  const has = SUBS.plan.some(x => x[0] === "timer");
+  if (S.timerOn && !has) SUBS.plan.push(PLAN_TIMER);
+  if (!S.timerOn && has) SUBS.plan.splice(SUBS.plan.findIndex(x => x[0] === "timer"), 1);
+}
+{ const _al = applyLook; applyLook = function () { try { xFeatures(); } catch (e) {} return _al.apply(this, arguments); }; }
+
+/* ---- private usage counter: which screens you visit and what you open, per app version, so a change
+   can be judged before/after. Only ever shown to you (Settings → Your data); it rides along in backups. ---- */
+const uDay = () => new Date().toLocaleDateString("en-CA");
+function uCount(kind, key) {
+  if (!S || !S.games) return;
+  const td = uDay(), u = S.usage ||= { since: td };
+  u.v ||= {}; u.o ||= {}; u.days ||= {}; u.byV ||= {};
+  u[kind][key] = (u[kind][key] || 0) + 1;
+  const bv = u.byV[APP_V] ||= { since: td, v: {}, o: {}, days: 0, last: "" };
+  bv[kind][key] = (bv[kind][key] || 0) + 1;
+  if (bv.last !== td) { bv.days++; bv.last = td; }
+  u.days[td] = (u.days[td] || 0) + 1;
+  const ks = Object.keys(u.days); if (ks.length > 150) ks.sort().slice(0, ks.length - 150).forEach(k => delete u.days[k]);
+  save();
+}
+let uLast = "";
+const uScreen = tab => tab + (SUBS[tab] ? "/" + subOf(tab) : "");
+function uVisit(tab) { const k = uScreen(tab); if (k !== uLast) { uLast = k; uCount("v", k); } }
+{ const _pt = paintTab; paintTab = function (tab) { const out = _pt.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
+{ const _gs = goSub; goSub = function (tab) { const out = _gs.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
+{ const _of = openFull; openFull = function (id) { if (hubAt !== id || !$("#full.on")) uCount("o", "game"); return _of.apply(this, arguments); }; }
+{ const _oe = openEdit; openEdit = function () { uCount("o", "edit"); return _oe.apply(this, arguments); }; }
+{ const _os = openSettings; openSettings = function (sc) { if (!openSettings.tplOnly) uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : "")); return _os.apply(this, arguments); }; openSettings.tplOnly = false; }
+setTimeout(() => { uCount("o", "app"); uVisit(curTab()); }, 0);
+{ let away = 0; document.addEventListener("visibilitychange", () => {
+  if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 30 * 60000) uCount("o", "app"); }); }
+document.addEventListener("click", e => { const b = e.target.closest("[data-shuffle]"); if (b) uCount("o", "shuffle"); }, true);
+const U_NAMES = { app: "Opened the app", game: "Game pages", settings: "Settings", edit: "Edit a game", duel: "Quick duels", score: "Quick scores", shuffle: "Shuffler", add: "Games added", chat: "Nexi chats" };
+function uSheet() {
+  const u = S.usage || {}, byV = u.byV || {}, vs = Object.keys(byV).sort((a, b) => b - a).slice(0, 4);
+  const per = (n, d) => d ? (n / d).toFixed(1) : "0";
+  const sum = o => Object.values(o || {}).reduce((a, x) => a + x, 0);
+  const nice = k => { const [t, s] = k.split("/"); return (SCOPE_NAME[t] || (t === "add" ? "Add" : t)) + (s ? " › " + (subLabel(t, s) || s) : ""); };
+  const top = o => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
+  const all = top(u.v).slice(0, 12), opens = top(u.o);
+  dyShow(dyBox(), `<div class="dy-h"><b>📊 Your usage <small class="u-pv">private</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">Counted on this phone since ${esc(u.since || uDay())}. Nobody sees this but you; it's in your backups so you can compare later.</p>
+    ${vs.length ? `<div class="u-t"><div class="u-r u-h"><span>Version</span><span>Days</span><span>Visits/day</span><span>Opens/day</span></div>
+      ${vs.map(v => { const b = byV[v]; return `<div class="u-r"><span>v${esc(v)}${v === APP_V ? " (now)" : ""}</span><span>${b.days}</span><span>${per(sum(b.v), b.days)}</span><span>${per(sum(b.o), b.days)}</span></div>`; }).join("")}</div>` : ""}
+    <label>Screens you visit most</label>
+    <div class="u-t">${all.map(([k, n]) => `<div class="u-r u-2"><span>${esc(nice(k))}</span><span>${n}</span></div>`).join("") || '<p class="dy-empty">Nothing yet.</p>'}</div>
+    <label>Things you open</label>
+    <div class="u-t">${opens.map(([k, n]) => `<div class="u-r u-2"><span>${esc(U_NAMES[k.split("/")[0]] || k)}${k.includes("/") ? " › " + esc(SCOPE_NAME[k.split("/")[1]] || k.split("/")[1]) : ""}</span><span>${n}</span></div>`).join("") || '<p class="dy-empty">Nothing yet.</p>'}</div>
+    <button class="dy-more u-reset">Start counting again</button>`,
+    e => { if (e.target.closest(".u-reset") && confirm("Clear the usage counts?")) { S.usage = { since: uDay() }; save(); uSheet(); } });
+}
+document.addEventListener("click", e => { if (e.target.closest("#s-usage")) { e.stopPropagation(); uSheet(); } }, true);
+
+/* ---- quick duel: one tap opens it, one tap decides, the next pair is already there ---- */
+const SCORE_LO = 0, SCORE_STEP = 0.5;
+let qdFocus = null, qdToday = 0;
+/* close the sheet: the screens behind it catch up once */
+{ const _dc = dyClose; dyClose = function () { const had = qdToday; qdToday = 0; const out = _dc.apply(this, arguments); if (had) setTimeout(() => { renderHome(); if (hubAt && $("#full.on")) openFull(hubAt); }, 320); return out; }; }
+
+/* which game? unscored ones you've played first, then what you're playing, then the rest to re-score */
+function qScorePick() {
+  const un = S.games.filter(g => isPlayed(g) && !(scored(playedRec(g))) && !g.comp);
+  const pl = S.games.filter(g => !isPlayed(g) && g.state === "playing" && !g.comp);
+  const done = S.games.filter(g => isPlayed(g) && scored(playedRec(g))).slice(-6).reverse();
+  const row = (g, s) => `<button class="dy-g" data-g="${g.id}" style="--accent:${esc(g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${s}</small></span><em>›</em></button>`;
+  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score a game</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${un.length ? `<p class="dy-q">Played, no score yet</p><div class="dy-gl">${un.map(g => row(g, "Needs a verdict")).join("")}</div>` : ""}
+    ${pl.length ? `<p class="dy-q">Playing now</p><div class="dy-gl">${pl.map(g => row(g, "Finished it?")).join("")}</div>` : ""}
+    ${done.length ? `<p class="dy-q">Change a score</p><div class="dy-gl">${done.map(g => row(g, (playedRec(g) || {}).real + "/10")).join("")}</div>` : ""}
+    ${!un.length && !pl.length && !done.length ? '<p class="dy-empty">Nothing to score yet. Mark a game as played first.</p>' : ""}`,
+    e => { const r = e.target.closest("[data-g]"); if (r) { beep("tap"); qScore(r.dataset.g); } });
+}
+document.addEventListener("click", e => {
+  const s = e.target.closest("[data-qscore]"), d = e.target.closest("[data-qduel]");
+  if (!s && !d) return;
+  e.stopPropagation(); e.preventDefault(); beep("open");
+  if (s) { if (s.dataset.qscore) qScore(s.dataset.qscore); else qScorePick(); }
+  else { qdToday = 0; qDuel(d.dataset.qduel || null); }
+}, true);
+/* ===== v184 ranking: scores 0–10 (or Don't remember), tiers from the score, the order from duels ===== */
+/* a duel's result for side a: win 1, slight edge .75, even .5 */
+function duelResult(d) {
+  if (!d || !d.w || d.w === "draw") return .5;
+  const s = d.e ? .75 : 1;
+  return d.w === d.a ? s : 1 - s;
+}
+const TIERS = [["S", 9], ["A", 7.5], ["B", 6], ["C", -1]];
+const tierOf = v => v == null ? "" : TIERS.find(t => v >= t[1])[0];
+const tierBadge = v => { const t = tierOf(v); return t ? `<span class="tier t${t}">${t}</span>` : ""; };
+/* how sure the rank is, from how many duels a game has had */
+const confOf = n => n >= 6 ? 3 : n >= 3 ? 2 : n >= 1 ? 1 : 0;
+const CONF_WORD = ["Not duelled yet", "A first guess", "Fairly sure", "Settled"];
+const confDots = n => { const c = confOf(n); return `<span class="conf c${c}" title="${CONF_WORD[c]} · ${n} duel${n === 1 ? "" : "s"}">${[1, 2, 3].map(i => `<i${i <= c ? ' class="on"' : ""}></i>`).join("")}</span>`; };
+const scoreTxt = p => p && p.dk ? "Unscored" : scored(p) ? String(p.real) : "Not scored yet";
+
+/* The ranking. Every scored, played game starts at its score; each duel pulls the two games apart (or
+   together, for an even call) and the score keeps pulling back a little, so a single duel can't throw a
+   game miles away. Order-independent, so the same duels always give the same list. */
+let rankMemo = null;
+function rankTable() {
+  const pool = S.games.filter(g => isPlayed(g) && !g.comp && scored(playedRec(g)));
+  const sig = pool.map(g => g.id + ":" + playedRec(g).real).join(",") + "|" + (S.duels || []).length + "|" + ((S.duels || []).slice(-1)[0] || {}).w;
+  if (rankMemo && rankMemo.sig === sig) return rankMemo;
+  const ids = new Set(pool.map(g => g.id)), sc = {}, r = {}, n = {};
+  pool.forEach(g => { sc[g.id] = r[g.id] = playedRec(g).real; n[g.id] = 0; });
+  const ds = (S.duels || []).filter(d => d.w && ids.has(d.a) && ids.has(d.b));
+  ds.forEach(d => { n[d.a]++; n[d.b]++; });
+  const T = .6, LAMBDA = .4, LR = .1;
+  for (let it = 0; it < 90; it++) {
+    const gr = {}; pool.forEach(g => gr[g.id] = -2 * LAMBDA * (r[g.id] - sc[g.id]));
+    ds.forEach(d => { const p = 1 / (1 + Math.exp(-(r[d.a] - r[d.b]) / T)), y = duelResult(d); gr[d.a] += (y - p) / T; gr[d.b] -= (y - p) / T; });
+    pool.forEach(g => r[g.id] += LR * gr[g.id]);
+  }
+  const order = pool.slice().sort((a, b) => r[b.id] - r[a.id] || sc[b.id] - sc[a.id] || a.title.localeCompare(b.title)).map(g => g.id);
+  const pos = {}; order.forEach((id, i) => pos[id] = i);
+  return rankMemo = { sig, order, pos, r, n, sc };
+}
+const rankOf = id => { const t = rankTable(); return t.pos[id] == null ? null : t.pos[id] + 1; };
+const rankedGames = () => rankTable().order.map(id => S.games.find(g => g.id === id)).filter(Boolean);
+
+/* duels are for games you've played and scored; the next pair is two games sitting close together
+   that you haven't compared, with the least-duelled first. Pairs the ranking already calls
+   (more than ~3 points apart) are skipped: that answer is known. */
+const pairKey2 = (a, b) => [a, b].sort().join("|");
+function qDuelPair(focusId) {
+  const t = rankTable(), pool = rankedGames(); if (pool.length < 2) return null;
+  if ((S.duelSkip || []).length > 120) S.duelSkip = S.duelSkip.slice(-120);
+  const seen = new Set((S.duels || []).map(d => pairKey2(d.a, d.b)).concat((S.duelSkip || []).slice(-40)));
+  let best = null, bd = Infinity;
+  const tryPair = (a, b) => {
+    if (a === b || seen.has(pairKey2(a.id, b.id))) return;
+    const gap = Math.abs(t.r[a.id] - t.r[b.id]); if (gap > 3 && !focusId) return;
+    const d = gap + .12 * (t.n[a.id] + t.n[b.id]) + Math.random() * .35;
+    if (d < bd) { bd = d; best = [a, b]; } };
+  const f = focusId && pool.find(g => g.id === focusId);
+  if (f) pool.forEach(b => tryPair(f, b));
+  else for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) tryPair(pool[i], pool[j]);
+  return best && Math.random() < .5 ? [best[1], best[0]] : best;
+}
+function playedRank() { return rankTable().order.slice(); }
+function qDuelRecord(a, b, w, edge) {
+  const before = playedRank();
+  const d = { a: a.id, b: b.id, w, t: new Date().toISOString().slice(0, 10) };
+  if (edge) d.e = 1;
+  S.duels.push(d);
+  const after = playedRank();
+  /* the biggest climb and the days you duelled feed the duel badges */
+  if (w !== "draw") { const o = before.indexOf(w), nn = after.indexOf(w); if (o > nn) S.climbMax = Math.max(S.climbMax || 0, o - nn); }
+  const td = d.t; S.duelDays ||= []; if (!S.duelDays.includes(td)) { S.duelDays.push(td); if (S.duelDays.length > 400) S.duelDays.shift(); }
+  if (edge) S.edgeN = (S.edgeN || 0) + 1;
+  save();
+  const dn = S.duels.filter(x => x.w).length;
+  if (dn && dn % 10 === 0) setTimeout(() => react("duels", null, dn), 900);
+  return { before, after };
+}
+/* the quick duel sheet, now with a slight-edge call either side of "even" */
+function qDuel(focusId, note) {
+  if (focusId !== undefined) qdFocus = focusId || null;
+  const pr = qDuelPair(qdFocus) || (qdFocus ? qDuelPair(null) : null);
+  if (qdFocus && pr && !pr.some(g => g.id === qdFocus)) qdFocus = null;
+  const box = dyBox(), t = rankTable();
+  const card = (g, s) => `<button class="qd-g" data-qdw="${s}" style="--accent:${esc(g.colour || PALETTE[0])}">
+      <img decoding="async" src="${esc(cover(g))}" alt=""><b>${esc(g.title)}</b>
+      <small class="qd-rk">#${t.pos[g.id] + 1} ${tierBadge(t.sc[g.id])}${confDots(t.n[g.id])}</small></button>`;
+  dyShow(box, `<div class="dy-h"><b>⚔️ Which was better?</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${note ? `<p class="qd-note">${note}</p>` : ""}
+    ${pr ? `<div class="qd-row">${card(pr[0], 0)}<span class="qd-vs">VS</span>${card(pr[1], 1)}</div>
+      <div class="qd-acts"><button data-qdw="e0">‹ Slight edge</button><button data-qdw="d">Even</button><button data-qdw="e1">Slight edge ›</button></div>
+      <div class="qd-acts"><button class="qd-skip" data-qdw="s">Skip this pair</button></div>
+      <p class="qd-meta">${qdToday ? qdToday + " settled just now · " : ""}${S.duels.filter(x => x.w).length} duels in all${qdFocus ? " · " + esc((S.games.find(g => g.id === qdFocus) || {}).title || "") + " vs the games nearest it" : ""}</p>`
+      : `<p class="dy-empty">${rankedGames().length < 2 ? "Duels compare games you've played and scored. Score two games and they can face off." : "Nothing close is left to compare: every nearby pair is settled. Score or finish another game and it joins in."}</p>`}`,
+    e => {
+      const b = e.target.closest("[data-qdw]"); if (!b || !pr || box._busy) return;
+      const k = b.dataset.qdw;
+      if (k === "s") { beep("back"); S.duelSkip ||= []; S.duelSkip.push(pairKey2(pr[0].id, pr[1].id)); qdFocus = null; return qDuel(undefined); }
+      const edge = k[0] === "e", side = edge ? +k[1] : +k;
+      const w = k === "d" ? "draw" : pr[side].id;
+      const r = qDuelRecord(pr[0], pr[1], w, edge); qdToday++;
+      uCount("o", "duel");
+      let msg = "";
+      if (w === "draw") { beep("back"); msg = "Called it even."; }
+      else {
+        const g = pr[side], o = r.before.indexOf(g.id), n = r.after.indexOf(g.id);
+        msg = (edge ? "Just ahead: " : "") + (o > n ? `<b>${esc(g.title)}</b> <span class="qd-up">↑${o - n}</span> now #${n + 1}` : `<b>${esc(g.title)}</b> holds #${n + 1}`);
+        beep("tap");
+        box._busy = 1; const cardEl = box.querySelector(`[data-qdw="${side}"]`), other = box.querySelector(`[data-qdw="${1 - side}"]`);
+        if (cardEl) cardEl.classList.add("win"); if (other) other.classList.add(edge ? "near" : "lose");
+        if (navigator.vibrate) try { navigator.vibrate(18); } catch (x) {}
+      }
+      setTimeout(() => { box._busy = 0; qDuel(undefined, msg); }, w === "draw" ? 60 : calm() ? 120 : 420);
+      clearTimeout(qDuel.r); qDuel.r = setTimeout(() => { renderTaste(); if (S.sort === "duel") renderQueue(); }, 50);
+    });
+}
+
+/* ---- scoring: 0–10 in halves, or Don't remember ---- */
+function qScore(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const rec = playedRec(g), cur = scored(rec) ? rec.real : null;
+  const ints = []; for (let v = SCORE_LO; v <= 10; v++) ints.push(v);
+  const halves = []; for (let v = SCORE_LO + .5; v < 10; v++) halves.push(v);
+  const rk = rankOf(g.id);
+  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score it</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <div class="qs-g" style="--accent:${esc(g.colour || PALETTE[0])}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b>
+      <small>${rec && rec.dk ? "Unscored (you don't remember)" : cur != null ? (rk ? "#" + rk + " · " : "") + "tap to change" : isPlayed(g) ? "Played, not scored yet" : "Scoring it marks it played"}${g.hype > 0 ? " · hype was " + g.hype : ""}</small></span>
+      <em class="qs-v">${cur != null ? cur + tierBadge(cur) : "–"}</em></div>
+    <div class="qs-grid" style="--n:${ints.length}">${ints.map((v, i) => `<button class="qs-i${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 1}/span 2">${v}</button>`).join("")}
+      ${halves.map((v, i) => `<button class="qs-h${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 2}/span 2">${String(v).replace(/^(\d+)\.5$/, "$1½")}</button>`).join("")}</div>
+    <p class="qd-meta">Top row whole points, bottom row halves. 9+ is S tier, 7½+ A, 6+ B.</p>
+    <button class="dy-more qs-dk${rec && rec.dk ? " on" : ""}" data-qs="dk">🤷 Don't remember</button>`,
+    e => {
+      const b = e.target.closest("[data-qs]"); if (!b) return;
+      const v = b.dataset.qs === "dk" ? "dk" : +b.dataset.qs;
+      qScoreSet(g, v);
+      b.classList.add("on"); const ev = dyBox().querySelector(".qs-v"); if (ev) ev.innerHTML = v === "dk" ? "–" : v + tierBadge(v);
+      setTimeout(dyClose, 260);
+    });
+}
+function scoreWrite(rec, v) {
+  if (v === "dk") { rec.real = 0; rec.dk = 1; delete rec.z; return; }
+  rec.real = v; delete rec.dk;
+  if (v === 0) rec.z = 1; else delete rec.z;
+}
+function qScoreSet(g, v) {
+  const had = scored(playedRec(g)) ? playedRec(g).real : null;
+  if (!isPlayed(g)) { g.state = "played"; syncPlayed(g, "played"); }
+  const rec = playedRec(g); if (!rec) return;
+  scoreWrite(rec, v); rec.t = rec.t || new Date().toISOString().slice(0, 10);
+  uCount("o", "score"); touched(); beep("add");
+  setTimeout(() => { render(); if (hubAt === g.id && $("#full.on")) openFull(g.id);
+    if (v !== "dk" && v !== had) { allOut(g, v); const rk = rankOf(g.id); if (rk) setTimeout(() => toast(`${g.title}: #${rk} · ${tierOf(v)} tier`), calm() ? 400 : 3000); } }, 280);
+}
+/* one time: the old "0" meant "no score yet"; those become Unscored */
+function scoreMigrate() {
+  if (S.scoreMig) return;
+  let n = 0;
+  (S.played || []).forEach(p => { if (!(p.real > 0) && !p.z && !p.dk) { p.real = 0; p.dk = 1; n++; } });
+  S.scoreMig = 1; if (n) save();
+}
+
+/* ---- taste signals: games you add or remove, trailers you open ---- */
+const sigTags = g => [...new Set(platList(g && g.genres).map(x => x.toLowerCase()))].slice(0, 6);
+function sigAdd(k, g) {
+  if (!g) return;
+  S.sig ||= []; S.sig.push({ t: Date.now(), k, id: g.id, n: String(g.title || "").slice(0, 60), tg: sigTags(g) });
+  if (S.sig.length > 400) S.sig.splice(0, S.sig.length - 400);
+}
+let sigIds = null;
+function sigWatch() {
+  if (sigIds && sigIds._S !== S) sigIds = null;   /* a different save was loaded: start watching afresh */
+  const now = new Map(S.games.map(g => [g.id, g]));
+  if (sigIds) {
+    now.forEach((g, id) => { if (!sigIds.has(id)) sigAdd("add", g); });
+    sigIds.forEach((g, id) => { if (!now.has(id)) sigAdd("remove", g); });
+    S.games.forEach(g => { const was = sigIds.get(g.id); if (was && was._st !== "dropped" && g.state === "dropped") sigAdd("drop", g); });
+  }
+  sigIds = new Map(S.games.map(g => [g.id, Object.assign({ _st: g.state }, { id: g.id, title: g.title, genres: g.genres })]));
+  sigIds._S = S;
+}
+{ const _sv = save; save = function () { try { sigWatch(); } catch (e) {} return _sv.apply(this, arguments); }; }
+
+/* ---- what your duels (and adds, removes, trailers) say about you ---- */
+const TAG_WORD = { rpg: "RPGs", strategy: "Strategy games", adventure: "Adventure games", action: "Action games", platformer: "Platformers", simulation: "Sims",
+  "visual novel": "Visual novels", roguelike: "Roguelikes", shooter: "Shooters", puzzle: "Puzzle games", sports: "Sports games", racing: "Racing games", fighting: "Fighting games", horror: "Horror games" };
+const tagWord = t => TAG_WORD[t] || (t.charAt(0).toUpperCase() + t.slice(1) + " games");
+function tasteInsights() {
+  const out = [], t = rankTable(), G = id => S.games.find(g => g.id === id);
+  const ds = (S.duels || []).filter(d => d.w && t.pos[d.a] != null && t.pos[d.b] != null);
+  /* how a kind of game does in duels against games that aren't that kind */
+  const feats = {};
+  const add = (key, label, g) => { (feats[key] ||= { label, ids: new Set() }).ids.add(g.id); };
+  rankedGames().forEach(g => { platList(g.genres).forEach(x => add("g:" + x.toLowerCase(), tagWord(x.toLowerCase()), g));
+    whyOf(g).forEach(w => { const l = (WHY.find(x => x[0] === w) || [])[1]; if (l) add("w:" + w, "Games you loved for “" + l.toLowerCase() + "”", g); }); });
+  const rows = [];
+  Object.values(feats).forEach(f => {
+    if (f.ids.size < 2) return;
+    let won = 0, n = 0;
+    ds.forEach(d => { const ia = f.ids.has(d.a), ib = f.ids.has(d.b); if (ia === ib) return; n++; const y = duelResult(d); won += ia ? y : 1 - y; });
+    if (n >= 4) rows.push({ l: f.label, pct: Math.round(won / n * 100), n });
+  });
+  rows.sort((a, b) => Math.abs(b.pct - 50) - Math.abs(a.pct - 50));
+  rows.slice(0, 3).forEach(r => out.push({ ic: r.pct >= 50 ? "📈" : "📉", txt: `<b>${esc(r.l)}</b> win <b>${r.pct}%</b> of their duels`, sub: `${r.n} duels against other kinds of game` }));
+  /* your S tier in one line */
+  const sTier = rankedGames().filter(g => tierOf(t.sc[g.id]) === "S");
+  if (sTier.length >= 2) { const c = {}; sTier.forEach(g => platList(g.genres).forEach(x => c[x] = (c[x] || 0) + 1));
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    if (top && top[1] >= Math.ceil(sTier.length / 2)) out.push({ ic: "👑", txt: `${top[1]} of your ${sTier.length} S-tier games are <b>${esc(tagWord(top[0].toLowerCase()))}</b>`, sub: "The top of your ranking" }); }
+  /* signals from the last 90 days */
+  const since = Date.now() - 90 * 864e5, sig = (S.sig || []).filter(x => x.t > since);
+  const count = k => { const c = {}; sig.filter(x => x.k === k).forEach(x => x.tg.forEach(tg => c[tg] = (c[tg] || 0) + 1)); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]; };
+  const ad = count("add"); if (ad && ad[1] >= 2) out.push({ ic: "➕", txt: `Lately you add a lot of <b>${esc(tagWord(ad[0]))}</b> (${ad[1]})`, sub: "From the games you added in the last 3 months" });
+  const rm = [...(count("remove") ? [count("remove")] : []), ...(count("drop") ? [count("drop")] : [])].sort((a, b) => b[1] - a[1])[0];
+  if (rm && rm[1] >= 2) out.push({ ic: "🚪", txt: `<b>${esc(tagWord(rm[0]))}</b> are the ones you drop or delete most`, sub: "From games you removed or dropped" });
+  const tr = count("trailer"); if (tr && tr[1] >= 2) out.push({ ic: "🎬", txt: `You open trailers for <b>${esc(tagWord(tr[0]))}</b> the most`, sub: `${tr[1]} trailers lately` });
+  return out;
+}
+function insightsBlock() {
+  const ins = tasteInsights(), t = rankTable(), n = (S.duels || []).filter(d => d.w).length;
+  const top = rankedGames().slice(0, 5);
+  return `<div class="tins"><div class="tins-h"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>⚔️ Duel</span></button></div>
+    ${ins.length ? ins.map(x => `<div class="tin"><span class="ti">${x.ic}</span><span><span class="tt">${x.txt}</span><small>${esc(x.sub)}</small></span></div>`).join("")
+      : `<p class="note">${n < 4 ? "Settle a few duels and I'll start spotting patterns, like which kinds of game win." : "Nothing stands out yet. More duels, and games added or removed, sharpen this."}</p>`}
+    ${top.length ? `<div class="tins-rk">${top.map((g, i) => `<button class="rk" data-opg="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<span>${esc(g.title)}</span>${confDots(t.n[g.id])}<small>${t.sc[g.id]}</small></button>`).join("")}</div>` : ""}
+  </div>`;
+}
+{ const _rt = renderTaste; renderTaste = function () {
+  const out = _rt.apply(this, arguments), v = subOf("taste"), el = $("#p-taste");
+  if (el && (v === "psych" || v === "patterns")) { const h = el.querySelector(".tabbar"); if (h) h.insertAdjacentHTML("afterend", insightsBlock()); }
+  return out; }; }
+
+/* ---- On deck: what to play next = close to the games you rank highest + on the machine you're on + your duels ---- */
+const curPlat = () => S.curPlat || "Switch";
+const onPlat = g => { const p = curPlat().toLowerCase(); if (p === "any") return true; return platList(g.platforms).some(x => x.toLowerCase().includes(p)); };
+let deckMemo = null;
+function onDeckScores() {
+  const live = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp);
+  const t = rankTable(), fav = rankedGames();
+  const sig = live.map(g => g.id + g.genres + g.platforms + g.hype + g.state).join() + t.sig + curPlat() + (S.duels || []).length;
+  if (deckMemo && deckMemo.sig === sig) return deckMemo.s;
+  const elo = eloTable(), tags = g => new Set(platList(g.genres).map(x => x.toLowerCase()));
+  const favW = fav.map((g, i) => ({ tg: tags(g), w: Math.max(.15, 1 - i / Math.max(4, fav.length)) * (t.sc[g.id] / 10) }));
+  const sim = g => { const a = tags(g); if (!a.size || !favW.length) return 0;
+    let s = 0, W = 0; favW.forEach(f => { const inter = [...a].filter(x => f.tg.has(x)).length, uni = new Set([...a, ...f.tg]).size || 1; s += f.w * inter / uni; W += f.w; });
+    return W ? s / W : 0; };
+  const sims = live.map(sim), smax = Math.max(.001, ...sims);
+  const el = live.map(g => elo[g.id] || 1500), emin = Math.min(...el, 1500), emax = Math.max(...el, 1500);
+  const s = {};
+  live.forEach((g, i) => {
+    const out = g.state === "backlog" || g.state === "playing" || isFresh(g) || (g.date && new Date(g.date + "T00:00:00") <= new Date());
+    s[g.id] = .45 * (sims[i] / smax) + .2 * (emax > emin ? (el[i] - emin) / (emax - emin) : .5) + .2 * (onPlat(g) ? 1 : 0)
+      + .1 * num(g.hype, 5, 0, 10) / 10 + (g.state === "playing" ? .08 : 0) + (out ? 1 : 0);   /* out now always beats not out yet */
+  });
+  deckMemo = { sig, s };
+  return s;
+}
+function onDeck(n) {
+  const s = onDeckScores();
+  return Object.keys(s).sort((a, b) => s[b] - s[a]).slice(0, n || 3).map(id => S.games.find(g => g.id === id)).filter(Boolean);
+}
+/* why this one, in a few words */
+function deckWhy(g) {
+  if (!g) return "";
+  const fav = rankedGames().slice(0, 6), tg = new Set(platList(g.genres).map(x => x.toLowerCase()));
+  const like = fav.find(f => platList(f.genres).some(x => tg.has(x.toLowerCase())));
+  const bits = [];
+  if (like) bits.push("like your #" + (rankOf(like.id)) + " " + like.title);
+  if (onPlat(g) && curPlat() !== "any") bits.push("on " + curPlat());
+  if (g.state === "playing") bits.push("you've started it");
+  else if (!(g.state === "backlog" || isFresh(g))) bits.push(g.date ? "out " + shortDate(g.date) : "not out yet");
+  return bits.join(" · ");
+}
+function onDeckStrip() {
+  if (S.deckOff) return "";
+  const d = onDeck(3); if (!d.length) return "";
+  return `<div class="deck"><span class="deck-h">On deck</span>${d.map((g, i) => `<button class="deck-g" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
+    <img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${i + 1}. ${esc(g.title)}</b><small>${esc(deckWhy(g))}</small></span></button>`).join("")}</div>`;
+}
+
+/* ---- Home: Nexi on top, saying your top 3 and what to play next ---- */
+function nxHomeLine() {
+  const t = rankTable(), top = rankedGames().slice(0, 3), pick = onDeck(1)[0];
+  if (!top.length && !pick) return "";
+  const nm = S.userName ? esc(S.userName) : "";
+  const say = pick ? `${nm ? nm + ", p" : "P"}lay <button class="nxl-g" data-home-open="${pick.id}">${esc(pick.title)}</button> next${deckWhy(pick) ? ` <small>(${esc(deckWhy(pick))})</small>` : ""}.` : `Score a game you've played and I'll start ranking.`;
+  return `<div class="nxhome"><button class="nxh-face" data-qduel="" aria-label="Duel with Nexi"><span class="eyes"><i></i><i></i></span></button>
+    <div class="nxh-say"><p>${say}</p>
+    ${top.length ? `<div class="nxh-top"><span>Your top ${top.length}</span>${top.map((g, i) => `<button data-home-open="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<em>${esc(g.title)}</em></button>`).join("")}</div>` : ""}</div></div>`;
+}
+
+
+document.addEventListener("click", e => { const b = e.target.closest("[data-opg]"); if (!b) return; e.stopPropagation(); hubReturn = null; beep("open"); openFull(b.dataset.opg); }, true);
+{ const _rh = renderHome; renderHome = function () {
+  const out = _rh.apply(this, arguments), el = $("#p-home");
+  if (el && !S.nxHomeOff) { el.querySelectorAll(".nxhome").forEach(x => x.remove()); el.insertAdjacentHTML("afterbegin", nxHomeLine()); }
+  return out; }; }
+{ const _xf = xFeatures; xFeatures = function () { try { scoreMigrate(); if (!sigIds) sigWatch(); } catch (e) {} return _xf.apply(this, arguments); }; }
+{ const _ab = applyBackup; applyBackup = function () { sigIds = null; rankMemo = deckMemo = null; const o = _ab.apply(this, arguments); sigWatch(); return o; }; }
+{ const _mb = mergeBackup; mergeBackup = function () { const o = _mb.apply(this, arguments); sigIds = null; sigWatch(); return o; }; }
+/* ===== v185 Nexi + discovery: personalities, AI chat with a memory, competitive chat, nudges, similar games, trailers ===== */
+const HELPER = "https://playnext-helper.hussamnabil48.workers.dev";
+/* ---- personalities: same tips, different voice ---- */
+const NX_PERSONAS = [
+  ["hype", "Hype Buddy", "🔥", "Loud, happy, cheers every win"],
+  ["butler", "Calm Butler", "🎩", "Polite and calm, lots of tips"],
+  ["coach", "Chill Coach", "🧢", "Relaxed, one small step at a time"],
+  ["rival", "Sarcastic Rival", "😏", "Teases you, still helps"],
+  ["bard", "Story Bard", "🪕", "Turns your games into a saga"],
+  ["nerd", "Stats Nerd", "🤓", "Numbers and patterns"]];
+const nxP = () => NX_PERSONAS.some(p => p[0] === S.nxPersona) ? S.nxPersona : "hype";
+const nxPName = () => (NX_PERSONAS.find(p => p[0] === nxP()) || NX_PERSONAS[0])[1];
+const EMO = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2194}-\u{21FF}]\u{FE0F}?/gu;
+const nxHash = t => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return Math.abs(h); };
+const NX_OPEN = {
+  butler: ["Very good. ", "If I may: ", "A small observation: ", ""],
+  coach: ["No rush. ", "Easy does it: ", "Small step: ", ""],
+  rival: ["Oh look. ", "Fine. ", "Not bad, for you. ", "Hmph. "],
+  bard: ["Hark! ", "Lo! ", "And so the tale goes: ", ""],
+  nerd: ["Data point: ", "Fun stat: ", "Per my numbers: ", ""],
+  hype: ["", "YO! ", "Okay okay okay! ", ""]
+};
+const NX_CLOSE = { butler: "", coach: " 🧢", rival: [" Try to keep up.", " You're welcome.", ""], bard: " ✨", nerd: " 📊", hype: ["", " 🔥", " LET'S GO!"] };
+/* re-voice a plain line; plain text only (HTML lines keep their own wording) */
+function nxVoice(txt) {
+  const p = nxP(); txt = String(txt || ""); if (!txt || p === "hype" && !S.nxPersona) return txt;
+  const h = nxHash(txt), pick = a => Array.isArray(a) ? a[h % a.length] : a;
+  let t = txt;
+  if (p === "butler") t = t.replace(EMO, "").replace(/!+/g, ".").replace(/\s{2,}/g, " ").trim();
+  if (p === "coach") t = t.replace(/!+/g, ".").replace(/\s{2,}/g, " ").trim();
+  if (p === "rival") t = t.replace(/ 😤| 🥲| 💪| 🥳| 🎉/g, "");
+  if (p === "hype") t = t.replace(/\.(\s|$)/, "!$1");
+  const o = pick(NX_OPEN[p]) || "";
+  if (o && !/^(hi|hey|yo|hello|it's my)/i.test(t)) t = o + t;         /* openers end in . : or ! so names keep their capitals */
+  return (t + (pick(NX_CLOSE[p]) || "")).replace(/\s+$/, "");
+}
+{ const _say = pnBubSay; pnBubSay = function (line) {
+  if (!line) { const L = pnBubLines(); if (!L.length) return; line = L[Math.floor(Math.random() * L.length)]; }
+  const [txt, act] = Array.isArray(line) ? line : [line, ""];
+  return _say.call(this, [nxVoice(txt), act]); }; }
+
+/* ---- competitive games: Nexi comments, never keeps score ---- */
+const NX_COMP = [
+  [/\b(ea sports )?fc ?\d*\b|fifa/i, ["{t}: weekend league energy? Hydrate between matches ⚽", "Tip for {t}: patience in the final third wins more than sprinting at everyone.", "A couple of {t} matches, then a story game? Balance 😌", "{t} is the one game that never leaves your list. Respect ⚽"]],
+  [/mobile legends|mlbb/i, ["{t}: remember to check the map every few seconds 🗺️", "One more ranked game of {t}? Stop after a win, feel great 🏆", "Tip for {t}: buy items for the enemy team you're facing, not the same build every game.", "{t} teammates… I believe in you 😅"]],
+  [/chess/i, ["{t} tip: before every move, check what your opponent's last move threatens ♟️", "A daily {t} puzzle keeps you sharp. Five minutes 🧠", "{t}: develop knights before bishops, castle early, and the middle game gets easier.", "Blitz or rapid today? Rapid if you want to get better at {t} ♟️"]],
+  [/./, ["{t} is endless, so I never nag you about finishing it 😌", "Quick {t} session before your story game?"]]
+];
+function nxCompLines() {
+  return S.games.filter(g => g.comp && !isDropped(g)).map(g => {
+    const set = NX_COMP.find(([re]) => re.test(g.title))[1];
+    return set.map(l => [l.replace(/\{t\}/g, g.title), ""]);
+  }).flat();
+}
+{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments) || []; try { const c = nxCompLines(); c.sort(() => Math.random() - .5).slice(0, 2).forEach(x => L.push(x)); } catch (e) {} return L; }; }
+
+/* ---- Nexi chat (free Workers AI through the helper; no keys in the app) ---- */
+function nxContext() {
+  const t = rankTable(), rk = rankedGames().slice(0, 15).map((g, i) => `${i + 1}. ${g.title} (${tierOf(t.sc[g.id])} ${t.sc[g.id]}${platList(g.genres).length ? ", " + platList(g.genres).slice(0, 2).join("/") : ""})`);
+  const deck = onDeck(3), q = sortGames(S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp));
+  const queue = deck.concat(q.filter(g => !deck.includes(g))).slice(0, 15).map(g => `${g.title}${platList(g.genres).length ? " [" + platList(g.genres).slice(0, 2).join("/") + "]" : ""}${g.date ? " (" + (isOutNow(g) ? "out" : "out " + g.date) + ")" : ""}`);
+  return { name: S.userName || "", ranking: rk, queue, platform: curPlat() === "any" ? "" : curPlat(),
+    playing: S.games.filter(g => g.state === "playing" && !g.comp).map(g => g.title),
+    competitive: S.games.filter(g => g.comp && !isDropped(g)).map(g => g.title),
+    insights: tasteInsights().map(x => x.txt.replace(/<[^>]+>/g, "")) };
+}
+async function nxPost(path, body) {
+  const r = await fetch(HELPER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error || "The helper said " + r.status);
+  return j;
+}
+let nxBusy = false, nxSinceMem = 0;
+const NX_ASKS = () => { const p = S.games.find(g => g.state === "playing" && !g.comp), top = rankedGames()[0];
+  return ["What should I play next?", "Explain my taste", p ? "Tips for " + p.title : "Give me a gaming tip", top ? "Something new like " + top.title : "Recommend me a game"]; };
+function nxChat(prefill) {
+  uCount("o", "chat");
+  const box = dyBox(), log = (S.nxChat ||= []);
+  const bub = m => `<div class="nc-m ${m.role === "user" ? "me" : "nx"}">${m.role === "user" ? "" : '<span class="nc-f"><i></i><i></i></span>'}<p>${esc(m.content).replace(/\n/g, "<br>")}</p></div>`;
+  dyShow(box, `<div class="dy-h"><b>💬 ${esc(pnName())} <small class="nc-p">${esc(nxPName())}</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+    <div class="nc-pers">${NX_PERSONAS.map(([k, l, e]) => `<button data-pers="${k}" aria-pressed="${nxP() === k}">${e} ${esc(l)}</button>`).join("")}</div>
+    <div class="nc-log">${log.length ? log.slice(-20).map(bub).join("") : `<div class="nc-m nx"><span class="nc-f"><i></i><i></i></span><p>${esc(nxVoice(`Ask me what to play next, why you like what you like, or for tips on a game. I know your ranking and your queue.`))}</p></div>`}
+      ${nxBusy ? '<div class="nc-m nx"><span class="nc-f"><i></i><i></i></span><p class="nc-dots"><i></i><i></i><i></i></p></div>' : ""}</div>
+    <div class="nc-asks">${NX_ASKS().map(q => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join("")}<button data-act="duel">⚔️ Duel</button><button data-act="find">⚙ Find a setting</button></div>
+    <div class="nc-in"><input class="nc-q" maxlength="300" placeholder="Ask ${esc(pnName())}…" value="${esc(prefill || "")}" enterkeyhint="send"><button class="nc-go" aria-label="Send">➤</button></div>
+    ${S.nxMem ? `<details class="nc-mem"><summary>🧠 What I remember about you</summary><p>${esc(S.nxMem)}</p><button data-act="forget">Forget this</button></details>` : ""}`,
+    e => {
+      const pe = e.target.closest("[data-pers]"); if (pe) { S.nxPersona = pe.dataset.pers; save(); beep("tap"); renderHome(); return nxChat(box.querySelector(".nc-q").value); }
+      const a = e.target.closest("[data-ask]"); if (a) return nxSend(a.dataset.ask);
+      const ac = e.target.closest("[data-act]");
+      if (ac) { const k = ac.dataset.act;
+        if (k === "duel") { qdToday = 0; return qDuel(null); }
+        if (k === "find") { dyClose(); return setTimeout(nxAsk, 320); }
+        if (k === "forget" && confirm("Forget everything Nexi remembers about you?")) { S.nxMem = ""; save(); return nxChat(); } }
+      if (e.target.closest(".nc-go")) nxSend(box.querySelector(".nc-q").value);
+    });
+  const q = box.querySelector(".nc-q"); q.addEventListener("keydown", e => { if (e.key === "Enter") nxSend(q.value); });
+  const lg = box.querySelector(".nc-log"); lg.scrollTop = lg.scrollHeight;
+}
+async function nxSend(text) {
+  text = String(text || "").trim(); if (!text || nxBusy) return;
+  const log = (S.nxChat ||= []); log.push({ role: "user", content: text.slice(0, 300), t: Date.now() });
+  nxBusy = true; nxChat(); beep("tap");
+  let reply;
+  try { const j = await nxPost("/chat", { persona: nxP(), memory: S.nxMem || "", context: nxContext(), messages: log.slice(-10).map(m => ({ role: m.role, content: m.content })) });
+    reply = String(j.text || "").slice(0, 1500) || "…"; }
+  catch (e) { reply = e instanceof TypeError ? "I can't reach my helper right now (offline?). Try again in a bit." : "Hmm, that didn't work: " + e.message; log.push({ role: "assistant", content: reply, t: Date.now(), err: 1 }); }
+  if (reply && !(log[log.length - 1] || {}).err) log.push({ role: "assistant", content: reply, t: Date.now() });
+  if (log.length > 40) log.splice(0, log.length - 40);
+  nxBusy = false; save();
+  if ($("#diary.on .nc-log")) nxChat();
+  if (!(log[log.length - 1] || {}).err && ++nxSinceMem >= 1) nxRemember();
+}
+/* after each chat, Nexi rewrites a short summary of you (kept on the phone, sent back with the next chat) */
+async function nxRemember() {
+  clearTimeout(nxRemember.t);
+  nxRemember.t = setTimeout(async () => {
+    const log = (S.nxChat || []).filter(m => !m.err).slice(-8); if (!log.length) return;
+    try { const j = await nxPost("/chat/memory", { memory: S.nxMem || "", messages: log.map(m => ({ role: m.role, content: m.content })) });
+      if (j.memory) { S.nxMem = String(j.memory).slice(0, 700); nxSinceMem = 0; save(); } } catch (e) {}
+  }, 4000);
+}
+
+/* ---- similar games: from your library, and new ones from RAWG ---- */
+const simTags = g => new Set(platList(g.genres).map(x => "g:" + x.toLowerCase()).concat(whyOf(g).map(w => "w:" + w)));
+function simLocal(g, n) {
+  const a = simTags(g); if (!a.size) return [];
+  return S.games.filter(x => x.id !== g.id).map(x => { const b = simTags(x), inter = [...a].filter(k => b.has(k)).length;
+    return { g: x, s: inter / (new Set([...a, ...b]).size || 1) + (inter && platList(x.platforms).some(p => platList(g.platforms).includes(p)) ? .05 : 0) }; })
+    .filter(x => x.s > .15).sort((p, q) => q.s - p.s).slice(0, n || 6);
+}
+const normT = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+async function simRawg(g) {
+  const c = (S.simCache ||= {})[g.id];
+  if (c && Date.now() - c.t < 14 * 864e5) return c.l;
+  if (!rawgKey) throw new Error("nokey");
+  const api = p => fetch("https://api.rawg.io/api/" + p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(rawgKey)).then(r => { if (!r.ok) throw new Error("RAWG said " + r.status); return r.json(); });
+  let id = g.rawgId;
+  if (!id) { const s = await api("games?search=" + encodeURIComponent(g.title) + "&page_size=1"); id = s.results && s.results[0] && s.results[0].id; }
+  if (!id) return [];
+  const d = await api("games/" + id);
+  const gen = (d.genres || []).slice(0, 2).map(x => x.id).join(","), tags = (d.tags || []).filter(t => t.language === "eng").slice(0, 3).map(x => x.id).join(",");
+  const r = await api("games?page_size=20&ordering=-rating&exclude_additions=true" + (gen ? "&genres=" + gen : "") + (tags ? "&tags=" + tags : ""));
+  const mine = new Set(S.games.map(x => normT(x.title)));
+  const l = (r.results || []).filter(h => h.id !== id && !mine.has(normT(h.name))).slice(0, 8)
+    .map(h => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
+      genres: (h.genres || []).map(x => ({ name: x.name })), tags: (h.tags || []).slice(0, 8).map(x => ({ name: x.name, language: x.language })), platforms: (h.platforms || []).map(x => ({ platform: { name: x.platform.name } })) }));
+  S.simCache[g.id] = { t: Date.now(), l }; save();
+  return l;
+}
+/* add a RAWG result without going through the Add form */
+function simAdd(h) { try { fill(h); $("#f-save").click(); uCount("o", "add"); } catch (e) { toast("Couldn't add it"); } }
+function openSimilar(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  uCount("o", "similar");
+  const loc = simLocal(g, 6);
+  const row = x => `<button class="dy-g" data-opg="${x.g.id}" style="--accent:${esc(x.g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><span><b>${esc(x.g.title)}</b><small>${esc(isPlayed(x.g) ? (rankOf(x.g.id) ? "Your #" + rankOf(x.g.id) : "Played") : x.g.state === "playing" ? "Playing now" : "In your queue")} · ${Math.round(x.s * 100)}% alike</small></span><em>›</em></button>`;
+  const box = dyBox();
+  dyShow(box, `<div class="dy-h"><b>🔍 Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">${esc(nxVoice(loc.length ? "Here's what fits, from your games and a few new ones." : "Nothing in your library is close. Here are some new ones."))}</p>
+    ${loc.length ? `<p class="dy-q"><b>In your library</b></p><div class="dy-gl">${loc.map(row).join("")}</div>
+      <button class="dy-more" data-simq="${g.id}">Show these in the queue</button>` : ""}
+    <p class="dy-q" style="margin-top:14px"><b>New to you</b> <small>from RAWG</small></p><div class="sim-new"><p class="dy-empty">Looking…</p></div>
+    <button class="dy-more" data-trailer="${g.id}">▶ Watch the ${esc(g.title)} trailer</button>`,
+    e => {
+      const q = e.target.closest("[data-simq]"); if (q) { dyClose(); nxShut(); simFilter(q.dataset.simq); goTab("queue"); return; }
+      const a = e.target.closest("[data-simadd]"); if (a) { const h = (box._hits || [])[+a.dataset.simadd]; if (h) { dyClose(); simAdd(h); } return; }
+      const tr = e.target.closest("[data-ytq]"); if (tr) { trailer(tr.dataset.ytq); return; }
+    });
+  simRawg(g).then(l => {
+    const el = box.querySelector(".sim-new"); if (!el) return; box._hits = l;
+    el.innerHTML = l.length ? `<div class="dy-gl">${l.map((h, i) => `<div class="dy-g sim-h"><img decoding="async" src="${esc(h.background_image)}" alt="" onerror="this.style.visibility='hidden'">
+      <span><b>${esc(h.name)}</b><small>${esc([h.released ? h.released.slice(0, 4) : "", h.genres.slice(0, 2).map(x => x.name).join(", "), h.metacritic ? "MC " + h.metacritic : ""].filter(Boolean).join(" · "))}</small></span>
+      <button class="sim-yt" data-ytq="${esc(h.name)}" aria-label="Trailer">▶</button><button class="hitadd" data-simadd="${i}" aria-label="Add ${esc(h.name)}">＋</button></div>`).join("")}</div>` : '<p class="dy-empty">RAWG had nothing close.</p>';
+  }).catch(e => { const el = box.querySelector(".sim-new"); if (el) el.innerHTML = `<p class="dy-empty">${e.message === "nokey" ? "Add your RAWG key (Settings → Games database) and I'll find new ones too." : "Couldn't reach RAWG right now."}</p>`; });
+}
+/* the Games filter: "Like <game>" sits with Everything / Out / Upcoming / your lists */
+function simFilter(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  for (let i = QFILTERS.length - 1; i >= 0; i--) if (/^S:/.test(QFILTERS[i][0])) QFILTERS.splice(i, 1);
+  QFILTERS.push(["S:" + id, "Like " + g.title]); QICON["S:" + id] = "🔍";
+  S.qFilter = "S:" + id; save(); renderQueue();
+}
+{ const _qc = qCounts; qCounts = function () { const c = _qc.apply(this, arguments); QFILTERS.forEach(([k]) => { if (/^S:/.test(k)) { const g = S.games.find(x => x.id === k.slice(2)); c[k] = g ? simLocal(g, 99).length : 0; } }); return c; }; }
+{ const _ql = queueList; queueList = function () { const f = qNow(); if (/^S:/.test(f)) { const g = S.games.find(x => x.id === f.slice(2)); return g ? simLocal(g, 99).map(x => x.g) : []; } return _ql.apply(this, arguments); }; }
+function simRestore() { if (/^S:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { const g = S.games.find(x => x.id === S.qFilter.slice(2)); if (g) { QFILTERS.push([S.qFilter, "Like " + g.title]); QICON[S.qFilter] = "🔍"; } } }
+/* the back of a queue card: a few games like it, the trailer, more */
+function simBack(g) {
+  const l = simLocal(g, 3);
+  return `<div class="simback"><span class="sb-h">Like this</span>${l.map(x => `<button class="sb-g" data-opg="${x.g.id}" title="${esc(x.g.title)}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><small>${esc(x.g.title)}</small></button>`).join("")}
+    <span class="sb-acts"><button class="chip" data-sim="${g.id}"><span>🔍 More like it</span></button><button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button></span></div>`;
+}
+
+/* ---- trailers: a YouTube search, so it always finds the latest one ---- */
+function trailer(title, g) {
+  if (g) sigAdd("trailer", g); uCount("o", "trailer"); save();
+  window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(title + " trailer"), "_blank", "noopener");
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-trailer]"), s = e.target.closest("[data-sim]"), c = e.target.closest("[data-nxchat]");
+  if (!t && !s && !c) return;
+  e.stopPropagation(); e.preventDefault();
+  if (t) { const g = S.games.find(x => x.id === t.dataset.trailer); if (g) trailer(g.title, g); }
+  else if (s) { beep("open"); openSimilar(s.dataset.sim); }
+  else { beep("open"); nxChat(); }
+}, true);
+
+/* ---- nudges: 2 a day, at slightly random times inside the hours you usually open the app ---- */
+function nxWindow() {
+  const H = S.nxHours || [], tot = H.reduce((a, b) => a + b, 0);
+  if (tot < 6) return [18, 22];
+  const mx = Math.max(...H), hot = H.map((v, h) => v >= mx * .25 ? h : -1).filter(h => h >= 0 && h >= 8);
+  if (!hot.length) return [18, 22];
+  let a = Math.min(...hot), b = Math.max(...hot) + 1; if (b - a < 3) { a = Math.max(8, a - 1); b = Math.min(23, b + 1); }
+  return [a, Math.min(23, b)];
+}
+function nxNudgeText(kind, n) {
+  const t = rankTable(), top = rankedGames(), deck = onDeck(3), nm = S.userName ? S.userName + ", " : "";
+  const pr = qDuelPair(null);
+  if (kind === "duel" && pr) return ["⚔️ Close call", nxVoice(`${pr[0].title} or ${pr[1].title}? They're neck and neck in your ranking. One tap settles it.`), "duel"];
+  if (kind === "next" && deck[n % Math.max(1, deck.length)]) { const g = deck[n % deck.length]; return ["🎮 Tonight's pick", nxVoice(`${nm}${g.title} is looking good for tonight${deckWhy(g) ? " (" + deckWhy(g) + ")" : ""}.`), "next"]; }
+  if (kind === "release") { const g = S.games.filter(x => x.date && !isPlayed(x)).map(x => ({ x, d: Math.ceil((new Date(x.date + "T00:00:00") - new Date()) / 864e5) })).filter(o => o.d >= 0 && o.d <= 7).sort((a, b) => a.d - b.d)[0];
+    if (g) return ["📅 Coming up", nxVoice(g.d === 0 ? `${g.x.title} is out today! Party time.` : `${g.x.title} is out in ${g.d} day${g.d === 1 ? "" : "s"}.`), "release"]; }
+  if (kind === "badge") { const st = pnBadgeStats(), got = S.badges || {};
+    const b = PN_BADGES.filter(x => !got[x[0]]).map(x => ({ x, left: x[5] - x[4](st) })).filter(o => o.left > 0 && o.left <= Math.max(3, o.x[5] * .2)).sort((a, b) => a.left - b.left)[0];
+    if (b) return ["🏅 Almost there", nxVoice(`${b.left} more and you unlock ${b.x[1]} ${b.x[2]} (${b.x[3].toLowerCase()}).`), "badge"]; }
+  if (kind === "tip") { const c = nxCompLines(), tips = c.concat([["Close duel? Tap Slight edge instead of Even. It counts as half a win.", ""], ["Your ranking dots fill up as you duel. Three dots means that rank is settled.", ""], ["Tap 🔍 More like it on the back of a card to find games like it.", ""]]);
+    return ["💡 Tip", nxVoice(tips[n % tips.length][0]), "tip"]; }
+  if (top[0]) return ["👑 Your #1", nxVoice(`${top[0].title} is still your #1. Anything coming for the crown?`), "duel"];
+  return null;
+}
+function nxPlan(days) {
+  const out = [], [a, b] = nxWindow(), kinds = ["next", "duel", "tip", "badge", "release"];
+  let k = (S.nudgeK || 0);
+  const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
+  for (let d = 0; d < (days || 5); d++) {
+    const base = new Date(); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + d);
+    const mid = (a + b) / 2, t1 = rnd(a, Math.max(a + .5, mid - .5)), t2 = rnd(Math.min(b - .5, mid + .5), b);
+    [t1, t2].forEach(h => {
+      const at = base.getTime() + h * 36e5; if (at < Date.now() + 20 * 60000) return;
+      let m = null; for (let i = 0; i < kinds.length && !m; i++) m = nxNudgeText(kinds[(k + i) % kinds.length], k + d);
+      k++; if (m) out.push({ at: Math.round(at), title: m[0], body: m[1], tag: m[2], url: "./?nudge=" + m[2] });
+    });
+  }
+  S.nudgeK = k % 1000;
+  return out;
+}
+const b64uToU8 = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+async function nudgeOn(quiet) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    if (!quiet) toast(/iPhone|iPad/.test(navigator.userAgent) && !installed() ? "On iPhone, add Play next to your Home Screen first, then turn nudges on there" : "This browser can't do notifications"); return false; }
+  const perm = Notification.permission === "granted" ? "granted" : quiet ? Notification.permission : await Notification.requestPermission();
+  if (perm !== "granted") { if (!quiet) toast("Notifications are blocked for this app"); return false; }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) { const k = await fetch(HELPER + "/nudge/key").then(r => r.json());
+    if (!k.key) throw new Error(k.error || "no key"); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(k.key) }); }
+  if (!S.nudgeId) S.nudgeId = frRid(24).replace(/[^A-Za-z0-9_-]/g, "x");
+  const plan = nxPlan(5);
+  await nxPost("/nudge", { id: S.nudgeId, sub: sub.toJSON(), plan });
+  /* Android can also wake the app by itself now and then: keep a copy the service worker can read */
+  try { const c = await caches.open("play-next-nudge"); await c.put("./nudge-plan.json", new Response(JSON.stringify({ plan, shown: [] }))); } catch (e) {}
+  try { if (reg.periodicSync) await reg.periodicSync.register("nudge", { minInterval: 6 * 36e5 }); } catch (e) {}
+  S.nudgeAt = Date.now(); S.nudgeOn = true; save();
+  return true;
+}
+async function nudgeOff() {
+  S.nudgeOn = false; save();
+  try { await nxPost("/nudge", { id: S.nudgeId, off: 1 }); } catch (e) {}
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); if (reg.periodicSync) await reg.periodicSync.unregister("nudge"); } catch (e) {}
+}
+/* the next few days are re-planned each time you open the app (so they talk about what's true now) */
+setTimeout(() => { if (S.nudgeOn && Date.now() - (S.nudgeAt || 0) > 4 * 36e5) nudgeOn(true).catch(() => {}); }, 6000);
+document.addEventListener("click", async e => {
+  const b = e.target.closest("#s-nudge [data-v]"); if (!b) return;
+  e.stopPropagation();
+  const on = b.dataset.v === "on";
+  [...b.parentElement.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+  if (on) { try { const ok = await nudgeOn(false); if (ok) toast(nxVoice("Nudges on: 2 a day, around when you usually play.")); else b.parentElement.children[0].click(); }
+    catch (err) { toast("Couldn't turn nudges on: " + (err.message || err)); S.nudgeOn = false; save(); } }
+  else { await nudgeOff(); toast("Nudges off"); }
+}, true);
+document.addEventListener("click", async e => { if (!e.target.closest("#s-nudgetest")) return; e.stopPropagation();
+  try { if (!S.nudgeOn) return toast("Turn nudges on first"); await nudgeOn(true); const j = await nxPost("/nudge/test", { id: S.nudgeId }); toast(j.ok ? "Sent! It should pop up in a moment" : "The push service said " + j.status); }
+  catch (err) { toast("Test failed: " + (err.message || err)); } }, true);
+/* opened from a nudge: go where it points */
+{ const q = new URLSearchParams(location.search).get("nudge");
+  if (q) setTimeout(() => { uCount("o", "nudge"); history.replaceState(null, "", location.pathname);
+    if (q === "duel") { qdToday = 0; qDuel(null); } else if (q === "next") { const g = onDeck(1)[0]; if (g) openFull(g.id); } else if (q === "badge") goTab("played"); }, 1800); }
+
+{ const _xf2 = xFeatures; xFeatures = function () { try { simRestore(); } catch (e) {} return _xf2.apply(this, arguments); }; }
+/* Home: Nexi's line in the chosen voice; tapping Nexi opens the chat */
+{ const _nl = nxHomeLine; nxHomeLine = function () {
+  const pick = onDeck(1)[0], out = _nl.apply(this, arguments); if (!out || !pick) return out;
+  const G = `<button class="nxl-g" data-home-open="${pick.id}">${esc(pick.title)}</button>`, why = deckWhy(pick), nm = S.userName ? esc(S.userName) : "";
+  const W = { hype: `${nm ? nm + ", p" : "P"}lay ${G} next!`, butler: `May I suggest ${G} next${nm ? ", " + nm : ""}.`, coach: `Next up, no pressure: ${G}.`,
+    rival: `Obviously it's ${G} next. Try to keep up${nm ? ", " + nm : ""}.`, bard: `Your next quest${nm ? ", " + nm : ""}: ${G}.`, nerd: `Best match for you next: ${G}.` }[nxP()];
+  return out.replace(/<p>[\s\S]*?<\/p>/, `<p>${W}${why ? ` <small>(${esc(why)})</small>` : ""}</p>`).replace('data-qduel="" aria-label="Duel with Nexi"', 'data-nxchat="" aria-label="Chat with Nexi"'); }; }
 load();
 /* FX pack */
 (()=>{
@@ -12101,7 +12969,7 @@ document.querySelectorAll(".panel").forEach(pnl => new MutationObserver(ms => ms
 const PN_EVO = [0, 5, 10, 20, 35];
 function pnEvo() {
   const b = $("#pnbub"); if (!b) return;
-  const n = (S.played || []).filter(p => p.real > 0).length;
+  const n = (S.played || []).filter(p => scored(p)).length;
   let st = 1; PN_EVO.forEach((t, i) => { if (n >= t) st = i + 1; });
   b.classList.remove("evo1", "evo2", "evo3", "evo4", "evo5"); b.classList.add("evo" + st);
   let orb = b.querySelector(".orb"); if (!orb) { orb = document.createElement("span"); orb.className = "orb"; b.prepend(orb); }
@@ -12116,13 +12984,13 @@ function pnEvo() {
   }
 }
 function pnEvoLine() {
-  const n = (S.played || []).filter(p => p.real > 0).length, nxt = PN_EVO.find(t => t > n);
+  const n = (S.played || []).filter(p => scored(p)).length, nxt = PN_EVO.find(t => t > n);
   const st = PN_EVO.filter(t => n >= t).length;
   return nxt ? `Stage ${st} right now. ${nxt - n} more finished game${nxt - n === 1 ? "" : "s"} and I evolve again 👀` : "Final stage reached ✨ I'm basically a legend now.";
 }
 /* v131 daily hot take: one cheeky line a day, built from your own scores */
 function pnTake() {
-  const sc = (S.played || []).filter(p => p.real > 0).map(p => ({ ...p, g: S.games.find(g => g.id === p.id) })).filter(x => x.g), T = [];
+  const sc = (S.played || []).filter(p => scored(p)).map(p => ({ ...p, g: S.games.find(g => g.id === p.id) })).filter(x => x.g), T = [];
   const words = {}; sc.filter(x => x.real >= 9).forEach(x => { const w = x.g.title.split(/[\s:]+/)[0]; if (w.length > 2) words[w] = (words[w] || 0) + 1; });
   const top = Object.entries(words).sort((a, b) => b[1] - a[1])[0];
   if (top && top[1] >= 2) T.push(`${top[1]} ${top[0]} games at 9+… we get it, you have a type 😏`);
@@ -12510,7 +13378,7 @@ function pnPowerUp(line) {
     /* the story is built from their own games */
     const bl = S.games.filter(g => !g.comp && !isPlayed(g) && !isDropped(g) && (g.state === "backlog" || g.state === "playing" || isOutNow(g)));
     const hrs = bl.reduce((a, g) => a + (+hrsOf(g) || 20), 0), waiting = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp).length;
-    const fin = (S.played || []).filter(p => p.real > 0).map(p => ({ ...p, g: S.games.find(x => x.id === p.id) })).filter(x => x.g).sort((a, b) => b.real - a.real);
+    const fin = (S.played || []).filter(p => scored(p)).map(p => ({ ...p, g: S.games.find(x => x.id === p.id) })).filter(x => x.g).sort((a, b) => b.real - a.real);
     const top = (typeof pnLastRanked !== "undefined" && pnLastRanked[0]) ? pnLastRanked[0].title : "";
     if (hadRail) { H.classList.add("railhide"); try { pnBubFace(); } catch (e) {} }
     const b0 = { x: N.x, y: N.y };
@@ -12754,7 +13622,7 @@ html.still .pnb-row,html.still .pnb-n{animation:none}
 <script>
 /* v147 Top board in Played, plus a share-as-image button */
 function pnBoardRows(done){
-  return (done||[]).filter(x=>x.real>0).sort((a,b)=>b.real-a.real||(b.t||"").localeCompare(a.t||""));
+  return (done||[]).filter(x=>scored(x)).sort((a,b)=>b.real-a.real||(b.t||"").localeCompare(a.t||""));
 }
 let pnArtOpen=false;
 function pnBoard(done){
@@ -12774,7 +13642,7 @@ function pnBoard(done){
         <div class="pnb-p"><span>${x.g.comp?"⚔️ Endless":"⏱ "+hrs(x.g)}</span><span>${x.g.hype>0?"Hype "+x.g.hype+" → "+x.real:"No hype logged"}</span></div></div>
       <span></span>
       <div class="pnb-s"><div class="pnb-r">${i+1}</div>
-        <div class="pnb-n"><i>★</i><b class="pnb-v" data-v="${(+x.real).toFixed(1)}">${(+x.real).toFixed(1)}</b><small>/10</small></div>
+        <div class="pnb-n">${typeof tierBadge==="function"?tierBadge(+x.real):""}<b class="pnb-v sm" data-v="${(+x.real).toFixed(1)}">${(+x.real).toFixed(1)}</b>${typeof confDots==="function"?confDots(rankTable().n[x.id]||0):""}</div>
         <div class="pnb-c" data-findate="${x.id}" title="Change when you finished it">${mon(x.t)} ✎</div></div></button>`).join("")}
     ${rows.length>8?`<button class="chip" data-pnall style="margin-top:8px"><span>${S.boardAll?"Show top 8":"See all "+rows.length}</span></button>`:""}
   </div>`;
@@ -12873,7 +13741,7 @@ html.still #pbdpop,html.still #pbdpop .pbd-i,html.still .pbd-b.new .pbd-i{animat
 /* v150 badges: worked out from what you've done, saved with the date you earned them */
 function pnBadgeStats(){
   const done=(S.played||[]).map(p=>({...p,g:S.games.find(g=>g.id===p.id)})).filter(x=>x.g);
-  const rated=done.filter(x=>x.real>0), hyped=rated.filter(x=>x.g.hype>0);
+  const rated=done.filter(x=>scored(x)), hyped=rated.filter(x=>x.g.hype>0);
   const hrs=x=>num(x.g.hours,0,0,1000), yrs={}, gen=new Set();
   done.forEach(x=>{const y=(x.t||"").slice(0,4);if(y)yrs[y]=(yrs[y]||0)+1;platList(x.g.genres).forEach(n=>gen.add(n));});
   return{n:done.length,maxH:Math.max(0,...done.map(hrs)),exact:hyped.filter(x=>+x.real===+x.g.hype).length,
@@ -13049,14 +13917,14 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
    Answers are kept per game until you rate something new. */
 (function () {
   const LABEL = {}; WHY_GROUPS.forEach(([, xs]) => xs.forEach(([k, l]) => { LABEL[k] = l; }));
-  const rated = skip => S.played.filter(p => p.real > 0 && p.id !== skip).map(p => {
+  const rated = skip => S.played.filter(p => scored(p) && p.id !== skip).map(p => {
     const g = S.games.find(x => x.id === p.id); if (!g) return null;
     const m = g.mine || {};
     return { title: g.title, score: p.real, again: !!p.again, genres: platList(g.genres).slice(0, 3),
       liked: whyOf(g).map(k => LABEL[k]).filter(Boolean).slice(0, 6),
       parts: RATINGS.filter(([k]) => m[k] > 0).map(([k, l]) => l + " " + m[k]) };
   }).filter(Boolean).sort((a, b) => b.score - a.score);
-  const stamp = () => S.played.filter(p => p.real > 0).map(p => p.id + ":" + p.real).join("|");
+  const stamp = () => S.played.filter(p => scored(p)).map(p => p.id + ":" + p.real).join("|");
 
   function paint(o, g, body) {
     o.querySelector(".awc").innerHTML = `<h4>Why you'll love it</h4><h3>${esc(g.title)}</h3>${body}
@@ -13077,7 +13945,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
     const pick = taste.length > 18 ? taste.slice(0, 12).concat(taste.slice(-6)) : taste;
     const me = S.played.find(p => p.id === g.id);
     const game = { title: g.title, genres: platList(g.genres).slice(0, 4), platforms: platList(g.platforms).slice(0, 4),
-      about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && me.real > 0), myScore: me && me.real || null };
+      about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && scored(me)), myScore: me && me.real || null };
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 30000);
     fetch(SGDB_PROXY + "/why", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ game, taste: pick }), signal: ac.signal })
@@ -14246,4 +15114,245 @@ html.still .sh-card { transition: none !important; }
 .qpop .qle { font-style: normal; font-size: 14px; width: 16px; text-align: center; }
 #qview .qle { font-style: normal; }
 .qpop .qsep { display: block; font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); padding: 10px 12px 4px; }
+</style>
+<style>
+/* ===== v183 extras off by default, quick duel / score sheets, usage table, quick add ===== */
+html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-start], html.notimer [data-home-tab="timer"] { display: none !important; }
+.hub-acts .chip.hot { border-color: rgba(var(--vrgb), .55); background: rgba(var(--vrgb), .14); }
+.hit { position: relative; }
+.hitadd { margin-left: auto; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--volt); color: var(--void); font-size: 22px; font-weight: 800; }
+.hitadd:active { transform: scale(.9); }
+.qd-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-top: 12px; }
+.qd-g { display: grid; gap: 8px; justify-items: center; background: var(--void); border: 1px solid var(--steel); border-bottom: 3px solid var(--accent); border-radius: 16px; padding: 10px 8px 12px; color: var(--ice); font: inherit; cursor: pointer; transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s; min-width: 0; }
+.qd-g:active { transform: scale(.96); }
+.qd-g img { width: 100%; max-width: 150px; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; }
+.qd-g b { font-size: 14px; line-height: 1.25; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.qd-g.win { transform: scale(1.05); border-color: var(--accent); }
+.qd-g.lose { transform: scale(.9); opacity: .4; }
+.qd-vs { font: 900 italic 16px Archivo, sans-serif; color: var(--mute); }
+.qd-acts { display: flex; gap: 8px; margin-top: 12px; }
+.qd-acts button { flex: 1; background: none; border: 1px dashed var(--steel); border-radius: 12px; padding: 10px; color: var(--mute); font: inherit; font-size: 14px; cursor: pointer; }
+.qd-note { margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; background: rgba(var(--vrgb), .12); font-size: 14px; }
+.qd-up { color: #3FD9A4; font-weight: 800; }
+.qd-meta { color: var(--mute); font-size: 12px; margin: 10px 0 0; text-align: center; }
+.qs-g { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 8px; border-radius: 14px; background: var(--void); border-left: 3px solid var(--accent); }
+.qs-g img { width: 46px; aspect-ratio: 3/4; object-fit: cover; border-radius: 8px; }
+.qs-g span { flex: 1; min-width: 0; } .qs-g b { display: block; } .qs-g small { color: var(--mute); font-size: 12px; }
+.qs-v { font: 900 italic 30px Archivo, sans-serif; color: var(--volt); font-style: normal; min-width: 52px; text-align: right; }
+.qs-grid { display: grid; grid-template-columns: repeat(calc(var(--n) * 2), 1fr); gap: 6px 2px; margin-top: 14px; }
+.qs-grid button { height: 44px; border-radius: 12px; border: 1px solid var(--steel); background: var(--void); color: var(--ice); font: 800 16px inherit; cursor: pointer; margin: 0 1px; }
+.qs-grid .qs-h { height: 34px; font-size: 12px; color: var(--mute); grid-row: 2; }
+.qs-grid .qs-i { grid-row: 1; }
+.qs-grid button.on { background: var(--volt); color: var(--void); border-color: var(--volt); }
+.qs-grid button:active { transform: scale(.92); }
+.u-pv { font-size: 11px; color: var(--mute); font-weight: 600; margin-left: 6px; }
+.u-t { display: grid; gap: 2px; margin: 6px 0 12px; }
+.u-r { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 8px; padding: 7px 10px; border-radius: 10px; background: var(--void); font-size: 13px; }
+.u-r.u-2 { grid-template-columns: 1fr auto; }
+.u-r.u-h { background: none; color: var(--mute); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.u-r span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+<script>
+/* ===== v183 what's new + settings extras ===== */
+GROUP_ICON["Extra features"] = "🧪";
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn"];
+SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
+WHATS_NEW.push(
+  { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
+    say: "Duels are quicker now: tap <b>⚔</b> and a pair of games you've played pops up. One tap picks the winner and the next pair is already there. I pick games that sit close in your ranking, and show when one climbs (↑2).",
+    tryIt: "Tap ⚔ and settle a couple." },
+  { v: 183, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-qscore]",
+    say: "Every game page has <b>⭐ Score it</b> and <b>⚔ Duel it</b> right at the front. Scoring is one tap on the number (the bottom row is the halves).",
+    tryIt: "Tap ⭐ and give it a score." },
+  { v: 183, go: () => { nxShut(); goTab("add"); }, at: "#q",
+    say: "Adding a game: search, then tap the blue <b>＋</b> next to it. It goes straight into your queue with its art. Tap the game itself if you want to check the details first.",
+    tryIt: "Search for something you want to play." },
+  { v: 183, go: () => { nxShut(); setJump({ scope: "app", group: "Extra features", text: "Play diary" }); }, at: () => $("#s-xdiary"),
+    say: "Tidier app: the <b>Diary</b> and the <b>Timer</b> are hidden now, like Grumble. Switch either back on here in <b>Extra features</b>. Your old entries are all still there.",
+    tryIt: "Only turn on what you actually use." },
+  { v: 183, go: () => { nxShut(); setJump({ scope: "app", group: "Your data", text: "" }); }, at: () => $("#s-usage"),
+    say: "Game cards open faster: I show a light copy of the art first and swap in the sharp one a moment later, and pictures are kept on your phone. Also new: <b>📊 Your usage</b>, a private count of which screens you use, per version, so we can see what's worth keeping.",
+    tryIt: "Have a look in a week or two." }
+);
+</script>
+<script>
+/* ---- badges that keep going as you duel ---- */
+PN_BADGES.push(
+  ["duel10", "🗡️", "First blood", "Settle 10 duels", s => s.duels, 10],
+  ["duel100", "⚖️", "The arbiter", "Settle 100 duels", s => s.duels, 100],
+  ["duel250", "🏛️", "Supreme court", "Settle 250 duels", s => s.duels, 250],
+  ["climb5", "🧗", "Big climb", "Lift a game 5 places in one duel", s => s.climb, 5],
+  ["duelday7", "📆", "Regular", "Duel on 7 different days", s => s.dDays, 7],
+  ["edge10", "🤏", "Fine margins", "Call a slight edge 10 times", s => s.edge, 10],
+  ["settled3", "🔒", "Podium locked", "Your top 3 each have 6+ duels", s => s.top3, 3]);
+{ const _bs = pnBadgeStats; pnBadgeStats = function () {
+  const s = _bs.apply(this, arguments), t = rankTable();
+  s.duels = (S.duels || []).filter(d => d.w).length; s.climb = S.climbMax || 0; s.dDays = (S.duelDays || []).length; s.edge = S.edgeN || 0;
+  s.top3 = t.order.slice(0, 3).filter(id => t.n[id] >= 6).length;
+  return s; }; }
+
+/* ---- the Top board and the duel standings read the ranking ---- */
+pnBoardRows = function (done) {
+  const t = rankTable();
+  return (done || []).filter(x => t.pos[x.id] != null).sort((a, b) => t.pos[a.id] - t.pos[b.id]);
+};
+try { renderPlayed(); } catch (e) {}
+GROUP_ICON["On deck"] = "🎯";
+GROUP_KEYS["On deck"] = ["curPlat", "deckOff"];
+WHATS_NEW.push(
+  { v: 184, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); qScore(g.id); } }, at: () => $("#diary .qs-grid"),
+    say: "Scores now go from <b>0 to 10</b> in halves. Can't remember how good it was? Tap <b>🤷 Don't remember</b>: it shows as Unscored and stays out of your stats. Your old “0” scores became Unscored.",
+    tryIt: "Your score gives the game a tier: S (9+), A (7½+), B (6+) or C." },
+  { v: 184, go: () => { dyClose(); nxShut(); goTab("played"); }, at: () => $("#p-played .pnb-row"),
+    say: "Your <b>ranking</b> is here. The letter is the tier from your score, but the <b>order comes from your duels</b>: two games with the same score get sorted by which one you picked. The dots show how sure each rank is.",
+    tryIt: "More duels = more dots." },
+  { v: 184, go: () => { nxShut(); qdToday = 0; qDuel(null); }, at: () => $("#diary .qd-acts"),
+    say: "Duels only pit games you've <b>played</b> against each other, and I pick pairs sitting close in your ranking. If it's close, tap <b>Slight edge</b> instead of Even. Each pick shows how far a game climbs.",
+    tryIt: "Settle a few, then close this." },
+  { v: 184, go: () => { dyClose(); nxShut(); goTab("taste"); }, at: () => $("#p-taste .tins"),
+    say: "The Taste tab now learns from your <b>duels</b> and from the games you <b>add or remove</b>. It tells you things like which kinds of game win most of their duels.",
+    tryIt: "Check back after a few more duels." },
+  { v: 184, go: () => { nxShut(); goTab("queue"); }, at: () => $("#p-queue .deck"),
+    say: "<b>On deck</b>: my top 3 from your queue. Games like the ones you rank highest, on your current platform (Switch), and out now. Number 1 is my pick on Home. Change your platform in the Queue's Customise.",
+    tryIt: "Tap one to open it." },
+  { v: 184, go: () => nxHome(), at: () => $("#p-home .nxhome"),
+    say: "I'm at the top of Home now. I tell you <b>what to play next</b> and your <b>top 3</b>. And there are new badges for duelling: 10, 100 and 250 duels, big climbs, and more.",
+    tryIt: "Tap a game's name to open it." }
+);
+</script>
+<style>
+/* ===== v184 ranking: tiers, confidence dots, On deck, Nexi on Home, insights ===== */
+:root { --tS: #FFD34D; }
+.tier { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 6px; font: 900 12px/1 Archivo, sans-serif; font-style: italic; letter-spacing: 0; vertical-align: middle; }
+.tier.tS { background: var(--tS); color: #1a1200; }
+.tier.tA { background: var(--volt); color: var(--void); }
+.tier.tB { background: rgba(var(--vrgb), .22); color: var(--ice); border: 1px solid rgba(var(--vrgb), .5); }
+.tier.tC { background: transparent; color: var(--mute); border: 1px solid var(--steel); }
+.conf { display: inline-flex; gap: 2px; vertical-align: middle; }
+.conf i { width: 5px; height: 5px; border-radius: 50%; background: var(--steel); }
+.conf i.on { background: var(--volt); }
+.conf.c3 i.on { background: #3FD9A4; }
+.qd-rk { display: flex; gap: 6px; align-items: center; color: var(--mute); font-size: 12px; }
+.qd-g.near { transform: scale(.96); opacity: .7; }
+.qd-acts + .qd-acts { margin-top: 6px; }
+.qs-dk { margin-top: 12px; }
+.qs-dk.on { border-style: solid; border-color: var(--volt); color: var(--ice); }
+.qs-v .tier { margin-left: 6px; font-size: 13px; }
+.qs-grid { --n: 11; }
+/* the Top board: rank first, then tier, the score small */
+.pnb-r { width: auto; height: auto; border: 0; border-radius: 0; background: none !important; color: var(--ice) !important;
+  font: 900 italic calc(clamp(46px,12vw,68px)*(.45 + var(--pbs,.75)*.55))/1 "Archivo", system-ui, sans-serif; letter-spacing: -.03em; }
+.pnb-r { display: flex !important; align-items: flex-start; }
+.pnb-r::before { content: "#"; font-size: .42em; color: var(--volt); margin: .12em 2px 0 0; }
+.pnb-row.top .pnb-r { color: var(--tS) !important; }
+.pnb-n { display: flex; align-items: center; gap: 6px; justify-content: center; font: 700 13px "Poppins", sans-serif !important; margin: 6px 0 6px !important; }
+.pnb-v.sm { font-size: 13px !important; opacity: .75; font-weight: 700; }
+.pnb-n .conf { margin-left: 2px; }
+/* ranking list in Taste → Duels */
+.rkl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 8px 0; }
+.rkr { width: 100%; min-width: 0; }
+.rkr { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: var(--ink); border: 0; border-left: 3px solid var(--accent); color: var(--ice); font: inherit; text-align: left; cursor: pointer; }
+.rkr .rn { font: 900 italic 20px Archivo, sans-serif; min-width: 30px; color: var(--ice); }
+.rkr .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rkr .rsc { color: var(--mute); font-size: 12px; min-width: 26px; text-align: right; }
+.chips.tdw { justify-content: center; }
+/* insights */
+.tins { margin: 6px 0 18px; padding: 14px; border-radius: 18px; background: var(--ink); border: 1px solid rgba(var(--vrgb), .25); }
+.tins-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tins-h h4 { margin: 0; font-size: 15px; }
+.tin { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--steel); }
+.tin:first-of-type { border-top: 0; }
+.tin .ti { font-size: 20px; line-height: 1.2; }
+.tin .tt { display: block; font-size: 14px; }
+.tin small { color: var(--mute); font-size: 12px; }
+.tins-rk { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; padding-bottom: 2px; scrollbar-width: none; }
+.tins-rk .rk { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--void); border: 1px solid var(--steel); color: var(--ice); font: inherit; font-size: 13px; cursor: pointer; max-width: 240px; }
+.tins-rk .rk span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tins-rk .rk small { color: var(--mute); }
+/* On deck in the queue */
+.deck { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 14px; position: relative; }
+.deck-h { grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--volt); }
+.deck-g { display: flex; gap: 8px; align-items: center; min-width: 0; padding: 7px; border-radius: 14px; background: var(--ink); border: 1px solid var(--steel); border-bottom: 2px solid var(--accent); color: var(--ice); font: inherit; text-align: left; cursor: pointer; }
+.deck-g img { width: 34px; aspect-ratio: 3/4; object-fit: cover; border-radius: 6px; flex: 0 0 auto; }
+.deck-g span { min-width: 0; }
+.deck-g b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deck-g small { display: block; color: var(--mute); font-size: 10.5px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+@media (max-width: 520px) { .deck { grid-template-columns: 1fr; } .deck-g small { -webkit-line-clamp: 1; } }
+/* Nexi on top of Home */
+.nxhome { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 12px; }
+.nxh-face { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; position: relative;
+  background: radial-gradient(circle at 35% 30%, #1d2a55, #070b1c 70%); box-shadow: 0 0 0 2px rgba(var(--vrgb), .55), 0 6px 22px rgba(var(--vrgb), .35); }
+.nxh-face .eyes { position: absolute; inset: 0; display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: -2px; }
+.nxh-face .eyes i { width: 8px; height: 12px; border-radius: 50%; background: #EAF2FF; box-shadow: 0 0 8px rgba(var(--vrgb), .9); animation: nxhBlink 5s infinite; }
+@keyframes nxhBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+html.still .nxh-face .eyes i { animation: none; }
+.nxh-say { position: relative; flex: 1; min-width: 0; padding: 10px 14px; border-radius: 4px 18px 18px 18px; background: var(--ink); border: 1px solid rgba(var(--vrgb), .28); }
+.nxh-say p { margin: 0; font-size: 14.5px; line-height: 1.4; }
+.nxh-say p small { color: var(--mute); font-size: 12px; }
+.nxl-g { background: none; border: 0; padding: 0; color: var(--volt); font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(var(--vrgb), .4); text-underline-offset: 3px; }
+.nxh-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.nxh-top > span { flex: 1 0 100%; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.nxh-top button { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 5px; padding: 4px 9px 4px 5px; border-radius: 999px; background: var(--void); border: 1px solid var(--steel); color: var(--ice); font: inherit; font-size: 12.5px; cursor: pointer; }
+.nxh-top button b { font: 900 italic 13px Archivo, sans-serif; color: var(--mute); padding-left: 3px; }
+.nxh-top button em { font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+@media (max-width: 520px) { .nxh-top button { flex-basis: 100%; } .nxh-top { gap: 4px; } .nxh-top button em { font-size: 12.5px; } }
+</style>
+<script>
+/* ===== v185 what's new ===== */
+GROUP_ICON["Nexi"] = "🤖";
+GROUP_KEYS["Nexi"] = ["nxPersona"];
+SET_QUICK.push(["🤖", "Nexi's personality", "Nexi", "Personality"]);
+WHATS_NEW.push(
+  { v: 185, go: () => { nxShut(); nxChat(); }, at: () => $("#diary .nc-in"),
+    say: "You can <b>chat with me</b> now! Ask what to play next, why you like what you like, or for tips on a game. I know your ranking and your queue, and I keep a short memory of our chats so next time I remember.",
+    tryIt: "Tap me on Home, or hold me and tap 💬." },
+  { v: 185, go: () => { nxShut(); nxChat(); }, at: () => $("#diary .nc-pers"),
+    say: "Pick my <b>personality</b>: Hype Buddy, Calm Butler, Chill Coach, Sarcastic Rival, Story Bard or Stats Nerd. Same tips, different voice.",
+    tryIt: "Try the Sarcastic Rival. I dare you." },
+  { v: 185, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Nudges" }); }, at: () => $("#s-nudge"),
+    say: "Want a nudge? I can send <b>2 a day</b>, at slightly different times inside the hours you usually play: a close duel, tonight's pick, a tip, a badge you're close to, or a release. Always friendly, never guilt.",
+    tryIt: "Turn them on here. On iPhone, the app has to be on the Home Screen." },
+  { v: 185, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
+    say: "<b>🔍 Similar</b> finds games like this one: from your own library, and new ones from RAWG you can add with one tap. <b>▶ Trailer</b> opens its trailer on YouTube. Both are on the back of queue cards too.",
+    tryIt: "Tap 🔍 Similar." }
+);
+</script>
+<style>
+/* ===== v185 Nexi chat, personalities, similar games ===== */
+.nc-p { font-size: 11px; color: var(--mute); font-weight: 600; margin-left: 6px; }
+.nc-pers { display: flex; gap: 6px; overflow-x: auto; margin: 10px -2px 0; padding: 2px; scrollbar-width: none; }
+.nc-pers button { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--steel); background: var(--void); color: var(--mute); font: inherit; font-size: 12.5px; cursor: pointer; }
+.nc-pers button[aria-pressed="true"] { border-color: var(--volt); color: var(--ice); background: rgba(var(--vrgb), .16); }
+.nc-log { display: grid; gap: 8px; margin: 12px 0 8px; max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; }
+.nc-m { display: flex; gap: 8px; align-items: flex-end; }
+.nc-m p { margin: 0; padding: 9px 12px; border-radius: 16px; font-size: 14.5px; line-height: 1.45; max-width: 82%; }
+.nc-m.nx p { background: var(--void); border: 1px solid rgba(var(--vrgb), .25); border-bottom-left-radius: 4px; }
+.nc-m.me { justify-content: flex-end; }
+.nc-m.me p { background: var(--volt); color: var(--void); border-bottom-right-radius: 4px; }
+.nc-f { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: flex; gap: 4px; align-items: center; justify-content: center; background: radial-gradient(circle at 35% 30%, #1d2a55, #070b1c 70%); box-shadow: 0 0 0 1.5px rgba(var(--vrgb), .55); }
+.nc-f i { width: 4px; height: 7px; border-radius: 50%; background: #EAF2FF; }
+.nc-dots { display: flex; gap: 4px; }
+.nc-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--mute); animation: ncDot 1s infinite; }
+.nc-dots i:nth-child(2) { animation-delay: .15s; } .nc-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes ncDot { 50% { opacity: .3; transform: translateY(-3px); } }
+.nc-asks { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.nc-asks button { padding: 6px 10px; border-radius: 12px; border: 1px dashed var(--steel); background: none; color: var(--ice); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.nc-in { display: flex; gap: 8px; }
+.nc-q { flex: 1; min-width: 0; background: var(--void); border: 1px solid var(--steel); border-radius: 14px; padding: 11px 12px; color: var(--ice); font: inherit; font-size: 16px; }
+.nc-go { width: 46px; border-radius: 14px; border: 0; background: var(--volt); color: var(--void); font-size: 18px; cursor: pointer; }
+.nc-mem { margin-top: 12px; color: var(--mute); font-size: 13px; }
+.nc-mem summary { cursor: pointer; }
+.nc-mem p { margin: 6px 0; color: var(--ice); }
+.nc-mem button { background: none; border: 0; color: var(--hot); font: inherit; font-size: 13px; padding: 0; cursor: pointer; }
+/* similar games */
+.sim-h { cursor: default; }
+.sim-h img { width: 64px !important; aspect-ratio: 16/10 !important; }
+.sim-yt { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--steel); background: none; color: var(--ice); cursor: pointer; }
+.sim-h .hitadd { width: 34px; height: 34px; font-size: 20px; border: 0; cursor: pointer; }
+.simback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.sb-h { flex: 1 0 100%; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.sb-g { width: 64px; display: grid; gap: 3px; justify-items: center; background: none; border: 0; color: var(--ice); padding: 0; cursor: pointer; }
+.sb-g img { width: 52px; aspect-ratio: 3/4; object-fit: cover; border-radius: 8px; }
+.sb-g small { font-size: 10px; max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 </style>

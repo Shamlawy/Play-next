@@ -1,0 +1,2 @@
+# Backups hold private data: never commit them
+*.json
