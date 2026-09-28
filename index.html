@@ -3830,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "174";
+const APP_V = "175";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10078,7 +10078,7 @@ function dxHome(o) {
       <span class="dxt">Your queue</span>
       <span class="box">${ranked.slice(0, SPOT.length).map((g, n) => { const [x, y, s, r] = SPOT[n];
         return `<img decoding="async" src="${img(g)}" alt="" style="left:${x}%;top:${y}%;width:${s}px;--r:${r}deg">`; }).join("")}
-        <b>${live.length}</b><small>${live.length === 1 ? "game" : "games"} waiting</small></span>
+        <span class="dxorb"><span class="blob"></span><span class="core"><b>${live.length}</b><small>${live.length === 1 ? "game" : "games"} waiting</small></span></span></span>
     </button>` : "";
 
   /* tall cards: what you're playing, with how far through you are */
@@ -12849,7 +12849,10 @@ const WHATS_NEW = [
     tryIt: "Try typing the first letters of a game." },
   { v: 174, go: () => { nxShut(); goTab("lib"); }, at: "#lib-view",
     say: "I tidied the Library: the <b>Arc and Wheel</b> layouts are gone. It's Grid or Swipe now — if you were on Arc or Wheel, you're on Swipe.",
-    tryIt: "Flip between Grid and Swipe here." }
+    tryIt: "Flip between Grid and Swipe here." },
+  { v: 175, go: () => nxHome(), at: () => $("#p-home .dxorb"),
+    say: "My <b>glowing ring</b> is back! The swirl from the old Queue hours tile now spins round your queue count on Home — same glow as mine 😄",
+    tryIt: "Tap it to jump to your games." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13033,6 +13036,22 @@ document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) {
 .dxq .box b { position: relative; font-size: clamp(56px, 17vw, 86px); line-height: 1; font-weight: 700; letter-spacing: -.03em; color: var(--volt);
   text-shadow: 0 6px 30px rgba(77,163,255,.35); }
 .dxq .box small { position: relative; margin-top: 2px; color: var(--mute); font-size: 11.5px; font-weight: 500; }
+/* v175 the old Queue hours glow is back, behind the queue count: a wobbly conic disc that turns slowly
+   (transform only) with a soft glow breathing behind it (opacity/transform), same recipe as Nexi's aura */
+.dxq .box img { z-index: 2; }
+.dxorb { position: relative; width: min(74%, 190px); aspect-ratio: 1; display: grid; place-items: center; }
+.dxorb::before { content: ""; position: absolute; inset: -16%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(77,163,255,.38), transparent 66%); animation: pnBreath 4.5s ease-in-out infinite; }
+.dxorb .blob { position: absolute; inset: 0; border-radius: 46% 54% 42% 58% / 55% 45% 55% 45%; will-change: transform;
+  background: conic-gradient(from 200deg, #2F6BFF, #8FD0FF, #EAF2FF, #7B6CFF, #2F6BFF);
+  box-shadow: 0 0 6px 1px rgba(143,208,255,.5); animation: blob 9s linear infinite; }
+.dxorb .core { position: relative; width: 76%; height: 76%; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; background: var(--void); box-shadow: inset 0 0 0 1px rgba(234,242,255,.12), 0 0 30px rgba(0,0,0,.6); }
+.dxq .dxorb b { font-size: clamp(34px, 10vw, 58px); color: #fff; text-shadow: none; }
+.dxq .dxorb small { font-size: 10.5px; margin-top: 2px; }
+html.still .dxorb .blob, html.still .dxorb::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .dxorb .blob, .dxorb::before { animation: none; } }
+@media (min-width: 620px) { .dxq .dxorb b { font-size: clamp(40px, 5.4vw, 60px); } }
 
 /* tall cards for what you're playing */
 .dxplay { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
