@@ -3830,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "178";
+const APP_V = "179";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4914,6 +4914,9 @@ function openEdit(id) {
     <label for="e-runs">Times through</label>
     <div class="rowline"><input id="e-runs" type="range" min="1" max="12" step="1" value="${num(played.runs, 1, 1, 12)}">
       <span class="v" id="e-runs-v">${num(played.runs, 1, 1, 12)}×</span></div>
+    <label for="e-fin">When you finished it</label>
+    <input id="e-fin" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(played.t || "") ? played.t : "")}" max="${new Date().toLocaleDateString("en-CA")}">
+    <p class="note">Your monthly and yearly recaps count it in this month. Not sure of the day? Any day in the right month is fine.</p>
     <label>What got you about it</label>
     <p class="note">Pick as many as fit, or none. This is the only thing here that isn't a score — it's what turns "you rate RPGs highly" into "you rate games with characters you care about highly". Most of these come from Quantic Foundry's motivation model, built from over a million players; the story ones are here because a question about one game needs them and a question about players doesn't.</p>
     <div id="e-why">${WHY_GROUPS.map(([head, list]) => `
@@ -5272,6 +5275,7 @@ function openEdit(id) {
       editing.real = Number(ev2.target.value);
       $("#e-real-v").textContent = Number(ev2.target.value).toFixed(1);
     };
+    if ($("#e-fin")) $("#e-fin").oninput = ev2 => { editing.fin = ev2.target.value; };
     if ($("#e-runs")) $("#e-runs").oninput = ev2 => {
       editing.runs = Number(ev2.target.value);
       $("#e-runs-v").textContent = ev2.target.value + "×";
@@ -5573,6 +5577,7 @@ function openEdit(id) {
         rec.real = num(editing.real, rec.real, 0, 10);
         rec.runs = num(editing.runs, num(rec.runs, 1, 1, 12), 1, 12);
         if (editing.again != null) rec.again = editing.again;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(editing.fin || "")) rec.t = editing.fin;
       }
       if (rec.real > 0 && rec.real !== before) setTimeout(() => allOut(S.games.find(x => x.id === id) || g, rec.real), 350);
     }
@@ -7893,7 +7898,7 @@ function renderQueue() {
   const head = `
     ${nudgeBar()}
     <div class="tabbar"><h3>Queue</h3><span class="tcount">${
-      S.games.length ? S.games.filter(g => !isPlayed(g)).length + " waiting · " + S.played.length + " played" : ""
+      S.games.length ? S.games.filter(g => !isPlayed(g) && !isDropped(g)).length + " waiting · " + S.played.length + " played" : ""
     }</span>
       <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
     ${subChips("games")}
@@ -10065,7 +10070,7 @@ function dxHome(o) {
         ${live.length > 1 ? `<button type="button" class="cb" data-pickone title="I'll pick one" aria-label="I'll pick one">${DX_ICO.dice}</button>` : '<span class="cb ghost"></span>'}
         <span class="play" aria-hidden="true">${DX_ICO.play}</span>
         <button type="button" class="cb" data-dxtab="taste" title="Settle a duel" aria-label="Settle a duel">${DX_ICO.duel}</button>
-        <span class="tm">${settled ? "#1 · " + settled + " duel" + (settled === 1 ? "" : "s") : "#1 of " + live.length}</span>
+        <span class="tm">${settled ? settled + " duel" + (settled === 1 ? "" : "s") : "#1 of " + live.length}</span>
       </span>
     </div>` : `<div class="dxhero empty" style="grid-area:p"><span class="top"><span class="tt"><small>Play this next</small><b>Add a game and this fills in</b></span></span>
       <span class="bar"><button type="button" class="play" data-dxtab="add" aria-label="Add a game">${DX_ICO.play}</button></span></div>`;
@@ -10096,11 +10101,14 @@ function dxHome(o) {
     <div class="row3">${cards.map(g => {
       const done = loggedOf(g) + (S.timer && S.timer.id === g.id ? liveTimerHours() : 0), total = num(g.hours, 0, 0, 1000);
       const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0, hy = num(g.hype, 0, 0, 10), st = Math.round(hy / 2);
+      /* v179 competitive games never "finish": show the diary's win rate instead of a progress bar */
+      const dy = g.diary || [], W = dy.reduce((a, e) => a + (e.w || 0), 0), Lo = dy.reduce((a, e) => a + (e.l || 0), 0), Dr = dy.reduce((a, e) => a + (e.d || 0), 0);
+      const wr = W + Lo + Dr ? Math.round(W / (W + Lo + Dr) * 100) : null;
       return `<button type="button" class="dxc" data-home-open="${g.id}" style="--tint:${col(g)}">
         <img decoding="async" src="${img(g)}" alt="">${hy ? `<span class="vb">${DX_ICO.flame}${hy}</span>` : ""}
-        <span class="ft"><b>${esc(g.title)}</b><small>${total ? Math.max(0, Math.round(total - done)) + "h left" : esc(genre(g))}</small>
+        <span class="ft"><b>${esc(g.title)}</b><small>${g.comp ? (wr != null ? wr + "% wins" : dy.length ? dy.length + " diary entr" + (dy.length === 1 ? "y" : "ies") : esc(genre(g))) : total ? Math.max(0, Math.round(total - done)) + "h left" : esc(genre(g))}</small>
           <span class="stars">${"★".repeat(st)}<i>${"★".repeat(5 - st)}</i></span>
-          <span class="dxpb"><span class="tr"><i style="width:calc(40px + (100% - 40px) * ${(pct / 100).toFixed(2)})"></i><em>${total ? pct + "%" : "—"}</em></span><span class="go">${DX_ICO.mini}</span></span></span>
+          ${g.comp ? `<span class="dxcomp">⚔ Competitive</span>` : `<span class="dxpb"><span class="tr"><i style="width:calc(40px + (100% - 40px) * ${(pct / 100).toFixed(2)})"></i><em>${total ? pct + "%" : "—"}</em></span><span class="go">${DX_ICO.mini}</span></span>`}</span>
       </button>`; }).join("")}</div></div>` : "";
 
   /* queue hours as a donut, split by the games that hold the most */
@@ -10236,7 +10244,7 @@ function renderHome() {
         return `<button class="tile go2 k-wrap" data-wrapped${hero ? ` data-bg="${hero.id}"` : ""}>
           <h5>${Y} ${late ? "wrapped" : "so far"}</h5>
           <div class="big word">${late ? "Your year in games ✨" : "Your year so far"}</div>
-          <p class="sub">${wd.fin.length} finished · ${fmtH(wd.hours)} played · ${wd.duels} duels — tap to watch</p>
+          <p class="sub">${wd.fin.length} finished${wd.thin ? "" : " · " + fmtH(wd.hours) + " played"} · ${wd.duels} duels — tap to watch</p>
         </button>`;
       })()}
       ${(() => {
@@ -10247,8 +10255,9 @@ function renderHome() {
         const hero = md.top ? md.top.g : md.best ? md.best.g : md.fin[0] || pick;
         return `<button class="tile go2 k-month" data-wrapped="${Y}-${String(M + 1).padStart(2, "0")}"${hero ? ` data-bg="${hero.id}"` : ""}>
           <h5>${WR_MONTHS[M]} ${back ? "recap" : "so far"}</h5>
-          <div class="big">${md.hours ? fmtH(md.hours) : "0h"}<em> played</em></div>
-          <p class="sub">${md.ses.length} session${md.ses.length === 1 ? "" : "s"} · ${md.fin.length} finished${md.top ? " · most: " + esc(md.top.g.title) : ""} — tap to watch</p>
+          ${md.thin ? `<div class="big">${md.fin.length}<em> finished</em></div>
+          <p class="sub">${md.duels} duels · ${md.added.length} added — tap to watch</p>` : `<div class="big">${fmtH(md.hours)}<em> played</em></div>
+          <p class="sub">${md.ses.length} sessions · ${md.fin.length} finished${md.top ? " · most: " + esc(md.top.g.title) : ""} — tap to watch</p>`}
         </button>`;
       })()}
       ${(() => {
@@ -11552,10 +11561,14 @@ function wrData(Y, M) {
   const mc = Array(MOODS.length).fill(0); dia.forEach(e => { if (MOODS[e.m]) mc[e.m]++; });
   const mood = dia.length ? mc.indexOf(Math.max(...mc)) : -1;
   const now = new Date(), cur = now.getFullYear() === Y && (M == null ? !wrLate() : now.getMonth() === M);
-  return { Y, M, mon: M != null, label: M == null ? String(Y) : WR_MONTHS[M] + " " + Y, sofar: cur, ses, hours, top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
+  return { Y, M, mon: M != null, label: M == null ? String(Y) : WR_MONTHS[M] + " " + Y, sofar: cur, ses, hours,
+    thin: ses.length < 3,   /* v179 sessions only started in v177: too few to say "most played" or count hours */ top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
     fin: fin.map(p => G(p.id)), best: scored[0] && { g: G(scored[0].id), real: scored[0].real }, miss,
     duels: duels.length, champ: champ && { g: G(champ), n: wins[champ] }, out, added, dia: dia.length, mood };
 }
+/* the four numbers on the last slide and the card; before there are sessions, other numbers stand in */
+const wrCells = d => (d.thin ? [] : [[wrH(d.hours) + "h", "played"], [d.ses.length, "sessions"]])
+  .concat([[d.fin.length, "finished"], [d.duels, "duels"]], d.thin ? [[d.added.length, "added"], [d.out.length, "released"]] : []);
 const wrH = h => h >= 10 ? Math.round(h) : h > 0.05 ? h.toFixed(1) : 0;
 const wrLate = () => new Date().getMonth() === 11;       /* December: the real thing, not "so far" */
 function wrSlides(d) {
@@ -11566,11 +11579,11 @@ function wrSlides(d) {
       : `<small class="wr-k">Play next presents</small><h1 class="wr-huge">${Y}</h1><h2 class="wr-big">${sofar ? "so far" : "wrapped"}</h2>`,
     say: mon ? (sofar ? "Quick peek at your month so far 📅" : `Here's your ${WR_MONTHS[d.M]} in games 📅`)
       : sofar ? "It's not over yet, but I peeked at your year 👀 Tap to go on." : "I kept notes all year. Ready? 👀" });
-  if (d.hours > 0.05) T.push({ k: "hours", bg: "void", html: `<small class="wr-k">You played</small><h1 class="wr-huge">${wrH(d.hours)}<em>h</em></h1>
+  if (d.hours > 0.05 && !d.thin) T.push({ k: "hours", bg: "void", html: `<small class="wr-k">You played</small><h1 class="wr-huge">${wrH(d.hours)}<em>h</em></h1>
       <p class="wr-p">across <b>${d.ses.length}</b> session${d.ses.length === 1 ? "" : "s"}${d.day ? ` · your gaming day was <b>${d.day}</b>` : ""}</p>
       ${d.longest ? `<p class="wr-p dim">Longest run: ${fmtH(d.longest.h)} of ${esc(d.longest.g.title)}</p>` : ""}`,
     say: d.hours > (mon ? 40 : 150) ? "That's a LOT of hours. I'm so proud 🥹" : d.hours > (mon ? 10 : 30) ? `Solid ${span} of playing. Respect 🎮` : "Every hour counts. Quality over quantity 😌" });
-  if (d.top) T.push({ k: "top", bg: "art", art: art(d.top.g), html: `<small class="wr-k">Your most-played</small>
+  if (d.top && !d.thin) T.push({ k: "top", bg: "art", art: art(d.top.g), html: `<small class="wr-k">Your most-played</small>
       <img class="wr-cov" decoding="async" src="${cov(d.top.g)}" alt=""><h2 class="wr-big">${esc(d.top.g.title)}</h2>
       <p class="wr-p"><b>${fmtH(d.top.h)}</b> over ${d.top.n} session${d.top.n === 1 ? "" : "s"}</p>`, say: "You two were inseparable 💙" });
   if (d.fin.length) T.push({ k: "fin", bg: "ice", html: `<small class="wr-k">You finished</small><h1 class="wr-huge">${d.fin.length}</h1>
@@ -11593,9 +11606,8 @@ function wrSlides(d) {
   if (!mon && d.mood >= 0 && d.dia >= 3) T.push({ k: "mood", bg: "void", html: `<small class="wr-k">Your vibe</small><div class="wr-emo">${MOODS[d.mood][0]}</div>
       <h2 class="wr-big">${esc(MOODS[d.mood][1])}</h2><p class="wr-p">across ${d.dia} diary entries</p>`, say: "Your diary told me everything 📓" });
   T.push({ k: "end", bg: "void", html: `<small class="wr-k">${esc(d.label)}${sofar ? " so far" : ""} in games</small><div class="wr-grid">
-      <div><b>${wrH(d.hours)}h</b><small>played</small></div><div><b>${d.ses.length}</b><small>sessions</small></div>
-      <div><b>${d.fin.length}</b><small>finished</small></div><div><b>${d.duels}</b><small>duels</small></div></div>
-      ${d.top ? `<p class="wr-p">Most played: <b>${esc(d.top.g.title)}</b></p>` : ""}${d.best ? `<p class="wr-p">Game of the ${span}: <b>${esc(d.best.g.title)}</b></p>` : ""}
+      ${wrCells(d).map(([v, l]) => `<div><b>${v}</b><small>${l}</small></div>`).join("")}</div>
+      ${d.top && !d.thin ? `<p class="wr-p">Most played: <b>${esc(d.top.g.title)}</b></p>` : ""}${d.best ? `<p class="wr-p">Game of the ${span}: <b>${esc(d.best.g.title)}</b></p>` : ""}
       <div class="wr-acts"><button class="btn" data-wr="share"><span>Share my card</span></button><button class="btn ghost" data-wr="again"><span>Watch again</span></button></div>`,
     say: mon ? (sofar ? "Check back when the month's done 🗓️" : "Same time next month? 😄") : sofar ? "Come back in December for the full thing 🎁" : "Same time next year? 😄", stay: 1 });
   return T;
@@ -11651,7 +11663,7 @@ async function wrCard(d) {
   toast("Making your card…");
   try { await document.fonts.ready; } catch (e) {}
   const ld = src => new Promise(r => { if (!src) return r(null); const i = new Image(); if (!src.startsWith("data:") && !src.startsWith("blob:")) i.crossOrigin = "anonymous"; i.onload = () => r(i); i.onerror = () => r(null); i.src = cssUrl(src); });
-  const hero = d.top ? d.top.g : d.best ? d.best.g : d.fin[0];
+  const hero = d.top && !d.thin ? d.top.g : d.best ? d.best.g : d.fin[0];
   const im = hero ? await ld(bgSource(hero) || cover(hero)) : null, cv = hero ? await ld(cover(hero)) : null;
   const W = 1080, H = 1920, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
   x.fillStyle = "#04060E"; x.fillRect(0, 0, W, H);
@@ -11664,14 +11676,15 @@ async function wrCard(d) {
     x.fillStyle = "#fff"; x.fillRect(-cw / 2 - 12, -ch / 2 - 12, cw + 24, ch + 24);
     const r = Math.max(cw / cv.width, ch / cv.height), sw = cw / r, sh = ch / r; x.drawImage(cv, (cv.width - sw) / 2, (cv.height - sh) / 2, sw, sh, -cw / 2, -ch / 2, cw, ch); x.restore(); }
   x.textAlign = "center"; x.fillStyle = "#EAF2FF"; x.font = "600 34px Poppins, sans-serif";
-  if (d.top) { x.fillText("MOST PLAYED", W / 2, 1040); x.font = "italic 900 64px Archivo, sans-serif"; x.fillStyle = "#fff";
-    let t = d.top.g.title; while (x.measureText(t).width > 940 && t.length > 4) t = t.slice(0, -2); x.fillText(t === d.top.g.title ? t : t + "…", W / 2, 1115); }
-  const cells = [[wrH(d.hours) + "h", "PLAYED"], [d.ses.length, "SESSIONS"], [d.fin.length, "FINISHED"], [d.duels, "DUELS"]];
+  const lead = d.top && !d.thin ? ["MOST PLAYED", d.top.g] : d.best ? ["GAME OF THE " + (d.mon ? "MONTH" : "YEAR"), d.best.g] : null;
+  if (lead) { x.fillText(lead[0], W / 2, 1040); x.font = "italic 900 64px Archivo, sans-serif"; x.fillStyle = "#fff";
+    let t = lead[1].title; while (x.measureText(t).width > 940 && t.length > 4) t = t.slice(0, -2); x.fillText(t === lead[1].title ? t : t + "…", W / 2, 1115); }
+  const cells = wrCells(d).map(([v, l]) => [v, l.toUpperCase()]);
   cells.forEach(([v, l], k) => { const cx = 270 + (k % 2) * 540, cy = 1270 + Math.floor(k / 2) * 230;
     x.fillStyle = "#101C40"; x.beginPath(); x.roundRect ? x.roundRect(cx - 230, cy - 90, 460, 190, 36) : x.rect(cx - 230, cy - 90, 460, 190); x.fill();
     x.fillStyle = "#fff"; x.font = "900 86px Archivo, sans-serif"; x.fillText(String(v), cx, cy + 20);
     x.fillStyle = "#7C92C4"; x.font = "600 28px Poppins, sans-serif"; x.fillText(l, cx, cy + 70); });
-  if (d.best) { x.fillStyle = "#EAF2FF"; x.font = "500 36px Poppins, sans-serif"; let t = "Game of the " + (d.mon ? "month" : "year") + ": " + d.best.g.title;
+  if (d.best && lead && lead[1] !== d.best.g) { x.fillStyle = "#EAF2FF"; x.font = "500 36px Poppins, sans-serif"; let t = "Game of the " + (d.mon ? "month" : "year") + ": " + d.best.g.title;
     while (x.measureText(t).width > 960 && t.length > 10) t = t.slice(0, -2); x.fillText(t, W / 2, 1760); }
   x.textAlign = "left"; x.fillStyle = "#fff"; x.font = "italic 900 44px Archivo, sans-serif"; x.fillText("PLAY NEXT", 70, 1870);
   c.toBlob(bl => {
@@ -13194,7 +13207,16 @@ const WHATS_NEW = [
   { v: 178, go: () => { nxHome(); setTimeout(() => { const w = $("#p-home .k-month"); if (w) { w.scrollIntoView({ block: "center" }); const st = w.closest(".stk"); if (st) st.scrollTo({ top: w.offsetTop - st.offsetTop, left: w.offsetLeft - st.offsetLeft }); } }, 300); },
     at: () => $("#p-home .k-month"),
     say: "The yearly story now has a little sibling: a <b>monthly recap</b>. It's this month so far, and in the first week of a month it looks back at the one that just ended.",
-    tryIt: "Tap it for a quick recap with a card to share." }
+    tryIt: "Tap it for a quick recap with a card to share." },
+  { v: 179, go: () => { nxShut(); const p = (S.played || []).find(x => S.games.some(g => g.id === x.id)); if (!p) return; openEdit(p.id);
+      setTimeout(() => { const t = $('[data-etab="scores"]'); if (t) t.click();
+        const s = [...document.querySelectorAll("#sheet-in details.grp summary")].find(x => x.offsetParent && /Played/.test(x.textContent)); if (s) s.click(); }, 250); },
+    at: "#e-fin",
+    say: "Games you finished can now have a <b>finish date</b> (Edit → Scores → Played). Your monthly and yearly recaps use it, so a game you logged today but beat last year stops counting as this month.",
+    tryIt: "Fix the dates on the games you finished a while ago." },
+  { v: 179, go: () => nxHome(), at: () => $("#p-home .dxcomp") || $("#p-home .dxplay"),
+    say: "Competitive games like FC or Chess never really finish, so under <b>Playing now</b> they show <b>⚔ Competitive</b> and your win rate from the diary instead of an empty progress bar. And the recaps wait for a few play sessions before naming your most-played game.",
+    tryIt: "Log wins and losses in a competitive game's diary to see your win rate here." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13423,6 +13445,7 @@ html.still .dxorb .blob, html.still .dxorb::before { animation: none; }
 .dxpb em { position: absolute; left: 9px; top: 0; font-style: normal; font-size: 10px; line-height: 20px; font-weight: 700; color: #04060E; }
 .dxpb .go { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.16); }
 .dxpb .go svg { width: 11px; height: 11px; }
+.dxcomp { white-space: nowrap; margin-top: 6px; padding: 3px 9px; border-radius: 999px; background: rgba(255,84,112,.22); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 14px; }
 
 /* queue hours as a donut */
 .dxstat { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -13467,6 +13490,9 @@ html.still .dxorb .blob, html.still .dxorb::before { animation: none; }
 .dxmh { margin: 0 6px 12px; font: 600 15px "Poppins", system-ui, sans-serif; color: #fff; letter-spacing: 0; text-transform: none; }
 .dash.pnfit.dxmore { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: 250px 250px; grid-template-areas: "b" "c"; }
 .dash.pnfit.dxmore:empty, .dash.dxmore:empty { display: none; }
+/* v179 below the fold: the browser skips laying these out until you scroll near them (cheaper tab switches) */
+.dash.dxmore { content-visibility: auto; contain-intrinsic-size: auto 540px; }
+@media (min-width: 620px) { .dash.dxmore { contain-intrinsic-size: auto 290px; } }
 
 @media (min-width: 620px) {
   /* unfolded: two zones, the donut and the ticket share the bottom row */
