@@ -305,28 +305,6 @@
   /* rounded covers: the picture carries the curve itself, so no square edge shows */
   html.round .libshot { isolation: isolate; }
   html.round .libshot img { border-radius: inherit; }
-  /* arc: a curved wall of covers, edges nearer and taller */
-  .libreel.libarc { gap: 0; padding: 50px calc(50% - min(100px, 10.5vw)) 90px; }
-  .libarc .libcard { flex: 0 0 min(200px, 21vw); position: relative; transform: none; opacity: 1; }
-  .libarc .libshot { display: block; transform: perspective(900px) rotateY(calc(var(--side, 0) * -48deg)) scale(calc(.96 + .3 * var(--abs, 0)));
-    transform-origin: center; will-change: transform; box-shadow: 0 12px 26px rgba(0,0,0,.5); }
-  .libarc .libshot img { aspect-ratio: 5/7; }
-  .libarc .cn { text-align: center; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; padding-top: 14px;
-    transform: translateY(calc(var(--abs, 0) * 22px)) rotate(calc(var(--side, 0) * 9deg)); }
-  .libarc .libcard::after { content: ""; position: absolute; right: -6px; bottom: calc(6px + var(--abs, 0) * 22px);
-    width: 6px; height: 6px; border-radius: 50%; background: var(--volt); }
-  .libarc .libcard:last-child::after { display: none; }
-  /* wheel: covers roll top to bottom like a drum */
-  .libreel.libwheel { position: relative; flex-direction: column; align-items: center; gap: 0;
-    overflow-x: hidden; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain;
-    height: min(68vh, 720px); padding: calc(min(34vh, 360px) - 140px) 0; }
-  .libwheel .libcard { flex: 0 0 auto; width: min(210px, 36vw); scroll-snap-align: center; transform: none;
-    opacity: calc(.3 + .7 * var(--near, 1)); }
-  .libwheel .libcard + .libcard { margin-top: -64px; }
-  .libwheel .libshot { display: block; transform-origin: center;
-    transform: perspective(700px) rotateX(calc(var(--side, 0) * -58deg)) scale(calc(1 - .14 * var(--abs, 0))); }
-  .libwheel .cn { text-align: center; }
   .libreel .libshot { box-shadow: 0 calc(14px * var(--near, 1)) calc(30px * var(--near, 1)) rgba(0,0,0,.55); }
   .libreel .libtag { font-size: 11px; padding: 4px 7px; }
   .libreel .cn { font-size: 13px; padding-top: 8px; white-space: normal; }
@@ -3809,6 +3787,8 @@ function load() {
       Date.now() - new Date(g.date) < 30 * 864e5) { g.state = "backlog"; fl++; } });
     if (fl) save(); }
   S.bgMode ||= "art";
+  /* v174: the Arc and Wheel library layouts are gone; they become Swipe */
+  if (S.libLayout === "arc" || S.libLayout === "wheel") S.libLayout = "reel";
   if (!S.games.length) { seed(); save(); }
   $("#key").value = rawgKey;
   if ($("#boost")) $("#boost").value = boostUrl;
@@ -3850,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "173";
+const APP_V = "174";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5618,7 +5598,8 @@ const HOME_TILES = [
   ["soon", "Next out"], ["read", "Your read"], ["cat", "What decides it"],
   ["duels", "Duels"], ["stand", "Standings"], ["coverage", "Settle a duel"],
   ["unrated", "Needs a verdict"], ["tonight", "Tonight"], ["trap", "Hype trap"], ["swing", "Furthest from hype"],
-  ["genre", "Genre lean"], ["hours", "Sat in the queue"], ["year", "Year"]
+  ["genre", "Genre lean"], ["hours", "Queue hours donut"], ["year", "Year"],
+  ["queue", "Queue count"], ["playing", "Playing now"]
 ];
 const SCOPE_NAME = { home: "Home", games: "Games", plan: "Plan", taste: "Taste", app: "App" };
 function openSettings(scope) {
@@ -5825,7 +5806,7 @@ function openSettings(scope) {
       <div class="demohost" data-demo="lib">${demoLib()}</div>
       <label>Layout</label>
       <div class="chips" id="s-liblayout">
-        ${[["grid", "Grid"], ["reel", "Swipe"], ["arc", "Arc"], ["wheel", "Wheel"]].map(([v, l]) =>
+        ${[["grid", "Grid"], ["reel", "Swipe"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.libLayout || "grid") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <label>Game strip in the launcher</label>
@@ -8160,16 +8141,16 @@ function renderLib() {
   const cols = num(S.libCols, 3, 2, 6);
   const corners = [["tl", S.libTL || ""], ["tr", S.libTR == null ? "date" : S.libTR],
     ["bl", S.libBL || ""], ["br", S.libBR == null ? "hype" : S.libBR]];
-  const arc = S.libLayout === "arc", wheel = S.libLayout === "wheel", reel = S.libLayout === "reel" || arc || wheel;
+  const reel = S.libLayout === "reel";
   const reelw = num(S.reelW, 72, 40, 96);
   el.innerHTML = `<div class="tabbar"><h3>Library</h3>
       <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
     ${subChips("games")}
     <div class="chips" id="lib-view">
-      ${[["grid", "Grid"], ["reel", "Swipe"], ["arc", "Arc"], ["wheel", "Wheel"]].map(([v, l]) =>
+      ${[["grid", "Grid"], ["reel", "Swipe"]].map(([v, l]) =>
         `<button class="chip" data-v="${v}" aria-pressed="${(S.libLayout || "grid") === v}"><span>${l}</span></button>`).join("")}
     </div>` +
-    (list.length ? `<div class="${reel ? "libreel" + (arc ? " libarc" : wheel ? " libwheel" : "") : "libgrid"}" id="${reel ? "libreel" : "libgridbox"}"
+    (list.length ? `<div class="${reel ? "libreel" : "libgrid"}" id="${reel ? "libreel" : "libgridbox"}"
     style="--libcols:${cols};--reelw:${reelw}%">
     ${list.map((g, i) => `<button class="libcard" data-lib="${g.id}" style="--accent:${esc(g.colour)}">
       <span class="libshot">
@@ -8197,17 +8178,14 @@ function wireReel(box) {
   let at = -1, queued = false;
   const tick = () => {
     queued = false;
-    const vert = box.classList.contains("libwheel");
-    const w = (vert ? box.clientHeight : box.clientWidth) || 1;
-    const mid = (vert ? box.scrollTop : box.scrollLeft) + w / 2;
+    const w = box.clientWidth || 1;
+    const mid = box.scrollLeft + w / 2;
     let best = 0, bestD = Infinity;
     cards.forEach((c, i) => {
-      const cc = vert ? c.offsetTop + (c.offsetHeight || 0) / 2 : c.offsetLeft + (c.offsetWidth || 0) / 2;
+      const cc = c.offsetLeft + (c.offsetWidth || 0) / 2;
       const d = Math.abs(cc - mid);
       if (d < bestD) { bestD = d; best = i; }
       c.style.setProperty("--near", (1 - Math.min(1, d / (w * 0.62))).toFixed(3));
-      const sd = Math.max(-1.4, Math.min(1.4, (cc - mid) / (w * 0.5)));
-      c.style.setProperty("--side", sd.toFixed(3)); c.style.setProperty("--abs", Math.abs(sd).toFixed(3));
     });
     if (best !== at) {
       if (at !== -1 && S.buzz !== false && navigator.vibrate) {
@@ -10041,6 +10019,152 @@ function renderPill() {
     beep("tap");
   };
 }
+/* v174 Home dashboard, laid out like the owner's reference: search + pills up top, the pick as a big
+   player card with the schedule beside it, the queue as one big number, what you're playing as tall
+   cards, queue hours as a donut and the next release as a tilted ticket. */
+const DX_ICO = {
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  mini: '<svg viewBox="0 0 24 24"><path d="M9 6.5v11l8.5-5.5z" fill="currentColor"/></svg>',
+  dice: '<svg viewBox="0 0 24 24"><path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.4" fill="currentColor"/><circle cx="15" cy="15" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>',
+  duel: '<svg viewBox="0 0 24 24"><path d="M5 4l9 9M4 9l5-5M19 4l-9 9M20 9l-5-5M8 16l-3 3M16 16l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  flame: '<svg viewBox="0 0 24 24"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1.2-3.6 2.3-4.6.3 1.4 1 2.3 1.9 2.8C11 8.8 11.2 5.6 12 3z" fill="currentColor"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  sliders: '<svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  chart: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m7.5 15 3-3.5 2.5 2 3.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+const DX_RING = ["#4DA3FF", "#FF5470", "#EAF2FF", "#7C5CFF"];
+function dxHome(o) {
+  const { live, ranked, pick, settled, dated, hours, ev, on } = o;
+  const played = (S.played || []).length, cnt = S.homeCount !== false;
+  const img = g => esc(cover(g)), wide = g => esc(bgSource(g) || cover(g));
+  const col = g => esc(g.colour || PALETTE[0]);
+  const genre = g => platList(g.genres)[0] || ((STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1]);
+  const when = g => g.date ? (days(g.date).startsWith("Out") ? days(g.date) : shortDate(g.date)) : g.hours ? "≈ " + num(g.hours, 0, 0, 1000) + "h" : "No date yet";
+
+  const head = `<div class="dxhead" style="grid-area:h">
+    <div class="dxtabs"><b>Play next${cnt ? ` <i>(${live.length})</i>` : ""}</b>
+      <button type="button" data-home-tab="played">Played${cnt ? ` <i>(${played})</i>` : ""}</button></div>
+    <div class="dxsw"><label class="dxs">${DX_ICO.search}<input id="dxq" type="search" placeholder="Game search…" autocomplete="off" enterkeyhint="go" aria-label="Search your games"></label><div class="dxres" hidden></div></div>
+    <div class="dxpills">${live.length > 1 ? `<button type="button" class="dxpill" data-pickone aria-label="Pick one for me"><span class="lb">Pick one</span>${DX_ICO.dice}</button>` : ""}
+      <button type="button" class="dxpill" data-settings="home" aria-label="Customise Home"><span class="lb">Customise</span>${DX_ICO.sliders}</button></div>
+  </div>`;
+
+  const hero = pick ? `<div class="dxhero" role="button" tabindex="0" data-home-open="${pick.id}" style="grid-area:p;--accent:${col(pick)}">
+      <img class="bg" decoding="async" src="${wide(pick)}" alt="">
+      ${pick.key ? `<img class="pop" decoding="async" src="${esc(pick.key)}" alt="">` : ""}
+      <span class="top"><span class="av"><img decoding="async" src="${img(pick)}" alt=""></span>
+        <span class="tt"><small>${DX_ICO.flame} Play this next</small>${pick.art ? `<img class="plogo" src="${esc(pick.art)}" alt="${esc(pick.title)}">` : `<b>${esc(pick.title)}</b>`}</span></span>
+      <span class="bar">
+        <span class="st">${DX_ICO.flame}${pick.hype ? "Hype " + esc(String(pick.hype)) : "No hype yet"}</span>
+        ${live.length > 1 ? `<button type="button" class="cb" data-pickone title="I'll pick one" aria-label="I'll pick one">${DX_ICO.dice}</button>` : '<span class="cb ghost"></span>'}
+        <span class="play" aria-hidden="true">${DX_ICO.play}</span>
+        <button type="button" class="cb" data-dxtab="taste" title="Settle a duel" aria-label="Settle a duel">${DX_ICO.duel}</button>
+        <span class="tm">${settled ? "#1 · " + settled + " duel" + (settled === 1 ? "" : "s") : "#1 of " + live.length}</span>
+      </span>
+    </div>` : `<div class="dxhero empty" style="grid-area:p"><span class="top"><span class="tt"><small>Play this next</small><b>Add a game and this fills in</b></span></span>
+      <span class="bar"><button type="button" class="play" data-dxtab="add" aria-label="Add a game">${DX_ICO.play}</button></span></div>`;
+
+  const nextUp = ranked.slice(1, 5);
+  const list = `<div class="dxlist" style="grid-area:l">${nextUp.length ? nextUp.map((g, n) =>
+    `<button type="button" class="dxr${n === 0 ? " on" : ""}" data-home-open="${g.id}" style="--tint:${col(g)}">
+      <img decoding="async" src="${img(g)}" alt=""><span class="i"><b>${esc(g.title)}</b>
+      <span class="m"><small>${DX_ICO.clock}${esc(when(g))}</small><span class="gp">${esc(genre(g))}</span></span></span></button>`).join("")
+    : '<p class="dxnone">Add more games and your line-up shows here.</p>'}</div>`;
+
+  /* the big number, with covers floating round it */
+  const SPOT = [[72, 8, 50, -6], [24, 20, 32, 8], [92, 42, 42, 10], [6, 54, 50, -8], [80, 86, 50, 6], [20, 88, 40, -10], [52, 2, 30, 4]];
+  const queue = on("queue") ? `<button type="button" class="dxq" data-home-tab="games" style="grid-area:q">
+      <span class="dxt">Your queue</span>
+      <span class="box">${ranked.slice(0, SPOT.length).map((g, n) => { const [x, y, s, r] = SPOT[n];
+        return `<img decoding="async" src="${img(g)}" alt="" style="left:${x}%;top:${y}%;width:${s}px;--r:${r}deg">`; }).join("")}
+        <b>${live.length}</b><small>${live.length === 1 ? "game" : "games"} waiting</small></span>
+    </button>` : "";
+
+  /* tall cards: what you're playing, with how far through you are */
+  const pl = playingNow().filter(g => live.includes(g));
+  const ready = live.filter(g => !pl.includes(g) && (g.state === "backlog" || isFresh(g)));
+  let cards = pl.concat(ready);
+  const ptitle = pl.length ? "Playing now" : ready.length ? "Out & waiting" : "Top of your list";
+  cards = cards.concat(ranked.filter(g => !cards.includes(g))).slice(0, 3);
+  const playing = on("playing") && cards.length ? `<div class="dxplay" style="grid-area:r"><span class="dxt">${ptitle}</span>
+    <div class="row3">${cards.map(g => {
+      const done = loggedOf(g) + (S.timer && S.timer.id === g.id ? liveTimerHours() : 0), total = num(g.hours, 0, 0, 1000);
+      const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0, hy = num(g.hype, 0, 0, 10), st = Math.round(hy / 2);
+      return `<button type="button" class="dxc" data-home-open="${g.id}" style="--tint:${col(g)}">
+        <img decoding="async" src="${img(g)}" alt="">${hy ? `<span class="vb">${DX_ICO.flame}${hy}</span>` : ""}
+        <span class="ft"><b>${esc(g.title)}</b><small>${total ? Math.max(0, Math.round(total - done)) + "h left" : esc(genre(g))}</small>
+          <span class="stars">${"★".repeat(st)}<i>${"★".repeat(5 - st)}</i></span>
+          <span class="dxpb"><span class="tr"><i style="width:calc(40px + (100% - 40px) * ${(pct / 100).toFixed(2)})"></i><em>${total ? pct + "%" : "—"}</em></span><span class="go">${DX_ICO.mini}</span></span></span>
+      </button>`; }).join("")}</div></div>` : "";
+
+  /* queue hours as a donut, split by the games that hold the most */
+  let stat = "";
+  if (on("hours")) {
+    const byH = live.map(g => ({ g, h: num(g.hours, 0, 0, 1000) || 0 })).filter(x => x.h > 0).sort((a, b) => b.h - a.h);
+    const segs = byH.slice(0, 3).map((x, n) => ({ l: x.g.title, v: x.h, c: DX_RING[n] }));
+    const rest = byH.slice(3).reduce((a, x) => a + x.h, 0);
+    if (rest) segs.push({ l: "Other", v: rest, c: DX_RING[3] });
+    const R = 40, C = 2 * Math.PI * R, gap = segs.length > 1 ? 15 : 0;
+    let at = 0;
+    const arcs = segs.map(s => { const len = Math.max(0.5, s.v / hours * C - gap), d = `<circle r="${R}" cx="50" cy="50" stroke="${s.c}"
+        stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-at).toFixed(1)}"/>`; at += s.v / hours * C; return d; }).join("");
+    stat = `<div class="dxstat" style="grid-area:s"><div class="dxst"><span><b>Your statistic</b><small>Queue hours</small></span>
+        <button type="button" class="ic" data-home-tab="plan" aria-label="Plan">${DX_ICO.chart}</button></div>
+      <div class="donut"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="trk" r="${R}" cx="50" cy="50"/>${arcs}</svg>
+        <span class="core"><small>Queue hours</small><b>${hours ? Math.round(hours).toLocaleString() + "h" : "—h"}</b>
+        <small>${hours ? "≈ " + Math.max(1, Math.round(hours / ev)) + " evenings" : "add hours to games"}</small></span></div>
+      ${segs.length ? `<div class="lg">${segs.map(s => `<span><i style="background:${s.c}"></i>${esc(s.l)} <em>${Math.round(s.v / hours * 100)}%</em></span>`).join("")}</div>` : ""}
+      <button type="button" class="dxpill wide" data-home-tab="plan">Plan evenings</button></div>`;
+  }
+
+  /* the next release, as a tilted ticket with the character stepping out of it */
+  let tick = "";
+  if (on("soon")) {
+    const fut = dated.filter(g => new Date(g.date + "T00:00:00") > new Date());
+    const g = fut[0] || dated[dated.length - 1];
+    tick = `<div class="dxtick" style="grid-area:k"><span class="dxt">Next out${fut.length ? ` <i>(${fut.length})</i>` : ""}</span>
+      ${g ? `<div class="tk" style="--tint:${col(g)}">
+        ${g.key ? `<img class="fig" decoding="async" src="${esc(g.key)}" alt="">` : `<img class="post" decoding="async" src="${img(g)}" alt="">`}
+        <b>${esc(g.title)}</b>
+        <p>${fut.includes(g) ? esc(days(g.date).replace(/ away$/, "") + " to go · " + shortDate(g.date)) : "It's out — go play it!"}</p>
+        ${fut.includes(g) ? `<span class="cd" data-cd-to="${esc(g.date)}">${["d", "h", "m", "s"].map(u =>
+          `<span class="cdb"><b data-u="${u}">–</b><small>${u}</small></span>`).join("")}</span>` : ""}
+        <button type="button" data-home-open="${g.id}">Open game</button></div>`
+      : `<div class="tk"><b>Nothing dated yet</b><p>Give a game a release date and its countdown lands here.</p>
+        <button type="button" data-dxtab="add">Add a game</button></div>`}</div>`;
+  }
+  const side = stat || tick ? "" : " noside";
+  return `<div class="dxw${side}${stat ? "" : " nostat"}${tick ? "" : " notick"}${queue ? "" : " noq"}${playing ? "" : " nor"}">${head}${hero}${list}${queue}${playing}${stat}${tick}</div>`;
+}
+/* search box + the buttons inside the player card that go somewhere other than the game */
+function dxWire(root) {
+  const w = root && root.querySelector(".dxw"); if (!w) return;
+  w.addEventListener("click", e => {
+    const t = e.target.closest("[data-dxtab]");
+    if (t) { e.stopPropagation(); beep("open"); goTab(t.dataset.dxtab); }
+  });
+  const q = w.querySelector("#dxq"), res = w.querySelector(".dxres"); if (!q || !res) return;
+  const paint = () => {
+    const s = q.value.trim().toLowerCase();
+    if (!s) { res.hidden = true; res.innerHTML = ""; return; }
+    const hits = S.games.filter(g => (g.title || "").toLowerCase().includes(s))
+      .sort((a, b) => (a.title.toLowerCase().indexOf(s)) - (b.title.toLowerCase().indexOf(s))).slice(0, 6);
+    res.innerHTML = hits.length ? hits.map(g => `<button type="button" data-home-open="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt="">
+      <span>${esc(g.title)}</span><small>${esc(isPlayed(g) ? "Played" : g.date ? days(g.date) : "")}</small></button>`).join("")
+      : '<p>No game called that.</p>';
+    res.hidden = false;
+  };
+  q.addEventListener("input", paint);
+  q.addEventListener("keydown", e => {
+    if (e.key === "Enter") { const f = res.querySelector("[data-home-open]"); if (f) { e.preventDefault(); q.blur(); f.click(); } }
+    if (e.key === "Escape") { q.value = ""; paint(); q.blur(); }
+  });
+  q.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== q) res.hidden = true; }, 200));
+  q.addEventListener("focus", () => { if (q.value.trim()) paint(); });
+  /* tapping a result must not blur the box and hide the list before the tap lands */
+  res.addEventListener("mousedown", e => e.preventDefault());
+}
 function renderHome() {
   const el = $("#p-home");
   if (!el) return;
@@ -10094,59 +10218,11 @@ function renderHome() {
   const tile = (cls, head, body) => `<div class="tile ${cls}"><h5>${head}</h5>${body}</div>`;
 
   el.innerHTML = `
-    <div class="homehead">
-      <div class="hh-top">
-        <h1>Play next</h1>
-        <button class="chip" data-settings="home"><span>⚙ Customise</span></button>
-      </div>
-      ${S.homeCount === false ? "" : `<p class="sub">${live.length} waiting · ${(S.played || []).length} played${
-        settled ? " · " + settled + " duels" : ""}</p>`}
-    </div>
-    <div class="dash">
-      ${pick ? `<button class="tile pick full accent k-pick" data-home-open="${pick.id}" style="--accent:${esc(pick.colour || PALETTE[0])}">
-        ${bgSource(pick) ? `<span class="shot" style="background-image:url('${esc(cssUrl(bgSource(pick)))}')"></span>
-        <span class="scrim"></span>` : ""}
-        ${pick.key ? `<img class="pop" decoding="async" src="${esc(pick.key)}" alt="">` : ""}
-        <span class="in">
-          <span class="pills"><span class="pill hot">🔥 Play this next</span>${pick.hype ? `<span class="pill">Hype ${esc(String(pick.hype))}</span>` : ""}</span>
-          ${pick.art ? `<img class="plogo" src="${esc(pick.art)}" alt="${esc(pick.title)}">` : `<span class="name">${esc(pick.title)}</span>`}
-          <span class="why">${settled
-            ? "Top of your ranking after " + settled + " duel" + (settled === 1 ? "" : "s") +
-              (runner ? ", " + (gap > 40 ? "clear of" : "barely ahead of") + " " + esc(runner.title) : "")
-            : "Highest hype so far. Settle some duels and this gets an opinion."}</span>
-          <span class="gorow"><span class="go">Open →</span>${live.length > 1 ? '<span class="pk1" data-pickone>✨ I\'ll pick one</span>' : ""}</span>
-        </span>
-      </button>` : `<div class="tile full"><h5>Play this next</h5><p class="sub">Add a game and this fills in.</p></div>`}
-      ${ranked.length > 1 ? `<div class="tile wide upnext k-up"><h5>Up next</h5>${ranked.slice(1, 4).map(x => {
-        const src = bgSource(x);
-        return `<button class="un" data-home-open="${x.id}" style="--tint:${esc(x.colour || PALETTE[0])}">
-          <span class="th"${src ? ` style="background-image:url('${esc(cssUrl(src))}')"` : ""}></span>
-          <span class="t">${esc(x.title)}${x.date ? `<small>${esc(days(x.date))}</small>` : ""}</span>
-          <span class="ar">›</span></button>`;
-      }).join("")}</div>` : ""}
-      ${(() => {
-        const fut = dated.find(g => new Date(g.date + "T00:00:00") > new Date());
-        if (!fut) return "";
-        return `<button class="tile wide cdtile k-cd imgcard" data-home-open="${fut.id}" style="${bgSource(fut) ? `--bgi:url('${esc(cssUrl(bgSource(fut)))}');` : ""}--accent:${esc(fut.colour || PALETTE[0])}">
-          <h5>Countdown · ${esc(fut.title)}</h5>
-          <span class="cd" data-cd-to="${esc(fut.date)}">${["d", "h", "m", "s"].map(u =>
-            `<span class="cdb"><b data-u="${u}">–</b><small>${{ d: "days", h: "hours", m: "mins", s: "secs" }[u]}</small></span>`).join("")}</span>
-        </button>`;
-      })()}
+    ${dxHome({ live, ranked, pick, settled, dated, hours, ev, on })}
+    <h4 class="dxmh">More for you</h4>
+    <div class="dash dxmore">
       <div class="tile full k-taste"><h5>Your taste shape</h5>${radarBlock("home")}</div>
       ${genreChart("home") ? `<div class="tile full k-hours"><h5>Where your hours go</h5>${genreChart("home")}</div>` : ""}
-
-      ${!on("soon") ? "" : soon ? (() => {
-        const phrase = days(soon.date), away = / days? away$/.test(phrase);
-        return `<button class="tile go2 imgcard${tint ? " tinted" : ""}" data-home-open="${soon.id}"
-          style="${bgSource(soon) ? `--bgi:url('${esc(cssUrl(bgSource(soon)))}');` : ""}--tint:${esc(soon.colour || PALETTE[0])}">
-          <h5>Next out</h5>
-          <div class="big${away ? "" : " word"}">${esc(phrase.replace(/ days? away$/, ""))}${
-            away ? ' <em>days</em>' : ""}</div>
-          <p class="sub">${esc(soon.title)}</p>
-        </button>`;
-      })()
-        : tile("", "Next out", '<p class="sub">Nothing in the queue has a date yet.</p>')}
 
       ${!on("read") ? "" : !analysisReady().ok ? `<button class="tile go2" data-home-tab="played">
         <h5>Your read</h5>
@@ -10261,20 +10337,6 @@ function renderHome() {
         <p class="sub">beats your hype by ${genUp.mean > 0 ? "+" : ""}${genUp.mean.toFixed(1)} across ${genUp.n} game${genUp.n === 1 ? "" : "s"}${
           genDown ? ` · ${esc(genDown.name)} lands ${genDown.mean.toFixed(1)}` : ""}</p>`) : ""}
 
-      ${!on("hours") ? "" : (() => {
-        const top3 = live.filter(g => num(g.hours, 0, 0, 1000) > 0)
-          .sort((a, b2) => num(b2.hours, 0, 0, 1000) - num(a.hours, 0, 0, 1000)).slice(0, 3);
-        return `<button class="tile wide ringtile k-ring" data-home-tab="queue"><h5>Your statistic</h5>
-          <span class="ring"><span class="blob"></span><span class="core"><small>Queue hours</small><b>${hours ? hours.toLocaleString() : "—"}h</b>
-          <small>${hours ? "≈ " + Math.max(1, Math.round(hours / ev)) + " evenings" : "add hours to games"}</small></span></span>
-          ${top3.length ? `<span class="trio">${top3.map(g => {
-            const src = bgSource(g);
-            return `<span class="one"><span class="dot" style="--tint:${esc(g.colour || PALETTE[0])}${src ? `;background-image:url('${esc(cssUrl(src))}')` : ""}"></span>
-            <b>${num(g.hours, 0, 0, 1000)}h</b><small>${esc(g.title)}</small></span>`;
-          }).join("")}</span>` : ""}
-        </button>`;
-      })()}
-
       ${!on("year") ? "" : tile("full k-year", "Where the year bunches up", `<div class="yearbar">${
         months.map((n, mi) => `<button class="${n && n === peak ? "hot" : ""}" data-home-month="${mi}"
           title="${n} in ${["January","February","March","April","May","June","July","August","September","October","November","December"][mi]}"
@@ -10287,6 +10349,7 @@ function renderHome() {
       <i>\u2728</i><span>Not sure? <b>I'll pick one</b></span></button>` : ""}`;
 
   pnRail(ranked);
+  dxWire(el);
   el.onclick = e => {
     if (e.target.closest("#hintbub, [data-pickone]")) {
       const r2 = ranked.filter(g => g.id !== S.hintLast);
@@ -12777,7 +12840,16 @@ const WHATS_NEW = [
     tryIt: "That's it — go have fun! 🎮" },
   { v: 173, go: () => nxHome(), at: null,
     say: "Skipped a few updates? I now <b>save up everything you missed</b> and show it all, oldest first. Close the app mid-tour and I remember the exact step we were on. Oh — and you can see my face now, even with the rail open 😄",
-    tryIt: "Nothing to try — just enjoy the view." }
+    tryIt: "Nothing to try — just enjoy the view." },
+  { v: 174, go: () => nxHome(), at: () => $("#p-home .dxhero"),
+    say: "<b>Home got a makeover!</b> Your pick is now a big player card, with what's next lined up beside it, your queue as one big number, what you're playing as tall cards, queue hours as a donut and the next release on a ticket.",
+    tryIt: "Tap the big play button to open your pick, or the ⚔ button to settle a duel." },
+  { v: 174, go: () => nxHome(), at: () => $("#p-home .dxsw"),
+    say: "<b>Search your games</b> right from Home — start typing and tap a result to jump straight to it.",
+    tryIt: "Try typing the first letters of a game." },
+  { v: 174, go: () => { nxShut(); goTab("lib"); }, at: "#lib-view",
+    say: "I tidied the Library: the <b>Arc and Wheel</b> layouts are gone. It's Grid or Swipe now — if you were on Arc or Wheel, you're on Swipe.",
+    tryIt: "Flip between Grid and Swipe here." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -12863,3 +12935,217 @@ function nxTour(was, all) {
 }
 document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) { e.stopPropagation(); closeEdit(); setTimeout(() => nxTour(null, true), 300); } }, true);
 </script>
+<style>
+/* ===== v174 Home dashboard (layout from the owner's reference, our black + blue colours) ===== */
+.dxw { --dxp: #0a0e1b; --dxc: #131a32; --dxl: rgba(234,242,255,.08);
+  position: relative; display: grid; gap: 16px 14px; padding: 16px 14px 20px; margin: 0 0 22px; border-radius: 28px;
+  background: var(--dxp); border: 1px solid rgba(255,255,255,.04); box-shadow: 0 30px 60px -30px rgba(0,0,0,.9);
+  font-family: "Poppins", system-ui, sans-serif; color: var(--ice);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "h h" "p p" "l l" "q s" "r r" "k k"; }
+.dxw.nostat { grid-template-areas: "h h" "p p" "l l" "q q" "r r" "k k"; }
+.dxw.noq { grid-template-areas: "h h" "p p" "l l" "s s" "r r" "k k"; }
+.dxw button { font-family: inherit; -webkit-user-select: none; user-select: none; }
+.dxw img { display: block; }
+.dxt { font-weight: 600; font-size: 15px; color: #fff; } .dxt i { font-style: normal; color: var(--mute); font-weight: 500; }
+
+.dxhead { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.dxtabs { display: flex; align-items: baseline; gap: 20px; margin-right: auto; white-space: nowrap; }
+.dxtabs b { font-weight: 600; font-size: 15px; color: #fff; }
+.dxtabs i { font-style: normal; }
+.dxtabs button { background: none; border: 0; padding: 4px 0; color: var(--mute); font-size: 14px; font-weight: 500; cursor: pointer; }
+.dxsw { position: relative; flex: 1 1 100%; order: 3; display: flex; gap: 10px; }
+.dxs { flex: 1; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid rgba(234,242,255,.16); color: var(--mute); cursor: text; min-width: 0; }
+.dxs svg { width: 18px; height: 18px; flex: none; }
+.dxs input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--ice); font: 400 14px "Poppins", system-ui, sans-serif; padding: 0; margin: 0; -webkit-appearance: none; appearance: none; }
+.dxs input::placeholder { color: var(--mute); opacity: .8; }
+.dxs:focus-within { border-color: var(--volt); }
+.dxres { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; padding: 6px; border-radius: 20px;
+  background: #0f1428; border: 1px solid var(--dxl); box-shadow: 0 20px 44px rgba(0,0,0,.7); }
+.dxres[hidden] { display: none; }
+.dxres button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 14px; background: none;
+  color: var(--ice); text-align: left; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.dxres button:hover, .dxres button:focus-visible { background: var(--dxc); }
+.dxres img { width: 36px; height: 36px; border-radius: 10px; object-fit: cover; flex: none; }
+.dxres span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dxres small { color: var(--mute); font-size: 11px; white-space: nowrap; }
+.dxres p { margin: 10px 12px; color: var(--mute); font-size: 13px; }
+.dxpills { display: flex; gap: 8px; }
+.dxpill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; min-width: 44px; padding: 0 12px; border-radius: 999px;
+  border: 1.5px solid var(--volt); background: transparent; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.dxpill svg { width: 18px; height: 18px; color: var(--volt); flex: none; }
+.dxpill .lb { display: none; }
+.dxpill.wide { align-self: center; width: min(100%, 210px); height: 46px; font-size: 14px; }
+.dxpill:active, .dxr:active, .dxc:active, .dxq:active .box, .cb:active, .dxhero:active .play, .tk button:active { transform: scale(.95); }
+.dxpill, .dxr, .dxc, .dxq .box, .cb, .play, .tk button, .dxhero { transition: transform .25s var(--ease), background-color .25s ease; }
+
+/* the pick, as a big player card */
+.dxhero { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+  min-height: 220px; aspect-ratio: 16 / 10; padding: 14px; border-radius: 24px; background: var(--dxc); cursor: pointer; min-width: 0; }
+.dxhero .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; z-index: -3; }
+.dxhero::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(4,6,14,.6) 0%, rgba(4,6,14,0) 34%, rgba(4,6,14,0) 52%, rgba(4,6,14,.88) 100%); }
+.dxhero .pop { position: absolute; right: 3%; bottom: 0; height: 112%; max-width: 52%; width: auto; object-fit: contain; object-position: bottom right;
+  z-index: -1; pointer-events: none; filter: drop-shadow(0 16px 24px rgba(0,0,0,.6)); }
+.dxhero .top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dxhero .av { width: 46px; height: 46px; border-radius: 50%; overflow: hidden; flex: none; border: 2.5px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,.45); background: var(--dxc); }
+.dxhero .av img { width: 100%; height: 100%; object-fit: cover; }
+.dxhero .tt { display: flex; flex-direction: column; min-width: 0; }
+.dxhero .tt small { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.88); }
+.dxhero .tt small svg { width: 12px; height: 12px; color: var(--hot); }
+.dxhero .tt b { font-size: clamp(18px, 5vw, 26px); line-height: 1.15; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-shadow: 0 2px 14px rgba(0,0,0,.55); }
+.dxhero .plogo { max-height: 56px; max-width: 70%; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 12px rgba(0,0,0,.6)); }
+.dxhero .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dxhero .st, .dxhero .tm { flex: 1; min-width: 0; color: #fff; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dxhero .st { display: flex; align-items: center; gap: 6px; } .dxhero .st svg { width: 15px; height: 15px; color: var(--hot); flex: none; }
+.dxhero .tm { text-align: right; }
+.cb { width: 40px; height: 40px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(255,255,255,.18); color: #fff; cursor: pointer; }
+.cb.ghost { visibility: hidden; } .cb svg { width: 18px; height: 18px; }
+.play { width: 64px; height: 64px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%;
+  background: var(--volt); color: #04060E; box-shadow: 0 12px 28px -10px rgba(77,163,255,.9); cursor: pointer; }
+.play svg { width: 26px; height: 26px; margin-left: 3px; }
+.dxhero.empty { cursor: default; background: linear-gradient(150deg, #16204a, #0b1024); }
+
+/* what comes after it */
+.dxlist { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dxr { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 8px; border: 0; border-radius: 18px; background: transparent;
+  color: var(--ice); text-align: left; cursor: pointer; }
+.dxr.on { background: var(--dxc); box-shadow: 0 12px 26px -14px rgba(0,0,0,.9); }
+.dxr img { width: 54px; height: 54px; flex: none; object-fit: cover; border-radius: 14px; background: var(--dxc); }
+.dxr .i { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.dxr b { font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dxr .m { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.dxr small { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--mute); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.dxr.on small { color: var(--ice); } .dxr small svg { width: 12px; height: 12px; flex: none; }
+.gp { flex: none; max-width: 52%; padding: 3px 10px; border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; font-weight: 500; color: #fff; background: linear-gradient(rgba(4,6,14,.22), rgba(4,6,14,.22)), var(--tint, var(--volt)); }
+.dxnone { color: var(--mute); font-size: 13px; margin: 8px; }
+
+/* the queue as one big number */
+.dxq { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.dxq .box { position: relative; flex: 1; min-height: 176px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 22px; background: var(--dxc); }
+.dxq .box img { position: absolute; aspect-ratio: 1; height: auto; object-fit: cover; border-radius: 30%; background: #1b2445;
+  transform: translate(-50%, -50%) rotate(var(--r, 0deg)); box-shadow: 0 8px 18px rgba(0,0,0,.5); }
+.dxq .box b { position: relative; font-size: clamp(56px, 17vw, 86px); line-height: 1; font-weight: 700; letter-spacing: -.03em; color: var(--volt);
+  text-shadow: 0 6px 30px rgba(77,163,255,.35); }
+.dxq .box small { position: relative; margin-top: 2px; color: var(--mute); font-size: 11.5px; font-weight: 500; }
+
+/* tall cards for what you're playing */
+.dxplay { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.dxc { position: relative; isolation: isolate; display: block; aspect-ratio: 3 / 4.9; padding: 0; border: 0; border-radius: 20px; overflow: hidden;
+  background: var(--dxc); color: #fff; text-align: center; cursor: pointer; }
+.dxc > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.dxc::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(4,6,14,0) 38%, rgba(4,6,14,.94) 80%); }
+.dxc .vb { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 999px;
+  writing-mode: vertical-rl; transform: rotate(180deg); background: rgba(4,6,14,.8); font-size: 11px; font-weight: 600; }
+.dxc .vb svg { width: 12px; height: 12px; color: var(--hot); transform: rotate(180deg); }
+.dxc .ft { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 8px 10px; }
+.dxc .ft b { width: 100%; font-size: 12.5px; line-height: 1.25; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dxc .ft small { font-size: 10.5px; color: rgba(234,242,255,.8); }
+.dxc .stars { font-size: 9px; letter-spacing: 1px; color: #FFD166; } .dxc .stars i { font-style: normal; color: rgba(255,255,255,.22); }
+.dxpb { display: flex; align-items: center; gap: 5px; width: 100%; margin-top: 6px; }
+.dxpb .tr { position: relative; flex: 1; height: 20px; border-radius: 999px; background: rgba(255,255,255,.14); overflow: hidden; }
+.dxpb .tr i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--volt); }
+.dxpb em { position: absolute; left: 9px; top: 0; font-style: normal; font-size: 10px; line-height: 20px; font-weight: 700; color: #04060E; }
+.dxpb .go { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.16); }
+.dxpb .go svg { width: 11px; height: 11px; }
+
+/* queue hours as a donut */
+.dxstat { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dxst { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.dxst span { display: flex; flex-direction: column; min-width: 0; }
+.dxst b { font-size: 15px; font-weight: 600; color: #fff; } .dxst small { font-size: 11px; color: var(--mute); }
+.dxst .ic { width: 34px; height: 34px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--ice); cursor: pointer; }
+.dxst .ic svg { width: 22px; height: 22px; }
+.donut { position: relative; align-self: center; width: min(100%, 210px); aspect-ratio: 1; }
+.donut svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.donut circle { fill: none; stroke-width: 11; stroke-linecap: round; }
+.donut circle.trk { stroke: rgba(255,255,255,.06); stroke-linecap: butt; }
+.donut .core { position: absolute; inset: 21%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  border-radius: 50%; background: radial-gradient(circle at 50% 28%, #1b2346, #0b0f1d 70%); box-shadow: 0 12px 26px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); }
+.donut .core b { font-size: clamp(20px, 5.4vw, 30px); line-height: 1.1; font-weight: 700; color: #fff; }
+.donut .core small { font-size: 9.5px; color: var(--mute); line-height: 1.3; }
+.dxstat .lg { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; font-size: 11px; font-weight: 500; }
+.dxstat .lg span { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dxstat .lg i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dxstat .lg em { font-style: normal; color: var(--mute); }
+
+/* the next release, as a tilted ticket */
+.dxtick { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.dxtick .tk { position: relative; margin: 54px 14px 16px; padding: 96px 18px 30px; border-radius: 26px; text-align: center; color: #fff;
+  transform: rotate(-3deg); background: linear-gradient(160deg, #4DA3FF, #2F6BFF 70%); box-shadow: 0 26px 44px -20px rgba(47,107,255,.7); }
+.dxtick .tk:not(:has(img)) { padding-top: 30px; margin-top: 8px; }
+.dxtick .tk::after { content: ""; position: absolute; left: 50%; bottom: -1px; width: 58px; height: 29px; transform: translateX(-50%);
+  border-radius: 29px 29px 0 0; background: var(--dxp); }
+.dxtick .fig { position: absolute; left: 50%; bottom: calc(100% - 86px); height: 150px; max-width: 92%; width: auto; object-fit: contain;
+  transform: translateX(-50%); filter: drop-shadow(0 14px 18px rgba(0,0,0,.45)); pointer-events: none; }
+.dxtick .post { position: absolute; left: 50%; top: -44px; width: 96px; aspect-ratio: 3 / 4; height: auto; object-fit: cover; border-radius: 16px;
+  border: 3px solid rgba(255,255,255,.92); transform: translateX(-50%) rotate(7deg); box-shadow: 0 16px 30px rgba(0,0,0,.5); }
+.dxtick .tk b { display: block; font-size: 17px; font-weight: 700; }
+.dxtick .tk p { margin: 6px 0 12px; font-size: 12px; line-height: 1.45; opacity: .92; }
+.dxtick .cd { justify-content: center; gap: 6px; margin: 0 0 16px; }
+.dxtick .cdb { flex: 0 1 50px; padding: 7px 2px 5px; border-radius: 12px; background: rgba(4,6,14,.26); }
+.dxtick .cdb b { font-size: 18px; } .dxtick .cdb small { font-size: 9px; color: rgba(255,255,255,.78); }
+.dxtick .tk button { padding: 11px 26px; border: 0; border-radius: 999px; background: #04060E; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 10px 22px -10px rgba(0,0,0,.9); }
+
+/* everything else, in the two swipe stacks below */
+.dxmh { margin: 0 6px 12px; font: 600 15px "Poppins", system-ui, sans-serif; color: #fff; letter-spacing: 0; text-transform: none; }
+.dash.pnfit.dxmore { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: 250px 250px; grid-template-areas: "b" "c"; }
+.dash.pnfit.dxmore:empty, .dash.dxmore:empty { display: none; }
+
+@media (min-width: 620px) {
+  /* unfolded: two zones, the donut and the ticket share the bottom row */
+  .dxw { padding: 22px; gap: 18px; grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-areas: "h h h h h h h h" "p p p p p l l l" "q q q r r r r r" "s s s s k k k k"; }
+  .dxw.nostat { grid-template-areas: "h h h h h h h h" "p p p p p l l l" "q q q r r r r r" "k k k k k k k k"; }
+  .dxw.notick { grid-template-areas: "h h h h h h h h" "p p p p p l l l" "q q q r r r r r" "s s s s s s s s"; }
+  .dxw.noq { grid-template-areas: "h h h h h h h h" "p p p p p l l l" "r r r r r r r r" "s s s s k k k k"; }
+  .dxw.nor { grid-template-areas: "h h h h h h h h" "p p p p p l l l" "q q q q q q q q" "s s s s k k k k"; }
+  .dxw.noside { grid-template-areas: "h h h h h h h h" "p p p p p l l l" "q q q r r r r r"; }
+  .dxstat, .dxtick { border-top: 1px solid var(--dxl); padding-top: 18px; }
+  .dxhead { flex-wrap: nowrap; }
+  .dxsw { order: 0; flex: 1 1 auto; max-width: 320px; }
+  .dxhero { aspect-ratio: auto; min-height: clamp(250px, 32vh, 380px); padding: 18px; }
+  .dxhero .bar { gap: 8px; }
+  .dxlist { justify-content: space-between; }
+  .dxr { flex: 1; max-height: 86px; }
+  .dxr .m { flex-wrap: wrap; row-gap: 4px; }
+  .dxq .box { min-height: 0; }
+  .dxq .box b { font-size: clamp(56px, 8vw, 92px); }
+  .donut { width: min(100%, 200px); }
+  .donut .core b { font-size: clamp(20px, 2.8vw, 30px); }
+  .dxtick .tk { transform: rotate(-5deg); margin: 60px 10px 18px; }
+  .dash.pnfit.dxmore { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 290px; grid-template-areas: "b c"; }
+}
+/* only the first few pieces rise in; nothing loops */
+html.first .dxw > * { animation: pnRise .6s var(--ease) both; }
+html.first .dxw > :nth-child(2) { animation-delay: .05s } html.first .dxw > :nth-child(3) { animation-delay: .1s }
+html.first .dxw > :nth-child(4) { animation-delay: .15s } html.first .dxw > :nth-child(n+5) { animation-delay: .2s }
+html.fast.first .dxw > :nth-child(n+5), html.still .dxw > * { animation: none; }
+
+/* phone tab bar: icons in a row, the open one sits in a notch cut into the panel below */
+@media (max-width: 619px) {
+  html:not(.rail):not(.dock) nav { flex-wrap: nowrap; justify-content: center; align-items: flex-start; gap: 2px; margin: 6px 0 16px; position: relative; z-index: 2; }
+  html:not(.rail):not(.dock) nav button, html:not(.rail):not(.dock) nav #gear {
+    position: relative; width: 52px; height: 52px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 0; border: 0; border-radius: 18px; background: transparent; color: var(--mute); box-shadow: none; clip-path: none; }
+  html:not(.rail):not(.dock) nav svg { display: block; width: 21px; height: 21px; }
+  html:not(.rail):not(.dock) nav button span { display: none; transform: none; font: 600 10px/1 "Poppins", system-ui, sans-serif; letter-spacing: .01em; }
+  html:not(.rail):not(.dock) nav button[aria-current="true"] { width: 66px; height: 62px; background: #0a0e1b; color: var(--volt); box-shadow: none; border-radius: 22px; }
+  html:not(.rail):not(.dock) nav button[aria-current="true"] span { display: block; color: #fff; }
+  html.onhome:not(.rail):not(.dock) nav { margin-bottom: 0; }
+  html.onhome:not(.rail):not(.dock) nav button[aria-current="true"] { height: 70px; border-radius: 24px 24px 0 0; margin-bottom: -1px; }
+  html.onhome:not(.rail):not(.dock) nav button[aria-current="true"]::before,
+  html.onhome:not(.rail):not(.dock) nav button[aria-current="true"]::after { content: ""; position: absolute; bottom: 0; width: 20px; height: 20px; pointer-events: none; }
+  html.onhome:not(.rail):not(.dock) nav button[aria-current="true"]::before { left: -20px; background: radial-gradient(circle at 0 0, transparent 19.5px, #0a0e1b 20px); }
+  html.onhome:not(.rail):not(.dock) nav button[aria-current="true"]::after { right: -20px; background: radial-gradient(circle at 100% 0, transparent 19.5px, #0a0e1b 20px); }
+  html.onhome:not(.rail):not(.dock) #p-home { padding-top: 0; margin-top: 0; }
+  html.onhome:not(.rail):not(.dock) #p-home > .dxw { border-top-color: transparent; }
+}
+</style>
