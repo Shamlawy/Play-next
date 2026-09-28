@@ -1,0 +1,11 @@
+// Cloudflare settings for the helper (for reference, or for deploying with wrangler).
+// Chat + similar games need only the AI binding. Nudges also need the NUDGE KV namespace and the cron.
+{
+  "name": "playnext-helper",
+  "main": "helper.js",
+  "compatibility_date": "2025-01-01",
+  "ai": { "binding": "AI" },
+  "kv_namespaces": [{ "binding": "NUDGE" }],
+  "triggers": { "crons": ["*/15 * * * *"] }
+  // secret: SGDB_KEY (set in the dashboard, never here)
+}

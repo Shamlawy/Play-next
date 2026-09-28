@@ -9,6 +9,10 @@
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
+/* the bigger models know far more games and follow instructions better; used for chat and similar games,
+   falling back down the list if one is missing or the free daily allowance runs out */
+const HELPER_V = 2;
+const MODELS_BIG = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/mistral/mistral-7b-instruct-v0.1"];
 const ALLOW = ["https://shamlawy.github.io", "http://localhost:8765"];
 
@@ -28,10 +32,10 @@ export default {
   async scheduled(ev, env, ctx) { ctx.waitUntil(sendDue(env)); }
 };
 
-async function ask(env, messages, maxTokens) {
+async function ask(env, messages, maxTokens, big) {
   if (!env.AI) throw new Error("No Workers AI binding named AI");
   let last;
-  for (const m of MODELS) {
+  for (const m of big ? MODELS_BIG.concat(MODELS) : MODELS) {
     try { const out = await env.AI.run(m, { max_tokens: maxTokens || 300, messages }); const t = out && out.response;
       if (t) return typeof t === "string" ? t : JSON.stringify(t); }
     catch (e) { last = e; }
@@ -83,8 +87,36 @@ async function handle(req, env) {
         .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map(m => ({ role: m.role, content: m.content.slice(0, 800) }));
       if (!msgs.length || msgs[msgs.length - 1].role !== "user") return json({ error: "say something first" }, 400, h);
-      const text = await ask(env, [{ role: "system", content: chatSystem(b) }, ...msgs], 400);
+      const text = await ask(env, [{ role: "system", content: chatSystem(b) }, ...msgs], 400, true);
       return json({ text: text.trim() }, 200, h);
+    }
+
+    /* which helper this is, so the app can tell when it needs updating */
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE }, 200, h);
+
+    /* games like one game: the AI names them (it knows games far better than tag searches do);
+       the app then checks every name on RAWG and drops anything that isn't a real game */
+    if (url.pathname === "/similar" && req.method === "POST") {
+      if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+      let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+      const title = String(b && b.title || "").slice(0, 120);
+      if (!title) return json({ error: "need a title" }, 400, h);
+      const cut = (a, n, l) => (Array.isArray(a) ? a : []).slice(0, n).map(x => String(x).slice(0, l || 80));
+      const favs = cut(b.favourites, 8), skip = cut(b.exclude, 80);
+      const text = await ask(env, [
+        { role: "system", content: "You are a video game expert. You recommend real, existing games only (released, or officially announced with a name). You never invent titles. You answer with JSON only." },
+        { role: "user", content: `Give the 12 games most similar to "${title}"${b.year ? " (" + String(b.year).slice(0, 4) + ")" : ""}${b.genres ? " [" + String(b.genres).slice(0, 80) + "]" : ""}: same kind of gameplay, structure, tone and fans. Think of what a fan of it would play next: same series and spiritual successors first, then the closest matches.
+${favs.length ? "The player's favourite games (lean towards these tastes): " + favs.join("; ") + "\n" : ""}${skip.length ? "Do NOT list any of these (the player already has them): " + skip.join("; ") + "\n" : ""}Answer with ONLY a JSON array like [{"name":"Exact Official Title","why":"max 8 words why it's similar"}]. No other text.` }
+      ], 700, true);
+      const m = text.match(/\[[\s\S]*\]/);
+      let list = [];
+      try { list = JSON.parse(m ? m[0] : text); } catch (e) {
+        /* a model sometimes breaks the JSON: fall back to pulling out the names */
+        list = [...text.matchAll(/"name"\s*:\s*"([^"]+)"(?:[^}]*"why"\s*:\s*"([^"]*)")?/g)].map(x => ({ name: x[1], why: x[2] || "" }));
+      }
+      const games = (Array.isArray(list) ? list : []).filter(x => x && typeof x.name === "string" && x.name.trim())
+        .slice(0, 14).map(x => ({ name: x.name.trim().slice(0, 100), why: String(x.why || "").trim().slice(0, 80) }));
+      return json({ games }, 200, h);
     }
 
     if (url.pathname === "/chat/memory" && req.method === "POST") {

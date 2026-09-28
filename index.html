@@ -3946,7 +3946,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "186";
+const APP_V = "187";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6134,6 +6134,7 @@ function openSettings(scope) {
       <p class="note">${S.nxMem ? "Nexi remembers: " + escRaw(S.nxMem) : "After you chat, Nexi keeps a short note about you here, so the next chat picks up where you left off."}</p>
       ${S.nxMem ? '<button class="btn ghost" id="s-nxforget"><span>Forget it</span></button>' : ""}
       <button class="btn" data-nxchat=""><span>💬 Chat with Nexi</span></button>
+      <p class="note" id="s-helperv">Checking Nexi's helper…</p>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Diary and Timer. Off unless you want them.">Extra features</h4>
@@ -12484,6 +12485,7 @@ function nxContext() {
 async function nxPost(path, body) {
   const r = await fetch(HELPER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
+  if (r.status === 404 && /not found/i.test(j.error || "")) throw new Error("helper-old");
   if (!r.ok || j.error) throw new Error(j.error || "The helper said " + r.status);
   return j;
 }
@@ -12521,7 +12523,9 @@ async function nxSend(text) {
   let reply;
   try { const j = await nxPost("/chat", { persona: nxP(), memory: S.nxMem || "", context: nxContext(), messages: log.slice(-10).map(m => ({ role: m.role, content: m.content })) });
     reply = String(j.text || "").slice(0, 1500) || "…"; }
-  catch (e) { reply = e instanceof TypeError ? "I can't reach my helper right now (offline?). Try again in a bit." : "Hmm, that didn't work: " + e.message; log.push({ role: "assistant", content: reply, t: Date.now(), err: 1 }); }
+  catch (e) { reply = e instanceof TypeError ? "I can't reach my helper right now (offline?). Try again in a bit."
+      : e.message === "helper-old" ? "My chat brain isn't switched on yet: the helper on Cloudflare still has the old code. Once it's updated I can answer you properly."
+      : "Hmm, that didn't work: " + e.message; log.push({ role: "assistant", content: reply, t: Date.now(), err: 1 }); }
   if (reply && !(log[log.length - 1] || {}).err) log.push({ role: "assistant", content: reply, t: Date.now() });
   if (log.length > 40) log.splice(0, log.length - 40);
   nxBusy = false; save();
@@ -12554,48 +12558,51 @@ function simLocal(g, n) {
     .filter(x => x.s > .22 && x.n >= 1).sort((p, q) => q.s - p.s).slice(0, n || 6);
 }
 const normT = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-/* v186 RAWG matches: the game's distinctive tags (JRPG, Anime, Turn-Based Combat…, not Singleplayer or
-   Steam Achievements), one popular-first query per tag, plus its own series; then each candidate is scored by
-   how many of those tags and genres it really shares. Obscure games with a handful of ratings are dropped. */
-const SIM_GENERIC = new Set(["singleplayer", "multiplayer", "steam-achievements", "full-controller-support", "partial-controller-support", "steam-cloud",
-  "steam-trading-cards", "steam-leaderboards", "steam-workshop", "controller", "great-soundtrack", "atmospheric", "2d", "3d", "first-person", "third-person",
-  "co-op", "online-co-op", "local-co-op", "cooperative", "online-multiplayer", "local-multiplayer", "pvp", "online-pvp", "pve", "split-screen", "vr", "free-to-play",
-  "early-access", "exclusive", "true-exclusive", "console-exclusives", "in-app-purchases", "remote-play-together", "cross-platform-multiplayer",
-  "family-sharing", "tv", "stats", "achievements", "steam-turn-notifications", "includes-level-editor", "moddable", "mods", "good", "classic", "fun",
-  "addictive", "masterpiece", "replay-value", "great-story", "story", "beautiful", "colorful", "cute", "funny", "difficult", "short", "casual", "indie"]);
-async function simRawg(g) {
-  if (S.simCache) delete S.simCache;                 /* the old matches were poor: start again */
-  const c = (S.simCache2 ||= {})[g.id];
-  if (c && Date.now() - c.t < 14 * 864e5) return c.l;
-  if (!rawgKey) throw new Error("nokey");
-  const api = p => fetch("https://api.rawg.io/api/" + p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(rawgKey)).then(r => { if (!r.ok) throw new Error("RAWG said " + r.status); return r.json(); });
-  let id = g.rawgId;
-  if (!id) { const s = await api("games?search=" + encodeURIComponent(g.title) + "&search_precise=true&page_size=1"); id = s.results && s.results[0] && s.results[0].id; }
-  if (!id) return [];
-  const d = await api("games/" + id);
-  const tags = (d.tags || []).filter(t => (t.language || "eng") === "eng" && !SIM_GENERIC.has(t.slug) && t.games_count >= 150)
-    .sort((x, y) => x.games_count - y.games_count).slice(0, 5);
-  const tw = {}; tags.forEach(t => tw[t.slug] = 1 / Math.log10(Math.max(20, t.games_count)));
-  const gens = new Set((d.genres || []).map(x => x.slug).filter(x => x !== "indie" && x !== "casual"));
-  const pool = new Map(), mine = new Set(S.games.map(x => normT(x.title))), me = normT(d.name || g.title);
-  const take = (list, bonus) => (list || []).forEach(h => {
-    if (!h || h.id === id || mine.has(normT(h.name)) || normT(h.name) === me) return;
-    const cur = pool.get(h.id); if (cur) { cur.bonus = Math.max(cur.bonus, bonus); return; }
-    pool.set(h.id, { h, bonus }); });
-  const qs = tags.slice(0, 3).map(t => api("games?page_size=40&ordering=-added&exclude_additions=true&tags=" + t.slug).then(r => take(r.results, 0)).catch(() => {}));
-  qs.push(api("games/" + id + "/game-series?page_size=20").then(r => take(r.results, 1.2)).catch(() => {}));
-  await Promise.all(qs);
-  const scored = [...pool.values()].map(({ h, bonus }) => {
-    const ht = new Set((h.tags || []).map(t => t.slug)), hg = new Set((h.genres || []).map(x => x.slug || normT(x.name)));
-    const tagHit = Object.keys(tw).filter(k => ht.has(k)), genHit = [...gens].filter(x => hg.has(x)).length;
-    const pop = Math.log10(Math.max(1, h.added || h.ratings_count || 1));
-    return { h, bonus, n: tagHit.length, s: tagHit.reduce((a, k) => a + tw[k], 0) * 2 + genHit * .35 + bonus + pop * .12 + (h.metacritic ? h.metacritic / 400 : 0) };
-  }).filter(x => (x.n >= 2 || x.bonus) && ((x.h.added || 0) >= 300 || x.h.metacritic || x.bonus) && !/\b(dlc|soundtrack|season pass|artbook|expansion pack)\b/i.test(x.h.name))
-    .sort((a, b) => b.s - a.s);
-  const l = scored.slice(0, 8).map(({ h }) => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
-    genres: (h.genres || []).map(x => ({ name: x.name })), tags: (h.tags || []).filter(t => (t.language || "eng") === "eng").slice(0, 8).map(x => ({ name: x.name, language: "eng" })), platforms: (h.platforms || []).map(x => ({ platform: { name: x.platform.name } })) }));
-  S.simCache2[g.id] = { t: Date.now(), l }; save();
-  return l;
+/* v187 similar games: the AI names them (it knows which games fans of this one play next; tag searches on RAWG
+   kept returning unrelated games), then every name is looked up on RAWG and anything it can't find is dropped,
+   so a made-up title never shows. Without the updated helper: only games from the same series. */
+const simWords = t => new Set(String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w && !["the", "of", "a", "and"].includes(w)));
+function simSame(a, b) {
+  const x = normT(a), y = normT(b); if (!x || !y) return 0;
+  if (x === y) return 1;
+  if (x.length > 4 && y.length > 4 && (x.includes(y) || y.includes(x))) return .85;
+  const A = simWords(a), B = simWords(b), inter = [...A].filter(w => B.has(w)).length;
+  return inter / (new Set([...A, ...B]).size || 1);
+}
+const rawgApi = p => fetch("https://api.rawg.io/api/" + p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(rawgKey)).then(r => { if (!r.ok) throw new Error("RAWG said " + r.status); return r.json(); });
+const simHit = h => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
+  genres: (h.genres || []).map(x => ({ name: x.name })), tags: (h.tags || []).filter(t => (t.language || "eng") === "eng").slice(0, 8).map(x => ({ name: x.name, language: "eng" })), platforms: (h.platforms || []).map(x => ({ platform: { name: x.platform.name } })) });
+async function simFind(g) {
+  if (S.simCache) delete S.simCache; if (S.simCache2) delete S.simCache2;   /* the tag-search results were poor */
+  const c = (S.simCache3 ||= {})[g.id];
+  if (c && Date.now() - c.t < 30 * 864e5) return c;
+  const mine = new Set(S.games.map(x => normT(x.title)));
+  let how = "ai", list = [];
+  try {
+    const j = await nxPost("/similar", { title: g.title, year: (g.date || "").slice(0, 4), genres: platList(g.genres).slice(0, 4).join(", "),
+      favourites: rankedGames().slice(0, 8).map(x => x.title), exclude: S.games.map(x => x.title).slice(0, 80) });
+    list = (j.games || []).filter(x => !mine.has(normT(x.name)) && simSame(x.name, g.title) < .99);
+  } catch (e) { if (e.message !== "helper-old" && !(e instanceof TypeError)) throw e; how = "series"; }
+  let out = [];
+  if (how === "ai") {
+    if (!rawgKey) out = list.slice(0, 10).map(x => ({ name: x.name, why: x.why, background_image: "", released: "", genres: [], tags: [], platforms: [] }));
+    else {
+      /* check each name is a real game, and take its cover, date and genres */
+      const found = await Promise.all(list.slice(0, 12).map(x => rawgApi("games?search=" + encodeURIComponent(x.name) + "&search_precise=true&page_size=5")
+        .then(r => { const best = (r.results || []).map(h => ({ h, s: simSame(h.name, x.name) })).sort((a, b) => b.s - a.s)[0];
+          return best && best.s >= .6 ? Object.assign(simHit(best.h), { why: x.why }) : null; }).catch(() => null)));
+      const seen = new Set();
+      out = found.filter(h => h && !mine.has(normT(h.name)) && !seen.has(h.id) && seen.add(h.id)).slice(0, 10);
+    }
+  } else if (rawgKey) {
+    let id = g.rawgId;
+    if (!id) { const r = await rawgApi("games?search=" + encodeURIComponent(g.title) + "&search_precise=true&page_size=1"); id = r.results && r.results[0] && r.results[0].id; }
+    if (id) { const r = await rawgApi("games/" + id + "/game-series?page_size=20");
+      out = (r.results || []).filter(h => !mine.has(normT(h.name))).slice(0, 8).map(h => Object.assign(simHit(h), { why: "Same series" })); }
+  }
+  const rec = { t: Date.now(), l: out, how };
+  if (how === "ai" && out.length) { S.simCache3[g.id] = rec; save(); }
+  return rec;
 }
 /* add a RAWG result without going through the Add form */
 function simAdd(h) { try { fill(h); $("#f-save").click(); uCount("o", "add"); } catch (e) { toast("Couldn't add it"); } }
@@ -12609,19 +12616,22 @@ function openSimilar(id) {
     <p class="dy-q">${esc(nxVoice(loc.length ? "Here's what fits, from your games and a few new ones." : "Nothing in your library is close. Here are some new ones."))}</p>
     ${loc.length ? `<p class="dy-q"><b>In your library</b></p><div class="dy-gl">${loc.map(row).join("")}</div>
       <button class="dy-more" data-simq="${g.id}">Show these in the queue</button>` : ""}
-    <p class="dy-q" style="margin-top:14px"><b>New to you</b> <small>from RAWG</small></p><div class="sim-new"><p class="dy-empty">Looking…</p></div>
+    <p class="dy-q" style="margin-top:14px"><b>New to you</b> <small>picked by ${esc(pnName())}, checked on RAWG</small></p><div class="sim-new"><p class="dy-empty">${esc(pnName())} is thinking…</p></div>
     <button class="dy-more" data-trailer="${g.id}">▶ Watch the ${esc(g.title)} trailer</button>`,
     e => {
       const q = e.target.closest("[data-simq]"); if (q) { dyClose(); nxShut(); simFilter(q.dataset.simq); goTab("queue"); return; }
       const a = e.target.closest("[data-simadd]"); if (a) { const h = (box._hits || [])[+a.dataset.simadd]; if (h) { dyClose(); simAdd(h); } return; }
       const tr = e.target.closest("[data-ytq]"); if (tr) { trailer(tr.dataset.ytq); return; }
     });
-  simRawg(g).then(l => {
-    const el = box.querySelector(".sim-new"); if (!el) return; box._hits = l;
-    el.innerHTML = l.length ? `<div class="dy-gl">${l.map((h, i) => `<div class="dy-g sim-h"><img decoding="async" src="${esc(h.background_image)}" alt="" onerror="this.style.visibility='hidden'">
-      <span><b>${esc(h.name)}</b><small>${esc([h.released ? h.released.slice(0, 4) : "", h.genres.slice(0, 2).map(x => x.name).join(", "), h.metacritic ? "MC " + h.metacritic : ""].filter(Boolean).join(" · "))}</small></span>
-      <button class="sim-yt" data-ytq="${esc(h.name)}" aria-label="Trailer">▶</button><button class="hitadd" data-simadd="${i}" aria-label="Add ${esc(h.name)}">＋</button></div>`).join("")}</div>` : '<p class="dy-empty">RAWG had nothing close.</p>';
-  }).catch(e => { const el = box.querySelector(".sim-new"); if (el) el.innerHTML = `<p class="dy-empty">${e.message === "nokey" ? "Add your RAWG key (Settings → Games database) and I'll find new ones too." : "Couldn't reach RAWG right now."}</p>`; });
+  simFind(g).then(rec => {
+    const el = box.querySelector(".sim-new"); if (!el) return; const l = rec.l; box._hits = l;
+    const note = rec.how === "series" ? `<p class="dy-empty">${esc(nxVoice("Smarter picks switch on once the helper on Cloudflare is updated. For now, here's the same series."))}</p>` : "";
+    el.innerHTML = note + (l.length ? `<div class="dy-gl">${l.map((h, i) => `<div class="dy-g sim-h">${h.background_image ? `<img decoding="async" src="${esc(h.background_image)}" alt="" onerror="this.style.visibility='hidden'">` : '<span class="sim-ph">🎮</span>'}
+      <span><b>${esc(h.name)}</b><small>${esc(h.why || [h.released ? h.released.slice(0, 4) : "", h.genres.slice(0, 2).map(x => x.name).join(", ")].filter(Boolean).join(" · "))}</small>
+        ${h.why && (h.released || h.genres.length) ? `<small class="sim-meta">${esc([h.released ? h.released.slice(0, 4) : "", h.genres.slice(0, 2).map(x => x.name).join(", "), h.metacritic ? "MC " + h.metacritic : ""].filter(Boolean).join(" · "))}</small>` : ""}</span>
+      <button class="sim-yt" data-ytq="${esc(h.name)}" aria-label="Trailer">▶</button><button class="hitadd" data-simadd="${i}" aria-label="Add ${esc(h.name)}">＋</button></div>`).join("")}</div>`
+      : rec.how === "series" ? "" : '<p class="dy-empty">Nothing close turned up.</p>');
+  }).catch(e => { const el = box.querySelector(".sim-new"); if (el) el.innerHTML = `<p class="dy-empty">Couldn't find new ones right now${e && e.message ? " (" + esc(e.message) + ")" : ""}.</p>`; });
 }
 /* the Games filter: "Like <game>" sits with Everything / Out / Upcoming / your lists */
 function simFilter(id) {
@@ -15383,6 +15393,9 @@ WHATS_NEW.push(
 .sim-h { cursor: default; min-width: 0; }
 .sim-h > span { flex: 1; min-width: 0; }
 .sim-h small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-h small.sim-meta { opacity: .7; font-size: 11px; }
+.sim-h b { white-space: normal !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+.sim-h > .sim-ph { flex: 0 0 64px !important; min-width: 0; width: 64px; aspect-ratio: 16/10; display: grid; place-items: center; border-radius: 8px; background: var(--ink); font-size: 20px; }
 .sim-h img { width: 64px !important; aspect-ratio: 16/10 !important; }
 .sim-yt { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--steel); background: none; color: var(--ice); cursor: pointer; }
 .sim-h .hitadd { width: 34px; height: 34px; font-size: 20px; border: 0; cursor: pointer; }
@@ -15399,5 +15412,22 @@ WHATS_NEW.push(
   { v: 186, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
     say: "<b>🔍 Similar</b> is much smarter now. It matches on what makes a game distinctive (like JRPG, turn-based or dating sim, not just “Adventure”), adds games from the same series, and skips obscure ones. The list also stays put now instead of sliding sideways.",
     tryIt: "Try it on your #1." }
+);
+</script>
+<script>
+/* ===== v187: similar games picked by the AI and checked on RAWG; helper status in Settings → Nexi ===== */
+function helperCheck() {
+  const el = $("#s-helperv"); if (!el) return;
+  fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
+    if (!$("#s-helperv")) return;
+    el.textContent = ok && j.v >= 2 ? "✅ Helper is up to date: chat and smart similar games are on." + (j.nudge ? " Nudges are ready too." : " Nudges also need its NUDGE storage and 15-minute schedule.")
+      : "⚠️ The helper on Cloudflare still runs the old code, so chat and smart similar games are off until it's updated.";
+  }).catch(() => { if ($("#s-helperv")) el.textContent = "Can't reach Nexi's helper right now (offline?)."; });
+}
+{ const _os3 = openSettings; openSettings = function () { const o = _os3.apply(this, arguments); if (!openSettings.tplOnly) setTimeout(helperCheck, 50); return o; }; openSettings.tplOnly = false; }
+WHATS_NEW.push(
+  { v: 187, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
+    say: "New way to find <b>similar games</b>: I pick them myself now (I know which games fans of this one play next), then I check each one on RAWG so only real games show up, each with a line on why it's similar.",
+    tryIt: "Try 🔍 Similar on your #1." }
 );
 </script>
