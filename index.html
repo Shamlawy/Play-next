@@ -3830,7 +3830,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "177";
+const APP_V = "178";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5599,13 +5599,13 @@ const HOME_TILES = [
   ["duels", "Duels"], ["stand", "Standings"], ["coverage", "Settle a duel"],
   ["unrated", "Needs a verdict"], ["tonight", "Tonight"], ["trap", "Hype trap"], ["swing", "Furthest from hype"],
   ["genre", "Genre lean"], ["hours", "Queue hours donut"], ["year", "Year"],
-  ["queue", "Queue count"], ["playing", "Playing now"], ["sessions", "Play sessions"], ["wrapped", "Year wrapped"]
+  ["queue", "Queue count"], ["playing", "Playing now"], ["sessions", "Play sessions"], ["wrapped", "Year wrapped"], ["monthly", "Monthly recap"]
 ];
 const SCOPE_NAME = { home: "Home", games: "Games", plan: "Plan", taste: "Taste", app: "App" };
 function openSettings(scope) {
   scope = SCOPE_NAME[scope] ? scope : "app";
   const evening = S.evening || 2;
-  $("#sheet-in").innerHTML = `
+  const tpl = `
     <div class="ehead">
       <h3>Settings</h3>
     </div>
@@ -6131,6 +6131,9 @@ function openSettings(scope) {
     <div class="efoot">
       <button class="btn ghost" id="s-close"><span>Close</span></button>
     </div>`;
+  /* v178 the search reads every screen's settings from this same template */
+  if (openSettings.tplOnly) return tpl;
+  $("#sheet-in").innerHTML = tpl;
 
   /* one tab's worth of settings, and nothing else */
   const box = $("#sheet-in");
@@ -10237,6 +10240,18 @@ function renderHome() {
         </button>`;
       })()}
       ${(() => {
+        if (!on("monthly")) return "";
+        /* the first week of a month looks back at the one that just ended; after that, this month so far */
+        const n = new Date(), back = n.getDate() <= 7, dt = back ? new Date(n.getFullYear(), n.getMonth() - 1, 1) : n;
+        const Y = dt.getFullYear(), M = dt.getMonth(), md = wrData(Y, M);
+        const hero = md.top ? md.top.g : md.best ? md.best.g : md.fin[0] || pick;
+        return `<button class="tile go2 k-month" data-wrapped="${Y}-${String(M + 1).padStart(2, "0")}"${hero ? ` data-bg="${hero.id}"` : ""}>
+          <h5>${WR_MONTHS[M]} ${back ? "recap" : "so far"}</h5>
+          <div class="big">${md.hours ? fmtH(md.hours) : "0h"}<em> played</em></div>
+          <p class="sub">${md.ses.length} session${md.ses.length === 1 ? "" : "s"} · ${md.fin.length} finished${md.top ? " · most: " + esc(md.top.g.title) : ""} — tap to watch</p>
+        </button>`;
+      })()}
+      ${(() => {
         if (!on("sessions")) return "";
         const now = new Date(); now.setHours(0, 0, 0, 0);
         const from = now.getTime() - 6 * 864e5, wk = (S.sessions || []).filter(x => x.s >= from);
@@ -11510,8 +11525,11 @@ function sessRecent(n) {
 }
 
 /* ===== v177 your year, wrapped: a story Nexi walks you through, ending in a card you can share ===== */
-function wrData(Y) {
-  const inY = t => t && String(typeof t === "number" ? sessDay(t) : t).startsWith(String(Y));
+const WR_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/* v178 M (0-11) narrows it to one month: the smaller, monthly recap */
+function wrData(Y, M) {
+  const pref = M == null ? String(Y) : Y + "-" + String(M + 1).padStart(2, "0");
+  const inY = t => t && String(typeof t === "number" ? sessDay(t) : t).startsWith(pref);
   const G = id => S.games.find(x => x.id === id);
   const ses = (S.sessions || []).filter(s => inY(s.s) && G(s.g));
   const hours = ses.reduce((a, s) => a + sessH(s), 0);
@@ -11533,21 +11551,25 @@ function wrData(Y) {
   const dia = S.games.flatMap(g => (g.diary || []).filter(e => inY(e.t)));
   const mc = Array(MOODS.length).fill(0); dia.forEach(e => { if (MOODS[e.m]) mc[e.m]++; });
   const mood = dia.length ? mc.indexOf(Math.max(...mc)) : -1;
-  return { Y, ses, hours, top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
+  const now = new Date(), cur = now.getFullYear() === Y && (M == null ? !wrLate() : now.getMonth() === M);
+  return { Y, M, mon: M != null, label: M == null ? String(Y) : WR_MONTHS[M] + " " + Y, sofar: cur, ses, hours, top: topId && { g: G(topId), ...byG[topId] }, longest: longest && { g: G(longest.g), h: sessH(longest) }, day,
     fin: fin.map(p => G(p.id)), best: scored[0] && { g: G(scored[0].id), real: scored[0].real }, miss,
     duels: duels.length, champ: champ && { g: G(champ), n: wins[champ] }, out, added, dia: dia.length, mood };
 }
 const wrH = h => h >= 10 ? Math.round(h) : h > 0.05 ? h.toFixed(1) : 0;
 const wrLate = () => new Date().getMonth() === 11;       /* December: the real thing, not "so far" */
 function wrSlides(d) {
-  const Y = d.Y, art = g => g && (bgSource(g) || g.img), cov = g => esc(cover(g)), T = [];
-  const sofar = !wrLate() && Y === new Date().getFullYear();
-  T.push({ k: "intro", bg: "volt", html: `<small class="wr-k">Play next presents</small><h1 class="wr-huge">${Y}</h1><h2 class="wr-big">${sofar ? "so far" : "wrapped"}</h2>`,
-    say: sofar ? "It's not over yet, but I peeked at your year 👀 Tap to go on." : "I kept notes all year. Ready? 👀" });
+  const Y = d.Y, art = g => g && (bgSource(g) || g.img), cov = g => esc(cover(g)), T = [], sofar = d.sofar, mon = d.mon;
+  const span = mon ? "month" : "year";
+  T.push({ k: "intro", bg: "volt", html: mon
+      ? `<small class="wr-k">Your month in games · ${Y}</small><h1 class="wr-huge wr-mon">${WR_MONTHS[d.M].slice(0, 3)}</h1><h2 class="wr-big">${sofar ? "so far" : "recap"}</h2>`
+      : `<small class="wr-k">Play next presents</small><h1 class="wr-huge">${Y}</h1><h2 class="wr-big">${sofar ? "so far" : "wrapped"}</h2>`,
+    say: mon ? (sofar ? "Quick peek at your month so far 📅" : `Here's your ${WR_MONTHS[d.M]} in games 📅`)
+      : sofar ? "It's not over yet, but I peeked at your year 👀 Tap to go on." : "I kept notes all year. Ready? 👀" });
   if (d.hours > 0.05) T.push({ k: "hours", bg: "void", html: `<small class="wr-k">You played</small><h1 class="wr-huge">${wrH(d.hours)}<em>h</em></h1>
       <p class="wr-p">across <b>${d.ses.length}</b> session${d.ses.length === 1 ? "" : "s"}${d.day ? ` · your gaming day was <b>${d.day}</b>` : ""}</p>
       ${d.longest ? `<p class="wr-p dim">Longest run: ${fmtH(d.longest.h)} of ${esc(d.longest.g.title)}</p>` : ""}`,
-    say: d.hours > 150 ? "That's a LOT of hours. I'm so proud 🥹" : d.hours > 30 ? "Solid year of playing. Respect 🎮" : "Every hour counts. Quality over quantity 😌" });
+    say: d.hours > (mon ? 40 : 150) ? "That's a LOT of hours. I'm so proud 🥹" : d.hours > (mon ? 10 : 30) ? `Solid ${span} of playing. Respect 🎮` : "Every hour counts. Quality over quantity 😌" });
   if (d.top) T.push({ k: "top", bg: "art", art: art(d.top.g), html: `<small class="wr-k">Your most-played</small>
       <img class="wr-cov" decoding="async" src="${cov(d.top.g)}" alt=""><h2 class="wr-big">${esc(d.top.g.title)}</h2>
       <p class="wr-p"><b>${fmtH(d.top.h)}</b> over ${d.top.n} session${d.top.n === 1 ? "" : "s"}</p>`, say: "You two were inseparable 💙" });
@@ -11555,34 +11577,34 @@ function wrSlides(d) {
       <h2 class="wr-big">game${d.fin.length === 1 ? "" : "s"}</h2><div class="wr-row">${d.fin.slice(0, 6).map((g, i) =>
         `<img decoding="async" src="${cov(g)}" alt="" style="--i:${i}">`).join("")}</div>`,
     say: d.fin.length >= 10 ? "Grumble is SHAKING right now 😤" : "One less game in the queue each time. Love that." });
-  if (d.best) T.push({ k: "best", bg: "hot", html: `<small class="wr-k">Game of your year</small>
+  if (d.best) T.push({ k: "best", bg: "hot", html: `<small class="wr-k">Game of your ${span}</small>
       <img class="wr-cov" decoding="async" src="${cov(d.best.g)}" alt=""><h2 class="wr-big">${esc(d.best.g.title)}</h2>
       <p class="wr-p"><b>${d.best.real}/10</b> — your highest score</p>`, say: "Honestly? Good taste. I approve ✨" });
-  if (d.miss && Math.abs(d.miss.d) >= 1) { const up = d.miss.d > 0; T.push({ k: "miss", bg: "art", art: art(d.miss.g), html:
+  if (!mon && d.miss && Math.abs(d.miss.d) >= 1) { const up = d.miss.d > 0; T.push({ k: "miss", bg: "art", art: art(d.miss.g), html:
       `<small class="wr-k">${up ? "Biggest surprise" : "Biggest letdown"}</small><h2 class="wr-big">${esc(d.miss.g.title)}</h2>
       <div class="wr-vs"><span><small>you hyped</small><b>${d.miss.g.hype}</b></span><i>→</i><span><small>it earned</small><b>${d.miss.p.real}</b></span></div>`,
     say: up ? "Didn't see that coming, did you? 😏" : "Hype got you on this one 😬" }); }
   if (d.duels) T.push({ k: "duels", bg: "void", html: `<small class="wr-k">You settled</small><h1 class="wr-huge">${d.duels}</h1><h2 class="wr-big">duel${d.duels === 1 ? "" : "s"}</h2>
       ${d.champ ? `<p class="wr-p">Champion: <b>${esc(d.champ.g.title)}</b> with ${d.champ.n} win${d.champ.n === 1 ? "" : "s"}</p>` : ""}`, say: "The arena never sleeps ⚔️" });
-  if (d.out.length || d.added.length) T.push({ k: "wait", bg: "volt", html: `${d.out.length ? `<small class="wr-k">The wait ended for</small><h1 class="wr-huge">${d.out.length}</h1>
+  if (!mon && (d.out.length || d.added.length)) T.push({ k: "wait", bg: "volt", html: `${d.out.length ? `<small class="wr-k">The wait ended for</small><h1 class="wr-huge">${d.out.length}</h1>
       <h2 class="wr-big">game${d.out.length === 1 ? "" : "s"}</h2><div class="wr-row">${d.out.slice(0, 6).map((g, i) => `<img decoding="async" src="${cov(g)}" alt="" style="--i:${i}">`).join("")}</div>` : ""}
       ${d.added.length ? `<p class="wr-p">and you added <b>${d.added.length}</b> new game${d.added.length === 1 ? "" : "s"} to the queue</p>` : ""}`,
     say: d.added.length > d.fin.length ? "You added more than you finished… classic 😅" : "Nice balance this year." });
-  if (d.mood >= 0 && d.dia >= 3) T.push({ k: "mood", bg: "void", html: `<small class="wr-k">Your vibe</small><div class="wr-emo">${MOODS[d.mood][0]}</div>
+  if (!mon && d.mood >= 0 && d.dia >= 3) T.push({ k: "mood", bg: "void", html: `<small class="wr-k">Your vibe</small><div class="wr-emo">${MOODS[d.mood][0]}</div>
       <h2 class="wr-big">${esc(MOODS[d.mood][1])}</h2><p class="wr-p">across ${d.dia} diary entries</p>`, say: "Your diary told me everything 📓" });
-  T.push({ k: "end", bg: "void", html: `<small class="wr-k">${Y}${sofar ? " so far" : ""} in games</small><div class="wr-grid">
+  T.push({ k: "end", bg: "void", html: `<small class="wr-k">${esc(d.label)}${sofar ? " so far" : ""} in games</small><div class="wr-grid">
       <div><b>${wrH(d.hours)}h</b><small>played</small></div><div><b>${d.ses.length}</b><small>sessions</small></div>
       <div><b>${d.fin.length}</b><small>finished</small></div><div><b>${d.duels}</b><small>duels</small></div></div>
-      ${d.top ? `<p class="wr-p">Most played: <b>${esc(d.top.g.title)}</b></p>` : ""}${d.best ? `<p class="wr-p">Game of the year: <b>${esc(d.best.g.title)}</b></p>` : ""}
+      ${d.top ? `<p class="wr-p">Most played: <b>${esc(d.top.g.title)}</b></p>` : ""}${d.best ? `<p class="wr-p">Game of the ${span}: <b>${esc(d.best.g.title)}</b></p>` : ""}
       <div class="wr-acts"><button class="btn" data-wr="share"><span>Share my card</span></button><button class="btn ghost" data-wr="again"><span>Watch again</span></button></div>`,
-    say: sofar ? "Come back in December for the full thing 🎁" : "Same time next year? 😄", stay: 1 });
+    say: mon ? (sofar ? "Check back when the month's done 🗓️" : "Same time next month? 😄") : sofar ? "Come back in December for the full thing 🎁" : "Same time next year? 😄", stay: 1 });
   return T;
 }
-function openWrapped(Y) {
+function openWrapped(Y, M) {
   Y = Y || new Date().getFullYear();
   if ($("#wrap")) return;
-  const d = wrData(Y), T = wrSlides(d), H = document.documentElement;
-  const o = document.createElement("div"); o.id = "wrap"; o.setAttribute("role", "dialog"); o.setAttribute("aria-label", Y + " wrapped");
+  const d = wrData(Y, M), T = wrSlides(d), H = document.documentElement;
+  const o = document.createElement("div"); o.id = "wrap"; o.setAttribute("role", "dialog"); o.setAttribute("aria-label", d.label + (d.mon ? " recap" : " wrapped"));
   o.innerHTML = `<div class="wr-bars">${T.map(() => "<i><b></b></i>").join("")}</div><button class="wr-x" aria-label="Close">✕</button>
     <div class="wr-stage"></div><div class="wr-say"><p></p></div>`;
   document.body.appendChild(o); H.classList.add("wrapping");
@@ -11602,7 +11624,7 @@ function openWrapped(Y) {
   const close = () => {
     o.classList.remove("on"); H.classList.remove("wrapping", "nxguide"); setTimeout(() => o.remove(), 300);
     if (b && typeof pnBubEdge === "function") { const e = pnBubEdge(); pnBubPlace(e.x, e.y); }
-    S.wrapSeen = Y; save();
+    if (!d.mon) { S.wrapSeen = Y; save(); }
   };
   /* the bar's own animation moves the story on, so there's no timer to keep in step */
   o.addEventListener("animationend", e => { if (e.target.parentNode === bars[i] && e.animationName === "wrBar") go(i + 1); });
@@ -11621,7 +11643,8 @@ function openWrapped(Y) {
     if (e.key === "Escape") close(); if (e.key === "ArrowRight") go(i + 1); if (e.key === "ArrowLeft") go(i - 1); });
   go(0);
 }
-document.addEventListener("click", e => { const b = e.target.closest("[data-wrapped]"); if (b) { e.stopPropagation(); openWrapped(); } }, true);
+document.addEventListener("click", e => { const b = e.target.closest("[data-wrapped]"); if (!b) return; e.stopPropagation();
+  const m = /^(\d{4})-(\d{2})$/.exec(b.dataset.wrapped || ""); m ? openWrapped(+m[1], +m[2] - 1) : openWrapped(); }, true);
 
 /* the share card: one tall picture with the year's numbers */
 async function wrCard(d) {
@@ -11635,8 +11658,8 @@ async function wrCard(d) {
   if (im) { const r = Math.max(W / im.width, 900 / im.height); x.globalAlpha = .55; x.drawImage(im, (W - im.width * r) / 2, 0, im.width * r, im.height * r); x.globalAlpha = 1; }
   const gr = x.createLinearGradient(0, 300, 0, 1000); gr.addColorStop(0, "rgba(4,6,14,0)"); gr.addColorStop(1, "#04060E"); x.fillStyle = gr; x.fillRect(0, 0, W, 1000);
   x.fillStyle = "#4DA3FF"; x.save(); x.beginPath(); x.rect(0, 0, W, 1000); x.clip(); x.transform(1, 0, -.22, 1, 0, 0); x.fillRect(1010, 0, 40, H); x.fillRect(1070, 0, 14, H); x.restore();
-  x.fillStyle = "#fff"; x.font = "italic 900 150px Archivo, sans-serif"; x.fillText(String(d.Y), 70, 230);
-  x.fillStyle = "#4DA3FF"; x.font = "italic 900 84px Archivo, sans-serif"; x.fillText(wrLate() ? "WRAPPED" : "SO FAR", 76, 320);
+  x.fillStyle = "#fff"; x.font = "italic 900 150px Archivo, sans-serif"; x.fillText(d.mon ? WR_MONTHS[d.M].slice(0, 3).toUpperCase() + " " + String(d.Y).slice(2) : String(d.Y), 70, 230);
+  x.fillStyle = "#4DA3FF"; x.font = "italic 900 84px Archivo, sans-serif"; x.fillText(d.sofar ? "SO FAR" : d.mon ? "RECAP" : "WRAPPED", 76, 320);
   if (cv) { x.save(); x.translate(W / 2, 700); x.rotate(-.06); const cw = 380, ch = 520;
     x.fillStyle = "#fff"; x.fillRect(-cw / 2 - 12, -ch / 2 - 12, cw + 24, ch + 24);
     const r = Math.max(cw / cv.width, ch / cv.height), sw = cw / r, sh = ch / r; x.drawImage(cv, (cv.width - sw) / 2, (cv.height - sh) / 2, sw, sh, -cw / 2, -ch / 2, cw, ch); x.restore(); }
@@ -11648,15 +11671,15 @@ async function wrCard(d) {
     x.fillStyle = "#101C40"; x.beginPath(); x.roundRect ? x.roundRect(cx - 230, cy - 90, 460, 190, 36) : x.rect(cx - 230, cy - 90, 460, 190); x.fill();
     x.fillStyle = "#fff"; x.font = "900 86px Archivo, sans-serif"; x.fillText(String(v), cx, cy + 20);
     x.fillStyle = "#7C92C4"; x.font = "600 28px Poppins, sans-serif"; x.fillText(l, cx, cy + 70); });
-  if (d.best) { x.fillStyle = "#EAF2FF"; x.font = "500 36px Poppins, sans-serif"; let t = "Game of the year: " + d.best.g.title;
+  if (d.best) { x.fillStyle = "#EAF2FF"; x.font = "500 36px Poppins, sans-serif"; let t = "Game of the " + (d.mon ? "month" : "year") + ": " + d.best.g.title;
     while (x.measureText(t).width > 960 && t.length > 10) t = t.slice(0, -2); x.fillText(t, W / 2, 1760); }
   x.textAlign = "left"; x.fillStyle = "#fff"; x.font = "italic 900 44px Archivo, sans-serif"; x.fillText("PLAY NEXT", 70, 1870);
   c.toBlob(bl => {
     if (!bl) { toast("Couldn't make the card. Try again."); return; }
     document.querySelectorAll(".ccov").forEach(e => e.remove());
-    const url = URL.createObjectURL(bl), file = new File([bl], "play-next-" + d.Y + ".png", { type: "image/png" });
+    const url = URL.createObjectURL(bl), file = new File([bl], "play-next-" + d.label.replace(/\s+/g, "-").toLowerCase() + ".png", { type: "image/png" });
     const o = document.createElement("div"); o.className = "ccov"; o.style.zIndex = 9001;
-    o.innerHTML = `<img src="${url}" alt="${d.Y} wrapped card"><div class="ccov-acts"><button class="btn" data-cc="share"><span>Share</span></button>
+    o.innerHTML = `<img src="${url}" alt="${esc(d.label)} card"><div class="ccov-acts"><button class="btn" data-cc="share"><span>Share</span></button>
       <button class="btn ghost" data-cc="close"><span>Close</span></button></div>`;
     o.onclick = async e => {
       const a = e.target.closest("[data-cc]"); if (!a && e.target !== o) return;
@@ -13161,7 +13184,17 @@ const WHATS_NEW = [
   { v: 177, go: () => { nxHome(); setTimeout(() => { const w = $("#p-home .k-wrap"); if (w) { w.scrollIntoView({ block: "center" }); const st = w.closest(".stk"); if (st) st.scrollTo({ top: w.offsetTop - st.offsetTop, left: w.offsetLeft - st.offsetLeft }); } }, 300); },
     at: () => $("#p-home .k-wrap"),
     say: "<b>Your year, wrapped!</b> I host a little story of your gaming year: hours played, your most-played game, games finished, your game of the year, biggest surprise… and it ends with a card you can share. It's “so far” until December, then it's the real thing.",
-    tryIt: "Tap the card to watch. Tap right to skip, left to go back, hold to pause." }
+    tryIt: "Tap the card to watch. Tap right to skip, left to go back, hold to pause." },
+  { v: 178, go: () => { nxShut(); openSettings("app"); }, at: () => $("#sheet-in .ssch"),
+    say: "Lost in Settings? Not any more. <b>Search every setting</b> from here, even ones that live on other screens, and I'll take you straight to it. The <b>Most used</b> ones are right underneath.",
+    tryIt: "Try typing colour, sound or backup." },
+  { v: 178, go: () => { nxShut(); openSettings("app"); }, at: () => $("#sheet-in details.grp"),
+    say: "Sections now open <b>one at a time</b>, on their own page, with <b>‹ Back to all</b> at the top. Big sections keep the rarely used sliders behind <b>More options</b>. A game's Edit works the same way.",
+    tryIt: "Open a section, then tap Back to all." },
+  { v: 178, go: () => { nxHome(); setTimeout(() => { const w = $("#p-home .k-month"); if (w) { w.scrollIntoView({ block: "center" }); const st = w.closest(".stk"); if (st) st.scrollTo({ top: w.offsetTop - st.offsetTop, left: w.offsetLeft - st.offsetLeft }); } }, 300); },
+    at: () => $("#p-home .k-month"),
+    say: "The yearly story now has a little sibling: a <b>monthly recap</b>. It's this month so far, and in the first week of a month it looks back at the one that just ended.",
+    tryIt: "Tap it for a quick recap with a card to share." }
 ];
 function nxShut() { const f = $("#full"); if (f && f.classList.contains("on") && typeof closeFull === "function") closeFull(); if ($("#sheet") && $("#sheet").classList.contains("on") && typeof closeEdit === "function") closeEdit(); }
 function nxOpenGame() {
@@ -13546,6 +13579,7 @@ html.wrapping #pnbubmsg { display: none !important; }
 @keyframes wrUp { from { opacity: 0; transform: translateY(34px) scale(.96); } }
 .wr-k { font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
 .wr-huge { margin: 0; font: italic 900 clamp(96px, 34vw, 200px)/.88 "Archivo", system-ui, sans-serif; letter-spacing: -.04em; }
+.wr-huge.wr-mon { text-transform: uppercase; }
 .wr-huge em { font-size: .45em; font-style: italic; margin-left: 4px; }
 .wr-big { margin: 0; font: italic 900 clamp(34px, 11vw, 64px)/1 "Archivo", system-ui, sans-serif; letter-spacing: -.02em; text-transform: uppercase; overflow-wrap: anywhere; }
 .wr-p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; } .wr-p.dim { opacity: .7; font-size: 14px; margin-top: 2px; }
@@ -13569,4 +13603,191 @@ html.wrapping #pnbubmsg { display: none !important; }
 @keyframes wrSay { to { opacity: 1; transform: none; } }
 html.still .wr-in > *, html.still .wr-say.on p { animation: none; opacity: 1; transform: none; }
 @media (min-width: 620px) { .wr-s { padding: 90px 60px 150px; } .wr-huge { font-size: 170px; } }
+</style>
+<script>
+/* ===== v178 calmer settings and edit: search, most-used shortcuts, one section at a time, fewer knobs up front ===== */
+const GROUP_ICON = {
+  "Sound and reactions": "🔊", "Motion": "🎞️", "Look of the app": "🎨", "Getting around": "🧭", "Games database": "🗂️",
+  "Dates that look wrong": "📅", "This build": "ℹ️", "Your data": "💾", "Tiles on Home": "🧩", "How tiles look": "🖌️",
+  "The standings tile": "🏆", "Queue cards": "🃏", "Character art": "🧍", "The backdrop": "🖼️", "Opening a card": "✨",
+  "Top board": "🥇", "Library": "📚", "A game's own page": "📄", "Timeline board": "🗓️", "Labels on the board": "🏷️",
+  "Your evening": "🌙", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
+  "Name": "✏️", "Release": "📅", "Where it stands": "📍", "Platforms": "🎮", "Genres and tags": "🏷️", "Notes": "📝",
+  "Hype": "🔥", "Critics": "⭐", "My rating": "💯", "Played": "✅", "Art from SteamGridDB": "🖼️", "Cover and colour": "🎨",
+  "Backdrop": "🌄", "Hub page figure": "🧍", "Logo / character art": "🔤"
+};
+const SET_MORE_AT = 5, SET_MORE_IF = 7;   /* groups with more than 7 settings show the first 5, the rest behind "More options" */
+const SET_QUICK = [
+  ["🔊", "Sound", "Sound and reactions", "Sounds"], ["😤", "Grumble", "Sound and reactions", "Grumble"],
+  ["🎞️", "Animations", "Motion", "Animations"], ["⚡", "Speed boost", "Motion", "Speed boost"],
+  ["🎨", "App colour", "Look of the app", "Its colour"], ["🧭", "Tabs & start screen", "Getting around", ""],
+  ["💾", "Backup", "Your data", "Backup"], ["✨", "What's new", "This build", ""]
+];
+const clean = t => String(t || "").trim().replace(/\s+/g, " ");
+let setIdx = null;
+function setIndex() {
+  if (setIdx) return setIdx;
+  let tpl = ""; openSettings.tplOnly = true;
+  try { tpl = openSettings("app") || ""; } catch (e) {} finally { openSettings.tplOnly = false; }
+  const box = document.createElement("div"); box.innerHTML = tpl; const out = [];
+  box.querySelectorAll(".setgroup[data-scope]").forEach(g => {
+    const h = g.querySelector("h4"); if (!h) return;
+    const base = { scope: g.dataset.scope, sub: g.dataset.sub || "", group: clean(h.textContent) };
+    out.push({ ...base, text: base.group, extra: h.dataset.desc || "", head: 1 });
+    g.querySelectorAll("label, h5").forEach(l => {
+      const t = clean(l.textContent); if (!t) return;
+      let extra = "", n = l.nextElementSibling, k = 0;
+      while (n && k < 2 && !/^(LABEL|H5)$/.test(n.tagName)) { extra += " " + n.textContent; n = n.nextElementSibling; k++; }
+      out.push({ ...base, text: t, extra: clean(extra).slice(0, 240) });
+    });
+  });
+  return setIdx = out;
+}
+const setWhere = r => r.scope === "app" ? "App settings" : r.sub
+  ? SCOPE_NAME[r.scope] + " › " + (subLabel(r.scope, r.sub.split(" ")[0]) || "") : SCOPE_NAME[r.scope];
+function setFind(q) {
+  const w = clean(q).toLowerCase().split(" ").filter(Boolean); if (!w.length) return [];
+  return setIndex().map(r => {
+    const t = r.text.toLowerCase(), all = (t + " " + r.group.toLowerCase() + " " + r.extra.toLowerCase());
+    if (!w.every(x => all.includes(x))) return null;
+    const sc = (t.startsWith(w[0]) ? 4 : 0) + (w.every(x => t.includes(x)) ? 3 : 0) + (r.head ? 1 : 0) + (r.scope === "app" ? .5 : 0);
+    return { r, sc };
+  }).filter(Boolean).sort((a, b) => b.sc - a.sc).slice(0, 12).map(x => x.r);
+}
+/* open the right screen's settings, the right section, and light up the setting */
+function setJump(r) {
+  if (r.scope !== "app") {
+    const subs = r.sub ? r.sub.split(" ") : [];
+    if (subs.length && !subs.includes(subOf(r.scope))) setSub(r.scope, subs[0]);
+    goTab(r.scope);
+  }
+  openSettings(r.scope);
+  requestAnimationFrame(() => {
+    const root = $("#sheet-in");
+    const d = [...root.querySelectorAll("details.grp")].find(x => clean((x.querySelector("summary b") || {}).textContent) === r.group);
+    if (!d) return;
+    d.open = true;
+    if (r.head || !r.text) return;
+    const l = [...d.querySelectorAll("label, h5")].find(x => clean(x.textContent).startsWith(r.text));
+    if (!l) return;
+    setMoreOpen(l);
+    setTimeout(() => { l.scrollIntoView({ block: "center", behavior: "smooth" }); l.classList.remove("sflash"); void l.offsetWidth; l.classList.add("sflash"); }, 120);
+  });
+}
+function setMoreOpen(el) {
+  const m = el && el.closest(".more-opts"); if (!m || !m.hidden) return;
+  m.hidden = false; const b = m.previousElementSibling; if (b && b.classList.contains("more-btn")) b.textContent = "Fewer options";
+}
+/* after either sheet is drawn: icons, "More options", and (in settings) the search + shortcuts */
+function calmSheet(settings) {
+  const root = $("#sheet-in"); if (!root) return;
+  root.querySelectorAll("details.grp").forEach(d => {
+    const sum = d.querySelector("summary"), title = clean((sum.querySelector("b") || {}).textContent);
+    if (!sum.querySelector(".gi")) { const i = document.createElement("span"); i.className = "gi"; i.textContent = GROUP_ICON[title] || "⚙️"; sum.insertBefore(i, sum.firstChild); }
+    if (d.querySelector(".more-opts")) return;
+    const labs = [...d.children].filter(x => x.tagName === "LABEL" || x.tagName === "H5");
+    if (labs.length <= SET_MORE_IF) return;
+    const wrap = document.createElement("div"); wrap.className = "more-opts"; wrap.hidden = true;
+    const move = []; for (let n = labs[SET_MORE_AT]; n; n = n.nextElementSibling) move.push(n);
+    move.forEach(x => wrap.appendChild(x));
+    const more = labs.length - SET_MORE_AT, btn = document.createElement("button");
+    btn.type = "button"; btn.className = "more-btn"; btn.textContent = `More options (${more})`;
+    btn.onclick = e => { e.preventDefault(); wrap.hidden = !wrap.hidden; btn.textContent = wrap.hidden ? `More options (${more})` : "Fewer options"; beep("tap"); };
+    d.appendChild(btn); d.appendChild(wrap);
+  });
+  if (!settings || root.querySelector(".ssch")) return;
+  const head = root.querySelector(".ehead"), app = (clean((head && head.querySelector("h3") || {}).textContent) === "Settings");
+  const bar = document.createElement("div"); bar.className = "ssbar";
+  bar.innerHTML = `<label class="ssch"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="search" placeholder="Search every setting…" autocomplete="off" enterkeyhint="search" aria-label="Search settings"></label>
+    <div class="ssres" hidden></div>
+    ${app ? `<div class="squick"><small>Most used</small><div>${SET_QUICK.map(([ic, l], i) => `<button type="button" data-sq="${i}"><span>${ic}</span>${esc(l)}</button>`).join("")}</div></div>` : ""}<small class="sall">${app ? "All settings" : "On this screen"}</small>`;
+  if (head) head.after(bar); else root.prepend(bar);
+  const inp = bar.querySelector("input"), res = bar.querySelector(".ssres");
+  const paint = () => {
+    const q = inp.value, hits = setFind(q);
+    bar.classList.toggle("searching", !!clean(q)); $("#sheet-in").classList.toggle("ssearch", !!clean(q));
+    if (!clean(q)) { res.hidden = true; res.innerHTML = ""; return; }
+    res.hidden = false;
+    res.innerHTML = hits.length ? hits.map((r, i) => `<button type="button" data-sr="${i}"><span class="gi">${GROUP_ICON[r.group] || "⚙️"}</span>
+      <span><b>${esc(r.text)}</b><small>${esc(r.head ? setWhere(r) : r.group + " · " + setWhere(r))}</small></span><em>›</em></button>`).join("")
+      : `<p>Nothing called that. Try a word like <b>colour</b>, <b>sound</b>, <b>cover</b> or <b>backup</b>.</p>`;
+    res._hits = hits;
+  };
+  inp.addEventListener("input", paint);
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { const f = res.querySelector("[data-sr]"); if (f) f.click(); } });
+  bar.addEventListener("click", e => {
+    const r = e.target.closest("[data-sr]"); if (r) { beep("tap"); return setJump(res._hits[+r.dataset.sr]); }
+    const q = e.target.closest("[data-sq]");
+    if (q) { const [, , group, text] = SET_QUICK[+q.dataset.sq]; beep("tap"); setJump({ scope: "app", group, text, head: !text }); }
+  });
+}
+/* one section at a time: opening one hides the rest, closing it brings the list back where you were */
+let setListY = 0;
+document.addEventListener("toggle", e => {
+  const d = e.target, root = $("#sheet-in");
+  if (!root || !(d instanceof HTMLDetailsElement) || !d.classList.contains("grp") || !root.contains(d)) return;
+  const sh = $("#sheet");
+  if (d.open) {
+    if (!root.classList.contains("drill")) setListY = sh ? sh.scrollTop : 0;
+    root.querySelectorAll("details.grp[open]").forEach(x => { if (x !== d) x.open = false; });
+    root.querySelectorAll(".setgroup.cur").forEach(x => x.classList.remove("cur"));
+    const g = d.closest(".setgroup"); if (g) g.classList.add("cur");
+    root.classList.add("drill"); if (sh) sh.scrollTop = 0;
+  } else if (!root.querySelector("details.grp[open]")) {
+    root.classList.remove("drill"); root.querySelectorAll(".setgroup.cur").forEach(x => x.classList.remove("cur"));
+    if (sh) requestAnimationFrame(() => { sh.scrollTop = setListY; });
+  }
+}, true);
+{ const _o = openSettings; openSettings = function () { const out = _o.apply(this, arguments); if (!openSettings.tplOnly) { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); } return out; };
+  openSettings.tplOnly = false; }
+{ const _e = openEdit; openEdit = function () { const out = _e.apply(this, arguments); $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(false); return out; }; }
+/* the tour and search can point into a folded "More options" */
+{ const _n = nxOpenSettings; nxOpenSettings = function (sel) { _n.apply(this, arguments); setMoreOpen($(sel)); }; }
+</script>
+<style>
+/* ===== v178 calmer settings ===== */
+.ssbar { margin: 4px 0 12px; }
+.ssch { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge);
+  background: var(--void); color: var(--mute); cursor: text; }
+.ssch:focus-within { border-color: var(--volt); }
+.ssch svg { width: 18px; height: 18px; flex: none; }
+.ssch input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--ice); font: inherit; font-size: 16px; padding: 0; margin: 0; -webkit-appearance: none; appearance: none; }
+.ssres { display: grid; gap: 6px; margin-top: 10px; }
+.ssres[hidden] { display: none; }
+.ssres button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--edge); border-radius: 16px;
+  background: var(--ink); color: var(--ice); font: inherit; text-align: left; cursor: pointer; }
+.ssres button span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ssres b { font-size: 14px; } .ssres small { font-size: 12px; color: var(--mute); }
+.ssres em { font-style: normal; color: var(--volt); font-size: 20px; }
+.ssres p { color: var(--mute); font-size: 13px; margin: 6px 4px; }
+.squick { margin-top: 14px; } .squick small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin: 0 0 8px 4px; }
+.squick > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.squick button { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--edge); border-radius: 16px; background: var(--ink);
+  color: var(--ice); font: inherit; font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; transition: transform .2s ease; }
+.squick button:active, .ssres button:active, .more-btn:active { transform: scale(.96); }
+.squick button span { font-size: 18px; }
+.ssbar.searching .squick, .ssbar.searching .sall, #sheet-in.ssearch .setgroup { display: none; }
+.sall { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin: 16px 0 0 4px; }
+/* every section is one row: icon, name, what's in it, and a chevron */
+details.grp > summary > b { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 2px; }
+details.grp > summary > em { flex: 0 1 auto; margin-left: 8px; max-width: 45%; }
+details.grp > summary > .gi { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; font-size: 17px;
+  font-style: normal; background: rgba(77,163,255,.12); margin-right: 2px; }
+details.grp > summary > .gdesc { padding-left: 46px; }
+details.grp > summary::after { content: "›"; font-size: 22px; background: none; }
+details.grp[open] > summary::after { content: ""; display: none; }
+/* opened: the section takes over the sheet, with a way back */
+#sheet-in.drill .setgroup:not(.cur), #sheet-in.drill .ssbar, #sheet-in.drill #e-tabs, #sheet-in.drill > .note { display: none !important; }
+#sheet-in.drill details.grp[open] { border-left-width: 1px; background: var(--ink); animation: setIn .35s cubic-bezier(.16,1,.3,1) both; }
+#sheet-in.drill details.grp[open] > summary::before { content: "‹  Back to all"; flex-basis: 100%; order: -1; margin-bottom: 10px; font-size: 13px; font-style: normal;
+  font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--volt); font-variation-settings: "wdth" 100; }
+#sheet-in.drill details.grp[open] > summary > b { font-size: 16px; }
+#sheet-in.drill details.grp[open] > summary > em { display: none; }
+@keyframes setIn { from { opacity: 0; transform: translateX(24px); } }
+html.still #sheet-in.drill details.grp[open] { animation: none; }
+.more-btn { display: block; width: 100%; margin: 14px 0 6px; padding: 11px; border: 1px dashed var(--edge); border-radius: 14px; background: none;
+  color: var(--volt); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: transform .2s ease; }
+@keyframes sFlash { 0%, 100% { opacity: 1; } 30%, 70% { opacity: .35; } }
+.sflash { animation: sFlash .5s ease 3; color: var(--volt) !important; }
 </style>
