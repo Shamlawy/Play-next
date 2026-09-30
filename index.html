@@ -3978,7 +3978,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "205";
+const APP_V = "206";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10811,15 +10811,17 @@ function renderHome() {
 }
 
 /* cards further down Home drift in as you scroll to them */
+/* v206: it used to read every card's position right after the redraw, which forced a full layout (99 of the
+   179ms a Home redraw took at 4x). Now the observer's first report says which cards start below the fold:
+   those hide (they're off screen, so nothing blinks) and drift in when you reach them. */
+let pnRevIO = null;
 function revealSetup(root) {
   if (!root || !("IntersectionObserver" in window)) return;
-  const io = revealSetup.io || (revealSetup.io = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add("in"); revealSetup.io.unobserve(e.target); }
+  const io = pnRevIO || (pnRevIO = new IntersectionObserver((es, ob) => es.forEach(e => { const el = e.target;
+    if (!el._rv) { el._rv = 1; if (!e.isIntersecting && e.boundingClientRect.top > innerHeight) el.classList.add("pnrv"); else ob.unobserve(el); return; }
+    if (e.isIntersecting) { el.classList.add("in"); ob.unobserve(el); }
   }), { rootMargin: "0px 0px -8% 0px" }));
-  const vh = innerHeight;
-  root.querySelectorAll(".dash > *").forEach(el => {
-    if (el.getBoundingClientRect().top > vh) { el.classList.add("pnrv"); io.observe(el); }
-  });
+  root.querySelectorAll(".dash > *").forEach(el => { if (!el._rv) io.observe(el); });
 }
 { const _rh = renderHome; renderHome = function () { _rh.apply(this, arguments); revealSetup($("#p-home")); }; }
 const PN_EASE = "cubic-bezier(.22,1,.36,1)";
@@ -11170,9 +11172,10 @@ function pnStack(root) {
     return w;
   };
   [pick, up, ring, cd, ton, mk("sB", B, true), mk("sC", C)].forEach(x => { if (x) d.appendChild(x); });
-  d.querySelectorAll(".stk > *").forEach(x => { x.scrollTop = 0; });
+  /* v206: in the next frame, not straight after the redraw (setting scrollTop forced a layout: 37ms at 4x) */
+  requestAnimationFrame(() => d.querySelectorAll(".stk > *").forEach(x => { if (x.scrollTop) x.scrollTop = 0; }));
   d.classList.add("pnfit");
-  pnFit();
+  requestAnimationFrame(pnFit);             /* v206: in the frame's own layout, not forced straight after the redraw (32ms at 4x) */
 }
 function pnFit() {
   const h = $("#p-home"), d = h && h.querySelector(".dash.pnfit"); if (!d || !h.classList.contains("on")) return;
@@ -16388,10 +16391,16 @@ const bugSeen = () => { const s = bugScreen(); if (s !== "settings/edit") BUG.la
 { const _o = openSettings; openSettings = function () { const o = _o.apply(this, arguments); if (!openSettings.tplOnly) { bugCrumb("screen settings"); bugLayoutSoon(); } return o; }; openSettings.tplOnly = false; }
 addEventListener("resize", () => bugLayoutSoon(), { passive: true });
 
+/* v206: time spent in a native confirm/alert/prompt box isn't lag (the page waits for you on purpose): #55/#56 were
+   4.3s of reading "Put your RAWG key in this backup?". Every lag check skips anything that overlaps one. */
+const BUG_MODAL = [];
+["alert", "confirm", "prompt"].forEach(k => { const f = window[k]; if (typeof f !== "function") return;
+  window[k] = function () { const s = performance.now(); try { return f.apply(this, arguments); } finally { BUG_MODAL.push([s, performance.now()]); if (BUG_MODAL.length > 8) BUG_MODAL.shift(); } }; });
+const bugModal = (t, d) => BUG_MODAL.some(([s, e]) => t < e + 50 && t + d > s - 50);
 /* 3. freezes: a task over 400ms once the app has started (Chrome can tell; Safari can't) */
 try {
   new PerformanceObserver(list => {
-    for (const t of list.getEntries()) if (t.duration > 400 && performance.now() - BUG.boot > 8000 && !document.hidden)
+    for (const t of list.getEntries()) if (t.duration > 400 && performance.now() - BUG.boot > 8000 && !document.hidden && !bugModal(t.startTime, t.duration))
       bugReport("slow", "A " + Math.round(t.duration / 50) * 50 + "ms freeze on " + bugScreen(), { screen: bugScreen() });
   }).observe({ type: "longtask", buffered: false });
 } catch (e) {}
@@ -16570,9 +16579,11 @@ try {
   new PerformanceObserver(list => {
     if (!lagOk()) return;
     for (const f of list.getEntries()) {
-      if (f.duration < 150) continue;
+      if (f.duration < 150 || bugModal(f.startTime, f.duration)) continue;
       const top = (f.scripts || []).slice().sort((a, b) => b.duration - a.duration)[0];
-      const who = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "rendering (style/layout/paint)";
+      const fn = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "";
+      /* v206: a script that took a sliver of the frame isn't the cause (#59 blamed the stutter checker's own 7ms tick) */
+      const who = top && top.duration >= f.duration * .3 ? fn : "rendering (style/layout/paint)" + (fn ? "; biggest script " + Math.round(top.duration) + "ms: " + fn : "");
       bugReport("slow", "A " + Math.round(f.duration / 10) * 10 + "ms stutter on " + lagWhere(), { at: who, screen: bugScreen(),
         stack: top ? "blocking " + Math.round(f.blockingDuration || 0) + "ms; script " + Math.round(top.duration) + "ms at char " + (top.sourceCharPosition ?? "?") + "; style+layout " + Math.round(f.styleAndLayoutStart ? f.startTime + f.duration - f.styleAndLayoutStart : 0) + "ms" : "" });
     }
@@ -16582,7 +16593,7 @@ try {
   new PerformanceObserver(list => {
     if (!lagOk()) return;
     for (const ev of list.getEntries()) {
-      if (ev.duration < 250 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name)) continue;
+      if (ev.duration < 250 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name) || bugModal(ev.startTime, ev.duration)) continue;
       bugReport("slow", "A tap took " + Math.round(ev.duration / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen() });
     }
   }).observe({ type: "event", durationThreshold: 104, buffered: false });
@@ -17483,5 +17494,42 @@ WHATS_NEW.push(
   { v: 205, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-hero"),
     say: "Psychology, Patterns and Analytics are now one page: <b>Insights</b>. It opens with your player type, then how well you call games, what I've learned about you and your taste shape. The deep dives and all the numbers sit folded at the bottom.",
     tryIt: "Open Taste → Insights and scroll down slowly." }
+);
+</script>
+<script>
+/* ===== v206: lag fixes from the problem reports =====
+   render() rebuilt all seven screens on every save, add or delete (#58: a 260ms tap on Edit → Save). Now it
+   rebuilds the screen you're on straight away and the hidden ones in idle time, one per idle slice; switching
+   to a screen that's still waiting rebuilds it first (paintTab), and a direct renderX() call takes it off the list. */
+const RND = [["p-home", "renderHome"], ["p-queue", "renderQueue"], ["p-cal", "renderCal"], ["p-played", "renderPlayed"],
+  ["p-replay", "renderReplay"], ["p-taste", "renderTaste"], ["p-lib", "renderLib"]];
+const RND_DIRTY = new Set(); let rndIdle = 0;
+RND.forEach(([id, name]) => { const f = window[name]; if (typeof f !== "function") return;
+  window[name] = function () { RND_DIRTY.delete(id); return f.apply(this, arguments); }; });
+function rndFlush(id) { if (!RND_DIRTY.has(id)) return; const e = RND.find(x => x[0] === id); RND_DIRTY.delete(id); if (e) try { window[e[1]](); } catch (err) { setTimeout(() => { throw err; }); } }
+function rndKick() {
+  if (rndIdle || !RND_DIRTY.size) return;
+  const ric = window.requestIdleCallback || ((f, o) => setTimeout(f, 80));
+  rndIdle = ric(() => { rndIdle = 0; const id = [...RND_DIRTY][0]; if (id) rndFlush(id); rndKick(); }, { timeout: 2000 });
+}
+render = function () {
+  renderPill();
+  S.games.forEach(g => {
+    if (isPlayed(g) && g.state !== "played") g.state = "played";
+    else if (!isPlayed(g) && g.state === "played") g.state = "backlog";
+  });
+  const t = curTab(), vis = panelOf(t);
+  RND.forEach(([id]) => RND_DIRTY.add(id));
+  rndFlush(vis);
+  if (t === "add") rndFlush("p-home");            /* Home's render also refreshes Add's header */
+  applyBg(); rndKick();
+};
+{ const _pt = paintTab; paintTab = function (tab) { rndFlush(panelOf(tab)); if (tab === "add") rndFlush("p-home"); return _pt.apply(this, arguments); }; }
+/* before a backup or the app going to the background, nothing is left half-drawn */
+addEventListener("visibilitychange", () => { if (document.hidden) [...RND_DIRTY].forEach(rndFlush); });
+WHATS_NEW.push(
+  { v: 206, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Fixed: saving, adding or deleting a game answers about twice as fast, and Home redraws in a fifth of the time. The app used to redraw all seven screens at once; now it does the one you're looking at and the rest in the quiet moments after. I also stopped counting the time you spend reading an OK/Cancel box as lag.",
+    tryIt: "Edit a game and tap Save." }
 );
 </script>
