@@ -1,0 +1,51 @@
+# Deploys Nexi's helper (worker/) to Cloudflare whenever it changes on main, or by hand from the Actions tab.
+# Needs one repository secret: CLOUDFLARE_API_TOKEN (a Cloudflare token made from the "Edit Cloudflare Workers"
+# template). CLOUDFLARE_ACCOUNT_ID is only needed if that token can see more than one Cloudflare account.
+# The SteamGridDB key (SGDB_KEY) stays a secret on the worker itself; deploying never touches it.
+name: Deploy Nexi's helper
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/deploy-helper.yml"]
+  workflow_dispatch:
+concurrency: deploy-helper
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Deploy
+        working-directory: worker
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret (Settings > Secrets and variables > Actions), then run this workflow again."
+            exit 1
+          fi
+          export CLOUDFLARE_API_TOKEN="$TOKEN"
+          if [ -n "$ACCOUNT" ]; then export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT"; fi
+          W="npx --yes wrangler@4"
+          # notifications keep their phones and the push key in a KV namespace: reuse the one that exists, or make it
+          find_kv() { $W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s.slice(s.indexOf("[")));const n=a.find(x=>/nudge/i.test(x.title));process.stdout.write(n?n.id:"")}catch(e){}})'; }
+          ID=$(find_kv)
+          if [ -z "$ID" ]; then $W kv namespace create playnext-nudge; ID=$(find_kv); fi
+          if [ -z "$ID" ]; then echo "::error::Couldn't find or make the NUDGE KV namespace"; exit 1; fi
+          echo "NUDGE namespace: $ID"
+          # wrangler.jsonc has no id in it (it differs per account): write a copy with the id filled in
+          node -e '
+            const fs = require("fs");
+            const txt = fs.readFileSync("wrangler.jsonc", "utf8").split("\n").map(l => l.replace(/^\s*\/\/.*$/, "").replace(/\s\/\/ .*$/, "")).join("\n");
+            const c = JSON.parse(txt);
+            c.kv_namespaces = [{ binding: "NUDGE", id: process.argv[1] }];
+            fs.writeFileSync("wrangler.deploy.json", JSON.stringify(c, null, 2));
+          ' "$ID"
+          $W deploy --config wrangler.deploy.json
+      - name: Check it's live
+        run: |
+          sleep 5
+          curl -sS https://playnext-helper.hussamnabil48.workers.dev/version
