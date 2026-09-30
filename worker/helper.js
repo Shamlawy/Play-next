@@ -119,8 +119,7 @@ async function handle(req, env) {
       const text = await ask(env, [
         { role: "system", content: "You are a strict senior mobile UI designer reviewing screens of a dark-themed game-backlog app. You only report problems a user would really notice on the phone, you never invent elements, and you answer with JSON only." },
         { role: "user", content: `Screen "${String(b.screen || "").slice(0, 40)}", viewport ${+b.w || 0}×${+b.h || 0} CSS px. Each line is one visible element: id | kind | x,y,w,h (px) | font size/weight | text colour on background (contrast) | radius | text (‹game› = a game title).
-${items.join("
-")}
+${items.join("\n")}
 
 Find at most 3 concrete visual design problems, for example: elements misaligned with their neighbours, uneven spacing in a row or list, text too small to read on a phone, buttons of the same kind with different sizes/radii/fonts, crowded areas with no breathing room, labels that are cut or crammed, something that looks out of place or unbalanced, poor visual hierarchy (a minor thing louder than the main thing). Ignore anything that is fine. Cite the element ids. If there is nothing clearly wrong, return [].
 Answer with ONLY a JSON array like [{"ids":["e3","e7"],"problem":"max 16 words, plain English","fix":"max 16 words","confidence":0.0-1.0}].` }
