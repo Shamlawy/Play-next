@@ -35,7 +35,7 @@ for (let page = 1; page <= 5; page++) {
 const bySig = new Map();
 for (const i of issues) { const m = /\[bug:([0-9a-f]{8})\]/.exec(i.title); if (m && !bySig.has(m[1])) bySig.set(m[1], i); }
 
-const KIND = { error: "Crash", promise: "Crash", layout: "Cut off", slow: "Slow", helper: "Helper", tour: "Tour", user: "Reported" };
+const KIND = { error: "Crash", promise: "Crash", layout: "Cut off", slow: "Slow", helper: "Helper", tour: "Tour", user: "Reported", look: "Design", stuck: "Stuck", review: "Design review" };
 const when = t => new Date(t).toISOString().replace("T", " ").slice(0, 16) + " UTC";
 const fence = s => "```\n" + String(s || "").replace(/```/g, "ˋˋˋ") + "\n```";
 const body = b => {

@@ -14,7 +14,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 4;
+const HELPER_V = 5;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -107,7 +107,31 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true }, 200, h);
+    /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
+       ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
+       the element ids it means. The app keeps only confident ones and files them as "Design review" reports. */
+    if (url.pathname === "/review" && req.method === "POST") {
+      if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+      let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+      const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 90).map(x => String(x).slice(0, 160));
+      if (items.length < 3) return json({ issues: [] }, 200, h);
+      const text = await ask(env, [
+        { role: "system", content: "You are a strict senior mobile UI designer reviewing screens of a dark-themed game-backlog app. You only report problems a user would really notice on the phone, you never invent elements, and you answer with JSON only." },
+        { role: "user", content: `Screen "${String(b.screen || "").slice(0, 40)}", viewport ${+b.w || 0}×${+b.h || 0} CSS px. Each line is one visible element: id | kind | x,y,w,h (px) | font size/weight | text colour on background (contrast) | radius | text (‹game› = a game title).
+${items.join("
+")}
+
+Find at most 3 concrete visual design problems, for example: elements misaligned with their neighbours, uneven spacing in a row or list, text too small to read on a phone, buttons of the same kind with different sizes/radii/fonts, crowded areas with no breathing room, labels that are cut or crammed, something that looks out of place or unbalanced, poor visual hierarchy (a minor thing louder than the main thing). Ignore anything that is fine. Cite the element ids. If there is nothing clearly wrong, return [].
+Answer with ONLY a JSON array like [{"ids":["e3","e7"],"problem":"max 16 words, plain English","fix":"max 16 words","confidence":0.0-1.0}].` }
+      ], 600, true);
+      const m = text.match(/\[[\s\S]*\]/);
+      let list = []; try { list = JSON.parse(m ? m[0] : text); } catch (e) { list = []; }
+      const issues = (Array.isArray(list) ? list : []).filter(x => x && Array.isArray(x.ids) && x.problem).slice(0, 3)
+        .map(x => ({ ids: x.ids.slice(0, 6).map(i => String(i).slice(0, 6)), problem: String(x.problem).slice(0, 160), fix: String(x.fix || "").slice(0, 160), confidence: Math.max(0, Math.min(1, +x.confidence || 0)) }));
+      return json({ issues }, 200, h);
+    }
+
     if (url.pathname === "/bug" && req.method === "POST") {
       /* only the app itself sends these (a browser always says where it's from) */
       const o = req.headers.get("Origin"); if (o && !ALLOW.includes(o)) return json({ error: "not allowed" }, 403, h);
