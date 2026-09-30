@@ -16,6 +16,7 @@ const HELPER_V = 3;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
+const UPD_TTL = 28 * 86400;   /* seconds a "new version" push waits for an offline phone (the push services cap it at 4 weeks) */
 const APP_PAGE = "https://shamlawy.github.io/Play-next/index.html";
 const MODELS_BIG = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/mistral/mistral-7b-instruct-v0.1"];
@@ -252,10 +253,10 @@ async function encrypt(sub, payload) {
   const rs = new Uint8Array([0, 0, 16, 0]);
   return cat(salt, rs, new Uint8Array([asPub.length]), asPub, ct);
 }
-async function webPush(env, sub, msg) {
+async function webPush(env, sub, msg, ttl) {
   const body = await encrypt(sub, JSON.stringify(msg));
   return fetch(sub.endpoint, { method: "POST", body, headers: {
-    "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "43200", Urgency: "normal",
+    "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: String(ttl || 43200), Urgency: "normal",
     Authorization: await vapidAuth(env, sub.endpoint) } });
 }
 async function sendDue(env) {
@@ -301,13 +302,23 @@ async function checkUpdate(env) {
   if (!seen) { await env.NUDGE.put("appv", String(v)); return { ok: true, v, sent: 0, first: true }; }   /* first run: just remember it */
   if (v <= seen) return { ok: true, v, sent: 0, already: true };
   await env.NUDGE.put("appv", String(v));
-  const msg = { title: "✨ Play next v" + v + " is here", body: whatsNew(html, v) || "Open the app and Nexi will show you what's new.", tag: "update", url: "./?nudge=update" };
+  /* every version since the last one announced gets its own ping (two releases between checks → two pings),
+     each with its own tag so a newer one never replaces an older one on the phone. A version with no
+     WHATS_NEW entry wasn't a real release, except the live one, which is always announced. */
+  const msgs = [];
+  for (let x = Math.max(seen + 1, v - 9); x <= v; x++) {
+    const say = whatsNew(html, x);
+    if (say || x === v) msgs.push({ title: "✨ Play next v" + x + " is here", body: say || "Open the app and Nexi will show you what's new.", tag: "update-" + x, url: "./?nudge=update" });
+  }
   let cursor, sent = 0;
   do {
     const page = await env.NUDGE.list({ prefix: "sub:", cursor });
     for (const k of page.keys) {
       const rec = await env.NUDGE.get(k.name, "json"); if (!rec || rec.upd === false) continue;
-      try { const r = await webPush(env, rec.sub, msg); if (r.status === 404 || r.status === 410) await env.NUDGE.delete(k.name); else if (r.ok) sent++; } catch (e) {}
+      for (const msg of msgs) {
+        /* UPD_TTL: a phone that's off for a while still gets it when it comes back */
+        try { const r = await webPush(env, rec.sub, msg, UPD_TTL); if (r.status === 404 || r.status === 410) { await env.NUDGE.delete(k.name); break; } else if (r.ok) sent++; } catch (e) {}
+      }
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);

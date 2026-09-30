@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "192";
+const APP_V = "193";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6143,7 +6143,7 @@ function openSettings(scope) {
         ${NX_PERSONAS.map(([v, l, e]) => `<button class="chip" data-v="${v}" aria-pressed="${nxP() === v}"><span>${e} ${l}</span></button>`).join("")}
       </div>
       <label>Notifications</label>
-      <p class="note">All: every kind below, never more than 4 a day. Pick: only the ones you switch on. Works on Android, and on iPhone once the app is on your Home Screen.</p>
+      <p class="note">All: every kind below, never more than 4 nudges a day. New versions don't count: every update always reaches you. Pick: only the ones you switch on. Works on Android, and on iPhone once the app is on your Home Screen.</p>
       <div class="chips" id="s-nudge">
         ${[["off", "Off"], ["all", "All"], ["pick", "Pick"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(!S.nudgeOn ? "off" : (S.nudgeMode === "pick" || S.nudgeMode === "key") ? "pick" : "all") === v}"><span>${l}</span></button>`).join("")}
       </div>
@@ -12821,7 +12821,7 @@ document.addEventListener("click", async e => {
   [...b.parentElement.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
   if (on) { S.nudgeMode = b.dataset.v === "pick" ? "pick" : "all"; if (S.nudgeMode === "pick" && !Array.isArray(S.nudgeKinds)) S.nudgeKinds = NX_PICK_DEF.slice(); }
   const kb = $("#s-nkinds"); if (kb) kb.hidden = !(on && S.nudgeMode === "pick");
-  if (on) { try { const ok = await nudgeOn(false); if (ok) toast(nxVoice(S.nudgeMode === "pick" ? "Notifications on. Switch each kind on or off below." : "Notifications on: everything, never more than 4 a day.")); else b.parentElement.children[0].click(); }
+  if (on) { try { const ok = await nudgeOn(false); if (ok) toast(nxVoice(S.nudgeMode === "pick" ? "Notifications on. Switch each kind on or off below." : "Notifications on: everything, never more than 4 nudges a day. New versions always come through.")); else b.parentElement.children[0].click(); }
     catch (err) { toast("Couldn't turn notifications on: " + (err.message || err)); S.nudgeOn = false; save(); } }
   else { await nudgeOff(); toast("Notifications off"); }
 }, true);
@@ -15802,5 +15802,10 @@ WHATS_NEW.push(
   { v: 192, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Notifications" }); }, at: () => $("#s-nudge"),
     say: "More notifications: a one-week countdown to releases, how your current game is going, games waiting for a score, a Sunday week-in-review and On this day memories. Choose All, or Pick exactly the ones you want.",
     tryIt: "Tap Pick to switch each kind on or off." }
+);
+WHATS_NEW.push(
+  { v: 193, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Notifications" }); }, at: () => $("#s-nudge"),
+    say: "Every update now reaches you: each new version gets its own notification, and they no longer replace each other or count toward the 4-a-day limit.",
+    tryIt: "Keep New versions on (All, or Pick with ✨ switched on)." }
 );
 </script>
