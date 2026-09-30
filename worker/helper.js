@@ -6,13 +6,15 @@
    GET  /nudge/key    → the web-push public key (made once and kept in KV).
    POST /nudge        → saves a phone's push subscription + its next few days of nudges.
    POST /announce     → tells every phone about a new version of the app now (GitHub calls it once the site is live).
+   POST /bug          → the app's automatic problem reports (no game data), kept in KV as bug:<sig>.
+   GET  /bugs, POST /bugs/ack → for the GitHub "Problem reports" job only (Bearer BUG_KEY), which files them as issues.
    cron (every 15 min) → sends the nudges that are due, and is the backup for new-version pings.
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 3;
+const HELPER_V = 4;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -25,7 +27,7 @@ const ALLOW = ["https://shamlawy.github.io", "http://localhost:8765"];
 const cors = origin => ({
   "Access-Control-Allow-Origin": ALLOW.includes(origin) ? origin : ALLOW[0],
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Vary": "Origin"
 });
 const json = (data, status, h) => new Response(JSON.stringify(data), { status, headers: { ...h, "Content-Type": "application/json" } });
@@ -105,7 +107,18 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/bug" && req.method === "POST") {
+      /* only the app itself sends these (a browser always says where it's from) */
+      const o = req.headers.get("Origin"); if (o && !ALLOW.includes(o)) return json({ error: "not allowed" }, 403, h);
+      return json(await bugTake(env, await req.json().catch(() => ({}))), 200, h);
+    }
+    if (url.pathname === "/bugs" || url.pathname === "/bugs/ack") {
+      if (!env.BUG_KEY || !env.NUDGE) return json({ error: "reports aren't set up (BUG_KEY / NUDGE)" }, 503, h);
+      if (!sameKey(req.headers.get("Authorization") || "", "Bearer " + env.BUG_KEY)) return json({ error: "no" }, 401, h);
+      if (url.pathname === "/bugs") return json({ bugs: await bugList(env) }, 200, h);
+      if (req.method === "POST") return json(await bugAck(env, await req.json().catch(() => ({}))), 200, h);
+    }
 
     /* games like one game: the AI names them (it knows games far better than tag searches do);
        the app then checks every name on RAWG and drops anything that isn't a real game */
@@ -325,4 +338,54 @@ async function checkUpdate(env) {
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
   return { ok: true, v, sent };
+}
+
+/* ---- problem reports: the app notices something broke and says so; GitHub files each one as an issue ----
+   One KV record per problem (bug:<sig>): how many times, on which versions and phones, the latest sample.
+   `seen` is how many the GitHub job has already filed, so it only posts what's new. */
+const BUG_TTL = 45 * 86400, BUG_MAX = 300;
+const cut = (v, n) => String(v == null ? "" : v).slice(0, n);
+function sameKey(a, b) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
+async function bugTake(env, body) {
+  if (!env.NUDGE) return { ok: false, why: "no kv" };
+  const list = Array.isArray(body.reports) ? body.reports.slice(0, 10) : [];
+  let took = 0, count = null;
+  for (const r of list) {
+    const sig = cut(r.sig, 8); if (!/^[0-9a-f]{8}$/.test(sig)) continue;
+    const sample = { kind: cut(r.kind, 16), msg: cut(r.msg, 600), stack: cut(r.stack, 1500), at: cut(r.at, 200), screen: cut(r.screen, 60),
+      w: +r.w || 0, h: +r.h || 0, dpr: +r.dpr || 1, dev: cut(r.dev, 40), v: cut(r.v, 8), style: cut(r.style, 12), note: cut(r.note, 800),
+      crumbs: (Array.isArray(r.crumbs) ? r.crumbs : []).slice(-10).map(c => cut(c, 60)), t: Date.now() };
+    const key = "bug:" + sig, old = await env.NUDGE.get(key, "json");
+    if (!old) {
+      if (count == null) count = (await env.NUDGE.list({ prefix: "bug:", limit: 1000 })).keys.length;
+      if (count >= BUG_MAX) continue;
+      count++;
+    }
+    const add = (a, v) => (a || []).includes(v) ? a : (a || []).concat(v).slice(-8);
+    const rec = old ? { ...old, n: old.n + 1, last: sample.t, vs: add(old.vs, sample.v), devs: add(old.devs, sample.dev), screens: add(old.screens, sample.screen), sample }
+      : { sig, kind: sample.kind, msg: sample.msg, n: 1, seen: 0, first: sample.t, last: sample.t, vs: [sample.v], devs: [sample.dev], screens: [sample.screen], sample };
+    await env.NUDGE.put(key, JSON.stringify(rec), { expirationTtl: BUG_TTL });
+    took++;
+  }
+  return { ok: true, took };
+}
+async function bugList(env) {
+  const out = []; let cursor;
+  do {
+    const page = await env.NUDGE.list({ prefix: "bug:", cursor });
+    for (const k of page.keys) { const r = await env.NUDGE.get(k.name, "json"); if (r && r.n > (r.seen || 0)) out.push(r); }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  return out.sort((a, b) => b.last - a.last);
+}
+async function bugAck(env, body) {
+  /* {sigs: {sig: n}}: that many are filed now */
+  let n = 0;
+  for (const [sig, c] of Object.entries(body.sigs || {}).slice(0, 100)) {
+    if (!/^[0-9a-f]{8}$/.test(sig)) continue;
+    const key = "bug:" + sig, r = await env.NUDGE.get(key, "json"); if (!r) continue;
+    r.seen = Math.min(r.n, Math.max(r.seen || 0, +c || 0));
+    await env.NUDGE.put(key, JSON.stringify(r), { expirationTtl: BUG_TTL }); n++;
+  }
+  return { ok: true, acked: n };
 }

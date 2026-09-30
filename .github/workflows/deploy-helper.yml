@@ -57,6 +57,8 @@ jobs:
             fs.writeFileSync("wrangler.deploy.json", JSON.stringify(c, null, 2));
           ' "$ID"
           $W deploy --config wrangler.deploy.json
+          # the key the "Problem reports" job reads reports with: derived from this token, so nothing else to set up
+          printf '%s' "$TOKEN:play-next-bugs" | sha256sum | cut -d' ' -f1 | tr -d '\n' | $W secret put BUG_KEY --config wrangler.deploy.json
       - name: Check it's live
         run: |
           sleep 5

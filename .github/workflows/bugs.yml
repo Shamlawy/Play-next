@@ -1,0 +1,25 @@
+# Every hour: the problems the app reported by itself (see worker/helper.js /bug) become GitHub issues
+# labelled auto-bug, one per problem. Nothing to set up: the key comes from the CLOUDFLARE_API_TOKEN secret.
+name: Problem reports
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+permissions:
+  issues: write
+  contents: read
+concurrency: bugs
+jobs:
+  file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: File new reports as issues
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: node .github/scripts/bugsync.mjs
