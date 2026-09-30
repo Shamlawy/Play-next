@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "198";
+const APP_V = "199";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -16411,6 +16411,10 @@ function bugPlace(scr) {
 }
 function bugNice(kind, scr, msg) {
   const at = bugPlace(scr), At = at.charAt(0).toUpperCase() + at.slice(1);
+  if (kind === "layout" && /Text is cut/.test(msg)) return `Some text on ${at} is cut off.`;
+  if (kind === "layout" && /overlaps/.test(msg)) return `Some text on ${at} is overlapping.`;
+  if (kind === "layout" && /blank/.test(msg)) return `${At} came up blank.`;
+  if (kind === "layout" && /glow/.test(msg)) return "My glow is getting cut off by the edge of the screen.";
   if (kind === "layout") return /sideways/.test(msg) ? `${At} slides sideways when it shouldn't.` : /rail/.test(msg) ? `A button on ${at} is hiding under my rail.` : `A button on ${at} is sticking off the screen.`;
   if (kind === "slow") return /tap took/.test(msg) ? `A tap on ${at} was slow to respond.` : /Scrolling/.test(msg) ? `Scrolling on ${at} was choppy.` : /stutter/.test(msg) ? `${At} stuttered for a moment.` : `${At} froze for a moment there.`;
   if (kind === "helper") return "My helper didn't answer properly just now.";
@@ -16515,4 +16519,82 @@ WHATS_NEW.push(
     say: "Fixed: my glow no longer gets cut off at the screen edge, and a crash on Home is gone. I also catch lag now: stutters, slow taps and choppy scrolling get reported by themselves.",
     tryIt: "Just use the app. If something feels slow, I'll tell you I've reported it." }
 );
+</script>
+<script>
+/* ===== v199: Nexi's eyes see more: cut-off text, text on top of text, a blank screen =====
+   Runs with bugLayout (idle, once a screen settles). Only things on screen right now, only visible text. */
+const LOOK_SKIP = BUG_SKIP + ", [aria-hidden=true], .hub-ghost, .shx-glow, .dxorb, .ccov, .gd-hero, svg, canvas, #pnbubmsg, .toast, #nxbug";
+function lookText(root) {
+  const H = innerHeight, W = innerWidth, out = [];
+  for (const el of root.querySelectorAll("*")) {
+    if (out.length > 400) break;
+    let t = ""; for (const c of el.childNodes) if (c.nodeType === 3) t += c.textContent;
+    if (t.trim().length < 2) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 6 || r.height < 6 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
+    if (el.closest(LOOK_SKIP)) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || +cs.opacity < .5) continue;
+    /* really drawn: not inside something faded, folded away or clipped to nothing */
+    if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+    if (!bugVisible(el, r, root)) continue;
+    /* wrapped inline text is several line boxes, not one big rectangle */
+    const rs = cs.display === "inline" ? [...el.getClientRects()].filter(q => q.width > 2 && q.height > 2) : [r];
+    /* pinned bars (sticky/fixed) have the page scroll under them on purpose */
+    let pin = false; for (let a = el; a && a !== root.parentElement; a = a.parentElement) { const ps = a === el ? cs.position : getComputedStyle(a).position; if (ps === "sticky" || ps === "fixed") { pin = true; break; } }
+    out.push({ el, r, cs, rs, pin });
+  }
+  return out;
+}
+function bugLook(root, scr) {
+  const T = lookText(root); let n = 0;
+  /* cut-off text: wider (or taller) than its own box, clipped, and no "…" */
+  for (const { el, r, cs } of T) {
+    if (n >= 2) break;
+    if (cs.textOverflow === "ellipsis" || (cs.webkitLineClamp && cs.webkitLineClamp !== "none")) continue;
+    const clipX = cs.overflowX !== "visible" && el.scrollWidth > el.clientWidth + 3;
+    const clipY = cs.overflowY !== "visible" && el.scrollHeight > el.clientHeight + 4 && cs.display !== "inline";
+    let byParent = false;
+    if (!clipX && !clipY && /nowrap|pre/.test(cs.whiteSpace) && el.scrollWidth > el.clientWidth + 3) {
+      /* its text runs past its box: is a card around it cutting it off? */
+      const end = r.left + el.scrollWidth;
+      for (let a = el.parentElement; a && a !== root.parentElement; a = a.parentElement) {
+        const ac = getComputedStyle(a); if (ac.overflowX === "visible") continue;
+        if (/auto|scroll/.test(ac.overflowX)) break;
+        if (a.getBoundingClientRect().right < end - 3) { byParent = true; } break;
+      }
+    }
+    if (clipX || clipY || byParent) { n++; bugReport("layout", "Text is cut off without …", { at: bugPath(el), screen: scr }); }
+  }
+  /* text on top of other text */
+  let o = 0;
+  for (let i = 0; i < T.length && o < 1; i++) for (let j = i + 1; j < T.length && o < 1; j++) {
+    const a = T[i], b = T[j];
+    if (a.el.contains(b.el) || b.el.contains(a.el) || a.pin !== b.pin) continue;
+    let best = null;
+    for (const ra of a.rs) for (const rb of b.rs) {
+      const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+      if (w < 6 || h < 6 || w * h < Math.min(ra.width * ra.height, rb.width * rb.height) * .35) continue;
+      best = { x: Math.max(ra.left, rb.left) + w / 2, y: Math.max(ra.top, rb.top) + h / 2 }; break;
+    }
+    if (!best) continue;
+    /* only if both are actually drawn there (not one hidden behind a card) */
+    const hit = document.elementFromPoint(best.x, best.y);
+    if (!hit || !(a.el.contains(hit) || b.el.contains(hit) || hit.contains(a.el) || hit.contains(b.el))) continue;
+    o++; bugReport("layout", "Text overlaps other text", { at: bugPath(a.el) + "  ×  " + bugPath(b.el), screen: scr });
+  }
+  /* a screen that drew nothing */
+  if (root.classList && root.classList.contains("panel") && root.innerText.trim().length < 3) bugReport("layout", "The screen came up blank", { at: "#" + root.id, screen: scr });
+}
+WHATS_NEW.push(
+  { v: 199, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "I see more glitches on my own now: text that gets cut off, text drawn on top of other text, and a screen that comes up blank. When I spot one, I report it and tell you.",
+    tryIt: "Just use the app. If I miss something, hold me and tap 🐞." }
+);
+{ const _bl = bugLayout; bugLayout = function () {
+  _bl.apply(this, arguments);
+  if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
+  const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+  if (root) try { bugLook(root, bugScreen()); } catch (e) {}
+}; }
 </script>
