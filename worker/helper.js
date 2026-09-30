@@ -12,6 +12,9 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
 const HELPER_V = 3;
+/* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
+   with "Value out of range", so no phone could ever sign up for nudges. */
+const SUB_TTL = 60 * 86400;
 const APP_PAGE = "https://shamlawy.github.io/Play-next/index.html";
 const MODELS_BIG = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/mistral/mistral-7b-instruct-v0.1"];
@@ -151,7 +154,7 @@ ${favs.length ? "The player's favourite games (lean towards these tastes): " + f
         .filter(n => n && +n.at > Date.now() - 36e5 && +n.at < Date.now() + 10 * 864e5)
         .map(n => ({ at: +n.at, title: String(n.title || "Play next").slice(0, 60), body: String(n.body || "").slice(0, 180), tag: String(n.tag || "nudge").slice(0, 20), url: String(n.url || "./").slice(0, 80) }));
       /* upd: this phone also wants a ping when a new version of the app is out (on unless it says no) */
-      await env.NUDGE.put("sub:" + id, JSON.stringify({ sub: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } }, plan, upd: b.upd !== false, t: Date.now() }), { expirationTtl: 60 * 864e5 });
+      await env.NUDGE.put("sub:" + id, JSON.stringify({ sub: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } }, plan, upd: b.upd !== false, t: Date.now() }), { expirationTtl: SUB_TTL });
       return json({ ok: true, n: plan.length }, 200, h);
     }
 
@@ -263,7 +266,7 @@ async function sendDue(env) {
         try { const r = await webPush(env, rec.sub, n); if (r.status === 404 || r.status === 410) { gone = true; break; } } catch (e) {}
       }
       if (gone) await env.NUDGE.delete(k.name);
-      else await env.NUDGE.put(k.name, JSON.stringify({ ...rec, plan: later }), { expirationTtl: 60 * 864e5 });
+      else await env.NUDGE.put(k.name, JSON.stringify({ ...rec, plan: later }), { expirationTtl: SUB_TTL });
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
