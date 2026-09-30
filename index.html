@@ -3827,9 +3827,16 @@ function liteUp() {
     el._lu = st; go(hit, f => { const now = el.getAttribute("style") || ""; if (now.indexOf(hit) >= 0) el.setAttribute("style", now.split(hit).join(cssUrl(f))); });
   });
 }
-{ let q = 0; const kick = () => { clearTimeout(q); q = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteUp, { timeout: 1500 }), 650); };
-  new MutationObserver(() => { if (LITE_FULL.size) kick(); }).observe(document.documentElement, { childList: true, subtree: true });
-  addEventListener("scroll", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true }); addEventListener("resize", kick);
+/* v202: the kick waited for 650ms without DOM changes, but the live countdown changes the DOM twice a second
+   (new digit, then the old one leaves), so it never fired while one was on screen: 4K art stayed on its light copy
+   everywhere. Now only changes that add a picture count, and a waiting swap never slips more than 2s. */
+{ let q = 0, first = 0; const kick = e => { const now = performance.now();
+    if (!q || (e && e.type === "scroll")) first = now; else if (now - first > 2000) return;   /* scrolling still waits until you stop */
+    clearTimeout(q); q = setTimeout(() => { q = 0; (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteUp, { timeout: 1500 }); }, 650); };
+  const pic = n => n.nodeType === 1 && (n.tagName === "IMG" || (n.getAttribute("style") || "").indexOf("url(") >= 0 || (!!n.firstElementChild && !!n.querySelector("img, [style*='url(']")));
+  new MutationObserver(ms => { if (!LITE_FULL.size) return; for (const m of ms) for (const n of m.addedNodes) if (pic(n)) return kick(); }).observe(document.documentElement, { childList: true, subtree: true });
+  addEventListener("pointerup", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true });
+  addEventListener("scroll", e => { if (LITE_FULL.size) kick(e); }, { passive: true, capture: true }); addEventListener("resize", kick);
   /* v189: a light copy that finished loading after the last pass was skipped for good (still loading then) and stayed soft */
   document.addEventListener("load", e => { if (LITE_FULL.size && e.target.tagName === "IMG") kick(); }, true);
   /* a light copy that stops loading falls back to the real picture; a remote picture that fails gets one more try */
@@ -3970,7 +3977,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "201";
+const APP_V = "202";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4403,14 +4410,19 @@ async function sgdbFind(title) {
   out.innerHTML = "";
   if (!title) { msg.textContent = "Give the game a title first."; return; }
   msg.textContent = "Looking\u2026";
+  const shots = rawgShots(title);        /* v202: RAWG screenshots, fetched alongside */
   try {
     const hits = await sgdbGet("/search/autocomplete/" + encodeURIComponent(title));
-    if (!hits.length) { msg.textContent = "Nothing there under that name. Try a shorter one."; return; }
+    if (!hits.length) {
+      const sh = await shots;
+      if (!sh.length) { msg.textContent = "Nothing there under that name. Try a shorter one."; return; }
+      hits.push({ id: 0, name: title });
+    }
     const id = hits[0].id;
-    const one = p2 => sgdbGet(p2).catch(() => []);
-    const [logos, heroes, grids] = await Promise.all([
+    const one = p2 => id ? sgdbGet(p2).catch(() => []) : Promise.resolve([]);
+    const [logos, heroes, grids, rshots] = await Promise.all([
       one("/logos/game/" + id), one("/heroes/game/" + id),
-      one("/grids/game/" + id + "?dimensions=600x900,660x930")
+      one("/grids/game/" + id + "?dimensions=600x900,660x930"), shots
     ]);
     /* sharpest first (the sort is stable, so equal sizes keep the community's order); each shows its real size */
     const strip = (label, list, role, wide) => !list.length ? "" :
@@ -4420,7 +4432,8 @@ async function sgdbFind(title) {
           ><img decoding="async" src="${esc(x.thumb || x.url)}" alt="">${picQ(x.width, x.height, 1)}</button>`).join("") + "</div>";
     const html = strip("Logo \u2014 the cut-out that floats on the card", logos, "art") +
       strip("Hero \u2014 the wide backdrop", heroes, "hero", true) +
-      strip("Grid \u2014 the box cover", grids, "cover");
+      strip("Grid \u2014 the box cover", grids, "cover") +
+      strip("Screenshots from RAWG \u2014 more wide backdrops", rshots, "hero", true);
     if (!html) { msg.textContent = "Matched \u201C" + hits[0].name + "\u201D but it has no artwork yet."; return; }
     msg.textContent = "Matched \u201C" + hits[0].name + "\u201D. Sharpest first, each with its size. Tap a picture to use it.";
     out.innerHTML = html;
@@ -7520,7 +7533,7 @@ setTimeout(() => { frPublish(); frPull(); }, 4000);
 const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") i.setAttribute("data-ld", ""); };
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) i.setAttribute("data-ld", ""); });
-pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
+pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.tagName === "I" && n.parentElement && n.parentElement.closest(".cdb"))))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
 /* v144: launch intro, skipped by a tap, off when motion is off */
 (function () {
   const b = document.getElementById("pnboot");
@@ -16484,6 +16497,7 @@ function bugNice(kind, scr, msg) {
   if (kind === "layout" && /Text is cut/.test(msg)) return `Some text on ${at} is cut off.`;
   if (kind === "layout" && /overlaps/.test(msg)) return `Some text on ${at} is overlapping.`;
   if (kind === "layout" && /blank/.test(msg)) return `${At} came up blank.`;
+  if (kind === "layout" && /blurry/.test(msg)) return `A picture on ${at} stayed blurry.`;
   if (kind === "layout" && /glow/.test(msg)) return "My glow is getting cut off by the edge of the screen.";
   if (kind === "layout") return /sideways/.test(msg) ? `${At} slides sideways when it shouldn't.` : /rail/.test(msg) ? `A button on ${at} is hiding under my rail.` : `A button on ${at} is sticking off the screen.`;
   if (kind === "slow") return /tap took/.test(msg) ? `A tap on ${at} was slow to respond.` : /Scrolling/.test(msg) ? `Scrolling on ${at} was choppy.` : /stutter/.test(msg) ? `${At} stuttered for a moment.` : `${At} froze for a moment there.`;
@@ -16717,5 +16731,56 @@ WHATS_NEW.push(
     at: "#e-sgdb",
     say: "Every picture from SteamGridDB and Steam now shows its real size before you pick it, with a <b>4K</b> or <b>HD</b> badge on the sharp ones. The sharpest come first, and Auto-pick goes for them too.",
     tryIt: "Edit a game → Look → Browse and choose, and look for the 4K badges." }
+);
+</script>
+<script>
+/* ===== v202: 4K art really shows in 4K (the swap to the sharp copy was starved by the live countdown, see the
+   liteUp kick), RAWG screenshots as another source in Browse and choose, and Nexi spots a picture left blurry ===== */
+async function rawgShots(title) {
+  if (!rawgKey || !title) return [];
+  try {
+    let id = editing && editing.rawgId && (!editing.title || normT(editing.title) === normT(title)) ? editing.rawgId : 0;
+    if (!id) { const r = await rawgApi("games?search=" + encodeURIComponent(title) + "&search_precise=true&page_size=1"); id = r.results && r.results[0] && r.results[0].id; }
+    if (!id) return [];
+    const r = await rawgApi("games/" + id + "/screenshots?page_size=20");
+    return (r.results || []).filter(x => x.image && !x.is_deleted).map(x => ({ url: x.image, width: x.width, height: x.height,
+      thumb: x.image.replace("/media/screenshots/", "/media/resize/420/-/screenshots/").replace("/media/games/", "/media/resize/420/-/games/") }));
+  } catch (e) { return []; }
+}
+/* a picture still on its light copy where it's drawn much bigger than that copy can carry (the swap never came) */
+function bugBlurry() {
+  if (!LITE_FULL.size) return [];
+  const dpr = Math.min(3, devicePixelRatio || 1), H = innerHeight, W = innerWidth, out = [];
+  const on = el => { const r = el.getBoundingClientRect();
+    return r.width > 48 && r.height > 32 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W &&
+      (!el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) ? r : null; };
+  document.querySelectorAll("img").forEach(i => {
+    const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || i._lu || !i.complete || !i.naturalWidth) return;
+    const r = on(i); if (r && Math.max(r.width * dpr / i.naturalWidth, r.height * dpr / i.naturalHeight) > 1.4) out.push([i, s]); });
+  document.querySelectorAll('[style*="url("]').forEach(el => {
+    const st = el.getAttribute("style") || ""; if (el._lu === st) return;
+    const hit = [...st.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map(m => m[2]).find(u => LITE_FULL.has(u)); if (!hit) return;
+    const r = on(el); if (r && Math.max(r.width, r.height) * dpr > (LITE_W.get(hit) || 600) * 1.4) out.push([el, hit]); });
+  return out;
+}
+{ let lastIn = 0; ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { lastIn = performance.now(); }, { capture: true, passive: true }));
+  const _bl4 = bugLayout; bugLayout = function () { const o = _bl4.apply(this, arguments);
+    if (!bugOn() || document.hidden || performance.now() - lastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return o;
+    const first = bugBlurry(); if (!first.length) return o;
+    /* give the swap a fair chance first: only what's still soft 3s later counts */
+    clearTimeout(BUG.blt); BUG.blt = setTimeout(() => { if (document.hidden) return;
+      const now = bugBlurry(), hit = first.find(([el, s]) => el.isConnected && now.some(([e2, s2]) => e2 === el && s2 === s));
+      if (hit) bugReport("layout", "A picture stayed blurry (its sharp copy never swapped in)", { at: bugPath(hit[0]), screen: bugScreen() }); }, 3000);
+    return o; }; }
+WHATS_NEW.push(
+  { v: 202, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
+    say: "Fixed: 4K pictures now really show in 4K. Every picture loads a small copy first and swaps in the sharp one when the screen settles, but the release countdown kept the screen from ever counting as settled, so the sharp copies never came.",
+    tryIt: "Open a game with 4K art and look at the backdrop. If a picture ever stays soft, I'll notice and report it myself now." },
+  { v: 202, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (!g) return; openEdit(g.id);
+      setTimeout(() => { const t = $('[data-etab="look"]'); if (t) t.click();
+        const s = [...document.querySelectorAll("#sheet-in details.grp summary")].find(x => x.offsetParent && /SteamGridDB/.test(x.textContent)); if (s) s.click(); }, 250); },
+    at: "#e-sgdb",
+    say: "Browse and choose now also shows the game's <b>screenshots from RAWG</b> as more wide backdrops, each with its size. Many are 1920×1080 or bigger.",
+    tryIt: "Edit a game → Look → Browse and choose, and scroll to the bottom row." }
 );
 </script>
