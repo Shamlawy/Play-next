@@ -1,7 +1,7 @@
 # Deploys Nexi's helper (worker/) to Cloudflare whenever it changes on main, or by hand from the Actions tab.
 # Needs one repository secret: CLOUDFLARE_API_TOKEN (a Cloudflare token made from the "Edit Cloudflare Workers"
-# template, or an account token with Workers Scripts / Workers KV Storage: Edit) and, for account tokens,
-# CLOUDFLARE_ACCOUNT_ID (the 32-character code after dash.cloudflare.com/ in the address bar).
+# template, or an account token with Workers Scripts / Workers KV Storage: Edit). The account id is read from
+# `wrangler whoami`; a CLOUDFLARE_ACCOUNT_ID secret overrides it.
 # The SteamGridDB key (SGDB_KEY) stays a secret on the worker itself; deploying never touches it.
 name: Deploy Nexi's helper
 on:
@@ -34,12 +34,15 @@ jobs:
             echo "::error::CLOUDFLARE_API_TOKEN holds a 32-character ID (your Account ID or a token's ID), not the token. Put that in CLOUDFLARE_ACCOUNT_ID if it is the Account ID; for CLOUDFLARE_API_TOKEN make a token and copy the long value Cloudflare shows once right after Create token."
             exit 1
           fi
-          if [ -z "$ACCOUNT" ]; then echo "::warning::No CLOUDFLARE_ACCOUNT_ID secret. Account API tokens need it (it's the 32-character code after dash.cloudflare.com/ in the address bar)."; fi
           export CLOUDFLARE_API_TOKEN="$TOKEN"
-          if [ -n "$ACCOUNT" ]; then export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT"; fi
           W="npx --yes wrangler@4"
+          WHO=$($W whoami 2>&1) || { echo "$WHO"; echo "::error::Cloudflare didn't accept the token. Check CLOUDFLARE_API_TOKEN (the full token value)."; exit 1; }
+          echo "$WHO"
+          # account tokens need the account id on every call; take it from whoami unless a secret sets it
+          if [ -z "$ACCOUNT" ]; then ACCOUNT=$(printf '%s' "$WHO" | grep -Eo '[0-9a-f]{32}' | head -n1); fi
+          if [ -z "$ACCOUNT" ]; then echo "::error::Couldn't tell which Cloudflare account to use. Add a CLOUDFLARE_ACCOUNT_ID secret."; exit 1; fi
+          export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT"
           # notifications keep their phones and the push key in a KV namespace: reuse the one that exists, or make it
-          $W whoami || { echo "::error::Cloudflare didn't accept the token. Check CLOUDFLARE_API_TOKEN (the full token value) and CLOUDFLARE_ACCOUNT_ID."; exit 1; }
           find_kv() { $W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s.slice(s.indexOf("[")));const n=a.find(x=>/nudge/i.test(x.title));process.stdout.write(n?n.id:"")}catch(e){}})'; }
           ID=$(find_kv)
           if [ -z "$ID" ]; then $W kv namespace create playnext-nudge; ID=$(find_kv); fi
