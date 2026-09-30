@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "195";
+const APP_V = "196";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4904,7 +4904,7 @@ const GROUP_KEYS = {
   "Library": ["libLayout", "libCols", "libTitle", "libTL", "libTR", "libBL", "libBR", "reelW", "buzz", "coverQ"],
   "Cover and colour": ["imgX", "imgY"],
   "Backdrop": ["bgX", "bgY", "bgOff"],
-  "A game's own page": ["hubAnim", "fullStyle", "hubPaper", "hubGhost",
+  "A game's own page": ["hubAnim", "fullStyle", "gdFig", "hubPaper", "hubGhost",
     "figShadowO", "figShadowY", "figShadowB", "figGlowO", "figGlowB"],
   "Timeline board": ["flowSize"],
   "The big number": ["tasteArt", "tasteArtStr"]
@@ -6054,6 +6054,11 @@ function openSettings(scope) {
           `<button class="chip" data-v="${v}" aria-pressed="${fullStyleOf() === v}"><span>${l}</span></button>`).join("")}
       </div>
       <p class="note">New: the art across the top, then the game's numbers and buttons in cards like Home. Showcase: the figure on a painted wallpaper (the settings above are for this one).</p>
+      <label>Character art on the New page</label>
+      <div class="chips" id="s-gdfig">
+        ${[["off", "Off"], ["on", "Show it"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.gdFig ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">The cut-out character standing on the art at the top. Off by default: some key art doesn't sit well there.</p>
     </div>
 
     <div class="setgroup" data-scope="plan" data-sub="flow"><h4 data-desc="How big the art runs along the timeline.">Timeline board</h4>
@@ -6312,6 +6317,12 @@ function openSettings(scope) {
       <div class="chips" id="s-cine"><button class="chip" data-v="on" aria-pressed="${!S.cineOff}"><span>Play every time</span></button><button class="chip" data-v="off" aria-pressed="${!!S.cineOff}"><span>Off</span></button></div>
       <button class="btn ghost" id="s-cine-now"><span>Play it now</span></button>
       <button class="btn ghost" id="s-whatsnew"><span>✨ Show me what's new</span></button>
+      <label>Problem reports</label>
+      <div class="chips" id="s-bugs">
+        ${[["on", "Automatic"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.bugOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">When something breaks (an error, a button cut off the screen, a screen that freezes, Nexi's helper failing) the app sends a short report so it gets fixed without you having to spot it: what broke, which screen, your phone type and the app version. Never your games, scores or notes. Reports are filed on the app's public GitHub page.</p>
+      <button class="btn ghost" data-bugreport=""><span>🐞 Report a problem</span></button>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
@@ -6470,6 +6481,8 @@ function openSettings(scope) {
   pick("#s-uistyle", v => S.uiStyle = v);
   pick("#s-shx", v => S.shxOff = v === "off");
   pick("#s-addstyle", v => S.addStyle = v);
+  pick("#s-gdfig", v => S.gdFig = v === "on");
+  pick("#s-bugs", v => S.bugOff = v === "off");
   pick("#s-pill", v => { S.pill = v === "on"; renderPill(); });
   pick("#s-paper", v => S.paper = v);
   pick("#s-boardon", v => S.boardOff = v === "off", () => renderPlayed());
@@ -11547,17 +11560,17 @@ function pnBubWheel() {
   const ov = document.createElement("div"); ov.id = "bubwheel";
   const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🤧", "sneeze"], ["🎨", "edit"]];
   const cx = pnBubX + 31, cy = pnBubY + 31, right = cx > innerWidth / 2;
-  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"]];
+  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"], ["🐞", "bug"]];
   const btn = (e, a, i, ang, r, c) => { ang = ang * Math.PI / 180;
     const x = Math.max(6, Math.min(innerWidth - 52, cx - 23 + r * Math.cos(ang))), y = Math.max(6, Math.min(innerHeight - 52, cy - 23 + r * Math.sin(ang)));
     return `<button class="${c}" data-a="${a}" style="--i:${i};--sx:${cx - 23}px;--sy:${cy - 23}px;transform:translate(${x}px,${y}px)">${e}</button>`; };
   ov.innerHTML = acts.map(([e, a], i) => btn(e, a, i, (right ? 102 : -78) + i * 26, 98, "act")).join("")
-    + it.map(([e, a], i) => btn(e, a, i + 7, (right ? 104 : -76) + i * 19, 160, "")).join("");
+    + it.map(([e, a], i) => btn(e, a, i + acts.length, (right ? 104 : -76) + i * 19, 160, "")).join("");
   document.body.appendChild(ov);
   ov.onclick = e => { const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
     if (a === "power") pnPowerUp();
     else if (a === "edit") pnBubEdit();
-    else if (a === "story") pnLore(); else if (a === "ask") nxChat();
+    else if (a === "story") pnLore(); else if (a === "ask") nxChat(); else if (a === "bug") { if (typeof bugAsk === "function") bugAsk(); }
     else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") qDuel(); else if (a === "score") qScorePick(); else if (a === "add") goTab("add");
     else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); }
     else { pnBubMood(a, a === "nap" ? 4000 : 2600); if (a === "love") pnBubBurst(); } };
@@ -14489,10 +14502,11 @@ function nxTour(was, all) {
   };
   const show = () => {
     const st = steps[i]; unlit();
-    try { st.go && st.go(); } catch (e) {}
+    try { st.go && st.go(); } catch (e) { if (typeof bugReport === "function") bugReport("tour", "Tour step v" + st.v + " failed to open its screen: " + e.message, { stack: e.stack }); }
     setTimeout(() => {
       if (gone) return;
       const el = typeof st.at === "function" ? st.at() : st.at ? document.querySelector(st.at) : null;
+      if (st.at && !el && typeof bugReport === "function") bugReport("tour", "Tour step v" + st.v + " can't find what it points at", { at: String(st.at).slice(0, 120) });
       if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
       setTimeout(() => {
         if (gone) return;
@@ -15572,7 +15586,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 3 && j.nudge ? "✅ Helper is up to date: chat, smart similar games and notifications (updates, releases, recaps, nudges) are all on."
+    el.textContent = ok && j.v >= 4 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications and problem reports are all on."
+      : ok && j.v >= 3 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except problem reports, which need the new helper."
       : ok && j.v >= 2 ? "⚠️ The helper on Cloudflare is one version behind: chat and similar games work, but update notifications need the new helper" + (j.nudge ? "." : ", and notifications need its NUDGE storage and 15-minute schedule.")
       : "⚠️ The helper on Cloudflare still runs old code, so chat, smart similar games and notifications are off until it's updated.";
   }).catch(() => { if ($("#s-helperv")) el.textContent = "Can't reach Nexi's helper right now (offline?)."; });
@@ -16127,7 +16142,7 @@ function gdMarkup(g) {
     <div class="hub gpage" style="--accent:${esc(col)}">
       <div class="gd-hero">
         <div class="gd-bg" style="background-image:url('${esc(cssUrl(back))}');background-position:${num(g.bgX, 50, 0, 100)}% ${num(g.bgY, 30, 0, 100)}%"></div>
-        ${g.key ? `<img class="gd-fig" decoding="async" src="${esc(g.key)}" alt="">` : ""}
+        ${g.key && S.gdFig ? `<img class="gd-fig" decoding="async" src="${esc(g.key)}" alt="">` : ""}
         ${g.art ? `<img class="gd-logo" decoding="async" src="${esc(g.art)}" alt="">` : ""}
       </div>
       <button class="fullx x" id="full-close" title="Close" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>
@@ -16157,5 +16172,198 @@ WHATS_NEW.push(
   { v: 195, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Header cards" }); }, at: () => $("#s-shx"),
     say: "The header cards from the last update can be switched off too, here in Look of the app.",
     tryIt: "Leave them on, or tap Off." }
+);
+</script>
+<style>
+/* v196: on phones under ~400px the pick card was 352px wide whatever the screen (its 220px min-height through the
+   16:10 ratio set a minimum width) and stuck out of the panel. A definite width lets the ratio work from the width. */
+.dxhero { width: 100%; }
+</style>
+<script>
+/* ===== v196: problem reports. The app notices when something breaks and files it (Settings → This build) =====
+   What it watches: script errors, a page that scrolls sideways, buttons cut off by the screen edge or hidden under the
+   Nexi rail, freezes over 400ms, Nexi's helper failing, tour steps that can't find their target. Each report is only
+   technical detail + where it happened (never titles, scores or notes; game titles in a message become ‹game›),
+   sent once per problem per day to the helper's /bug, which the GitHub "Problem reports" job files as issues. */
+const BUG = { q: [], crumbs: [], lastScreen: "", t: 0, boot: performance.now() };
+const bugOn = () => S.bugOff !== true;
+function bugDev() {
+  const u = navigator.userAgent, os = /iPhone|iPad/.test(u) ? "iPhone" : /Android/.test(u) ? "Android" : /Mac OS/.test(u) ? "Mac" : /Windows/.test(u) ? "Windows" : "Other";
+  const b = /Edg\//.test(u) ? "Edge" : /SamsungBrowser/.test(u) ? "Samsung Internet" : /CriOS|Chrome\//.test(u) ? "Chrome " + ((u.match(/(?:Chrome|CriOS)\/(\d+)/) || [])[1] || "")
+    : /Firefox|FxiOS/.test(u) ? "Firefox" : /Safari/.test(u) ? "Safari " + ((u.match(/Version\/(\d+)/) || [])[1] || "") : "browser";
+  return os + " " + b.trim() + (window.matchMedia && matchMedia("(display-mode: standalone)").matches ? " (installed)" : "");
+}
+function bugHash(t) { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }
+/* titles (and anything else personal) never leave the phone */
+function bugScrub(t) {
+  t = String(t == null ? "" : t).slice(0, 2000);
+  const names = S.games.map(g => g.title).concat((S.lists || []).map(l => l.n), [S.bubName || ""]).filter(n => n && n.length > 2).sort((a, b) => b.length - a.length);
+  for (const n of names) t = t.split(n).join("‹game›");
+  if (typeof rawgKey === "string" && rawgKey.length > 6) t = t.split(rawgKey).join("…");
+  return t.replace(/([?&](?:key|token|sig|id)=)[^&\s"']+/gi, "$1…").replace(/blob:[^\s)"']+/g, "blob:…").replace(/data:[^\s)"']{40,}/g, "data:…");
+}
+function bugScreen() {
+  if ($("#full") && $("#full").classList.contains("on")) return "game page (" + ({ dash: "new", hub: "showcase", simple: "plain" }[typeof fullStyleOf === "function" ? fullStyleOf() : "hub"]) + ")";
+  if ($("#sheet") && $("#sheet").classList.contains("on")) return "settings/edit";
+  const t = curTab(), sub = SUBKEY[t] ? subOf(t) : "";
+  return t + (sub ? "/" + sub : "");
+}
+function bugCrumb(c) { BUG.crumbs.push(new Date().toTimeString().slice(0, 8) + " " + c); if (BUG.crumbs.length > 14) BUG.crumbs.shift(); }
+/* what you tapped, by what it is, never by what it says */
+addEventListener("click", e => {
+  const el = e.target.closest && e.target.closest("button, a, [role=button], [data-opg], .chip, .row, .hit, .libcard");
+  if (!el) return;
+  const d = [...el.attributes].find(a => a.name.startsWith("data-") && !/^data-(v|i|s|l|sig)$/.test(a.name));
+  bugCrumb("tap " + (d ? "[" + d.name + "]" : el.id ? "#" + el.id : el.tagName.toLowerCase() + (el.classList[0] ? "." + el.classList[0] : "")) + " on " + bugScreen());
+}, { capture: true, passive: true });
+function bugReport(kind, msg, x) {
+  x = x || {};
+  if (kind !== "user" && !bugOn()) return;
+  msg = bugScrub(msg).trim(); if (!msg) return;
+  const at = bugScrub(x.at || ""), scr = x.screen || bugScreen();
+  /* one problem = one signature (numbers ignored, so "a 520ms freeze" and "a 610ms freeze" are the same problem) */
+  const sig = bugHash(kind + "|" + msg.replace(/\d+/g, "#").slice(0, 240) + "|" + at.replace(/:\d+:\d+$/, "") + (kind === "layout" || kind === "slow" ? "|" + scr : "") + (kind === "user" ? "|" + Date.now() : ""));
+  const day = new Date().toLocaleDateString("en-CA"), sent = (S.bugSent ||= {});
+  if (sent[sig] === day) return;
+  sent[sig] = day;
+  const ks = Object.keys(sent); if (ks.length > 150) ks.slice(0, ks.length - 150).forEach(k => delete sent[k]);
+  save();
+  BUG.q.push({ sig, kind, msg, stack: bugScrub(x.stack || "").split("\n").slice(0, 8).join("\n"), at, screen: scr, note: x.note ? bugScrub(x.note) : "",
+    w: innerWidth, h: innerHeight, dpr: Math.round((devicePixelRatio || 1) * 100) / 100, dev: bugDev(), v: APP_V, style: S.uiStyle || "clean", crumbs: BUG.crumbs.slice(-10) });
+  clearTimeout(BUG.t); BUG.t = setTimeout(bugFlush, kind === "user" ? 50 : 3000);
+}
+async function bugFlush() {
+  if (!BUG.q.length || !navigator.onLine) return false;
+  const batch = BUG.q.splice(0, 10);
+  try {
+    const r = await fetch(HELPER + "/bug", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reports: batch }), keepalive: true });
+    if (!r.ok) throw new Error(r.status);
+    if (BUG.q.length) setTimeout(bugFlush, 1000);
+    return true;
+  } catch (e) { BUG.q.unshift(...batch); BUG.q.splice(30); return false; }
+}
+addEventListener("online", () => setTimeout(bugFlush, 2000));
+addEventListener("pagehide", () => { if (BUG.q.length) bugFlush(); });
+
+/* 1. script errors */
+const BUG_NOISE = /ResizeObserver loop|^Script error\.?$|Failed to fetch|NetworkError|Load failed|network connection was lost|AbortError|The operation was aborted|helper-old|The user aborted|NotAllowedError|play\(\) request was interrupted/i;
+addEventListener("error", e => {
+  if (e.target && e.target !== window) return;              /* a picture or script that didn't load: not a code problem */
+  const m = e.message || (e.error && e.error.message) || ""; if (!m || BUG_NOISE.test(m)) return;
+  bugReport("error", m, { stack: e.error && e.error.stack, at: (e.filename || "").split("/").pop().split("?")[0] + ":" + e.lineno + ":" + e.colno });
+}, true);
+addEventListener("unhandledrejection", e => {
+  const r = e.reason, m = r && r.message || String(r || ""); if (!m || BUG_NOISE.test(m)) return;
+  bugReport("promise", m, { stack: r && r.stack });
+});
+
+/* 2. layout: after a screen settles, look for things cut off by the screen edge or hidden under the rail */
+const BUG_SKIP = "#pnbub, #hrail, #nxtour, #nxring, #nxisle, .toast, #toast, #fxhud, .hub-strip, .hub-ghost, .hub-dots, .shx-fan, .stk, .stkw, [data-noswipe], #bubwheel, .gd-fig";
+function bugClipped(el, root) {
+  /* true when something between it and the screen edge clips or scrolls it on purpose */
+  for (let a = el.parentElement; a && a !== root && a !== document.body; a = a.parentElement) {
+    const cs = getComputedStyle(a);
+    if (cs.overflowX !== "visible") { const r = a.getBoundingClientRect(); if (r.right <= innerWidth + 1 && r.left >= -1) return true; if (/auto|scroll/.test(cs.overflowX)) return true; }
+    if (cs.transform !== "none" && a.getBoundingClientRect().right > innerWidth + 2) return true;   /* a card mid-slide */
+  }
+  return false;
+}
+function bugVisible(el, r, root) {
+  let v = { l: r.left, r: r.right, t: r.top, b: r.bottom };
+  for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+    if (getComputedStyle(a).overflowX === "visible") { if (a === root) break; continue; }
+    const q = a.getBoundingClientRect(); v = { l: Math.max(v.l, q.left), r: Math.min(v.r, q.right), t: Math.max(v.t, q.top), b: Math.min(v.b, q.bottom) };
+    if (v.r - v.l < 4 || v.b - v.t < 4) return null;
+    if (a === root) break;
+  }
+  return v;
+}
+function bugPath(el) {
+  const p = []; for (let a = el; a && a !== document.body && p.length < 4; a = a.parentElement) {
+    p.unshift(a.id ? "#" + a.id : a.tagName.toLowerCase() + [...a.classList].slice(0, 2).map(c => "." + c).join("") + ([...a.attributes].filter(x => x.name.startsWith("data-")).slice(0, 1).map(x => "[" + x.name + "]").join("")));
+    if (a.id) break;
+  }
+  return p.join(" > ");
+}
+function bugLayout() {
+  BUG.lt = 0;
+  if (!bugOn() || document.hidden || !document.documentElement.classList) return;
+  const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+  if (!root || (typeof nxTouring === "function" && nxTouring())) return;
+  const W = innerWidth, H = innerHeight, scr = bugScreen();
+  const sw = document.documentElement.scrollWidth;
+  if (sw > W + 2) {
+    let wide = null; root.querySelectorAll("*").forEach(el => { if (wide) return; const r = el.getBoundingClientRect(); if (r.right > W + 2 && r.width && !el.closest(BUG_SKIP) && !bugClipped(el, root)) wide = el; });
+    bugReport("layout", "The page scrolls sideways", { at: wide ? bugPath(wide) : "", screen: scr });
+  }
+  const rail = document.getElementById("hrail"), railOn = rail && getComputedStyle(rail).display !== "none" && !document.documentElement.classList.contains("railhide");
+  let n = 0;
+  for (const el of root.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea, [role=button]")) {
+    if (n >= 3) break;
+    const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) continue;
+    if (el.closest(BUG_SKIP)) continue;
+    const cut = (r.left < W - 6 && r.right > W + 2) || (r.right > 6 && r.left < -2);
+    if (cut && !bugClipped(el, root)) { n++; bugReport("layout", "A button is cut off by the " + (r.left < 0 ? "left" : "right") + " edge of the screen", { at: bugPath(el), screen: scr }); continue; }
+    /* hidden under the Nexi rail: the rail sits on top of its middle */
+    if (railOn && r.top >= 0 && r.bottom <= H && r.left >= 0 && r.right <= W && r.right > W - 110) {
+      /* only the part you can actually see: a scrolling row clips what's past its edge */
+      const v = bugVisible(el, r, root); if (!v) continue;
+      const hit = document.elementFromPoint((v.l + v.r) / 2, (v.t + v.b) / 2);
+      if (hit && rail.contains(hit)) { n++; bugReport("layout", "A button is hidden under the Nexi rail", { at: bugPath(el), screen: scr }); }
+    }
+  }
+}
+function bugLayoutSoon() {
+  if (!bugOn()) return; clearTimeout(BUG.lt);
+  BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1600);
+}
+/* screen changes: breadcrumb + a layout look once it settles */
+const bugSeen = () => { const s = bugScreen(); if (s !== "settings/edit") BUG.lastScreen = s; bugCrumb("screen " + s); bugLayoutSoon(); };
+{ const _g = goTab; goTab = function () { const o = _g.apply(this, arguments); bugSeen(); return o; }; }
+{ const _s = goSub; goSub = function () { const o = _s.apply(this, arguments); bugSeen(); return o; }; }
+{ const _f = openFull; openFull = function () { const o = _f.apply(this, arguments); bugSeen(); return o; }; }
+{ const _o = openSettings; openSettings = function () { const o = _o.apply(this, arguments); if (!openSettings.tplOnly) { bugCrumb("screen settings"); bugLayoutSoon(); } return o; }; openSettings.tplOnly = false; }
+addEventListener("resize", () => bugLayoutSoon(), { passive: true });
+
+/* 3. freezes: a task over 400ms once the app has started (Chrome can tell; Safari can't) */
+try {
+  new PerformanceObserver(list => {
+    for (const t of list.getEntries()) if (t.duration > 400 && performance.now() - BUG.boot > 8000 && !document.hidden)
+      bugReport("slow", "A " + Math.round(t.duration / 50) * 50 + "ms freeze on " + bugScreen(), { screen: bugScreen() });
+  }).observe({ type: "longtask", buffered: false });
+} catch (e) {}
+
+/* 4. Nexi's helper failing while you're online */
+{ const _np = nxPost; nxPost = async function (path) {
+  try { return await _np.apply(this, arguments); }
+  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m)) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
+}; }
+
+/* 5. you spotted something: a few words, and the app adds the rest */
+function bugAsk() {
+  const from = BUG.lastScreen || bugScreen();
+  dyShow(dyBox(), `<div class="dy-h"><b>🐞 Report a problem</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="dy-q">What looks wrong or doesn't work? A few words is plenty. I'll add the screen you were on (<b>${esc(from)}</b>), your phone and version, and what you tapped just before.</p>
+    <textarea class="bug-in" maxlength="800" rows="4" placeholder="e.g. the Score button on a game page does nothing"></textarea>
+    <p class="dy-q" style="font-size:11.5px;opacity:.8">It goes on the app's public GitHub page, so leave out anything private.</p>
+    <button class="btn" type="button" data-bugsend=""><span>Send</span></button>`, async e => {
+    if (!e.target.closest("[data-bugsend]")) return;
+    const t = (document.querySelector("#diary .bug-in") || {}).value || "";
+    if (!t.trim()) { toast("Write a few words first"); return; }
+    bugReport("user", t.trim().slice(0, 200), { note: t.trim(), screen: from });
+    clearTimeout(BUG.t); const ok = await bugFlush();
+    dyClose(); toast(ok ? "Sent. Thanks! 🐞" : "Saved. It'll send when you're back online");
+  });
+  setTimeout(() => { const i = document.querySelector("#diary .bug-in"); if (i) i.focus(); }, 350);
+}
+document.addEventListener("click", e => { if (e.target.closest("[data-bugreport]")) { e.stopPropagation(); closeEdit(); setTimeout(bugAsk, 250); } }, true);
+bugSeen();
+WHATS_NEW.push(
+  { v: 196, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "This build", text: "Problem reports" }); }, at: () => $("#s-bugs"),
+    say: "Problems now report themselves: when something breaks (an error, a button cut off, a freeze), the app quietly files a report so it gets fixed without you having to spot it. No game data is sent.",
+    tryIt: "Spotted something yourself? Hold me and tap 🐞, or use Report a problem here." },
+  { v: 196, go: () => { closeEdit(); const g = onDeck(1)[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full .gd-hero",
+    say: "Game pages no longer put the cut-out character art on top of the backdrop. If you liked it, Customise → A game's own page → Character art brings it back.",
+    tryIt: "Open a game." }
 );
 </script>
