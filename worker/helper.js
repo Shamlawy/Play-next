@@ -5,7 +5,8 @@
    POST /chat/memory  → rewrites Nexi's short memory of the player after a chat.
    GET  /nudge/key    → the web-push public key (made once and kept in KV).
    POST /nudge        → saves a phone's push subscription + its next few days of nudges.
-   cron (every 15 min) → sends the nudges that are due, and tells every phone when a new version of the app is out.
+   POST /announce     → tells every phone about a new version of the app now (GitHub calls it once the site is live).
+   cron (every 15 min) → sends the nudges that are due, and is the backup for new-version pings.
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
@@ -93,6 +94,13 @@ async function handle(req, env) {
       if (!msgs.length || msgs[msgs.length - 1].role !== "user") return json({ error: "say something first" }, 400, h);
       const text = await ask(env, [{ role: "system", content: chatSystem(b) }, ...msgs], 400, true);
       return json({ text: text.trim() }, 200, h);
+    }
+
+    /* GitHub calls this the moment a new version of the app is live, so phones hear about it straight away
+       (the 15-minute cron is the backup). Safe to call by anyone: it only ever announces a version once. */
+    if (url.pathname === "/announce" && (req.method === "POST" || req.method === "GET")) {
+      if (!env.NUDGE) return json({ error: "No KV binding named NUDGE" }, 500, h);
+      return json(await checkUpdate(env), 200, h);
     }
 
     /* which helper this is, so the app can tell when it needs updating */
@@ -284,23 +292,24 @@ function whatsNew(html, v) {
   return dot > 60 ? cut.slice(0, dot + 1) : cut.replace(/\s+\S*$/, "") + "…";
 }
 async function checkUpdate(env) {
-  if (!env.NUDGE) return;
+  if (!env.NUDGE) return { ok: false, why: "no kv" };
   let html = "";
-  try { const r = await fetch(APP_PAGE + "?t=" + Date.now(), { cf: { cacheTtl: 0 }, headers: { "Cache-Control": "no-cache" } }); if (!r.ok) return; html = await r.text(); }
-  catch (e) { return; }
-  const m = html.match(/const APP_V = "(\d+)"/); if (!m) return;
+  try { const r = await fetch(APP_PAGE + "?t=" + Date.now(), { cf: { cacheTtl: 0 }, headers: { "Cache-Control": "no-cache" } }); if (!r.ok) return { ok: false, why: "page " + r.status }; html = await r.text(); }
+  catch (e) { return { ok: false, why: "page unreachable" }; }
+  const m = html.match(/const APP_V = "(\d+)"/); if (!m) return { ok: false, why: "no APP_V" };
   const v = +m[1], seen = +(await env.NUDGE.get("appv") || 0);
-  if (!seen) { await env.NUDGE.put("appv", String(v)); return; }      /* first run: just remember it */
-  if (v <= seen) return;
+  if (!seen) { await env.NUDGE.put("appv", String(v)); return { ok: true, v, sent: 0, first: true }; }   /* first run: just remember it */
+  if (v <= seen) return { ok: true, v, sent: 0, already: true };
   await env.NUDGE.put("appv", String(v));
   const msg = { title: "✨ Play next v" + v + " is here", body: whatsNew(html, v) || "Open the app and Nexi will show you what's new.", tag: "update", url: "./?nudge=update" };
-  let cursor;
+  let cursor, sent = 0;
   do {
     const page = await env.NUDGE.list({ prefix: "sub:", cursor });
     for (const k of page.keys) {
       const rec = await env.NUDGE.get(k.name, "json"); if (!rec || rec.upd === false) continue;
-      try { const r = await webPush(env, rec.sub, msg); if (r.status === 404 || r.status === 410) await env.NUDGE.delete(k.name); } catch (e) {}
+      try { const r = await webPush(env, rec.sub, msg); if (r.status === 404 || r.status === 410) await env.NUDGE.delete(k.name); else if (r.ok) sent++; } catch (e) {}
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
+  return { ok: true, v, sent };
 }

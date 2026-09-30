@@ -1,0 +1,31 @@
+# The moment a new version of the app is live on GitHub Pages, ask Nexi's helper to tell every phone.
+# (The helper also checks every 15 minutes as a backup; a version is only ever announced once.)
+name: Announce new version
+on:
+  push:
+    branches: [main]
+    paths: ["index.html"]
+  workflow_dispatch:
+concurrency: announce
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the site, then announce
+        run: |
+          V=$(grep -o 'const APP_V = "[0-9]*"' index.html | grep -o '[0-9]\+')
+          echo "Waiting for v$V on GitHub Pages"
+          for i in $(seq 1 60); do
+            LIVE=$(curl -fsS "https://shamlawy.github.io/Play-next/index.html?t=$(date +%s%N)" | grep -o 'const APP_V = "[0-9]*"' | grep -o '[0-9]\+' || true)
+            if [ "$LIVE" = "$V" ]; then echo "v$V is live"; break; fi
+            sleep 10
+          done
+          if [ "$LIVE" != "$V" ]; then echo "::warning::v$V wasn't live after 10 minutes; the helper's 15-minute check will announce it."; exit 0; fi
+          # the helper may be redeploying in the same push: retry for a minute
+          for i in $(seq 1 6); do
+            OUT=$(curl -sS -X POST https://playnext-helper.hussamnabil48.workers.dev/announce) && echo "$OUT"
+            echo "$OUT" | grep -q '"ok":true' && exit 0
+            sleep 10
+          done
+          echo "::warning::The helper didn't take the announcement; its 15-minute check will."
