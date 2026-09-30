@@ -253,10 +253,12 @@ async function encrypt(sub, payload) {
   const rs = new Uint8Array([0, 0, 16, 0]);
   return cat(salt, rs, new Uint8Array([asPub.length]), asPub, ct);
 }
+/* Urgency high: on Android, "normal" pushes wait while the phone dozes (screen off) and only show up when it wakes,
+   often right as the app is opened. Every push we send becomes a visible notification, so high is allowed. */
 async function webPush(env, sub, msg, ttl) {
   const body = await encrypt(sub, JSON.stringify(msg));
   return fetch(sub.endpoint, { method: "POST", body, headers: {
-    "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: String(ttl || 43200), Urgency: "normal",
+    "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: String(ttl || 43200), Urgency: "high",
     Authorization: await vapidAuth(env, sub.endpoint) } });
 }
 async function sendDue(env) {
