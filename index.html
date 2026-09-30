@@ -2617,7 +2617,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub .mouth, #pnbub .face::before, #pnbub .face::after { translate: calc(var(--ex, 0px) * .8) calc(var(--ey, 0px) * .9);
     transition: translate .18s ease-out, all .15s; }
   #pnbub { transition: translate .7s cubic-bezier(.34,1.3,.64,1); }
-  #pnbub.peek.pr { translate: 40px 0; } #pnbub.peek.pl { translate: -40px 0; }
+  #pnbub.peek.pkr { translate: 40px 0; } #pnbub.peek.pkl { translate: -40px 0; }
   #pnbub .nt { position: absolute; right: 6px; top: 4px; font: 800 12px/1 sans-serif; color: #8FD0FF; opacity: 0; font-style: normal; }
   @keyframes pnYawn { 0%, 100% { transform: scaleY(.3); } 40%, 70% { transform: scaleY(1.2); } }
   @keyframes pnSneeze { 0% { transform: scale(1); } 45% { transform: scale(1.08,.9) translateY(2px); } 55% { transform: scale(.92,1.1) translateY(-6px); } 100% { transform: scale(1); } }
@@ -3978,7 +3978,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "203";
+const APP_V = "204";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6170,7 +6170,7 @@ function openSettings(scope) {
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Personality, chat memory and nudges.">Nexi</h4>
       <label>Personality</label>
-      <p class="note">Same tips and picks, a different voice.</p>
+      <p class="note">Each one has its own lines, face and moves. Same tips and picks underneath.</p>
       <div class="chips" id="s-persona">
         ${NX_PERSONAS.map(([v, l, e]) => `<button class="chip" data-v="${v}" aria-pressed="${nxP() === v}"><span>${e} ${l}</span></button>`).join("")}
       </div>
@@ -8226,7 +8226,7 @@ function renderQueue() {
             `<button data-qfilter="L:${l.id}" aria-pressed="${on === "L:" + l.id}"><i class="qle">${esc(l.e)}</i><span>${esc(l.n)}</span><small>${c["L:" + l.id]}</small></button>`).join("")}
             <button class="act" data-lists="">📋 ${(S.lists || []).length ? "Manage lists" : "Make a list"}</button></div></span>`;
       })()}
-      <button class="chip" data-shuffle><span>🔀 Shuffle</span></button><button class="chip" id="fx-radar"><span>Radar</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
+      <button class="chip" data-shuffle><span>🔀 Shuffle</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
     </div>
     ${onDeckStrip()}
     `;
@@ -8373,7 +8373,8 @@ function renderCal() {
   const timing = view === "timer";
   el.innerHTML = `
     <div class="tabbar"><h3>${esc(subLabel("plan", view))}</h3>
-      <button class="chip" data-settings="plan"><span>⚙ Customise</span></button></div>
+      <span class="tbacts"><button class="chip" id="fx-radar" aria-label="Radar"><span>📡<em> Radar</em></span></button>
+      <button class="chip" data-settings="plan"><span>⚙ Customise</span></button></span></div>
     ${subChips("plan")}
     ${(flow || planning || timing) ? "" : `<div class="cal-head">
       <button class="calarrow" id="cal-prev" aria-label="Previous month"><span>‹</span></button>
@@ -11240,7 +11241,7 @@ function pnBubble() {
   const gap = Date.now() - (S.bubLast || Date.now()); S.bubLast = Date.now(); save();
   if (gap > 3 * 864e5) pnBubBored = `${Math.floor(gap / 864e5)} days… I was so bored without you 😑`;
   const p = S.bubPos || { x: innerWidth - 62 - PN_EDGE, y: innerHeight * .55 }; pnBubPlace(p.x, p.y);
-  let hold = 0, held = false, taps = 0, tapT = 0, pokes = 0, pokeT = 0;
+  let hold = 0, held = false, taps = 0, tapT = 0;
   let sx = 0, sy = 0, ox = 0, oy = 0, moved = false, down = false, lx = 0, ly = 0, lt = 0, vx = 0, vy = 0, raf = 0, nx = 0, ny = 0;
   b.addEventListener("pointerdown", e => { down = true; moved = false; sx = e.clientX; sy = e.clientY; ox = pnBubX; oy = pnBubY;
     lx = sx; ly = sy; lt = performance.now(); vx = vy = 0; b.setPointerCapture(e.pointerId); b.classList.add("grab"); pnBubHush();
@@ -11252,9 +11253,8 @@ function pnBubble() {
   const up = () => { if (!down) return; down = false; b.classList.remove("grab"); clearTimeout(hold);
     if (held) return;
     if (!moved) { taps++; clearTimeout(tapT);
-      if (taps >= 2) { pokes++; clearTimeout(pokeT); pokeT = setTimeout(() => pokes = 0, 2500); if (navigator.vibrate) navigator.vibrate(10);
-        if (pokes >= 6) { pokes = 0; pnBubMood("faint", 3200); pnBubSay(["Okay. I'm down. You win. 😵", ""]); }
-        else { pnBubMood("angry", 1400); if (pokes === 3) pnBubSay(["Hey! Stop poking me 😤", ""]); } }
+      /* v204: a double tap opens his wheel (shortcuts + his settings); it used to be a poke that made him angry */
+      if (taps >= 2) { taps = 0; if (navigator.vibrate) navigator.vibrate(14); pnBubMood("happy", 900); pnBubWheel(); return; }
       tapT = setTimeout(() => { if (taps === 1) { document.documentElement.classList.toggle("railleft", S.railSide === "left"); S.railHide = false; save();
         document.documentElement.classList.remove("railhide"); pnBubHush(); } taps = 0; }, 280); return; }
     pnBubPlace(pnBubX + vx * 120, pnBubY + vy * 120);           /* a flick carries it a little further */
@@ -11292,7 +11292,7 @@ function pnBubble() {
     if (++tk % 4 === 0) pnBubReact();
     const idle = performance.now() - lastLook > 15000, busy = down || $("#bubwheel") || $("#pnbubmsg.on");
     if (b.classList.contains("peek") || document.documentElement.classList.contains("nxguide")) return;
-    if (performance.now() - lastLook > 90000 && !busy) { b.classList.remove("pl", "pr"); b.classList.add("peek", pnBubX > innerWidth / 2 ? "pr" : "pl");
+    if (performance.now() - lastLook > 90000 && !busy) { b.classList.remove("pkl", "pkr", "pl", "pr"); b.classList.add("peek", pnBubX > innerWidth / 2 ? "pkr" : "pkl");
       b.style.setProperty("--ex", (pnBubX > innerWidth / 2 ? -5 : 5) + "px"); return; }
     if (idle && !busy && Math.random() < .07) pnBubWander(); }, 2800);
   let lastShake = 0;
@@ -11331,7 +11331,7 @@ function pnBubReact() {
   const bday = S.bubBorn && S.bubBorn.slice(5) === t.slice(5) && S.bubBorn !== t;
   const HS = nxHats(), hat = bday ? "🎂" : S.games.some(g => g.date === t) ? "🎉" : S.nxHat === "none" ? "" : HS.includes(S.nxHat) ? S.nxHat : HS[HS.length - 1] || "";
   b.querySelector(".hat").textContent = hat; pnBubBadge();
-  if (HS.length > (S.nxHatN || 0) && old && S.nxHatN != null) pnBubBurst(), pnBubSay([`New hat unlocked ${HS[HS.length - 1]} Hold me → 🎨 to wear it.`, ""]);
+  if (HS.length > (S.nxHatN || 0) && old && S.nxHatN != null) pnBubBurst(), pnBubSay([`New hat unlocked ${HS[HS.length - 1]} Double-tap me → 🎨 to wear it.`, ""]);
   if (S.nxHatN !== HS.length) { S.nxHatN = HS.length; save(); }
   const ch = JSON.stringify(snap) !== JSON.stringify(old) || hat !== S.bubHat;
   S.bubSnap = snap; S.bubHat = hat; if (ch) save();
@@ -11613,17 +11613,19 @@ function pnBubWheel() {
   const ov = document.createElement("div"); ov.id = "bubwheel";
   const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🤧", "sneeze"], ["🎨", "edit"]];
   const cx = pnBubX + 31, cy = pnBubY + 31, right = cx > innerWidth / 2;
-  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"], ["🐞", "bug"]];
+  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"], ["⚙️", "nxset"], ["🐞", "bug"]];
   const btn = (e, a, i, ang, r, c) => { ang = ang * Math.PI / 180;
     const x = Math.max(6, Math.min(innerWidth - 52, cx - 23 + r * Math.cos(ang))), y = Math.max(6, Math.min(innerHeight - 52, cy - 23 + r * Math.sin(ang)));
     return `<button class="${c}" data-a="${a}" style="--i:${i};--sx:${cx - 23}px;--sy:${cy - 23}px;transform:translate(${x}px,${y}px)">${e}</button>`; };
-  ov.innerHTML = acts.map(([e, a], i) => btn(e, a, i, (right ? 102 : -78) + i * 26, 98, "act")).join("")
-    + it.map(([e, a], i) => btn(e, a, i + acts.length, (right ? 104 : -76) + i * 19, 160, "")).join("");
+  /* v204: 9 shortcuts now (⚙ settings): both rings stay on the open side (a half circle) so none get squeezed against the screen edge */
+  ov.innerHTML = acts.map(([e, a], i) => btn(e, a, i, (right ? 95 : -85) + i * 22.5, 122, "act")).join("")
+    + it.map(([e, a], i) => btn(e, a, i + acts.length, (right ? 99 : -81) + i * 20.25, 178, "")).join("");
   document.body.appendChild(ov);
   ov.onclick = e => { const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
     if (a === "power") pnPowerUp();
     else if (a === "edit") pnBubEdit();
-    else if (a === "story") pnLore(); else if (a === "ask") nxChat(); else if (a === "bug") { if (typeof bugAsk === "function") bugAsk(); }
+    else if (a === "story") pnLore(); else if (a === "ask") nxChat();
+    else if (a === "nxset") setJump({ scope: "app", group: "Nexi", text: "Personality" }); else if (a === "bug") { if (typeof bugAsk === "function") bugAsk(); }
     else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") qDuel(); else if (a === "score") qScorePick(); else if (a === "add") goTab("add");
     else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); }
     else { pnBubMood(a, a === "nap" ? 4000 : 2600); if (a === "love") pnBubBurst(); } };
@@ -11673,13 +11675,13 @@ function pnBubLines() {
   else if (hr < 11) L.push(["Morning! Plan tonight's game before the day gets you ☀️", "pick"]);
   else if (hr >= 17) L.push(["Evening's here. Controller's ready. Are you? 🎮", "pick"]);
   L.push(["Can't decide? Tap here and I'll pick 🎲", "pick"]);
-  L.push([`${pnName()} reporting for duty 🫡 Hold me for shortcuts.`, ""]);
+  L.push([`${pnName()} reporting for duty 🫡 Double-tap me for shortcuts.`, ""]);
   PN_STORY.slice(0, pnSt()).forEach(c => c.q.forEach(q => L.push([pnTx(q), ""])));
   const arc = pnArc();
   if (arc === 0) L.push(["Things I hate: loading screens, Grumble, and \"I'll play it later\" 😤", ""]);
   L.push(["Favourite genre? JRPGs. Obviously. I was born in one 💾", ""]);
   if (arc === 0) L.push(["Grumble's been quiet. Too quiet 👀", "games"]);
-  L.push(["Hold me and tap 📖 if you want my story.", ""]);
+  L.push(["Double-tap me and tap 📖 if you want my story.", ""]);
   if (S.userName) { const hh = new Date().getHours(), n = S.userName;
     L.push([hh < 12 ? `Morning, ${n} ☀️` : hh < 18 ? `Hey ${n} 👋 Good day so far?` : `Evening, ${n} 🌙 Game time?`, hh >= 18 ? "pick" : ""]);
     L.push([`${n}. Nice name. Very main-character energy 😎`, ""]); }
@@ -11722,7 +11724,7 @@ function pnBubShow() {
   let bl = pnBubBored; pnBubBored = null;
   if (!S.bubBorn) { S.bubBorn = new Date().toLocaleDateString("en-CA"); save(); }
   if (!nxHabits.done) { nxHabits.done = 1; setTimeout(nxHabits, 0); }
-  if (!S.bubMet) { S.bubMet = 1; save(); bl = `Hi! I'm ${pnName()} 👋 Hold me for shortcuts, poke me if you dare. Ask me anything with 💬`; } if (bl) pnBubMood("bored", 4000);
+  if (!S.bubMet) { S.bubMet = 1; save(); bl = `Hi! I'm ${pnName()} 👋 Double-tap me for shortcuts and my settings. Ask me anything with 💬`; } if (bl) pnBubMood("bored", 4000);
   const td = new Date().toLocaleDateString("en-CA");
   if (S.bubDay !== td && S.bubBorn && S.bubBorn.slice(5) === td.slice(5) && S.bubBorn !== td) { S.bubDay = td; save(); pnBubBurst();
     bl = `It's my birthday! 🎂 ${+td.slice(0, 4) - +S.bubBorn.slice(0, 4)} year${+td.slice(0, 4) - +S.bubBorn.slice(0, 4) === 1 ? "" : "s"} of guarding your queue from Grumble.`; }
@@ -13657,7 +13659,7 @@ function pnPowerUp(line) {
     fmood = "sad"; mood("sad");
     await say("n", "He's… too heavy. Every unplayed hour makes him stronger…");
     await say("g", "Why protect someone who leaves every story halfway? Give up. They always do.");
-    await say("n", "{you}… that isn't true, is it? Lend me your strength. Hold me, then tap ⚡.");
+    await say("n", "{you}… that isn't true, is it? Lend me your strength. Double-tap me, then tap ⚡.");
     /* wait for the real power-up */
     await Promise.all([tw(N, W() * .3, Hh() * .4, 500, "io"), tw(G, W() * .7 - 31, Hh() * .22, 500, "io")]);
     tapL.style.display = "none"; box.classList.remove("done");
@@ -14519,7 +14521,7 @@ function nxTour(was, all) {
   document.querySelectorAll(".updated button").forEach(x => x.click());   /* the tour says it better, and the toast sat on top of the card */
   const H = document.documentElement;
   if (!$("#pnbub") && typeof pnBubble === "function") pnBubble();
-  const b = $("#pnbub"); if (b) { nxDress(b); b.classList.remove("peek", "pl", "pr"); }
+  const b = $("#pnbub"); if (b) { nxDress(b); b.classList.remove("peek", "pkl", "pkr", "pl", "pr"); }
   /* v189 while the tour runs Nexi belongs to it: rail open or shut, fold or unfold, he stays on the card and keeps quiet */
   H.classList.add("nxguide", "nxtouring"); pnBubHush();
   const card = document.createElement("div"); card.id = "nxtour"; document.body.appendChild(card);
@@ -16499,6 +16501,7 @@ function bugNice(kind, scr, msg) {
   if (kind === "layout" && /overlaps/.test(msg)) return `Some text on ${at} is overlapping.`;
   if (kind === "layout" && /blank/.test(msg)) return `${At} came up blank.`;
   if (kind === "layout" && /blurry/.test(msg)) return `A picture on ${at} stayed blurry.`;
+  if (kind === "layout" && /square/.test(msg)) return "My glow turned into a square.";
   if (kind === "layout" && /glow/.test(msg)) return "My glow is getting cut off by the edge of the screen.";
   if (kind === "layout") return /sideways/.test(msg) ? `${At} slides sideways when it shouldn't.` : /rail/.test(msg) ? `A button on ${at} is hiding under my rail.` : `A button on ${at} is sticking off the screen.`;
   if (kind === "slow") return /tap took/.test(msg) ? `A tap on ${at} was slow to respond.` : /Scrolling/.test(msg) ? `Scrolling on ${at} was choppy.` : /stutter/.test(msg) ? `${At} stuttered for a moment.` : `${At} froze for a moment there.`;
@@ -16807,5 +16810,323 @@ WHATS_NEW.push(
   { v: 203, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
     say: "Game pages go sharp twice as fast: the full-quality picture starts loading the moment your finger touches a game and swaps in as soon as the page has opened (about half a second), instead of after a second or more.",
     tryIt: "Open a game with 4K art and watch the backdrop." }
+);
+</script>
+<style>
+/* ===== v204: each personality has its own face, idle move and a signature move when it talks.
+   Persona rules use :where() so they beat the plain face (#pnbub .eye) but every mood (#pnbub.happy .eye) still wins. ===== */
+#pnbub .acc { position: absolute; inset: 0; pointer-events: none; display: none; }
+#pnbub:where([data-p]) .acc { display: block; }
+#pnbub.angry .acc, #pnbub.cool .acc, #pnbub.faint .acc, #pnbub.love .acc { display: none; }
+/* hype: big sparkly eyes, wide grin */
+#pnbub:where([data-p=hype]) .eye { width: 12px; height: 17px; top: 29%; }
+#pnbub:where([data-p=hype]) .eye::after { content: ""; position: absolute; left: 2px; top: 2px; width: 4px; height: 4px; border-radius: 50%; background: #fff; }
+#pnbub:where([data-p=hype]) .mouth { width: 17px; height: 9px; margin-left: -8.5px; border: 0; background: #8FD0FF; border-radius: 0 0 11px 11px; }
+/* butler: calm half-lidded eyes, neat small smile, gold monocle on a chain */
+#pnbub:where([data-p=butler]) .eye { height: 9px; top: 39%; border-radius: 2px 2px 8px 8px; }
+#pnbub:where([data-p=butler]) .mouth { width: 10px; height: 4px; margin-left: -5px; border-width: 2px; }
+#pnbub:where([data-p=butler]) .acc::before { content: ""; position: absolute; right: 21%; top: 31%; width: 15px; height: 15px; border: 2px solid #e2c877; border-radius: 50%; }
+#pnbub:where([data-p=butler]) .acc::after { content: ""; position: absolute; right: 22%; top: 55%; width: 1.5px; height: 16px; background: #e2c877; transform: rotate(-24deg); transform-origin: top; }
+/* coach: relaxed eyes, easy smile, sweatband */
+#pnbub:where([data-p=coach]) .eye { height: 8px; top: 39%; border-radius: 8px 8px 3px 3px; }
+#pnbub:where([data-p=coach]) .mouth { width: 15px; height: 5px; margin-left: -7.5px; }
+#pnbub:where([data-p=coach]) .acc::before { content: ""; position: absolute; left: -4px; right: -4px; top: 13%; height: 6px;
+  background: repeating-linear-gradient(90deg, #ff5a6a 0 7px, #EAF2FF 7px 10px); opacity: .9; transform: rotate(-4deg); }
+/* rival: narrowed eyes, one raised brow, a smirk */
+#pnbub:where([data-p=rival]) .eye { height: 8px; top: 39%; border-radius: 6px 6px 3px 3px; }
+#pnbub:where([data-p=rival]) .acc::before, #pnbub:where([data-p=rival]) .acc::after { content: ""; position: absolute; width: 13px; height: 3px; background: #EAF2FF; border-radius: 2px; }
+#pnbub:where([data-p=rival]) .acc::before { left: 23%; top: 29%; transform: rotate(10deg); }
+#pnbub:where([data-p=rival]) .acc::after { right: 22%; top: 21%; transform: rotate(-16deg); }
+#pnbub:where([data-p=rival]) .mouth { width: 12px; height: 5px; margin-left: -2px; border-radius: 0 0 12px 3px; transform: rotate(-12deg); }
+/* bard: starry eyes, singing mouth, notes drift up */
+#pnbub:where([data-p=bard]) .eye::after { content: "\2726"; position: absolute; left: -1px; top: -3px; font: 900 8px/1 sans-serif; color: #FFD34D; }
+#pnbub:where([data-p=bard]) .mouth { width: 8px; height: 9px; margin-left: -4px; border: 2.5px solid #8FD0FF; border-radius: 50%; }
+:where(html:not(.still)) #pnbub:where([data-p=bard]) .nt { animation: pnZz 3.4s ease-in 1s infinite; }
+/* nerd: glasses, small eyes that scan, tidy smile */
+#pnbub:where([data-p=nerd]) .eye { width: 8px; height: 10px; top: 35%; }
+#pnbub:where([data-p=nerd]) .eye.l { left: 29%; } #pnbub:where([data-p=nerd]) .eye.r { right: 29%; }
+#pnbub:where([data-p=nerd]) .acc { background: linear-gradient(#8FD0FF, #8FD0FF) 50% 41% / 11% 2px no-repeat; }
+#pnbub:where([data-p=nerd]) .acc::before, #pnbub:where([data-p=nerd]) .acc::after { content: ""; position: absolute; top: 28%; width: 16px; height: 14px; border: 2px solid #8FD0FF; border-radius: 5px; }
+#pnbub:where([data-p=nerd]) .acc::before { left: 19%; } #pnbub:where([data-p=nerd]) .acc::after { right: 19%; }
+#pnbub:where([data-p=nerd]) .mouth { width: 10px; height: 4px; margin-left: -5px; }
+:where(html:not(.still)) #pnbub:where([data-p=nerd]) .eye { animation: pnBlink 4.6s infinite, nxScan 7s ease-in-out infinite; }
+@keyframes nxScan { 0%, 40%, 100% { translate: 0 0; } 48%, 60% { translate: -2px 0; } 68%, 82% { translate: 2px 0; } }
+/* idle moves (replace the plain bob) */
+:where(html:not(.still)) #pnbub:where([data-p=hype]) .core { animation: nxmHype 1.9s ease-in-out infinite; }
+:where(html:not(.still)) #pnbub:where([data-p=butler]) .core { animation: nxmButler 5.2s ease-in-out infinite; }
+:where(html:not(.still)) #pnbub:where([data-p=coach]) .core { animation: nxmCoach 4.4s ease-in-out infinite; }
+:where(html:not(.still)) #pnbub:where([data-p=rival]) .core { animation: nxmRival 4.8s ease-in-out infinite; }
+:where(html:not(.still)) #pnbub:where([data-p=bard]) .core { animation: nxmBard 3.2s ease-in-out infinite; }
+:where(html:not(.still)) #pnbub:where([data-p=nerd]) .core { animation: nxmNerd 3.8s ease-in-out infinite; }
+@keyframes nxmHype { 0%, 100% { transform: none; } 28% { transform: translateY(-7px) scale(1.03,.97); } 44% { transform: translateY(0) scale(1.06,.94); } 56% { transform: translateY(-3px); } 68% { transform: none; } }
+@keyframes nxmButler { 50% { transform: translateY(-2px) rotate(-1.5deg); } }
+@keyframes nxmCoach { 0%, 40%, 100% { transform: none; } 18% { transform: translateY(2px) rotate(2deg); } 30% { transform: translateY(-1px); } }
+@keyframes nxmRival { 0%, 100% { transform: none; } 22%, 62% { transform: rotate(7deg) translateX(1px); } }
+@keyframes nxmBard { 25% { transform: rotate(-5deg) translateY(-2px); } 75% { transform: rotate(5deg) translateY(-2px); } }
+@keyframes nxmNerd { 0%, 68%, 100% { transform: none; } 74% { transform: translateY(-3px); } 80% { transform: none; } 86% { transform: translateY(-2px); } 92% { transform: none; } }
+/* signature move when he speaks */
+#pnbub.sig:where([data-p=hype]) .core { animation: nxsHype .8s cubic-bezier(.3,1.5,.5,1) both; }
+#pnbub.sig:where([data-p=butler]) .core { animation: nxsButler .9s ease-in-out both; }
+#pnbub.sig:where([data-p=coach]) .core { animation: nxsCoach .8s ease-in-out both; }
+#pnbub.sig:where([data-p=rival]) .core { animation: nxsRival .8s ease-in-out both; }
+#pnbub.sig:where([data-p=bard]) .core { animation: nxsBard .9s cubic-bezier(.4,0,.2,1) both; }
+#pnbub.sig:where([data-p=nerd]) .core { animation: nxsNerd .7s ease-out both; }
+@keyframes nxsHype { 30% { transform: translateY(-16px) scale(1.08); } 60% { transform: translateY(0) scale(1.1,.9); } 80% { transform: translateY(-4px); } }
+@keyframes nxsButler { 40%, 60% { transform: translateY(5px) scale(1,.93) rotate(4deg); } }
+@keyframes nxsCoach { 25% { transform: translateY(3px); } 50% { transform: none; } 75% { transform: translateY(3px); } }
+@keyframes nxsRival { 25% { transform: rotate(-9deg); } 50% { transform: rotate(8deg); } 75% { transform: rotate(-4deg); } }
+@keyframes nxsBard { 0% { transform: none; } 100% { transform: rotate(360deg); } }
+@keyframes nxsNerd { 35% { transform: scale(1.12); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { #pnbub .core, #pnbub.sig .core { animation: none !important; } }
+/* Plan's header: Radar sits next to Customise */
+.tbacts { display: inline-flex; gap: 8px; align-items: center; margin-left: auto; }
+.tbacts .chip { margin: 0; }
+#fx-radar em { font-style: normal; }
+@media (max-width: 399px) { #fx-radar em { display: none; } }
+html.ui2 .tabbar.shx > .tbacts { grid-area: c; position: relative; z-index: 3; }
+html.ui2 .tabbar.shx > .tbacts .chip { background: rgba(4,6,14,.74); }
+</style>
+<script>
+/* ===== v204: Nexi's personalities get their own lines (context-aware, ~20 each), faces and moves; more
+   everyday lines for everyone; double tap opens his wheel (with ⚙ his settings); the Radar moved to Plan ===== */
+function nxPDress() {
+  const b = $("#pnbub"); if (!b) return;
+  if (b.dataset.p !== nxP()) b.dataset.p = nxP();
+  const eyes = b.querySelector(".eyes"); if (eyes && !eyes.querySelector(".acc")) eyes.insertAdjacentHTML("beforeend", '<i class="acc"></i>');
+}
+{ const _al6 = applyLook; applyLook = function () { const o = _al6.apply(this, arguments); nxPDress(); return o; }; }
+{ const _rh6 = renderHome; renderHome = function () { const o = _rh6.apply(this, arguments); nxPDress(); return o; }; }
+{ const _bs6 = pnBubShow; pnBubShow = function () { nxPDress(); return _bs6.apply(this, arguments); }; }
+/* what the lines can talk about; every template skips itself when its piece is missing */
+function nxPCtx() {
+  const now = new Date(), hr = now.getHours(), dow = now.getDay();
+  const live = S.games.filter(g => !isPlayed(g) && !(typeof isDropped === "function" && isDropped(g)));
+  const played = S.played || [], sc = played.filter(p => scored(p) && !p.dk);
+  const R = rankedGames(), t = rankTable();
+  const pick = onDeck(1)[0], top = R[0] || pnLastRanked[0];
+  const fut = S.games.filter(g => g.date && new Date(g.date + "T00:00:00") > now && !isPlayed(g)).sort((a, b) => a.date < b.date ? -1 : 1)[0];
+  const best = sc.slice().sort((a, b) => b.real - a.real)[0], bestG = best && S.games.find(g => g.id === best.id);
+  const playing = S.games.find(g => g.state === "playing" && !g.comp);
+  const hours = Math.round(live.reduce((a, g) => a + (hrsOf(g) || 0), 0));
+  const longest = live.filter(g => !g.comp).sort((a, b) => (hrsOf(b) || 0) - (hrsOf(a) || 0))[0];
+  const gen = {}; live.forEach(g => platList(g.genres).forEach(x => gen[x] = (gen[x] || 0) + 1));
+  const genre = Object.entries(gen).sort((a, b) => b[1] - a[1])[0];
+  const sT = R.filter(g => tierOf(t.sc[g.id]) === "S").length;
+  return { hr, dow, late: hr >= 23 || hr < 4, morning: hr >= 5 && hr < 12, evening: hr >= 17 && hr < 23,
+    nm: S.userName || "", pick, top, fut, days: fut ? Math.ceil((new Date(fut.date + "T00:00:00") - now) / 864e5) : 0,
+    live: live.length, outN: live.filter(g => typeof isOutNow === "function" && isOutNow(g)).length, hours,
+    played: played.length, un: played.filter(p => !scored(p)).length, ranked: R.length, sT,
+    avg: sc.length ? Math.round(sc.reduce((a, p) => a + p.real, 0) / sc.length * 10) / 10 : 0,
+    duels: (S.duels || []).filter(d => d.w).length, bestG, best: best ? best.real : 0, playing, longest,
+    lh: longest ? Math.round(hrsOf(longest)) : 0, genre: genre ? genre[0] : "", streak: S.nxStreak && S.nxStreak.n > 1 ? S.nxStreak.n : 0,
+    peak: typeof nxPeak === "function" ? nxPeak() : null, rate: S.games.length ? Math.round(played.length / S.games.length * 100) : 0,
+    comp: S.games.some(g => g.comp && !(typeof isDropped === "function" && isDropped(g))) };
+}
+/* [condition, text, action]; text is a function of the context */
+const NX_PLINES = {
+  hype: [
+    [c => c.top, c => `${c.top.title} is your #1 and I am SO ready for you to play it!`, c => c.top.id],
+    [c => c.pick, c => `Tonight's vibe: ${c.pick.title}. Let's GOOO 🔥`, c => c.pick.id],
+    [c => c.fut, c => `${c.days} day${c.days === 1 ? "" : "s"} until ${c.fut.title}! I'm counting every single one!`, c => c.fut.id],
+    [c => c.played > 1, c => `${c.played} games finished?! Absolute legend 🏆`, () => "played"],
+    [c => c.ranked > 1, () => "Duel time! Two games enter, one leaves ⚔️", () => "duel"],
+    [c => c.un, c => `${c.un} finished game${c.un === 1 ? "" : "s"} still need a score! Let's rate 'em!`, () => "played"],
+    [c => c.playing, c => `You + ${c.playing.title} tonight = perfect combo 🎮`, c => c.playing.id],
+    [() => 1, () => "Every game you finish makes me do a little dance 💃", () => ""],
+    [c => c.pick && c.pick.state !== "playing", c => `Challenge unlocked: start ${c.pick.title} this week!`, c => c.pick.id],
+    [() => 1, () => "I believe in you more than I believe in loading screens!", () => ""],
+    [c => c.hours, c => `${c.hours}h of adventure waiting! That's not a backlog, that's a buffet 🍱`, () => "games"],
+    [c => c.streak, c => `${c.streak}-day streak! Keep it burning 🔥`, () => ""],
+    [c => c.morning, () => "Morning energy! Who's gaming later?! ☀️", () => "pick"],
+    [c => c.late, () => "Late-night session? I'm in! One more level! 🌙", () => ""],
+    [c => c.bestG, c => `${c.bestG.title} was a ${c.best}/10 banger. Let's find the next one!`, c => c.bestG.id],
+    [() => 1, () => "Roll the dice and let fate pick! 🎲", () => "pick"],
+    [c => c.sT, c => `${c.sT} S-tier game${c.sT === 1 ? "" : "s"}. Your taste is ELITE 👑`, () => "taste"],
+    [() => 1, () => "High five! ✋ ...okay, imagine I have hands.", () => ""],
+    [c => c.live, () => "The queue is calling and it sounds EPIC 📣", () => "games"],
+    [c => c.dow === 5, () => "IT'S FRIDAY! Big game night energy! 🎉", () => "pick"],
+    [c => c.outN, c => `${c.outN} game${c.outN === 1 ? " is" : "s are"} out and waiting for you RIGHT NOW!`, () => "games"]
+  ],
+  butler: [
+    [c => c.pick, c => `Might I suggest ${c.pick.title} this evening? It seems well suited to you.`, c => c.pick.id],
+    [c => c.top, c => `${c.top.title} remains at the top of your ranking. A fine choice, if I may say so.`, c => c.top.id],
+    [c => c.fut, c => `${c.fut.title} arrives in ${c.days} day${c.days === 1 ? "" : "s"}. I shall keep watch.`, c => c.fut.id],
+    [c => c.un, c => `${c.un} finished game${c.un === 1 ? " awaits" : "s await"} your verdict. At your convenience.`, () => "played"],
+    [c => c.ranked > 1, () => "A duel or two would sharpen your ranking considerably.", () => "duel"],
+    [c => c.hours, c => `The queue holds roughly ${c.hours} hours of play. Quite manageable, in measured doses.`, () => "games"],
+    [c => c.evening, c => `Good evening${c.nm ? ", " + c.nm : ""}. Your games are in order.`, () => "pick"],
+    [c => c.morning, c => `Good morning${c.nm ? ", " + c.nm : ""}. Shall I prepare tonight's selection?`, () => "pick"],
+    [c => c.late, () => "It is rather late. Perhaps one more chapter, and then rest.", () => ""],
+    [c => c.played > 1, c => `${c.played} games completed. A distinguished record.`, () => "played"],
+    [c => c.bestG, c => `You rated ${c.bestG.title} ${c.best} out of 10. I have noted your fondness for it.`, c => c.bestG.id],
+    [() => 1, () => "Should you wish, I can choose for you. Simply tap here.", () => "pick"],
+    [c => c.ranked > 2, c => `I have taken the liberty of ranking your ${c.ranked} games.`, () => "taste"],
+    [c => c.playing, c => `${c.playing.title} is still in progress. Shall we continue where you left off?`, c => c.playing.id],
+    [c => c.streak, c => `Your streak stands at ${c.streak} days. Most commendable.`, () => ""],
+    [c => c.live > 15, () => "Might I recommend fewer purchases until the queue is a little lighter?", () => "games"],
+    [() => 1, () => "Everything is in its proper place. Do enjoy your evening.", () => ""],
+    [c => c.sT, c => `Your S-tier holds ${c.sT} title${c.sT === 1 ? "" : "s"}. An impeccable collection.`, () => "taste"],
+    [() => 1, () => "A new addition? Do let me know, and I will see to the details.", () => "add"],
+    [c => c.pick, c => `One does not rush a masterpiece. Take your time with ${c.pick.title}.`, c => c.pick.id],
+    [c => c.comp, () => "A brief competitive match before the main course, perhaps.", () => ""]
+  ],
+  coach: [
+    [c => c.pick, c => `No pressure tonight. Maybe just an hour of ${c.pick.title}?`, c => c.pick.id],
+    [c => c.playing, c => `Small step: one session of ${c.playing.title}, and call it a win.`, c => c.playing.id],
+    [c => c.fut, c => `${c.days} day${c.days === 1 ? "" : "s"} to ${c.fut.title}. Plenty of time, breathe.`, c => c.fut.id],
+    [c => c.played > 1, c => `${c.played} finished. That's steady progress, well done.`, () => "played"],
+    [c => c.un, () => "Score one game today. That's the whole task.", () => "played"],
+    [() => 1, () => "Tired? Short session, or skip it. Rest counts too.", () => ""],
+    [c => c.ranked > 1, () => "Try a quick duel. Thirty seconds, done.", () => "duel"],
+    [c => c.live, () => "You don't have to clear the queue. Just enjoy the next one.", () => "games"],
+    [c => c.hours, c => `${c.hours}h queued. At your own pace, it's fine.`, () => "games"],
+    [c => c.comp, () => "Drink some water between matches 💧", () => ""],
+    [c => c.streak, c => `Proud of that ${c.streak}-day streak. Keep it easy.`, () => ""],
+    [() => 1, () => "Stuck choosing? Let me pick, you just play.", () => "pick"],
+    [c => c.pick, c => `A good evening doesn't need a plan. But ${c.pick.title} is a nice one.`, c => c.pick.id],
+    [c => c.morning, () => "Early day? Save your energy, game tonight.", () => ""],
+    [c => c.late, () => "It's late. Save and sleep, the game will wait 🌙", () => ""],
+    [() => 1, () => "One game at a time. You're doing fine.", () => ""],
+    [c => c.top, c => `${c.top.title} is your favourite right now. Go at your pace.`, c => c.top.id],
+    [() => 1, () => "Stretch your hands before a long session 🙌", () => ""],
+    [() => 1, () => "Nice and easy: finish one, then add one.", () => "add"],
+    [() => 1, () => "Remember why you play: to have fun. That's it.", () => ""],
+    [c => c.dow === 0, () => "Sunday reset: score what you finished this week, then relax.", () => "played"]
+  ],
+  rival: [
+    [c => c.pick && c.pick.state !== "playing", c => `Still haven't started ${c.pick.title}? Bold strategy.`, c => c.pick.id],
+    [c => c.top, c => `${c.top.title} is your #1? Cute. Let's see if you actually play it.`, c => c.top.id],
+    [c => c.un, c => `${c.un} unscored game${c.un === 1 ? "" : "s"}. I'd score them for you, but you'd complain.`, () => "played"],
+    [c => c.hours, c => `${c.hours} hours queued. You buy games like I collect wins.`, () => "games"],
+    [c => c.live > 5, () => "I've seen snails clear backlogs faster. Prove me wrong.", () => "games"],
+    [c => c.ranked > 1, () => "Duel me. Oh wait, you duel games. Same energy, less talent.", () => "duel"],
+    [c => c.fut && c.playing, c => `${c.days} days until ${c.fut.title}. You'll still be on ${c.playing.title} by then.`, c => c.fut.id],
+    [c => c.played > 1, c => `${c.played} finished? Not terrible. Not great either.`, () => "played"],
+    [c => c.bestG, c => `You gave ${c.bestG.title} a ${c.best}. Mine says "overrated".`, c => c.bestG.id],
+    [() => 1, () => "Go on, pick something. Or I'll pick for you, and you won't like it.", () => "pick"],
+    [c => c.streak, c => `A ${c.streak}-day streak? Don't get cocky.`, () => ""],
+    [() => 1, () => "Another game for the queue? Your wallet called. It's crying.", () => "add"],
+    [c => c.ranked > 2, () => "You rank games like you've never lost an argument.", () => "taste"],
+    [c => c.late, () => "Up this late? Your reflexes must be legendary. Or not.", () => ""],
+    [c => c.duels, () => "I let you win the last duel. You're welcome.", () => "duel"],
+    [c => c.pick, c => `If ${c.pick.title} isn't your next game, I'm taking it personally.`, c => c.pick.id],
+    [c => c.sT > 2, c => `${c.sT} S-tier games? Everything's S-tier to you.`, () => "taste"],
+    [() => 1, () => "Watch and learn: tap here and I'll pick the right game.", () => "pick"],
+    [c => c.morning, () => "Morning already? Don't forget your queue is judging you.", () => "games"],
+    [() => 1, () => "I'd tell you to get good, but you'd just add another game.", () => ""],
+    [c => c.comp, () => "Ranked tonight? Try not to tilt. I'll be watching.", () => ""]
+  ],
+  bard: [
+    [c => c.pick, c => `Hear ye: the tale of ${c.pick.title} awaits its hero tonight.`, c => c.pick.id],
+    [c => c.fut, c => `In ${c.days} day${c.days === 1 ? "" : "s"}, ${c.fut.title} shall descend upon the land.`, c => c.fut.id],
+    [c => c.played > 1, c => `${c.played} quests completed, each a verse in your saga.`, () => "played"],
+    [c => c.top, c => `${c.top.title} sits upon the throne of your heart. Long may it reign.`, c => c.top.id],
+    [c => c.ranked > 1, () => "A duel at dusk! Two legends clash, one shall rise.", () => "duel"],
+    [c => c.un, c => `${c.un} tale${c.un === 1 ? " lies" : "s lie"} unsung. Grant a score, that I may sing of ${c.un === 1 ? "it" : "them"}.`, () => "played"],
+    [c => c.hours, c => `The road ahead stretches ${c.hours} hours, rich with adventure.`, () => "games"],
+    [c => c.late, () => "By candlelight, one more chapter... 🕯️", () => ""],
+    [c => c.morning, () => "A new dawn rises. What legend shall you begin today?", () => "pick"],
+    [c => c.bestG, c => `${c.bestG.title}, a ${c.best}/10 epic, still echoes in the halls.`, c => c.bestG.id],
+    [() => 1, () => "The dice of fate await your hand. Shall I cast them?", () => "pick"],
+    [c => c.streak, c => `Your ${c.streak}-day streak shall be told for ages.`, () => ""],
+    [c => c.playing, c => `${c.playing.title}: the chapter is half written. Return, hero.`, c => c.playing.id],
+    [() => 1, () => "Add a new tale to the library, and I'll compose its prologue.", () => "add"],
+    [c => c.sT, c => `In the realm of S-tier dwell ${c.sT} legend${c.sT === 1 ? "" : "s"}.`, () => "taste"],
+    [() => 1, () => "Every hero needs rest between battles. Even you.", () => ""],
+    [() => 1, () => "Strum... strum... I sense a boss fight in your future.", () => ""],
+    [c => c.nm, c => `Of ${c.nm} the songs say: "They finished what they started." Mostly.`, () => ""],
+    [c => c.live > 5, () => "A shadow grows in the backlog. Only finishing can banish it.", () => "games"],
+    [c => c.pick, c => `Let the saga continue with ${c.pick.title}.`, c => c.pick.id],
+    [c => c.comp, () => "The arena calls! Glory awaits in the ranked halls.", () => ""]
+  ],
+  nerd: [
+    [c => c.pick, c => `Data point: ${c.pick.title} scores highest on On deck right now.`, c => c.pick.id],
+    [c => c.top, c => `Your #1 is ${c.top.title}. Every duel makes that more certain.`, c => c.top.id],
+    [c => c.hours, c => `Queue load: ${c.hours}h. At 2h a night that's ${Math.ceil(c.hours / 2)} evenings.`, () => "games"],
+    [c => c.un && c.played, c => `${Math.round(c.un / c.played * 100)}% of your finished games have no score. That's missing data.`, () => "played"],
+    [c => c.played, c => `Completion rate: ${c.rate}% of your library is finished.`, () => "played"],
+    [c => c.fut, c => `${c.days} day${c.days === 1 ? "" : "s"} to ${c.fut.title}. That's about ${c.days * 24} hours.`, c => c.fut.id],
+    [c => c.avg, c => `Your average score is ${c.avg}/10. ${c.avg >= 8 ? "Statistically, you're generous." : c.avg < 6.5 ? "A tough critic." : "Nicely balanced."}`, () => "played"],
+    [c => c.duels, c => `${c.duels} duels logged. The ranking gets more confident with each one.`, () => "duel"],
+    [c => c.ranked > 2, c => `S-tier ratio: ${c.sT} of ${c.ranked} ranked games (${Math.round(c.sT / c.ranked * 100)}%).`, () => "taste"],
+    [c => c.pick, c => `Optimal pick by my model: ${c.pick.title}. Confidence: moderate.`, c => c.pick.id],
+    [c => c.peak, c => `Your peak gaming hour is ${c.peak}. I've adjusted my nudges.`, () => ""],
+    [c => c.longest && c.lh, c => `Longest game in your queue: ${c.longest.title}, ${c.lh}h.`, c => c.longest.id],
+    [c => c.streak, c => `Streak: ${c.streak} days. Probability of continuing: high.`, () => ""],
+    [c => c.pick && hrsOf(c.pick), c => `At 2h a night, ${c.pick.title} takes about ${Math.ceil(hrsOf(c.pick) / 2)} nights.`, c => c.pick.id],
+    [c => c.un, () => "Sample size matters: score more games and my predictions improve.", () => "played"],
+    [c => c.ranked > 1, () => "Tip: duels between two close games teach me the most.", () => "duel"],
+    [c => c.genre, c => `Most common genre in your queue: ${c.genre}.`, () => "games"],
+    [c => c.live, c => `${c.live} games waiting, ${c.outN} of them already out.`, () => "games"],
+    [() => 1, () => "Running the numbers... yes, you should play something tonight.", () => "pick"],
+    [c => c.late, () => "Studies say sleep improves reaction time. Just saying. 🌙", () => ""],
+    [c => c.comp, () => "Competitive tip: review one loss per session. Highest learning per minute.", () => ""]
+  ]
+};
+/* more everyday lines for every personality (re-voiced like the old ones) */
+function nxMoreLines() {
+  const c = nxPCtx(), L = [];
+  L.push(["Double-tap me for shortcuts and my settings.", ""]);
+  L.push(["Swipe a queue card left if you want to delete it.", "games"]);
+  L.push(["Can't decide? The Shuffler deals your games like cards 🔀", "pick"]);
+  L.push(["Finished something? Mark it played and I'll help you score it.", "played"]);
+  L.push(["Games you rate highly shape what I suggest next.", "taste"]);
+  L.push(["Every score teaches me a little more about you.", "taste"]);
+  L.push(["Every game page has a Similar button. Try it 🔍", ""]);
+  L.push(["Pictures with a 4K badge look amazing on a big screen.", ""]);
+  L.push(["Breaks are good. Your games aren't going anywhere.", ""]);
+  L.push(["Controller charged? Snacks ready? Good.", "pick"]);
+  L.push(["I spot glitches and report them myself now 🐞", ""]);
+  L.push(["The Radar on the Plan tab shows every release coming up 📡", ""]);
+  if (c.dow === 5 || c.dow === 6) L.push(["Weekend plan: one long game session, zero guilt.", "pick"]);
+  if (c.dow === 1) L.push(["Monday. A short session tonight will fix it.", "pick"]);
+  if (c.fut && c.days <= 3) L.push([`${c.fut.title} is almost here. Clear some space in your evening.`, c.fut.id]);
+  if (c.playing && c.pick && c.playing !== c.pick) L.push([`Finish ${c.playing.title} first, or jump to ${c.pick.title}? Your call.`, c.playing.id]);
+  if (c.outN > 2) L.push([`${c.outN} games in your queue are already out. No waiting needed.`, "games"]);
+  if (c.ranked > 3) L.push(["Your top 3 is on Home, right under my face.", ""]);
+  return L;
+}
+{ const _bl6 = pnBubLines; pnBubLines = function () { const L = _bl6.apply(this, arguments) || []; try { nxMoreLines().forEach(x => L.push(x)); } catch (e) {} return L; }; }
+const NX_RAW = "⁣";   /* marks a persona's own line: nxVoice leaves it as written */
+function nxPersonaLine() {
+  const set = NX_PLINES[nxP()] || NX_PLINES.hype, c = nxPCtx();
+  const ok = set.filter(([when]) => { try { return !!when(c); } catch (e) { return false; } });
+  if (!ok.length) return null;
+  /* don't repeat any of the last 6 */
+  const seen = nxPersonaLine.seen || (nxPersonaLine.seen = []);
+  const fresh = ok.filter(x => !seen.includes(set.indexOf(x))), pool = fresh.length ? fresh : ok;
+  const x = pool[Math.floor(Math.random() * pool.length)]; seen.push(set.indexOf(x)); if (seen.length > 6) seen.shift();
+  try { return [NX_RAW + x[1](c), x[2](c) || ""]; } catch (e) { return null; }
+}
+{ const _nv = nxVoice; nxVoice = function (t) { t = String(t || ""); return t.charAt(0) === NX_RAW ? t.slice(1) : _nv.apply(this, arguments); }; }
+{ const _say6 = pnBubSay; pnBubSay = function (line) {
+  if (!line && Math.random() < .6) { const pl = nxPersonaLine(); if (pl) line = pl; }
+  nxPDress();
+  const b = $("#pnbub"); if (b && !document.documentElement.classList.contains("nxtouring")) { b.classList.remove("sig"); void b.offsetWidth; b.classList.add("sig"); clearTimeout(nxPDress.st); nxPDress.st = setTimeout(() => b.classList.remove("sig"), 950); }
+  return _say6.call(this, line); }; }
+nxPDress();
+/* #57: Nexi's glow showed as a square. Peeking from the left gave him the class "pl", which another screen styles
+   with overflow: hidden, and it stayed after the peek. Classes are now pkl/pkr. He now checks that nothing
+   (any class, from anywhere) clips his glow. */
+{ const _bl5 = bugLayout; bugLayout = function () { const o = _bl5.apply(this, arguments);
+  try { const b = $("#pnbub"); if (!b || !bugOn() || document.hidden || !b.getClientRects().length || getComputedStyle(b).display === "none") return o;
+    const cs = getComputedStyle(b);
+    if (cs.overflowX !== "visible" || cs.overflowY !== "visible" || cs.clipPath !== "none" || /paint|strict|content/.test(cs.contain))
+      bugReport("layout", "Nexi's glow is clipped into a square (his box got overflow/clip from a class)", { at: "#pnbub." + b.className.trim().split(/\s+/).join(".") + " overflow " + cs.overflowX + "/" + cs.overflowY + " clip-path " + cs.clipPath + " contain " + cs.contain, screen: bugScreen() });
+  } catch (e) {}
+  return o; }; }
+WHATS_NEW.push(
+  { v: 204, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Each of my personalities is its own character now: its own lines (about your games, the time of day, your streak), its own face and its own moves. The Butler wears a monocle, the Nerd has glasses, the Rival smirks, the Bard sings.",
+    tryIt: "Double-tap me, tap ⚙️ and try a few personalities." },
+  { v: 204, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>Double-tap</b> me now to open my shortcuts, including ⚙️ my settings. No more poking me until I get angry.",
+    tryIt: "Double-tap me." },
+  { v: 204, go: () => { closeFull(); dyClose(); nxShut(); if (typeof goTab === "function") goTab("plan"); }, at: () => $("#fx-radar"),
+    say: "The <b>Radar</b> moved from the Queue to the Plan tab, next to the calendar where the release dates live.",
+    tryIt: "Open Plan and tap 📡 Radar." },
+  { v: 204, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Fixed: my glow turned into a square after I'd peeked from the left edge (I borrowed a style from another screen by accident). I've learned to spot this myself now.",
+    tryIt: "Leave me on the left for a while, then look: still round." }
 );
 </script>
