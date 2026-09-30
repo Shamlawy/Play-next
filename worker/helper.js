@@ -5,13 +5,14 @@
    POST /chat/memory  → rewrites Nexi's short memory of the player after a chat.
    GET  /nudge/key    → the web-push public key (made once and kept in KV).
    POST /nudge        → saves a phone's push subscription + its next few days of nudges.
-   cron (every 15 min) → sends the nudges that are due.
+   cron (every 15 min) → sends the nudges that are due, and tells every phone when a new version of the app is out.
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 2;
+const HELPER_V = 3;
+const APP_PAGE = "https://shamlawy.github.io/Play-next/index.html";
 const MODELS_BIG = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/mistral/mistral-7b-instruct-v0.1"];
 const ALLOW = ["https://shamlawy.github.io", "http://localhost:8765"];
@@ -29,7 +30,7 @@ export default {
     try { return await handle(req, env); }
     catch (e) { return json({ error: String(e && e.message || e) }, 500, cors(req.headers.get("Origin") || "")); }
   },
-  async scheduled(ev, env, ctx) { ctx.waitUntil(sendDue(env)); }
+  async scheduled(ev, env, ctx) { ctx.waitUntil(Promise.all([sendDue(env), checkUpdate(env)])); }
 };
 
 async function ask(env, messages, maxTokens, big) {
@@ -92,7 +93,7 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE }, 200, h);
 
     /* games like one game: the AI names them (it knows games far better than tag searches do);
        the app then checks every name on RAWG and drops anything that isn't a real game */
@@ -149,7 +150,8 @@ ${favs.length ? "The player's favourite games (lean towards these tastes): " + f
       const plan = (Array.isArray(b.plan) ? b.plan : []).slice(0, 30)
         .filter(n => n && +n.at > Date.now() - 36e5 && +n.at < Date.now() + 10 * 864e5)
         .map(n => ({ at: +n.at, title: String(n.title || "Play next").slice(0, 60), body: String(n.body || "").slice(0, 180), tag: String(n.tag || "nudge").slice(0, 20), url: String(n.url || "./").slice(0, 80) }));
-      await env.NUDGE.put("sub:" + id, JSON.stringify({ sub: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } }, plan, t: Date.now() }), { expirationTtl: 30 * 864e5 });
+      /* upd: this phone also wants a ping when a new version of the app is out (on unless it says no) */
+      await env.NUDGE.put("sub:" + id, JSON.stringify({ sub: { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } }, plan, upd: b.upd !== false, t: Date.now() }), { expirationTtl: 60 * 864e5 });
       return json({ ok: true, n: plan.length }, 200, h);
     }
 
@@ -252,15 +254,49 @@ async function sendDue(env) {
     const page = await env.NUDGE.list({ prefix: "sub:", cursor });
     for (const k of page.keys) {
       const rec = await env.NUDGE.get(k.name, "json"); if (!rec) continue;
-      const now = Date.now(), due = rec.plan.filter(n => n.at <= now), later = rec.plan.filter(n => n.at > now);
+      const now = Date.now(), plan = rec.plan || [], due = plan.filter(n => n.at <= now), later = plan.filter(n => n.at > now);
       if (!due.length) continue;
-      const last = due[due.length - 1];              /* missed a few? only send the latest, never a pile */
+      /* missed a few (phone off, cron hiccup)? send at most the two newest that are still fresh, never a pile */
+      const send = due.filter(n => now - n.at < 3 * 36e5).slice(-2);
       let gone = false;
-      if (now - last.at < 3 * 36e5) {
-        try { const r = await webPush(env, rec.sub, last); if (r.status === 404 || r.status === 410) gone = true; } catch (e) {}
+      for (const n of send) {
+        try { const r = await webPush(env, rec.sub, n); if (r.status === 404 || r.status === 410) { gone = true; break; } } catch (e) {}
       }
       if (gone) await env.NUDGE.delete(k.name);
-      else await env.NUDGE.put(k.name, JSON.stringify({ ...rec, plan: later }), { expirationTtl: 30 * 864e5 });
+      else await env.NUDGE.put(k.name, JSON.stringify({ ...rec, plan: later }), { expirationTtl: 60 * 864e5 });
+    }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+}
+
+/* ---- "there's a new version": the cron reads the live app's APP_V; when it changes, every phone hears about it ---- */
+function whatsNew(html, v) {
+  /* the first WHATS_NEW entry for this version (the headline one): its "say" line, tags stripped, first sentence or two */
+  const re = new RegExp("\\{\\s*v:\\s*" + v + "\\b[\\s\\S]*?say:\\s*(\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`)");
+  const m = re.exec(html), last = m && m[1];
+  if (!last) return "";
+  const t = last.slice(1, -1).replace(/\\"/g, '"').replace(/<[^>]+>/g, "").replace(/\$\{[^}]*\}/g, "").replace(/\s+/g, " ").trim();
+  if (t.length <= 170) return t;
+  const cut = t.slice(0, 170), dot = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "));
+  return dot > 60 ? cut.slice(0, dot + 1) : cut.replace(/\s+\S*$/, "") + "…";
+}
+async function checkUpdate(env) {
+  if (!env.NUDGE) return;
+  let html = "";
+  try { const r = await fetch(APP_PAGE + "?t=" + Date.now(), { cf: { cacheTtl: 0 }, headers: { "Cache-Control": "no-cache" } }); if (!r.ok) return; html = await r.text(); }
+  catch (e) { return; }
+  const m = html.match(/const APP_V = "(\d+)"/); if (!m) return;
+  const v = +m[1], seen = +(await env.NUDGE.get("appv") || 0);
+  if (!seen) { await env.NUDGE.put("appv", String(v)); return; }      /* first run: just remember it */
+  if (v <= seen) return;
+  await env.NUDGE.put("appv", String(v));
+  const msg = { title: "✨ Play next v" + v + " is here", body: whatsNew(html, v) || "Open the app and Nexi will show you what's new.", tag: "update", url: "./?nudge=update" };
+  let cursor;
+  do {
+    const page = await env.NUDGE.list({ prefix: "sub:", cursor });
+    for (const k of page.keys) {
+      const rec = await env.NUDGE.get(k.name, "json"); if (!rec || rec.upd === false) continue;
+      try { const r = await webPush(env, rec.sub, msg); if (r.status === 404 || r.status === 410) await env.NUDGE.delete(k.name); } catch (e) {}
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);

@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "190";
+const APP_V = "191";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6142,10 +6142,10 @@ function openSettings(scope) {
       <div class="chips" id="s-persona">
         ${NX_PERSONAS.map(([v, l, e]) => `<button class="chip" data-v="${v}" aria-pressed="${nxP() === v}"><span>${e} ${l}</span></button>`).join("")}
       </div>
-      <label>Nudges</label>
-      <p class="note">Two a day, at slightly different times inside the hours you usually open the app: a close duel, tonight's pick, a tip, a badge you're close to, or a release. Works on Android, and on iPhone once the app is on your Home Screen.</p>
+      <label>Notifications</label>
+      <p class="note">A ping when a new version of the app is out, the evening before and the morning a game in your list releases, and when your monthly recap is ready. Add the 2 a day for a close duel, tonight's pick, a tip or a badge you're close to, at slightly different times inside the hours you usually open the app. Works on Android, and on iPhone once the app is on your Home Screen.</p>
       <div class="chips" id="s-nudge">
-        ${[["off", "Off"], ["on", "2 a day"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.nudgeOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+        ${[["off", "Off"], ["key", "Updates + releases"], ["all", "+ 2 nudges a day"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(!S.nudgeOn ? "off" : S.nudgeMode === "key" ? "key" : "all") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <button class="btn ghost" id="s-nudgetest"><span>Send me a test nudge</span></button>
       <label>Chat memory</label>
@@ -12714,10 +12714,11 @@ function nxNudgeText(kind, n) {
   return null;
 }
 function nxPlan(days) {
-  const out = [], [a, b] = nxWindow(), kinds = ["next", "duel", "tip", "badge", "release"];
+  /* v191: release days and the monthly recap get their own pings (in both modes); the 2-a-day ones only in "all" */
+  const out = [], [a, b] = nxWindow(), kinds = ["next", "duel", "tip", "badge"], daily = (S.nudgeMode || "all") === "all";
   let k = (S.nudgeK || 0);
   const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
-  for (let d = 0; d < (days || 5); d++) {
+  for (let d = 0; daily && d < (days || 5); d++) {
     const base = new Date(); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + d);
     const mid = (a + b) / 2, t1 = rnd(a, Math.max(a + .5, mid - .5)), t2 = rnd(Math.min(b - .5, mid + .5), b);
     [t1, t2].forEach(h => {
@@ -12727,7 +12728,21 @@ function nxPlan(days) {
     });
   }
   S.nudgeK = k % 1000;
-  return out;
+  const soon = Date.now() + 20 * 60000, day0 = new Date(); day0.setHours(0, 0, 0, 0);
+  const at = (dayOff, h) => { const t = new Date(day0); t.setDate(t.getDate() + dayOff); return t.getTime() + h * 36e5; };
+  const push = (t, title, body, tag, url) => { if (t >= soon) out.push({ at: Math.round(t), title, body: nxVoice(body), tag, url }); };
+  /* releases: the evening before and the morning of */
+  S.games.filter(g => g.date && /^\d{4}-\d{2}-\d{2}$/.test(g.date) && !isPlayed(g)).forEach(g => {
+    const dd = Math.round((new Date(g.date + "T00:00:00") - day0) / 864e5);
+    if (dd >= 1 && dd <= (days || 5) + 1) push(at(dd - 1, Math.max(a, Math.min(20, b - 1))), "📅 Out tomorrow", `${g.title} comes out tomorrow. Clear some space in your evening!`, "release", "./?nudge=release&g=" + g.id);
+    if (dd >= 0 && dd <= (days || 5)) push(at(dd, 10), "🎉 Out today", `${g.title} is out today! Party time.`, "release", "./?nudge=release&g=" + g.id);
+  });
+  /* the 1st of the month: last month's recap is ready */
+  for (let d = 0; d <= (days || 5); d++) { const t = new Date(day0); t.setDate(t.getDate() + d); if (t.getDate() !== 1) continue;
+    const pm = new Date(t.getFullYear(), t.getMonth() - 1, 1), mo = pm.toLocaleDateString("en-GB", { month: "long" });
+    push(at(d, 11), "📊 Your " + mo + " recap", `Your ${mo} recap is ready: what you finished, duelled and added.`, "recap",
+      "./?nudge=recap&m=" + pm.getFullYear() + "-" + String(pm.getMonth() + 1).padStart(2, "0")); }
+  return out.sort((x, y) => x.at - y.at).slice(0, 30);
 }
 const b64uToU8 = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 async function nudgeOn(quiet) {
@@ -12741,7 +12756,7 @@ async function nudgeOn(quiet) {
     if (!k.key) throw new Error(k.error || "no key"); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(k.key) }); }
   if (!S.nudgeId) S.nudgeId = frRid(24).replace(/[^A-Za-z0-9_-]/g, "x");
   const plan = nxPlan(5);
-  await nxPost("/nudge", { id: S.nudgeId, sub: sub.toJSON(), plan });
+  await nxPost("/nudge", { id: S.nudgeId, sub: sub.toJSON(), plan, upd: true });
   /* Android can also wake the app by itself now and then: keep a copy the service worker can read */
   try { const c = await caches.open("play-next-nudge"); await c.put("./nudge-plan.json", new Response(JSON.stringify({ plan, shown: [] }))); } catch (e) {}
   try { if (reg.periodicSync) await reg.periodicSync.register("nudge", { minInterval: 6 * 36e5 }); } catch (e) {}
@@ -12758,19 +12773,22 @@ setTimeout(() => { if (S.nudgeOn && Date.now() - (S.nudgeAt || 0) > 4 * 36e5) nu
 document.addEventListener("click", async e => {
   const b = e.target.closest("#s-nudge [data-v]"); if (!b) return;
   e.stopPropagation();
-  const on = b.dataset.v === "on";
+  const on = b.dataset.v !== "off";
   [...b.parentElement.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
-  if (on) { try { const ok = await nudgeOn(false); if (ok) toast(nxVoice("Nudges on: 2 a day, around when you usually play.")); else b.parentElement.children[0].click(); }
+  if (on) S.nudgeMode = b.dataset.v === "key" ? "key" : "all";
+  if (on) { try { const ok = await nudgeOn(false); if (ok) toast(nxVoice(S.nudgeMode === "key" ? "Notifications on: new versions, release days and your monthly recap." : "Notifications on: new versions, release days, your monthly recap, plus 2 nudges a day around when you usually play.")); else b.parentElement.children[0].click(); }
     catch (err) { toast("Couldn't turn nudges on: " + (err.message || err)); S.nudgeOn = false; save(); } }
-  else { await nudgeOff(); toast("Nudges off"); }
+  else { await nudgeOff(); toast("Notifications off"); }
 }, true);
 document.addEventListener("click", async e => { if (!e.target.closest("#s-nudgetest")) return; e.stopPropagation();
-  try { if (!S.nudgeOn) return toast("Turn nudges on first"); await nudgeOn(true); const j = await nxPost("/nudge/test", { id: S.nudgeId }); toast(j.ok ? "Sent! It should pop up in a moment" : "The push service said " + j.status); }
+  try { if (!S.nudgeOn) return toast("Turn notifications on first"); await nudgeOn(true); const j = await nxPost("/nudge/test", { id: S.nudgeId }); toast(j.ok ? "Sent! It should pop up in a moment" : "The push service said " + j.status); }
   catch (err) { toast("Test failed: " + (err.message || err)); } }, true);
 /* opened from a nudge: go where it points */
-{ const q = new URLSearchParams(location.search).get("nudge");
+{ const qp = new URLSearchParams(location.search), q = qp.get("nudge");
   if (q) setTimeout(() => { uCount("o", "nudge"); history.replaceState(null, "", location.pathname);
-    if (q === "duel") { qdToday = 0; qDuel(null); } else if (q === "next") { const g = onDeck(1)[0]; if (g) openFull(g.id); } else if (q === "badge") goTab("played"); }, 1800); }
+    if (q === "duel") { qdToday = 0; qDuel(null); } else if (q === "next") { const g = onDeck(1)[0]; if (g) openFull(g.id); } else if (q === "badge") goTab("played");
+    else if (q === "release") { const g = S.games.find(x => x.id === qp.get("g")); if (g) openFull(g.id); }
+    else if (q === "recap") { const m = String(qp.get("m") || "").match(/^(\d{4})-(\d{2})$/); if (m && typeof openWrapped === "function") openWrapped(+m[1], +m[2] - 1); } }, 1800); }
 
 { const _xf2 = xFeatures; xFeatures = function () { try { simRestore(); } catch (e) {} return _xf2.apply(this, arguments); }; }
 /* Home: Nexi's line in the chosen voice; tapping Nexi opens the chat */
@@ -15405,7 +15423,7 @@ WHATS_NEW.push(
   { v: 185, go: () => { nxShut(); nxChat(); }, at: () => $("#diary .nc-pers"),
     say: "Pick my <b>personality</b>: Hype Buddy, Calm Butler, Chill Coach, Sarcastic Rival, Story Bard or Stats Nerd. Same tips, different voice.",
     tryIt: "Try the Sarcastic Rival. I dare you." },
-  { v: 185, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Nudges" }); }, at: () => $("#s-nudge"),
+  { v: 185, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Notifications" }); }, at: () => $("#s-nudge"),
     say: "Want a nudge? I can send <b>2 a day</b>, at slightly different times inside the hours you usually play: a close duel, tonight's pick, a tip, a badge you're close to, or a release. Always friendly, never guilt.",
     tryIt: "Turn them on here. On iPhone, the app has to be on the Home Screen." },
   { v: 185, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
@@ -15474,8 +15492,9 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 2 ? "✅ Helper is up to date: chat and smart similar games are on." + (j.nudge ? " Nudges are ready too." : " Nudges also need its NUDGE storage and 15-minute schedule.")
-      : "⚠️ The helper on Cloudflare still runs the old code, so chat and smart similar games are off until it's updated.";
+    el.textContent = ok && j.v >= 3 && j.nudge ? "✅ Helper is up to date: chat, smart similar games and notifications (updates, releases, recaps, nudges) are all on."
+      : ok && j.v >= 2 ? "⚠️ The helper on Cloudflare is one version behind: chat and similar games work, but update notifications need the new helper" + (j.nudge ? "." : ", and notifications need its NUDGE storage and 15-minute schedule.")
+      : "⚠️ The helper on Cloudflare still runs old code, so chat, smart similar games and notifications are off until it's updated.";
   }).catch(() => { if ($("#s-helperv")) el.textContent = "Can't reach Nexi's helper right now (offline?)."; });
 }
 { const _os3 = openSettings; openSettings = function () { const o = _os3.apply(this, arguments); if (!openSettings.tplOnly) setTimeout(helperCheck, 50); return o; }; openSettings.tplOnly = false; }
@@ -15645,7 +15664,8 @@ function nxDock(card, target, quick) {
   let x, y;
   if (cl - sz - halo - 14 >= 8) { x = cl - sz - halo; y = ct + 18; }                       /* room on the left: float beside it */
   else if (cl + cw + halo + sz + 14 <= innerWidth - 8) { x = cl + cw + halo; y = ct + 18; } /* or on the right */
-  else { x = cl + 22; y = top ? ct + ch + 14 : ct - sz - 14; }                             /* phone: above or below, clear of it */
+  else { x = cl + cw - sz - 22; y = top ? ct + ch + 14 : ct - sz - 14; }                   /* phone: above or below its right end, clear of it
+                                                                                             (buttons sit on the left, so he doesn't cover what the step asks you to tap) */
   x = Math.max(8, Math.min(innerWidth - sz - 8, x)); y = Math.max(8, Math.min(innerHeight - sz - 8, y));
   if (target && target.isConnected) { const r = target.getBoundingClientRect(), dx = r.left + r.width / 2 - x - 31, dy = r.top + r.height / 2 - y - 31, d = Math.hypot(dx, dy) || 1;
     b.style.setProperty("--ex", (dx / d * 5).toFixed(1) + "px"); b.style.setProperty("--ey", (dy / d * 5).toFixed(1) + "px"); }
@@ -15715,5 +15735,10 @@ WHATS_NEW.push(
   { v: 190, go: () => nxHome(), at: null,
     say: "Better view of me on this card now: I float right beside it (or just above it on the folded screen) instead of hiding half behind it.",
     tryIt: "Fold and unfold the phone and watch me hop to the right spot." }
+);
+WHATS_NEW.push(
+  { v: 191, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Notifications" }); }, at: () => $("#s-nudge"),
+    say: "<b>Notifications</b> got better: I'll ping you when a new version of the app is out, the evening before and the morning a game in your list releases, and when your monthly recap is ready. Want more? Add 2 nudges a day.",
+    tryIt: "Pick Updates + releases (or + 2 nudges a day), then tap Send me a test nudge." }
 );
 </script>
