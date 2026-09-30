@@ -3978,7 +3978,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "207";
+const APP_V = "208";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6352,6 +6352,11 @@ function openSettings(scope) {
       <div class="chips" id="s-bugsay">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.bugSayOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>Nexi reviews the design</label>
+      <p class="note">Once per screen per update, Nexi sends a map of that screen (sizes, positions, colours, never titles) to his helper's AI, which looks for things a designer would fix: misaligned or crowded parts, uneven buttons, tiny text. Confident finds are reported like any other problem.</p>
+      <div class="chips" id="s-review">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.reviewOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
       <button class="btn ghost" data-bugreport=""><span>🐞 Report a problem</span></button>
     </div>
 
@@ -6514,6 +6519,7 @@ function openSettings(scope) {
   pick("#s-gdfig", v => S.gdFig = v === "on");
   pick("#s-bugs", v => S.bugOff = v === "off");
   pick("#s-bugsay", v => S.bugSayOff = v === "off");
+  pick("#s-review", v => S.reviewOff = v === "off");
   pick("#s-pill", v => { S.pill = v === "on"; renderPill(); });
   pick("#s-paper", v => S.paper = v);
   pick("#s-boardon", v => S.boardOff = v === "off", () => renderPlayed());
@@ -9363,7 +9369,7 @@ function renderPlayed() {
         </div>
         <div class="yearbar">${r.months.map((n, mi) =>
           `<button class="${n && n === peak ? "hot" : ""}" data-year-month="${mi}"
-            title="${n} in month ${mi + 1}" style="height:${n ? Math.round(n / peak * 100) : 6}%"></button>`).join("")}</div>
+            title="${n} in month ${mi + 1}" style="--h:${n ? Math.round(n / peak * 100) : 6}%"></button>`).join("")}</div>
         <div class="yearlab">${["J","F","M","A","M","J","J","A","S","O","N","D"].map(m => `<span>${m}</span>`).join("")}</div>
         <div class="yearlist">
           <button class="yr" data-edit="${r.best.id}"><span class="k">Best</span>
@@ -10738,7 +10744,7 @@ function renderHome() {
       ${!on("year") ? "" : tile("full k-year", "Where the year bunches up", `<div class="yearbar">${
         months.map((n, mi) => `<button class="${n && n === peak ? "hot" : ""}" data-home-month="${mi}"
           title="${n} in ${["January","February","March","April","May","June","July","August","September","October","November","December"][mi]}"
-          style="height:${n ? Math.round(n / peak * 100) : 6}%"></button>`).join("")
+          style="--h:${n ? Math.round(n / peak * 100) : 6}%"></button>`).join("")
       }</div><div class="yearlab">${
         ["J","F","M","A","M","J","J","A","S","O","N","D"].map(m => `<span>${m}</span>`).join("")
       }</div>`)}
@@ -13816,7 +13822,8 @@ button,a,.icon{-webkit-tap-highlight-color:transparent}
   gv();setTimeout(gv,1500);
   smooth("closePeek","peek",["openPeek"]);
   smooth("closeEdit","sheet",["openEdit","openSettings","openDiary","openDiaryPicker"]);
-  smooth("closeFull","full",["openFull"]);
+  /* v208 (#68): no smooth() for closeFull: the v200 wrapper already shrinks and fades the page, and the two ran one
+     after the other (this one faded it out, removed its fade so the page snapped back, then the second fade ran). */
 })();
 </script>
 
@@ -15645,7 +15652,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 4 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications and problem reports are all on."
+    el.textContent = ok && j.v >= 5 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports and design reviews are all on."
+      : ok && j.v >= 4 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Nexi's design reviews, which need the new helper."
       : ok && j.v >= 3 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except problem reports, which need the new helper."
       : ok && j.v >= 2 ? "⚠️ The helper on Cloudflare is one version behind: chat and similar games work, but update notifications need the new helper" + (j.nudge ? "." : ", and notifications need its NUDGE storage and 15-minute schedule.")
       : "⚠️ The helper on Cloudflare still runs old code, so chat, smart similar games and notifications are off until it's updated.";
@@ -16159,6 +16167,9 @@ html.still .gd-bg { transition: none; }
 .gd-tags span { padding: 5px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 500; color: var(--ice); background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
 .gd-tags span.acc { background: color-mix(in srgb, var(--accent) 26%, #0a0e1b); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .gd-desc { margin: 14px 0 0; color: #B9C8EA; font-size: 13.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* v208 (#70): the whole description on a tap */
+.gd-desc.open { -webkit-line-clamp: unset; display: block; }
+.gd-rm { margin: 6px 0 0; padding: 4px 0; border: 0; background: none; color: var(--volt); font: 600 13px/1.2 "Poppins", system-ui, sans-serif; cursor: pointer; }
 .hub.gpage .hub-data { display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 8px; margin: 18px 0 0; }
 .hub.gpage .hub-data > div { padding: 12px 10px 11px; border-radius: 18px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); min-width: 0; }
 .hub.gpage .hub-data b { display: block; font: 700 clamp(16px, 4.4vw, 24px)/1.05 "Poppins", system-ui, sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: normal; }
@@ -16215,7 +16226,7 @@ function gdMarkup(g) {
           <div class="gd-tt"><span class="hub-kick">${esc(g.date ? days(g.date) : "No date yet")}</span><h2>${esc(g.title)}</h2></div>
         </div>
         ${tags.length ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}</div>` : ""}
-        ${desc ? `<p class="gd-desc">${esc(desc)}</p>` : ""}
+        ${desc ? `<p class="gd-desc">${esc(desc)}</p>${desc.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}` : ""}
         <div class="hub-data">${hubStats(g).map(([v, l]) => `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="gd-main">${main.map(a => `<button type="button" class="hot" ${a[0]}>${a[1]} ${esc(a[2])}</button>`).join("")}${ed ? `<button type="button" class="${main.length ? "ed" : ""}" ${ed[0]}>✏️ Edit</button>` : ""}</div>
         <div class="gd-more">${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
@@ -16411,7 +16422,7 @@ try {
 /* 4. Nexi's helper failing while you're online */
 { const _np = nxPost; nxPost = async function (path) {
   try { return await _np.apply(this, arguments); }
-  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m)) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
+  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(path === "/review" && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
 }; }
 
 /* 5. you spotted something: a few words, and the app adds the rest */
@@ -16512,6 +16523,15 @@ function bugNice(kind, scr, msg) {
   if (kind === "layout" && /blank/.test(msg)) return `${At} came up blank.`;
   if (kind === "layout" && /blurry/.test(msg)) return `A picture on ${at} stayed blurry.`;
   if (kind === "layout" && /square/.test(msg)) return "My glow turned into a square.";
+  if (kind === "look" && /flickers/.test(msg)) return `Something flickered on ${at}.`;
+  if (kind === "look" && /cut short/.test(msg)) return `Some text on ${at} is cut short with no way to read it all.`;
+  if (kind === "look" && /faint/.test(msg)) return `Some text on ${at} is too faint to read.`;
+  if (kind === "look" && /too small/.test(msg)) return `A button on ${at} is too small for a finger.`;
+  if (kind === "look" && /squashed/.test(msg)) return `A picture on ${at} is squashed out of shape.`;
+  if (kind === "look" && /didn't load/.test(msg)) return `A picture on ${at} didn't load.`;
+  if (kind === "look") return `Something on ${at} doesn't look right.`;
+  if (kind === "stuck") return `You tapped something on ${at} twice and nothing happened.`;
+  if (kind === "review") return `Something on ${at} could look better. ${msg.charAt(0).toUpperCase() + msg.slice(1).replace(/\.?$/, ".")}`;
   if (kind === "layout" && /opened and closed/.test(msg)) return `A menu on ${at} closed as soon as it opened.`;
   if (kind === "layout" && /glow/.test(msg)) return "My glow is getting cut off by the edge of the screen.";
   if (kind === "layout") return /sideways/.test(msg) ? `${At} slides sideways when it shouldn't.` : /rail/.test(msg) ? `A button on ${at} is hiding under my rail.` : `A button on ${at} is sticking off the screen.`;
@@ -16656,6 +16676,9 @@ function lookText(root) {
   }
   return out;
 }
+const lookTilt = (el, root) => { for (let x = el; x && x !== root.parentElement && x !== document.body; x = x.parentElement) {
+  const t = getComputedStyle(x).transform; if (!t || t === "none") continue; const m = /^matrix\(([^)]+)\)/.exec(t); if (!m) return true;
+  const v = m[1].split(",").map(Number); if (Math.abs(v[1]) > .01 || Math.abs(v[2]) > .01) return true; } return false; };
 function bugLook(root, scr) {
   const T = lookText(root); let n = 0;
   /* cut-off text: wider (or taller) than its own box, clipped, and no "…" */
@@ -16681,6 +16704,8 @@ function bugLook(root, scr) {
   for (let i = 0; i < T.length && o < 1; i++) for (let j = i + 1; j < T.length && o < 1; j++) {
     const a = T[i], b = T[j];
     if (a.el.contains(b.el) || b.el.contains(a.el) || a.pin !== b.pin) continue;
+    /* v208: on a tilted card (the Home ticket) the boxes of neighbouring lines overlap though the text doesn't */
+    if (lookTilt(a.el, root) || lookTilt(b.el, root)) continue;
     let best = null;
     for (const ra of a.rs) for (const rb of b.rs) {
       const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
@@ -16691,6 +16716,13 @@ function bugLook(root, scr) {
     /* only if both are actually drawn there (not one hidden behind a card) */
     const hit = document.elementFromPoint(best.x, best.y);
     if (!hit || !(a.el.contains(hit) || b.el.contains(hit) || hit.contains(a.el) || hit.contains(b.el))) continue;
+    /* v208 (#71): a dropdown or card drawn over the other text hides it (an opaque layer in between) — that's covering, not overlapping */
+    { const st = document.elementsFromPoint(best.x, best.y), at = el => st.findIndex(x => el === x || el.contains(x) || x.contains(el));
+      const ia = at(a.el), ib = at(b.el);
+      if (ia >= 0 && ib >= 0) { const lo = Math.max(ia, ib), hi = Math.min(ia, ib);
+        const under = ia > ib ? a.el : b.el;
+        if (st.slice(hi + 1, lo).some(x => !x.contains(under) && (() => { const c = getComputedStyle(x), bg = /rgba?\(([^)]+)\)/.exec(c.backgroundColor);
+          return (c.backgroundImage && c.backgroundImage !== "none") || (bg && (bg[1].split(/[ ,/]+/)[3] == null || +bg[1].split(/[ ,/]+/)[3] >= .85)); })())) continue; } }
     o++; bugReport("layout", "Text overlaps other text", { at: bugPath(a.el) + "  ×  " + bugPath(b.el), screen: scr });
   }
   /* a screen that drew nothing */
@@ -17547,5 +17579,261 @@ WHATS_NEW.push(
   { v: 207, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Fixed: double-tapping me now really opens my wheel on your phone. It did open, but the tap's own click closed it in the same instant. I've learned to spot a menu that closes as soon as it opens.",
     tryIt: "Double-tap me." }
+);
+</script>
+<style>
+/* v208: found by Nexi's new checks on the first sweep: queue rank numbers were drawn in the border colour
+   (1.9:1, hard to read) and the small icon buttons (↺ replay, ↑ ↓) were ~23px, under a thumb's size */
+.row .rank { color: var(--mute); }
+/* the year chart's month bars were the buttons themselves (a quiet month was 22×3px to tap): each button is now the
+   whole column and the bar is drawn inside it */
+.yearbar button { position: relative; height: 100%; background: none !important; border-radius: 0; }
+.yearbar button::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: max(3px, var(--h, 6%)); background: var(--edge); border-radius: 3px 3px 0 0; transition: background .15s ease; }
+.yearbar button.hot::before { background: var(--volt); }
+.yearbar button:active::before { background: var(--ice); }
+.icon { min-width: 32px; min-height: 32px; display: inline-grid; place-items: center; }
+</style>
+<script>
+/* ===== v208: Nexi's new senses. The owner hit 10–15 problems he never saw: a page that flashed back while closing
+   (#68), a description cut short with no way to read it (#70), a double tap that did nothing (#69), soft art…
+   The checks up to v207 only knew crashes, lag, cut text, overlaps and blank screens. Now he also watches:
+   1. flicker: an overlay's opacity dipping and coming back while it opens or closes
+   2. stuck taps: you tap something that looks tappable, nothing on screen changes, and you try again
+   3. text cut short (line clamp / fade) with nothing to tap to read the rest
+   4. text too faint to read (contrast under 3:1 against what's really behind it)
+   5. buttons too small for a finger, 6. squashed pictures, 7. pictures that failed to load
+   Kinds: "look" (design), "stuck" (you tried and it didn't respond). ===== */
+const LOOK_TAP = "button, a[href], [role=button], [data-opg], [data-open], [data-hub], [data-home-open], [data-row], [data-lxopen], [data-edit], [data-tab], [data-sub], [data-view], summary, label";
+const lookOk = () => bugOn() && !document.hidden && !(typeof nxTouring === "function" && nxTouring());
+const lookPlace = () => (typeof bugPlace === "function" ? bugPlace(bugScreen()) : bugScreen());
+
+/* 1. flicker */
+function flickWatch(el, name, opening) {
+  if (!el || calm() || !lookOk()) return;
+  const t0 = performance.now(), s = [];
+  const eff = () => { let o = 1; for (let x = el.firstElementChild || el; x && x !== document.body; x = x.parentElement) {
+    const c = getComputedStyle(x); if (c.display === "none" || c.visibility === "hidden") return 0; o *= +c.opacity; } return o; };
+  const step = () => {
+    if (!el.isConnected || (!opening && !el.childElementCount)) return done();
+    s.push(eff());
+    if (performance.now() - t0 < 750) requestAnimationFrame(step); else done();
+  };
+  const done = () => {
+    /* a dip: down by .4 or more, then back up by .4 or more (and, opening, a peak that falls away again) */
+    let mx = -1, dip = false, mn = 2, peak = false;
+    for (const v of s) { if (v > mx) mx = v; if (mx - v >= .4) { mn = Math.min(mn, v); } if (mn < 2 && v - mn >= .4) dip = true; }
+    if (opening) { let lo = 2, hi = -1; for (const v of s) { lo = Math.min(lo, v); if (v - lo >= .4) hi = Math.max(hi, v); if (hi > 0 && hi - v >= .4) peak = true; } }
+    if (dip || peak) bugReport("look", name + " flickers when it " + (opening ? "opens" : "closes"), { at: "#" + el.id + " opacity " + s.map(v => v.toFixed(1)).join(" "), screen: bugScreen() });
+  };
+  requestAnimationFrame(step);
+}
+[["closeFull", "full", "A game page", 0], ["closeEdit", "sheet", "The sheet", 0], ["closePeek", "peek", "The calendar card", 0], ["dyClose", "diary", "The small sheet", 0],
+ ["openFull", "full", "A game page", 1], ["openEdit", "sheet", "The edit sheet", 1]].forEach(([fn, id, name, op]) => {
+  const f = window[fn]; if (typeof f !== "function") return;
+  window[fn] = function () { const el = document.getElementById(id), was = el && el.classList.contains("on");
+    const o = f.apply(this, arguments);
+    if (op ? el && el.classList.contains("on") && !was : was) flickWatch(el, name, !!op);
+    return o; };
+});
+
+/* 2. stuck taps: nothing on screen changed after a tap on something that looks tappable, and you tried again */
+{ const IGN = "#pnbub, #pnbubmsg, .cdb, #pnfps, #fx, #nxring, #hintbub, #grum, #loadbar, #nxbug";
+  let watch = null; const dead = new Map();
+  const mo = new MutationObserver(ms => { if (!watch) return;
+    for (const m of ms) { const t = m.target.nodeType === 1 ? m.target : m.target.parentElement; if (!t || !t.closest || t.closest(IGN)) continue;
+      /* only changes you could see count as the app answering the tap */
+      if (!t.isConnected || !t.getClientRects().length || (t.checkVisibility && !t.checkVisibility({ visibilityProperty: true }))) { if (m.type !== "childList" || ![...m.removedNodes].some(n => n.nodeType === 1)) continue; }
+      watch.changed = true; mo.disconnect(); return; } });
+  const onScroll = () => { if (watch) watch.changed = true; };
+  const _open = window.open; window.open = function () { if (watch) watch.changed = true; return _open.apply(this, arguments); };
+  let down = null;
+  addEventListener("pointerdown", e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { capture: true, passive: true });
+  addEventListener("pointerup", e => {
+    if (!down || !lookOk() || performance.now() - (typeof LAG !== "undefined" ? LAG.boot : 0) < 8000) return;
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 12 || performance.now() - down.t > 600) return;   /* a drag or a hold, not a tap */
+    const t = e.target && e.target.closest ? e.target : null; if (!t) return;
+    if (t.closest("input, textarea, select, [contenteditable], " + BUG_SKIP + ", " + IGN)) return;
+    let el = t.closest(LOOK_TAP);
+    if (!el) { for (let x = t, i = 0; x && i < 4 && x !== document.body; x = x.parentElement, i++) if (getComputedStyle(x).cursor === "pointer") { el = x; break; } }
+    if (!el || el.disabled || el.getAttribute("aria-disabled") === "true" || el.closest("a[target=_blank], [data-trailer], [download]")) return;
+    if (watch) { mo.disconnect(); removeEventListener("scroll", onScroll, true); }
+    watch = { el, changed: false };
+    mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+    addEventListener("scroll", onScroll, { capture: true, passive: true });
+    const w = watch;
+    setTimeout(() => {
+      if (watch === w) { mo.disconnect(); removeEventListener("scroll", onScroll, true); watch = null; }
+      if (w.changed || !el.isConnected || document.hidden) return;
+      const key = bugPath(el), now = performance.now(), prev = dead.get(key);
+      dead.set(key, now);
+      if (prev && now - prev < 8000) bugReport("stuck", "Tapped something twice and nothing happened", { at: key, screen: bugScreen() });
+    }, 900);
+  }, { capture: true, passive: true });
+}
+
+/* 3–7: design checks, once a screen has settled (runs after bugLook, same idle pass) */
+const lookRGB = s => { const m = /rgba?\(([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[,/ ]+([\d.]+%?))?\)/.exec(s || ""); if (!m) return null;
+  let a = m[4] == null ? 1 : m[4].endsWith("%") ? parseFloat(m[4]) / 100 : +m[4]; return [+m[1], +m[2], +m[3], a]; };
+const lookLum = ([r, g, b]) => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+const lookMix = (top, a, bot) => [0, 1, 2].map(i => top[i] * a + bot[i] * (1 - a));
+/* what's really behind a piece of text: its ancestors' background colours composited, or null when a picture/gradient is involved */
+/* #70: Read more / Read less on a game page's description */
+document.addEventListener("click", e => { const b = e.target.closest("[data-descmore]"); if (!b) return;
+  const d = b.previousElementSibling; if (!d || !d.classList.contains("gd-desc")) return;
+  const open = d.classList.toggle("open"); b.textContent = open ? "Read less" : "Read more"; b.setAttribute("aria-expanded", String(open)); beep("tap"); });
+/* bugLook and lookDesign run back to back on the same screen: they share one list of the text that's drawn */
+{ const _lt = lookText; let memo = null;
+  lookText = function (root) { const now = performance.now(); if (memo && memo.root === root && now - memo.t < 400) return memo.T;
+    const T = _lt.apply(this, arguments); memo = { root, t: now, T }; return T; }; }
+/* one pass asks each element for its style once (the contrast check walks the same cards for every piece of text) */
+let LOOK_CS = null;
+const lookCS = a => { if (!LOOK_CS) return getComputedStyle(a); let c = LOOK_CS.get(a); if (!c) { c = getComputedStyle(a); LOOK_CS.set(a, c); } return c; };
+function lookBehind(el) {
+  const layers = []; let host = null;
+  for (let a = el; a; a = a.parentElement) {
+    const c = lookCS(a);
+    if (c.backgroundImage && c.backgroundImage !== "none") return null;
+    if (c.backdropFilter && c.backdropFilter !== "none") return null;
+    const bg = lookRGB(c.backgroundColor); if (bg && bg[3] > 0) { layers.push(bg); if (bg[3] >= .99) { host = a; break; } }
+    if (a === document.documentElement) { layers.push([0, 0, 0, 1]); host = a; break; }
+  }
+  let col = layers.pop().slice(0, 3); while (layers.length) { const l = layers.pop(); col = lookMix(l, l[3], col); }
+  return { col, host };
+}
+function lookDesign(root, scr) { LOOK_CS = new Map(); try { lookDesign2(root, scr); } finally { LOOK_CS = null; } }
+function lookDesign2(root, scr) {
+  const H = innerHeight, W = innerWidth, onScreen = r => r.width > 2 && r.height > 2 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W;
+  const T = lookText(root); let nClamp = 0, nFaint = 0;
+  for (const { el, r, cs } of T) {
+    /* 3. cut short with no way to read the rest */
+    if (nClamp < 1 && el.textContent.trim().length >= 60 && cs.display !== "inline") {
+      const clamped = (cs.webkitLineClamp && cs.webkitLineClamp !== "none") || (cs.overflowY !== "visible" && !/auto|scroll/.test(cs.overflowY));
+      if (clamped && el.scrollHeight > el.clientHeight + 14 && !el.closest(LOOK_TAP)) {
+        /* a way to read the rest: a control inside it, or right after it, that says more/expand/read/show (any Score or Duel button nearby doesn't count) */
+        const isMore = x => x && x.matches && (x.matches("summary, [aria-expanded], [data-more]") || (x.matches("button, a, [role=button]") && /more|less|expand|read|show|full|…|\.\.\.|›|⌄|▾/i.test(x.textContent + (x.getAttribute("aria-label") || ""))));
+        const more = [...el.querySelectorAll("button, a, summary, [aria-expanded], [data-more], [role=button]")].some(isMore) || isMore(el.nextElementSibling) || isMore(el.nextElementSibling && el.nextElementSibling.nextElementSibling) || el.closest("details:not([open])");
+        if (!more) { nClamp++; bugReport("look", "Text is cut short with no way to read the rest", { at: bugPath(el) + " shows " + el.clientHeight + " of " + el.scrollHeight + "px", screen: scr }); }
+      }
+    }
+    /* 4. too faint to read */
+    if (nFaint < 1) {
+      const fg = lookRGB(cs.color); if (!fg) continue;
+      let op = fg[3]; for (let a = el; a && a !== document.body; a = a.parentElement) op *= +lookCS(a).opacity;
+      if (op < .15) continue;                      /* hidden on purpose, not faint */
+      const bh = lookBehind(el); if (!bh) continue; const bg = bh.col;
+      const f = lookMix(fg, op, bg), L1 = lookLum(f), L2 = lookLum(bg), ratio = (Math.max(L1, L2) + .05) / (Math.min(L1, L2) + .05);
+      const px = parseFloat(cs.fontSize) || 14, big = px >= 24 || (px >= 18.5 && +cs.fontWeight >= 700);
+      if (ratio < (big ? 2.2 : 3)) {
+        /* is a picture really behind it? then the colour chain above isn't what you see */
+        const mid = r.left + r.width / 2, y = r.top + r.height / 2, stack = document.elementsFromPoint(mid, y);
+        /* anything else drawn under it inside the same card (a picture, a progress fill, a badge) changes what it sits on: can't judge, skip */
+        const i = stack.indexOf(el), pic = i < 0 || stack.slice(i + 1).some(x => bh.host.contains(x) && x !== bh.host && !x.contains(el)
+          && (x.tagName === "IMG" || x.tagName === "CANVAS" || x.tagName === "VIDEO" || (lookCS(x).backgroundImage || "none") !== "none"
+            || ((lookRGB(lookCS(x).backgroundColor) || [0, 0, 0, 0])[3] > .1)));
+        if (!pic) { nFaint++; bugReport("look", "Some text is too faint to read", { at: bugPath(el) + " contrast " + ratio.toFixed(1) + ":1, " + Math.round(px) + "px", screen: scr }); }
+      }
+    }
+  }
+  /* 5. too small to tap (both sides under 24px, and not inside something bigger you can tap) */
+  for (const el of root.querySelectorAll(LOOK_TAP)) {
+    if (el.closest(LOOK_SKIP) || (el.parentElement && el.parentElement.closest(LOOK_TAP))) continue;
+    const r = el.getBoundingClientRect(); if (!onScreen(r) || r.width >= 24 || r.height >= 24) continue;
+    const cs = getComputedStyle(el); if (cs.display === "inline" || cs.visibility === "hidden" || +cs.opacity < .5) continue;
+    if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+    if (!bugVisible(el, r, root)) continue;
+    bugReport("look", "A button is too small to tap comfortably", { at: bugPath(el) + " " + Math.round(r.width) + "×" + Math.round(r.height), screen: scr }); break;
+  }
+  /* 6. squashed pictures, 7. pictures that didn't load */
+  let nSq = 0, nBr = 0;
+  for (const im of root.querySelectorAll("img")) {
+    if (im.closest(LOOK_SKIP)) continue;
+    const r = im.getBoundingClientRect(); if (!onScreen(r) || r.width * r.height < 1500) continue;
+    const cs = getComputedStyle(im); if (cs.visibility === "hidden" || +cs.opacity < .3) continue;
+    if (!bugVisible(im, r, root)) continue;
+    if (nSq < 1 && im.complete && im.naturalWidth && cs.objectFit === "fill") {
+      const nat = im.naturalWidth / im.naturalHeight, got = r.width / r.height;
+      if (Math.abs(got / nat - 1) > .15) { nSq++; bugReport("look", "A picture is squashed out of shape", { at: bugPath(im) + " " + im.naturalWidth + "×" + im.naturalHeight + " shown " + Math.round(r.width) + "×" + Math.round(r.height), screen: scr }); }
+    }
+    const src = im.getAttribute("src") || "";
+    if (nBr < 1 && navigator.onLine && src && !/^data:|^blob:/.test(src) && im.complete && !im.naturalWidth && im._rt) {
+      nBr++; bugReport("look", "A picture didn't load", { at: bugPath(im), screen: scr });
+    }
+  }
+}
+{ let lastIn = 0; ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { lastIn = performance.now(); }, { capture: true, passive: true }));
+  const _bl6 = bugLayout; bugLayout = function () { const o = _bl6.apply(this, arguments);
+  if (!lookOk() || performance.now() - lastIn < 1200) return o;
+  const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+  if (root) try { lookDesign(root, bugScreen()); } catch (e) {}
+  return o; }; }
+
+/* 8. Nexi's design eye: taste problems the rules above can't judge. Once per screen per app version (max 4 a day),
+   a compact map of what's on screen goes to the helper's AI (POST /review); findings it's confident about (≥ .75),
+   naming elements that really exist, are filed as kind "review" ("Design review" issues). */
+const lookHex = c => "#" + c.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+function lookMap(root) { LOOK_CS = new Map(); try { return lookMap2(root); } finally { LOOK_CS = null; } }
+function lookMap2(root) {
+  const H = innerHeight, W = innerWidth, items = [], els = [];
+  for (const el of root.querySelectorAll("*")) {
+    if (items.length >= 80) break;
+    if (el.closest(LOOK_SKIP)) continue;
+    const isImg = el.tagName === "IMG", tap = el.matches(LOOK_TAP);
+    if (tap && el.parentElement && el.parentElement.closest(LOOK_TAP)) continue;
+    let t = ""; for (const c of el.childNodes) if (c.nodeType === 3) t += c.textContent; t = t.trim().replace(/\s+/g, " ");
+    if (!isImg && !tap && !t) continue;
+    if (!tap && !isImg && el.closest(LOOK_TAP)) continue;                    /* a button's own label: the button line covers it */
+    const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
+    if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+    const cs = getComputedStyle(el);
+    const kind = isImg ? "picture" : tap ? "button" : /^H\d$/.test(el.tagName) ? "heading" : "text";
+    const txt = bugScrub(t || (tap ? el.textContent.trim().replace(/\s+/g, " ") : "")).slice(0, 40);
+    let col = "";
+    if (!isImg) { const fg = lookRGB(cs.color), bh = lookBehind(el);
+      if (fg && bh) { const f = lookMix(fg, fg[3], bh.col), L1 = lookLum(f), L2 = lookLum(bh.col); col = lookHex(f) + " on " + lookHex(bh.col) + " (" + ((Math.max(L1, L2) + .05) / (Math.min(L1, L2) + .05)).toFixed(1) + ":1)"; }
+      else if (fg) col = lookHex(fg) + " on a picture"; }
+    els.push(el);
+    items.push(["e" + (items.length), kind, [r.left, r.top, r.width, r.height].map(Math.round).join(","), isImg ? "" : Math.round(parseFloat(cs.fontSize)) + "px/" + cs.fontWeight,
+      col, cs.borderRadius === "0px" ? "" : "r" + cs.borderRadius, txt].join(" | "));
+  }
+  return { items, els };
+}
+async function lookReview(root, scr) {
+  if (S.reviewOff || !navigator.onLine || !bugOn()) return;
+  const done = (S.revDone ||= {}), day = new Date().toLocaleDateString("en-CA");
+  if (done[scr] === APP_V) return;
+  if (S.revDay !== day) { S.revDay = day; S.revN = 0; }
+  if ((S.revN || 0) >= 4) return;
+  const { items, els } = lookMap(root); if (items.length < 5) return;
+  done[scr] = APP_V; S.revN = (S.revN || 0) + 1; save();
+  let j; try { j = await nxPost("/review", { screen: scr, w: innerWidth, h: innerHeight, items }); } catch (e) { return; }
+  (j.issues || []).filter(x => x.confidence >= .75).slice(0, 2).forEach(x => {
+    const ids = (x.ids || []).filter(i => /^e\d+$/.test(i) && els[+i.slice(1)] && els[+i.slice(1)].isConnected); if (!ids.length) return;
+    bugReport("review", x.problem, { at: ids.map(i => bugPath(els[+i.slice(1)])).join("  ×  ").slice(0, 400), screen: scr,
+      stack: "Suggested fix: " + x.fix + "\nConfidence " + x.confidence + "\nWhat the AI saw:\n" + ids.map(i => items[+i.slice(1)]).join("\n") });
+  });
+}
+{ const _bl7 = bugLayout; bugLayout = function () { const o = _bl7.apply(this, arguments);
+  if (!lookOk()) return o;
+  const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+  /* only after the screen has been on for 3s untouched, so it reviews what you actually look at */
+  const scr = bugScreen(); clearTimeout(BUG.rvT);
+  if (root) BUG.rvT = setTimeout(() => { if (bugScreen() === scr && lookOk()) lookReview(root, scr).catch(() => {}); }, 3000);
+  return o; }; }
+WHATS_NEW.push(
+  { v: 208, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "I got a lot sharper at spotting problems myself: things that flicker, text cut short with no way to read it, text too faint to read, buttons too small for a finger, squashed or broken pictures, and taps that do nothing when you try twice. And once per screen per update I ask my AI for a designer's opinion.",
+    tryIt: "Just use the app. When I spot something I'll tell you and report it." },
+  { v: 208, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .row .rank"),
+    say: "My first look found three things and they're fixed: the rank numbers on queue rows were too faint to read, the small ↺ ↑ ↓ buttons were too small for a thumb, and the month bars in your year chart were only 3 pixels tall to tap.",
+    tryIt: "Try the ↑ ↓ buttons in manual order." },
+  { v: 208, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .shx-fan"),
+    say: "Fixed: opening a game from these covers and going back made the page flash back for a moment (two closing effects ran one after the other). I've learned to spot flicker myself now.",
+    tryIt: "Tap a cover here, then Back." },
+  { v: 208, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.filter(x => (x.desc || "").length > 170)[0] || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-rm") || $("#full .gd-desc"),
+    say: "Fixed: long descriptions on a game page now have <b>Read more</b>, so you can read the whole thing. I've learned to spot text that's cut short with no way to read it.",
+    tryIt: "Tap Read more under a long description." },
+  { v: 208, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "This build", text: "Nexi reviews the design" }); }, at: () => $("#s-review"),
+    say: "My design reviews can be switched off here. They only send a map of sizes, positions and colours, never your game titles.",
+    tryIt: "Leave it on: it's how I learn taste." }
 );
 </script>
