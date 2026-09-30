@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "193";
+const APP_V = "194";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8287,7 +8287,7 @@ function renderCal() {
       : "";
     cells.push(`<span class="cwrap${gs.length ? " has" : ""}${isToday ? " today" : ""}${past ? " past" : ""}"
       ${gs.length ? `data-day="${d}" role="button" tabindex="0" aria-label="${esc(gs.map(g => g.title).join(", "))}"` : ""}
-      >${seg ? `<i class="cring" style="background:conic-gradient(from -90deg, ${seg})"></i>` : ""}
+      >${gs.length ? `<i class="ccov" style="background-image:url('${esc(cssUrl(cover(gs[0])))}')"></i>` : ""}${seg ? `<i class="cring" style="background:conic-gradient(from -90deg, ${seg})"></i>` : ""}
       <span class="cday">${d}</span></span>`);
   }
   const monthGames = Object.keys(byDay).sort((a, b) => a - b)
@@ -8323,7 +8323,7 @@ function renderCal() {
             return `<span class="cr-day">${left > 0 ? left : 0}<em>${
               left > 0 ? (left === 1 ? "day" : "days") : "out"}</em></span>`;
           })()}
-        </button>`).join("")}</div>` : '<p class="empty">Nothing lands this month.</p>'}`}
+        </button>`).join("")}</div>` : (typeof calNextCard === "function" && calNextCard()) || '<p class="empty">Nothing lands this month.</p>'}`}
     ${(planning || timing) ? "" : undated.length ? `<div class="undated"><label>No date yet</label>
       ${undated.map(g => `<div class="row slab" style="--accent:${esc(g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
         <img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt=""><span class="name">${esc(g.title)}</span>
@@ -15807,5 +15807,180 @@ WHATS_NEW.push(
   { v: 193, go: () => { dyClose(); nxShut(); setJump({ scope: "app", group: "Nexi", text: "Notifications" }); }, at: () => $("#s-nudge"),
     say: "Every update now reaches you: each new version gets its own notification, and they no longer replace each other or count toward the 4-a-day limit.",
     tryIt: "Keep New versions on (All, or Pick with ✨ switched on)." }
+);
+</script>
+<style>
+/* ===== v194 "Sicker everywhere": Home's look on every screen (Clean style only) =====
+   Each screen's header is a card like Home's: a big title, live numbers and a fanned hand of that
+   screen's covers with a glow in the first game's colour. Static; the covers deal in once (transform/opacity)
+   when they change. */
+html.ui2 .tabbar.shx {
+  --shc: var(--volt);
+  position: relative; isolation: isolate; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t c" "s s";
+  align-items: start; gap: 4px 10px; min-height: 138px; padding: 16px 16px 16px; margin: 0 0 16px;
+  border-radius: 26px; border: 1px solid rgba(255,255,255,.05);
+  background: linear-gradient(120deg, var(--u-pan) 38%, color-mix(in srgb, var(--shc) 16%, var(--u-pan)));
+  box-shadow: 0 26px 50px -30px rgba(0,0,0,.95);
+}
+html.ui2 .tabbar.shx h3 { grid-area: t; position: relative; z-index: 2; font-size: 28px; }
+html.ui2 .tabbar.shx > .chip { grid-area: c; margin: 0; position: relative; z-index: 3; background: rgba(4,6,14,.74); }
+html.ui2 .tabbar.shx .tcount { display: none; }
+.shx-glow { position: absolute; z-index: 0; right: -18%; top: -55%; width: 78%; aspect-ratio: 1; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--shc) 42%, transparent), transparent 66%); }
+.shx-st { grid-area: s; align-self: end; position: relative; z-index: 2; display: flex; gap: 14px; margin-top: 16px; max-width: calc(100% - var(--fw) - 6px); }
+.shx-st > div { min-width: 0; }
+.shx-st b { display: block; font: 700 23px/1 "Poppins", system-ui, sans-serif; letter-spacing: -.02em; color: var(--ice); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.shx-st b em { font-style: normal; font-size: .56em; font-weight: 600; margin-left: 1px; color: var(--mute); }
+.shx-st > div:first-child b { color: var(--volt); text-shadow: 0 6px 24px rgba(var(--vrgb), .38); }
+.shx-st small { display: block; margin-top: 5px; font-size: 11px; line-height: 1.2; color: var(--mute); font-weight: 500; }
+html.ui2 .tabbar.shx { --fw: 124px; --cw: 60px; }
+.shx-fan { position: absolute; z-index: 1; right: 12px; bottom: -16px; width: var(--fw); height: 100px; pointer-events: none; }
+.shx-fan button { position: absolute; bottom: 0; left: calc((100% - var(--cw)) * var(--k) / 3); width: var(--cw); aspect-ratio: 3 / 4; padding: 0; border: 0; border-radius: 12px;
+  overflow: hidden; background: #1b2445; cursor: pointer; pointer-events: auto;
+  box-shadow: 0 12px 24px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.09);
+  transform: translateY(var(--y)) rotate(var(--r)); transform-origin: 50% 110%; transition: transform .25s var(--ease); }
+.shx-fan button:active { transform: translateY(calc(var(--y) - 8px)) rotate(var(--r)) scale(.96); }
+.shx-fan img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@keyframes shxDeal { from { opacity: 0; transform: translate(40px, 50px) rotate(calc(var(--r) + 16deg)); } }
+.shx-fan.deal button { animation: shxDeal .55s var(--ease) backwards; animation-delay: calc(var(--i) * 70ms); }
+html.still .shx-fan.deal button { animation: none; }
+@media (prefers-reduced-motion: reduce) { .shx-fan.deal button { animation: none; } }
+@media (min-width: 620px) {
+  html.ui2 .tabbar.shx { min-height: 172px; padding: 22px 24px 20px; }
+  html.ui2 .tabbar.shx h3 { font-size: 34px; }
+  html.ui2 .tabbar.shx { --fw: 250px; --cw: 90px; }
+  .shx-st { gap: 28px; max-width: calc(100% - var(--fw) - 170px); }
+  .shx-st b { font-size: 32px; }
+  .shx-st small { font-size: 12px; }
+  .shx-fan { right: 150px; height: 150px; bottom: -22px; }
+  .shx-fan button { border-radius: 14px; }
+}
+@media (min-width: 620px) and (max-width: 759px) { .shx-fan { right: 24px; } .shx-st { max-width: calc(100% - var(--fw) - 30px); } }
+/* a phone holds three covers; the fourth joins on wider screens */
+@media (max-width: 619px) { .shx-fan button[style*="--k:0;"] { display: none; } .shx-fan button { left: calc((100% - var(--cw)) * (var(--k) - 1) / 2); } }
+
+/* calendar: a release day shows the game's cover inside its ring */
+.ccov { display: none; }
+html.ui2 .ccov { display: block; position: absolute; inset: 4px; border-radius: 50%; background: #1b2445 center / cover no-repeat;
+  box-shadow: inset 0 0 0 100px rgba(4,6,14,.22); }
+html.ui2 .cwrap.has .cday { color: #fff; font-weight: 800; text-shadow: 0 0 4px #000, 0 1px 8px rgba(0,0,0,.95); }
+html.ui2 .cwrap.has { filter: none; }
+/* an empty month points at the next release */
+.cnext { display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 6px; padding: 12px 14px; border: 1px solid var(--u-line, rgba(234,242,255,.08));
+  border-radius: 22px; color: var(--ice); text-align: left; cursor: pointer; font-family: inherit;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--accent, var(--volt)) 22%, #0a0e1b), #0a0e1b 70%); }
+.cnext img { width: 54px; aspect-ratio: 3 / 4; height: auto; object-fit: cover; border-radius: 12px; flex: none; box-shadow: 0 10px 20px rgba(0,0,0,.5); transform: rotate(-4deg); }
+.cnext span { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.cnext small { color: var(--mute); font-size: 11.5px; }
+.cnext b { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cnext em { font-style: normal; font-size: 12.5px; color: var(--volt); font-weight: 600; }
+.cnext i { font-style: normal; font-size: 20px; color: var(--mute); }
+.cnext:active { transform: scale(.98); }
+
+/* game page: the numbers become tiles, the actions a tighter set of pills with the main ones filled */
+html.ui2 .hub-foot { gap: 10px; }
+html.ui2 .hub-data { display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 8px; flex: 1 1 100%; }
+html.ui2 .hub-data > div { padding: 10px 9px 9px; border-radius: 16px; background: rgba(8,11,24,.74); border: 1px solid rgba(255,255,255,.08); }
+html.ui2 .hub-data b { font-family: "Poppins", system-ui, sans-serif; font-size: clamp(15px, 4.2vw, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.ui2 .hub-data span { text-transform: none; letter-spacing: 0; font-size: 10.5px; font-weight: 500; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.ui2 .hub-acts { gap: 6px; flex: 1 1 100%; }
+html.ui2 .hub-acts .chip { padding: 7px 12px; font-size: 12.5px; background: rgba(8,11,24,.74); }
+html.ui2 .hub-acts .chip.hot { background: var(--volt); color: var(--void); border-color: transparent; font-weight: 600; box-shadow: 0 8px 20px -10px rgba(var(--vrgb), .8); }
+@media (min-width: 760px) {
+  html.ui2 .hub-data { flex: 0 1 520px; }
+  html.ui2 .hub-acts { flex: 1 1 320px; }
+}
+</style>
+<script>
+/* ===== v194: every screen's header is a card like Home's ===== */
+const SHX_PANELS = [["p-queue", "queue"], ["p-lib", "lib"], ["p-played", "played"], ["p-replay", "replay"], ["p-cal", "plan"], ["p-taste", "taste"], ["p-add", "add"]];
+function shxData(kind) {
+  const day0 = new Date(new Date().toDateString()), waiting = S.games.filter(g => !isPlayed(g) && !isDropped(g));
+  const recent = () => S.games.slice().sort((a, b) => String(b.added || "").localeCompare(String(a.added || ""))).slice(0, 4);
+  const ranked = () => { const r = rankedGames(); return r.length ? r : S.played.map(p => S.games.find(g => g.id === p.id)).filter(Boolean); };
+  const t = kind === "played" || kind === "taste" ? rankTable() : null;
+  const sTier = t ? Object.values(t.sc).filter(v => v >= 9).length : 0;
+  if (kind === "queue") {
+    const hrs = Math.round(waiting.reduce((a, g) => a + hrsOf(g), 0));
+    return { c: onDeck(4), st: [[waiting.length, "waiting"], [hrs + "<em>h</em>", "to beat"], [waiting.filter(g => !isUpcoming(g)).length, "out now"]] };
+  }
+  if (kind === "lib") return { c: recent(), st: [[S.games.length, "games"], [S.played.length, "played"], [S.games.filter(g => !isPlayed(g) && isUpcoming(g)).length, "coming"]] };
+  if (kind === "played") {
+    const sc = S.played.filter(scored).map(p => p.real), avg = sc.length ? (sc.reduce((a, b) => a + b, 0) / sc.length).toFixed(1) : "–";
+    return { c: ranked().slice(0, 4), st: [[S.played.length, "finished"], [sTier, "S-tier"], [avg, "average score"]] };
+  }
+  if (kind === "replay") {
+    const again = S.played.filter(p => p.again).map(p => S.games.find(g => g.id === p.id)).filter(Boolean);
+    return { c: (again.length ? again : ranked()).slice(0, 4), st: [[again.length, "to replay"], [S.played.length, "finished"]] };
+  }
+  if (kind === "plan") {
+    const next = S.games.filter(g => g.date && !isPlayed(g) && new Date(g.date + "T00:00:00") >= day0).sort((a, b) => a.date.localeCompare(b.date));
+    const dd = next[0] ? Math.round((new Date(next[0].date + "T00:00:00") - day0) / 864e5) : null;
+    return { c: next.slice(0, 4), st: [[dd == null ? "–" : dd === 0 ? "Today" : dd + "<em>d</em>", next[0] ? "to " + next[0].title : "nothing dated"],
+      [next.filter(g => new Date(g.date + "T00:00:00") - day0 < 31 * 864e5).length, "in 30 days"]] };
+  }
+  if (kind === "taste") return { c: ranked().slice(0, 4), st: [[t.order.length, "ranked"], [S.duels.length, "duels"], [sTier, "S-tier"]] };
+  const ym = new Date().toLocaleDateString("en-CA").slice(0, 7);
+  return { c: recent(), st: [[S.games.length, "in your library"], [S.games.filter(g => String(g.added || "").startsWith(ym)).length, "added this month"]] };
+}
+const SHX_SEEN = {};
+function shxDress(el, kind) {
+  const bar = el && el.querySelector(".tabbar");
+  if (!bar || !document.documentElement.classList.contains("ui2")) return;
+  let d; try { d = shxData(kind); } catch (e) { return; }
+  const cv = d.c.filter(Boolean).slice(0, 4), sig = cv.map(g => g.id + ":" + (g.img || "")).join("|");
+  const st = d.st.map(([v, l]) => `<div><b>${v}</b><small>${esc(l)}</small></div>`).join("");
+  const key = st + "#" + sig;
+  if (bar._shx === key && bar.querySelector(".shx-st")) return;
+  bar._shx = key;
+  bar.classList.add("shx");
+  bar.style.setProperty("--shc", HEX.test((cv[0] || {}).colour || "") ? cv[0].colour : "var(--volt)");
+  bar.querySelectorAll(".shx-glow, .shx-fan, .shx-st").forEach(x => x.remove());
+  /* the first (most relevant) cover sits in front, on the right; the others fan out behind it */
+  const n = cv.length, POS = [[3, 14, 10], [2, 4, 1], [1, -6, 4], [0, -15, 14]];
+  const fan = cv.map((g, i) => { const [k, r, y] = POS[i]; return `<button type="button" data-opg="${g.id}" aria-label="${esc(g.title)}" style="--k:${k};--r:${r}deg;--y:${y}px;--i:${n - 1 - i};z-index:${9 - i}"><img src="${esc(cover(g))}" alt="" decoding="async" loading="lazy"></button>`; }).join("");
+  const deal = SHX_SEEN[kind] !== sig; SHX_SEEN[kind] = sig;
+  bar.insertAdjacentHTML("afterbegin", `<i class="shx-glow" aria-hidden="true"></i>${n ? `<div class="shx-fan${deal ? " deal" : ""}">${fan}</div>` : ""}`);
+  bar.insertAdjacentHTML("beforeend", `<div class="shx-st">${st}</div>`);
+}
+function shxAll() { SHX_PANELS.forEach(([id, k]) => shxDress(document.getElementById(id), k)); }
+/* dress each screen after it draws */
+[["renderQueue", "p-queue", "queue"], ["renderLib", "p-lib", "lib"], ["renderPlayed", "p-played", "played"], ["renderReplay", "p-replay", "replay"],
+ ["renderCal", "p-cal", "plan"], ["renderTaste", "p-taste", "taste"]].forEach(([fn, id, k]) => {
+  const f = window[fn]; if (typeof f !== "function") return;
+  window[fn] = function () { const o = f.apply(this, arguments); shxDress(document.getElementById(id), k); return o; };
+});
+/* Add has a fixed header: refresh its numbers whenever Home redraws (a game was added, removed…) */
+{ const _rh4 = renderHome; renderHome = function () { const o = _rh4.apply(this, arguments); shxDress($("#p-add"), "add"); return o; }; }
+/* Clean ⇄ Arcade: the card only exists in Clean */
+{ const _al4 = applyLook; applyLook = function () { const o = _al4.apply(this, arguments);
+  if (!document.documentElement.classList.contains("ui2")) document.querySelectorAll(".tabbar.shx").forEach(b => { b.classList.remove("shx"); b._shx = null; b.querySelectorAll(".shx-glow, .shx-fan, .shx-st").forEach(x => x.remove()); });
+  else if (typeof shxAll === "function") shxAll();
+  return o; }; }
+/* an empty month points at the next release */
+function calNextCard() {
+  const end = new Date(calY, calM + 1, 1), day0 = new Date(new Date().toDateString());
+  const g = S.games.filter(x => x.date && !isPlayed(x) && new Date(x.date + "T00:00:00") >= Math.max(end, day0)).sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (!g) return "";
+  const dd = Math.round((new Date(g.date + "T00:00:00") - day0) / 864e5);
+  return `<button type="button" class="cnext" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}"><img src="${esc(cover(g))}" alt="" decoding="async">
+    <span><small>Nothing lands this month · next up</small><b>${esc(g.title)}</b><em>${dd === 0 ? "Out today" : "In " + dd + " day" + (dd === 1 ? "" : "s")} · ${esc(shortDate(g.date))}</em></span><i aria-hidden="true">›</i></button>`;
+}
+renderCal();
+shxAll();
+WHATS_NEW.push(
+  { v: 194, go: () => { dyClose(); nxShut(); nxQueue(); }, at: ".panel.on .tabbar",
+    say: "Every screen got Home's look: a big header card with your live numbers and a fanned hand of that screen's covers, glowing in the first game's colour.",
+    tryIt: "Tap a cover in the fan to open that game." },
+  { v: 194, go: () => { nxShut(); goTab("plan"); goSub("plan", "month");
+      /* jump to the month of the next release so its cover is on show */
+      const day0 = new Date(new Date().toDateString()), g = S.games.filter(x => x.date && !isPlayed(x) && new Date(x.date + "T00:00:00") >= day0).sort((a, b) => a.date.localeCompare(b.date))[0];
+      if (g) { const d = new Date(g.date + "T00:00:00"); calY = d.getFullYear(); calM = d.getMonth(); renderCal(); } }, at: ".panel.on .cgrid",
+    say: "The calendar shows each release's cover right inside its day ring, and an empty month now points you at the next release.",
+    tryIt: "Flip to a month with a release." },
+  { v: 194, go: () => { const g = onDeck(1)[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full .hub-data",
+    say: "Game pages got cleaner: the numbers sit in tiles and the main actions (Score, Duel) are filled buttons.",
+    tryIt: "Open any game." }
 );
 </script>
