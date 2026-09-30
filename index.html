@@ -448,6 +448,15 @@
   /* checkerboard so you can tell which pictures are truly see-through */
   .sgpick { background: repeating-conic-gradient(#1a2a55 0 25%, #101c40 0 50%) 0 0 / 14px 14px; }
   .sgpick:active { transform: translateY(1px); }
+  /* each picture's real size, so you can pick the sharp ones */
+  .sgpick { position: relative; }
+  .pq { display: inline-flex; align-items: center; gap: 4px; justify-self: start; font: 800 9.5px/1 Poppins, system-ui, sans-serif;
+    color: #e8eeff; background: rgba(0,0,0,.74); padding: 3px 5px; border-radius: 6px; white-space: nowrap; letter-spacing: .02em; }
+  .pq.on { position: absolute; left: 3px; bottom: 3px; font-size: 9px; padding: 2px 4px; }
+  .pq b { font-weight: 900; }
+  .pq-4k b { background: var(--volt); color: #05070d; padding: 1px 4px; border-radius: 4px; }
+  .pq-hd b { color: var(--volt); }
+  .pq-low { color: #ffb4b4; }
   .cutprev {
     margin-top: 8px; padding: 10px; background:
       repeating-conic-gradient(var(--steel) 0% 25%, var(--ink) 0% 50%) 0 0 / 14px 14px;
@@ -3961,7 +3970,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "200";
+const APP_V = "201";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4337,8 +4346,9 @@ async function sgdbTop(title) {
   const id = hits[0].id, one = p2 => sgdbGet(p2).catch(() => []);
   const [logos, heroes, grids] = await Promise.all([
     one("/logos/game/" + id), one("/heroes/game/" + id),
-    one("/grids/game/" + id + "?dimensions=600x900")]);
-  const u = l => (l[0] && l[0].url) || "";
+    one("/grids/game/" + id + "?dimensions=600x900,660x930")]);
+  /* the sharpest of the community's top five, so auto-pick lands on the 4K backdrop when there is one */
+  const u = l => (l.length && l.slice(0, 5).reduce((a, x) => picArea(x) > picArea(a) ? x : a, l[0]).url) || "";
   return { name: hits[0].name, art: u(logos), hero: u(heroes), cover: u(grids) };
 }
 /* a new game quietly gets whatever art it's missing */
@@ -4400,18 +4410,19 @@ async function sgdbFind(title) {
     const one = p2 => sgdbGet(p2).catch(() => []);
     const [logos, heroes, grids] = await Promise.all([
       one("/logos/game/" + id), one("/heroes/game/" + id),
-      one("/grids/game/" + id + "?dimensions=600x900")
+      one("/grids/game/" + id + "?dimensions=600x900,660x930")
     ]);
+    /* sharpest first (the sort is stable, so equal sizes keep the community's order); each shows its real size */
     const strip = (label, list, role, wide) => !list.length ? "" :
       `<label>${esc(label)}</label><div class="sgrow${wide ? " wide" : ""}">` +
-      list.slice(0, 10).map(x =>
+      list.slice().sort((a, b) => picArea(b) - picArea(a)).slice(0, 12).map(x =>
         `<button type="button" class="sgpick" data-role="${role}" data-url="${esc(x.url)}"
-          ><img decoding="async" src="${esc(x.thumb || x.url)}" alt=""></button>`).join("") + "</div>";
+          ><img decoding="async" src="${esc(x.thumb || x.url)}" alt="">${picQ(x.width, x.height, 1)}</button>`).join("") + "</div>";
     const html = strip("Logo \u2014 the cut-out that floats on the card", logos, "art") +
       strip("Hero \u2014 the wide backdrop", heroes, "hero", true) +
       strip("Grid \u2014 the box cover", grids, "cover");
     if (!html) { msg.textContent = "Matched \u201C" + hits[0].name + "\u201D but it has no artwork yet."; return; }
-    msg.textContent = "Matched \u201C" + hits[0].name + "\u201D. Tap a picture to use it.";
+    msg.textContent = "Matched \u201C" + hits[0].name + "\u201D. Sharpest first, each with its size. Tap a picture to use it.";
     out.innerHTML = html;
     out.querySelectorAll(".sgpick").forEach(b =>
       b.onclick = () => sgdbPut(b.dataset.role, b.dataset.url));
@@ -5086,7 +5097,7 @@ function openEdit(id) {
     <div class="setgroup"><h4 data-sum="SteamGridDB">Art from SteamGridDB</h4>
     <div class="chips"><button class="btn" id="e-sgauto"><span>✨ Auto-pick all</span></button>
     <button class="btn ghost" id="e-sgdb"><span>Browse and choose</span></button></div>
-    <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the community's top pick. Browse lets you choose each one yourself. Tap Save to keep either.</p>
+    <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the sharpest of the community's top picks. Browse shows every picture's size, sharpest first, so you can choose each one yourself. Tap Save to keep either.</p>
     <div id="e-sgdb-out"></div>
     </div>
     <div class="setgroup"><h4 data-sum="${esc(sums.cover)}">Cover and colour</h4>
@@ -7046,10 +7057,22 @@ const STEAM_ART = [
 const steamArt = id => STEAM_ART.map(([file, label, role]) =>
   ({ urls: STEAM_HOSTS.map(h => h + id + "/" + file), label, role,
      url: STEAM_CDN + id + "/" + file }));
+/* how sharp a picture is, from its real size: 4K / HD / Low (or nothing for middling) */
+function picTier(w, h) {
+  const L = Math.max(+w || 0, +h || 0);
+  return !L ? "" : L >= 3000 ? "4K" : L >= 1500 ? "HD" : L < 700 ? "Low" : "";
+}
+function picArea(x) { return (+(x && x.width) || 0) * (+(x && x.height) || 0); }
+/* its size as a small label; on = sits over a thumbnail */
+function picQ(w, h, on) {
+  if (!(+w) || !(+h)) return "";
+  const t = picTier(w, h);
+  return `<span class="pq${on ? " on" : ""}${t ? " pq-" + t.toLowerCase() : ""}">${+w}\u00D7${+h}${t ? "<b>" + t + "</b>" : ""}</span>`;
+}
 function probeImage(url) {
   return new Promise(done => {
     const im = new Image();
-    im.onload = () => done(im.naturalWidth ? true : false);
+    im.onload = () => done(im.naturalWidth ? { w: im.naturalWidth, h: im.naturalHeight } : false);
     im.onerror = () => done(false);
     im.src = url;
   });
@@ -7068,14 +7091,16 @@ async function resolveLink(value, role) {
     const file = STEAM_FOR[role] || STEAM_FOR.cover;
     for (const host of STEAM_HOSTS) {
       const u = host + sid + "/" + file;
-      if (await probeImage(u)) return { url: u, how: "steam", sid: sid, file: file };
+      const d = await probeImage(u);
+      if (d) return { url: u, how: "steam", sid: sid, file: file, w: d.w, h: d.h };
     }
     return { url: "", how: "steam-missing", sid: sid, file: file };
   }
 
   const u = fixImgUrl(raw);
   if (!/^https?:/i.test(u) && !/^data:/i.test(u)) return { url: "", how: "notalink" };
-  if (await probeImage(u)) return { url: u, how: u === raw ? "direct" : "fixed" };
+  const d = await probeImage(u);
+  if (d) return { url: u, how: u === raw ? "direct" : "fixed", w: d.w, h: d.h };
   return { url: u, how: "noload" };
 }
 
@@ -7108,11 +7133,12 @@ function bindLink(id, role, onGot) {
     inp.value = r.url;
     if (r.sid) editing.steamId = r.sid;   /* keeps the existing Steam fallbacks working */
     onGot(r.url, r);
-    if (msg) msg.textContent =
+    const sz = r.w ? " It's " + r.w + "\u00D7" + r.h + (picTier(r.w, r.h) ? " (" + picTier(r.w, r.h) + ")" : "") + "." : "";
+    if (msg) msg.textContent = (
       r.how === "steam" ? "Took " + r.file + " from Steam. Tap Save."
       : r.how === "fixed" ? "Turned that page address into a direct image link. Tap Save."
       : r.how === "noload" ? "Saved, but that link didn't load for me — it may be a web page rather than the image itself, or blocked."
-      : "Looks good. Tap Save.";
+      : "Looks good. Tap Save.") + sz;
   };
 }
 
@@ -7136,7 +7162,8 @@ function bindSteam(p, onPick) {
     const found = [];
     for (const a of shots) {
       for (const u of a.urls) {
-        if (await probeImage(u)) { found.push(Object.assign({}, a, { url: u })); break; }
+        const d = await probeImage(u);
+        if (d) { found.push(Object.assign({}, a, { url: u, w: d.w, h: d.h })); break; }
       }
     }
     if (!found.length) {
@@ -7164,7 +7191,7 @@ function bindSteam(p, onPick) {
     msg.after(all);
     out.innerHTML = found.map(a => `<div class="steamtile">
       <img src="${esc(a.url)}" alt="${esc(a.label)}">
-      <small>${esc(a.label)}</small>
+      <small>${esc(a.label)}</small>${picQ(a.w, a.h)}
       <div class="chips">
         <button class="chip" data-take="cover" data-url="${esc(a.url)}"><span>Cover</span></button>
         <button class="chip" data-take="art" data-url="${esc(a.url)}"><span>Art</span></button>
@@ -16678,5 +16705,17 @@ WHATS_NEW.push(
   { v: 200, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "This build", text: "Problem reports" }); }, at: () => $("#s-bugs"),
     say: "When you report something with 🐞, I now learn from it: whoever fixes it also teaches me to spot that kind of problem myself next time. And you can tap the exact spot on screen so I know what you mean.",
     tryIt: "Next time something looks off: hold me, tap 🐞, write a few words and tap the spot." }
+);
+</script>
+<script>
+/* ===== v201: every picture in the SteamGridDB and Steam pickers shows its real size (4K / HD / Low) before you pick;
+   SteamGridDB lists sharpest first and Auto-pick takes the sharpest of the top five (picQ / picTier / picArea) ===== */
+WHATS_NEW.push(
+  { v: 201, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (!g) return; openEdit(g.id);
+      setTimeout(() => { const t = $('[data-etab="look"]'); if (t) t.click();
+        const s = [...document.querySelectorAll("#sheet-in details.grp summary")].find(x => x.offsetParent && /SteamGridDB/.test(x.textContent)); if (s) s.click(); }, 250); },
+    at: "#e-sgdb",
+    say: "Every picture from SteamGridDB and Steam now shows its real size before you pick it, with a <b>4K</b> or <b>HD</b> badge on the sharp ones. The sharpest come first, and Auto-pick goes for them too.",
+    tryIt: "Edit a game → Look → Browse and choose, and look for the 4K badges." }
 );
 </script>
