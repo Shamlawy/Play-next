@@ -3744,7 +3744,8 @@ function liteFor(t) {
 /* where a lighter copy of a remote picture lives */
 function liteGuess(u) {
   let m;
-  if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/steam\/apps\/\d+\/)(library_600x900_2x|library_hero)\.jpg(\?.*)?$/))) return m[1] + (m[2] === "library_hero" ? "library_hero_blur" : "library_600x900") + ".jpg";
+  /* v189: only the cover has a smaller sharp copy. library_hero_blur is the same size and blurred on purpose: using it left wide art blurry for good */
+  if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/steam\/apps\/\d+\/)library_600x900_2x\.jpg(\?.*)?$/))) return m[1] + "library_600x900.jpg";
   if ((m = u.match(/^https:\/\/media\.rawg\.io\/media\/(games|screenshots)\/(.+)$/))) return "https://media.rawg.io/media/resize/640/-/" + m[1] + "/" + m[2];
   if ((m = u.match(/^(https:\/\/cdn\d*\.steamgriddb\.com\/)(grid|hero)\/([^/?#]+)\.(png|jpe?g|webp)$/))) return m[1] + (m[2] === "grid" ? "thumb" : "hero_thumb") + "/" + m[3] + ".jpg";
   return "";
@@ -3803,8 +3804,9 @@ function liteUp() {
   };
   document.querySelectorAll("img").forEach(i => {
     const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || i._lu) return;
-    const r = seen(i); if (!r || !i.complete) return;
-    if (r.width * dpr <= (LITE_W.get(s) || 600) * 1.15) return;
+    const r = seen(i); if (!r || !i.complete || !i.naturalWidth) return;
+    /* object-fit: cover can stretch the short side: go by whichever side runs out first */
+    if (Math.max(r.width * dpr / i.naturalWidth, r.height * dpr / i.naturalHeight) <= 1.05) return;
     i._lu = 1; go(s, f => { if (i.getAttribute("src") === s) i.src = f; });
   });
   document.querySelectorAll('[style*="url("]').forEach(el => {
@@ -3812,13 +3814,25 @@ function liteUp() {
     const hit = [...st.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map(m => m[2]).find(u => LITE_FULL.has(u));
     if (!hit) return;
     const r = seen(el); if (!r) return;
-    if (r.width * dpr <= (LITE_W.get(hit) || 600) * 1.15) return;
+    if (Math.max(r.width, r.height) * dpr <= (LITE_W.get(hit) || 600) * 1.05) return;
     el._lu = st; go(hit, f => { const now = el.getAttribute("style") || ""; if (now.indexOf(hit) >= 0) el.setAttribute("style", now.split(hit).join(cssUrl(f))); });
   });
 }
 { let q = 0; const kick = () => { clearTimeout(q); q = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(liteUp, { timeout: 1500 }), 650); };
   new MutationObserver(() => { if (LITE_FULL.size) kick(); }).observe(document.documentElement, { childList: true, subtree: true });
-  addEventListener("scroll", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true }); addEventListener("resize", kick); }
+  addEventListener("scroll", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true }); addEventListener("resize", kick);
+  /* v189: a light copy that finished loading after the last pass was skipped for good (still loading then) and stayed soft */
+  document.addEventListener("load", e => { if (LITE_FULL.size && e.target.tagName === "IMG") kick(); }, true);
+  /* a light copy that stops loading falls back to the real picture; a remote picture that fails gets one more try */
+  document.addEventListener("error", e => {
+    const i = e.target; if (!i || i.tagName !== "IMG") return;
+    const s = i.getAttribute("src") || "";
+    if (LITE_FULL.has(s)) { const full = LITE_FULL.get(s), orig = [...LITE.entries()].find(([, v]) => v === s);
+      if (orig) { LITE.delete(orig[0]); LITE_BAD.add(orig[0]); LITE_WARM.add(orig[0]); }
+      if (LITE_OK && /^https?:/.test(s)) { LITE_OK[s] = 0; liteSave(); }
+      i.style.visibility = ""; i.src = full; return; }
+    if (/^https?:/.test(s) && !i._rt) { i._rt = 1; setTimeout(() => { if (i.isConnected && i.getAttribute("src") === s) { i.style.visibility = ""; i.src = s + (s.indexOf("?") < 0 ? "?r=1" : "&r=1"); } }, 1500); }
+  }, true); }
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 function placeholder(g) {
@@ -3947,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "188";
+const APP_V = "189";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4089,6 +4103,9 @@ function sayPersist(t) {
 }
 
 function showUpdated(was) {
+  /* v189: the tour is defined further down the page; when it will run, its first card says "Updated" with Nexi on it */
+  if (document.readyState === "loading") return document.addEventListener("DOMContentLoaded", () => showUpdated(was), { once: true });
+  if (typeof WHATS_NEW !== "undefined" && WHATS_NEW.some(x => x.v > (parseInt(was, 10) || 0) && x.v <= +APP_V)) return;
   const el = document.createElement("div");
   el.className = "updated";
   el.innerHTML = `<b>Updated</b><span>${was === APP_V ? "New build loaded · v" + esc(APP_V) : "Version " + esc(String(was)) + " → " + esc(APP_V)}</span>
@@ -11156,7 +11173,7 @@ function pnBubble() {
     if (act === "pick") pnBubPick();
     else if (["duel", "played", "games", "taste", "add"].includes(act)) goTab(act === "duel" ? "taste" : act);
     else if (act) { hubReturn = null; pnTap = { x: pnBubX + 31, y: pnBubY + 31 }; openFull(act); } };
-  addEventListener("resize", () => { const t = pnBubEdge(); pnBubPlace(t.x, t.y); }, { passive: true });
+  addEventListener("resize", () => { if (document.documentElement.classList.contains("nxtouring")) return; const t = pnBubEdge(); pnBubPlace(t.x, t.y); }, { passive: true });
   /* it speaks up every minute or two, only while the rail is hidden and nothing else is open */
   const talk = () => { setTimeout(talk, 60000 + Math.random() * 60000);
     if (!document.documentElement.classList.contains("railhide") || down || document.hidden) return;
@@ -14302,8 +14319,9 @@ function nxOpenSettings(sel) {
   nxShut(); openSettings("app");
   const el = $(sel), d = el && el.closest("details"); if (d) d.open = true;
 }
-function nxHome() { nxShut(); goTab("home"); }
-function nxQueue() { nxShut(); goTab("queue"); }
+/* v189: already there? don't redraw the whole screen under the tour card (it was the tour's biggest hitch) */
+function nxHome() { nxShut(); if (curTab() !== "home") goTab("home"); }
+function nxQueue() { nxShut(); if (!onQueueTab()) goTab("queue"); }
 /* v173 with the rail open (or on a phone) the bubble was never dressed, so it showed up as a blank circle */
 function nxDress(b) {
   if (b.classList.contains("face") || b.classList.contains("img") || b.querySelector(".core").style.backgroundImage) return;
@@ -14335,34 +14353,62 @@ function nxTour(was, all) {
   /* wait for the launch cutscene to finish */
   if (document.documentElement.classList.contains("cine")) return setTimeout(() => nxTour(was, all), 800);
   document.querySelectorAll(".updated button").forEach(x => x.click());   /* the tour says it better, and the toast sat on top of the card */
+  const H = document.documentElement;
+  if (!$("#pnbub") && typeof pnBubble === "function") pnBubble();
+  const b = $("#pnbub"); if (b) { nxDress(b); b.classList.remove("peek", "pl", "pr"); }
+  /* v189 while the tour runs Nexi belongs to it: rail open or shut, fold or unfold, he stays on the card and keeps quiet */
+  H.classList.add("nxguide", "nxtouring"); pnBubHush();
   const card = document.createElement("div"); card.id = "nxtour"; document.body.appendChild(card);
+  const ring = document.createElement("div"); ring.id = "nxring"; document.body.appendChild(ring);
   /* closed the app mid-tour? carry on from the step you were on */
   const at = !all && S.tourAt && S.tourAt.from === from && S.tourAt.n === steps.length ? Math.min(S.tourAt.i, steps.length - 1) : 0;
-  let i = at, lit = null;
+  let i = at, lit = null, gone = false;
   const mark = () => { if (!all) { S.tourAt = { from, n: steps.length, i }; saveNow(); } };
-  const unlit = () => { if (lit) lit.classList.remove("nxhl"); lit = null; };
+  const unlit = () => { lit = null; ring.classList.remove("on"); };
+  const ringAt = () => { if (!lit || !lit.isConnected) { ring.classList.remove("on"); return; }
+    const r = lit.getBoundingClientRect(); if (!r.width) { ring.classList.remove("on"); return; }
+    ring.style.width = (r.width + 12) + "px"; ring.style.height = (r.height + 12) + "px";
+    ring.style.transform = `translate3d(${r.left - 6}px,${r.top - 6}px,0)`; ring.classList.add("on"); };
+  let rq = 0; const follow = () => { if (!rq) rq = requestAnimationFrame(() => { rq = 0; ringAt(); }); };
+  addEventListener("scroll", follow, { passive: true, capture: true });
+  const refit = () => { if (gone) return; ringAt(); nxDock(card, lit, true); };
+  addEventListener("resize", refit, { passive: true });
+  nxTour.refit = refit;
   const finish = () => {
-    unlit(); card.classList.remove("on"); setTimeout(() => card.remove(), 250);
+    gone = true; unlit(); card.classList.remove("on"); setTimeout(() => { card.remove(); ring.remove(); }, 300);
+    removeEventListener("scroll", follow, { capture: true }); removeEventListener("resize", refit); nxTour.refit = null;
     if (!all) { S.tourFrom = +APP_V; S.tourAt = null; save(); }
-    document.documentElement.classList.remove("nxguide");
-    const b = $("#pnbub"); if (b && typeof pnBubEdge === "function") { const e = pnBubEdge(); pnBubPlace(e.x, e.y); }
+    H.classList.remove("nxtouring");
+    const bb = $("#pnbub");
+    if (bb) { const e = pnBubEdge(), shown = H.classList.contains("railhide") && innerWidth >= 620;
+      /* back to his corner if he lives on screen, otherwise he waves off the way he came in */
+      if (shown) bb.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${e.x}px,${e.y}px,0)` }],
+        { duration: 560, easing: "cubic-bezier(.34,1.3,.64,1)" }).onfinish = () => H.classList.remove("nxguide");
+      else bb.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)`, opacity: 1 }, { transform: `translate3d(${pnBubX}px,${pnBubY - 40}px,0) scale(.4)`, opacity: 0 }],
+        { duration: 320, easing: "cubic-bezier(.5,0,.75,0)" }).onfinish = () => H.classList.remove("nxguide");
+      pnBubPlace(e.x, e.y); }
+    else H.classList.remove("nxguide");
   };
   const show = () => {
     const st = steps[i]; unlit();
     try { st.go && st.go(); } catch (e) {}
     setTimeout(() => {
+      if (gone) return;
       const el = typeof st.at === "function" ? st.at() : st.at ? document.querySelector(st.at) : null;
-      if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); lit = el; }
+      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
       setTimeout(() => {
-        if (el) nxPoint(el);
+        if (gone) return;
+        lit = el;
         const r = el ? el.getBoundingClientRect() : null;
         card.className = (r && r.top + r.height / 2 > innerHeight * 0.55) ? "top" : "bot";
-        card.innerHTML = `<small>${i === at && at > 0 ? "Picking up where we left off" : st.intro ? "While you were away" : `New in v${st.v}`} · Nexi's tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
+        const head = i === at && at > 0 ? "Picking up where we left off" : st.intro ? "While you were away"
+          : i === 0 && !all && was && was !== APP_V ? `Updated · v${was} → v${APP_V}` : `New in v${st.v}`;
+        card.innerHTML = `<small>${esc(head)} · ${esc(pnName())}'s tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
           <div class="row2"><i>${i + 1} / ${steps.length}</i>${i < steps.length - 1 ? '<button class="btn ghost" data-nx="skip"><span>Skip</span></button>' : ""}
           <button class="btn" data-nx="next"><span>${i < steps.length - 1 ? "Next ›" : "Done"}</span></button></div>`;
-        requestAnimationFrame(() => card.classList.add("on"));
-        if (!el) nxPoint(card, 1);   /* nothing to point at: Nexi sits by the card so he's still there */
-        if (typeof pnBubHush === "function") pnBubHush(); if (typeof pnBubMood === "function") pnBubMood("talk", 1500);
+        requestAnimationFrame(() => { card.classList.add("on"); ringAt(); });
+        nxDock(card, el);
+        if (typeof pnBubMood === "function") pnBubMood("talk", 1500);
       }, el ? 450 : 50);
     }, 350);
   };
@@ -14371,7 +14417,7 @@ function nxTour(was, all) {
     if (typeof beep === "function") beep("tap");
     if (a.dataset.nx === "next" && ++i < steps.length) { mark(); card.classList.remove("on"); show(); } else finish();
   });
-  show();
+  nxNotch(() => { if (!gone) show(); });
 }
 document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) { e.stopPropagation(); closeEdit(); setTimeout(() => nxTour(null, true), 300); } }, true);
 </script>
@@ -15566,5 +15612,98 @@ WHATS_NEW.push(
   { v: 188, go: () => nxOpenSettings("#s-uistyle"), at: "#s-uistyle",
     say: "Miss the old slanted, all-caps style? <b>Style → Arcade</b> brings it back. Clean is the default.",
     tryIt: "Tap Arcade to compare, then Clean to come back." }
+);
+</script>
+<style>
+/* ===== v189 tour: Nexi drops out of the notch / camera hole, then rides on the tour card ===== */
+html.nxtouring #pnbub { display: block !important; z-index: 99; }
+#nxtour { z-index: 100; transform: translate(-50%, 18px) scale(.97); transition: opacity .22s ease, transform .46s cubic-bezier(.2,1.25,.3,1); }
+#nxtour.on { transform: translate(-50%, 0); }
+#nxring { position: fixed; left: 0; top: 0; z-index: 98; pointer-events: none; border-radius: 14px; opacity: 0;
+  border: 2px solid rgba(var(--vrgb), .95); box-shadow: 0 0 0 5px rgba(var(--vrgb), .16), 0 0 22px rgba(var(--vrgb), .45);
+  transition: opacity .25s ease; will-change: transform, opacity; }
+#nxring.on { opacity: 1; animation: nxRing 1.6s ease-in-out .3s infinite; }
+@keyframes nxRing { 50% { opacity: .4; } }
+#nxisle { position: fixed; left: 50%; top: 0; z-index: 98; width: 0; height: 0; pointer-events: none; will-change: transform; }
+#nxisle i { position: absolute; left: 0; top: 0; display: block; background: #000; opacity: 1; will-change: transform; }
+#nxisle .nxi-c { width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; }
+#nxisle .nxi-m { width: 136px; height: 56px; margin: -28px 0 0 -68px; box-shadow: 0 10px 26px rgba(var(--vrgb), .28); }
+#nxsat { position: fixed; top: 0; left: 0; width: 1px; height: env(safe-area-inset-top, 0px); visibility: hidden; pointer-events: none; }
+html.still #nxring.on { animation: none; }
+@media (prefers-reduced-motion: reduce) { #nxring.on { animation: none; } }
+</style>
+<script>
+/* ===== v189 tour: Nexi comes out of the notch and stays with the tour card ===== */
+const nxTouring = () => document.documentElement.classList.contains("nxtouring");
+/* Nexi rides on the card: peeking over its top edge (card at the bottom) or under its bottom edge (card at the top),
+   looking at whatever the card is about */
+function nxDock(card, target, quick) {
+  const b = $("#pnbub"); if (!b || !card || !card.isConnected) return;
+  const sz = 62, cw = card.offsetWidth, ch = card.offsetHeight, cl = card.offsetLeft - cw / 2, ct = card.offsetTop;
+  const top = card.classList.contains("top");
+  const x = Math.max(8, Math.min(innerWidth - sz - 8, cl + 20)), y = top ? ct + ch - sz * .36 : ct - sz * .64;
+  if (target && target.isConnected) { const r = target.getBoundingClientRect(), dx = r.left + r.width / 2 - x - 31, dy = r.top + r.height / 2 - y - 31, d = Math.hypot(dx, dy) || 1;
+    b.style.setProperty("--ex", (dx / d * 5).toFixed(1) + "px"); b.style.setProperty("--ey", (dy / d * 5).toFixed(1) + "px"); }
+  else { b.style.setProperty("--ex", "0px"); b.style.setProperty("--ey", top ? "4px" : "-3px"); }
+  if (Math.abs(x - pnBubX) + Math.abs(y - pnBubY) < 2) return;
+  b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${x}px,${y}px,0)` }],
+    { duration: quick ? 260 : 640, easing: "cubic-bezier(.34,1.32,.64,1)" });
+  pnBubPlace(x, y);
+}
+/* the black pill grows out of the camera (punch hole on the Samsung, notch on the iPhone), Nexi appears in it, drops out */
+function nxNotch(done) {
+  const b = $("#pnbub"), H = document.documentElement, W = innerWidth, sz = 62;
+  let probe = $("#nxsat"); if (!probe) { probe = document.createElement("div"); probe.id = "nxsat"; document.body.appendChild(probe); }
+  const sat = probe.offsetHeight || 0;
+  const cy = sat > 0 ? sat / 2 : -14, fy = Math.max(cy + 32, 36), land = fy + 28 + 16, cx = W / 2 - sz / 2;
+  const calm = H.classList.contains("still") || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!b || calm) { if (b) { b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 }); pnBubPlace(cx, land); } return done(); }
+  const isle = document.createElement("div"); isle.id = "nxisle";
+  isle.innerHTML = '<i class="nxi-m"></i><i class="nxi-c"></i><i class="nxi-c"></i>'; document.body.appendChild(isle);
+  const [m, c1, c2] = isle.children, grow = { duration: 440, easing: "cubic-bezier(.2,1.35,.35,1)", fill: "forwards" };
+  isle.animate([{ transform: `translate3d(0,${cy}px,0)` }, { transform: `translate3d(0,${fy}px,0)` }], grow);
+  m.animate([{ transform: "scale(.02,.4)" }, { transform: "scale(1,1)" }], grow);
+  c1.animate([{ transform: "translate3d(0,0,0) scale(.4)" }, { transform: "translate3d(-66px,0,0) scale(1)" }], grow);
+  c2.animate([{ transform: "translate3d(0,0,0) scale(.4)" }, { transform: "translate3d(66px,0,0) scale(1)" }], grow);
+  b.style.setProperty("--ex", "0px"); b.style.setProperty("--ey", "4px");
+  const inY = fy - sz / 2;
+  b.animate([
+    { transform: `translate3d(${cx}px,${inY}px,0) scale(.2)`, opacity: 0, offset: 0 },
+    { transform: `translate3d(${cx}px,${inY}px,0) scale(.2)`, opacity: 0, offset: .2, easing: "cubic-bezier(.2,1.5,.4,1)" },
+    { transform: `translate3d(${cx}px,${inY}px,0) scale(.58)`, opacity: 1, offset: .45 },
+    { transform: `translate3d(${cx}px,${inY - 3}px,0) scale(.58)`, opacity: 1, offset: .62, easing: "cubic-bezier(.45,0,.7,.4)" },
+    { transform: `translate3d(${cx}px,${land + 6}px,0) scale(1.06,.93)`, opacity: 1, offset: .84, easing: "cubic-bezier(.3,.9,.4,1)" },
+    { transform: `translate3d(${cx}px,${land - 4}px,0) scale(.97,1.04)`, opacity: 1, offset: .93 },
+    { transform: `translate3d(${cx}px,${land}px,0) scale(1)`, opacity: 1, offset: 1 }
+  ], { duration: 1300 });
+  pnBubPlace(cx, land);
+  setTimeout(() => { if (typeof pnBubMood === "function") pnBubMood("happy", 1100); }, 1150);
+  /* the pill tucks back into the camera once he's out */
+  setTimeout(() => {
+    const back = { duration: 340, easing: "cubic-bezier(.5,0,.75,.3)", fill: "forwards" };
+    isle.animate([{ transform: `translate3d(0,${fy}px,0)`, opacity: 1 }, { transform: `translate3d(0,${cy}px,0)`, opacity: sat > 0 ? 1 : 0 }], back);
+    m.animate([{ transform: "scale(1,1)" }, { transform: "scale(.02,.4)" }], back);
+    c1.animate([{ transform: "translate3d(-66px,0,0) scale(1)" }, { transform: "translate3d(0,0,0) scale(.4)" }], back);
+    c2.animate([{ transform: "translate3d(66px,0,0) scale(1)" }, { transform: "translate3d(0,0,0) scale(.4)" }], back).onfinish = () => isle.remove();
+  }, 1020);
+  setTimeout(done, 1250);
+}
+/* while the tour runs: no chatter, and opening/closing the rail doesn't send him back to his corner */
+{ const _say = pnBubSay; pnBubSay = function () { if (nxTouring()) return; return _say.apply(this, arguments); }; }
+{ const _show = pnBubShow; pnBubShow = function () { if (nxTouring()) { try { pnBubFace(); } catch (e) {} if (nxTour.refit) setTimeout(nxTour.refit, 30); return; } return _show.apply(this, arguments); }; }
+/* tapping or dragging him mid-tour doesn't open the rail or fling him off: he just bounces */
+addEventListener("pointerdown", e => {
+  if (!nxTouring() || !e.target.closest || !e.target.closest("#pnbub")) return;
+  e.stopPropagation(); e.preventDefault(); if (typeof pnBubMood === "function") pnBubMood("happy", 900);
+  const b = $("#pnbub"); if (b) b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${pnBubX}px,${pnBubY - 14}px,0) scale(1.06)` },
+    { transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }], { duration: 380, easing: "cubic-bezier(.3,1.4,.5,1)" });
+}, true);
+WHATS_NEW.push(
+  { v: 189, go: () => nxHome(), at: null,
+    say: "After an update I now pop out of the top of your screen and ride along on this card, so I'm always right next to what's new. Opening or closing the rail no longer makes me wander off mid-tour.",
+    tryIt: "Replay it any time from Settings → This build → Show me what's new." },
+  { v: 189, go: () => nxQueue(), at: null,
+    say: "Pictures are sharper: wide Steam art no longer gets stuck on its blurred copy, soft previews switch to the full picture once they finish loading, and a picture that failed to load once is tried again instead of staying broken.",
+    tryIt: "Open a game with Steam art and look at the backdrop." }
 );
 </script>
