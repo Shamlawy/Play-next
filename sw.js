@@ -9,7 +9,7 @@ const SHELL = "play-next-shell-2";
 const IMG = "play-next-img-2", IMG_MAX = 350;
 const IMG_HOST = /(^|\.)(steamstatic\.com|steamgriddb\.com|rawg\.io|steampowered\.com)$/;
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
-  "./logo-192.png", "./logo-512.png", "./logo-mask.png"];
+  "./logo-192.png", "./logo-512.png", "./logo-mask.png", "./badge-96.png"];
 
 self.addEventListener("install", e => {
   self.skipWaiting();
@@ -74,7 +74,9 @@ self.addEventListener("push", e => {
 function show(m) {
   return self.registration.showNotification(m.title || "Play next", {
     body: m.body || "", tag: "nexi-" + (m.tag || "nudge"), renotify: false,
-    icon: "logo-192.png", badge: "logo-192.png", data: { url: m.url || "./" }
+    /* badge = the small status-bar icon: Android paints it as a white silhouette of its see-through shape,
+       so it must be the » on transparent (the full square logo showed as a plain white box) */
+    icon: "logo-192.png", badge: "badge-96.png", data: { url: m.url || "./" }
   });
 }
 self.addEventListener("notificationclick", e => {
