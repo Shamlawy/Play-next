@@ -1,6 +1,7 @@
 # Deploys Nexi's helper (worker/) to Cloudflare whenever it changes on main, or by hand from the Actions tab.
 # Needs one repository secret: CLOUDFLARE_API_TOKEN (a Cloudflare token made from the "Edit Cloudflare Workers"
-# template, or an account token with Workers Scripts / Workers KV Storage: Edit). CLOUDFLARE_ACCOUNT_ID is optional.
+# template, or an account token with Workers Scripts / Workers KV Storage: Edit) and, for account tokens,
+# CLOUDFLARE_ACCOUNT_ID (the 32-character code after dash.cloudflare.com/ in the address bar).
 # The SteamGridDB key (SGDB_KEY) stays a secret on the worker itself; deploying never touches it.
 name: Deploy Nexi's helper
 on:
@@ -27,10 +28,18 @@ jobs:
             echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret (Settings > Secrets and variables > Actions), then run this workflow again."
             exit 1
           fi
+          TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:]'); ACCOUNT=$(printf '%s' "$ACCOUNT" | tr -d '[:space:]')
+          # a 32-character hex value is the token's ID (shown in the token list), not the token itself
+          if printf '%s' "$TOKEN" | grep -Eq '^[0-9a-f]{32}$'; then
+            echo "::error::CLOUDFLARE_API_TOKEN holds a 32-character ID, not the token. Make a new token and copy the long value Cloudflare shows once right after Create token."
+            exit 1
+          fi
+          if [ -z "$ACCOUNT" ]; then echo "::warning::No CLOUDFLARE_ACCOUNT_ID secret. Account API tokens need it (it's the 32-character code after dash.cloudflare.com/ in the address bar)."; fi
           export CLOUDFLARE_API_TOKEN="$TOKEN"
           if [ -n "$ACCOUNT" ]; then export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT"; fi
           W="npx --yes wrangler@4"
           # notifications keep their phones and the push key in a KV namespace: reuse the one that exists, or make it
+          $W whoami || { echo "::error::Cloudflare didn't accept the token. Check CLOUDFLARE_API_TOKEN (the full token value) and CLOUDFLARE_ACCOUNT_ID."; exit 1; }
           find_kv() { $W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s.slice(s.indexOf("[")));const n=a.find(x=>/nudge/i.test(x.title));process.stdout.write(n?n.id:"")}catch(e){}})'; }
           ID=$(find_kv)
           if [ -z "$ID" ]; then $W kv namespace create playnext-nudge; ID=$(find_kv); fi
