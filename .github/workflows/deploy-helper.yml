@@ -31,7 +31,7 @@ jobs:
           TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:]'); ACCOUNT=$(printf '%s' "$ACCOUNT" | tr -d '[:space:]')
           # a 32-character hex value is the token's ID (shown in the token list), not the token itself
           if printf '%s' "$TOKEN" | grep -Eq '^[0-9a-f]{32}$'; then
-            echo "::error::CLOUDFLARE_API_TOKEN holds a 32-character ID, not the token. Make a new token and copy the long value Cloudflare shows once right after Create token."
+            echo "::error::CLOUDFLARE_API_TOKEN holds a 32-character ID (your Account ID or a token's ID), not the token. Put that in CLOUDFLARE_ACCOUNT_ID if it is the Account ID; for CLOUDFLARE_API_TOKEN make a token and copy the long value Cloudflare shows once right after Create token."
             exit 1
           fi
           if [ -z "$ACCOUNT" ]; then echo "::warning::No CLOUDFLARE_ACCOUNT_ID secret. Account API tokens need it (it's the 32-character code after dash.cloudflare.com/ in the address bar)."; fi
