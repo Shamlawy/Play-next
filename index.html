@@ -16174,6 +16174,11 @@ WHATS_NEW.push(
     tryIt: "Leave them on, or tap Off." }
 );
 </script>
+<style>
+/* v196: on phones under ~400px the pick card was 352px wide whatever the screen (its 220px min-height through the
+   16:10 ratio set a minimum width) and stuck out of the panel. A definite width lets the ratio work from the width. */
+.dxhero { width: 100%; }
+</style>
 <script>
 /* ===== v196: problem reports. The app notices when something breaks and files it (Settings → This build) =====
    What it watches: script errors, a page that scrolls sideways, buttons cut off by the screen edge or hidden under the
@@ -16198,7 +16203,7 @@ function bugScrub(t) {
   return t.replace(/([?&](?:key|token|sig|id)=)[^&\s"']+/gi, "$1…").replace(/blob:[^\s)"']+/g, "blob:…").replace(/data:[^\s)"']{40,}/g, "data:…");
 }
 function bugScreen() {
-  if ($("#full") && $("#full").classList.contains("on")) return "game page (" + (typeof fullStyleOf === "function" ? fullStyleOf() : "hub") + ")";
+  if ($("#full") && $("#full").classList.contains("on")) return "game page (" + ({ dash: "new", hub: "showcase", simple: "plain" }[typeof fullStyleOf === "function" ? fullStyleOf() : "hub"]) + ")";
   if ($("#sheet") && $("#sheet").classList.contains("on")) return "settings/edit";
   const t = curTab(), sub = SUBKEY[t] ? subOf(t) : "";
   return t + (sub ? "/" + sub : "");
@@ -16263,6 +16268,16 @@ function bugClipped(el, root) {
   }
   return false;
 }
+function bugVisible(el, r, root) {
+  let v = { l: r.left, r: r.right, t: r.top, b: r.bottom };
+  for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+    if (getComputedStyle(a).overflowX === "visible") { if (a === root) break; continue; }
+    const q = a.getBoundingClientRect(); v = { l: Math.max(v.l, q.left), r: Math.min(v.r, q.right), t: Math.max(v.t, q.top), b: Math.min(v.b, q.bottom) };
+    if (v.r - v.l < 4 || v.b - v.t < 4) return null;
+    if (a === root) break;
+  }
+  return v;
+}
 function bugPath(el) {
   const p = []; for (let a = el; a && a !== document.body && p.length < 4; a = a.parentElement) {
     p.unshift(a.id ? "#" + a.id : a.tagName.toLowerCase() + [...a.classList].slice(0, 2).map(c => "." + c).join("") + ([...a.attributes].filter(x => x.name.startsWith("data-")).slice(0, 1).map(x => "[" + x.name + "]").join("")));
@@ -16290,8 +16305,10 @@ function bugLayout() {
     const cut = (r.left < W - 6 && r.right > W + 2) || (r.right > 6 && r.left < -2);
     if (cut && !bugClipped(el, root)) { n++; bugReport("layout", "A button is cut off by the " + (r.left < 0 ? "left" : "right") + " edge of the screen", { at: bugPath(el), screen: scr }); continue; }
     /* hidden under the Nexi rail: the rail sits on top of its middle */
-    if (railOn && r.top >= 0 && r.bottom <= H && r.right > W - 110) {
-      const hit = document.elementFromPoint(Math.min(W - 1, r.left + r.width / 2), r.top + r.height / 2);
+    if (railOn && r.top >= 0 && r.bottom <= H && r.left >= 0 && r.right <= W && r.right > W - 110) {
+      /* only the part you can actually see: a scrolling row clips what's past its edge */
+      const v = bugVisible(el, r, root); if (!v) continue;
+      const hit = document.elementFromPoint((v.l + v.r) / 2, (v.t + v.b) / 2);
       if (hit && rail.contains(hit)) { n++; bugReport("layout", "A button is hidden under the Nexi rail", { at: bugPath(el), screen: scr }); }
     }
   }
