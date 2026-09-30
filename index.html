@@ -1507,14 +1507,14 @@
     /* a lot of logos are near-black and vanish on a dark row, and the app can't
        see what colour an image is — so everything gets a faint pale edge */
     filter: brightness(var(--apun, 1)) contrast(var(--acon, 1))
-            drop-shadow(0 0 1px rgba(226,238,255,.85))
-            drop-shadow(0 0 var(--rag, 7px) rgba(150,190,255,.45))
-            drop-shadow(0 6px 10px rgba(0,0,0,.5));
+            drop-shadow(0 0 1.5px rgba(226,238,255,.8));
   }
   /* fill the row's height and let wide logos run off the right edge, GTA-style */
   .row .rowart img { object-position: left center; }
   .row:hover .rowart, .row:active .rowart { opacity: .8; transform: translateY(-2px); }
   html.still .rowart { transition: none; }
+  /* v200: the blurred glow is opt-in (Customise → Queue cards), it made scrolling redraw heavy */
+  html.rowglow .rowart img { filter: brightness(var(--apun, 1)) contrast(var(--acon, 1)) drop-shadow(0 0 1.5px rgba(226,238,255,.8)) drop-shadow(0 0 var(--rag, 7px) rgba(150,190,255,.45)); }
   @media (max-width: 430px) {
     .row.artrow > div { padding-right: calc(var(--raw, 96px) * .78 + var(--rax, -14px) + 12px); }
     .rowart { width: calc(var(--raw, 96px) * .78); }
@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "199";
+const APP_V = "200";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5892,8 +5892,9 @@ function openSettings(scope) {
       <div class="rowline"><input id="s-rao" type="range" min="10" max="100" value="${num(S.rowArtOp, 72, 10, 100)}">
         <span class="v" id="s-rao-v">${num(S.rowArtOp, 72, 10, 100)}%</span></div>
       <label for="s-rag">On a row — halo behind dark art</label>
-      <div class="rowline"><input id="s-rag" type="range" min="0" max="30" value="${num(S.rowArtGlow, 7, 0, 30)}">
-        <span class="v" id="s-rag-v">${num(S.rowArtGlow, 7, 0, 30)}px</span></div>
+      <div class="rowline"><input id="s-rag" type="range" min="0" max="30" value="${num(S.rowArtGlow, 0, 0, 30)}">
+        <span class="v" id="s-rag-v">${num(S.rowArtGlow, 0, 0, 30)}px</span></div>
+      <p class="note">Off by default: a halo on every row makes the Queue heavier to scroll.</p>
       <label for="s-rat">On a row — tilt</label>
       <div class="rowline"><input id="s-rat" type="range" min="-55" max="55" value="${num(S.rowArtTilt, -14, -55, 55)}">
         <span class="v" id="s-rat-v">${num(S.rowArtTilt, -14, -55, 55)}°</span></div>
@@ -11014,8 +11015,10 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
     _of.apply(this, arguments);
     if (calm() || pnVT || wasOn || pnNoGrow || !box || !box.classList.contains("on")) return;
     box.style.transformOrigin = pnTap.x + "px " + pnTap.y + "px";
-    box.animate([{ transform: "scale(.86)", opacity: 0, borderRadius: "28px" }, { transform: "none", opacity: 1, borderRadius: "0" }],
-      { duration: 480, easing: PN_EASE });
+    /* v200: transform + opacity only (border-radius kept this off the GPU, so every frame repainted the whole page),
+       shorter, and it starts part-visible so the page is there at once instead of ~200ms of nothing */
+    box.animate([{ transform: "scale(.93)", opacity: .35 }, { transform: "none", opacity: 1 }],
+      { duration: 300, easing: PN_EASE });
   };
   closeFull = function () {
     const box = $("#full");
@@ -16083,7 +16086,11 @@ WHATS_NEW.push(
 /* --- a game's page (New): the art across the top, then the game in cards like Home's --- */
 #full .hub.gpage { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: var(--u-pan, #0a0e1b); -webkit-overflow-scrolling: touch; }
 .gd-hero { position: relative; height: min(52vh, 460px); min-height: 270px; overflow: hidden; }
-.gd-bg { position: absolute; inset: 0; background: #131a32 center 30% / cover no-repeat; }
+/* v200: an <img> decoded off to the side, not a CSS background: a 3840px backdrop no longer holds the whole page back
+   (the queue stayed frozen ~220ms at 4x before the page appeared); the art fades in once it's ready */
+.gd-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #131a32; opacity: 0; transition: opacity .28s ease; }
+.gd-bg.in { opacity: 1; }
+html.still .gd-bg { transition: none; }
 .gd-hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
   background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, var(--u-pan, #0a0e1b) 100%),
     radial-gradient(90% 70% at 85% 100%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); }
@@ -16150,7 +16157,7 @@ function gdMarkup(g) {
   return `
     <div class="hub gpage" style="--accent:${esc(col)}">
       <div class="gd-hero">
-        <div class="gd-bg" style="background-image:url('${esc(cssUrl(back))}');background-position:${num(g.bgX, 50, 0, 100)}% ${num(g.bgY, 30, 0, 100)}%"></div>
+        <img class="gd-bg" decoding="async" fetchpriority="high" alt="" src="${esc(back)}" onload="this.classList.add('in')" style="object-position:${num(g.bgX, 50, 0, 100)}% ${num(g.bgY, 30, 0, 100)}%">
         ${g.key && S.gdFig ? `<img class="gd-fig" decoding="async" src="${esc(g.key)}" alt="">` : ""}
         ${g.art ? `<img class="gd-logo" decoding="async" src="${esc(g.art)}" alt="">` : ""}
       </div>
@@ -16356,21 +16363,55 @@ try {
 
 /* 5. you spotted something: a few words, and the app adds the rest */
 function bugAsk() {
-  const from = BUG.lastScreen || bugScreen();
+  const from = BUG.lastScreen || bugScreen(), pt = BUG.pointed;
   dyShow(dyBox(), `<div class="dy-h"><b>🐞 Report a problem</b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="dy-q">What looks wrong or doesn't work? A few words is plenty. I'll add the screen you were on (<b>${esc(typeof bugPlace === "function" ? bugPlace(from) : from)}</b>), your phone and version, and what you tapped just before.</p>
     ${typeof bugLogHtml === "function" ? bugLogHtml() : ""}
     <textarea class="bug-in" maxlength="800" rows="4" placeholder="e.g. the Score button on a game page does nothing"></textarea>
+    <button class="btn ghost" type="button" data-bugpoint=""><span>${pt ? "📍 Got it: " + esc(pt.what) + " · tap to change" : "📍 Show me where (tap the spot)"}</span></button>
     <p class="dy-q" style="font-size:11.5px;opacity:.8">It goes on the app's public GitHub page, so leave out anything private.</p>
     <button class="btn" type="button" data-bugsend=""><span>Send</span></button>`, async e => {
+    const txt = () => (document.querySelector("#diary .bug-in") || {}).value || "";
+    if (e.target.closest("[data-bugpoint]")) { BUG.draft = txt(); return bugPoint(from); }
     if (!e.target.closest("[data-bugsend]")) return;
-    const t = (document.querySelector("#diary .bug-in") || {}).value || "";
+    const t = txt();
     if (!t.trim()) { toast("Write a few words first"); return; }
-    bugReport("user", t.trim().slice(0, 200), { note: t.trim(), screen: from });
+    const p2 = BUG.pointed;
+    bugReport("user", t.trim().slice(0, 200), { note: t.trim(), screen: from, at: p2 ? p2.path : "", stack: p2 ? p2.snap : "" });
+    BUG.pointed = null; BUG.draft = "";
     clearTimeout(BUG.t); const ok = await bugFlush();
     dyClose(); toast(ok ? "Sent. Thanks! 🐞" : "Saved. It'll send when you're back online");
   });
-  setTimeout(() => { const i = document.querySelector("#diary .bug-in"); if (i) i.focus(); }, 350);
+  setTimeout(() => { const i = document.querySelector("#diary .bug-in"); if (i) { i.value = BUG.draft || ""; i.focus(); } }, 350);
+}
+/* v200: "Show me where": the sheet steps aside, the next tap marks the spot. What gets recorded is what the element IS
+   (tag, classes, size, position, clipping, styles, whether its text is cut off / its picture loaded), never its text. */
+function bugPoint(from) {
+  dyClose();
+  const tip = document.createElement("div"); tip.id = "bugtip"; tip.textContent = "📍 Tap the spot that looks wrong"; document.body.appendChild(tip);
+  const go = e => {
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation && e.stopImmediatePropagation();
+    removeEventListener("pointerdown", go, true); addEventListener("click", eat, true); setTimeout(() => removeEventListener("click", eat, true), 600);
+    tip.remove();
+    const x = e.clientX, y = e.clientY, el = document.elementFromPoint(x, y);
+    BUG.pointed = el ? bugSnap(el, x, y) : null;
+    setTimeout(bugAsk, 120);
+  };
+  const eat = e => { e.preventDefault(); e.stopPropagation(); };
+  setTimeout(() => addEventListener("pointerdown", go, true), 350);
+}
+function bugSnap(el, x, y) {
+  const r = el.getBoundingClientRect(), cs = getComputedStyle(el), txt = [...el.childNodes].some(c => c.nodeType === 3 && c.textContent.trim());
+  const what = el.tagName === "IMG" ? "a picture" : el.closest("button, [role=button], a") ? "a button" : txt ? "some text" : el.closest(".row, .dxr, .libcard, .hit") ? "a card" : "that spot";
+  const clips = []; for (let a = el.parentElement, i = 0; a && a !== document.body && i < 6; a = a.parentElement, i++) { const c = getComputedStyle(a); if (c.overflowX !== "visible" || c.overflowY !== "visible") { const q = a.getBoundingClientRect(); clips.push(`${bugPath(a).split(" > ").pop()} ${Math.round(q.width)}×${Math.round(q.height)} overflow ${c.overflowX}/${c.overflowY}`); } }
+  const snap = [
+    `tapped at ${Math.round(x)},${Math.round(y)} on a ${innerWidth}×${innerHeight} screen`,
+    `element ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)}; scroll ${el.scrollWidth}×${el.scrollHeight} vs client ${el.clientWidth}×${el.clientHeight}${el.scrollWidth > el.clientWidth + 2 ? " (content wider than its box)" : ""}`,
+    `style: display ${cs.display}, position ${cs.position}, overflow ${cs.overflowX}/${cs.overflowY}, white-space ${cs.whiteSpace}, text-overflow ${cs.textOverflow}, font ${cs.fontSize}/${cs.lineHeight}, opacity ${cs.opacity}, z ${cs.zIndex}${cs.transform !== "none" ? ", transform " + cs.transform : ""}${cs.filter !== "none" ? ", filter " + cs.filter : ""}`,
+    el.tagName === "IMG" ? `picture: ${el.complete ? (el.naturalWidth ? "loaded " + el.naturalWidth + "×" + el.naturalHeight : "FAILED to load") : "still loading"}, shown ${Math.round(r.width)}×${Math.round(r.height)}, object-fit ${cs.objectFit}` : "",
+    clips.length ? "clipped by: " + clips.join(" · ") : ""
+  ].filter(Boolean).join("\n");
+  return { what, path: bugPath(el), snap };
 }
 document.addEventListener("click", e => { if (e.target.closest("[data-bugreport]")) { e.stopPropagation(); closeEdit(); setTimeout(bugAsk, 250); } }, true);
 bugSeen();
@@ -16384,6 +16425,8 @@ WHATS_NEW.push(
 );
 </script>
 <style>
+#bugtip { position: fixed; z-index: 200; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%); padding: 10px 16px; border-radius: 999px;
+  background: var(--volt); color: var(--void); font: 600 13px "Poppins", system-ui, sans-serif; box-shadow: 0 12px 30px -10px rgba(0,0,0,.8); pointer-events: none; }
 /* v197: what Nexi already reported, inside the Report a problem sheet */
 .bug-log { margin: 4px 0 12px; padding: 10px 12px; border-radius: 14px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
 .bug-log b { display: block; font-size: 12px; font-weight: 600; color: var(--mute); margin-bottom: 6px; }
@@ -16526,6 +16569,15 @@ WHATS_NEW.push(
 const LOOK_SKIP = BUG_SKIP + ", [aria-hidden=true], .hub-ghost, .shx-glow, .dxorb, .ccov, .gd-hero, svg, canvas, #pnbubmsg, .toast, #nxbug";
 function lookText(root) {
   const H = innerHeight, W = innerWidth, out = [];
+  /* v200: one pass asks each card around the text for its style once, not once per piece of text (was 88ms at 4x on a 40-game queue) */
+  const CS = new Map(), cs$ = a => { let c = CS.get(a); if (!c) { c = getComputedStyle(a); CS.set(a, c); } return c; };
+  const PIN = new Map(), pinned = a => { if (!a || a === root.parentElement) return false; if (PIN.has(a)) return PIN.get(a); const ps = cs$(a).position, v = ps === "sticky" || ps === "fixed" || pinned(a.parentElement); PIN.set(a, v); return v; };
+  const CLIP = new Map(), clipBox = a => { /* the visible box its clipping ancestors leave, or null */
+    if (!a || a === document.body || a === root.parentElement) return { l: -1e9, r: 1e9, t: -1e9, b: 1e9 };
+    if (CLIP.has(a)) return CLIP.get(a);
+    const up = clipBox(a.parentElement); let v = up;
+    if (up && cs$(a).overflowX !== "visible") { const q = a.getBoundingClientRect(); v = { l: Math.max(up.l, q.left), r: Math.min(up.r, q.right), t: Math.max(up.t, q.top), b: Math.min(up.b, q.bottom) }; if (v.r - v.l < 4 || v.b - v.t < 4) v = null; }
+    CLIP.set(a, v); return v; };
   for (const el of root.querySelectorAll("*")) {
     if (out.length > 400) break;
     let t = ""; for (const c of el.childNodes) if (c.nodeType === 3) t += c.textContent;
@@ -16533,15 +16585,15 @@ function lookText(root) {
     const r = el.getBoundingClientRect();
     if (r.width < 6 || r.height < 6 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
     if (el.closest(LOOK_SKIP)) continue;
-    const cs = getComputedStyle(el);
+    const cs = cs$(el);
     if (cs.visibility === "hidden" || +cs.opacity < .5) continue;
     /* really drawn: not inside something faded, folded away or clipped to nothing */
     if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
-    if (!bugVisible(el, r, root)) continue;
+    const cb = clipBox(el.parentElement); if (!cb || Math.min(cb.r, r.right) - Math.max(cb.l, r.left) < 4 || Math.min(cb.b, r.bottom) - Math.max(cb.t, r.top) < 4) continue;
     /* wrapped inline text is several line boxes, not one big rectangle */
     const rs = cs.display === "inline" ? [...el.getClientRects()].filter(q => q.width > 2 && q.height > 2) : [r];
     /* pinned bars (sticky/fixed) have the page scroll under them on purpose */
-    let pin = false; for (let a = el; a && a !== root.parentElement; a = a.parentElement) { const ps = a === el ? cs.position : getComputedStyle(a).position; if (ps === "sticky" || ps === "fixed") { pin = true; break; } }
+    const pin = pinned(el);
     out.push({ el, r, cs, rs, pin });
   }
   return out;
@@ -16597,4 +16649,34 @@ WHATS_NEW.push(
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (root) try { bugLook(root, bugScreen()); } catch (e) {}
 }; }
+</script>
+<script>
+/* ===== v200: the two lags the owner felt: Queue scrolling and a game page opening ===== */
+/* Queue: every row's logo had five stacked filters (brightness, contrast, three drop-shadows, two of them blurred) on a
+   rotated image. On the unfolded Fold, scrolling redrew them: raster 790–867ms vs 491–548 without (4x, 40 games).
+   Now one thin pale edge (keeps near-black logos readable, costs about the same as none). The blurred glow is opt-in:
+   Customise → Queue cards → glow (S.rowArtGlow, default 0 now; the old default 7 moves to 0 once). */
+if (!S.rowGlowMig) { if (S.rowArtGlow === 7) delete S.rowArtGlow; S.rowGlowMig = 1; save(); }
+{ const _al5 = applyLook; applyLook = function () { const o = _al5.apply(this, arguments);
+  const g = num(S.rowArtGlow, 0, 0, 30); document.documentElement.style.setProperty("--rag", g + "px"); document.documentElement.classList.toggle("rowglow", g > 0); return o; }; }
+/* the problem checks never run while you're touching or scrolling: they wait until you've been still for a moment */
+{ let lastIn = 0; ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { lastIn = performance.now(); }, { capture: true, passive: true }));
+  const _bl2 = bugLayout; bugLayout = function () { const quiet = performance.now() - lastIn;
+    if (quiet < 1200) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1300 - quiet); return; }
+    return _bl2.apply(this, arguments); }; }
+/* game page: start fetching and decoding a game's pictures the moment a finger lands on it, not after the tap */
+addEventListener("pointerdown", e => {
+  const t = e.target.closest && e.target.closest("[data-hub], [data-opg], [data-home-open], .dxr[data-open], .deck-g");
+  const id = t && (t.dataset.hub || t.dataset.opg || t.dataset.homeOpen || t.dataset.open); if (!id) return;
+  const g = S.games.find(x => x.id === id); if (g && typeof warmGame === "function") warmGame(g);
+}, { capture: true, passive: true });
+applyLook();
+WHATS_NEW.push(
+  { v: 200, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: null,
+    say: "Fixed: the Queue scrolls smoother (each row's logo was drawn with five stacked effects, now one), and game pages open straight away instead of waiting for the big backdrop picture.",
+    tryIt: "Flick through the Queue, then open a game." },
+  { v: 200, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "This build", text: "Problem reports" }); }, at: () => $("#s-bugs"),
+    say: "When you report something with 🐞, I now learn from it: whoever fixes it also teaches me to spot that kind of problem myself next time. And you can tap the exact spot on screen so I know what you mean.",
+    tryIt: "Next time something looks off: hold me, tap 🐞, write a few words and tap the spot." }
+);
 </script>

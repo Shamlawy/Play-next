@@ -44,7 +44,7 @@ const body = b => {
     `**${KIND[b.kind] || b.kind}** on **${s.screen || "?"}**${s.note ? `\n\n> ${s.note.replace(/\n/g, "\n> ")}` : ""}`,
     fence(b.msg),
     s.at ? `Where: \`${s.at}\`` : "",
-    s.stack ? "Stack:\n" + fence(s.stack) : "",
+    s.stack ? (b.kind === "user" ? "What was at the spot they tapped:\n" : b.kind === "slow" ? "Timing:\n" : "Stack:\n") + fence(s.stack) : "",
     `| | |\n|---|---|\n| Times | ${b.n} |\n| Versions | ${(b.vs || []).join(", ")} |\n| Phones | ${(b.devs || []).join(", ")} |\n| Screens | ${(b.screens || []).join(", ")} |\n| Latest | ${s.w}×${s.h} @${s.dpr}x, ${s.style || "clean"} style |\n| First / last | ${when(b.first)} / ${when(b.last)} |`,
     s.crumbs && s.crumbs.length ? "What happened just before:\n" + fence(s.crumbs.join("\n")) : "",
     "_Sent automatically by the app. No game titles, scores or notes are included._"
