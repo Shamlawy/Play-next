@@ -2944,12 +2944,12 @@ html.still .ccov,html.still .ccov img{animation:none}
     <div class="tabbar"><h3>Add</h3></div>
     <div class="aw">
       <div>
-        <div class="aw-steps" id="aw-steps"><b data-s="1">1</b><i></i><b data-s="2">2</b><i></i><b data-s="3">3</b></div>
+        <div class="aw-steps" id="aw-steps"><b data-s="1" data-l="Find">1</b><i></i><b data-s="2" data-l="Look">2</b><i></i><b data-s="3" data-l="Details">3</b></div>
         <h4 class="aw-h" id="aw-h">Find the game</h4>
         <div class="astep" data-s="1">
     <label for="q">Search the games database</label>
-    <input id="q" placeholder="Persona, Fire Emblem, Yu-Gi-Oh…">
-    <button class="btn" id="q-go"><span>Search</span></button>
+    <div class="aq"><input id="q" placeholder="Persona, Fire Emblem, Yu-Gi-Oh…">
+    <button class="btn" id="q-go"><span>Search</span></button></div>
     <p class="note" id="q-msg"></p>
     <div id="hits"></div>
 
@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "194";
+const APP_V = "195";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4898,7 +4898,7 @@ const GROUP_KEYS = {
   "Conclusions": ["analysisAt"],
   "Sound and reactions": ["sound", "reactions"],
   "Motion": ["motion", "vt", "rowAnim", "bgOff", "tabFade"],
-  "Look of the app": ["uiStyle", "paper", "paperCol", "paperStr", "corners", "radius"],
+  "Look of the app": ["uiStyle", "shxOff", "addStyle", "paper", "paperCol", "paperStr", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
   "Character art": ["artSize", "artH", "artFloat", "artSpeed", "artGlow"],
   "Library": ["libLayout", "libCols", "libTitle", "libTL", "libTR", "libBL", "libBR", "reelW", "buzz", "coverQ"],
@@ -6050,9 +6050,10 @@ function openSettings(scope) {
       </div>
       <label>Style</label>
       <div class="chips" id="s-fullstyle">
-        ${[["hub", "Showcase"], ["simple", "Plain"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.fullStyle === "simple" ? "simple" : "hub") === v}"><span>${l}</span></button>`).join("")}
+        ${[["dash", "New"], ["hub", "Showcase"], ["simple", "Plain"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${fullStyleOf() === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <p class="note">New: the art across the top, then the game's numbers and buttons in cards like Home. Showcase: the figure on a painted wallpaper (the settings above are for this one).</p>
     </div>
 
     <div class="setgroup" data-scope="plan" data-sub="flow"><h4 data-desc="How big the art runs along the timeline.">Timeline board</h4>
@@ -6228,6 +6229,16 @@ function openSettings(scope) {
           `<button class="chip" data-v="${v}" aria-pressed="${(S.uiStyle === "arcade" ? "arcade" : "clean") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <p class="note">Clean: calm headings and soft cards, like Home. Arcade: the original slanted, all-caps look.</p>
+      <label>Header cards</label>
+      <div class="chips" id="s-shx">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.shxOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">The card at the top of each screen with your numbers and a fan of covers (Clean only).</p>
+      <label>Add screen</label>
+      <div class="chips" id="s-addstyle">
+        ${[["new", "New"], ["classic", "Classic"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.addStyle === "classic" ? "classic" : "new") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">New: a search bar like Home's, results as picture cards and a live preview card (Clean only). Classic: the plain form.</p>
       <p class="note">A painted wash behind everything, so panels sit in the page instead of on it.</p>
       <div class="chips" id="s-paper">
         ${[["paint", "Painted"], ["flat", "Flat black"]].map(([v, l]) =>
@@ -6457,6 +6468,8 @@ function openSettings(scope) {
   };
   pick("#s-corners", v => S.corners = v);
   pick("#s-uistyle", v => S.uiStyle = v);
+  pick("#s-shx", v => S.shxOff = v === "off");
+  pick("#s-addstyle", v => S.addStyle = v);
   pick("#s-pill", v => { S.pill = v === "on"; renderPill(); });
   pick("#s-paper", v => S.paper = v);
   pick("#s-boardon", v => S.boardOff = v === "off", () => renderPlayed());
@@ -8664,11 +8677,44 @@ function warmGame(g) {
   })));
 }
 
+/* a game page's numbers and buttons, shared by every page style */
+function hubStats(g) {
+  const p = S.played.find(x => x.id === g.id), ev2 = num(S.evening, 4, 1, 12);
+  return [
+    [g.date ? shortDate(g.date) : "TBA", "release"],
+    hrsOf(g) ? [hrsOf(g) + "h", Math.max(1, Math.round(hrsOf(g) / ev2)) + " evenings"] : null,
+    [(g.hype || "—") + "/10", "hype"],
+    (() => {
+      const x = isPlayed(g) ? null : expected(g);
+      return x && Math.abs(x.drift) >= 0.8 ? [x.score.toFixed(1), "you'll likely give"] : null;
+    })(),
+    g.critic ? [g.critic, "critics"] : null,
+    p ? [p.real + "/10", "deserved"] : null
+  ].filter(Boolean).slice(0, 4);
+}
+/* [attributes, emoji, label, main?] — the handlers key off the data-* attributes */
+function hubActs(g) {
+  const p = S.played.find(x => x.id === g.id), id = g.id;
+  return [
+    !g.comp && (p || !isUpcoming(g)) ? [`data-qscore="${id}"`, "⭐", p && scored(p) ? "Score · " + p.real : "Score it", 1] : null,
+    p && !g.comp ? [`data-qduel="${id}"`, "⚔️", "Duel it", 1] : null,
+    [`data-fulledit="${id}"`, "", "Edit"],
+    [`data-fullopen="${id}"`, "", "Show in queue"],
+    [`data-card="${id}"`, "🃏", "Calling card"],
+    [`data-diary="${id}"`, "📓", "Diary" + ((g.diary || []).length ? " · " + g.diary.length : "")],
+    [`data-trailer="${id}"`, "▶", "Trailer"],
+    [`data-sim="${id}"`, "🔍", "Similar"],
+    [`data-lists="${id}"`, "📋", "Lists" + ((g.lists || []).length ? " · " + g.lists.length : "")],
+    [`data-sess="${id}"`, "⏱", "Sessions" + (sessOf(g.id).length ? " · " + sessOf(g.id).length : "")],
+    [`data-aiwhy="${id}"`, "✨", "Why you'll love it"],
+    [`data-resetgame="${id}"`, "↺", "Reset scores"]
+  ].filter(Boolean);
+}
+/* v195: "New" (the default) is the Home-style page; Showcase and Plain are the older ones */
+const fullStyleOf = () => S.fullStyle === "simple" ? "simple" : S.fullStyle === "hub" ? "hub" : "dash";
 function hubMarkup(g) {
   if (S.fullStyle === "launcher") S.fullStyle = "hub";
-  const id = g.id;
-  const p = S.played.find(x => x.id === id);
-  const ev2 = num(S.evening, 4, 1, 12);
+  if (fullStyleOf() === "dash" && typeof gdMarkup === "function") return gdMarkup(g);
   const state = (STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1];
   const figure = g.key || g.art || "";
   const paper = S.hubPaper || "paper";
@@ -8680,17 +8726,7 @@ function hubMarkup(g) {
     `--p2:${mix(col, "#01020A", 0.46)};--p3:${mix(col, "#FFFFFF", 0.06)}`;
   const strip = (g.title || "").replace(/[^A-Za-z0-9 ]/g, "").trim().split(/\s+/)[0] || "PLAY";
   const chips = platList(g.genres).slice(0, 3);
-  const stats = [
-    [g.date ? shortDate(g.date) : "TBA", "release"],
-    hrsOf(g) ? [hrsOf(g) + "h", Math.max(1, Math.round(hrsOf(g) / ev2)) + " evenings"] : null,
-    [(g.hype || "—") + "/10", "hype"],
-    (() => {
-      const x = isPlayed(g) ? null : expected(g);
-      return x && Math.abs(x.drift) >= 0.8 ? [x.score.toFixed(1), "you'll likely give"] : null;
-    })(),
-    g.critic ? [g.critic, "critics"] : null,
-    p ? [p.real + "/10", "deserved"] : null
-  ].filter(Boolean).slice(0, 4);
+  const stats = hubStats(g);
 
   return `
     <div class="hub${simple ? " plain" : ""}${paper === "none" ? " nopaper" : ""}"
@@ -8725,18 +8761,7 @@ function hubMarkup(g) {
         <div class="hub-data">${stats.map(([v, l]) =>
           `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="hub-acts">
-          ${!g.comp && (p || !isUpcoming(g)) ? `<button class="chip hot" data-qscore="${g.id}"><span>⭐ ${p && scored(p) ? "Score · " + p.real : "Score it"}</span></button>` : ""}
-          ${p && !g.comp ? `<button class="chip hot" data-qduel="${g.id}"><span>⚔️ Duel it</span></button>` : ""}
-          <button class="chip" data-fulledit="${g.id}"><span>Edit</span></button>
-          <button class="chip" data-fullopen="${g.id}"><span>Show in queue</span></button>
-          <button class="chip" data-card="${g.id}"><span>🃏 Calling card</span></button>
-          <button class="chip" data-diary="${g.id}"><span>📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</span></button>
-          <button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button>
-          <button class="chip" data-sim="${g.id}"><span>🔍 Similar</span></button>
-          <button class="chip" data-lists="${g.id}"><span>📋 Lists${(g.lists || []).length ? " · " + g.lists.length : ""}</span></button>
-          <button class="chip" data-sess="${g.id}"><span>⏱ Sessions${sessOf(g.id).length ? " · " + sessOf(g.id).length : ""}</span></button>
-          <button class="chip" data-aiwhy="${g.id}"><span>✨ Why you'll love it</span></button>
-          <button class="chip" data-resetgame="${g.id}"><span>↺ Reset scores</span></button>
+          ${hubActs(g).map(([at, e, l, hot]) => `<button class="chip${hot ? " hot" : ""}" ${at}><span>${e ? e + " " : ""}${l}</span></button>`).join("\n          ")}
         </div>
       </div>
     </div>`;
@@ -15927,7 +15952,7 @@ function shxData(kind) {
 const SHX_SEEN = {};
 function shxDress(el, kind) {
   const bar = el && el.querySelector(".tabbar");
-  if (!bar || !document.documentElement.classList.contains("ui2")) return;
+  if (!bar || !document.documentElement.classList.contains("ui2") || S.shxOff) return;
   let d; try { d = shxData(kind); } catch (e) { return; }
   const cv = d.c.filter(Boolean).slice(0, 4), sig = cv.map(g => g.id + ":" + (g.img || "")).join("|");
   const st = d.st.map(([v, l]) => `<div><b>${v}</b><small>${esc(l)}</small></div>`).join("");
@@ -15955,7 +15980,8 @@ function shxAll() { SHX_PANELS.forEach(([id, k]) => shxDress(document.getElement
 { const _rh4 = renderHome; renderHome = function () { const o = _rh4.apply(this, arguments); shxDress($("#p-add"), "add"); return o; }; }
 /* Clean ⇄ Arcade: the card only exists in Clean */
 { const _al4 = applyLook; applyLook = function () { const o = _al4.apply(this, arguments);
-  if (!document.documentElement.classList.contains("ui2")) document.querySelectorAll(".tabbar.shx").forEach(b => { b.classList.remove("shx"); b._shx = null; b.querySelectorAll(".shx-glow, .shx-fan, .shx-st").forEach(x => x.remove()); });
+  const pa = $("#p-add"); if (pa) pa.classList.toggle("anew", document.documentElement.classList.contains("ui2") && S.addStyle !== "classic");
+  if (!document.documentElement.classList.contains("ui2") || S.shxOff) document.querySelectorAll(".tabbar.shx").forEach(b => { b.classList.remove("shx"); b._shx = null; b.querySelectorAll(".shx-glow, .shx-fan, .shx-st").forEach(x => x.remove()); });
   else if (typeof shxAll === "function") shxAll();
   return o; }; }
 /* an empty month points at the next release */
@@ -15982,5 +16008,154 @@ WHATS_NEW.push(
   { v: 194, go: () => { const g = onDeck(1)[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full .hub-data",
     say: "Game pages got cleaner: the numbers sit in tiles and the main actions (Score, Duel) are filled buttons.",
     tryIt: "Open any game." }
+);
+</script>
+<style>
+/* ===== v195: the Add screen and a game's page in Home's language (both switchable) ===== */
+.aq { display: contents; }
+/* --- Add (New): a search bar like Home's, results as picture cards, the preview as a player card --- */
+#p-add.anew .aw-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 2px 0 16px; }
+#p-add.anew .aw-steps i { display: none; }
+#p-add.anew .aw-steps b { width: auto; height: auto; aspect-ratio: auto; border: 0; border-radius: 0; background: none; box-shadow: none; transform: none;
+  display: flex; flex-direction: column; gap: 7px; font-size: 0; color: var(--mute); cursor: pointer; }
+#p-add.anew .aw-steps b::before { content: ""; height: 5px; border-radius: 5px; background: var(--u-card2); transition: background-color .3s ease; }
+#p-add.anew .aw-steps b::after { content: attr(data-s) " · " attr(data-l); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+#p-add.anew .aw-steps b.done::before { background: rgba(var(--vrgb), .5); }
+#p-add.anew .aw-steps b.on::before { background: var(--volt); box-shadow: 0 0 14px rgba(var(--vrgb), .6); }
+#p-add.anew .aw-steps b.on { color: var(--ice); }
+#p-add.anew .aw-h { text-align: left; font-family: "Poppins", system-ui, sans-serif; font-weight: 700; font-size: 24px; margin: 0 0 12px; font-style: normal; text-transform: none; letter-spacing: -.01em; }
+#p-add.anew .aq { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 18px; border-radius: 999px; background: var(--u-card); border: 1px solid var(--u-line2); }
+#p-add.anew .aq:focus-within { border-color: rgba(var(--vrgb), .7); box-shadow: 0 0 0 3px rgba(var(--vrgb), .16); }
+#p-add.anew .aq input { flex: 1; min-width: 0; border: 0; background: none; padding: 8px 0; box-shadow: none; border-radius: 0; font-size: 15px; }
+#p-add.anew .aq .btn { margin: 0; padding: 11px 20px; border-radius: 999px; flex: none; }
+#p-add.anew #hits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 6px; }
+@media (min-width: 900px) { #p-add.anew #hits { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+#p-add.anew .hit { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0; margin: 0; padding: 0; overflow: hidden;
+  border: 1px solid var(--u-line); border-radius: 18px; background: var(--u-card); min-width: 0; transition: transform .25s var(--ease); }
+#p-add.anew .hit:active { transform: scale(.97); }
+#p-add.anew .hit img { width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 0; clip-path: none; background: var(--u-card2); }
+#p-add.anew .hit > span:not(.hitadd) { padding: 9px 11px 11px; min-width: 0; }
+#p-add.anew .hit b { font-weight: 600; font-size: 13.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#p-add.anew .hit small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 11px; margin-top: 3px; }
+#p-add.anew .hitadd { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%;
+  background: var(--volt); color: var(--void); font-size: 20px; font-weight: 700; box-shadow: 0 8px 18px -6px rgba(0,0,0,.7); }
+#p-add.anew .aw-nav { gap: 10px; }
+#p-add.anew .aw-nav .lx-edit { border-radius: 999px; border: 1px solid var(--u-line2); background: var(--u-card); color: var(--ice); padding: 0 20px; font-weight: 600; }
+#p-add.anew .aw-nav .lx-go { border-radius: 999px; background: var(--volt); color: var(--void); font-weight: 700; box-shadow: 0 12px 28px -12px rgba(var(--vrgb), .9); }
+#p-add.anew .aw-prev { position: relative; display: block; min-height: 0; aspect-ratio: 16 / 11; border-radius: 26px; overflow: hidden; background: var(--u-card);
+  box-shadow: 0 26px 50px -30px rgba(0,0,0,.95); }
+#p-add.anew .aw-prev img { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; object-fit: cover; }
+#p-add.anew .aw-prev::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(4,6,14,0) 30%, rgba(4,6,14,.92) 100%); }
+#p-add.anew .aw-prev .lx-card { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; top: auto; width: auto; transform: none; margin: 0;
+  padding: 18px 18px 20px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+#p-add.anew .aw-prev .lx-card h3 { margin: 0 0 6px; font: 700 24px/1.15 "Poppins", system-ui, sans-serif; color: #fff; font-style: normal; text-transform: none; text-shadow: 0 2px 14px rgba(0,0,0,.6); }
+#p-add.anew .aw-prev .lx-card p { color: rgba(255,255,255,.86); font-size: 13px; line-height: 1.45; }
+#p-add.anew .aw-prev .empty { position: absolute; inset: 0; z-index: 2; min-height: 0; display: grid; place-content: center; gap: 8px; text-align: center;
+  border: 1px dashed var(--u-line2); border-radius: inherit; background: none; color: var(--mute); font-size: 13px; }
+#p-add.anew .aw-prev .empty::before { content: "🎮"; font-size: 34px; opacity: .8; }
+#p-add.anew .aw-prev:has(.empty)::after { display: none; }
+
+/* --- a game's page (New): the art across the top, then the game in cards like Home's --- */
+#full .hub.gpage { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: var(--u-pan, #0a0e1b); -webkit-overflow-scrolling: touch; }
+.gd-hero { position: relative; height: min(52vh, 460px); min-height: 270px; overflow: hidden; }
+.gd-bg { position: absolute; inset: 0; background: #131a32 center 30% / cover no-repeat; }
+.gd-hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, var(--u-pan, #0a0e1b) 100%),
+    radial-gradient(90% 70% at 85% 100%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); }
+.gd-fig { position: absolute; z-index: 2; right: 2%; bottom: 0; height: 94%; max-width: 62%; width: auto; object-fit: contain; object-position: bottom right;
+  filter: drop-shadow(0 18px 26px rgba(0,0,0,.6)); pointer-events: none; }
+.gd-logo { position: absolute; z-index: 3; left: 18px; bottom: 40px; max-height: 70px; max-width: 52%; object-fit: contain; object-position: left bottom;
+  filter: drop-shadow(0 4px 14px rgba(0,0,0,.7)); pointer-events: none; }
+.gd-body { position: relative; z-index: 4; margin: -30px auto 0; max-width: 980px; padding: 0 16px 90px; color: var(--ice); font-family: "Poppins", system-ui, sans-serif; }
+.gd-head { display: flex; align-items: flex-end; gap: 14px; }
+.gd-cov { width: 84px; aspect-ratio: 3 / 4; height: auto; flex: none; object-fit: cover; border-radius: 16px; background: #131a32;
+  box-shadow: 0 16px 30px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.9); transform: rotate(-4deg); }
+.gd-tt { min-width: 0; padding-bottom: 4px; }
+#full .gd-tt .hub-kick { display: inline-block; width: auto; max-width: 100%; margin: 0 0 6px; padding: 4px 10px; border-radius: 999px; border: 0;
+  background: var(--accent); color: #04060E; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; box-shadow: none; transform: none; clip-path: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#full .hub.gpage h2 { margin: 0; border: 0; padding: 0; font: 700 clamp(24px, 7vw, 40px)/1.08 "Poppins", system-ui, sans-serif; letter-spacing: -.02em; color: #fff;
+  font-style: normal; text-transform: none; text-shadow: none; }
+.gd-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+.gd-tags span { padding: 5px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 500; color: var(--ice); background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
+.gd-tags span.acc { background: color-mix(in srgb, var(--accent) 26%, #0a0e1b); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.gd-desc { margin: 14px 0 0; color: #B9C8EA; font-size: 13.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.hub.gpage .hub-data { display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 8px; margin: 18px 0 0; }
+.hub.gpage .hub-data > div { padding: 12px 10px 11px; border-radius: 18px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); min-width: 0; }
+.hub.gpage .hub-data b { display: block; font: 700 clamp(16px, 4.4vw, 24px)/1.05 "Poppins", system-ui, sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: normal; }
+.hub.gpage .hub-data > div:first-child b { color: var(--volt); }
+.hub.gpage .hub-data span { display: block; margin-top: 5px; font-size: 10.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-main { display: flex; gap: 8px; margin: 16px 0 0; }
+.gd-main button { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 12px; border-radius: 999px;
+  border: 1px solid var(--u-line2, rgba(234,242,255,.14)); background: var(--u-card, #131a32); color: var(--ice); font: 600 14px "Poppins", system-ui, sans-serif; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: transform .25s var(--ease); }
+.gd-main button.hot { border-color: transparent; background: var(--volt); color: var(--void); box-shadow: 0 12px 28px -12px rgba(var(--vrgb), .9); }
+.gd-main button.ed { flex: 0 0 auto; padding: 14px 18px; }
+.gd-more { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; }
+@media (min-width: 620px) { .gd-more { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.gd-more button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 76px; padding: 10px 4px;
+  border-radius: 18px; border: 1px solid var(--u-line, rgba(234,242,255,.08)); background: var(--u-card, #131a32); color: var(--ice); font: 500 11px/1.2 "Poppins", system-ui, sans-serif;
+  text-align: center; cursor: pointer; transition: transform .25s var(--ease); }
+.gd-more button i { font-style: normal; font-size: 20px; line-height: 1; }
+.gd-more button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.gd-main button:active, .gd-more button:active { transform: scale(.95); }
+@media (min-width: 760px) {
+  .gd-hero { height: min(58vh, 560px); }
+  .gd-body { padding: 0 28px 90px; }
+  .gd-cov { width: 118px; border-radius: 18px; }
+  .gd-logo { left: 28px; bottom: 50px; max-height: 96px; }
+  .gd-main { max-width: 560px; }
+}
+@media (min-width: 620px) {
+  html.pnrail:not(.railhide):not(.railleft) #full .gd-body { padding-right: 104px; }
+  html.pnrail.railleft:not(.railhide) #full .gd-body { padding-left: 110px; }
+}
+</style>
+<script>
+/* ===== v195: a game's page, New style ===== */
+const GD_ICON = { fullopen: "🎮", fulledit: "✏️" };
+function gdMarkup(g) {
+  const col = HEX.test(g.colour || "") ? g.colour : PALETTE[0];
+  const state = (STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1];
+  const back = bgSource(g), acts = hubActs(g), main = acts.filter(a => a[3]), rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]));
+  const ed = acts.find(a => /data-fulledit/.test(a[0]));
+  const tags = [state ? [state, 1] : null, ...platList(g.genres).slice(0, 3).map(x => [x]), ...platList(g.platforms).slice(0, 3).map(x => [x])].filter(Boolean);
+  const icon = a => a[1] || GD_ICON[(a[0].match(/data-(\w+)/) || [])[1]] || "•";
+  const desc = g.desc || g.about || "";
+  return `
+    <div class="hub gpage" style="--accent:${esc(col)}">
+      <div class="gd-hero">
+        <div class="gd-bg" style="background-image:url('${esc(cssUrl(back))}');background-position:${num(g.bgX, 50, 0, 100)}% ${num(g.bgY, 30, 0, 100)}%"></div>
+        ${g.key ? `<img class="gd-fig" decoding="async" src="${esc(g.key)}" alt="">` : ""}
+        ${g.art ? `<img class="gd-logo" decoding="async" src="${esc(g.art)}" alt="">` : ""}
+      </div>
+      <button class="fullx x" id="full-close" title="Close" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>
+      <div class="gd-body">
+        <div class="gd-head">
+          <img class="gd-cov" decoding="async" src="${esc(cover(g))}" alt="">
+          <div class="gd-tt"><span class="hub-kick">${esc(g.date ? days(g.date) : "No date yet")}</span><h2>${esc(g.title)}</h2></div>
+        </div>
+        ${tags.length ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}</div>` : ""}
+        ${desc ? `<p class="gd-desc">${esc(desc)}</p>` : ""}
+        <div class="hub-data">${hubStats(g).map(([v, l]) => `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
+        <div class="gd-main">${main.map(a => `<button type="button" class="hot" ${a[0]}>${a[1]} ${esc(a[2])}</button>`).join("")}${ed ? `<button type="button" class="${main.length ? "ed" : ""}" ${ed[0]}>✏️ Edit</button>` : ""}</div>
+        <div class="gd-more">${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
+      </div>
+    </div>`;
+}
+/* one time: everyone moves to the New page (Showcase and Plain stay one tap away in Customise) */
+if (!S.gdMig) { if (S.fullStyle === "hub") S.fullStyle = "dash"; S.gdMig = 1; save(); }
+applyLook();
+WHATS_NEW.push(
+  { v: 195, go: () => { const g = onDeck(1)[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full .gd-main",
+    say: "Game pages have a new look: the art across the top, the cover and title beside it, your numbers in tiles and every action as a button. Don't like it? Customise → A game's own page → Style brings back Showcase or Plain.",
+    tryIt: "Open a game and scroll down its page." },
+  { v: 195, go: () => { closeFull(); nxShut(); goTab("add"); }, at: "#p-add .aq",
+    say: "The Add screen got a makeover: a search bar like Home's, results as picture cards with a ＋ to add in one tap, and a live preview card. Settings → Look of the app → Add screen switches back to Classic.",
+    tryIt: "Search for a game you want." },
+  { v: 195, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Header cards" }); }, at: () => $("#s-shx"),
+    say: "The header cards from the last update can be switched off too, here in Look of the app.",
+    tryIt: "Leave them on, or tap Off." }
 );
 </script>
