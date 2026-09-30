@@ -3730,7 +3730,7 @@ const esc = t => { const l = liteFor(t); return l ? escRaw(l) : bigData(t) ? blo
    thumb, or a downscaled copy of an upload). Once the screen settles the full picture is decoded off to the
    side and swapped in where it's shown big (liteUp). A picture that has had its full copy shown once in this
    session stays full. Only a light copy that is known to load is ever used, so a bad guess costs nothing. */
-const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set();
+const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set(), LITE_DEC = new Set();
 let LITE_OK = null;
 function liteFor(t) {
   if (typeof t !== "string" || t.length < 8) return null;
@@ -3805,6 +3805,7 @@ function liteUp() {
   const seen = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > -40 && r.top < H + 40 && r.right > 0 && r.left < Wd ? r : null; };
   const go = (lite, apply) => {
     const full = LITE_FULL.get(lite), src = full;
+    if (LITE_DEC.has(src)) { LITE_WARM.add(src); return apply(src); }   /* v203: warmGame already decoded it */
     const im = new Image(); im.decoding = "async"; im.src = src;
     (im.decode ? im.decode() : new Promise(ok => { im.onload = ok; })).then(() => {
       const orig = [...LITE.entries()].find(([, v]) => v === lite); if (orig) LITE_WARM.add(orig[0]);
@@ -3977,7 +3978,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "202";
+const APP_V = "203";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8731,7 +8732,7 @@ function warmGame(g) {
     const im = new Image();
     im.onload = im.onerror = () => res();
     im.src = u;
-    if (im.decode) im.decode().then(res, () => {});
+    if (im.decode) im.decode().then(() => { res(); if (typeof warmDone === "function") warmDone(u); }, () => {});
     setTimeout(res, 350);
   })));
 }
@@ -16782,5 +16783,29 @@ WHATS_NEW.push(
     at: "#e-sgdb",
     say: "Browse and choose now also shows the game's <b>screenshots from RAWG</b> as more wide backdrops, each with its size. Many are 1920×1080 or bigger.",
     tryIt: "Edit a game → Look → Browse and choose, and scroll to the bottom row." }
+);
+</script>
+<script>
+/* ===== v203: a game page is sharp as soon as it opens. warmGame (touch-down, and each neighbour for the swipe)
+   already downloaded and decoded the FULL pictures, but the page still drew the light copies and only swapped
+   after the 650ms + idle wait (and liteUp decoded them again). Now a full picture warmGame decoded is marked warm
+   (the page draws it straight away), LITE_DEC lets liteUp swap it without another decode, and a liteUp pass runs
+   the moment the opening grow is over. ===== */
+{ let openAt = 0;
+  const _of3 = openFull; openFull = function () { openAt = performance.now(); return _of3.apply(this, arguments); };
+  /* one liteUp pass: it only swaps what's on screen and drawn bigger than the light copy (not the neighbour pages
+     kept off to the side for the swipe, which cost a 170ms frame when they were swapped too) */
+  let lt = 0; const liteNow = () => {
+    const wait = Math.max(0, 330 - (performance.now() - openAt));     /* not during the 300ms grow: a swap there would repaint mid-animation */
+    clearTimeout(lt); lt = setTimeout(liteUp, wait);
+  };
+  /* called by warmGame when a full picture has finished decoding */
+  window.warmDone = u => {
+    if (!u || typeof u !== "string" || LITE_WARM.has(u) || !LITE.get(u)) return;   /* no light copy in play: nothing to swap */
+    LITE_DEC.add(u); liteNow(); }; }   /* not marked warm here: a page drawn with the full 4K straight away decodes it on its first frame (v200's hitch) */
+WHATS_NEW.push(
+  { v: 203, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
+    say: "Game pages go sharp twice as fast: the full-quality picture starts loading the moment your finger touches a game and swaps in as soon as the page has opened (about half a second), instead of after a second or more.",
+    tryIt: "Open a game with 4K art and watch the backdrop." }
 );
 </script>
