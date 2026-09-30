@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "189";
+const APP_V = "190";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -15616,7 +15616,7 @@ WHATS_NEW.push(
 </script>
 <style>
 /* ===== v189 tour: Nexi drops out of the notch / camera hole, then rides on the tour card ===== */
-html.nxtouring #pnbub { display: block !important; z-index: 99; }
+html.nxtouring #pnbub { display: block !important; z-index: 101; }
 #nxtour { z-index: 100; transform: translate(-50%, 18px) scale(.97); transition: opacity .22s ease, transform .46s cubic-bezier(.2,1.25,.3,1); }
 #nxtour.on { transform: translate(-50%, 0); }
 #nxring { position: fixed; left: 0; top: 0; z-index: 98; pointer-events: none; border-radius: 14px; opacity: 0;
@@ -15635,13 +15635,18 @@ html.still #nxring.on { animation: none; }
 <script>
 /* ===== v189 tour: Nexi comes out of the notch and stays with the tour card ===== */
 const nxTouring = () => document.documentElement.classList.contains("nxtouring");
-/* Nexi rides on the card: peeking over its top edge (card at the bottom) or under its bottom edge (card at the top),
-   looking at whatever the card is about */
+/* Nexi floats with the card, always fully in view and in front of it: beside it when there's room (unfolded),
+   otherwise just above it (card at the bottom) or just below it (card at the top). He looks at whatever the card is about.
+   v190: he used to peek from behind the card, which hid half his face. */
 function nxDock(card, target, quick) {
   const b = $("#pnbub"); if (!b || !card || !card.isConnected) return;
-  const sz = 62, cw = card.offsetWidth, ch = card.offsetHeight, cl = card.offsetLeft - cw / 2, ct = card.offsetTop;
+  const sz = 62, halo = 20, cw = card.offsetWidth, ch = card.offsetHeight, cl = card.offsetLeft - cw / 2, ct = card.offsetTop;
   const top = card.classList.contains("top");
-  const x = Math.max(8, Math.min(innerWidth - sz - 8, cl + 20)), y = top ? ct + ch - sz * .36 : ct - sz * .64;
+  let x, y;
+  if (cl - sz - halo - 14 >= 8) { x = cl - sz - halo; y = ct + 18; }                       /* room on the left: float beside it */
+  else if (cl + cw + halo + sz + 14 <= innerWidth - 8) { x = cl + cw + halo; y = ct + 18; } /* or on the right */
+  else { x = cl + 22; y = top ? ct + ch + 14 : ct - sz - 14; }                             /* phone: above or below, clear of it */
+  x = Math.max(8, Math.min(innerWidth - sz - 8, x)); y = Math.max(8, Math.min(innerHeight - sz - 8, y));
   if (target && target.isConnected) { const r = target.getBoundingClientRect(), dx = r.left + r.width / 2 - x - 31, dy = r.top + r.height / 2 - y - 31, d = Math.hypot(dx, dy) || 1;
     b.style.setProperty("--ex", (dx / d * 5).toFixed(1) + "px"); b.style.setProperty("--ey", (dy / d * 5).toFixed(1) + "px"); }
   else { b.style.setProperty("--ex", "0px"); b.style.setProperty("--ey", top ? "4px" : "-3px"); }
@@ -15705,5 +15710,10 @@ WHATS_NEW.push(
   { v: 189, go: () => nxQueue(), at: null,
     say: "Pictures are sharper: wide Steam art no longer gets stuck on its blurred copy, soft previews switch to the full picture once they finish loading, and a picture that failed to load once is tried again instead of staying broken.",
     tryIt: "Open a game with Steam art and look at the backdrop." }
+);
+WHATS_NEW.push(
+  { v: 190, go: () => nxHome(), at: null,
+    say: "Better view of me on this card now: I float right beside it (or just above it on the folded screen) instead of hiding half behind it.",
+    tryIt: "Fold and unfold the phone and watch me hop to the right spot." }
 );
 </script>
