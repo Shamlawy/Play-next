@@ -3961,7 +3961,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "197";
+const APP_V = "198";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10728,8 +10728,9 @@ function renderHome() {
       if (!src) return;
       /* v177 the picture goes on only when the card is actually on screen (most sit hidden in the stacks) */
       t.classList.add("dxbg"); t._bgi = `url('${cssUrl(src)}')`;
-      const io = renderHome.bgIO || (renderHome.bgIO = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach(e => {
-        if (e.isIntersecting) { e.target.style.setProperty("--bgi", e.target._bgi); renderHome.bgIO.unobserve(e.target); } }), { rootMargin: "60px" }) : null);
+      const io = renderHome.bgIO || (renderHome.bgIO = "IntersectionObserver" in window ? new IntersectionObserver((es, ob) => es.forEach(e => {
+        /* v198: the observer it's given, not renderHome.bgIO: renderHome is wrapped later, so that was undefined (crash) */
+        if (e.isIntersecting) { e.target.style.setProperty("--bgi", e.target._bgi); ob.unobserve(e.target); } }), { rootMargin: "60px" }) : null);
       if (io) io.observe(t); else t.style.setProperty("--bgi", t._bgi);
       if (/^#[0-9a-f]{6}$/i.test(g.colour || "")) t.style.setProperty("--bgt", g.colour + "57");
     });
@@ -11181,8 +11182,11 @@ function pnStackEdit(key) {
 /* ---- floating bubble: the rail's handle when hidden. Drag it, fling it, it snaps to an edge; now and then it talks ---- */
 let pnLastRanked = [], pnBubX = 0, pnBubY = 0, pnBubBored = null;
 function pnBubPlace(x, y) { pnBubX = x; pnBubY = y; const b = $("#pnbub"); if (b) b.style.transform = `translate3d(${x}px,${y}px,0)`; }
+/* v198: how far Nexi sits from the screen edge. His glow (.orb, 22px outside the 62px face) has to fit too;
+   at 12px the owner saw it cut off on the unfolded Fold */
+const PN_EDGE = 34;
 function pnBubEdge() { const W = innerWidth, H = innerHeight, sz = 62;
-  return { x: pnBubX + sz / 2 < W / 2 ? 12 : W - sz - 12, y: Math.min(H - sz - 90, Math.max(20, pnBubY)) }; }
+  return { x: pnBubX + sz / 2 < W / 2 ? PN_EDGE : W - sz - PN_EDGE, y: Math.min(H - sz - 90, Math.max(PN_EDGE, pnBubY)) }; }
 function pnBubble() {
   if ($("#pnbub")) return;
   const b = document.createElement("div"); b.id = "pnbub";
@@ -11191,7 +11195,7 @@ function pnBubble() {
   document.body.append(b, m);
   const gap = Date.now() - (S.bubLast || Date.now()); S.bubLast = Date.now(); save();
   if (gap > 3 * 864e5) pnBubBored = `${Math.floor(gap / 864e5)} days… I was so bored without you 😑`;
-  const p = S.bubPos || { x: innerWidth - 74, y: innerHeight * .55 }; pnBubPlace(p.x, p.y);
+  const p = S.bubPos || { x: innerWidth - 62 - PN_EDGE, y: innerHeight * .55 }; pnBubPlace(p.x, p.y);
   let hold = 0, held = false, taps = 0, tapT = 0, pokes = 0, pokeT = 0;
   let sx = 0, sy = 0, ox = 0, oy = 0, moved = false, down = false, lx = 0, ly = 0, lt = 0, vx = 0, vy = 0, raf = 0, nx = 0, ny = 0;
   b.addEventListener("pointerdown", e => { down = true; moved = false; sx = e.clientX; sy = e.clientY; ox = pnBubX; oy = pnBubY;
@@ -11537,7 +11541,7 @@ function nxGuide(q) {
 function nxFlyTo(el) {
   const b = $("#pnbub"); if (!b) return; if (typeof nxDress === "function") nxDress(b); document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
   const r = el.getBoundingClientRect(), sz = 62, W = innerWidth;
-  const tx = r.right + sz + 16 < W ? Math.min(W - sz - 8, r.right + 12) : Math.max(8, r.left - sz - 12), ty = Math.max(20, Math.min(innerHeight - sz - 20, r.top + r.height / 2 - sz / 2));
+  const tx = r.right + sz + 16 < W ? Math.min(W - sz - PN_EDGE, r.right + 12) : Math.max(PN_EDGE, r.left - sz - 12), ty = Math.max(PN_EDGE, Math.min(innerHeight - sz - PN_EDGE, r.top + r.height / 2 - sz / 2));
   b.style.setProperty("--ex", (tx > r.left ? -5 : 5) + "px"); b.style.setProperty("--ey", "0px");
   b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${(pnBubX + tx) / 2}px,${Math.min(pnBubY, ty) - 60}px,0)`, offset: .5 },
     { transform: `translate3d(${tx}px,${ty}px,0)` }], { duration: 750, easing: "ease-in-out" });
@@ -11552,7 +11556,7 @@ function nxFlyTo(el) {
 function pnBubWander() {
   const b = $("#pnbub"); if (!b) return;
   const W = innerWidth, H = innerHeight, sz = 62, across = Math.random() < .3;
-  const tx = across ? (pnBubX < W / 2 ? W - sz - 12 : 12) : pnBubX, ty = Math.min(H - sz - 90, Math.max(20, 60 + Math.random() * (H - 240)));
+  const tx = across ? (pnBubX < W / 2 ? W - sz - PN_EDGE : PN_EDGE) : pnBubX, ty = Math.min(H - sz - 90, Math.max(PN_EDGE, 60 + Math.random() * (H - 240)));
   b.style.setProperty("--ex", (tx > pnBubX ? 4 : tx < pnBubX ? -4 : 0) + "px"); b.style.setProperty("--ey", (ty > pnBubY ? 3 : -3) + "px");
   b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` },
     { transform: `translate3d(${(pnBubX + tx) / 2}px,${Math.min(pnBubY, ty) - (across ? 120 : 40)}px,0)`, offset: .5 },
@@ -11935,7 +11939,7 @@ function openWrapped(Y, M) {
     bars.forEach((x, k) => { x.className = k < i ? "done" : k === i ? (s.stay ? "done" : "now") : ""; });
     stage.innerHTML = `<div class="wr-s bg-${s.bg}">${s.art ? `<div class="wr-art" style="background-image:url('${esc(cssUrl(s.art))}')"></div>` : ""}<div class="wr-in">${s.html}</div></div>`;
     say.textContent = s.say; say.parentNode.classList.remove("on"); void say.offsetWidth; say.parentNode.classList.add("on");
-    if (b) { pnBubPlace(14, innerHeight - 62 - 40); try { pnBubMood("talk", 1600); } catch (e) {} }
+    if (b) { pnBubPlace(PN_EDGE, innerHeight - 62 - 40); try { pnBubMood("talk", 1600); } catch (e) {} }
     beep(i ? "tap" : "open");
   };
   const close = () => {
@@ -16202,7 +16206,7 @@ function bugHash(t) { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h
 /* titles (and anything else personal) never leave the phone */
 function bugScrub(t) {
   t = String(t == null ? "" : t).slice(0, 2000);
-  const names = S.games.map(g => g.title).concat((S.lists || []).map(l => l.n), [S.bubName || ""]).filter(n => n && n.length > 2).sort((a, b) => b.length - a.length);
+  const names = S.games.map(g => g.title).concat((S.lists || []).map(l => l.n)).filter(n => n && n.length > 2).sort((a, b) => b.length - a.length);
   for (const n of names) t = t.split(n).join("‹game›");
   if (typeof rawgKey === "string" && rawgKey.length > 6) t = t.split(rawgKey).join("…");
   return t.replace(/([?&](?:key|token|sig|id)=)[^&\s"']+/gi, "$1…").replace(/blob:[^\s)"']+/g, "blob:…").replace(/data:[^\s)"']{40,}/g, "data:…");
@@ -16301,6 +16305,11 @@ function bugLayout() {
   if (sw > W + 2) {
     let wide = null; root.querySelectorAll("*").forEach(el => { if (wide) return; const r = el.getBoundingClientRect(); if (r.right > W + 2 && r.width && !el.closest(BUG_SKIP) && !bugClipped(el, root)) wide = el; });
     bugReport("layout", "The page scrolls sideways", { at: wide ? bugPath(wide) : "", screen: scr });
+  }
+  /* v198: Nexi floating with his glow cut by the screen edge (peeking is on purpose) */
+  const nb = document.getElementById("pnbub");
+  if (nb && document.documentElement.classList.contains("railhide") && !nb.classList.contains("peek") && getComputedStyle(nb).display !== "none") {
+    const q = nb.getBoundingClientRect(); if (q.width && (q.left < 20 || q.right > W - 20)) bugReport("layout", "Nexi's glow is cut off by the screen edge", { at: "#pnbub", screen: scr });
   }
   const rail = document.getElementById("hrail"), railOn = rail && getComputedStyle(rail).display !== "none" && !document.documentElement.classList.contains("railhide");
   let n = 0;
@@ -16403,7 +16412,7 @@ function bugPlace(scr) {
 function bugNice(kind, scr, msg) {
   const at = bugPlace(scr), At = at.charAt(0).toUpperCase() + at.slice(1);
   if (kind === "layout") return /sideways/.test(msg) ? `${At} slides sideways when it shouldn't.` : /rail/.test(msg) ? `A button on ${at} is hiding under my rail.` : `A button on ${at} is sticking off the screen.`;
-  if (kind === "slow") return `${At} froze for a moment there.`;
+  if (kind === "slow") return /tap took/.test(msg) ? `A tap on ${at} was slow to respond.` : /Scrolling/.test(msg) ? `Scrolling on ${at} was choppy.` : /stutter/.test(msg) ? `${At} stuttered for a moment.` : `${At} froze for a moment there.`;
   if (kind === "helper") return "My helper didn't answer properly just now.";
   if (kind === "tour") return "One of my tour stops couldn't find its spot.";
   return `Something broke on ${at} just now.`;
@@ -16422,7 +16431,9 @@ function nxBugSay() {
   const wait = (typeof nxTouring === "function" && nxTouring()) ? 4000 : Math.max(0, 90000 - (Date.now() - (BUG.lastSay || 0)));
   if (wait > 0) { clearTimeout(BUG.st); BUG.st = setTimeout(nxBugSay, wait); return; }
   BUG.said = []; BUG.lastSay = Date.now();
-  const txt = (list.length === 1 ? list[0].m : `I spotted ${list.length} glitches just now.`) + " I've already reported " + (list.length === 1 ? "it" : "them") + " 🐞 No need to tell anyone.";
+  /* a slow tap and the stutter behind it are one hiccup to you: lag reports count once */
+  const one = list.length === 1 || list.every(x => x.k === "slow"), n = list.filter(x => x.k !== "slow").length + (list.some(x => x.k === "slow") ? 1 : 0);
+  const txt = (one ? list[0].m : `I spotted ${n} glitches just now.`) + " I've already reported " + (one ? "it" : "them") + " 🐞 No need to tell anyone.";
   const pb = $("#pnbub"), cs = pb && getComputedStyle(pb), r = pb && pb.getBoundingClientRect();
   const seen = pb && cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity > .2 && r.width > 0 && r.right > 0 && r.left < innerWidth;
   if (seen) pnBubSay([txt, "bugs"]); else nxBugCard(txt);
@@ -16453,5 +16464,55 @@ WHATS_NEW.push(
   { v: 197, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "This build", text: "Nexi tells me when he spots one" }); }, at: () => $("#s-bugsay"),
     say: "When I spot a glitch myself, I'll tell you and say I've already reported it, so you don't have to. And Report a problem now lists what I've sent, so you only report new things.",
     tryIt: "Leave it on, or switch me off here if I get chatty." }
+);
+</script>
+<script>
+/* ===== v198: problem reports catch lag, not just freezes =====
+   The v196 check only saw 400ms+ freezes; the stutters you feel on a 120Hz screen are shorter. Now:
+   - stutters: any frame that takes 150ms+ (Chrome's long-animation-frame, which also names the code that ran)
+   - slow taps: a tap that takes 250ms+ to show a response (Chrome's event timing)
+   - scroll stutter: while a finger is moving, frames are timed with requestAnimationFrame (works on iPhone too)
+   All go in as kind "slow", once per screen/cause per day, and Nexi says so like any other report. */
+const LAG = { boot: performance.now() };
+const lagOk = () => bugOn() && !document.hidden && performance.now() - LAG.boot > 8000;
+const lagWhere = () => { const s = bugScreen(); return typeof bugPlace === "function" ? bugPlace(s) : s; };
+try {
+  new PerformanceObserver(list => {
+    if (!lagOk()) return;
+    for (const f of list.getEntries()) {
+      if (f.duration < 150) continue;
+      const top = (f.scripts || []).slice().sort((a, b) => b.duration - a.duration)[0];
+      const who = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "rendering (style/layout/paint)";
+      bugReport("slow", "A " + Math.round(f.duration / 10) * 10 + "ms stutter on " + lagWhere(), { at: who, screen: bugScreen(),
+        stack: top ? "blocking " + Math.round(f.blockingDuration || 0) + "ms; script " + Math.round(top.duration) + "ms at char " + (top.sourceCharPosition ?? "?") + "; style+layout " + Math.round(f.styleAndLayoutStart ? f.startTime + f.duration - f.styleAndLayoutStart : 0) + "ms" : "" });
+    }
+  }).observe({ type: "long-animation-frame", buffered: false });
+} catch (e) {}
+try {
+  new PerformanceObserver(list => {
+    if (!lagOk()) return;
+    for (const ev of list.getEntries()) {
+      if (ev.duration < 250 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name)) continue;
+      bugReport("slow", "A tap took " + Math.round(ev.duration / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen() });
+    }
+  }).observe({ type: "event", durationThreshold: 104, buffered: false });
+} catch (e) {}
+/* scroll stutter: only runs while a finger moves (plus 400ms), so it costs nothing at rest */
+(() => {
+  let on = false, last = 0, lastMove = 0, hitches = 0, worst = 0;
+  const tick = t => {
+    if (last) { const d = t - last; if (d > 60) { hitches++; worst = Math.max(worst, d); } }
+    last = t;
+    if (performance.now() - lastMove < 400) return requestAnimationFrame(tick);
+    on = false; last = 0;
+    if ((hitches >= 4 || worst >= 150) && lagOk()) bugReport("slow", "Scrolling stutters on " + lagWhere() + " (" + hitches + " hitches, worst " + Math.round(worst / 10) * 10 + "ms)", { screen: bugScreen() });
+    hitches = 0; worst = 0;
+  };
+  addEventListener("touchmove", () => { lastMove = performance.now(); if (!on) { on = true; last = 0; requestAnimationFrame(tick); } }, { passive: true, capture: true });
+})();
+WHATS_NEW.push(
+  { v: 198, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Fixed: my glow no longer gets cut off at the screen edge, and a crash on Home is gone. I also catch lag now: stutters, slow taps and choppy scrolling get reported by themselves.",
+    tryIt: "Just use the app. If something feels slow, I'll tell you I've reported it." }
 );
 </script>
