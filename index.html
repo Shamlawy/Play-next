@@ -3978,7 +3978,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "206";
+const APP_V = "207";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11248,7 +11248,7 @@ function pnBubble() {
     lx = sx; ly = sy; lt = performance.now(); vx = vy = 0; b.setPointerCapture(e.pointerId); b.classList.add("grab"); pnBubHush();
     held = false; clearTimeout(hold); hold = setTimeout(() => { if (!moved && down) { held = true; if (navigator.vibrate) navigator.vibrate(18); pnBubWheel(); } }, 600); });
   b.addEventListener("pointermove", e => { if (!down) return;
-    const dx = e.clientX - sx, dy = e.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearTimeout(hold); }
+    const dx = e.clientX - sx, dy = e.clientY - sy; if (e.pointerType === "touch" ? Math.hypot(dx, dy) > 14 : Math.abs(dx) + Math.abs(dy) > 6) { moved = true; clearTimeout(hold); }
     const now = performance.now(), dt = Math.max(1, now - lt); vx = (e.clientX - lx) / dt; vy = (e.clientY - ly) / dt; lx = e.clientX; ly = e.clientY; lt = now;
     nx = ox + dx; ny = oy + dy; if (!raf) raf = requestAnimationFrame(() => { raf = 0; pnBubPlace(nx, ny); }); });
   const up = () => { if (!down) return; down = false; b.classList.remove("grab"); clearTimeout(hold);
@@ -11257,7 +11257,7 @@ function pnBubble() {
       /* v204: a double tap opens his wheel (shortcuts + his settings); it used to be a poke that made him angry */
       if (taps >= 2) { taps = 0; if (navigator.vibrate) navigator.vibrate(14); pnBubMood("happy", 900); pnBubWheel(); return; }
       tapT = setTimeout(() => { if (taps === 1) { document.documentElement.classList.toggle("railleft", S.railSide === "left"); S.railHide = false; save();
-        document.documentElement.classList.remove("railhide"); pnBubHush(); } taps = 0; }, 280); return; }
+        document.documentElement.classList.remove("railhide"); pnBubHush(); } taps = 0; }, 400); return; }
     pnBubPlace(pnBubX + vx * 120, pnBubY + vy * 120);           /* a flick carries it a little further */
     const from = { x: pnBubX, y: pnBubY }, to = pnBubEdge();
     b.animate([{ transform: `translate3d(${ox + (lx - sx)}px,${oy + (ly - sy)}px,0)` }, { transform: `translate3d(${to.x}px,${to.y}px,0)` }],
@@ -11622,7 +11622,10 @@ function pnBubWheel() {
   ov.innerHTML = acts.map(([e, a], i) => btn(e, a, i, (right ? 95 : -85) + i * 22.5, 122, "act")).join("")
     + it.map(([e, a], i) => btn(e, a, i + acts.length, (right ? 99 : -81) + i * 20.25, 178, "")).join("");
   document.body.appendChild(ov);
-  ov.onclick = e => { const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
+  /* v207: a double tap opens the wheel on its second pointerup, and the phone's click that follows ~6ms later
+     landed on this full-screen backdrop and closed it at once (#69). Clicks in the first 350ms are ignored. */
+  const born = performance.now();
+  ov.onclick = e => { if (performance.now() - born < 350) return; const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
     if (a === "power") pnPowerUp();
     else if (a === "edit") pnBubEdit();
     else if (a === "story") pnLore(); else if (a === "ask") nxChat();
@@ -16509,6 +16512,7 @@ function bugNice(kind, scr, msg) {
   if (kind === "layout" && /blank/.test(msg)) return `${At} came up blank.`;
   if (kind === "layout" && /blurry/.test(msg)) return `A picture on ${at} stayed blurry.`;
   if (kind === "layout" && /square/.test(msg)) return "My glow turned into a square.";
+  if (kind === "layout" && /opened and closed/.test(msg)) return `A menu on ${at} closed as soon as it opened.`;
   if (kind === "layout" && /glow/.test(msg)) return "My glow is getting cut off by the edge of the screen.";
   if (kind === "layout") return /sideways/.test(msg) ? `${At} slides sideways when it shouldn't.` : /rail/.test(msg) ? `A button on ${at} is hiding under my rail.` : `A button on ${at} is sticking off the screen.`;
   if (kind === "slow") return /tap took/.test(msg) ? `A tap on ${at} was slow to respond.` : /Scrolling/.test(msg) ? `Scrolling on ${at} was choppy.` : /stutter/.test(msg) ? `${At} stuttered for a moment.` : `${At} froze for a moment there.`;
@@ -17525,11 +17529,23 @@ render = function () {
   applyBg(); rndKick();
 };
 { const _pt = paintTab; paintTab = function (tab) { rndFlush(panelOf(tab)); if (tab === "add") rndFlush("p-home"); return _pt.apply(this, arguments); }; }
+/* #69: Nexi's wheel opened and closed in the same instant on phones (the tap's follow-up click hit its backdrop).
+   Nexi now reports any menu/overlay that vanishes within 200ms of appearing. */
+{ const OVL = new Set(["bubwheel", "shuf", "wrap", "fxrad", "fxboss", "bugtip", "nxbug"]), born = new WeakMap();
+  new MutationObserver(ms => { const now = performance.now();
+    for (const m of ms) {
+      m.addedNodes.forEach(n => { if (n.nodeType === 1 && OVL.has(n.id)) born.set(n, now); });
+      m.removedNodes.forEach(n => { if (n.nodeType !== 1 || !born.has(n)) return; const age = now - born.get(n);
+        if (age < 200 && bugOn() && !document.hidden) bugReport("layout", "A menu opened and closed at once (#" + n.id + ")", { at: "#" + n.id + " lived " + Math.round(age) + "ms", screen: bugScreen() }); });
+    } }).observe(document.body, { childList: true }); }
 /* before a backup or the app going to the background, nothing is left half-drawn */
 addEventListener("visibilitychange", () => { if (document.hidden) [...RND_DIRTY].forEach(rndFlush); });
 WHATS_NEW.push(
   { v: 206, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Fixed: saving, adding or deleting a game answers about twice as fast, and Home redraws in a fifth of the time. The app used to redraw all seven screens at once; now it does the one you're looking at and the rest in the quiet moments after. I also stopped counting the time you spend reading an OK/Cancel box as lag.",
-    tryIt: "Edit a game and tap Save." }
+    tryIt: "Edit a game and tap Save." },
+  { v: 207, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Fixed: double-tapping me now really opens my wheel on your phone. It did open, but the tap's own click closed it in the same instant. I've learned to spot a menu that closes as soon as it opens.",
+    tryIt: "Double-tap me." }
 );
 </script>
