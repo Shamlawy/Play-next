@@ -2,7 +2,6 @@
 // Chat + similar games need only the AI binding. Nudges also need the NUDGE KV namespace and the cron.
 {
   "name": "playnext-helper",
-  "account_id": "f6c834a70eab1c6cef61cc8428258c13",
   "main": "helper.js",
   "compatibility_date": "2025-01-01",
   "ai": { "binding": "AI" },

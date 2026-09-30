@@ -1,6 +1,6 @@
 # Deploys Nexi's helper (worker/) to Cloudflare whenever it changes on main, or by hand from the Actions tab.
 # Needs one repository secret: CLOUDFLARE_API_TOKEN (a Cloudflare token made from the "Edit Cloudflare Workers"
-# template, or an account token with Workers Scripts / Workers KV Storage: Edit). The account id is in wrangler.jsonc.
+# template, or an account token with Workers Scripts / Workers KV Storage: Edit). CLOUDFLARE_ACCOUNT_ID is optional.
 # The SteamGridDB key (SGDB_KEY) stays a secret on the worker itself; deploying never touches it.
 name: Deploy Nexi's helper
 on:
