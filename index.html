@@ -3978,7 +3978,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "204";
+const APP_V = "205";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6119,7 +6119,7 @@ function openSettings(scope) {
       <p class="note">Every "hours to beat", evening count and plan uses this. Games without their own extras or 100% hours get a typical estimate from the main story.</p>
     </div>
 
-    <div class="setgroup" data-scope="taste" data-sub="analytics"><h4 data-desc="The scaffolding behind your taste shape.">The web</h4>
+    <div class="setgroup" data-scope="taste" data-sub="insights"><h4 data-desc="The scaffolding behind your taste shape.">The web</h4>
       <p class="note">The rings and spokes behind the shape. Turning them off reads cleaner; keeping them makes it easier to judge how far out a point sits.</p>
       <label>Lines behind the shape</label>
       <div class="chips" id="s-webgrid">
@@ -6128,7 +6128,7 @@ function openSettings(scope) {
       </div>
     </div>
 
-    <div class="setgroup" data-scope="taste" data-sub="psych patterns"><h4 data-desc="The art behind your headline figure.">The big number</h4>
+    <div class="setgroup" data-scope="taste" data-sub="insights"><h4 data-desc="The art behind your headline figure.">The big number</h4>
       <p class="note">The art behind your headline figure.</p>
       <label>Which game's art</label>
       <div class="chips" id="s-tasteart">
@@ -6140,7 +6140,7 @@ function openSettings(scope) {
         <span class="v" id="s-tasteartstr-v">${num(S.tasteArtStr, 55, 0, 100)}%</span></div>
     </div>
 
-    <div class="setgroup" data-scope="taste" data-sub="psych patterns analytics"><h4 data-desc="How much scored data before the app claims anything about you.">Conclusions</h4>
+    <div class="setgroup" data-scope="taste" data-sub="insights"><h4 data-desc="How much scored data before the app claims anything about you.">Conclusions</h4>
       <label for="s-analysisat">Hold conclusions until this many games are scored</label>
       <div class="rowline"><input id="s-analysisat" type="range" min="1" max="20" value="${num(S.analysisAt, 3, 1, 20)}">
         <span class="v" id="s-analysisat-v">${num(S.analysisAt, 3, 1, 20)}</span></div>
@@ -9957,8 +9957,6 @@ function tasteAnalytics() {
       : '<p class="empty">Score something in Played and the distribution turns up here.</p>'}
 
     ${genreChart()}
-
-    })()}
 
     ${ahead.length ? `<label>Still to come</label>
       ${ahead.slice(0, 6).map(g => `<div class="row slab" style="--accent:${esc(g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
@@ -17128,5 +17126,362 @@ WHATS_NEW.push(
   { v: 204, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Fixed: my glow turned into a square after I'd peeked from the left edge (I borrowed a style from another screen by accident). I've learned to spot this myself now.",
     tryIt: "Leave me on the left for a while, then look: still round." }
+);
+</script>
+<style>
+/* ===== v205: Taste → Insights. Psychology, Patterns and Analytics in one page, ordered the way attention works:
+   who you are (identity) → how good your judgement is (competence) → what I've noticed (novelty) → your shape
+   (one picture) → what's coming (action) → the deep patterns and raw numbers, folded, for the curious.
+   Reveals are transform/opacity only; bars grow with scaleX/scaleY. All classes ix-*. ===== */
+.ixp { display: grid; gap: 14px; padding-bottom: 8px; }
+.ix-card { position: relative; border-radius: 22px; padding: 16px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(255,255,255,.07)); overflow: hidden; }
+.ix-card h4 { margin: 0 0 10px; font: 700 17px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); letter-spacing: -.01em; text-transform: none; font-style: normal; }
+.ix-card h4 small { display: block; margin-top: 3px; font: 500 12px/1.3 system-ui, sans-serif; color: var(--mute); }
+.ix-rv { opacity: 0; transform: translateY(16px) scale(.985); transition: opacity .55s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
+.ix-duo > .ix-rv:nth-child(2) { transition-delay: 90ms; }
+.ix-rv.in { opacity: 1; transform: none; }
+.ix-rv.ix-now, .ix-rv.ix-now * { transition: none !important; }
+:where(html.still) .ix-rv, :where(html.still) .ix-rv * { transition: none !important; opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .ix-rv, .ix-rv * { transition: none !important; opacity: 1 !important; transform: none !important; } }
+/* 1. who you are */
+.ix-hero { position: relative; isolation: isolate; overflow: hidden; border-radius: 26px; padding: 22px 18px 18px; min-height: 230px;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--volt) 20%, #0a0e1b), #070a14 70%); border: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 30px 60px -34px rgba(0,0,0,.95); display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 16px; align-content: start; }
+.ix-hero::before { content: ""; position: absolute; inset: 0; z-index: -2; background: var(--bigimg, none) center 30% / cover; opacity: calc(var(--bigop, .55) * .55); }
+.ix-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(7,10,20,.94) 20%, rgba(7,10,20,.55) 70%, rgba(7,10,20,.35)), linear-gradient(0deg, rgba(7,10,20,.9), transparent 55%); }
+.ix-shine { position: absolute; inset: -20% auto -20% -40%; width: 38%; z-index: 0; pointer-events: none; background: linear-gradient(100deg, transparent, rgba(255,255,255,.10), transparent); transform: translateX(-60%) skewX(-12deg); opacity: 0; }
+.ix-hero.in .ix-shine { animation: ixShine 1.6s .5s cubic-bezier(.3,.6,.3,1) both; }
+@keyframes ixShine { 0% { opacity: 0; transform: translateX(-60%) skewX(-12deg); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateX(420%) skewX(-12deg); } }
+.ix-medal { grid-row: span 3; position: relative; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-size: 38px;
+  background: radial-gradient(circle at 35% 30%, #1f2b52, #080c18 70%); box-shadow: 0 0 0 3px rgba(var(--vrgb), .9), 0 0 34px rgba(var(--vrgb), .45), inset 0 -8px 18px rgba(0,0,0,.5); }
+.ix-medal::before { content: ""; position: absolute; inset: -9px; border-radius: 50%; background: conic-gradient(from 0deg, transparent, rgba(var(--vrgb), .75), transparent 40%); opacity: .55; }
+.ix-medal span { position: relative; }
+:where(html:not(.still)) .ix-hero.in .ix-medal::before { animation: pnSpin 7s linear infinite; }
+:where(html:not(.still)) .ix-hero.in .ix-medal span { animation: ixFloat 4.2s ease-in-out infinite; }
+@keyframes ixFloat { 50% { transform: translateY(-4px) rotate(-4deg); } }
+.ix-hero .ix-medal { transform: scale(.6) rotate(-20deg); opacity: 0; transition: transform .8s cubic-bezier(.3,1.5,.5,1) .1s, opacity .4s .1s; }
+.ix-hero.in .ix-medal { transform: none; opacity: 1; }
+.ix-kick { margin: 6px 0 0; font: 600 11px/1.2 system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--volt); }
+.ix-hero h2 { margin: 2px 0 0; font: 800 clamp(26px, 7.4vw, 40px)/1.05 "Poppins", system-ui, sans-serif; letter-spacing: -.025em; color: #fff; font-style: normal; text-transform: none; }
+.ix-line { grid-column: 1 / -1; margin: 12px 0 0; font-size: 14px; line-height: 1.45; color: rgba(234,242,255,.86); max-width: 52ch; }
+.ix-traits { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ix-traits span { padding: 6px 11px; border-radius: 999px; font: 600 12px/1 system-ui, sans-serif; color: var(--ice); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); }
+.ix-hero .ix-line, .ix-hero .ix-traits, .ix-hero h2, .ix-hero .ix-kick { opacity: 0; transform: translateY(10px); transition: opacity .5s ease, transform .6s cubic-bezier(.2,.8,.2,1); }
+.ix-hero.in .ix-kick { transition-delay: .18s; } .ix-hero.in h2 { transition-delay: .26s; } .ix-hero.in .ix-line { transition-delay: .36s; } .ix-hero.in .ix-traits { transition-delay: .46s; }
+.ix-hero.in .ix-line, .ix-hero.in .ix-traits, .ix-hero.in h2, .ix-hero.in .ix-kick { opacity: 1; transform: none; }
+.ix-gate { grid-column: 1 / -1; margin-top: 14px; }
+.ix-gate i { display: block; height: 8px; border-radius: 9px; background: rgba(255,255,255,.08); overflow: hidden; }
+.ix-gate i b { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--volt2, var(--volt)), var(--volt)); border-radius: 9px; transform-origin: left; transform: scaleX(0); transition: transform 1s cubic-bezier(.2,.8,.2,1) .5s; }
+.ix-hero.in .ix-gate i b { transform: scaleX(var(--v)); }
+.ix-gate small { display: block; margin-top: 7px; color: var(--mute); font-size: 12px; }
+/* 2. your judgement */
+.ix-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ix-duo .ix-card { padding: 14px; display: grid; align-content: start; gap: 8px; }
+.ix-cap { font: 600 11px/1.2 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.ix-ring { position: relative; width: 86px; height: 86px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--volt) calc(var(--p) * 1%), rgba(255,255,255,.08) 0);
+  -webkit-mask: radial-gradient(circle, transparent 54%, #000 55%); mask: radial-gradient(circle, transparent 54%, #000 55%);
+  transform: rotate(-110deg) scale(.8); opacity: 0; transition: transform 1s cubic-bezier(.2,.9,.3,1) .15s, opacity .5s .15s; }
+.ix-ringw { position: relative; width: 86px; height: 86px; }
+.ix-ringw b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 800 24px/1 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-ringw b small { font-size: 12px; margin-left: 1px; color: var(--mute); }
+.ix-card.in .ix-ring { transform: none; opacity: 1; }
+.ix-big { font: 800 38px/1 "Poppins", system-ui, sans-serif; letter-spacing: -.03em; color: var(--ice); }
+.ix-big.hot { color: #ff8a6a; } .ix-big.cold { color: #7ee0b0; }
+.ix-t { font: 700 15px/1.25 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-s { font-size: 12.5px; line-height: 1.4; color: var(--mute); }
+.ix-track { position: relative; height: 8px; border-radius: 9px; margin: 6px 0 2px; background: linear-gradient(90deg, rgba(126,224,176,.35), rgba(255,255,255,.08) 50%, rgba(255,138,106,.35)); }
+.ix-track::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: rgba(255,255,255,.35); border-radius: 2px; }
+/* a full-width layer slid by a share of its own width carries the dot: no measuring */
+.ix-track > s, .ix-qt > s { position: absolute; inset: 0; text-decoration: none; transform: translateX(calc(var(--x) * 100%)); transition: transform 1.1s cubic-bezier(.2,.9,.3,1.2) .35s; }
+.ix-card:not(.in) .ix-track > s { transform: translateX(50%); }
+.ix-track > s > i { position: absolute; top: 50%; left: 0; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(var(--vrgb), .6), 0 4px 10px rgba(0,0,0,.5); }
+.ix-tk { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--mute); }
+.ix-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ix-mini > div { border-radius: 16px; padding: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--u-line, rgba(255,255,255,.07)); }
+.ix-mini b { display: block; font: 800 22px/1 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-mini b em { font-style: normal; font-size: .6em; color: var(--mute); }
+.ix-mini span { display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.3; color: var(--mute); }
+.ix-reads { display: grid; gap: 10px; }
+.ix-read { padding: 12px 14px 12px 16px; border-radius: 16px; background: rgba(255,255,255,.035); border-left: 3px solid rgba(var(--vrgb), .8); }
+.ix-read b { display: block; font: 700 13.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-read p { margin: 5px 0 0; font-size: 13px; line-height: 1.45; color: rgba(234,242,255,.78); }
+/* 3. what I've learned */
+.ix-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.ix-head h4 { margin: 0; }
+.ix-ins { display: grid; gap: 9px; }
+.ix-in { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 12px; align-items: center; padding: 11px 12px; border-radius: 16px; background: rgba(255,255,255,.035);
+  opacity: 0; transform: translateX(-12px); transition: opacity .45s ease, transform .55s cubic-bezier(.2,.8,.2,1); transition-delay: calc(.15s + var(--i) * 90ms); }
+.ix-card.in .ix-in { opacity: 1; transform: none; }
+.ix-in > i { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; font-style: normal; font-size: 21px; background: rgba(var(--vrgb), .14); }
+.ix-in .tt { display: block; font-size: 14px; line-height: 1.35; color: var(--ice); }
+.ix-in small { display: block; margin-top: 3px; font-size: 11.5px; color: var(--mute); }
+.ix-rk { display: flex; gap: 8px; overflow-x: auto; margin: 12px -16px -4px; padding: 0 16px 4px; scrollbar-width: none; }
+.ix-rk::-webkit-scrollbar { display: none; }
+.ix-rk button { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 12px 8px 8px; border-radius: 999px; border: 1px solid var(--u-line, rgba(255,255,255,.08)); background: rgba(255,255,255,.04); color: var(--ice); font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
+.ix-rk button > b { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(var(--vrgb), .18); font-size: 12px; }
+.ix-rk button span:last-child { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 5. what's coming */
+.ix-q { display: grid; gap: 10px; }
+.ix-qr { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 11px; align-items: center; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; }
+.ix-qr img { width: 38px; height: 50px; border-radius: 9px; object-fit: cover; background: #1b2445; }
+.ix-qr .n { display: block; font: 600 13.5px/1.25 system-ui, sans-serif; color: var(--ice); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ix-qt { position: relative; display: block; height: 6px; margin-top: 8px; border-radius: 9px; background: rgba(255,255,255,.07); }
+.ix-qt > s { transition-duration: 1s; transition-timing-function: cubic-bezier(.2,.9,.3,1); transition-delay: calc(.2s + var(--i) * 80ms); }
+.ix-qt > s.e { z-index: 2; }
+.ix-card:not(.in) .ix-qt > s.e { transform: translateX(calc(var(--h) * 100%)); }
+.ix-qt > s > i { position: absolute; top: 50%; left: 0; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; }
+.ix-qt > s.h > i { border: 2px solid rgba(234,242,255,.55); background: #0a0e1b; }
+.ix-qt > s.e > i { background: var(--c, var(--volt)); box-shadow: 0 0 10px var(--c, var(--volt)); }
+.ix-qv { text-align: right; font: 800 18px/1 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-qv small { display: block; margin-top: 4px; font: 500 11px/1 system-ui, sans-serif; color: var(--mute); }
+/* 6. folded deep dives */
+.ix-fold { padding: 0; }
+.ix-fold > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 44px minmax(0,1fr) 20px; gap: 12px; align-items: center; padding: 14px 16px; }
+.ix-fold > summary::-webkit-details-marker { display: none; }
+.ix-fold > summary > i { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-style: normal; font-size: 21px; background: rgba(var(--vrgb), .14); }
+.ix-fold > summary b { display: block; font: 700 15px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-fold > summary small { display: block; margin-top: 3px; font-size: 12px; line-height: 1.3; color: var(--mute); }
+.ix-fold > summary em { font-style: normal; color: var(--mute); font-size: 18px; transition: transform .3s ease; }
+.ix-fold[open] > summary em { transform: rotate(90deg); }
+.ix-body { padding: 0 16px 16px; }
+.ix-fold[open] .ix-body { animation: ixOpen .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes ixOpen { from { opacity: 0; transform: translateY(-6px); } }
+.ix-bars { display: grid; gap: 9px; margin: 6px 0 4px; }
+.ix-bar { display: grid; grid-template-columns: minmax(0, 38%) minmax(0,1fr) 44px; gap: 10px; align-items: center; font-size: 12.5px; color: var(--ice); }
+.ix-bar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ix-bar > i { height: 9px; border-radius: 9px; background: rgba(255,255,255,.06); overflow: hidden; }
+.ix-bar > i::after { content: ""; display: block; height: 100%; border-radius: 9px; background: var(--volt); transform-origin: left; transform: scaleX(0); transition: transform .9s cubic-bezier(.2,.8,.2,1) calc(var(--i, 0) * 50ms); }
+.ix-bar.neg > i::after { background: #ff6a5a; }
+.ix-bar.faint { opacity: .5; }
+.ix-fold[open] .ix-bar > i::after, .ix-bars.ix-open .ix-bar > i::after { transform: scaleX(var(--v)); }
+.ix-bar > b { text-align: right; font: 700 12.5px/1 system-ui, sans-serif; color: var(--mute); }
+.ix-note { margin: 10px 0 0; font-size: 12px; line-height: 1.45; color: var(--mute); }
+.ix-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 4px 0 12px; }
+@media (min-width: 620px) { .ix-stats { grid-template-columns: repeat(4, 1fr); } }
+.ix-stats > div { padding: 12px; border-radius: 16px; background: rgba(255,255,255,.035); }
+.ix-stats b { display: block; font: 800 22px/1 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-stats b em { font-style: normal; font-size: .6em; color: var(--mute); margin-left: 1px; }
+.ix-stats span { display: block; margin-top: 5px; font-size: 11.5px; color: var(--mute); }
+.ix-sub { margin: 14px 0 8px; font: 700 13px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-dist { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: end; height: 96px; }
+.ix-dist > span { height: 100%; display: flex; align-items: flex-end; }
+.ix-dist i { display: block; width: 100%; height: 100%; border-radius: 10px 10px 4px 4px; background: linear-gradient(180deg, var(--volt), rgba(var(--vrgb), .35)); transform-origin: bottom; transform: scaleY(0); transition: transform .9s cubic-bezier(.2,.8,.2,1) calc(var(--i) * 70ms); }
+.ix-dist i.pale { background: rgba(255,255,255,.08); }
+.ix-fold[open] .ix-dist i { transform: scaleY(var(--v)); }
+.ix-fold[open] .ix-body.pre .ix-bar > i::after { transform: scaleX(0); } .ix-fold[open] .ix-body.pre .ix-dist i { transform: scaleY(0); }
+.ix-distl { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 6px; text-align: center; font-size: 11px; color: var(--mute); }
+.ix-gl { display: grid; gap: 8px; }
+.ix-gl > * { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 0; background: rgba(255,255,255,.035); color: var(--ice); font: 600 13px/1.2 system-ui, sans-serif; text-align: left; cursor: pointer; }
+.ix-gl > * span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ix-gl > * b { font: 700 12.5px/1 system-ui, sans-serif; color: var(--mute); }
+.ix-gl > * b.up { color: #7ee0b0; } .ix-gl > * b.dn { color: #ff8a6a; }
+.ix-shape .radarwrap { margin-top: 2px; }
+.ix-more { margin-top: 10px; }
+.ix-more > summary { list-style: none; cursor: pointer; display: inline-flex; padding: 8px 14px; border-radius: 999px; font: 600 12.5px/1 system-ui, sans-serif; color: var(--volt); background: rgba(var(--vrgb), .1); }
+.ix-more > summary::-webkit-details-marker { display: none; }
+.ix-more[open] > summary { margin-bottom: 10px; }
+.ix-more[open] > .ix-reads { animation: ixOpen .45s cubic-bezier(.2,.8,.2,1) both; }
+@media (min-width: 620px) {
+  .ixp { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .ixp > * { grid-column: 1 / -1; }
+  .ixp > .ix-fold:not(.ix-full) { grid-column: auto; }
+  .ix-hero { padding: 28px 26px 24px; min-height: 250px; }
+  .ix-medal { width: 104px; height: 104px; font-size: 48px; }
+}
+@media (max-width: 379px) { .ix-duo { grid-template-columns: 1fr; } .ix-mini b { font-size: 19px; } }
+</style>
+<script>
+/* ===== v205: Taste → Insights (see the style block above for the order and why) ===== */
+SUBS.taste.splice(0, SUBS.taste.length, ["insights", "Insights"], ["duels", "Duels"], ["friend", "Friend"]);
+SUBDEF.taste = "insights";
+Object.assign(SUBHOME, { insights: "taste" });
+{ const _ss = setSub; setSub = function (tab, v) { if (tab === "taste" && /^(psych|patterns|analytics)$/.test(v)) v = "insights"; return _ss.call(this, tab, v); }; }
+/* who you are: the strongest signal in your data names you, the next ones become traits */
+function ixType() {
+  const rows = playedRows(), b = hypeBias(), acc = hypeAcc(), R = rankedGames();
+  const live = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp);
+  const pool = R.length >= 3 ? R.slice(0, Math.max(3, Math.ceil(R.length / 2))) : rows.map(x => x.g);
+  const gc = {}; pool.forEach(g => platList(g.genres).forEach(x => gc[x] = (gc[x] || 0) + 1));
+  const topG = Object.entries(gc).sort((x, y) => y[1] - x[1])[0];
+  const avg = rows.length ? rows.reduce((s, x) => s + x.real, 0) / rows.length : 0;
+  const kinds = new Set(); rows.forEach(x => platList(x.g.genres).forEach(v => kinds.add(v)));
+  const duels = (S.duels || []).filter(d => d.w).length, p = rows.length, l = live.length, f1 = v => v.toFixed(1);
+  const T = [];
+  const oracle = acc && acc.n >= 4 && acc.pct >= 75 && acc.hits / acc.n >= .6;
+  if (oracle) T.push({ e: "🔮", t: "The Oracle", c: "Oracle", line: `You call games before you play them: ${acc.hits} of ${acc.n} landed within a point of your hype.` });
+  if (!oracle && b.n >= 4 && b.mean <= -1) T.push({ e: "🌅", t: "The Optimist", c: "Optimist", line: `Your hype runs ${f1(-b.mean)} points above the verdict. You fall for the idea of a game before the game itself.` });
+  if (!oracle && b.n >= 4 && b.mean >= 1) T.push({ e: "🧐", t: "The Skeptic", c: "Skeptic", line: `Games beat your expectations by ${f1(b.mean)} points. The ones you shrug at deserve a real chance.` });
+  if (topG && pool.length >= 3 && topG[1] / pool.length >= .5) T.push({ e: "💠", t: `The ${topG[0]} Devotee`, c: topG[0] + " heart", line: `${topG[1]} of your top ${pool.length} games are ${topG[0]}. You know exactly what you like.` });
+  if (p >= 5 && avg < 6.5) T.push({ e: "🗡️", t: "The Tough Critic", c: "Tough critic", line: `Your average verdict is ${f1(avg)}. A high score from you really means something.` });
+  if (p >= 5 && avg >= 8.3) T.push({ e: "💖", t: "The Big Heart", c: "Big heart", line: `Your average verdict is ${f1(avg)}. You find the good in almost everything you play.` });
+  if (l >= 10 && l >= 3 * Math.max(1, p)) T.push({ e: "📚", t: "The Collector", c: "Collector", line: `${l} games waiting, ${p} finished. You love the hunt as much as the play.` });
+  if (p >= 5 && p >= l) T.push({ e: "🏁", t: "The Finisher", c: "Finisher", line: `${p} finished and only ${l} waiting. You see things through.` });
+  if (kinds.size >= 7) T.push({ e: "🧭", t: "The Explorer", c: "Explorer", line: `You've finished games in ${kinds.size} different genres. You go everywhere.` });
+  if (duels >= 50) T.push({ e: "⚔️", t: "The Duelist", c: "Duelist", line: `${duels} duels settled. Your ranking is battle-tested.` });
+  return T;
+}
+const ixShown = new Set();
+function ixRv(k) { return `ix-rv" data-ix="${k}`; }
+function tasteInsightsPage() {
+  const ready = analysisReady(), T = ixType(), main = T[0], b = hypeBias(), acc = hypeAcc(), t = rankTable();
+  const rows = playedRows(), duels = (S.duels || []).filter(d => d.w).length;
+  const out = [];
+  /* 1. who you are */
+  out.push(`<section class="ix-hero ${ixRv("hero")}"${bigBack()}><i class="ix-shine"></i>
+    <div class="ix-medal"><span>${main ? main.e : "🌱"}</span></div>
+    <p class="ix-kick">Your player type</p>
+    <h2>${esc(main ? main.t : "Still getting to know you")}</h2>
+    <p class="ix-line">${esc(main ? main.line : ready.ok ? "Nothing stands out yet. Duel a few games and tag what got you, and a type appears." : `Score ${Math.max(0, ready.need - ready.have)} more finished game${ready.need - ready.have === 1 ? "" : "s"} and I'll tell you what kind of player you are.`)}</p>
+    ${T.length > 1 ? `<div class="ix-traits">${T.slice(1, 4).map(x => `<span>${x.e} ${esc(x.c)}</span>`).join("")}</div>` : ""}
+    ${!ready.ok ? `<div class="ix-gate"><i><b style="--v:${Math.min(1, ready.have / ready.need).toFixed(3)}"></b></i><small>${ready.have} of ${ready.need} games scored</small></div>` : ""}
+  </section>`);
+  /* 2. how good your judgement is */
+  if (acc && b.n) {
+    const W = 100, x = Math.max(-3, Math.min(3, b.mean));
+    out.push(`<div class="ix-duo">
+      <div class="ix-card ${ixRv("acc", 1)}"><span class="ix-cap">Hype accuracy</span>
+        <div class="ix-ringw"><div class="ix-ring" style="--p:${acc.pct}"></div><b>${acc.pct}<small>%</small></b></div>
+        <span class="ix-t">${esc(acc.title)}</span><span class="ix-s">Called ${acc.hits} of ${acc.n} within a point.</span></div>
+      <div class="ix-card ${ixRv("bias", 2)}"><span class="ix-cap">Hype vs verdict</span>
+        <span class="ix-big ${Math.abs(b.mean) < .5 ? "" : b.mean < 0 ? "hot" : "cold"}">${b.mean > 0 ? "+" : b.mean < 0 ? "−" : ""}${Math.abs(b.mean).toFixed(1)}</span>
+        <span class="ix-t">${Math.abs(b.mean) < .5 ? "You call it right" : b.mean < 0 ? "You run hot" : "You undersell"}</span>
+        <div class="ix-track"><s style="--x:${((3 - x) / 6).toFixed(3)}"><i></i></s></div>
+        <div class="ix-tk"><span>Undersell</span><span>Run hot</span></div></div>
+    </div>`);
+    out.push(`<div class="ix-mini ${ixRv("mini", 1)}">
+      <div><b>${b.hits}<em>/${b.n}</em></b><span>called within a point</span></div>
+      <div><b>${b.spread.toFixed(1)}</b><span>${b.spread < 1.2 ? "steady" : b.spread < 2.2 ? "a few surprises" : "often surprised"}</span></div>
+      <div><b>${duels}</b><span>duels settled</span></div></div>`);
+    const read = playerRead();
+    const rd = ([h, p]) => `<div class="ix-read"><b>${esc(h)}</b><p>${esc(p)}</p></div>`;
+    if (read.length) out.push(`<div class="ix-card ix-full ${ixRv("read")}"><h4>What that says about you</h4><div class="ix-reads">${read.slice(0, 2).map(rd).join("")}</div>
+      ${read.length > 2 ? `<details class="ix-more" data-fold="read"${(S.ixOpen || {}).read ? " open" : ""}><summary>${read.length - 2} more about you</summary><div class="ix-reads">${read.slice(2).map(rd).join("")}</div></details>` : ""}</div>`);
+  }
+  /* 3. what I've noticed */
+  const ins = tasteInsights(), top = rankedGames().slice(0, 5);
+  out.push(`<div class="ix-card ${ixRv("learn")}"><div class="ix-head"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>⚔️ Duel</span></button></div>
+    ${ins.length ? `<div class="ix-ins">${ins.map((x, i) => `<div class="ix-in" style="--i:${i}"><i>${x.ic}</i><span><span class="tt">${x.txt}</span><small>${esc(x.sub)}</small></span></div>`).join("")}</div>`
+      : `<p class="ix-s">${duels < 4 ? "Settle a few duels and I'll start spotting patterns, like which kinds of game win." : "Nothing stands out yet. More duels, and games added or removed, sharpen this."}</p>`}
+    ${top.length ? `<div class="ix-rk">${top.map((g, i) => `<button data-opg="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<span>${esc(g.title)}</span></button>`).join("")}</div>` : ""}</div>`);
+  /* 4. one picture of your taste (an empty shape waits at the bottom instead of taking the spotlight) */
+  const shapeHtml = radarBlock("taste"), shapeEmpty = /class="empty"/.test(shapeHtml.slice(0, 40));
+  const shape = `<div class="ix-card ix-shape ${ixRv("shape")}"><h4>Your taste shape<small>${shapeEmpty ? "Rate the parts of a few games (story, music, gameplay…) to draw it" : "How your scores spread across what games are made of"}</small></h4>${shapeEmpty ? "" : shapeHtml}</div>`;
+  if (!shapeEmpty) out.push(shape);
+  /* 5. what's coming, predicted */
+  if (ready.ok && b.n) {
+    const q = sortGames(liveGames()).filter(g => !isPlayed(g) && g.hype > 0).slice(0, 12).map(g => { const e = expected(g); return { g, e: typeof e === "number" ? { score: e } : e && typeof e.score === "number" ? e : null }; }).filter(x => x.e && x.g.hype > 0).slice(0, 5);
+    if (q.length) out.push(`<div class="ix-card ix-full ${ixRv("pred")}"><h4>How your next games will land<small>Your hype (hollow) and where your track record says it'll really end up (filled)</small></h4>
+      <div class="ix-q">${q.map((x, i) => `<button class="ix-qr" data-opg="${x.g.id}" style="--i:${i};--c:${esc(x.g.colour || "var(--volt)")}"><img decoding="async" src="${esc(cover(x.g))}" alt="">
+        <span><span class="n">${esc(x.g.title)}</span><span class="ix-qt" style="--h:${(x.g.hype / 10).toFixed(3)}"><s class="h" style="--x:${(x.g.hype / 10).toFixed(3)}"><i></i></s><s class="e" style="--x:${(x.e.score / 10).toFixed(3)}"><i></i></s></span></span>
+        <span class="ix-qv">${x.e.score.toFixed(1)}<small>hype ${x.g.hype}</small></span></button>`).join("")}</div>
+      <p class="ix-note">A guess from how far off you've been before on those genres, not a promise.</p></div>`);
+  }
+  /* 6. the deep patterns, folded */
+  out.push(ixFolds());
+  if (shapeEmpty) out.push(shape);
+  return `<div class="ixp">${out.join("")}</div>`;
+}
+/* a folded section's body is only built when it's open (or opened): the numbers alone are half the page */
+const IX_BODY = {};
+function ixFold(key, icon, title, sub, body, d) {
+  const open = (S.ixOpen || {})[key];
+  IX_BODY[key] = typeof body === "function" ? body : () => body;
+  return `<details class="ix-card ix-fold ${ixRv("f-" + key)}" data-fold="${key}"${open ? " open" : ""}><summary><i>${icon}</i><span><b>${esc(title)}</b><small>${sub}</small></span><em>›</em></summary><div class="ix-body">${open ? IX_BODY[key]() : ""}</div></details>`;
+}
+function ixBars(list) {
+  return `<div class="ix-bars">${list.map((x, i) => `<div class="ix-bar${x.neg ? " neg" : ""}${x.faint ? " faint" : ""}" style="--i:${i}"><span>${esc(x.l)}</span><i style="--v:${Math.max(0, Math.min(1, x.v)).toFixed(3)}"></i><b>${x.b}</b></div>`).join("")}</div>`;
+}
+function ixFolds() {
+  const f = [], ready = analysisReady();
+  /* what gets you */
+  const wp = whyPull();
+  if (wp.list.length) { const tp = wp.list[0];
+    f.push(ixFold("why", "💘", "What gets you", `Games that got you with <b>${esc(tp.label.toLowerCase())}</b> score ${tp.lift > 0 ? "+" : ""}${tp.lift.toFixed(1)} above your average`,
+      ixBars(wp.list.slice(0, 10).map(x => ({ l: x.label, v: Math.abs(x.lift) / 3, neg: x.lift < 0, b: (x.lift > 0 ? "+" : "") + x.lift.toFixed(1) })))
+      + `<p class="ix-note">${wp.n} scored games carry reasons. Your average across them is ${wp.all.toFixed(1)}. Genre is the label; this is the reason.</p>`, 0));
+  } else f.push(ixFold("why", "💘", "What gets you", `Tag what got you on ${Math.max(0, analysisNeed() - (wp.n || 0))} more finished games to unlock this`,
+    `<p class="ix-note">Open a finished game, go to Scores, and tap what got you about it. Then this works out which reasons really track your best games.</p>`, 0));
+  /* what decides it */
+  const cats = categoryPull(), rated = cats.filter(c => c.r != null).sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+  f.push(ixFold("cat", "🎚️", "What decides your score", rated.length ? `<b>${esc(rated[0].label)}</b> tracks your verdict the closest` : "Rate the four categories on a few finished games to unlock this",
+    ixBars(cats.slice().sort((a, b) => (b.r == null ? -1 : Math.abs(b.r)) - (a.r == null ? -1 : Math.abs(a.r))).map(c => ({ l: c.label, v: c.r == null ? 0 : Math.abs(c.r), neg: c.r != null && c.r < 0, faint: c.r == null, b: c.r == null ? "—" : c.r.toFixed(2) })))
+    + `<p class="ix-note">How closely each category follows the score you end up giving. Needs three rated games per category.</p>`, 1));
+  /* where hype misleads you */
+  const gen = genrePattern();
+  if (gen.length) { const w = gen[0];
+    f.push(ixFold("gen", "🎭", "Where your hype misleads you", w.mean < -.4 ? `You overhype <b>${esc(w.name)}</b> by ${(-w.mean).toFixed(1)} points` : gen[gen.length - 1].mean > .4 && w.mean > .4 ? `Every genre beats your hype, <b>${esc(gen[gen.length - 1].name)}</b> most (+${gen[gen.length - 1].mean.toFixed(1)})` : gen[gen.length - 1].mean > .4 ? `<b>${esc(gen[gen.length - 1].name)}</b> beats your hype by ${gen[gen.length - 1].mean.toFixed(1)} points` : "Your hype is fair across genres",
+      `<div class="ix-gl">${gen.slice().sort((a, b) => a.mean - b.mean).map(x => `<div><span>${esc(x.name)} <small style="color:var(--mute)">· ${x.n} games</small></span><b class="${x.mean < -.4 ? "dn" : x.mean > .4 ? "up" : ""}">${x.mean > 0 ? "+" : ""}${x.mean.toFixed(1)}</b></div>`).join("")}</div>
+      <p class="ix-note">Red: that genre scores below your hype. Green: it beats it. Only genres with two or more finished games.</p>`, 2));
+  }
+  /* all the numbers */
+  f.push(ixFold("num", "📊", "All the numbers", ixNumSub(), ixNumbers, 3).replace('class="ix-card ix-fold', 'class="ix-card ix-fold ix-full'));
+  return f.join("");
+}
+function ixNumSub() {
+  const rows = playedRows(), live = S.games.filter(g => !isPlayed(g) && !isDropped(g)), h = live.reduce((a, g) => a + hrsOf(g), 0);
+  return `${S.games.length} games · ${rows.length} scored · ${Math.round(h)}h waiting`;
+}
+function ixNumbers() {
+  const all = S.games, rows = playedRows(), live = all.filter(g => !isPlayed(g) && !isDropped(g));
+  const hours = Math.round(live.reduce((a, g) => a + hrsOf(g), 0)), logged = all.reduce((a, g) => a + loggedOf(g), 0) + liveTimerHours(), ev = num(S.evening, 4, 1, 12);
+  const avgReal = rows.length ? rows.reduce((a, x) => a + x.real, 0) / rows.length : 0;
+  const hyped = all.filter(g => num(g.hype, 0, 0, 10) > 0), avgHype = hyped.length ? hyped.reduce((a, g) => a + g.hype, 0) / hyped.length : 0;
+  const counts = STATES.map(([k, l]) => ({ k, l, n: all.filter(g => (g.state || "upcoming") === k).length })), most = Math.max(1, ...counts.map(c => c.n));
+  const dist = [0, 0, 0, 0, 0]; rows.forEach(x => dist[Math.min(4, Math.max(0, Math.ceil(x.real / 2) - 1))]++); const peak = Math.max(1, ...dist);
+  const best = rows.slice().sort((a, b) => b.real - a.real)[0], worst = rows.slice().sort((a, b) => a.real - b.real)[0];
+  const ahead = live.filter(g => g.date && new Date(g.date) > new Date()).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const tagged = rows.filter(x => whyOf(x.g).length).length;
+  return `<div class="ix-stats">
+      <div><b>${all.length}</b><span>games tracked</span></div><div><b>${rows.length}</b><span>finished and scored</span></div>
+      <div><b>${hours || "—"}${hours ? "<em>h</em>" : ""}</b><span>waiting${hours ? ` · ~${Math.max(1, Math.round(hours / ev))} evenings` : ""}</span></div>
+      <div><b>${logged ? logged.toFixed(1) : "0"}<em>h</em></b><span>logged by the timer</span></div></div>
+    <p class="ix-sub">Where everything sits</p>
+    ${ixBars(counts.map(c => ({ l: c.l, v: c.n / most, b: String(c.n) })))}
+    ${rows.length ? `<p class="ix-sub">How you score things</p>
+      <div class="ix-dist">${dist.map((v, i) => `<span><i class="${v ? "" : "pale"}" style="--i:${i};--v:${v ? (v / peak).toFixed(3) : .06}"></i></span>`).join("")}</div>
+      <div class="ix-distl">${["1–2", "3–4", "5–6", "7–8", "9–10"].map(l => `<span>${l}</span>`).join("")}</div>
+      <div class="ix-stats" style="margin-top:12px">
+        <div><b>${avgReal.toFixed(1)}</b><span>average verdict</span></div><div><b>${avgHype ? avgHype.toFixed(1) : "—"}</b><span>average hype</span></div>
+        <div><b>${tagged}<em>/${rows.length}</em></b><span>with reasons tagged</span></div><div><b>${duelCover().pct}<em>%</em></b><span>of pairs duelled</span></div></div>
+      <div class="ix-gl">${best ? `<button type="button" data-opg="${best.g.id}"><span>🏆 ${esc(best.g.title)}</span><b class="up">${best.real}/10</b></button>` : ""}
+        ${worst && best && worst.id !== best.id ? `<button type="button" data-opg="${worst.g.id}"><span>🥶 ${esc(worst.g.title)}</span><b class="dn">${worst.real}/10</b></button>` : ""}</div>` : ""}
+    ${genreChart()}
+    ${ahead.length ? `<p class="ix-sub">Still to come</p><div class="ix-gl">${ahead.slice(0, 6).map(g => `<button type="button" data-opg="${g.id}"><span>${esc(g.title)}</span><b>${esc(shortDate(g.date))} · ${Math.max(0, Math.round((new Date(g.date) - Date.now()) / 864e5))}d</b></button>`).join("")}</div>` : ""}
+    <p class="ix-note">${storeKb()}kb stored on this phone.</p>`;
+}
+/* reveal as each piece scrolls into view; pieces already seen while you stay on the page don't replay on a redraw */
+let ixIO = null;
+function ixWire(el) {
+  const root = el.querySelector(".ixp"); if (!root) return;
+  const show = x => { x.classList.add("in"); ixShown.add(x.dataset.ix); };
+  const items = [...root.querySelectorAll(".ix-rv")];
+  root.querySelectorAll("details.ix-fold, details.ix-more").forEach(d => d.addEventListener("toggle", () => {
+    (S.ixOpen ||= {})[d.dataset.fold] = d.open ? 1 : 0; save();
+    const body = d.querySelector(":scope > .ix-body");
+    if (d.open && body && !body.firstChild && IX_BODY[d.dataset.fold]) { body.classList.add("pre"); body.innerHTML = IX_BODY[d.dataset.fold]();
+      requestAnimationFrame(() => requestAnimationFrame(() => body.classList.remove("pre"))); }
+    if (d.open) beep("open"); }));
+  if (calm() || !("IntersectionObserver" in window)) { items.forEach(x => { x.classList.add("ix-now"); show(x); }); return; }
+  items.forEach(x => { if (ixShown.has(x.dataset.ix)) { x.classList.add("ix-now"); show(x); requestAnimationFrame(() => requestAnimationFrame(() => x.classList.remove("ix-now"))); } });
+  if (ixIO) ixIO.disconnect();
+  ixIO = new IntersectionObserver((es, ob) => es.forEach(e => { if (e.isIntersecting) { show(e.target); ob.unobserve(e.target); } }), { threshold: .12 });
+  items.filter(x => !x.classList.contains("in")).forEach(x => ixIO.observe(x));
+}
+{ const _rt5 = renderTaste; renderTaste = function () {
+  const view = subOf("taste");
+  if (view !== "insights") return _rt5.apply(this, arguments);
+  /* the page is built by the old renderTaste's frame (header, pill chips, handlers), with the Insights body swapped in */
+  const _tp = tastePsych; tastePsych = tasteInsightsPage;
+  let out; try { out = _rt5.apply(this, arguments); } finally { tastePsych = _tp; }
+  const el = $("#p-taste"); if (el) { el.querySelectorAll(".tins").forEach(x => x.remove()); ixWire(el); }
+  return out; }; }
+/* leaving the tab lets the reveal play again next time you come back */
+{ const _gt5 = goTab; goTab = function (name) { const o = _gt5.apply(this, arguments); if (curTab() !== "taste") ixShown.clear(); return o; }; }
+try { renderTaste(); if (typeof renderPill === "function") renderPill(); } catch (e) {}
+WHATS_NEW.push(
+  { v: 205, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-hero"),
+    say: "Psychology, Patterns and Analytics are now one page: <b>Insights</b>. It opens with your player type, then how well you call games, what I've learned about you and your taste shape. The deep dives and all the numbers sit folded at the bottom.",
+    tryIt: "Open Taste → Insights and scroll down slowly." }
 );
 </script>
