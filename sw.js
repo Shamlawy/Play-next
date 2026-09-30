@@ -4,7 +4,9 @@
 const SHELL = "play-next-shell-2";
 /* v183: covers and art from Steam, SteamGridDB and RAWG are kept here so a card opens from the phone,
    not the network. Kept apart from SHELL so a shell wipe doesn't throw the pictures away. */
-const IMG = "play-next-img-1", IMG_MAX = 350;
+/* v189: img-1 could hold failed downloads (a no-cors reply hides its status, so a 404 was saved and shown forever).
+   Renaming drops it; the activate step below deletes every cache it doesn't know. */
+const IMG = "play-next-img-2", IMG_MAX = 350;
 const IMG_HOST = /(^|\.)(steamstatic\.com|steamgriddb\.com|rawg\.io|steampowered\.com)$/;
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
   "./logo-192.png", "./logo-512.png", "./logo-mask.png"];
@@ -47,11 +49,13 @@ async function imgFirst(r) {
   const c = await caches.open(IMG);
   const hit = await c.match(r.url);
   if (hit) return hit;
-  const res = await fetch(r);
-  if (res && (res.ok || res.type === "opaque")) {
-    c.put(r.url, res.clone()).then(() => trim(c)).catch(() => {});
-  }
-  return res;
+  /* ask with CORS first: then the status is readable and only a good picture is kept.
+     Hosts that don't allow CORS still load (no-cors), they just aren't kept. */
+  let res = null;
+  try { res = await fetch(r.url, { mode: "cors", credentials: "omit" }); } catch (e) { res = null; }
+  if (res && res.ok) { c.put(r.url, res.clone()).then(() => trim(c)).catch(() => {}); return res; }
+  if (res && res.status) return res;
+  return fetch(r);
 }
 let trimming = 0;
 async function trim(c) {
