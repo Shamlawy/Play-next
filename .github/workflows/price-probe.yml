@@ -1,0 +1,37 @@
+# By hand (Actions tab) or when the probe changes: fetch real Steam / PlayStation Store data and run the helper's price
+# reader on it, so it can be checked against what the stores really send. Raw pages are kept as the "probe" artifact.
+name: Price probe
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: "Titles, | separated"
+        required: false
+      ccs:
+        description: "Regions, comma separated"
+        required: false
+  push:
+    paths:
+      - ".github/scripts/priceprobe.mjs"
+      - ".github/workflows/price-probe.yml"
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe
+        env:
+          TITLES: ${{ github.event.inputs.titles }}
+          CCS: ${{ github.event.inputs.ccs }}
+        run: node .github/scripts/priceprobe.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe
+          path: probe/
+          retention-days: 7
