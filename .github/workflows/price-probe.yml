@@ -13,6 +13,7 @@ on:
   push:
     paths:
       - ".github/scripts/priceprobe.mjs"
+      - ".github/scripts/psprobe.mjs"
       - ".github/workflows/price-probe.yml"
 permissions:
   contents: read
@@ -28,7 +29,7 @@ jobs:
         env:
           TITLES: ${{ github.event.inputs.titles }}
           CCS: ${{ github.event.inputs.ccs }}
-        run: node .github/scripts/priceprobe.mjs
+        run: mkdir -p probe; node .github/scripts/psprobe.mjs; node .github/scripts/priceprobe.mjs > probe/steam.log 2>&1 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
