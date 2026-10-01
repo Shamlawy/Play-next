@@ -434,11 +434,13 @@ async function vault(req, env, url, h) {
    px:<id> and the cron re-checks it about once a day and pushes a notification when a price drops. ===== */
 const PX_TTL = 60 * 86400, PX_UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
 const pxNorm = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
+/* every word of your title must be in the store's name (so "Final Fantasy VII Rebirth" never matches plain "Final Fantasy VII",
+   nor "Death Stranding 2" the first game); extra words (editions, subtitles) cost a little each */
 function pxSame(a, b) {
   const x = pxNorm(a), y = pxNorm(b); if (!x || !y) return 0; if (x === y) return 1;
-  if (x.length > 4 && y.length > 4 && (x.startsWith(y) || y.startsWith(x))) return .86;
-  const A = new Set(x.split(" ")), B = new Set(y.split(" ")), n = [...A].filter(w => B.has(w)).length;
-  return n / new Set([...A, ...B]).size;
+  const A = x.split(" "), B = new Set(y.split(" ")), hit = A.filter(w => B.has(w)).length, cov = hit / A.length;
+  const jac = hit / new Set([...A, ...B]).size;
+  return cov < 1 ? jac * cov * cov : Math.max(jac, .8 - Math.min(.3, (B.size - A.length) * .06));
 }
 const pxCC = cc => /^[a-z]{2}$/.test(String(cc || "").toLowerCase()) ? String(cc).toLowerCase() : "us";
 /* Steam: one call prices up to 50 apps (only the price_overview filter allows several ids) */
@@ -462,7 +464,7 @@ async function pxSteamFind(cc, title) {
   const j = await r.json().catch(() => null), items = (j && j.items || []).filter(x => x.type === "app" || !x.type);
   let best = null, bs = 0;
   for (const x of items.slice(0, 10)) { const s = pxSame(title, x.name); if (s > bs) { bs = s; best = x; } }
-  return best && bs >= .7 ? { id: best.id, name: best.name } : null;
+  return best && bs >= .55 ? { id: best.id, name: best.name } : null;
 }
 /* PlayStation Store (rebuilt in v214 from real responses, see .github/scripts/psprobe.mjs). Its web search is drawn in the
    browser, so: search = the store's older "tumbler" search (product ids + names); price = the store's own GraphQL, product
@@ -480,7 +482,15 @@ async function psGql(cc, op, vars) {
 const PS_JUNK = /bundle|soundtrack|season pass|upgrade|\bpack\b|\bdlc\b|add-?on|demo|\btrial\b|currency|coins|points|avatar|theme/i;
 const PS_ED = /deluxe|complete|ultimate|gold|premium|definitive|collector|digital|special|anniversary|director'?s cut|edition/i;
 async function pxPsFind(cc, title) {
-  const r = await fetch(`https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/${cc.toUpperCase()}/en/999/${encodeURIComponent(String(title).slice(0, 80))}?suggested_size=10&mode=game`, { headers: PX_UA });
+  const clean = String(title).replace(/[™®©]/g, "").replace(/['’]/g, "").replace(/[:\-–—]/g, " ").replace(/\s+/g, " ").trim();
+  const before = String(title).split(":")[0].trim();
+  for (const q of [...new Set([String(title), clean !== title ? clean : before])].filter(Boolean).slice(0, 2)) {
+    const f = await pxPsSearch(cc, q, title); if (f) return f;
+  }
+  return null;
+}
+async function pxPsSearch(cc, q, title) {
+  const r = await fetch(`https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/${cc.toUpperCase()}/en/999/${encodeURIComponent(String(q).slice(0, 80))}?suggested_size=10&mode=game`, { headers: PX_UA });
   if (!r.ok) throw new Error("PS Store said " + r.status);
   const j = await r.json().catch(() => ({})), seen = new Set();
   let best = null, bs = 0;
@@ -540,7 +550,7 @@ async function pxCheck(cc, items) {
   let sp = {}; try { sp = ids.length ? await pxSteamPrices(cc, ids) : {}; } catch (e) {}
   for (const it of items) if (+it.st > 0) res[it.k].st = Object.assign({ id: +it.st, name: res[it.k].stName || "" }, sp[+it.st] || { nosale: 1 });
   for (const it of items) {
-    if (it.ps === "-" || look.ps >= 10) continue;
+    if (it.ps === "-" || look.ps >= 8) continue;
     look.ps++;
     try {
       let id = it.ps, name = "";
