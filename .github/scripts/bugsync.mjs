@@ -61,9 +61,17 @@ for (const b of bugs) {
     console.log("new issue #" + n.number + " " + title); made++;
   } else {
     const more = b.n - (b.seen || 0);
-    if (i.state === "closed") await gh(`/repos/${REPO}/issues/${i.number}`, "PATCH", { state: "open" });
+    /* a closed issue whose latest sighting is from a version older than its fix ("Fixed in vN") stays closed:
+       that phone just hadn't updated yet when it happened */
+    let old = 0;
+    if (i.state === "closed") {
+      const cs = await gh(`/repos/${REPO}/issues/${i.number}/comments?per_page=100`);
+      const fixV = Math.max(0, ...cs.map(c => +((String(c.body).match(/fixed in v(\d+)/i) || [])[1] || 0)));
+      old = fixV && +s.v > 0 && +s.v < fixV ? fixV : 0;
+      if (!old) await gh(`/repos/${REPO}/issues/${i.number}`, "PATCH", { state: "open" });
+    }
     await gh(`/repos/${REPO}/issues/${i.number}/comments`, "POST", { body:
-      `${i.state === "closed" ? "**Happened again after it was closed.** " : ""}Seen ${more} more time${more === 1 ? "" : "s"} (${b.n} in total). Latest: v${s.v} on ${s.dev}, ${s.screen}, ${s.w}×${s.h}.${s.note ? `\n\n> ${s.note}` : ""}` });
+      `${old ? `**Seen on an older version (v${s.v}) than the fix (v${old}), so it stays closed.** ` : i.state === "closed" ? "**Happened again after it was closed.** " : ""}Seen ${more} more time${more === 1 ? "" : "s"} (${b.n} in total). Latest: v${s.v} on ${s.dev}, ${s.screen}, ${s.w}×${s.h}.${s.note ? `\n\n> ${s.note}` : ""}` });
     console.log("updated #" + i.number);
   }
   acked[b.sig] = b.n;
