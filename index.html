@@ -15707,7 +15707,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 8 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews, cloud backup and price alerts are all on."
+    el.textContent = ok && j.v >= 9 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup and price alerts (Steam, PlayStation and Nintendo eShop) are all on."
+      : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
       : ok && j.v >= 5 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except cloud backup, which needs the new helper."
       : ok && j.v >= 4 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Nexi's design reviews, which need the new helper."
