@@ -3990,7 +3990,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "217";
+const APP_V = "218";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6223,6 +6223,12 @@ function openSettings(scope) {
         ${[["on", "Ask me"], ["off", "Don't ask"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.wiAskOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>Finished it?</label>
+      <p class="note">When a game you're playing looks done (your note mentions the final boss or credits, or your hours reach its length), Nexi asks if you finished it, by himself.</p>
+      <div class="chips" id="s-xfn">
+        ${[["on", "Ask me"], ["off", "Don't ask"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.fnOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
       <label>The story so far</label>
       <p class="note">Under your 📍 note on a game's page, Nexi writes a short recap of the story up to where you are (never past it), all by himself.</p>
       <div class="chips" id="s-xwis">
@@ -6573,6 +6579,7 @@ function openSettings(scope) {
   pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
   pick("#s-xwi", v => S.wiAskOff = v === "off");
   pick("#s-xwis", v => S.wiStoryOff = v === "off");
+  pick("#s-xfn", v => S.fnOff = v === "off");
   pick("#s-stgen", v => { S.stGenOff = v === "off"; if (typeof stApply === "function") { S.games.forEach(stApply); render(); } if (!S.stGenOff && typeof stSync === "function") stSync(true); });
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
@@ -15484,7 +15491,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 <script>
 /* ===== v183 what's new + settings extras ===== */
 GROUP_ICON["Extra features"] = "🧪";
-GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff"];
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
   { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
@@ -18502,20 +18509,20 @@ WHATS_NEW.push(
 .wi-o small { display: block; font-size: 11px; color: var(--mute); margin-bottom: 2px; }
 .wi-o button { flex: none; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255,255,255,.05); cursor: pointer; font-size: 14px; }
 .dxc .ft small.wiln { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#wiask { position: fixed; z-index: 95; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); width: min(92vw, 440px); display: grid; grid-template-columns: auto minmax(0, 1fr);
+:is(#wiask, #fnask) { position: fixed; z-index: 95; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); width: min(92vw, 440px); display: grid; grid-template-columns: auto minmax(0, 1fr);
   gap: 8px 12px; align-items: center; padding: 12px 14px; border: 1px solid rgba(var(--vrgb), .35); border-radius: 20px; background: #0e1428; color: var(--ice);
   font: 500 13px/1.4 "Poppins", system-ui, sans-serif; box-shadow: 0 18px 40px -12px rgba(0,0,0,.85);
   opacity: 0; pointer-events: none; transform: translate(-50%, 16px) scale(.96); transition: opacity .25s ease, transform .35s var(--ease); }
-#wiask.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
-#wiask > i { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 19px;
+:is(#wiask, #fnask).on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+:is(#wiask, #fnask) > i { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 19px;
   background: radial-gradient(circle at 34% 28%, #1c2c52, #070a14 72%); box-shadow: inset 0 0 0 1.5px rgba(var(--vrgb), .6); }
-#wiask > span:first-of-type { min-width: 0; overflow-wrap: anywhere; }
-#wiask b { display: block; font-weight: 700; font-size: 12.5px; color: var(--volt); margin-bottom: 1px; }
-#wiask .wa-b { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
-#wiask .wa-b button { min-height: 36px; padding: 8px 16px; border-radius: 99px; border: 1px solid var(--u-line, rgba(234,242,255,.1)); background: var(--u-card, #131a32);
+:is(#wiask, #fnask) > span:first-of-type { min-width: 0; overflow-wrap: anywhere; }
+:is(#wiask, #fnask) b { display: block; font-weight: 700; font-size: 12.5px; color: var(--volt); margin-bottom: 1px; }
+:is(#wiask, #fnask) .wa-b { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+:is(#wiask, #fnask) .wa-b button { min-height: 36px; padding: 8px 16px; border-radius: 99px; border: 1px solid var(--u-line, rgba(234,242,255,.1)); background: var(--u-card, #131a32);
   color: var(--ice); font: 600 13px/1 inherit; cursor: pointer; }
-#wiask .wa-b .wa-go { background: var(--volt); color: var(--void, #04060e); border-color: transparent; }
-@media (min-width: 620px) { html.pnrail:not(.railhide) #wiask { left: calc(50% - 44px); } }
+:is(#wiask, #fnask) .wa-b .wa-go { background: var(--volt); color: var(--void, #04060e); border-color: transparent; }
+@media (min-width: 620px) { html.pnrail:not(.railhide) :is(#wiask, #fnask) { left: calc(50% - 44px); } }
 </style>
 <script>
 /* ===== v213: price alerts (Steam + PlayStation Store) =====
@@ -19263,5 +19270,91 @@ WHATS_NEW.push(
   { v: 217, go: () => { closeFull(); dyClose(); nxShut(); pxDeals(); }, at: () => $("#diary .drd") || $("#diary .pxd-h") || $("#diary [data-pxnow]"),
     say: "Deal radar: I watch games you don't have yet but would probably love (what Steam players who love your top games play next) and tell you when one is half price or less, even with the app closed.",
     tryIt: "Open Deals any time to see what's on sale." }
+);
+</script>
+<style>
+/* ===== v218: "Finished it?" (same card as Where was I?) ===== */
+#fnask .wa-b { flex-wrap: wrap; }
+</style>
+<script>
+/* ===== v218: "Finished it?" — Nexi notices when a game you're playing is probably done and asks, by himself.
+   Signals (`fnWhy(g)`, first that fits): your latest 📍 note or its story-so-far "where" sounds like the end (final boss,
+   credits, epilogue, beat it…); the hours you logged reach 90% of its time to beat (hrsOf, your play style); or, with an
+   hours-a-day plan, the days since you started playing it × that pace reach its time to beat (g.plAt = when it became
+   "playing", set by a syncPlayed/Edit wrapper; games already playing start counting now). Ask: a card `#fnask` (🎉 Yes,
+   finished → marked played with the stamp, then the quick score; Not yet → asks again in 7 days; I dropped it → dropped),
+   at most one game per open, only in a calm moment (no tour/sheet/page, not over the Where-was-I card), and never again
+   within 7 days for that game (`S.fnAsked`). Saving a note that says you finished asks straight away. With notifications
+   (kind "playing"), one "Did you finish X?" ping the next evening (`./?nudge=finish&g=`). Switch: S.fnOff (Extra features). ===== */
+const FN_END = /\b(final boss|last boss|end ?boss|endgame|end game|ending|credits|epilogue|last chapter|final chapter|final area|near the end|almost done|beat (it|the game)|finished|completed|post-?game|platinum(ed)?|100 ?%)\b/i;
+const FN_AGAIN = 7 * 864e5;
+function fnWhy(g) {
+  if (!g || g.comp || isPlayed(g) || isDropped(g) || (g.state || "") !== "playing") return null;
+  const n = typeof wiLast === "function" ? wiLast(g) : null;
+  if (n && FN_END.test(n.x)) return { k: "note", t: `your note says “${n.x.length > 60 ? n.x.slice(0, 57) + "…" : n.x}”` };
+  const st = g.wiStory && n && g.wiStory.t === n.t ? g.wiStory : null;
+  if (st && st.w && FN_END.test(st.w)) return { k: "story", t: "the story's at its end, going by your note" };
+  const need = hrsOf(g), have = loggedOf(g);
+  if (need >= 2 && have >= need * .9) return { k: "hours", t: `you've put in ${Math.round(have)}h of about ${Math.round(need)}h` };
+  const pace = dailyOf(g), days = g.plAt ? (Date.now() - g.plAt) / 864e5 : 0;
+  if (need >= 2 && pace > 0 && days >= 7 && days * pace >= need) return { k: "pace", t: `at ${pace}h a day since ${new Date(g.plAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}, you'd be about done` };
+  return null;
+}
+const fnPick = () => S.fnOff ? null : playingNow().filter(g => Date.now() - ((S.fnAsked || {})[g.id] || 0) > FN_AGAIN).map(g => [g, fnWhy(g)]).find(x => x[1]) || null;
+function fnAsk(g, why, now) {
+  if (!g || S.fnOff) return;
+  why = why || fnWhy(g) || { t: "" };
+  const busy = () => document.documentElement.classList.contains("nxtouring") || $("#diary.on, #sheet.on, #full.on, #nxbug.on, #wiask.on, #shuf, #wrap");
+  let tries = 0;
+  const go = () => {
+    if (busy()) { if (++tries < 20) setTimeout(go, 3000); return; }
+    if (isPlayed(g) || isDropped(g)) return;
+    (S.fnAsked ||= {})[g.id] = Date.now(); save();
+    let el = $("#fnask"); if (!el) { el = document.createElement("div"); el.id = "fnask"; el.setAttribute("role", "dialog"); document.body.appendChild(el); }
+    el.innerHTML = `<i aria-hidden="true">🏁</i><span><b>Finished ${esc(g.title)}?</b>${why.t ? esc(why.t.charAt(0).toUpperCase() + why.t.slice(1)) + "." : "It looks like you might be done."}</span>
+      <span class="wa-b"><button type="button" class="wa-go" data-fnyes>🎉 Yes, finished</button><button type="button" data-fnno>Not yet</button><button type="button" data-fndrop>I dropped it</button></span>`;
+    requestAnimationFrame(() => el.classList.add("on"));
+    const hide = () => el.classList.remove("on");
+    el.onclick = e => {
+      if (e.target.closest("[data-fnyes]")) { hide(); fnDone(g); return; }
+      if (e.target.closest("[data-fndrop]")) { hide(); g.state = "dropped"; syncPlayed(g, "dropped"); save(); render(); beep("back"); toast(`${g.title} moved to dropped. No shame in that.`); return; }
+      if (e.target.closest("[data-fnno]")) { hide(); beep("back"); }
+    };
+    clearTimeout(fnAsk.t); fnAsk.t = setTimeout(hide, 20000);
+    if (typeof pnBubMood === "function") try { pnBubMood("happy", 1500); } catch (e) {}
+  };
+  setTimeout(go, now ? 600 : 4000);
+}
+function fnDone(g) {
+  g.state = "played"; syncPlayed(g, "played");
+  const p = playedRec(g); if (p) p.t = new Date().toLocaleDateString("en-CA");
+  save(); render(); beep("add");
+  if (hubAt === g.id && $("#full.on")) openFull(g.id);
+  /* straight on to the verdict while it's fresh */
+  setTimeout(() => { if (typeof qScore === "function") qScore(g.id); }, 1200);
+}
+/* when a game became "playing": the start of its pace estimate */
+{ const _sp = syncPlayed; syncPlayed = function (g, state) { if (g) { if (state === "playing" && !g.plAt) g.plAt = Date.now(); if (state !== "playing" && g.plAt && state !== g.state) delete g.plAt; } return _sp.apply(this, arguments); }; }
+S.games.forEach(g => { if ((g.state || "") === "playing" && !g.plAt) g.plAt = Date.now(); });
+/* asking: once per open (or coming back after 3h+), after the Where-was-I card has had its turn */
+function fnCheck() { if (document.hidden) return; const x = fnPick(); if (x) fnAsk(x[0], x[1]); }
+setTimeout(fnCheck, 9000);
+{ let away = 0; addEventListener("visibilitychange", () => { if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 3 * 36e5) setTimeout(fnCheck, 6000); }); }
+/* a note that says you finished asks right away */
+{ const _wa = wiAdd; wiAdd = function (g, text) { const o = _wa.apply(this, arguments);
+  if (g && !S.fnOff && FN_END.test(String(text || "")) && (g.state || "") === "playing") fnAsk(g, { t: "your note sounds like you reached the end" }, true); return o; }; }
+/* the notification: one "Did you finish X?" the next evening (with the "How's it going?" kind) */
+{ const _np = nxPlan; nxPlan = function (days) { const out = _np.apply(this, arguments);
+  try { const x = !S.fnOff && nxKinds().has("playing") ? fnPick() : null;
+    if (x) { const [a, b] = nxWindow(), t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 1);
+      const at = t.getTime() + Math.max(a, Math.min(20, b - 1)) * 36e5;
+      out.push({ at, title: "🏁 Did you finish " + x[0].title.slice(0, 40) + "?", body: nxVoice((x[1].t.charAt(0).toUpperCase() + x[1].t.slice(1)) + ". Tap to mark it and give it a score."), tag: "finish-" + x[0].id, url: "./?nudge=finish&g=" + x[0].id });
+      out.sort((p, q) => p.at - q.at); } } catch (e) {}
+  return out; }; }
+{ const qp = new URLSearchParams(location.search); if (qp.get("nudge") === "finish") { const g = S.games.find(x => x.id === qp.get("g")); if (g) setTimeout(() => { if (isPlayed(g)) qScore(g.id); else fnAsk(g, fnWhy(g), true); }, 2200); } }
+WHATS_NEW.push(
+  { v: 218, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Finished it?" }); }, at: "#s-xfn",
+    say: "New: I notice when you've probably finished a game (your note says final boss or credits, or your hours reach its length) and ask “Finished it?” by myself. One tap marks it played and opens the score while it's fresh.",
+    tryIt: "Leave a note like “beat the final boss” on a game you're playing." }
 );
 </script>
