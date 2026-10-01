@@ -3988,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "213";
+const APP_V = "214";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -14548,7 +14548,7 @@ function nxPoint(el, noHl) {
 function nxTour(was, all) {
   /* v173 everything since the last tour you finished, so skipped updates stack up; closing the app mid-tour resumes it next time */
   const w = parseInt(was, 10), from = all ? 0 : Math.min(S.tourFrom == null ? 162 : +S.tourFrom, w > 0 ? w : Infinity);
-  const steps = WHATS_NEW.filter(x => x.v > from && x.v <= +APP_V);
+  const steps = WHATS_NEW.filter(x => x.v > from && x.v <= +APP_V).sort((a, b) => a.v - b.v);   /* sort is stable: same-version steps keep their order */
   if (!steps.length) { if (!all && S.tourFrom !== +APP_V) { S.tourFrom = +APP_V; save(); } return; }
   if (document.getElementById("nxtour")) return;
   const vs = [...new Set(steps.map(x => x.v))];
@@ -15679,7 +15679,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 6 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews and cloud backup are all on."
+    el.textContent = ok && j.v >= 8 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews, cloud backup and price alerts are all on."
+      : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
       : ok && j.v >= 5 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except cloud backup, which needs the new helper."
       : ok && j.v >= 4 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Nexi's design reviews, which need the new helper."
       : ok && j.v >= 3 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except problem reports, which need the new helper."
@@ -18611,7 +18612,7 @@ function pxCard(g) {
       p && p.trial && pxTier() >= p.trial ? "2-hour trial with Premium" : ""].filter(Boolean).join(" · ");
     return `<button type="button" class="px-r${pxIncl(p) ? " incl" : ""}" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : "PS Store"}</i><span>${v}${note ? `<small class="px-n">${esc(note)}</small>` : ""}</span><u aria-hidden="true">↗</u></button>`;
   };
-  const p = g.px || {}, low = ["st", "ps"].map(s => p[s]).filter(x => x && x.low != null && x.now != null && x.low < x.now);
+  const p = g.px || {}, low = ["st", "ps"].map(s => p[s]).filter(x => x && x.low != null && x.now != null && !pxIncl(x) && x.low < pxEff(x));
   return `<div class="px" data-g="${g.id}">${row("st")}${row("ps")}
     <button type="button" class="px-more" data-px="${g.id}">${low.length ? "Lowest seen " + esc(low[0].lowF) + " · " : ""}Price alerts ›</button></div>`;
 }
@@ -18622,7 +18623,8 @@ function pxPaint() {
 function pxStatus() {
   if (!pxOn()) return "Off.";
   if (S.pxErr === "helper-old") return "⚠️ Waiting for Nexi's helper to be updated on Cloudflare.";
-  const w = pxWatched(), sale = w.filter(g => ["st", "ps"].some(s => ((g.px || {})[s] || {}).pct > 0)).length, incl = w.filter(g => pxIncl((g.px || {}).ps)).length;
+  const onSale = p => { const e = pxEff(p); return !!p && !pxIncl(p) && e != null && p.base > e; };
+  const w = pxWatched(), sale = w.filter(g => ["st", "ps"].some(s => onSale((g.px || {})[s]))).length, incl = w.filter(g => pxIncl((g.px || {}).ps)).length;
   return (S.pxErr ? "⚠️ Last check didn't work (" + S.pxErr + "). " : "") + `Watching ${w.length} game${w.length === 1 ? "" : "s"}` +
     (S.pxAt ? ` · checked ${wiAgo(S.pxAt) === "today" ? "today" : wiAgo(S.pxAt)}` : "") + (sale ? ` · ${sale} on sale now` : "") + (incl ? ` · ${incl} in your PS Plus` : "") + ".";
 }
@@ -18648,12 +18650,12 @@ function pxSheet(id) {
     <button type="button" class="btn" data-pxnow><span>Check this game now</span></button>`,
     async e => {
       const m = box.querySelector(".px-msg");
-      const no = e.target.closest("[data-pxno]"); if (no) { if (no.dataset.pxno === "st") { g.pxSt = -1; delete (g.px || {}).st; } else { g.pxPs = "-"; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
-      const yes = e.target.closest("[data-pxyes]"); if (yes) { if (yes.dataset.pxyes === "st") { delete g.pxSt; delete g.pxStNo; } else { delete g.pxPs; delete g.pxPsNo; } save(); beep("tap"); return pxSheet(id); }
+      const no = e.target.closest("[data-pxno]"); if (no) { if (no.dataset.pxno === "st") { g.pxSt = -1; delete (g.px || {}).st; } else { g.pxPs = "-"; delete g.pxPsC; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
+      const yes = e.target.closest("[data-pxyes]"); if (yes) { if (yes.dataset.pxyes === "st") { delete g.pxSt; delete g.pxStNo; } else { delete g.pxPs; delete g.pxPsNo; delete g.pxPsC; } save(); beep("tap"); return pxSheet(id); }
       if (e.target.closest("[data-pxlink]")) {
         const v = box.querySelector("#px-link").value.trim(), sm = /store\.steampowered\.com\/app\/(\d+)/.exec(v), pm = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/.exec(v);
         if (sm) { g.pxSt = +sm[1]; delete g.pxStNo; if (g.px) delete g.px.st; }
-        else if (pm) { g.pxPs = pm[0]; delete g.pxPsNo; if (g.px) delete g.px.ps; }
+        else if (pm) { g.pxPs = pm[0]; delete g.pxPsNo; delete g.pxPsC; if (g.px) delete g.px.ps; }
         else { m.textContent = /playstation\.com\/.*concept\//.test(v) ? "That's a game's overview page: open the edition you'd buy and copy that link (it has /product/ in it)." : "That isn't a Steam app link or a PS Store product link."; return; }
         save(); m.textContent = "Linked. Checking…"; await pxRun(true, g); return pxSheet(id);
       }
@@ -18726,6 +18728,14 @@ if (!S.pxKindMig) { if (Array.isArray(S.nudgeKinds) && !S.nudgeKinds.includes("d
 setTimeout(() => pxRun(false), 9000);
 addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => pxRun(false), 3000); });
 { const q = new URLSearchParams(location.search).get("nudge"); if (q === "deals") setTimeout(pxDeals, 2200); }
+WHATS_NEW.push(
+  { v: 214, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Your PS Plus" }); }, at: "#s-psplus",
+    say: "PlayStation prices fixed and PS Plus added: tell me your PS Plus and games in your Extra or Premium catalogue show as included, member prices count as your price, and I'll ping you when a game you're waiting for joins the catalogue.",
+    tryIt: "Tap Extra (or whatever you have)." },
+  { v: 214, go: () => { closeFull(); dyClose(); nxShut(); pxDeals(); }, at: null,
+    say: "Deals now show what's in your PS Plus first, then sales with their end date (\u201cends 8 Oct\u201d). I check every game on your list now, not just the first few, and a store can say \u201cnot sold in your region\u201d or \u201cno price yet\u201d instead of going blank.",
+    tryIt: "If a game shows the wrong edition, open it → Price alerts › and paste its store link." }
+);
 WHATS_NEW.push(
   { v: 213, go: () => { closeFull(); dyClose(); nxShut(); const g = pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px") || $("#full [data-px]"),
     say: "Price alerts: I now watch Steam and the PlayStation Store for the games you're waiting on, and tell you when one gets cheaper. Each game page shows its price with a link straight to the store.",
