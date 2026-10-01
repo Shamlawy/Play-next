@@ -3507,7 +3507,7 @@ function bgBake(layer, src, done) {
   };
   im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
   /* v183: it gets blurred to a quarter size anyway, so the light copy is plenty */
-  im.src = liteFor(src) || (bigData(src) ? blobRef(src) : src);
+  im.src = liteFor(src, 1) || (bigData(src) ? blobRef(src) : src);
 }
 /* folding or unfolding changes the screen shape: redraw the shown background to fit */
 addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout(() => {
@@ -3732,8 +3732,10 @@ const esc = t => { const l = liteFor(t); return l ? escRaw(l) : bigData(t) ? blo
    session stays full. Only a light copy that is known to load is ever used, so a bad guess costs nothing. */
 const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set(), LITE_DEC = new Set(), LITE_NOFULL = new Set();
 let LITE_OK = null;
-function liteFor(t) {
+function liteFor(t, any) {
   if (typeof t !== "string" || t.length < 8) return null;
+  /* v215 (#84): pictures are full quality from the first frame unless the owner picks "Fast" (only the blurred backdrop still uses the light copy) */
+  if (!any && S.picHQ !== false) return null;
   const c0 = t.charCodeAt(0);
   if (c0 !== 104 && c0 !== 100 && !(t.length < 300 && /^[\w\-./%]+\.(jpe?g|png|webp)$/i.test(t))) return null;
   if (LITE_WARM.has(t)) return null;
@@ -3988,7 +3990,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "214";
+const APP_V = "215";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4935,7 +4937,7 @@ const GROUP_KEYS = {
   "Sound and reactions": ["sound", "reactions"],
   "Motion": ["motion", "vt", "rowAnim", "bgOff", "tabFade"],
   "Header cards": ["shxOff", "shxX"],
-  "Look of the app": ["uiStyle", "addStyle", "paper", "paperCol", "paperStr", "corners", "radius"],
+  "Look of the app": ["uiStyle", "addStyle", "picHQ", "paper", "paperCol", "paperStr", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
   "Character art": ["artSize", "artH", "artFloat", "artSpeed", "artGlow"],
   "Library": ["libLayout", "libCols", "libTitle", "libTL", "libTR", "libBL", "libBR", "reelW", "buzz", "coverQ"],
@@ -6286,6 +6288,11 @@ function openSettings(scope) {
         ${[["new", "New"], ["classic", "Classic"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.addStyle === "classic" ? "classic" : "new") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <p class="note">New: a search bar like Home's, results as picture cards and a live preview card (Clean only). Classic: the plain form.</p>
+      <label>Pictures</label>
+      <div class="chips" id="s-pichq">
+        ${[["4k", "Always full quality (4K)"], ["fast", "Fast (light copy first)"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.picHQ === false ? "fast" : "4k") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">Full quality shows every cover and backdrop at its real size straight away. Fast shows a lighter copy first and swaps in the sharp one when it's ready.</p>
       <p class="note">A painted wash behind everything, so panels sit in the page instead of on it.</p>
       <div class="chips" id="s-paper">
         ${[["paint", "Painted"], ["flat", "Flat black"]].map(([v, l]) =>
@@ -6535,6 +6542,7 @@ function openSettings(scope) {
   pick("#s-corners", v => S.corners = v);
   pick("#s-uistyle", v => S.uiStyle = v);
   pick("#s-addstyle", v => S.addStyle = v);
+  pick("#s-pichq", v => { S.picHQ = v !== "fast"; render(); });
   pick("#s-gdfig", v => S.gdFig = v === "on");
   pick("#s-bugs", v => S.bugOff = v === "off");
   pick("#s-bugsay", v => S.bugSayOff = v === "off");
@@ -11085,6 +11093,8 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
   openFull = function (id) {
     const box = $("#full"), wasOn = box && box.classList.contains("on");
     if (pnClosing) { pnClosing.cancel(); pnClosing = null; _cf(); }
+    /* v215 (#102): never let an old close's "stay faded" frame outlive it (it hid the next page while it still caught every tap) */
+    if (box && !wasOn) box.getAnimations().forEach(x => x.cancel());
     _of.apply(this, arguments);
     if (calm() || pnVT || wasOn || pnNoGrow || !box || !box.classList.contains("on")) return;
     box.style.transformOrigin = pnTap.x + "px " + pnTap.y + "px";
@@ -11095,11 +11105,14 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
   };
   closeFull = function () {
     const box = $("#full");
-    if (calm() || pnVT || !box || !box.classList.contains("on") || pnClosing) { pnClosing = null; return _cf.apply(this, arguments); }
+    if (calm() || pnVT || !box || !box.classList.contains("on") || pnClosing) {
+      /* a second close while the first one fades (the tour does closeFull() then nxShut()): drop the fade too, or its
+         fill-forwards opacity 0 stays on #full and the next page vanishes 300ms after opening (#99, #102, #103) */
+      if (pnClosing) pnClosing.cancel(); pnClosing = null; return _cf.apply(this, arguments); }
     box.style.transformOrigin = pnTap.x + "px " + pnTap.y + "px";
     const a = pnClosing = box.animate([{ transform: "none", opacity: 1 }, { transform: "scale(.9)", opacity: 0 }],
       { duration: 220, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
-    a.onfinish = () => { if (pnClosing === a) { pnClosing = null; _cf(); a.cancel(); } };
+    a.onfinish = () => { if (pnClosing === a) { pnClosing = null; _cf(); } a.cancel(); };
   }; }
 
 /* a soft glow spreads from your finger on anything tappable */
@@ -18028,6 +18041,8 @@ async function lookReview(root, scr) {
   let j; try { j = await nxPost("/review", { screen: scr, w: innerWidth, h: innerHeight, items }); } catch (e) { return; }
   (j.issues || []).filter(x => x.confidence >= .75).slice(0, 2).forEach(x => {
     const ids = (x.ids || []).filter(i => /^e\d+$/.test(i) && els[+i.slice(1)] && els[+i.slice(1)].isConnected); if (!ids.length) return;
+    /* v215: the AI's claim is checked against the real measurements first (all 7 of its first reports were wrong) */
+    if (typeof revTrue === "function" && !revTrue(x, ids.map(i => els[+i.slice(1)]))) return;
     bugReport("review", x.problem, { at: ids.map(i => bugPath(els[+i.slice(1)])).join("  ×  ").slice(0, 400), screen: scr,
       stack: "Suggested fix: " + x.fix + "\nConfidence " + x.confidence + "\nWhat the AI saw:\n" + ids.map(i => items[+i.slice(1)]).join("\n") });
   });
@@ -18778,3 +18793,122 @@ WHATS_NEW.push(
 .px-r.incl { border-color: rgba(47,191,113,.45); background: linear-gradient(110deg, rgba(47,191,113,.12), rgba(8,11,24,.8) 70%); }
 .dy-g.pxd .pxd-p { flex: none; align-self: center; color: #04130a; font-size: 12.5px; line-height: 1; }
 </style>
+<style>
+/* ===== v215 fixes ===== */
+/* #86: the top-5 strip on Taste → Insights wraps instead of scrolling off the card, and names aren't cut at 150px */
+.ix-rk { flex-wrap: wrap; overflow: visible; margin: 12px 0 -4px; padding: 0 0 4px; }
+.ix-rk button { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.ix-rk button span:last-child { max-width: none; min-width: 0; }
+/* #89: rows skipped their drawing while off screen (content-visibility: auto); a fast fling on the Fold outran it and rows
+   came up blank for a moment. ~40 rows are cheap to keep drawn. */
+#p-queue .row { content-visibility: visible; }
+/* #100: Read more only when there's more to read */
+.gd-rm[hidden] { display: none; }
+</style>
+<script>
+/* ===== v215: the frozen game page (#99, #102, #103), Read more (#85, #100), Taste names (#86), Queue rows (#89),
+   4K pictures by default (#84), and three new things Nexi notices ===== */
+
+/* #100: "Read more" showed on every description over 170 characters, but on a wide screen (the unfolded Fold) 300 characters
+   fit in the four lines, so the button did nothing. Now it only shows while the text really is cut. */
+const gdRO = "ResizeObserver" in window ? new ResizeObserver(es => es.forEach(e => { const d = e.target, b = d.nextElementSibling;
+  if (!b || !b.matches("[data-descmore]") || d.classList.contains("open")) return;
+  b.hidden = d.scrollHeight <= d.clientHeight + 2; })) : null;
+function gdWatch(root) { if (!gdRO || !root) return; root.querySelectorAll(".gd-desc").forEach(d => { if (!d._ro) { d._ro = 1; gdRO.observe(d); } }); }
+if ($("#full")) new MutationObserver(() => gdWatch($("#full"))).observe($("#full"), { childList: true });
+/* #85: opening/closing the description slides everything under it (transform only), and the new lines fade up */
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-descmore]"); if (!b) return;
+  const d = b.previousElementSibling; if (!d || !d.classList.contains("gd-desc")) return;
+  e.stopPropagation();
+  const below = [b]; for (let x = b.nextElementSibling; x; x = x.nextElementSibling) below.push(x);
+  const h0 = d.getBoundingClientRect().height;
+  const open = d.classList.toggle("open"); b.textContent = open ? "Read less" : "Read more"; b.setAttribute("aria-expanded", String(open)); beep("tap");
+  if (calm()) return;
+  const dh = d.getBoundingClientRect().height - h0; if (Math.abs(dh) < 2) return;
+  below.forEach(x => x.animate([{ transform: `translateY(${-dh}px)` }, { transform: "none" }], { duration: 420, easing: PN_EASE }));
+  if (open) d.animate([{ opacity: .45 }, { opacity: 1 }], { duration: 420, easing: "ease-out" });
+}, true);
+
+/* ---- Nexi learned (1): an invisible layer in the way. #102: a game page went fully transparent but stayed on top, so every
+   tap hit it and the app looked frozen. A tap that lands on something big you can't see (opacity under .05 somewhere up its
+   chain, not mid-fade) gets fixed on the spot (its stuck fades are dropped, or the page is closed), the tap is swallowed so it
+   can't press something by surprise, and it's reported. */
+addEventListener("pointerdown", e => {
+  const t = e.target; if (!t || !t.closest || t.closest("input, select, textarea, label, #pnbub, #bubwheel")) return;
+  let o = 1, bad = null;
+  for (let x = t; x && x !== document.body && x !== document.documentElement; x = x.parentElement) { const op = +getComputedStyle(x).opacity; o *= op; if (op < .05) bad = x; }
+  if (o >= .05 || !bad) return;
+  const r = bad.getBoundingClientRect(); if (r.width * r.height < innerWidth * innerHeight * .35) return;
+  if (bad.getAnimations().some(a => a.playState === "running")) return;   /* mid-fade on purpose */
+  const was = +getComputedStyle(bad).opacity;
+  bad.getAnimations().forEach(a => a.cancel());
+  if (+getComputedStyle(bad).opacity < .05) {
+    if (bad.id === "full") closeFull(); else if (bad.id === "sheet") closeEdit(); else if (bad.id === "peek") closePeek(); else bad.style.pointerEvents = "none"; }
+  const eat = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  addEventListener("click", eat, { capture: true, once: true }); setTimeout(() => removeEventListener("click", eat, true), 700);
+  if (typeof bugReport === "function") bugReport("stuck", "An invisible layer was blocking taps", { at: bugPath(bad) + " opacity " + was.toFixed(2) + " " + Math.round(r.width) + "×" + Math.round(r.height), screen: bugScreen() });
+}, { capture: true });
+
+/* ---- Nexi learned (2): blank while scrolling. Anything that skips drawing off screen (content-visibility: auto) tells us when
+   it does; if one is still skipped while it's well inside the screen on three checks in a row during a scroll, part of the
+   screen came up blank (#89). */
+{ const SK = new Set(), seen = new Map(); let q = 0;
+  document.addEventListener("contentvisibilityautostatechange", e => { if (e.skipped) SK.add(e.target); else { SK.delete(e.target); seen.delete(e.target); } }, true);
+  const check = () => { q = 0; if (!SK.size || !lookOk()) return; const H = innerHeight, now = performance.now();
+    for (const el of SK) { if (!el.isConnected) { SK.delete(el); continue; }
+      const r = el.getBoundingClientRect(), vis = Math.min(r.bottom, H) - Math.max(r.top, 0);
+      if (r.width < 40 || vis < Math.min(40, r.height * .4)) { seen.delete(el); continue; }
+      const s = seen.get(el) || { n: 0, t: 0 }; if (now - s.t < 90) continue;
+      s.n++; s.t = now; seen.set(el, s);
+      if (s.n >= 3) { seen.delete(el); SK.delete(el); bugReport("layout", "Part of the screen stayed blank while scrolling", { at: bugPath(el) + " skipped while " + Math.round(vis) + "px of it was on screen", screen: bugScreen() }); return; } } };
+  addEventListener("scroll", () => { if (!q && SK.size) q = requestAnimationFrame(check); }, { capture: true, passive: true });
+}
+
+/* ---- the design reviewer checks its facts (v215). Its first 7 reports all claimed something the numbers it was given
+   disproved: "uneven radius" (all 999px), "different heights" (48 and 48), "uneven font sizes" (32px ×3), "overlap" (a picture
+   inside its own card), "spacing" (equal gaps), "text too long" (already clamped with Read more), and a description vs its tags
+   (different kinds of text are meant to differ). A finding is only filed when the measurements agree with it. */
+function revTrue(x, els) {
+  const say = ((x.problem || "") + " " + (x.fix || "")).toLowerCase(), cs = els.map(e => getComputedStyle(e)), rs = els.map(e => e.getBoundingClientRect());
+  const same = (a, tol = 0) => a.every(v => Math.abs(v - a[0]) <= tol);
+  const kinds = new Set(els.map(e => e.tagName + "." + [...e.classList].filter(c => !/^(on|in|acc|hot|cur|pre)$/.test(c)).sort().join(".")));
+  if ((x.confidence || 0) < .85) return false;
+  if (/overlap|cover/.test(say)) { if (els.some(a => els.some(b => a !== b && a.contains(b)))) return false;
+    if (!rs.some((a, i) => rs.some((b, k) => k > i && a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2))) return false; }
+  if (/radius|round|corner/.test(say) && same(cs.map(c => parseFloat(c.borderTopLeftRadius) || 0).map(v => Math.min(v, 99)), 1)) return false;
+  if (/font|text size|type size/.test(say) && (same(cs.map(c => parseFloat(c.fontSize)), .5) || kinds.size > 1)) return false;
+  if (/height|same size|taller|shorter/.test(say) && !/font/.test(say) && same(rs.map(r => r.height), 2)) return false;
+  if (/spacing|gap|margin|padding/.test(say) && els.length > 2) { const o = [...rs].sort((a, b) => a.top - b.top), g = o.slice(1).map((r, i) => r.top - o[i].bottom); if (same(g, 2)) return false; }
+  if (/align/.test(say) && (same(rs.map(r => r.left), 2) || same(rs.map(r => r.top), 2))) return false;
+  if (/too long|truncat|shorten/.test(say) && els.some(e => { const c = getComputedStyle(e); return (c.webkitLineClamp && c.webkitLineClamp !== "none") || (e.nextElementSibling && e.nextElementSibling.matches("[data-descmore]")); })) return false;
+  if (/contrast|faint|hard to read|too small/.test(say)) return false;   /* measured for real by lookDesign already */
+  return true;
+}
+
+/* ---- Nexi learned (3): a "Read more" (or any expander next to a clamped text) with nothing more to show (#100) */
+{ const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
+  try { for (const b of root.querySelectorAll("[data-descmore][aria-expanded=false]:not([hidden])")) {
+    const d = b.previousElementSibling, r = b.getBoundingClientRect(); if (!d || !r.width || r.bottom < 0 || r.top > innerHeight) continue;
+    if (d.scrollHeight <= d.clientHeight + 2) { bugReport("look", "A Read more button has nothing more to show", { at: bugPath(b) + " text " + d.clientHeight + "/" + d.scrollHeight + "px", screen: scr }); break; } } } catch (e) {}
+  return o; }; }
+WHATS_NEW.push(
+  { v: 215, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Fixed: after the update tour, a game page could turn invisible and freeze the app. I've learned to spot this myself now: if anything invisible ever blocks your taps, I clear it on the spot and report it.",
+    tryIt: "Open any game and close it: it fades in and out cleanly now." },
+  { v: 215, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Pictures" }); }, at: "#s-pichq",
+    say: "Pictures are full quality (4K) from the very first moment now, no soft copy first. If you ever want the old faster way back, it's right here.",
+    tryIt: "Open a game with big art: it's sharp straight away." },
+  { v: 215, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.filter(x => (x.desc || "").length > 400)[0] || S.games.filter(x => (x.desc || "").length > 170)[0] || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => { const b = $("#full .gd-rm"); return b && !b.hidden ? b : $("#full .gd-desc"); },
+    say: "<b>Read more</b> now slides open smoothly, and it only shows up when there really is more to read (on the unfolded screen it often had nothing to add).",
+    tryIt: "Tap Read more, then Read less." },
+  { v: 215, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-rk"),
+    say: "Fixed: your top 5 on Insights wraps onto a new line instead of cutting names off, and Queue rows no longer go blank for a moment when you scroll fast. I watch for blank patches while you scroll now, too.",
+    tryIt: "Tap a name to open that game." }
+);
+{ const _bn = bugNice; bugNice = function (kind, scr, msg) { const at = bugPlace(scr);
+  if (kind === "stuck" && /invisible/.test(msg)) return `Something invisible on ${at} was blocking your taps. I cleared it out of the way.`;
+  if (kind === "layout" && /blank while scrolling/.test(msg)) return `Part of ${at} went blank while you scrolled.`;
+  if (kind === "look" && /nothing more/.test(msg)) return `A "Read more" on ${at} had nothing more to show.`;
+  return _bn.apply(this, arguments); }; }
+</script>
