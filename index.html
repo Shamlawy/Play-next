@@ -3990,7 +3990,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "216";
+const APP_V = "217";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -18579,7 +18579,7 @@ async function pxRun(force, only) {
   pxBusy = true;
   try {
     /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
-    const all = list.slice(0, 60).map(x => x.k), drops = [];
+    const all = list.slice(0, 60).map(x => x.k).concat(typeof drKeys === "function" ? drKeys() : []), drops = [];
     for (let i = 0; i < Math.min(list.length, 60); i += 10) {
       const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
         ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
@@ -19135,5 +19135,133 @@ WHATS_NEW.push(
     at: () => $("#diary .st-more") || $("#diary .sim-new"),
     say: "Similar games now include <b>Steam players also like</b>: Steam's own “More like this” list, with what each one shares with your game.",
     tryIt: "Tap ＋ to add one, or ▶ for its trailer." }
+);
+</script>
+<style>
+/* ===== v217: release-date watcher + deal radar ===== */
+.rdlog { display: grid; gap: 6px; margin: 6px 0 2px; }
+.rdlog div { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--ice); }
+.rdlog small { color: var(--mute); font-size: 11.5px; flex: none; }
+.dr-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.dy-g.drd img { object-fit: cover; }
+</style>
+<script>
+/* ===== v217: two new things Nexi does on his own (the owner loves automatic features).
+   1. Release-date watcher (`rdWatch`): every game you're waiting for (upcoming, a future date, or TBA) is re-checked on RAWG
+      every 3 days (≤12 per open, in the background, 400ms apart; needs the RAWG key). A delay, an earlier date or a first date
+      updates the game, goes in S.rdLog (last 20, shown in Settings → Price alerts' neighbour "Release dates"), and Nexi says it
+      ("X slipped from 12 Mar to 20 May"); the release notifications are re-planned straight away.
+   2. Deal radar (`drRun`): games you don't have yet but would probably love: Steam's "More like this" of your top 3 ranked games
+      (and what you're playing), scored by how many of your favourites point at them. Their Steam prices ride along with the
+      price check (keys "d:<appid>", kept by the helper so the daily cron can push a 50%+ drop with the app closed). Shown in
+      Deals as "🔭 You'd probably like these"; a new 50%+ one gets Nexi's line. S.drList = [{id, name, tags, by (favourite's
+      title), n (how many point at it), now, base, pct, nowF, baseF, at}]. Switch: Settings → Price alerts → Deal radar (S.drOff). ===== */
+
+/* ---- 1. release dates ---- */
+const RD_GAP = 3 * 864e5;
+const rdWaiting = g => !isPlayed(g) && !isDropped(g) && !g.comp && ((g.state || "upcoming") === "upcoming" || g.status === "tba" || !g.date || g.date > new Date().toLocaleDateString("en-CA"));
+const rdNice = d => d ? new Date(d + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: d.slice(0, 4) === String(new Date().getFullYear()) ? undefined : "numeric" }) : "TBA";
+let rdBusy = false;
+async function rdWatch(force) {
+  if (rdBusy || !rawgKey || !navigator.onLine || S.rdOff) return;
+  const todo = S.games.filter(g => rdWaiting(g) && (force || Date.now() - (g.rdAt || 0) > RD_GAP)).sort((a, b) => (a.rdAt || 0) - (b.rdAt || 0)).slice(0, 12);
+  if (!todo.length) return;
+  rdBusy = true; const news = [];
+  try {
+    for (const g of todo) {
+      let d = null;
+      try {
+        if (g.rawgId) d = await rawgApi("games/" + encodeURIComponent(g.rawgId));
+        else { const r = await rawgApi("games?search=" + encodeURIComponent(g.title) + "&search_precise=true&page_size=3");
+          const best = (r.results || []).find(h => titleMatch(g.title, h.name)); if (best) { d = best; g.rawgId = best.id; } }
+      } catch (e) { if (/401|Key/.test(e.message)) break; }
+      g.rdAt = Date.now();
+      if (!d) { await new Promise(r => setTimeout(r, 400)); continue; }
+      const now = d.tba || !d.released ? "" : String(d.released).slice(0, 10), was = g.date || "";
+      if (now && now !== was) {
+        const k = !was ? "date" : now > was ? "later" : "sooner";
+        g.date = now; if (g.status === "tba" || g.status === "rumoured") g.status = "confirmed";
+        news.push({ id: g.id, t: Date.now(), from: was, to: now, k });
+      } else if (!now && was && d.tba && was > new Date().toLocaleDateString("en-CA")) {
+        g.status = "tba"; g.date = ""; news.push({ id: g.id, t: Date.now(), from: was, to: "", k: "tba" });
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
+  } finally { rdBusy = false; }
+  save();
+  if (!news.length) return;
+  S.rdLog = (S.rdLog || []).concat(news).slice(-20); save(); render(); if (hubAt && $("#full.on")) openFull(hubAt);
+  const line = x => { const g = S.games.find(y => y.id === x.id), t = g ? g.title : "A game";
+    return x.k === "date" ? `${t} has a release date: ${rdNice(x.to)}!` : x.k === "later" ? `${t} slipped from ${rdNice(x.from)} to ${rdNice(x.to)}.` : x.k === "sooner" ? `${t} moved up to ${rdNice(x.to)}!` : `${t} lost its date (it's TBA again).`; };
+  toast("📅 " + line(news[0]) + (news.length > 1 ? ` (+${news.length - 1} more)` : ""));
+  if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([line(news[0]) + " I've updated it" + (news.length > 1 ? `, and ${news.length - 1} more` : "") + ".", "dates"]); } catch (e) {}
+  /* the release-day and countdown notifications follow the new dates */
+  if (S.nudgeOn && typeof nudgeOn === "function") nudgeOn(true).catch(() => {});
+}
+setTimeout(() => rdWatch(false), 20000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => rdWatch(false), 8000); });
+
+/* ---- 2. deal radar ---- */
+const drOn = () => S.drOff !== true && pxOn() && pxStores().st;
+const drKeys = () => drOn() ? (S.drList || []).map(x => "d:" + x.id) : [];
+let drBusy = false;
+async function drRun(force) {
+  if (drBusy || !drOn() || !navigator.onLine || (!force && Date.now() - (S.drAt || 0) < 20 * 36e5)) return;
+  const seeds = [...new Set(rankedGames().slice(0, 3).concat(playingNow()))].filter(g => stIdOf(g)).slice(0, 5);
+  if (!seeds.length) return;
+  drBusy = true;
+  try {
+    const mine = S.games.map(x => normT(x.title)), have = n => mine.some(t => simSame(t, normT(n)) >= .9);
+    const pool = new Map();
+    for (const g of seeds) { let rec = null; try { rec = await stMore(g); } catch (e) { if (e.message === "helper-old") return; }
+      ((rec && rec.l) || []).slice(0, 12).forEach((x, i) => { if (have(x.name)) return; const p = pool.get(x.id) || { id: x.id, name: x.name, tags: x.tags, by: g.title, n: 0, w: 0 }; p.n++; p.w += 12 - i; pool.set(x.id, p); }); }
+    const pick = [...pool.values()].sort((a, b) => b.n - a.n || b.w - a.w).slice(0, 20);
+    if (!pick.length) { S.drList = []; S.drAt = Date.now(); save(); return; }
+    const old = new Map((S.drList || []).map(x => [x.id, x])), alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
+    const all = pxWatched().map(g => g.id).slice(0, 60).concat(pick.map(x => "d:" + x.id)), news = [];
+    for (let i = 0; i < pick.length; i += 10) {
+      const b = pick.slice(i, i + 10);
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: b.map(x => ({ k: "d:" + x.id, t: x.name, st: x.id, ps: "-", ns: "-" })), min: 50, tier: pxTier(),
+        ...(alerts ? { id: S.nudgeId, watch: true, all } : {}) });
+      for (const x of b) { const p = ((r.res || {})["d:" + x.id] || {}).st; if (!p || p.now == null) continue;
+        const o = old.get(x.id); Object.assign(x, { now: p.now, base: p.base, pct: p.pct || 0, nowF: p.nowF, baseF: p.baseF, at: Date.now() });
+        if (x.pct >= 50 && !(o && o.pct >= 50)) news.push(x); }
+    }
+    S.drList = pick.map(({ w, ...x }) => x); S.drAt = Date.now(); save();
+    if (news.length) { const x = news.sort((a, b) => b.pct - a.pct)[0];
+      if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
+        try { pnBubSay([`Players who love ${x.by} also love ${x.name}, and it's ${x.pct}% off right now (${x.nowF}). Want a look?`, "deals"]); } catch (e) {} }
+  } catch (e) {} finally { drBusy = false; }
+}
+setTimeout(() => drRun(false), 25000);
+/* Deals shows them under your own list */
+{ const _pd = pxDeals; pxDeals = function () { const o = _pd.apply(this, arguments); const box = dyBox(), l = drOn() ? (S.drList || []).filter(x => x.pct >= 30).sort((a, b) => b.pct - a.pct) : [];
+  const btn = box.querySelector("[data-pxnow]"); if (!btn || !l.length) return o;
+  btn.insertAdjacentHTML("beforebegin", `<p class="pxd-h">🔭 You'd probably like these · on sale</p><div class="dy-gl">${l.slice(0, 8).map(x => `<div class="dy-g pxd drd"><img decoding="async" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${x.id}/header.jpg" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(x.name)}</b><small>Fans of ${esc(x.by)} love it · Steam ${esc(x.nowF || "")} <s>${esc(x.baseF || "")}</s></small></span><button class="sim-yt" data-drgo="${x.id}" aria-label="Open on Steam">↗</button><em class="pxd-p">−${x.pct}%</em></div>`).join("")}</div>`);
+  return o; }; }
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-drgo]"); if (!b) return; e.stopPropagation(); beep("tap"); window.open(`https://store.steampowered.com/app/${b.dataset.drgo}/`, "_blank", "noopener"); }, true);
+/* the deal-radar games ride along on a manual "check now" too */
+{ const _pr = pxRun; pxRun = async function (force, only) { const o = await _pr.apply(this, arguments); if (!only && o) drRun(!!force); return o; }; }
+/* Settings: deal radar + release-date watcher, next to price alerts */
+{ const _sh = pxSetHtml; pxSetHtml = function () { const log = (S.rdLog || []).slice(-5).reverse();
+  return _sh.apply(this, arguments) + `<label>Deal radar</label>
+    <div class="chips" id="s-dr">${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.drOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note">Nexi also keeps an eye on games you don't have yet but would probably love (what Steam players who love your top games play), and tells you when one is half price or less. ${S.drList && S.drList.length ? `Watching ${S.drList.length} right now.` : ""}</p>
+    <label>Release dates</label>
+    <div class="chips" id="s-rd">${[["on", "Keep them up to date"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.rdOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note">Every few days Nexi re-checks the games you're waiting for and fixes their dates himself when they're delayed, moved up or finally announced${rawgKey ? "" : " (needs your RAWG key)"}.</p>
+    ${log.length ? `<div class="rdlog">${log.map(x => { const g = S.games.find(y => y.id === x.id); return `<div><small>${esc(wiAgo(x.t))}</small><span>${esc(g ? g.title : "A game")}: ${esc(rdNice(x.from))} → ${esc(rdNice(x.to))}</span></div>`; }).join("")}</div>` : ""}`; }; }
+{ const _sw = pxSetWire; pxSetWire = function () { const o = _sw.apply(this, arguments);
+  const tg = (sel, fn) => { const el = $(sel); if (el) el.onclick = e => { const c = e.target.closest(".chip"); if (!c) return; [...el.children].forEach(x => x.setAttribute("aria-pressed", String(x === c))); fn(c.dataset.v); save(); beep("tap"); }; };
+  tg("#s-dr", v => { S.drOff = v === "off"; if (!S.drOff) drRun(true); });
+  tg("#s-rd", v => { S.rdOff = v === "off"; if (!S.rdOff) rdWatch(true); });
+  return o; }; }
+WHATS_NEW.push(
+  { v: 217, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Release dates" }); }, at: "#s-rd",
+    say: "New, and fully automatic: I now re-check every game you're waiting for and fix its release date myself when it's delayed, moved up or finally announced, then tell you (and your release-day pings follow).",
+    tryIt: "Nothing to do. When a date changes, I'll say so." },
+  { v: 217, go: () => { closeFull(); dyClose(); nxShut(); pxDeals(); }, at: () => $("#diary .drd") || $("#diary .pxd-h") || $("#diary [data-pxnow]"),
+    say: "Deal radar: I watch games you don't have yet but would probably love (what Steam players who love your top games play next) and tell you when one is half price or less, even with the app closed.",
+    tryIt: "Open Deals any time to see what's on sale." }
 );
 </script>
