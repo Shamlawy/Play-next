@@ -3988,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "211";
+const APP_V = "212";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6202,7 +6202,7 @@ function openSettings(scope) {
       <p class="note" id="s-helperv">Checking Nexi's helper…</p>
     </div>
 
-    <div class="setgroup" data-scope="app"><h4 data-desc="Diary and Timer. Off unless you want them.">Extra features</h4>
+    <div class="setgroup" data-scope="app"><h4 data-desc="Diary, Timer and Where was I? reminders.">Extra features</h4>
       <label>Play diary</label>
       <p class="note">A 📓 Diary button on each game for notes, moods and wins/losses.</p>
       <div class="chips" id="s-xdiary">
@@ -6214,6 +6214,12 @@ function openSettings(scope) {
       <div class="chips" id="s-xtimer">
         ${[["off", "Hidden"], ["on", "Show it"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.timerOn ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Where was I? reminders</label>
+      <p class="note">When you come back after a few hours, Nexi asks where you left off in the game you're playing (once a day). Your 📍 notes stay either way.</p>
+      <div class="chips" id="s-xwi">
+        ${[["on", "Ask me"], ["off", "Don't ask"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.wiAskOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
     </div>
 
@@ -6544,6 +6550,7 @@ function openSettings(scope) {
   pick("#s-curplat", v => { S.curPlat = v; deckMemo = null; }, () => render());
   pick("#s-deck", v => S.deckOff = v === "off", () => renderQueue());
   pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
+  pick("#s-xwi", v => S.wiAskOff = v === "off");
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
   if ($("#s-papercol")) swatchRow($("#s-papercol"), S.paperCol || "#2F6BFF", c => {
@@ -8786,6 +8793,7 @@ function hubActs(g) {
     [`data-trailer="${id}"`, "▶", "Trailer"],
     [`data-sim="${id}"`, "🔍", "Similar"],
     [`data-lists="${id}"`, "📋", "Lists" + ((g.lists || []).length ? " · " + g.lists.length : "")],
+    [`data-wasi="${id}"`, "📍", "Where was I?" + ((g.wasI || []).length ? " · " + g.wasI.length : "")],
     [`data-sess="${id}"`, "⏱", "Sessions" + (sessOf(g.id).length ? " · " + sessOf(g.id).length : "")],
     [`data-aiwhy="${id}"`, "✨", "Why you'll love it"],
     [`data-resetgame="${id}"`, "↺", "Reset scores"]
@@ -10469,7 +10477,7 @@ function dxHome(o) {
       const wr = W + Lo + Dr ? Math.round(W / (W + Lo + Dr) * 100) : null;
       return `<button type="button" class="dxc" data-home-open="${g.id}" style="--tint:${col(g)}">
         <img decoding="async" src="${img(g)}" alt="">${hy ? `<span class="vb">${DX_ICO.flame}${hy}</span>` : ""}
-        <span class="ft"><b>${esc(g.title)}</b><small>${g.comp ? (wr != null ? wr + "% wins" : dy.length ? dy.length + " diary entr" + (dy.length === 1 ? "y" : "ies") : esc(genre(g))) : total ? Math.max(0, Math.round(total - done)) + "h left" : esc(genre(g))}</small>
+        <span class="ft"><b>${esc(g.title)}</b>${!g.comp && typeof wiLast === "function" && wiLast(g) ? `<small class="wiln">📍 ${esc(wiLast(g).x)}</small>` : ""}<small>${g.comp ? (wr != null ? wr + "% wins" : dy.length ? dy.length + " diary entr" + (dy.length === 1 ? "y" : "ies") : esc(genre(g))) : total ? Math.max(0, Math.round(total - done)) + "h left" : esc(genre(g))}</small>
           <span class="stars">${"★".repeat(st)}<i>${"★".repeat(5 - st)}</i></span>
           ${g.comp ? `<span class="dxcomp">⚔ Competitive</span>` : `<span class="dxpb"><span class="tr"><i style="width:calc(40px + (100% - 40px) * ${(pct / 100).toFixed(2)})"></i><em>${total ? pct + "%" : "—"}</em></span><span class="go">${DX_ICO.mini}</span></span>`}</span>
       </button>`; }).join("")}</div></div>` : "";
@@ -12899,6 +12907,8 @@ function nxPlan(days) {
   }
   /* not opened in 3 days (every open moves this forward, so it only fires if you really stay away) */
   if (K.has("comeback")) { const n = S.games.filter(g => !isPlayed(g) && g.state !== "dropped").length, pk = onDeck(1)[0];
+    const wg = typeof wiPick === "function" ? wiPick() : null, wn = wg && wiLast(wg);
+    if (wn) push(Date.now() + 3 * 864e5, "👋 Back to " + wg.title + "?", "Last time: " + wn.x.slice(0, 120), "comeback", "./?nudge=game&g=" + wg.id); else
     push(Date.now() + 3 * 864e5, "👋 Your queue misses you", `${n} game${n === 1 ? "" : "s"} waiting${pk ? ". " + pk.title + " is still on deck." : "."}`, "comeback", "./?nudge=next"); }
   /* never more than 4 in a day: the fixed ones (release, recap…) win over the everyday ones */
   const byDay = {};
@@ -15443,7 +15453,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 <script>
 /* ===== v183 what's new + settings extras ===== */
 GROUP_ICON["Extra features"] = "🧪";
-GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn"];
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
   { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
@@ -16411,7 +16421,7 @@ const GD_ICON = { fullopen: "🎮", fulledit: "✏️" };
 function gdMarkup(g) {
   const col = HEX.test(g.colour || "") ? g.colour : PALETTE[0];
   const state = (STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1];
-  const back = bgSource(g), acts = hubActs(g), main = acts.filter(a => a[3]), rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]));
+  const back = bgSource(g), acts = hubActs(g), main = acts.filter(a => a[3]), rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]) && !(/data-wasi/.test(a[0]) && ((g.wasI || []).length || g.state === "playing")));
   const ed = acts.find(a => /data-fulledit/.test(a[0]));
   const tags = [state ? [state, 1] : null, ...platList(g.genres).slice(0, 3).map(x => [x]), ...platList(g.platforms).slice(0, 3).map(x => [x])].filter(Boolean);
   const icon = a => a[1] || GD_ICON[(a[0].match(/data-(\w+)/) || [])[1]] || "•";
@@ -16430,6 +16440,7 @@ function gdMarkup(g) {
           <div class="gd-tt"><span class="hub-kick">${esc(g.date ? days(g.date) : "No date yet")}</span><h2>${esc(g.title)}</h2></div>
         </div>
         ${tags.length ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}</div>` : ""}
+        ${typeof wiCard === "function" ? wiCard(g) : ""}
         ${desc ? `<p class="gd-desc">${esc(desc)}</p>${desc.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}` : ""}
         <div class="hub-data">${hubStats(g).map(([v, l]) => `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="gd-main">${main.map(a => `<button type="button" class="hot" ${a[0]}>${a[1]} ${esc(a[2])}</button>`).join("")}${ed ? `<button type="button" class="${main.length ? "ed" : ""}" ${ed[0]}>✏️ Edit</button>` : ""}</div>
@@ -18324,4 +18335,149 @@ WHATS_NEW.push(
 .cb-copy small { grid-area: s; color: var(--mute); font-size: 12px; }
 .cb-copy em { grid-area: e; font-style: normal; font-size: 20px; color: var(--mute); }
 .cb-copy:active { transform: scale(.98); }
+</style>
+<script>
+/* ===== v212: "Where was I?" notes =====
+   A game keeps short notes about where you stopped (g.wasI = [{t, x}], newest last, 20 kept). The newest shows as a card
+   at the top of the game page (with "Welcome back" when it's a few days old), on Home's Playing now cards, in the
+   "Your queue misses you" notification and in what Nexi's chat knows. After 3+ hours away, Nexi asks where you left off
+   in the game you're playing (once a day per game; Settings → Extra features can turn the asking off). */
+const WI_MAX = 20, WI_GAP = 3 * 36e5, WI_REASK = 20 * 36e5;
+const WI_QUICK = ["Just started", "Middle of a chapter", "Right before a boss", "Grinding / side stuff", "Near the end"];
+const wiLast = g => g && Array.isArray(g.wasI) && g.wasI.length ? g.wasI[g.wasI.length - 1] : null;
+const wiAgo = t => { const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? "today" : d === 1 ? "yesterday" : d < 14 ? d + " days ago" : d < 60 ? Math.round(d / 7) + " weeks ago" : Math.round(d / 30) + " months ago"; };
+function wiAdd(g, text) {
+  const x = String(text || "").replace(/\s+/g, " ").trim().slice(0, 240); if (!g || !x) return;
+  g.wasI = (Array.isArray(g.wasI) ? g.wasI : []).concat([{ t: Date.now(), x }]).slice(-WI_MAX);
+  S.wiAsked ||= {}; S.wiAsked[g.id] = Date.now();
+  save(); wiRefresh(g);
+}
+/* redraw the bits that show the note, without rebuilding the open game page */
+function wiRefresh(g) {
+  document.querySelectorAll(`.wi[data-g="${g.id}"]`).forEach(el => { el.outerHTML = wiCard(g, true); });
+  if (typeof renderHome === "function") renderHome();
+}
+/* the game page card: the newest note, or (for a game you're playing) a prompt to leave one */
+function wiCard(g, force) {
+  const n = wiLast(g);
+  if (!n && !force && g.state !== "playing") return "";
+  if (!n) return `<button type="button" class="wi wi-empty" data-g="${g.id}" data-wasi="${g.id}"><i aria-hidden="true">📍</i><span><b>Where are you up to?</b><small>Leave yourself a note for next time</small></span><em aria-hidden="true">＋</em></button>`;
+  const back = Date.now() - n.t > 2 * 864e5;
+  return `<button type="button" class="wi${back ? " back" : ""}" data-g="${g.id}" data-wasi="${g.id}"><i aria-hidden="true">📍</i><span><b>${back ? "Welcome back · last time, " + wiAgo(n.t) : "Where you left off · " + wiAgo(n.t)}</b><q>${esc(n.x)}</q></span><em aria-hidden="true">✎</em></button>`;
+}
+function wiSheet(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const box = dyBox(), old = (g.wasI || []).slice().reverse();
+  const draw = () => dyShow(box, `<div class="dy-h"><b>📍 Where are you in ${esc(g.title)}?</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="note wi-tip">A line for future you: the chapter, what you were about to do, anything to remember.</p>
+    <textarea class="wi-in" maxlength="240" rows="3" placeholder="Chapter 6, about to fight the water boss. Buy fire potions first."></textarea>
+    <div class="wi-q">${WI_QUICK.map(q => `<button type="button" data-wiq="${esc(q)}">${esc(q)}</button>`).join("")}</div>
+    <button type="button" class="btn wi-save" data-wisave><span>Save note</span></button>
+    ${old.length ? `<div class="wi-old"><b>Earlier notes</b>${old.map((n, i) => `<div class="wi-o"><span><small>${esc(new Date(n.t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(n.t).getFullYear() === new Date().getFullYear() ? undefined : "numeric" }))}</small>${esc(n.x)}</span><button type="button" data-widel="${old.length - 1 - i}" aria-label="Delete this note">🗑</button></div>`).join("")}</div>` : ""}`,
+    e => {
+      const q = e.target.closest("[data-wiq]"), inp = box.querySelector(".wi-in");
+      if (q) { inp.value = inp.value.trim() ? inp.value.trim().replace(/[.,;]?$/, "") + ", " + q.dataset.wiq.toLowerCase() : q.dataset.wiq; inp.focus(); beep("tap"); return; }
+      if (e.target.closest("[data-wisave]")) {
+        if (!inp.value.trim()) { inp.focus(); return; }
+        wiAdd(g, inp.value); beep("add"); dyClose(); toast("Note saved — it'll be here next time"); return;
+      }
+      const d = e.target.closest("[data-widel]");
+      if (d) { g.wasI.splice(+d.dataset.widel, 1); save(); wiRefresh(g); beep("back"); draw(); }
+    });
+  draw();
+  setTimeout(() => { const i = box.querySelector(".wi-in"); if (i) i.focus(); }, 350);
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-wasi]"); if (!b) return; e.stopPropagation(); beep("tap");
+  const a = $("#wiask"); if (a) a.classList.remove("on"); wiSheet(b.dataset.wasi); }, true);
+
+/* coming back after a while: Nexi asks about the game you're playing */
+function wiPick() {
+  const pl = playingNow().filter(g => !g.comp);
+  return pl.sort((a, b) => ((wiLast(b) || {}).t || 0) - ((wiLast(a) || {}).t || 0))[0] || null;
+}
+function wiAsk() {
+  if (S.wiAskOff || document.hidden) return;
+  const g = wiPick(); if (!g) return;
+  const asked = (S.wiAsked || {})[g.id] || 0, last = wiLast(g);
+  if (Date.now() - asked < WI_REASK || (last && Date.now() - last.t < WI_REASK)) return;
+  /* wait for a calm moment: no tour, sheet, game page or Nexi's bug card on screen */
+  const busy = () => document.documentElement.classList.contains("nxtouring") || $("#diary.on, #sheet.on, #full.on, #nxbug.on, #shuf, #wrap");
+  let tries = 0;
+  const go = () => {
+    if (busy()) { if (++tries < 20) setTimeout(go, 3000); return; }
+    S.wiAsked ||= {}; S.wiAsked[g.id] = Date.now(); save();
+    let el = $("#wiask"); if (!el) { el = document.createElement("div"); el.id = "wiask"; document.body.appendChild(el); }
+    el.innerHTML = `<i aria-hidden="true">📍</i><span><b>Played ${esc(g.title)} since last time?</b>${last ? `Last note: “${esc(last.x)}”` : "Tell me where you left off and I'll remind you next time."}</span>
+      <span class="wa-b"><button type="button" class="wa-go" data-wasi="${g.id}">${last ? "Update" : "Write it"}</button><button type="button" class="wa-no">Not now</button></span>`;
+    requestAnimationFrame(() => el.classList.add("on"));
+    const hide = () => el.classList.remove("on");
+    el.onclick = e => { if (e.target.closest(".wa-no")) beep("back"); hide(); };
+    clearTimeout(wiAsk.t); wiAsk.t = setTimeout(hide, 15000);
+  };
+  setTimeout(go, 2500);
+}
+/* when the app was last on screen lives in its own key: keeping it in S would make every exit a "change" (and a cloud upload) */
+{ const seen = () => +(localStorage.getItem("gq:seen") || 0), mark = () => { try { localStorage.setItem("gq:seen", Date.now()); } catch (e) {} };
+  addEventListener("visibilitychange", () => {
+    if (document.hidden) mark();
+    else { const s0 = seen(); if (s0 && Date.now() - s0 >= WI_GAP) wiAsk(); mark(); }
+  });
+  addEventListener("pagehide", mark);
+  /* a fresh open counts too */
+  const s0 = seen(); if (s0 && Date.now() - s0 >= WI_GAP) setTimeout(wiAsk, 4000);
+  mark();
+}
+/* Nexi's chat knows where you are in the games you're playing */
+{ const _nc = nxContext; nxContext = function () { const c = _nc.apply(this, arguments);
+  if (c && Array.isArray(c.playing)) c.playing = c.playing.map(t => { const g = S.games.find(x => x.title === t), n = g && wiLast(g); return n ? (t + " (they left off: " + n.x + ")").slice(0, 118) : t; });
+  return c; }; }
+WHATS_NEW.push(
+  { v: 212, go: () => { closeFull(); dyClose(); nxShut(); const g = wiPick() || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .wi") || $("#full [data-wasi]"),
+    say: "New: <b>Where was I?</b> notes. Leave yourself a line about where you stopped in a game, and it's waiting at the top of its page next time, with a Welcome back after a few days away.",
+    tryIt: "Tap 📍 and write where you are in the game you're playing." },
+  { v: 212, go: () => { closeFull(); dyClose(); nxShut(); goTab("home"); }, at: null,
+    say: "When you come back after a few hours, I'll ask where you left off in the game you're playing (once a day, and you can say Not now). Your notes also show on Home's Playing now cards, and I use them in chat when you ask for tips.",
+    tryIt: "Don't want me asking? Settings → Extra features → Where was I? reminders." }
+);
+</script>
+<style>
+.wi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; margin: 12px 0 2px; padding: 12px 14px;
+  border-radius: 18px; border: 1px solid rgba(var(--vrgb), .3); background: linear-gradient(110deg, rgba(var(--vrgb), .14), rgba(8,11,24,.82) 70%);
+  color: var(--ice); text-align: left; font-family: inherit; cursor: pointer; }
+.wi i { font-style: normal; font-size: 20px; }
+.wi span { display: grid; gap: 3px; min-width: 0; }
+.wi b { font-size: 12px; font-weight: 600; color: var(--volt); }
+.wi q { font-size: 14.5px; line-height: 1.4; quotes: none; color: var(--ice); overflow-wrap: anywhere; }
+.wi small { font-size: 12px; color: var(--mute); }
+.wi em { font-style: normal; font-size: 16px; color: var(--mute); width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.06); }
+.wi.back { border-color: rgba(var(--vrgb), .6); box-shadow: 0 10px 30px -14px rgba(var(--vrgb), .7); }
+.wi-empty { background: rgba(8,11,24,.6); border-style: dashed; }
+.wi:active { transform: scale(.98); }
+.wi-in { width: 100%; box-sizing: border-box; margin: 4px 0 8px; padding: 12px 14px; border-radius: 14px; font: 500 15px/1.4 inherit; resize: vertical; min-height: 84px; }
+.wi-q { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.wi-q button { padding: 7px 12px; min-height: 32px; border-radius: 99px; border: 1px solid var(--u-line, rgba(234,242,255,.1)); background: var(--u-card, #131a32); color: var(--ice); font: 500 12.5px/1 inherit; cursor: pointer; }
+.wi-q button:active { transform: scale(.95); }
+.wi-save { width: 100%; }
+.wi-old { margin-top: 16px; display: grid; gap: 6px; }
+.wi-old > b { font-size: 12px; font-weight: 600; color: var(--mute); }
+.wi-o { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--u-card, #131a32); }
+.wi-o span { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.4; color: var(--ice); overflow-wrap: anywhere; }
+.wi-o small { display: block; font-size: 11px; color: var(--mute); margin-bottom: 2px; }
+.wi-o button { flex: none; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255,255,255,.05); cursor: pointer; font-size: 14px; }
+.dxc .ft small.wiln { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#wiask { position: fixed; z-index: 95; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); width: min(92vw, 440px); display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 12px; align-items: center; padding: 12px 14px; border: 1px solid rgba(var(--vrgb), .35); border-radius: 20px; background: #0e1428; color: var(--ice);
+  font: 500 13px/1.4 "Poppins", system-ui, sans-serif; box-shadow: 0 18px 40px -12px rgba(0,0,0,.85);
+  opacity: 0; pointer-events: none; transform: translate(-50%, 16px) scale(.96); transition: opacity .25s ease, transform .35s var(--ease); }
+#wiask.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+#wiask > i { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 19px;
+  background: radial-gradient(circle at 34% 28%, #1c2c52, #070a14 72%); box-shadow: inset 0 0 0 1.5px rgba(var(--vrgb), .6); }
+#wiask > span:first-of-type { min-width: 0; overflow-wrap: anywhere; }
+#wiask b { display: block; font-weight: 700; font-size: 12.5px; color: var(--volt); margin-bottom: 1px; }
+#wiask .wa-b { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+#wiask .wa-b button { min-height: 36px; padding: 8px 16px; border-radius: 99px; border: 1px solid var(--u-line, rgba(234,242,255,.1)); background: var(--u-card, #131a32);
+  color: var(--ice); font: 600 13px/1 inherit; cursor: pointer; }
+#wiask .wa-b .wa-go { background: var(--volt); color: var(--void, #04060e); border-color: transparent; }
+@media (min-width: 620px) { html.pnrail:not(.railhide) #wiask { left: calc(50% - 44px); } }
 </style>
