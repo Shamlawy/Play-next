@@ -14,6 +14,7 @@ on:
     paths:
       - ".github/scripts/priceprobe.mjs"
       - ".github/scripts/psprobe.mjs"
+      - ".github/scripts/nsprobe.mjs"
       - "worker/helper.js"
       - ".github/workflows/price-probe.yml"
 permissions:
@@ -31,6 +32,9 @@ jobs:
           TITLES: ${{ github.event.inputs.titles }}
           CCS: ${{ github.event.inputs.ccs }}
         run: mkdir -p probe; node .github/scripts/priceprobe.mjs | tee probe/prices.log
+      - name: Nintendo + Steam probe
+        if: always()
+        run: node .github/scripts/nsprobe.mjs | tee probe/ns.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
