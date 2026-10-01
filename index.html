@@ -3988,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "209";
+const APP_V = "210";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4933,7 +4933,8 @@ const GROUP_KEYS = {
   "Conclusions": ["analysisAt"],
   "Sound and reactions": ["sound", "reactions"],
   "Motion": ["motion", "vt", "rowAnim", "bgOff", "tabFade"],
-  "Look of the app": ["uiStyle", "shxOff", "addStyle", "paper", "paperCol", "paperStr", "corners", "radius"],
+  "Header cards": ["shxOff", "shxX"],
+  "Look of the app": ["uiStyle", "addStyle", "paper", "paperCol", "paperStr", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
   "Character art": ["artSize", "artH", "artFloat", "artSpeed", "artGlow"],
   "Library": ["libLayout", "libCols", "libTitle", "libTL", "libTR", "libBL", "libBR", "reelW", "buzz", "coverQ"],
@@ -6259,6 +6260,9 @@ function openSettings(scope) {
       </div>
     </div>
 
+    <div class="setgroup" data-scope="app"><h4 data-desc="The card at the top of each screen: numbers, covers, chart and more.">Header cards</h4>${shxSetHtml()}</div>
+    ${scope && scope !== "app" && scope !== "home" && !openSettings.tplOnly ? `<div class="setgroup" data-scope="${scope}"><h4 data-desc="The card at the top of this screen (and every other one).">Header cards</h4>${shxSetHtml()}</div>` : ""}
+
     <div class="setgroup" data-scope="app"><h4 data-desc="A one-tap theme, the wash behind the panels, and how round things are.">Look of the app</h4>
       <label>Theme</label>
       <div class="thpick" id="s-theme">${Object.entries(THEMES).map(([k, t]) =>
@@ -6270,11 +6274,6 @@ function openSettings(scope) {
           `<button class="chip" data-v="${v}" aria-pressed="${(S.uiStyle === "arcade" ? "arcade" : "clean") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <p class="note">Clean: calm headings and soft cards, like Home. Arcade: the original slanted, all-caps look.</p>
-      <label>Header cards</label>
-      <div class="chips" id="s-shx">
-        ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.shxOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-      <p class="note">The card at the top of each screen with your numbers and a fan of covers (Clean only).</p>
       <label>Add screen</label>
       <div class="chips" id="s-addstyle">
         ${[["new", "New"], ["classic", "Classic"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.addStyle === "classic" ? "classic" : "new") === v}"><span>${l}</span></button>`).join("")}
@@ -6524,7 +6523,6 @@ function openSettings(scope) {
   };
   pick("#s-corners", v => S.corners = v);
   pick("#s-uistyle", v => S.uiStyle = v);
-  pick("#s-shx", v => S.shxOff = v === "off");
   pick("#s-addstyle", v => S.addStyle = v);
   pick("#s-gdfig", v => S.gdFig = v === "on");
   pick("#s-bugs", v => S.bugOff = v === "off");
@@ -14947,7 +14945,7 @@ const GROUP_ICON = {
   "Dates that look wrong": "📅", "This build": "ℹ️", "Your data": "💾", "Tiles on Home": "🧩", "How tiles look": "🖌️",
   "The standings tile": "🏆", "Queue cards": "🃏", "Character art": "🧍", "The backdrop": "🖼️", "Opening a card": "✨",
   "Top board": "🥇", "Library": "📚", "A game's own page": "📄", "Timeline board": "🗓️", "Labels on the board": "🏷️",
-  "Your evening": "🌙", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
+  "Your evening": "🌙", "Header cards": "🪪", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
   "Name": "✏️", "Release": "📅", "Where it stands": "📍", "Platforms": "🎮", "Genres and tags": "🏷️", "Notes": "📝",
   "Hype": "🔥", "Critics": "⭐", "My rating": "💯", "Played": "✅", "Art from SteamGridDB": "🖼️", "Cover and colour": "🎨",
   "Backdrop": "🌄", "Hub page figure": "🧍", "Logo / character art": "🔤"
@@ -15980,6 +15978,78 @@ html.still .shx-fan.deal button { animation: none; }
 /* a phone holds three covers; the fourth joins on wider screens */
 @media (max-width: 619px) { .shx-fan button[style*="--k:0;"] { display: none; } .shx-fan button { left: calc((100% - var(--cw)) * (var(--k) - 1) / 2); } }
 
+/* v210 extras: spotlight line, top genres, 6-month chart, mix bar, backdrop art (each switchable) */
+html.ui2 .tabbar.shx { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "t k c" "l l l" "g g g" "s s s" "b b b"; }
+html.ui2 .tabbar.shx > .chip, html.ui2 .tabbar.shx > .tbacts { grid-column: 3; grid-row: 1; }
+html.ui2 .tabbar.shx h3 { grid-column: 1; grid-row: 1; min-width: 0; }
+.shx-ln, .shx-tg, .shx-mx { position: relative; z-index: 2; max-width: calc(100% - var(--fw) - 4px); }
+.shx-ln { grid-area: l; justify-self: start; display: flex; align-items: baseline; gap: 7px; min-height: 26px; margin: 0; padding: 2px 0;
+  background: none; border: 0; color: var(--ice); font: 500 13px/1.3 "Poppins", system-ui, sans-serif; cursor: pointer; text-align: left; }
+.shx-ln small { flex: none; color: var(--volt); font-size: 11px; font-weight: 600; }
+.shx-ln b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.shx-ln em { flex: none; font-style: normal; color: var(--mute); font-size: 11.5px; }
+.shx-ln:active { opacity: .7; }
+.shx-tg { grid-area: g; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.shx-tg span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 500; color: var(--ice);
+  background: rgba(4,6,14,.55); border: 1px solid rgba(255,255,255,.09); white-space: nowrap; }
+.shx-tg i { font-style: normal; color: var(--mute); font-variant-numeric: tabular-nums; }
+.shx-ch { grid-area: k; align-self: start; position: relative; z-index: 2; display: grid; gap: 3px; justify-items: end; margin: 2px 2px 0 0; }
+.shx-ch > div { display: flex; align-items: flex-end; gap: 3px; height: 26px; }
+.shx-ch > div i { width: 6px; height: 100%; border-radius: 3px; background: rgba(234,242,255,.22); transform: scaleY(var(--h)); transform-origin: 50% 100%; }
+.shx-ch > div i.top { background: var(--volt); }
+.shx-ch small { font-size: 10px; line-height: 1; color: var(--mute); white-space: nowrap; }
+@keyframes shxGrow { from { transform: scaleY(0); } }
+.shx-ch.deal > div i { animation: shxGrow .6s var(--ease) backwards; animation-delay: calc(120ms + var(--i) * 50ms); }
+html.still .shx-ch.deal > div i { animation: none; }
+@media (prefers-reduced-motion: reduce) { .shx-ch.deal > div i { animation: none; } }
+.shx-mx { grid-area: b; display: grid; gap: 6px; margin-top: 10px; }
+.shx-mx > div { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; }
+.shx-mx > div i { min-width: 4px; }
+.shx-mx small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; line-height: 1.3; color: var(--mute); }
+.shx-mx small span { margin-right: 9px; }
+.shx-mx small i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+.shx-mx i[data-c="0"] { background: var(--volt); }
+.shx-mx i[data-c="1"] { background: rgba(var(--vrgb), .55); }
+.shx-mx i[data-c="2"] { background: rgba(var(--vrgb), .28); }
+.shx-mx i[data-c="3"] { background: rgba(234,242,255,.3); }
+.shx-mx i[data-c="4"] { background: rgba(234,242,255,.13); }
+.shx-art { position: absolute; z-index: 0; top: 0; right: 0; bottom: 0; width: 72%; pointer-events: none; }
+.shx-art img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .4; }
+.shx-art::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, var(--u-pan) 0%, color-mix(in srgb, var(--u-pan) 55%, transparent) 40%, transparent 75%),
+    linear-gradient(0deg, color-mix(in srgb, var(--u-pan) 70%, transparent), transparent 55%); }
+html.ui2 .tabbar.shx.shxw-art { background: var(--u-pan); }
+html.ui2 .tabbar.shx.shxw-art .shx-glow { opacity: .55; }
+html.ui2 .tabbar.shx:is(.shxw-line, .shxw-tags, .shxw-chart) .shx-st { margin-top: 12px; }
+@media (min-width: 620px) {
+  .shx-ln { font-size: 15px; margin-top: 2px; }
+  .shx-ln small { font-size: 12.5px; }
+  .shx-ln em { font-size: 13px; }
+  .shx-tg { gap: 6px; margin-top: 6px; }
+  .shx-tg span { font-size: 12px; padding: 4px 11px; }
+  .shx-ch { margin: 4px 14px 0 0; gap: 5px; }
+  .shx-ch > div { height: 40px; gap: 4px; }
+  .shx-ch > div i { width: 9px; border-radius: 4px; }
+  .shx-ch small { font-size: 11px; }
+  .shx-mx { margin-top: 14px; max-width: min(420px, calc(100% - var(--fw) - 170px)); }
+  .shx-mx small { font-size: 11.5px; }
+  .shx-art { width: 64%; }
+}
+/* phones: no room beside the title, so the chart sits under Customise, above the fan */
+@media (max-width: 619px) {
+  html.ui2 .tabbar.shx.shxw-chart { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t c" "l k" "g k" "s s" "b b"; min-height: 190px; }
+  /* the title and Customise share the top row across both columns, so the narrow chart column stays narrow */
+  html.ui2 .tabbar.shx.shxw-chart h3 { grid-column: 1 / -1; justify-self: start; }
+  html.ui2 .tabbar.shx.shxw-chart > .chip, html.ui2 .tabbar.shx.shxw-chart > .tbacts { grid-column: 1 / -1; justify-self: end; }
+  .shx-ch { margin: 6px 4px 0 0; }
+  /* the fan sits low on a tall card: with a row below them, the line and genres can run the full width */
+  html.ui2 .tabbar.shx:not(.shxw-chart):is(.shxw-tags, .shxw-bar) .shx-ln, html.ui2 .tabbar.shx:not(.shxw-chart).shxw-bar .shx-tg { max-width: 100%; }
+  html.ui2 .tabbar.shx.shxw-chart .shx-ln, html.ui2 .tabbar.shx.shxw-chart .shx-tg { max-width: 100%; }
+}
+@media (min-width: 620px) { html.ui2 .tabbar.shx:is(.shxw-tags, .shxw-bar) .shx-ln { max-width: calc(100% - 30px); } }
+@media (min-width: 620px) and (max-width: 759px) { .shx-mx { max-width: calc(100% - var(--fw) - 30px); } .shx-ln, .shx-tg { max-width: calc(100% - var(--fw) - 30px); } }
+@media (min-width: 760px) { .shx-ln, .shx-tg { max-width: calc(100% - var(--fw) - 170px); } }
+
 /* calendar: a release day shows the game's cover inside its ring */
 .ccov { display: none; }
 html.ui2 .ccov { display: block; position: absolute; inset: 4px; border-radius: 50%; background: #1b2445 center / cover no-repeat;
@@ -16044,6 +16114,121 @@ function shxData(kind) {
   const ym = new Date().toLocaleDateString("en-CA").slice(0, 7);
   return { c: recent(), st: [[S.games.length, "in your library"], [S.games.filter(g => String(g.added || "").startsWith(ym)).length, "added this month"]] };
 }
+/* ===== v210: what goes on a header card (Settings → Header cards, or any screen's Customise) =====
+   Each extra can be switched off; "Simple" is the v194 card (numbers + covers). */
+const SHX_X = [["fan", "🃏", "Covers"], ["line", "💬", "Spotlight line"], ["tags", "🏷️", "Top genres"],
+  ["chart", "📊", "6-month chart"], ["bar", "🟦", "Mix bar"], ["art", "🖼️", "Backdrop art"]];
+const SHX_SIMPLE = ["fan"], SHX_FULL = SHX_X.map(x => x[0]);
+const SHX_BITS = ".shx-glow, .shx-fan, .shx-st, .shx-ln, .shx-tg, .shx-ch, .shx-mx, .shx-art";
+const shxList = () => Array.isArray(S.shxX) ? S.shxX : SHX_FULL;
+const shxOn = k => shxList().includes(k);
+function shxExtra(kind, front) {
+  const day0 = new Date(new Date().toDateString()), gOf = id => S.games.find(g => g.id === id);
+  const at = s => new Date(s + "T00:00:00"), short = s => at(s).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const ago = s => { const d = Math.round((day0 - at(s)) / 864e5); return d <= 0 ? "today" : d === 1 ? "yesterday" : d < 30 ? d + " days ago" : "on " + short(s); };
+  const months = (n, fwd) => { const d = new Date(); d.setDate(1); const a = [];
+    for (let i = 0; i < n; i++) { a.push(d.toLocaleDateString("en-CA").slice(0, 7)); d.setMonth(d.getMonth() + (fwd ? 1 : -1)); }
+    return fwd ? a : a.reverse(); };
+  const perMonth = (dates, fwd, cap) => { const ks = months(6, fwd), v = ks.map(k => dates.filter(x => String(x || "").startsWith(k)).length);
+    return v.some(Boolean) ? { v, m: ks.map(k => new Date(k + "-15").toLocaleDateString(undefined, { month: "narrow" })), cap } : null; };
+  const waiting = S.games.filter(g => !isPlayed(g) && !isDropped(g)), playedG = S.played.map(p => gOf(p.id)).filter(Boolean);
+  const ranked = () => { const r = rankedGames(); return r.length ? r : playedG; };
+  const newest = () => S.games.filter(g => g.added).sort((a, b) => String(b.added).localeCompare(String(a.added)))[0];
+  const added = () => perMonth(S.games.map(g => g.added), false, "added");
+  const tiers = () => { const t = rankTable(), c = { S: 0, A: 0, B: 0, C: 0 };
+    S.played.forEach(p => { const v = t.sc[p.id]; if (v != null) c[tierOf(v)]++; });
+    const un = S.played.length - c.S - c.A - c.B - c.C;
+    return [[c.S, "S"], [c.A, "A"], [c.B, "B"], [c.C, "C"], [un, "unscored"]]; };
+  let line = null, pool = [], bar = null, chart = null;
+  if (kind === "queue") {
+    const g = onDeck(1)[0];
+    if (g) line = { g, k: "Up next", x: g.state === "playing" ? "playing" : isUpcoming(g) ? (g.date ? "out " + short(g.date) : "coming") : "out now" };
+    pool = waiting;
+    const pl = waiting.filter(g => g.state === "playing").length, up = waiting.filter(g => g.state !== "playing" && isUpcoming(g)).length;
+    bar = [[pl, "playing"], [waiting.length - pl - up, "out now"], [up, "coming"]];
+    chart = added();
+  } else if (kind === "lib" || kind === "add") {
+    const g = newest(); if (g) line = { g, k: kind === "add" ? "Last added" : "Newest", x: "added " + ago(g.added) };
+    pool = S.games;
+    if (kind === "lib") {
+      const pl = waiting.filter(g => g.state === "playing").length, up = waiting.filter(g => g.state !== "playing" && isUpcoming(g)).length;
+      bar = [[S.played.length, "played"], [pl, "playing"], [waiting.length - pl - up, "waiting"], [up, "coming"]];
+    }
+    chart = added();
+  } else if (kind === "played" || kind === "taste") {
+    const g = ranked()[0], t = rankTable(), sc = g && t.sc[g.id];
+    if (g) line = { g, k: "Your #1", x: kind === "taste" && t.n ? (t.n[g.id] || 0) + " duels" : sc != null ? (+sc).toFixed(1).replace(/\.0$/, "") + " / 10" : "" };
+    pool = playedG; bar = tiers();
+    chart = kind === "taste" ? perMonth(S.duels.map(d => d.t), false, "duels") : perMonth(S.played.map(p => p.t), false, "finished");
+  } else if (kind === "replay") {
+    const again = S.played.filter(p => p.again).map(p => gOf(p.id)).filter(Boolean), g = again[0] || ranked()[0];
+    if (g) line = { g, k: again.length ? "Replay next" : "Your #1", x: "" };
+    pool = again.length ? again : playedG;
+    bar = [[again.length, "to replay"], [S.played.length - again.length, "once was enough"]];
+    chart = perMonth(S.played.map(p => p.t), false, "finished");
+  } else if (kind === "plan") {
+    const next = S.games.filter(g => g.date && !isPlayed(g) && at(g.date) >= day0).sort((a, b) => a.date.localeCompare(b.date));
+    if (next[0]) line = { g: next[0], k: "Next out", x: short(next[0].date) };
+    pool = next;
+    const wk = next.filter(g => at(g.date) - day0 < 7 * 864e5).length, mo = next.filter(g => at(g.date) - day0 < 31 * 864e5).length;
+    bar = [[wk, "this week"], [mo - wk, "this month"], [next.length - mo, "later"]];
+    chart = perMonth(next.map(g => g.date), true, "releases ahead");
+  }
+  if (bar && !bar.some(([n]) => n > 0)) bar = null;
+  const gc = {};
+  pool.forEach(g => platList(g.genres).forEach(n => gc[n] = (gc[n] || 0) + 1));
+  const tags = Object.entries(gc).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const ag = front && (bgSource(front) || "") ? front : (line && line.g);
+  return { line, tags, bar, chart, art: ag ? bgSource(ag) || cover(ag) : "" };
+}
+function shxExtraHtml(x, on) {
+  const o = { line: "", tags: "", chart: "", bar: "", art: "", fan: on("fan") };
+  if (on("line") && x.line) o.line = `<button type="button" class="shx-ln" data-opg="${x.line.g.id}"><small>${esc(x.line.k)}</small><b>${esc(x.line.g.title)}</b>${x.line.x ? `<em>${esc(x.line.x)}</em>` : ""}</button>`;
+  if (on("tags") && x.tags.length) o.tags = `<div class="shx-tg">${x.tags.map(([n, c]) => `<span>${esc(n)}<i>${c}</i></span>`).join("")}</div>`;
+  if (on("chart") && x.chart) { const mx = Math.max(...x.chart.v);
+    const last = x.chart.v.lastIndexOf(mx);
+    o.chart = `<div class="shx-ch" title="${esc(x.chart.v.join(" · "))}"><div>${x.chart.v.map((v, i) =>
+      `<i class="${i === last ? "top" : ""}" style="--h:${Math.max(.08, v / mx).toFixed(3)};--i:${i}"></i>`).join("")}</div><small>${esc(x.chart.cap)}</small></div>`; }
+  if (on("bar") && x.bar) { const segs = x.bar.map((s, i) => [s[0], s[1], i]).filter(s => s[0] > 0);
+    o.bar = `<div class="shx-mx"><div>${segs.map(([n, , i]) => `<i data-c="${i}" style="flex:${n}"></i>`).join("")}</div>
+      <small>${segs.map(([n, l, i]) => `<span><i data-c="${i}"></i>${n} ${esc(l)}</span>`).join("")}</small></div>`; }
+  if (on("art") && x.art) o.art = `<i class="shx-art" aria-hidden="true"><img src="${esc(x.art)}" alt="" decoding="async" loading="lazy"></i>`;
+  o.sig = [o.line, o.tags, o.chart, o.bar, o.art, o.fan].join("|");
+  return o;
+}
+function shxSetHtml() {
+  const x = shxList(), same = a => a.length === x.length && a.every(k => x.includes(k));
+  const mode = S.shxOff ? "off" : same(SHX_FULL) ? "full" : same(SHX_SIMPLE) ? "simple" : "";
+  return `<label>Header cards</label>
+      <div class="chips" id="s-shx">${[["full", "Full"], ["simple", "Simple"], ["off", "Off"]].map(([v, l]) =>
+        `<button class="chip" data-v="${v}" aria-pressed="${mode === v}"><span>${l}</span></button>`).join("")}</div>
+      <p class="note">Full: everything below. Simple: just your numbers and the fan of covers (the first look). Off: a plain title. Clean style only, and it changes every screen's card.</p>
+      <label>What's on them</label>
+      <div class="chips" id="s-shxx">${SHX_X.map(([k, e, l]) =>
+        `<button class="chip" data-k="${k}" aria-pressed="${!S.shxOff && x.includes(k)}"><span>${e} ${l}</span></button>`).join("")}</div>
+      <p class="note">Tap any of them to add it or take it away. Your numbers always stay. The spotlight line opens its game; the chart is the last 6 months (releases: the next 6).</p>`;
+}
+function shxSetWire() {
+  const a = $("#s-shx"), b = $("#s-shxx"); if (!a || !b) return;
+  const done = () => {
+    const x = shxList(), same = l => l.length === x.length && l.every(k => x.includes(k));
+    const mode = S.shxOff ? "off" : same(SHX_FULL) ? "full" : same(SHX_SIMPLE) ? "simple" : "";
+    [...a.children].forEach(c => c.setAttribute("aria-pressed", String(c.dataset.v === mode)));
+    [...b.children].forEach(c => c.setAttribute("aria-pressed", String(!S.shxOff && x.includes(c.dataset.k))));
+    save(); applyLook(); beep("tap");
+  };
+  a.onclick = e => { const c = e.target.closest(".chip"); if (!c) return;
+    S.shxOff = c.dataset.v === "off";
+    if (c.dataset.v === "full") S.shxX = SHX_FULL.slice();
+    if (c.dataset.v === "simple") S.shxX = SHX_SIMPLE.slice();
+    done(); };
+  b.onclick = e => { const c = e.target.closest(".chip"); if (!c) return;
+    const k = c.dataset.k, was = !S.shxOff && shxOn(k), x = S.shxOff ? [] : shxList().filter(y => y !== k);
+    if (!was) x.push(k);
+    S.shxX = SHX_FULL.filter(y => x.includes(y)); S.shxOff = false;
+    done(); };
+}
+{ const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) shxSetWire(); return o; }; openSettings.tplOnly = false; }
 const SHX_SEEN = {};
 function shxDress(el, kind) {
   const bar = el && el.querySelector(".tabbar");
@@ -16051,18 +16236,20 @@ function shxDress(el, kind) {
   let d; try { d = shxData(kind); } catch (e) { return; }
   const cv = d.c.filter(Boolean).slice(0, 4), sig = cv.map(g => g.id + ":" + (g.img || "")).join("|");
   const st = d.st.map(([v, l]) => `<div><b>${v}</b><small>${esc(l)}</small></div>`).join("");
-  const key = st + "#" + sig;
+  const on = shxOn, x = shxExtra(kind, cv[0]), ex = shxExtraHtml(x, on);
+  const key = st + "#" + sig + "#" + ex.sig;
   if (bar._shx === key && bar.querySelector(".shx-st")) return;
   bar._shx = key;
   bar.classList.add("shx");
+  SHX_X.forEach(([k]) => bar.classList.toggle("shxw-" + k, !!ex[k]));
   bar.style.setProperty("--shc", HEX.test((cv[0] || {}).colour || "") ? cv[0].colour : "var(--volt)");
-  bar.querySelectorAll(".shx-glow, .shx-fan, .shx-st").forEach(x => x.remove());
+  bar.querySelectorAll(SHX_BITS).forEach(x => x.remove());
   /* the first (most relevant) cover sits in front, on the right; the others fan out behind it */
   const n = cv.length, POS = [[3, 14, 10], [2, 4, 1], [1, -6, 4], [0, -15, 14]];
   const fan = cv.map((g, i) => { const [k, r, y] = POS[i]; return `<button type="button" data-opg="${g.id}" aria-label="${esc(g.title)}" style="--k:${k};--r:${r}deg;--y:${y}px;--i:${n - 1 - i};z-index:${9 - i}"><img src="${esc(cover(g))}" alt="" decoding="async" loading="lazy"></button>`; }).join("");
   const deal = SHX_SEEN[kind] !== sig; SHX_SEEN[kind] = sig;
-  bar.insertAdjacentHTML("afterbegin", `<i class="shx-glow" aria-hidden="true"></i>${n ? `<div class="shx-fan${deal ? " deal" : ""}">${fan}</div>` : ""}`);
-  bar.insertAdjacentHTML("beforeend", `<div class="shx-st">${st}</div>`);
+  bar.insertAdjacentHTML("afterbegin", `${ex.art}<i class="shx-glow" aria-hidden="true"></i>${n && on("fan") ? `<div class="shx-fan${deal ? " deal" : ""}">${fan}</div>` : ""}`);
+  bar.insertAdjacentHTML("beforeend", `${ex.line}${ex.tags}${ex.chart.replace("shx-ch", deal ? "shx-ch deal" : "shx-ch")}<div class="shx-st">${st}</div>${ex.bar}`);
 }
 function shxAll() { SHX_PANELS.forEach(([id, k]) => shxDress(document.getElementById(id), k)); }
 /* dress each screen after it draws */
@@ -16076,7 +16263,7 @@ function shxAll() { SHX_PANELS.forEach(([id, k]) => shxDress(document.getElement
 /* Clean ⇄ Arcade: the card only exists in Clean */
 { const _al4 = applyLook; applyLook = function () { const o = _al4.apply(this, arguments);
   const pa = $("#p-add"); if (pa) pa.classList.toggle("anew", document.documentElement.classList.contains("ui2") && S.addStyle !== "classic");
-  if (!document.documentElement.classList.contains("ui2") || S.shxOff) document.querySelectorAll(".tabbar.shx").forEach(b => { b.classList.remove("shx"); b._shx = null; b.querySelectorAll(".shx-glow, .shx-fan, .shx-st").forEach(x => x.remove()); });
+  if (!document.documentElement.classList.contains("ui2") || S.shxOff) document.querySelectorAll(".tabbar.shx").forEach(b => { b.classList.remove("shx"); b._shx = null; b.querySelectorAll(SHX_BITS).forEach(x => x.remove()); SHX_X.forEach(([k]) => b.classList.remove("shxw-" + k)); });
   else if (typeof shxAll === "function") shxAll();
   return o; }; }
 /* an empty month points at the next release */
@@ -16256,7 +16443,7 @@ WHATS_NEW.push(
   { v: 195, go: () => { closeFull(); nxShut(); goTab("add"); }, at: "#p-add .aq",
     say: "The Add screen got a makeover: a search bar like Home's, results as picture cards with a ＋ to add in one tap, and a live preview card. Settings → Look of the app → Add screen switches back to Classic.",
     tryIt: "Search for a game you want." },
-  { v: 195, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Header cards" }); }, at: () => $("#s-shx"),
+  { v: 195, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Header cards", text: "Header cards" }); }, at: () => $("#s-shx"),
     say: "The header cards from the last update can be switched off too, here in Look of the app.",
     tryIt: "Leave them on, or tap Off." }
 );
@@ -17857,5 +18044,13 @@ WHATS_NEW.push(
   { v: 209, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.hero) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
     say: "Fixed: 4K pictures that stayed low-res. If the sharp copy's download hiccuped even once, the small copy stayed up for good. Now it tries again, and if it really won't load I'll notice and report it.",
     tryIt: "Open the game with your 4K backdrop and give it a second to sharpen." }
+);
+WHATS_NEW.push(
+  { v: 210, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "lib"); }, at: () => $("#p-lib .tabbar"),
+    say: "Fuller header cards on every screen: a spotlight line, your top genres, a 6-month chart, a mix bar and your top game's art behind it all.",
+    tryIt: "Tap the spotlight line (\u201cNewest\u2026\u201d) to open that game." },
+  { v: 210, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Header cards", text: "What's on them" }); }, at: () => $("#s-shxx"),
+    say: "All of it is up to you. <b>Simple</b> brings back the first look (just numbers and covers), <b>Full</b> turns everything on, or tap each piece to add it or take it away. It's also in every screen's Customise.",
+    tryIt: "Try taking away the backdrop art, then tap Full to get it back." }
 );
 </script>
