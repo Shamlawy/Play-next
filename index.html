@@ -3515,7 +3515,9 @@ addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout
   [$("#bgart"), $("#bgart2")].forEach(l => { if (l && l.dataset.src && l._bgW && (l._bgW !== innerWidth || l._bgH !== innerHeight)) bgBake(l, l.dataset.src, () => {}); });
 }, 250); }, { passive: true });
 
-const $ = s => document.querySelector(s);
+/* v219 the page has no doctype, so it runs in quirks mode, where querySelector("#id") can't use the id map and walks the
+   whole page (~.3ms at 4x per call; Settings makes ~220). A plain #id goes straight to getElementById. */
+const $ = s => /^#[\w-]+$/.test(s) ? document.getElementById(s.slice(1)) : document.querySelector(s);
 let AC, userTouched = false;
 ["pointerdown", "touchstart", "mousedown", "click", "keydown"].forEach(t =>
   document.addEventListener(t, () => { userTouched = true; }, { capture: true, passive: true }));
@@ -3990,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "218";
+const APP_V = "219";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5793,6 +5795,16 @@ const HOME_TILES = [
   ["queue", "Queue count"], ["playing", "Playing now"], ["sessions", "Play sessions"], ["wrapped", "Year wrapped"], ["monthly", "Monthly recap"]
 ];
 const SCOPE_NAME = { home: "Home", games: "Games", plan: "Plan", taste: "Taste", app: "App" };
+/* v219 (#104): drop other screens' sections from the HTML before it's parsed (they were parsed, then removed).
+   Walks the top-level <div>s by depth; anything that isn't a setgroup for this scope is kept as it was. */
+function setOnly(tpl, scope) {
+  const re = /<div\b[^>]*>|<\/div>/g; let depth = 0, cut = -1, out = "", from = 0, m;
+  while ((m = re.exec(tpl))) {
+    if (m[0][1] === "/") { if (--depth === 0 && cut >= 0) { from = re.lastIndex; cut = -1; } continue; }
+    if (depth++ === 0) { const sc = /^<div class="setgroup[^"]*" data-scope="(\w+)"/.exec(m[0]); if (sc && sc[1] !== scope) { out += tpl.slice(from, m.index); cut = m.index; } }
+  }
+  return depth === 0 ? out + tpl.slice(from) : tpl;   /* unbalanced (shouldn't happen): parse it all, as before */
+}
 function openSettings(scope) {
   scope = SCOPE_NAME[scope] ? scope : "app";
   const evening = S.evening || 2;
@@ -6204,7 +6216,7 @@ function openSettings(scope) {
       <p class="note" id="s-helperv">Checking Nexi's helper…</p>
     </div>
 
-    <div class="setgroup" data-scope="app"><h4 data-desc="Diary, Timer and Where was I? reminders.">Extra features</h4>
+    <div class="setgroup" data-scope="app"><h4 data-desc="Diary, Timer, and the things Nexi checks by himself.">Extra features</h4>
       <label>Play diary</label>
       <p class="note">A 📓 Diary button on each game for notes, moods and wins/losses.</p>
       <div class="chips" id="s-xdiary">
@@ -6234,6 +6246,24 @@ function openSettings(scope) {
       <div class="chips" id="s-xwis">
         ${[["on", "Show it"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.wiStoryOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Reviews are in</label>
+      <p class="note">When a game you're waiting for comes out, Nexi fetches what critics and players think by himself, tells you, and guesses the score you'd give it from how you usually land against critics.</p>
+      <div class="chips" id="s-xrv">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.rvOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Fill in hours to beat</label>
+      <p class="note">Games with no hours get typical times to beat (main story, with extras, 100%) by themselves, so time-to-beat numbers and plans are real. Anything you type in Edit wins.</p>
+      <div class="chips" id="s-xhb">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.hbOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Still playing?</label>
+      <p class="note">When a game in Playing now hasn't been touched for 2 weeks, Nexi asks if you're still on it, so Playing now and his picks stay honest.</p>
+      <div class="chips" id="s-xsg">
+        ${[["on", "Ask me"], ["off", "Don't ask"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.sgOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
     </div>
 
@@ -6453,7 +6483,7 @@ function openSettings(scope) {
     </div>`;
   /* v178 the search reads every screen's settings from this same template */
   if (openSettings.tplOnly) return tpl;
-  $("#sheet-in").innerHTML = tpl;
+  $("#sheet-in").innerHTML = setOnly(tpl, scope);
 
   /* one tab's worth of settings, and nothing else */
   const box = $("#sheet-in");
@@ -6580,6 +6610,9 @@ function openSettings(scope) {
   pick("#s-xwi", v => S.wiAskOff = v === "off");
   pick("#s-xwis", v => S.wiStoryOff = v === "off");
   pick("#s-xfn", v => S.fnOff = v === "off");
+  pick("#s-xrv", v => S.rvOff = v === "off", () => { if (!S.rvOff && typeof rvWatch === "function") rvWatch(true); });
+  pick("#s-xhb", v => S.hbOff = v === "off", () => { if (!S.hbOff && typeof hbRun === "function") hbRun(true); });
+  pick("#s-xsg", v => S.sgOff = v === "off");
   pick("#s-stgen", v => { S.stGenOff = v === "off"; if (typeof stApply === "function") { S.games.forEach(stApply); render(); } if (!S.stGenOff && typeof stSync === "function") stSync(true); });
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
@@ -15491,7 +15524,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 <script>
 /* ===== v183 what's new + settings extras ===== */
 GROUP_ICON["Extra features"] = "🧪";
-GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff"];
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff", "rvOff", "hbOff", "sgOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
   { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
@@ -15714,7 +15747,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 9 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup and price alerts (Steam, PlayStation and Nintendo eShop) are all on."
+    el.textContent = ok && j.v >= 11 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+      : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
       : ok && j.v >= 5 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except cloud backup, which needs the new helper."
@@ -16678,7 +16712,7 @@ try {
 /* 4. Nexi's helper failing while you're online */
 { const _np = nxPost; nxPost = async function (path) {
   try { return await _np.apply(this, arguments); }
-  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(/^\/(review|prices|recap|steam)$/.test(path) && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
+  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(/^\/(review|reviews|hours|prices|recap|steam)$/.test(path) && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
 }; }
 
 /* 5. you spotted something: a few words, and the app adds the rest */
@@ -17870,7 +17904,7 @@ function flickWatch(el, name, opening) {
   const eff = () => { let o = 1; for (let x = el.firstElementChild || el; x && x !== document.body; x = x.parentElement) {
     const c = getComputedStyle(x); if (c.display === "none" || c.visibility === "hidden") return 0; o *= +c.opacity; } return o; };
   const step = () => {
-    if (!el.isConnected || (!opening && !el.childElementCount)) return done();
+    if (!el.isConnected || (!opening && !el.childElementCount) || (opening && el._flkShut > t0)) return done();
     s.push(eff());
     if (performance.now() - t0 < 750) requestAnimationFrame(step); else done();
   };
@@ -17887,6 +17921,7 @@ function flickWatch(el, name, opening) {
  ["openFull", "full", "A game page", 1], ["openEdit", "sheet", "The edit sheet", 1]].forEach(([fn, id, name, op]) => {
   const f = window[fn]; if (typeof f !== "function") return;
   window[fn] = function () { const el = document.getElementById(id), was = el && el.classList.contains("on");
+    if (!op && el) el._flkShut = performance.now();   /* v219: an opening watch stops when you close it (a quick open + close isn't a flicker) */
     const o = f.apply(this, arguments);
     if (op ? el && el.classList.contains("on") && !was : was) flickWatch(el, name, !!op);
     return o; };
@@ -18537,7 +18572,7 @@ const PX_TZ = { "Asia/Kuwait": "kw", "Asia/Dubai": "ae", "Asia/Riyadh": "sa", "A
 const PX_REGIONS = [["us", "US $"], ["gb", "UK £"], ["de", "Europe €"], ["ae", "UAE"], ["sa", "Saudi"], ["kw", "Kuwait"], ["qa", "Qatar"], ["eg", "Egypt"], ["jp", "Japan"]];
 function pxCC() {
   if (/^[a-z]{2}$/.test(S.pxCC || "")) return S.pxCC;
-  let g = ""; try { g = PX_TZ[Intl.DateTimeFormat().resolvedOptions().timeZone] || ""; } catch (e) {}
+  let g = ""; try { g = PX_TZ[pxCC.tz ??= Intl.DateTimeFormat().resolvedOptions().timeZone] || ""; } catch (e) {}
   if (!g) { const m = /-([A-Z]{2})$/.exec(navigator.language || ""); g = m ? m[1].toLowerCase() : "us"; }
   return g;
 }
@@ -19356,5 +19391,264 @@ WHATS_NEW.push(
   { v: 218, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Finished it?" }); }, at: "#s-xfn",
     say: "New: I notice when you've probably finished a game (your note says final boss or credits, or your hours reach its length) and ask “Finished it?” by myself. One tap marks it played and opens the score while it's fresh.",
     tryIt: "Leave a note like “beat the final boss” on a game you're playing." }
+);
+</script>
+<style>
+/* ===== v219: reviews are in (+ your score, predicted) ===== */
+.rv { margin: 12px 0 2px; padding: 12px 14px; border-radius: 18px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.1)); }
+.rv.new { border-color: rgba(var(--vrgb), .45); box-shadow: 0 10px 30px -16px rgba(var(--vrgb), .8); }
+.rv-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rv-h b { font-size: 12.5px; font-weight: 600; color: var(--volt); }
+.rv-h small { font-size: 11.5px; color: var(--mute); }
+.rv-s { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; margin-top: 10px; }
+.rv-c { display: grid; gap: 3px; align-content: start; padding: 10px 10px 9px; border-radius: 14px; background: rgba(255,255,255,.04); min-width: 0; }
+.rv-c b { font: 700 22px/1 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.rv-c small { font-size: 11.5px; line-height: 1.3; color: var(--mute); overflow-wrap: anywhere; }
+.rv-c.me { background: rgba(var(--vrgb), .14); }
+.rv-c.me b { color: var(--volt); }
+.rv-c .tier { vertical-align: middle; margin-left: 4px; font-size: 11px; }
+.rv-w { margin: 9px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--mute); }
+.rv-wait { margin: 6px 0 0; font-size: 13px; color: var(--mute); }
+.e-auto { display: block; margin: 4px 0 0; font-size: 11.5px; color: var(--mute); }
+</style>
+<script>
+/* ===== v219: three more things Nexi does by himself, and smarter ones (the owner: "I need more smarter and useful auto things").
+   1. Reviews are in (`rv*`). Games that just came out or are out within 3 days (≤60 days old, not played/dropped/competitive)
+      are checked by themselves: RAWG for the Metacritic score (the one for your platform when RAWG has it) and the players'
+      rating, and the helper's POST /reviews for Steam's player reviews (games on PC/Steam, or with a Steam id). Every 8 h in the
+      first 2 weeks, then every 2 days. g.rv = {mc, mcP, us (players /10), un, st: {d, p, n}, at, ann}. The first real score
+      (Metacritic, or 30+ Steam reviews) is announced once: toast + Nexi's line with your predicted score (tap = the game), and
+      g.critic is filled if it was empty. With notifications (Release days), the evening after a release: "⭐ Reviews for X".
+   2. Your score, predicted (`rvFor(g)`): the critics' score moved by how YOU usually land against critics (your scored games
+      that have a critic score; per genre when there are 2+, shrunk toward 0 with few games), blended with your hype corrected
+      by your track record (expected()). Shown for any game you haven't played that has a critic or Steam score: the "⭐
+      Reviews" card on the game page (`rvCard`), with the reason in plain words.
+   3. Hours to beat (`hb*`): games with no main-story hours get typical times (main / + extras / 100%) from the helper's
+      POST /hours (the big AI model, HowLongToBeat-style averages; only answers it's ≥ .6 sure of are used), ≤24 a day.
+      Filled values are remembered in g.hbV so Edit can say "filled in by Nexi" and a later edit is yours. Feeds everything
+      that uses hrsOf: time to beat, the Home donut, the Finished-it? check, plans.
+   4. Still playing? (`sg*`): a game marked playing that you haven't touched for 2+ weeks (no notes, sessions, logged hours,
+      or visits to its page; page visits are kept in localStorage `gq:seenG`, not in S, so they don't trigger cloud backups)
+      gets one question: Still on it / Back to the queue / I dropped it, at most every 2 weeks per game. Keeps "Playing now",
+      On deck and the Home cards honest.
+   Switches in Settings → Extra features: S.rvOff, S.hbOff, S.sgOff. ===== */
+const RV_MAX = 60, RV_SOON = 3;
+const rvToday = () => new Date().toLocaleDateString("en-CA");
+const rvAge = g => g.date ? Math.round((new Date(rvToday() + "T12:00:00") - new Date(g.date + "T12:00:00")) / 864e5) : null;
+const rvWant = g => !S.rvOff && !!g && !g.comp && !isPlayed(g) && !isDropped(g) && g.date && g.status !== "tba" && rvAge(g) != null && rvAge(g) >= -RV_SOON && rvAge(g) <= RV_MAX;
+const rvSteamOk = g => stIdOf(g) > 0 || (g.rvSt !== -1 && (!platList(g.platforms).length || platList(g.platforms).some(p => /pc|steam|windows|deck/i.test(p))));
+const rvHas = g => !!(g && g.rv && (g.rv.mc > 0 || (g.rv.st && g.rv.st.n >= 30)));
+const rvDue = g => Date.now() - ((g.rv || {}).at || 0) > (rvAge(g) <= 14 ? 8 * 36e5 : 2 * 864e5);
+/* Steam's % positive on a 10 scale (Steam runs high: 95% ≈ 9.1, 80% ≈ 7.8, 50% ≈ 5.3) */
+const rvStTen = p => Math.max(1, Math.min(10, 1 + .085 * p));
+/* how you land against critics: your score minus theirs, over your scored games with a critic score */
+let rvBiasMemo = null;
+function rvBias() {
+  const rows = playedRows().filter(x => +x.g.critic > 0), sig = rows.map(x => x.id + ":" + x.real + ":" + x.g.critic).join();
+  if (rvBiasMemo && rvBiasMemo.sig === sig) return rvBiasMemo;
+  const d = rows.map(x => ({ d: x.real - x.g.critic / 10, gs: platList(x.g.genres) })), by = {};
+  d.forEach(x => x.gs.forEach(n => (by[n] ||= []).push(x.d)));
+  const mean = a => a.reduce((s, v) => s + v, 0) / (a.length || 1);
+  return rvBiasMemo = { sig, n: d.length, mean: mean(d.map(x => x.d)), genre: Object.fromEntries(Object.entries(by).filter(([, v]) => v.length >= 2).map(([k, v]) => [k, { n: v.length, mean: mean(v) }])) };
+}
+function rvFor(g) {
+  if (!g || g.comp || isPlayed(g)) return null;
+  const mc = (g.rv && g.rv.mc) || +g.critic || 0, st = g.rv && g.rv.st && g.rv.st.n >= 30 && g.rv.st.p != null ? g.rv.st : null;
+  if (!mc && !st) return null;
+  const crit = mc && st ? mc / 10 * .7 + rvStTen(st.p) * .3 : mc ? mc / 10 : rvStTen(st.p);
+  const b = rvBias(); let shift = 0, how = "";
+  if (b.n >= 3) {
+    const gs = platList(g.genres).map(n => b.genre[n]).filter(Boolean), gm = gs.length ? gs.reduce((s, x) => s + x.mean, 0) / gs.length : null;
+    shift = (gm == null ? b.mean : .5 * b.mean + .5 * gm) * (b.n / (b.n + 3));
+    if (Math.abs(shift) >= .3) how = `you usually score ${Math.abs(shift).toFixed(1)} ${shift < 0 ? "below" : "above"} the critics${gm != null ? " on games like this" : ""}`;
+    else how = "you usually agree with the critics";
+  }
+  const e = expected(g), v1 = crit + shift, v = Math.max(1, Math.min(10, Math.round((e != null ? v1 * .65 + e * .35 : v1) * 10) / 10));
+  const fav = rankedGames().slice(0, 6), tg = new Set(platList(g.genres).map(x => x.toLowerCase()));
+  const like = fav.find(f => platList(f.genres).some(x => tg.has(x.toLowerCase())));
+  const why = [how, e != null ? `your hype points to ${e.toFixed(1)}` : "", like ? `it shares a genre with your #${rankOf(like.id)} ${like.title}` : ""].filter(Boolean);
+  return { v, crit, mc, st, why, sure: b.n >= 6 ? "" : b.n >= 3 ? "a rough guess" : "a first guess (score a few games that have critic scores and I'll get sharper)" };
+}
+let rvBusy = false;
+async function rvWatch(force, only) {
+  if (rvBusy || S.rvOff || !navigator.onLine) return;
+  const todo = (only ? [only] : S.games.filter(g => rvWant(g) && (force || rvDue(g)))).sort((a, b) => ((a.rv || {}).at || 0) - ((b.rv || {}).at || 0)).slice(0, 10);
+  if (!todo.length) return;
+  rvBusy = true; const news = [];
+  try {
+    const before = new Map(todo.map(g => [g.id, rvHas(g)]));
+    /* RAWG: Metacritic (your platform's when it has one) + the players' rating */
+    if (rawgKey) for (const g of todo) {
+      let d = null;
+      try {
+        if (g.rawgId) d = await rawgApi("games/" + encodeURIComponent(g.rawgId));
+        else { const r = await rawgApi("games?search=" + encodeURIComponent(g.title) + "&search_precise=true&page_size=3");
+          const best = (r.results || []).find(h => titleMatch(g.title, h.name)); if (best) { g.rawgId = best.id; d = await rawgApi("games/" + best.id); } }
+      } catch (e) { if (/401|Key/.test(e.message)) break; }
+      const rv = g.rv ||= {};
+      if (d) {
+        /* your platforms in your order ("PS5" = RAWG's "PlayStation 5", "Switch" = "Nintendo Switch", "Xbox Series" = "Xbox Series S/X") */
+        const pn = x => String(x || "").toLowerCase().replace(/\bps\s?(\d)\b/g, "playstation $1").replace(/\bsteam\b|\bwindows\b/g, "pc").trim();
+        const mine = platList(g.platforms).map(pn), mp = (d.metacritic_platforms || []).filter(x => x && x.metascore > 0);
+        let pick = null; for (const p of mine) { pick = mp.find(x => { const n = pn((x.platform || {}).name); return n.includes(p) || p.includes(n); }); if (pick) break; }
+        const mc = pick ? pick.metascore : +d.metacritic || 0;
+        if (mc > 0) { rv.mc = mc; rv.mcP = pick ? (pick.platform || {}).name || "" : ""; }
+        if (+d.ratings_count >= 20 && +d.rating > 0) { rv.us = Math.round(d.rating * 20) / 10; rv.un = +d.ratings_count; }
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    /* Steam's players, through the helper */
+    const sts = todo.filter(rvSteamOk);
+    if (sts.length) try {
+      const j = await nxPost("/reviews", { cc: typeof pxCC === "function" ? pxCC() : "us", items: sts.map(g => ({ k: g.id, t: g.title, st: stIdOf(g) || 0 })) });
+      for (const g of sts) { const r = (j.res || {})[g.id]; if (!r) continue;
+        if (r.none) { g.rvSt = -1; continue; }
+        if (r.st > 0 && !stIdOf(g)) g.stId = r.st;
+        if (r.n != null && !r.err) (g.rv ||= {}).st = { d: r.d || "", p: r.p, n: r.n }; }
+    } catch (e) {}
+    for (const g of todo) {
+      const rv = g.rv ||= {}; rv.at = Date.now();
+      if (rv.mc > 0 && !(+g.critic > 0)) { g.critic = rv.mc; g.criticFrom = "RAWG"; }
+      if (rvHas(g) && !before.get(g.id) && !rv.ann) { rv.ann = Date.now(); news.push(g); }
+    }
+  } finally { rvBusy = false; }
+  save();
+  if (hubAt && $("#full.on")) rvPaint();
+  if (!news.length) return;
+  S.rvLog = (S.rvLog || []).concat(news.map(g => ({ id: g.id, t: Date.now() }))).slice(-20); save();
+  render();
+  const g = news[0], f = rvFor(g), sc = g.rv.mc ? `${g.rv.mc} from critics` : `${g.rv.st.d || g.rv.st.p + "% positive"} on Steam`;
+  toast(`⭐ Reviews are in for ${g.title}: ${sc}` + (f ? ` · you'd give it about ${f.v.toFixed(1)}` : "") + (news.length > 1 ? ` (+${news.length - 1} more)` : ""));
+  if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
+    try { pnBubSay([`Reviews are in for ${g.title}: ${sc}.` + (f ? ` Going by your taste, you'd give it about ${f.v.toFixed(1)}.` : "") + " Tap to see.", g.id]); } catch (e) {}
+}
+function rvCard(g) {
+  if (!g || S.rvOff || g.comp || isPlayed(g) || isDropped(g)) return "";
+  const f = rvFor(g), rv = g.rv || {}, fresh = rvWant(g);
+  if (!f) return fresh && rvAge(g) >= 0 ? `<div class="rv" data-g="${g.id}"><div class="rv-h"><b>⭐ Reviews</b>${rv.at ? `<small>checked ${esc(wiAgo(rv.at))}</small>` : ""}</div>
+    <p class="rv-wait">Not in yet. I'm checking every few hours and I'll tell you the moment they land.</p></div>` : "";
+  const cells = [];
+  if (f.mc) cells.push(`<span class="rv-c"><b>${f.mc}</b><small>Critics${rv.mcP ? " · " + esc(rv.mcP) : ""}</small></span>`);
+  if (f.st) cells.push(`<span class="rv-c"><b>${f.st.p}%</b><small>${esc(f.st.d || "Steam players")} · ${f.st.n.toLocaleString()} on Steam</small></span>`);
+  else if (rv.us && rv.un >= 20) cells.push(`<span class="rv-c"><b>${rv.us.toFixed(1)}</b><small>Players · ${rv.un.toLocaleString()} ratings</small></span>`);
+  cells.push(`<span class="rv-c me"><b>${f.v.toFixed(1)}${tierBadge(f.v)}</b><small>You, probably</small></span>`);
+  const why = f.why.length ? f.why.join("; ") : "";
+  return `<div class="rv${fresh && rv.ann && Date.now() - rv.ann < 7 * 864e5 ? " new" : ""}" data-g="${g.id}"><div class="rv-h"><b>⭐ ${fresh ? "Reviews are in" : "Reviews"}</b>${rv.at ? `<small>checked ${esc(wiAgo(rv.at))}</small>` : ""}</div>
+    <div class="rv-s">${cells.join("")}</div>
+    <p class="rv-w">${why ? esc(why.charAt(0).toUpperCase() + why.slice(1)) + "." : ""}${f.sure ? ` ${why ? "Still " : ""}${esc(f.sure)}.` : ""}</p></div>`;
+}
+function rvPaint() { document.querySelectorAll(".rv[data-g]").forEach(el => { const g = S.games.find(x => x.id === el.dataset.g); if (g) el.outerHTML = rvCard(g) || "<i hidden></i>"; }); }
+/* the game page (New style): under the price card, before the description */
+{ const _gd = gdMarkup; gdMarkup = function (g) { const o = _gd.apply(this, arguments); const c = rvCard(g); if (!c) return o;
+  const at = o.indexOf('<p class="gd-desc">') >= 0 ? o.indexOf('<p class="gd-desc">') : o.indexOf('<div class="hub-data">');
+  return at < 0 ? o : o.slice(0, at) + c + "\n        " + o.slice(at); }; }
+/* opening a fresh game's page checks it if it's due (no waiting for the next sweep) */
+{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
+  try { const g = S.games.find(x => x.id === id); if (g) { const m = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); m[g.id] = Date.now(); localStorage.setItem("gq:seenG", JSON.stringify(m)); }
+    if (g && rvWant(g) && rvDue(g) && rvAge(g) >= 0) setTimeout(() => rvWatch(false, g), 900); } catch (e) {}
+  return o; }; }
+setTimeout(() => rvWatch(false), 30000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => rvWatch(false), 10000); });
+/* notification: the evening after a release, "⭐ Reviews for X" (with the Release days kind) */
+{ const _np = nxPlan; nxPlan = function (days) { const out = _np.apply(this, arguments);
+  try { if (!S.rvOff && nxKinds().has("release")) { const [a, b] = nxWindow();
+    S.games.filter(g => rvWant(g) && !rvHas(g) && rvAge(g) >= -RV_SOON && rvAge(g) <= 1).slice(0, 3).forEach(g => {
+      const t = new Date(g.date + "T00:00:00"); t.setDate(t.getDate() + 1); const at = t.getTime() + Math.max(a, Math.min(19, b - 1)) * 36e5;
+      if (at > Date.now()) out.push({ at, title: "⭐ Reviews for " + g.title.slice(0, 40), body: nxVoice("Tap and I'll fetch what critics and players think, and what you'd probably give it."), tag: "rv-" + g.id, url: "./?nudge=reviews&g=" + g.id }); });
+    out.sort((p, q) => p.at - q.at); } } catch (e) {}
+  return out; }; }
+{ const qp = new URLSearchParams(location.search); if (qp.get("nudge") === "reviews") { const g = S.games.find(x => x.id === qp.get("g")); if (g) setTimeout(() => { openFull(g.id); rvWatch(true, g); }, 2200); } }
+
+/* ---- hours to beat ---- */
+const hbNeed = g => !S.hbOff && !g.comp && !(+g.hours > 0) && Date.now() - (g.hbAt || 0) > (g.hbNo ? 30 : 14) * 864e5;
+let hbBusy = false;
+async function hbRun(force) {
+  if (hbBusy || S.hbOff || !navigator.onLine || (!force && Date.now() - (S.hbAt || 0) < 20 * 36e5)) return;
+  const todo = S.games.filter(hbNeed).sort((a, b) => (isPlayed(a) - isPlayed(b)) || ((a.hbAt || 0) - (b.hbAt || 0))).slice(0, 24);
+  S.hbAt = Date.now(); if (!todo.length) { save(); return; }
+  hbBusy = true; const done = [];
+  try {
+    for (let i = 0; i < todo.length; i += 12) {
+      const b = todo.slice(i, i + 12);
+      let j; try { j = await nxPost("/hours", { items: b.map(g => ({ k: g.id, t: g.title, year: (g.date || "").slice(0, 4), plat: platList(g.platforms)[0] || "" })) }); }
+      catch (e) { if (e.message === "helper-old") S.hbAt = Date.now() - 12 * 36e5; break; }
+      for (const g of b) { const r = (j.res || {})[g.id] || {}; g.hbAt = Date.now();
+        if (!(r.m > 0) || !(r.sure >= .6) || +g.hours > 0) { g.hbNo = 1; continue; }
+        delete g.hbNo; g.hours = r.m; if (r.x > 0 && !(+g.hoursX > 0)) g.hoursX = r.x; if (r.c > 0 && !(+g.hours100 > 0)) g.hours100 = r.c;
+        g.hbV = { m: r.m, x: r.x || 0, c: r.c || 0 }; done.push(g); }
+    }
+  } finally { hbBusy = false; }
+  save();
+  if (!done.length) return;
+  render(); if (hubAt && $("#full.on")) openFull(hubAt);
+  const live = done.filter(g => !isPlayed(g)), h = live.reduce((s, g) => s + hrsOf(g), 0);
+  if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
+    try { pnBubSay([`I filled in how long ${done.length} game${done.length === 1 ? "" : "s"} take${done.length === 1 ? "s" : ""} to beat` + (live.length ? `: your queue just got ${Math.round(h)} hours more honest.` : ".") + " Edit any of them if you know better.", "games"]); } catch (e) {}
+}
+setTimeout(() => hbRun(false), 40000);
+/* Edit says which hours Nexi filled in (until you change them) */
+{ const _oe = openEdit; openEdit = function (id) { const o = _oe.apply(this, arguments);
+  try { const g = S.games.find(x => x.id === id), v = g && g.hbV;
+    if (v) [["#e-hours", "hours", "m"], ["#e-hoursx", "hoursX", "x"], ["#e-hours100", "hours100", "c"]].forEach(([sel, k, kk]) => {
+      const el = $(sel); if (el && v[kk] > 0 && +g[k] === v[kk] && !el.parentElement.querySelector(".e-auto")) el.insertAdjacentHTML("afterend", `<small class="e-auto">Typical time, filled in by ${esc(pnName())}</small>`); });
+  } catch (e) {}
+  return o; }; }
+
+/* ---- still playing? ---- */
+const SG_AFTER = 14 * 864e5;
+function sgLast(g) {
+  let t = +g.plAt || 0, seen = {};
+  try { seen = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); } catch (e) {}
+  t = Math.max(t, +seen[g.id] || 0, +g.sgOk || 0, +g.logAt || 0);
+  (g.wasI || []).forEach(n => t = Math.max(t, +n.t || 0));
+  (S.sessions || []).forEach(s => { if (s.g === g.id) t = Math.max(t, +s.e || +s.s || 0); });
+  return t;
+}
+const sgPick = () => S.sgOff ? null : playingNow().filter(g => !g.comp && !isPlayed(g) && sgLast(g) && Date.now() - sgLast(g) >= SG_AFTER && Date.now() - ((S.sgAsked || {})[g.id] || 0) >= SG_AFTER)
+  .sort((a, b) => sgLast(a) - sgLast(b))[0] || null;
+function sgAsk(g, now) {
+  if (!g || S.sgOff) return;
+  const busy = () => document.documentElement.classList.contains("nxtouring") || $("#diary.on, #sheet.on, #full.on, #nxbug.on, #wiask.on, #fnask.on, #shuf, #wrap");
+  let tries = 0;
+  const go = () => {
+    if (busy()) { if (++tries < 20) setTimeout(go, 3000); return; }
+    if ((g.state || "") !== "playing") return;
+    (S.sgAsked ||= {})[g.id] = Date.now(); save();
+    const wk = Math.max(2, Math.round((Date.now() - sgLast(g)) / (7 * 864e5)));
+    let el = $("#fnask"); if (!el) { el = document.createElement("div"); el.id = "fnask"; el.setAttribute("role", "dialog"); document.body.appendChild(el); }
+    el.innerHTML = `<i aria-hidden="true">🕹️</i><span><b>Still playing ${esc(g.title)}?</b>You haven't touched it in ${wk} weeks. Shall I keep it in Playing now?</span>
+      <span class="wa-b"><button type="button" class="wa-go" data-sgkeep>Still on it</button><button type="button" data-sgq>Back to the queue</button><button type="button" data-sgdrop>I dropped it</button></span>`;
+    requestAnimationFrame(() => el.classList.add("on"));
+    const hide = () => el.classList.remove("on");
+    el.onclick = e => {
+      if (e.target.closest("[data-sgkeep]")) { hide(); g.sgOk = Date.now(); save(); beep("tap"); toast(`Got it, ${g.title} stays in Playing now.`); return; }
+      if (e.target.closest("[data-sgq]")) { hide(); g.state = "backlog"; syncPlayed(g, "backlog"); save(); render(); beep("back"); toast(`${g.title} is back in your queue. Your notes are still there.`); return; }
+      if (e.target.closest("[data-sgdrop]")) { hide(); g.state = "dropped"; syncPlayed(g, "dropped"); save(); render(); beep("back"); toast(`${g.title} moved to dropped. No shame in that.`); }
+    };
+    clearTimeout(sgAsk.t); sgAsk.t = setTimeout(hide, 20000);
+  };
+  setTimeout(go, now ? 600 : 4000);
+}
+function sgCheck() { if (document.hidden || $("#fnask.on")) return; const g = sgPick(); if (g) sgAsk(g); }
+setTimeout(sgCheck, 16000);
+{ let away = 0; addEventListener("visibilitychange", () => { if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 3 * 36e5) setTimeout(sgCheck, 14000); }); }
+/* logging hours counts as touching it */
+{ const lg = new Map(S.games.map(g => [g.id, +g.logged || 0])), _sv = save;
+  save = function () { try { S.games.forEach(g => { const v = +g.logged || 0; if (lg.has(g.id) && lg.get(g.id) !== v) g.logAt = Date.now(); lg.set(g.id, v); }); } catch (e) {} return _sv.apply(this, arguments); }; }
+WHATS_NEW.push(
+  { v: 219, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => rvCard(x) && rvFor(x)) || S.games.find(x => rvCard(x));
+      if (g) openFull(g.id); else setJump({ scope: "app", group: "Extra features", text: "Reviews are in" }); },
+    at: () => $("#full .rv") || $("#s-xrv"),
+    say: "Reviews are in: when a game you're waiting for comes out, I fetch what critics and players think by myself, tell you, and guess the score <b>you'd</b> give it from how you usually land against critics.",
+    tryIt: "Open a game you haven't played that has a critic score: “You, probably” is my guess for you." },
+  { v: 219, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Fill in hours to beat" }); }, at: "#s-xhb",
+    say: "Games with no hours now get their typical time to beat (main story, with extras, 100%) filled in by themselves, so time to beat, your plans and “Finished it?” work for every game.",
+    tryIt: "Open Edit on a game: hours I filled in say so. Type your own and yours win." },
+  { v: 219, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Still playing?" }); }, at: "#s-xsg",
+    say: "Still playing? When a game in Playing now hasn't been touched for 2 weeks, I ask if you're still on it, so Playing now and my picks stay honest.",
+    tryIt: "Nothing to do: I'll ask when it happens." },
+  { v: 219, go: () => { closeFull(); dyClose(); nxShut(); openSettings("app"); }, at: () => $("#sheet-in .ssch"),
+    say: "Fixed: Settings opens about twice as fast now (no more stutter when it opens), and every screen got a little quicker too.",
+    tryIt: "Open Settings or any screen's Customise." }
 );
 </script>

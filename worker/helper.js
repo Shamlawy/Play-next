@@ -10,6 +10,8 @@
    GET  /bugs, POST /bugs/ack → for the GitHub "Problem reports" job only (Bearer BUG_KEY), which files them as issues.
    POST /recap        → "the story so far" up to the player's own note (Workers AI, no spoilers past it).
    POST /steam        → Steam's own tags (genres players use) and "more like this" for a list of games.
+   POST /reviews      → Steam's player-review summary (e.g. "Very Positive", 93% of 1,240) for a list of games (v11).
+   POST /hours        → typical time to beat (main / main + extras / everything) for a list of games, from the AI (v11).
    POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
@@ -19,7 +21,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 10;
+const HELPER_V = 11;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -114,9 +116,11 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
+    if (url.pathname === "/reviews" && req.method === "POST") return rvRoute(req, env, h);
+    if (url.pathname === "/hours" && req.method === "POST") return hbRoute(req, env, h);
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
        ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
@@ -505,6 +509,64 @@ async function stRoute(req, env, h) {
   const out = { ok: true, res };
   if (more) out.more = { of: info[more] ? { name: info[more].name, tags: info[more].tags } : null, games: moreIds.map(x => info[x]).filter(x => x && x.type === 0 && x.name).map(x => ({ id: x.id, name: x.name, tags: x.tags.slice(0, 8), desc: x.desc })) };
   return json(out, 200, h);
+}
+/* ===== v11: "Reviews are in". Steam's player reviews for a list of games: {items: [{k, t, st}]} → res[k] = {st, d (Steam's
+   words, e.g. "Very Positive"), p (% positive), n (reviews)} | {none: 1} (not on Steam) | {err}. A title with no Steam id is
+   looked up first (≤8 a call, like /steam); ≤24 games a call (one request each, Workers allow ~50). ===== */
+async function rvSteam(id) {
+  const r = await fetch(`https://store.steampowered.com/appreviews/${id}?json=1&language=all&purchase_type=all&num_per_page=0&filter=summary`, { headers: PX_UA });
+  const j = await r.json().catch(() => null), q = j && j.success === 1 && j.query_summary;
+  if (!q) throw new Error("Steam reviews " + r.status);
+  const n = +q.total_reviews || 0, pos = +q.total_positive || 0;
+  return { st: +id, d: String(q.review_score_desc || "").slice(0, 40), p: n ? Math.round(pos / n * 100) : null, n };
+}
+async function rvRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const cc = pxCC(b && b.cc), res = {};
+  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 24).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").slice(0, 100), st: Number.isFinite(+x.st) ? Math.trunc(+x.st) : 0 })).filter(x => x.k && x.t);
+  let n = 0;
+  for (const it of items) { if (it.st !== 0) continue; if (n++ >= 8) { it.st = -2; continue; }
+    try { const f = await pxSteamFind(cc, it.t); it.st = f ? f.id : -1; if (!f) res[it.k] = { none: 1 }; } catch (e) { it.st = -2; res[it.k] = { err: String(e.message || e).slice(0, 60) }; } }
+  await Promise.all(items.filter(it => it.st > 0).map(async it => { try { res[it.k] = await rvSteam(it.st); } catch (e) { res[it.k] = { st: it.st, err: String(e.message || e).slice(0, 60) }; } }));
+  for (const it of items) if (it.st === -1 && !res[it.k]) res[it.k] = { none: 1 };
+  return json({ ok: true, res }, 200, h);
+}
+/* ===== v11: hours to beat. {items: [{k, t, year, plat}]} (≤12) → res[k] = {m (main story), x (main + extras), c (everything),
+   sure 0–1}, from the big model's knowledge of typical play times (HowLongToBeat-style averages). It's told to say
+   sure: 0 for games it doesn't know or that aren't out, so the app only fills what it can trust. ===== */
+async function hbRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 12).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").replace(/["\n]/g, " ").slice(0, 100),
+    y: /^\d{4}$/.test(String(x.year || "")) ? String(x.year) : "", p: String(x.plat || "").replace(/["\n]/g, " ").slice(0, 40) })).filter(x => x.k && x.t);
+  if (!items.length) return json({ error: "no games" }, 400, h);
+  const list = items.map((x, i) => `${i + 1}. "${x.t}"${x.y ? " (" + x.y + ")" : ""}${x.p ? " on " + x.p : ""}`).join("\n");
+  const text = await ask(env, [
+    { role: "system", content: "You know video games very well, including how long they take to beat (the community averages HowLongToBeat lists). You never guess wildly: if you don't know a game, or it isn't released yet, you give sure 0." },
+    { role: "user", content: `For each game, the typical hours to beat it:
+- m: main story only
+- x: main story plus the main extras / side content
+- c: everything (completionist)
+- sure: 0.0-1.0, how sure you are these are right for THIS exact game (0 if you don't know it or it's unreleased)
+Live-service, endless or multiplayer-only games: m, x, c = 0 and sure 0.
+
+${list}
+
+Answer with ONLY JSON, one entry per game in the same order: [{"n":1,"m":0,"x":0,"c":0,"sure":0.0}, ...]` }
+  ], 700, true);
+  const m = text.match(/\[[\s\S]*\]/);
+  let arr = []; try { arr = JSON.parse(m ? m[0] : text); } catch (e) {
+    arr = [...text.matchAll(/\{[^{}]*\}/g)].map(x => { try { return JSON.parse(x[0]); } catch (e) { return null; } }).filter(Boolean); }
+  if (!Array.isArray(arr)) arr = [];
+  const res = {}, hr = v => { v = +v; return Number.isFinite(v) && v > 0 && v < 2000 ? Math.round(v * 2) / 2 : 0; };
+  arr.forEach((o, i) => { if (!o || typeof o !== "object") return; const it = items[(+o.n || i + 1) - 1]; if (!it || res[it.k]) return;
+    let a = hr(o.m), x = hr(o.x), c = hr(o.c); const sure = Math.max(0, Math.min(1, +o.sure || 0));
+    if (!a) { res[it.k] = { sure: 0 }; return; }
+    x = Math.max(a, x || 0); c = Math.max(x, c || 0);
+    res[it.k] = { m: a, x: x > a ? x : 0, c: c > x ? c : 0, sure }; });
+  for (const it of items) res[it.k] ||= { sure: 0 };
+  return json({ ok: true, res }, 200, h);
 }
 /* ===== v7: price alerts. Steam's store API (no key) and the PlayStation Store's public pages, read here because a
    browser can't (no CORS). POST /prices checks a list now; with an id (the phone's nudge id) the list is also kept as
