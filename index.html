@@ -3988,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "213";
+const APP_V = "214";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -14548,7 +14548,7 @@ function nxPoint(el, noHl) {
 function nxTour(was, all) {
   /* v173 everything since the last tour you finished, so skipped updates stack up; closing the app mid-tour resumes it next time */
   const w = parseInt(was, 10), from = all ? 0 : Math.min(S.tourFrom == null ? 162 : +S.tourFrom, w > 0 ? w : Infinity);
-  const steps = WHATS_NEW.filter(x => x.v > from && x.v <= +APP_V);
+  const steps = WHATS_NEW.filter(x => x.v > from && x.v <= +APP_V).sort((a, b) => a.v - b.v);   /* sort is stable: same-version steps keep their order */
   if (!steps.length) { if (!all && S.tourFrom !== +APP_V) { S.tourFrom = +APP_V; save(); } return; }
   if (document.getElementById("nxtour")) return;
   const vs = [...new Set(steps.map(x => x.v))];
@@ -15679,7 +15679,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 6 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews and cloud backup are all on."
+    el.textContent = ok && j.v >= 8 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews, cloud backup and price alerts are all on."
+      : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
       : ok && j.v >= 5 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except cloud backup, which needs the new helper."
       : ok && j.v >= 4 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Nexi's design reviews, which need the new helper."
       : ok && j.v >= 3 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except problem reports, which need the new helper."
@@ -18503,6 +18504,13 @@ function pxCC() {
   return g;
 }
 const pxOn = () => S.pxOff !== true;
+/* v214 your PS Plus: 0 none, 1 Essential, 2 Extra, 3 Premium. Catalogue games at or under your tier are "included";
+   member prices count as your price from Essential up. */
+const PS_PLUS = ["None", "Essential", "Extra", "Premium"];
+const pxTier = () => num(S.psPlus, 0, 0, 3);
+const pxEff = p => !p || p.now == null ? null : pxTier() >= 1 && p.plusNow != null ? Math.min(p.now, p.plusNow) : p.now;
+const pxIncl = p => !!(p && p.plus && pxTier() >= 2 && p.plus <= pxTier());
+const pxEnd = t => t ? new Date(+t).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
 const pxStores = () => ({ st: S.pxSteam !== false, ps: S.pxPS !== false });
 const pxPl = g => platList(g.platforms).map(x => x.toLowerCase());
 const pxWantSt = g => pxStores().st && g.pxSt !== -1 && (+g.pxSt > 0 || !!g.steamId || !pxPl(g).length || pxPl(g).some(p => /pc|steam|windows|deck/.test(p)));
@@ -18516,7 +18524,7 @@ function pxItem(g) {
   const relook = t => !t || Date.now() - t > PX_RELOOK;
   const st = !pxWantSt(g) ? -1 : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : relook(g.pxStNo) ? 0 : -1;
   const ps = !pxWantPs(g) ? "-" : g.pxPs && g.pxPs !== "-" ? g.pxPs : relook(g.pxPsNo) ? "" : "-";
-  return { k: g.id, t: g.title, st, ps };
+  return { k: g.id, t: g.title, st, ps, pc: ps && ps !== "-" ? (g.pxPsC || "") : "" };
 }
 let pxBusy = false;
 async function pxRun(force, only) {
@@ -18529,11 +18537,16 @@ async function pxRun(force, only) {
   const alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
   pxBusy = true;
   try {
-    const r = await nxPost("/prices", { cc: pxCC(), items: list.slice(0, 40), min: num(S.pxMin, 0, 0, 90),
-      ...(alerts && !only ? { id: S.nudgeId, watch: true } : {}) });
+    /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
+    const all = list.slice(0, 60).map(x => x.k), drops = [];
+    for (let i = 0; i < Math.min(list.length, 60); i += 10) {
+      const r = await nxPost("/prices", { cc: pxCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
+        ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
+      drops.push(...pxTake(r.res || {}));
+      if (only) break;
+    }
     if (!alerts && S.pxWatching && S.nudgeId) { nxPost("/prices", { id: S.nudgeId, off: 1 }).catch(() => {}); }
     if (!only) S.pxWatching = alerts;
-    const drops = pxTake(r.res || {});
     if (!only) S.pxAt = Date.now();
     delete S.pxErr; save(); pxPaint();
     return { n: list.length, drops };
@@ -18544,7 +18557,7 @@ async function pxRun(force, only) {
 }
 const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0) : 0; };
 function pxTake(res) {
-  const drops = [], min = num(S.pxMin, 0, 0, 90);
+  const drops = [], joins = [], min = num(S.pxMin, 0, 0, 90);
   for (const id in res) {
     const g = S.games.find(x => x.id === id); if (!g) continue;
     g.px ||= {};
@@ -18553,14 +18566,25 @@ function pxTake(res) {
       if (p.none) { if (s === "st") g.pxStNo = Date.now(); else g.pxPsNo = Date.now(); continue; }
       if (p.err) continue;
       if (p.id) { if (s === "st" && !(+g.pxSt > 0)) g.pxSt = +p.id; if (s === "ps" && !g.pxPs) g.pxPs = p.id; }
-      if (p.free) { g.px[s] = { id: p.id, name: p.name, free: 1, at: Date.now() }; continue; }
+      if (s === "ps" && p.cid) g.pxPsC = p.cid;
+      const was = g.px[s] || {}, extra = s === "ps" ? { plus: p.plus || 0, trial: p.trial || 0, plusNow: p.plusNow, plusNowF: p.plusNowF, end: p.end || 0, pre: p.pre || 0 } : {};
+      /* a game you're waiting for just landed in your PS Plus catalogue: that's the best deal there is */
+      if (s === "ps" && pxIncl(p) && was.at && !pxIncl(was)) joins.push(g);
+      if (p.free || p.nop || p.nosale) { g.px[s] = Object.assign({ id: p.id, name: p.name, nop: p.nosale ? 0 : 1, nosale: p.nosale ? 1 : 0, free: p.free ? 1 : 0, at: Date.now() }, extra); continue; }
       if (p.now == null) continue;
-      const was = g.px[s] || {};
-      const low = was.low != null && was.id === p.id ? Math.min(was.low, p.now) : p.now;
-      g.px[s] = { id: p.id, name: p.name || was.name || "", cur: p.cur, base: p.base, now: p.now, pct: p.pct || 0, baseF: p.baseF, nowF: p.nowF,
-        low, lowF: low === p.now ? p.nowF : (was.lowF || p.nowF), at: Date.now(), t0: was.id === p.id && was.t0 ? was.t0 : Date.now() };
-      if (was.now != null && was.id === p.id && p.now < was.now && (p.pct || 0) >= min) drops.push({ g, s, p: g.px[s] });
+      const eff = pxEff(p), wasEff = pxEff(was);
+      const low = was.low != null && was.id === p.id ? Math.min(was.low, eff) : eff;
+      const effF = eff !== p.now && p.plusNowF ? p.plusNowF : p.nowF;
+      g.px[s] = Object.assign({ id: p.id, name: p.name || was.name || "", cur: p.cur, base: p.base, now: p.now, pct: p.pct || 0, baseF: p.baseF, nowF: p.nowF,
+        low, lowF: low === eff ? effF : (was.lowF || effF), at: Date.now(), t0: was.id === p.id && was.t0 ? was.t0 : Date.now() }, extra);
+      if (wasEff != null && was.id === p.id && eff < wasEff && (Math.round((1 - eff / (p.base || eff)) * 100) || 0) >= min) drops.push({ g, s, p: g.px[s] });
     }
+  }
+  if (joins.length) {
+    const g = joins[0], t = PS_PLUS[pxTier()];
+    toast(`🎮 ${g.title} is in your PS Plus ${t} now: play it, nothing to buy` + (joins.length > 1 ? ` (+${joins.length - 1} more)` : ""));
+    if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
+      try { pnBubSay([`Good news: ${g.title} just joined PS Plus ${t}. It's included in your subscription!`, "deals"]); } catch (e) {}
   }
   if (drops.length) {
     S.pxNews = (S.pxNews || []).concat(drops.map(d => ({ id: d.g.id, s: d.s, t: Date.now(), pct: d.p.pct, nowF: d.p.nowF }))).slice(-20);
@@ -18571,16 +18595,24 @@ function pxTake(res) {
   }
   return drops;
 }
+/* what you pay: the member price when you have PS Plus and it's lower, else the store's (sale) price */
+function pxPriceHtml(p) {
+  const eff = pxEff(p), mem = eff != null && eff < p.now;
+  const f = mem ? p.plusNowF : p.nowF, pct = mem && p.base ? Math.round((1 - eff / p.base) * 100) : p.pct;
+  return `<b>${esc(f || "")}</b>${pct ? `<s>${esc(p.baseF || "")}</s><em>−${pct}%</em>` : ""}${mem ? `<small class="px-n">PS Plus price</small>` : ""}`;
+}
 /* the game page: what it costs now on each store, with the deal and the lowest seen */
 function pxCard(g) {
   if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g))) return "";
   const row = s => {
     const p = (g.px || {})[s], want = s === "st" ? pxWantSt(g) : pxWantPs(g); if (!want) return "";
-    const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : p.free ? "<b>Free</b>"
-      : `<b>${esc(p.nowF || "")}</b>${p.pct ? `<s>${esc(p.baseF || "")}</s><em>−${p.pct}%</em>` : ""}`;
-    return `<button type="button" class="px-r" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : "PS Store"}</i><span>${v}</span><u aria-hidden="true">↗</u></button>`;
+    const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : pxIncl(p) ? `<b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><small>${p.nowF ? "or buy " + esc(p.nowF) : ""}</small>`
+      : p.nosale ? "<small>Not sold in your region</small>" : p.free ? "<b>Free</b>" : p.nop ? "<small>No price yet</small>" : pxPriceHtml(p);
+    const note = [p && p.pct && p.end ? "sale ends " + pxEnd(p.end) : "", p && p.pre ? "pre-order" : "", p && !pxIncl(p) && p.plus ? `in PS Plus ${PS_PLUS[p.plus]}` : "",
+      p && p.trial && pxTier() >= p.trial ? "2-hour trial with Premium" : ""].filter(Boolean).join(" · ");
+    return `<button type="button" class="px-r${pxIncl(p) ? " incl" : ""}" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : "PS Store"}</i><span>${v}${note ? `<small class="px-n">${esc(note)}</small>` : ""}</span><u aria-hidden="true">↗</u></button>`;
   };
-  const p = g.px || {}, low = ["st", "ps"].map(s => p[s]).filter(x => x && x.low != null && x.now != null && x.low < x.now);
+  const p = g.px || {}, low = ["st", "ps"].map(s => p[s]).filter(x => x && x.low != null && x.now != null && !pxIncl(x) && x.low < pxEff(x));
   return `<div class="px" data-g="${g.id}">${row("st")}${row("ps")}
     <button type="button" class="px-more" data-px="${g.id}">${low.length ? "Lowest seen " + esc(low[0].lowF) + " · " : ""}Price alerts ›</button></div>`;
 }
@@ -18591,9 +18623,10 @@ function pxPaint() {
 function pxStatus() {
   if (!pxOn()) return "Off.";
   if (S.pxErr === "helper-old") return "⚠️ Waiting for Nexi's helper to be updated on Cloudflare.";
-  const w = pxWatched(), sale = w.filter(g => ["st", "ps"].some(s => ((g.px || {})[s] || {}).pct > 0)).length;
+  const onSale = p => { const e = pxEff(p); return !!p && !pxIncl(p) && e != null && p.base > e; };
+  const w = pxWatched(), sale = w.filter(g => ["st", "ps"].some(s => onSale((g.px || {})[s]))).length, incl = w.filter(g => pxIncl((g.px || {}).ps)).length;
   return (S.pxErr ? "⚠️ Last check didn't work (" + S.pxErr + "). " : "") + `Watching ${w.length} game${w.length === 1 ? "" : "s"}` +
-    (S.pxAt ? ` · checked ${wiAgo(S.pxAt) === "today" ? "today" : wiAgo(S.pxAt)}` : "") + (sale ? ` · ${sale} on sale now` : "") + ".";
+    (S.pxAt ? ` · checked ${wiAgo(S.pxAt) === "today" ? "today" : wiAgo(S.pxAt)}` : "") + (sale ? ` · ${sale} on sale now` : "") + (incl ? ` · ${incl} in your PS Plus` : "") + ".";
 }
 function pxSheet(id) {
   const g = S.games.find(x => x.id === id); if (!g) return;
@@ -18603,7 +18636,8 @@ function pxSheet(id) {
     const off = s === "st" ? g.pxSt === -1 : g.pxPs === "-";
     return `<div class="pxs-r"><div class="pxs-h"><b>${PX_NAME[s]}</b>${p && p.at ? `<small>checked ${esc(wiAgo(p.at))}</small>` : ""}</div>
       ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : (s === "st" ? pxStores().st : pxStores().ps) ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
-        : p ? (p.free ? `<p class="pxs-p"><b>Free</b> ${esc(p.name || "")}</p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
+        : p ? (pxIncl(p) ? `<p class="pxs-p"><b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><br><small>${esc(p.name || "")}${p.nowF ? " · or buy for " + esc(p.nowF) : ""}</small></p>`
+          : p.nosale || p.nop || p.free ? `<p class="pxs-p">${p.nosale ? "Not sold in your region" : p.free ? "<b>Free</b>" : "No price yet (not out yet)"}<br><small>${esc(p.name || "")}</small></p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
         : `<p class="note">${tied ? "Linked; the price comes with the next check." : "Not found yet. Paste its store link below if I can't find it."}</p>`}
       <div class="pxs-a"><button type="button" class="btn ghost" data-pxgo="${s}:${g.id}"><span>Open ${PX_NAME[s]} ↗</span></button>
         ${want ? `<button type="button" class="btn ghost" data-pxno="${s}"><span>Not on ${PX_NAME[s]}</span></button>` : off ? `<button type="button" class="btn ghost" data-pxyes="${s}"><span>Watch it again</span></button>` : ""}</div></div>`;
@@ -18616,12 +18650,12 @@ function pxSheet(id) {
     <button type="button" class="btn" data-pxnow><span>Check this game now</span></button>`,
     async e => {
       const m = box.querySelector(".px-msg");
-      const no = e.target.closest("[data-pxno]"); if (no) { if (no.dataset.pxno === "st") { g.pxSt = -1; delete (g.px || {}).st; } else { g.pxPs = "-"; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
-      const yes = e.target.closest("[data-pxyes]"); if (yes) { if (yes.dataset.pxyes === "st") { delete g.pxSt; delete g.pxStNo; } else { delete g.pxPs; delete g.pxPsNo; } save(); beep("tap"); return pxSheet(id); }
+      const no = e.target.closest("[data-pxno]"); if (no) { if (no.dataset.pxno === "st") { g.pxSt = -1; delete (g.px || {}).st; } else { g.pxPs = "-"; delete g.pxPsC; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
+      const yes = e.target.closest("[data-pxyes]"); if (yes) { if (yes.dataset.pxyes === "st") { delete g.pxSt; delete g.pxStNo; } else { delete g.pxPs; delete g.pxPsNo; delete g.pxPsC; } save(); beep("tap"); return pxSheet(id); }
       if (e.target.closest("[data-pxlink]")) {
         const v = box.querySelector("#px-link").value.trim(), sm = /store\.steampowered\.com\/app\/(\d+)/.exec(v), pm = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/.exec(v);
         if (sm) { g.pxSt = +sm[1]; delete g.pxStNo; if (g.px) delete g.px.st; }
-        else if (pm) { g.pxPs = pm[0]; delete g.pxPsNo; if (g.px) delete g.px.ps; }
+        else if (pm) { g.pxPs = pm[0]; delete g.pxPsNo; delete g.pxPsC; if (g.px) delete g.px.ps; }
         else { m.textContent = /playstation\.com\/.*concept\//.test(v) ? "That's a game's overview page: open the edition you'd buy and copy that link (it has /product/ in it)." : "That isn't a Steam app link or a PS Store product link."; return; }
         save(); m.textContent = "Linked. Checking…"; await pxRun(true, g); return pxSheet(id);
       }
@@ -18631,11 +18665,15 @@ function pxSheet(id) {
 /* every watched game on sale right now, biggest discount first */
 function pxDeals() {
   const box = dyBox(), w = pxWatched();
-  const deals = w.flatMap(g => ["st", "ps"].map(s => [g, s, (g.px || {})[s]])).filter(([, , p]) => p && p.pct > 0).sort((a, b) => b[2].pct - a[2].pct);
+  const incl = w.filter(g => pxIncl((g.px || {}).ps));
+  const pc = p => { const e = pxEff(p); return p.base && e != null ? Math.round((1 - e / p.base) * 100) : p.pct; };
+  const deals = w.flatMap(g => ["st", "ps"].map(s => [g, s, (g.px || {})[s]])).filter(([, , p]) => p && !pxIncl(p) && pc(p) > 0).sort((a, b) => pc(b[2]) - pc(a[2]));
   dyShow(box, `<div class="dy-h"><b>💸 Deals on your list</b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="note">${esc(pxStatus())}</p>
-    ${deals.length ? `<div class="dy-gl">${deals.map(([g, s, p]) => `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${PX_NAME[s]} · ${esc(p.nowF || "")} <s>${esc(p.baseF || "")}</s>${p.low != null && p.now <= p.low && p.t0 && Date.now() - p.t0 > 2 * 864e5 ? " · lowest we've seen" : ""}</small></span><em class="pxd-p">−${p.pct}%</em></button>`).join("")}</div>`
-      : `<p class="dy-empty">Nothing on your list is on sale right now. I'll tell you when something drops.</p>`}
+    ${incl.length ? `<p class="pxd-h">🎮 Included in your PS Plus ${PS_PLUS[pxTier()]}</p><div class="dy-gl">${incl.map(g => `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>Game Catalog · nothing to buy</small></span><em class="pxd-p">✓</em></button>`).join("")}</div>` : ""}
+    ${deals.length ? `${incl.length ? `<p class="pxd-h">💸 On sale</p>` : ""}<div class="dy-gl">${deals.map(([g, s, p]) => { const e = pxEff(p), mem = e != null && e < p.now;
+      return `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${PX_NAME[s]} · ${esc((mem ? p.plusNowF : p.nowF) || "")}${mem ? " with PS Plus" : ""} <s>${esc(p.baseF || "")}</s>${p.end ? " · ends " + esc(pxEnd(p.end)) : ""}${p.low != null && e <= p.low && p.t0 && Date.now() - p.t0 > 2 * 864e5 ? " · lowest we've seen" : ""}</small></span><em class="pxd-p">−${pc(p)}%</em></button>`; }).join("")}</div>`
+      : incl.length ? "" : `<p class="dy-empty">Nothing on your list is on sale right now. I'll tell you when something drops.</p>`}
     <button type="button" class="btn ghost" data-pxnow style="margin-top:12px"><span>Check prices now</span></button>`,
     async e => { if (e.target.closest("[data-pxnow]")) { const b = e.target.closest("[data-pxnow]"); b.querySelector("span").textContent = "Checking…"; await pxRun(true); pxDeals(); } });
 }
@@ -18655,6 +18693,9 @@ function pxSetHtml() {
     <label>Stores</label>
     <div class="chips" id="s-pxstores"><button class="chip" data-k="st" aria-pressed="${st.st}"><span>Steam</span></button><button class="chip" data-k="ps" aria-pressed="${st.ps}"><span>PlayStation Store</span></button></div>
     <p class="note">Steam for PC games, the PS Store for PlayStation games; both for a game with no platforms set.</p>
+    <label>Your PS Plus</label>
+    <div class="chips" id="s-psplus">${PS_PLUS.map((l, i) => `<button class="chip" data-v="${i}" aria-pressed="${pxTier() === i}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note">With Extra or Premium, games in your Game Catalog show as included (and I tell you when one you're waiting for joins). From Essential up, PS Plus member prices count as your price.</p>
     <label>Your store region</label>
     <div class="chips" id="s-pxcc">${PX_REGIONS.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${cc === v}"><span>${l}</span></button>`).join("")}</div>
     ${PX_REGIONS.some(r => r[0] === cc) ? "" : `<p class="note">Using ${esc(cc.toUpperCase())} (from this phone).</p>`}
@@ -18669,6 +18710,7 @@ function pxSetWire() {
   $("#s-px").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxOff = c.dataset.v === "off"; done(!S.pxOff); };
   $("#s-pxstores").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; if (c.dataset.k === "st") S.pxSteam = S.pxSteam === false; else S.pxPS = S.pxPS === false; done(true); };
   $("#s-pxcc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxCC = c.dataset.v; S.games.forEach(g => { delete g.px; delete g.pxStNo; delete g.pxPsNo; }); done(true); };
+  $("#s-psplus").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.psPlus = +c.dataset.v; S.pxWatching = false; done(true); };
   $("#s-pxmin").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxMin = +c.dataset.v; S.pxWatching = false; done(true); };
 }
 { const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) pxSetWire(); return o; }; openSettings.tplOnly = false; }
@@ -18686,6 +18728,14 @@ if (!S.pxKindMig) { if (Array.isArray(S.nudgeKinds) && !S.nudgeKinds.includes("d
 setTimeout(() => pxRun(false), 9000);
 addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => pxRun(false), 3000); });
 { const q = new URLSearchParams(location.search).get("nudge"); if (q === "deals") setTimeout(pxDeals, 2200); }
+WHATS_NEW.push(
+  { v: 214, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Your PS Plus" }); }, at: "#s-psplus",
+    say: "PlayStation prices fixed and PS Plus added: tell me your PS Plus and games in your Extra or Premium catalogue show as included, member prices count as your price, and I'll ping you when a game you're waiting for joins the catalogue.",
+    tryIt: "Tap Extra (or whatever you have)." },
+  { v: 214, go: () => { closeFull(); dyClose(); nxShut(); pxDeals(); }, at: null,
+    say: "Deals now show what's in your PS Plus first, then sales with their end date (\u201cends 8 Oct\u201d). I check every game on your list now, not just the first few, and a store can say \u201cnot sold in your region\u201d or \u201cno price yet\u201d instead of going blank.",
+    tryIt: "If a game shows the wrong edition, open it → Price alerts › and paste its store link." }
+);
 WHATS_NEW.push(
   { v: 213, go: () => { closeFull(); dyClose(); nxShut(); const g = pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px") || $("#full [data-px]"),
     say: "Price alerts: I now watch Steam and the PlayStation Store for the games you're waiting on, and tell you when one gets cheaper. Each game page shows its price with a link straight to the store.",
@@ -18721,5 +18771,10 @@ WHATS_NEW.push(
 .pxs-in input { flex: 1; min-width: 0; margin: 0; padding: 10px 12px; border-radius: 12px; }
 .pxs-in .btn { margin: 0; flex: none; }
 .pxd small s { color: var(--mute); }
+.pxd-h { margin: 14px 0 8px; font-size: 13px; font-weight: 700; color: var(--ice); }
+.px-r span { flex-wrap: wrap; }
+.px-r .px-n { flex-basis: 100%; font-size: 11.5px; color: var(--mute); }
+.px-r b.px-in, .pxs-p b.px-in { color: #2fbf71; font-size: 15px; }
+.px-r.incl { border-color: rgba(47,191,113,.45); background: linear-gradient(110deg, rgba(47,191,113,.12), rgba(8,11,24,.8) 70%); }
 .dy-g.pxd .pxd-p { flex: none; align-self: center; color: #04130a; font-size: 12.5px; line-height: 1; }
 </style>
