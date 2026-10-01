@@ -8,13 +8,15 @@
    POST /announce     → tells every phone about a new version of the app now (GitHub calls it once the site is live).
    POST /bug          → the app's automatic problem reports (no game data), kept in KV as bug:<sig>.
    GET  /bugs, POST /bugs/ack → for the GitHub "Problem reports" job only (Bearer BUG_KEY), which files them as issues.
+   POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
+        made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
    cron (every 15 min) → sends the nudges that are due, and is the backup for new-version pings.
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 5;
+const HELPER_V = 6;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -22,6 +24,8 @@ const UPD_TTL = 28 * 86400;   /* seconds a "new version" push waits for an offli
 const APP_PAGE = "https://shamlawy.github.io/Play-next/index.html";
 const MODELS_BIG = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 const MODELS = ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/mistral/mistral-7b-instruct-v0.1"];
+/* cloud backup: kept 400 days after the last write; a sealed copy can be up to 20 MB */
+const VAULT_TTL = 400 * 86400, VAULT_MAX = 20 * 1024 * 1024;
 const ALLOW = ["https://shamlawy.github.io", "http://localhost:8765"];
 
 const cors = origin => ({
@@ -107,7 +111,8 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE }, 200, h);
+    if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
        ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
        the element ids it means. The app keeps only confident ones and files them as "Design review" reports. */
@@ -368,6 +373,60 @@ async function checkUpdate(env) {
    `seen` is how many the GitHub job has already filed, so it only posts what's new. */
 const BUG_TTL = 45 * 86400, BUG_MAX = 300;
 const cut = (v, n) => String(v == null ? "" : v).slice(0, n);
+/* v6 cloud backup. vault:<id> = the latest sealed copy; vault:<id>:d0..d6 = the last copy of each of the past 7 days
+   (UTC weekday), made when the first write of a new day replaces yesterday's; vault:<id>:k = the copy before a write
+   the phone marked keep=1 (it had far fewer games than the last one). Every write and read carries
+   "Authorization: Bearer <tok>" (from the restore code); the first write keeps its sha256 and anything after must match. */
+async function sha256hex(s) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, "0")).join(""); }
+async function vault(req, env, url, h) {
+  if (!env.NUDGE) return json({ error: "No KV binding named NUDGE" }, 500, h);
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  const id = url.searchParams.get("id") || "", tok = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/, "");
+  if (!/^[a-f0-9]{24}$/.test(id) || !/^[a-f0-9]{64}$/.test(tok)) return json({ error: "bad code" }, 400, h);
+  const th = await sha256hex(tok), key = "vault:" + id, op = url.pathname.slice(7);
+  const cur = await env.NUDGE.getWithMetadata(key, "stream"), meta = cur.metadata;
+  if (cur.value) try { cur.value.cancel(); } catch (e) {}   /* only the metadata is needed here */
+  if (meta && !sameKey(meta.h || "", th)) return json({ error: "wrong code" }, 403, h);
+  const pub = m => ({ t: m.t, n: m.n || 0, v: m.v || "", sz: m.sz || 0 });
+  if (op === "put" && req.method === "POST") {
+    const body = await req.arrayBuffer();
+    if (!body.byteLength) return json({ error: "empty" }, 400, h);
+    if (body.byteLength > VAULT_MAX) return json({ error: "too big" }, 413, h);
+    const now = Date.now();
+    if (meta && now - meta.t < 20e3) return json({ error: "too soon", t: meta.t }, 429, h);
+    /* first write of a new day: keep the previous copy as that day's snapshot */
+    if (meta && new Date(meta.t).toISOString().slice(0, 10) !== new Date(now).toISOString().slice(0, 10)) {
+      const old = await env.NUDGE.get(key, "arrayBuffer");
+      if (old) await env.NUDGE.put(key + ":d" + new Date(meta.t).getUTCDay(), old, { expirationTtl: VAULT_TTL, metadata: meta });
+    }
+    /* the phone says this copy lost a lot of games (a wipe, a bad restore): keep the one it replaces */
+    if (meta && url.searchParams.get("keep") === "1") {
+      const old = await env.NUDGE.get(key, "arrayBuffer");
+      if (old) await env.NUDGE.put(key + ":k", old, { expirationTtl: VAULT_TTL, metadata: meta });
+    }
+    const m = { h: th, t: now, n: Math.max(0, Math.min(1e5, +url.searchParams.get("n") || 0)), v: String(url.searchParams.get("v") || "").slice(0, 8), sz: body.byteLength };
+    await env.NUDGE.put(key, body, { expirationTtl: VAULT_TTL, metadata: m });
+    return json({ ok: true, t: now }, 200, h);
+  }
+  if (op === "list") {
+    if (!meta) return json({ list: [] }, 200, h);
+    const ks = (await env.NUDGE.list({ prefix: key + ":" })).keys.filter(k => k.metadata && sameKey(k.metadata.h || "", th));
+    return json({ list: [{ k: "latest", ...pub(meta) }, ...ks.map(k => ({ k: k.name.slice(key.length + 1), ...pub(k.metadata) }))].sort((a, b) => b.t - a.t) }, 200, h);
+  }
+  if (op === "get") {
+    const k = url.searchParams.get("k") || "latest";
+    if (k !== "latest" && !/^(d[0-6]|k)$/.test(k)) return json({ error: "bad copy" }, 400, h);
+    const r = await env.NUDGE.getWithMetadata(k === "latest" ? key : key + ":" + k, "arrayBuffer");
+    if (!r.value || !r.metadata) return json({ error: "no backup with that code" }, 404, h);
+    if (!sameKey(r.metadata.h || "", th)) return json({ error: "wrong code" }, 403, h);
+    return new Response(r.value, { headers: { ...h, "Content-Type": "application/octet-stream", "Cache-Control": "no-store" } });
+  }
+  if (op === "del" && req.method === "POST") {
+    if (meta) await Promise.all([key, key + ":k", ...[0, 1, 2, 3, 4, 5, 6].map(d => key + ":d" + d)].map(k => env.NUDGE.delete(k)));
+    return json({ ok: true }, 200, h);
+  }
+  return json({ error: "not found" }, 404, h);
+}
 function sameKey(a, b) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 async function bugTake(env, body) {
   if (!env.NUDGE) return { ok: false, why: "no kv" };

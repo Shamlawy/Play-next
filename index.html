@@ -3988,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "210";
+const APP_V = "211";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4024,6 +4024,7 @@ function touched() {
 }
 const backupDue = () => {
   if (!S.games.length) return false;
+  if (typeof cbHealthy === "function" && cbHealthy()) return false;   /* v211: the cloud has it and the code is saved */
   if (S.nudgeOff) return false;
   const snoozed = S.nudgeSnooze && (Date.now() - S.nudgeSnooze) < 3 * 86400000;
   if (snoozed) return false;
@@ -6368,6 +6369,8 @@ function openSettings(scope) {
       </div>
       <button class="btn ghost" data-bugreport=""><span>🐞 Report a problem</span></button>
     </div>
+
+    <div class="setgroup" data-scope="app"><h4 data-desc="Your games, locked and backed up by themselves. Get them back on any phone with your code.">Cloud backup</h4><div id="s-cbbox">${typeof cbSetHtml === "function" ? cbSetHtml() : ""}</div></div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
       <button class="btn ghost" id="s-usage"><span>📊 Your usage (private)</span></button>
@@ -14945,7 +14948,7 @@ const GROUP_ICON = {
   "Dates that look wrong": "📅", "This build": "ℹ️", "Your data": "💾", "Tiles on Home": "🧩", "How tiles look": "🖌️",
   "The standings tile": "🏆", "Queue cards": "🃏", "Character art": "🧍", "The backdrop": "🖼️", "Opening a card": "✨",
   "Top board": "🥇", "Library": "📚", "A game's own page": "📄", "Timeline board": "🗓️", "Labels on the board": "🏷️",
-  "Your evening": "🌙", "Header cards": "🪪", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
+  "Your evening": "🌙", "Header cards": "🪪", "Cloud backup": "☁️", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
   "Name": "✏️", "Release": "📅", "Where it stands": "📍", "Platforms": "🎮", "Genres and tags": "🏷️", "Notes": "📝",
   "Hype": "🔥", "Critics": "⭐", "My rating": "💯", "Played": "✅", "Art from SteamGridDB": "🖼️", "Cover and colour": "🎨",
   "Backdrop": "🌄", "Hub page figure": "🧍", "Logo / character art": "🔤"
@@ -14955,7 +14958,7 @@ const SET_QUICK = [
   ["🔊", "Sound", "Sound and reactions", "Sounds"], ["😤", "Grumble", "Sound and reactions", "Grumble"],
   ["🎞️", "Animations", "Motion", "Animations"], ["⚡", "Speed boost", "Motion", "Speed boost"],
   ["🎨", "Theme", "Look of the app", "Theme"], ["🧭", "Tabs & start screen", "Getting around", ""],
-  ["💾", "Backup", "Your data", "Backup"], ["✨", "What's new", "This build", ""], ["🎯", "Play style", "Your evening", "How you play", "plan", "plan"]
+  ["☁️", "Backup", "Cloud backup", ""], ["✨", "What's new", "This build", ""], ["🎯", "Play style", "Your evening", "How you play", "plan", "plan"]
 ];
 const clean = t => String(t || "").trim().replace(/\s+/g, " ");
 let setIdx = null;
@@ -15663,7 +15666,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 5 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports and design reviews are all on."
+    el.textContent = ok && j.v >= 6 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews and cloud backup are all on."
+      : ok && j.v >= 5 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except cloud backup, which needs the new helper."
       : ok && j.v >= 4 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Nexi's design reviews, which need the new helper."
       : ok && j.v >= 3 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except problem reports, which need the new helper."
       : ok && j.v >= 2 ? "⚠️ The helper on Cloudflare is one version behind: chat and similar games work, but update notifications need the new helper" + (j.nudge ? "." : ", and notifications need its NUDGE storage and 15-minute schedule.")
@@ -18054,3 +18058,270 @@ WHATS_NEW.push(
     tryIt: "Try taking away the backdrop art, then tap Full to get it back." }
 );
 </script>
+<script>
+/* ===== v211: cloud backup =====
+   Everything on this phone is sealed here (AES-GCM, key made from the restore code) and sent to the helper,
+   which only keeps the sealed bytes (vault:<id>, plus one copy per day for 7 days). The code never leaves the
+   phone; without it nobody (the helper included) can open the copy. The cloud's own bookkeeping lives in its
+   own storage key (gq:cloud), not in S, so backing up never changes what's being backed up. */
+const CB_KEY = "gq:cloud", CB_GAP = 10 * 60e3, CB_ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+let CB = {};
+try { CB = JSON.parse(localStorage.getItem(CB_KEY) || "{}") || {}; } catch (e) { CB = {}; }
+const cbKeep = () => { try { localStorage.setItem(CB_KEY, JSON.stringify(CB)); } catch (e) {} };
+const cbOn = () => CB.on !== false;
+const cbNorm = c => { let t = String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); if (t.length === 22 && t.startsWith("PN")) t = t.slice(2);
+  return t.length === 20 && [...t].every(ch => CB_ALPHA.includes(ch)) ? t : ""; };
+const cbFmt = c => "PN-" + cbNorm(c).match(/.{4}/g).join("-");
+function cbEnsure() {
+  if (!cbNorm(CB.code)) { const b = crypto.getRandomValues(new Uint8Array(20)); CB.code = cbFmt([...b].map(x => CB_ALPHA[x & 31]).join("")); cbKeep(); }
+  return CB.code;
+}
+const cbHex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const cbSha = async s => new Uint8Array(await crypto.subtle.digest("SHA-256", typeof s === "string" ? new TextEncoder().encode(s) : s));
+/* the code is 100 random bits, so plain hashes are enough to make the id, the write token and the key from it */
+async function cbKeys(code) {
+  const c = cbNorm(code); if (!c) throw new Error("not a code");
+  if (!(globalThis.crypto && crypto.subtle)) throw new Error("this browser can't seal backups");
+  return { id: cbHex(await cbSha("pn-vault-id:" + c)).slice(0, 24), tok: cbHex(await cbSha("pn-vault-tok:" + c)),
+    key: await crypto.subtle.importKey("raw", await cbSha("pn-vault-key:" + c), "AES-GCM", false, ["encrypt", "decrypt"]) };
+}
+const cbPipe = async (bytes, s) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(s)).arrayBuffer());
+/* sealed copy = [1][gzip?][12-byte iv][AES-GCM ciphertext] */
+async function cbSeal(text, key) {
+  let data = new TextEncoder().encode(text), z = 0;
+  if (typeof CompressionStream === "function") { data = await cbPipe(data, new CompressionStream("gzip")); z = 1; }
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new Uint8Array([1, z]) }, key, data));
+  const out = new Uint8Array(14 + ct.length); out[0] = 1; out[1] = z; out.set(iv, 2); out.set(ct, 14); return out;
+}
+async function cbOpen(buf, key) {
+  const b = new Uint8Array(buf); if (b[0] !== 1) throw new Error("a newer kind of backup — update the app first");
+  const pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(2, 14), additionalData: new Uint8Array([1, b[1]]) }, key, b.slice(14)));
+  if (!b[1]) return new TextDecoder().decode(pt);
+  if (typeof DecompressionStream !== "function") throw new Error("this browser can't unpack it");
+  return new TextDecoder().decode(await cbPipe(pt, new DecompressionStream("gzip")));
+}
+/* what goes up: the RAWG key on one line, then the saved state exactly as this phone stores it */
+function cbText() {
+  if (saveT) saveNow();
+  let raw = ""; try { raw = localStorage.getItem(KEY) || ""; } catch (e) {}
+  return JSON.stringify({ rk: rawgKey || "" }) + "\n" + (raw || JSON.stringify(S));
+}
+/* hashing, packing and locking a few MB took up to 320ms of the screen's time on a slow phone, so it runs in a
+   background worker made from these same functions; the main thread only reads the saved text */
+let cbW = null;
+function cbSealOff(text, code, last) {
+  return new Promise((res, rej) => {
+    try {
+      cbW ||= new Worker(URL.createObjectURL(new Blob([`const CB_ALPHA = ${JSON.stringify(CB_ALPHA)};
+const cbHex = ${cbHex}; const cbSha = ${cbSha}; const cbPipe = ${cbPipe}; const cbNorm = ${cbNorm};
+${cbKeys}
+${cbSeal}
+onmessage = async e => { const { text, code, last } = e.data;
+  try { const hash = cbHex(await cbSha(text)); if (hash === last) return postMessage({ hash, same: 1 });
+    const k = await cbKeys(code), body = await cbSeal(text, k.key);
+    postMessage({ hash, body, id: k.id, tok: k.tok }, [body.buffer]); }
+  catch (x) { postMessage({ err: String(x && x.message || x) }); } };`], { type: "text/javascript" })));
+    } catch (e) { return rej(e); }
+    cbW.onmessage = e => e.data.err ? rej(Object.assign(new Error(e.data.err), { w: 1 })) : res(e.data);
+    cbW.onerror = ev => { ev.preventDefault && ev.preventDefault(); cbW = null; rej(new Error("worker failed")); };
+    cbW.postMessage({ text, code, last });
+  });
+}
+async function cbFetch(op, k, q, opt) {
+  const r = await fetch(HELPER + "/vault/" + op + "?id=" + k.id + (q || ""), Object.assign({ cache: "no-store" }, opt, { headers: Object.assign({ Authorization: "Bearer " + k.tok }, (opt || {}).headers) }));
+  if (r.ok && op === "get") return r;
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 404 && /not found/i.test(j.error || "")) throw new Error("helper-old");
+  if (!r.ok || j.error) { const e = new Error(j.error || "the helper said " + r.status); e.status = r.status; throw e; }
+  return j;
+}
+let cbT = 0, cbBusy = false, cbSelf = false, cbDirty = true, cbFails = 0, cbSoon = false;
+function cbKick(now) {
+  if (!cbOn() || cbBusy) return;
+  clearTimeout(cbT);
+  const wait = now ? 0 : Math.max(15e3, (CB.at || 0) + CB_GAP - Date.now(), CB.err && CB.errAt ? CB.errAt + 5 * 60e3 - Date.now() : 0);
+  cbT = setTimeout(() => (window.requestIdleCallback || setTimeout)(() => cbRun(), { timeout: 4000 }), wait);
+}
+async function cbRun(force) {
+  if (cbBusy || !cbOn() || !S || !Array.isArray(S.games)) return;
+  if (!navigator.onLine) { CB.err = "offline"; CB.errAt = Date.now(); cbKeep(); cbShow(); return; }
+  cbBusy = true; clearTimeout(cbT);
+  try {
+    if (!(window.crypto && crypto.subtle)) throw new Error("this browser can't seal backups");
+    cbEnsure();
+    const text = cbText(), last = !force && !CB.err ? CB.hash : "";
+    let r = null;
+    try { r = await cbSealOff(text, CB.code, last); } catch (e) { if (e.w) throw e; }
+    if (!r) {   /* no worker here: do it on this thread */
+      const hash = cbHex(await cbSha(text)), k = hash === last ? null : await cbKeys(CB.code);
+      r = k ? { hash, body: await cbSeal(text, k.key), id: k.id, tok: k.tok } : { hash, same: 1 };
+    }
+    if (r.same) { cbDirty = false; return; }
+    const hash = r.hash, body = r.body, k = { id: r.id, tok: r.tok }, n = S.games.length;
+    /* far fewer games than the last copy (a wipe, a bad restore): the helper keeps the copy this replaces */
+    const keep = CB.n >= 6 && n < CB.n / 2 ? "&keep=1" : "";
+    await cbFetch("put", k, "&n=" + n + "&v=" + APP_V + keep, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body });
+    Object.assign(CB, { hash, at: Date.now(), n, kb: Math.max(1, Math.round(body.length / 1024)) }); delete CB.err; delete CB.errAt;
+    cbFails = 0; cbDirty = false;
+  } catch (e) {
+    const m = String(e && e.message || e);
+    if (e && e.status === 429) cbSoon = true;   /* the helper takes one copy per 20 s: try again shortly */
+    else {
+      CB.err = m; CB.errAt = Date.now(); cbFails++;
+      if (cbFails === 3 && navigator.onLine && m !== "helper-old" && typeof bugReport === "function") bugReport("helper", "Cloud backup failed: " + m.slice(0, 120));
+    }
+  } finally {
+    cbBusy = false; cbKeep(); cbShow();
+    if (cbSoon) { cbSoon = false; clearTimeout(cbT); cbT = setTimeout(() => cbRun(force), 22e3); if ($("#s-cbst")) $("#s-cbst").textContent = "Backing up in a few seconds…"; }
+    else if (cbDirty || CB.err) cbKick();
+  }
+}
+/* every save marks the state dirty; the upload follows within 10 minutes, and straight away when you leave the app */
+{ const _sv = save; save = function () { const r = _sv.apply(this, arguments); if (!cbSelf) { cbDirty = true; cbKick(); } return r; }; }
+addEventListener("visibilitychange", () => {
+  if (document.hidden) { if (cbDirty && cbOn() && Date.now() - (CB.at || 0) > 60e3) cbRun(); }
+  else cbKick();
+});
+addEventListener("online", () => cbKick());
+setTimeout(() => cbKick(), 6000);
+
+const cbAgo = t => { const m = Math.round((Date.now() - t) / 60e3);
+  return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + (m < 2880 ? " day ago" : " days ago"); };
+function cbStatus() {
+  if (!cbOn()) return CB.at ? "Off. The last copy (" + cbAgo(CB.at) + ") stays in the cloud until you delete it." : "Off: nothing is sent anywhere.";
+  if (CB.err && CB.err !== "offline" && (!CB.at || CB.errAt > CB.at))
+    return "⚠️ " + (CB.err === "helper-old" ? "Waiting for Nexi's helper to be updated on Cloudflare; it'll start by itself." : "The last try didn't work (" + esc(CB.err) + "). Trying again in a few minutes.") + (CB.at ? " Last good copy: " + cbAgo(CB.at) + "." : "");
+  if (CB.err === "offline") return "📴 Offline. It'll back up when you're back online." + (CB.at ? " Last copy: " + cbAgo(CB.at) + "." : "");
+  if (!CB.at) return "Making your first backup…";
+  return "✅ Backed up " + cbAgo(CB.at) + " · " + CB.n + (CB.n === 1 ? " game" : " games") + " · " + CB.kb + " KB sealed.";
+}
+function cbShow() { const el = $("#s-cbst"); if (el) el.innerHTML = cbStatus(); }
+const cbHealthy = () => cbOn() && CB.saved && CB.at && Date.now() - CB.at < 3 * 864e5;
+function cbSetHtml() {
+  const on = cbOn(), code = on ? cbEnsure() : cbNorm(CB.code) ? CB.code : "";
+  return `<label>Back up automatically</label>
+      <div class="chips" id="s-cb">${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(on ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}</div>
+      <p class="note" id="s-cbst">${cbStatus()}</p>
+      ${code ? `<label>Your restore code</label>
+      <div class="cb-code" id="s-cbcode">${esc(code)}</div>
+      <div class="cb-acts"><button class="btn" id="s-cbsave"><span>🔑 Save it</span></button><button class="btn ghost" id="s-cbcopy"><span>Copy</span></button></div>
+      <p class="note">${CB.saved ? "Saved. Keep it somewhere that isn't only this phone: it's the one thing that opens your backup."
+        : "<b>⚠️ Save this code now.</b> It's the only key to your backup: if this phone is lost or wiped, you type it on the new one and everything comes back. Nobody else (not even me) can open it without the code."}</p>` : ""}
+      ${on ? `<button class="btn ghost" id="s-cbnow"><span>Back up now</span></button>` : ""}
+      <button class="btn ghost" id="s-cbrestore"><span>Restore from a code…</span></button>
+      ${!on && CB.at ? `<button class="btn danger" id="s-cbdel"><span>Delete the cloud copy</span></button>` : ""}
+      <p class="note">How it works: your games, scores, duels and settings are locked on this phone with your code before anything leaves it; the helper only keeps the locked copy. It backs up within 10 minutes of a change and as you leave the app, and keeps a copy from each of the last 7 days.</p>`;
+}
+async function cbCopy() {
+  try { await navigator.clipboard.writeText(CB.code); }
+  catch (e) { const t = document.createElement("textarea"); t.value = CB.code; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch (x) {} t.remove(); }
+  CB.saved = CB.saved || Date.now(); cbKeep(); toast("Code copied: paste it somewhere safe (Notes, a message to yourself)");
+}
+/* Chrome hands it to Google Password Manager (it survives losing the phone); elsewhere the share sheet (Notes, Messages…) */
+async function cbSaveCode() {
+  const code = cbEnsure(); let how = "";
+  if (window.PasswordCredential && navigator.credentials && navigator.credentials.store) {
+    try { await navigator.credentials.store(new PasswordCredential({ id: "Play next backup", password: code, name: "Play next restore code" })); how = "pm"; } catch (e) {}
+  }
+  if (!how && navigator.share) {
+    try { await navigator.share({ title: "Play next restore code", text: "My Play next restore code: " + code + "\nTo get my games back: Settings → Cloud backup → Restore from a code." }); how = "share"; }
+    catch (e) { if (e && e.name === "AbortError") return false; }
+  }
+  if (!how) { await cbCopy(); return true; }
+  CB.saved = CB.saved || Date.now(); cbKeep();
+  toast(how === "pm" ? "Tap Save if your phone asks: it goes in your password manager" : "Code shared — keep that note");
+  return true;
+}
+function cbSetWire() {
+  const box = $("#sheet-in"); if (!box || !$("#s-cb")) return;
+  const redraw = () => { const w = $("#s-cbbox"); if (w) { w.innerHTML = cbSetHtml(); cbSetWire(); } };
+  $("#s-cb").onclick = e => { const c = e.target.closest(".chip"); if (!c) return;
+    CB.on = c.dataset.v === "on"; cbKeep(); beep("tap");
+    if (CB.on) { cbDirty = true; cbKick(true); } else clearTimeout(cbT);
+    redraw(); };
+  if ($("#s-cbsave")) $("#s-cbsave").onclick = async () => { beep("tap"); if (await cbSaveCode()) redraw(); };
+  if ($("#s-cbcopy")) $("#s-cbcopy").onclick = async () => { beep("tap"); await cbCopy(); redraw(); };
+  if ($("#s-cbnow")) $("#s-cbnow").onclick = () => { beep("tap"); $("#s-cbst").textContent = "Backing up…"; cbRun(true); };
+  if ($("#s-cbrestore")) $("#s-cbrestore").onclick = () => { beep("tap"); cbRestoreSheet(); };
+  if ($("#s-cbdel")) $("#s-cbdel").onclick = async () => {
+    if (!confirm("Delete your backup from the cloud? This phone keeps everything; only the cloud copy and its 7 daily copies go.")) return;
+    try { await cbFetch("del", await cbKeys(CB.code), "", { method: "POST" }); delete CB.at; delete CB.hash; delete CB.n; cbKeep(); toast("Cloud copy deleted"); redraw(); }
+    catch (e) { toast("Couldn't delete it: " + (e.message === "helper-old" ? "the helper needs updating" : e.message)); }
+  };
+}
+{ const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) cbSetWire(); return o; }; openSettings.tplOnly = false; }
+
+const CB_DAY = { latest: "Newest copy", k: "Before a big change" };
+function cbRestoreSheet() {
+  const box = dyBox();
+  let keys = null, list = [];
+  dyShow(box, `<div class="dy-h"><b>☁️ Restore from your code</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <form class="cb-f" autocomplete="on">
+      <input class="cb-u" name="username" autocomplete="username" value="Play next backup" readonly tabindex="-1" aria-hidden="true">
+      <input class="cb-in" name="password" type="password" autocomplete="current-password" placeholder="PN-XXXX-XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" spellcheck="false" aria-label="Restore code">
+      <button class="btn" type="submit"><span>Find my backup</span></button>
+    </form>
+    <p class="note cb-msg">If you saved the code in your password manager, it can fill it in.</p>
+    <div class="cb-list"></div>`, async e => {
+      const b = e.target.closest("[data-cbk]"); if (!b || !keys) return;
+      const it = list.find(x => x.k === b.dataset.cbk); if (!it) return;
+      if (!confirm("Replace everything on this phone with this backup (" + it.n + " games, " + new Date(it.t).toLocaleString() + ")?\n\nWhat's on this phone now is replaced.")) return;
+      const msg = box.querySelector(".cb-msg"); msg.textContent = "Opening it…";
+      try {
+        const r = await cbFetch("get", keys, "&k=" + it.k);
+        const text = await cbOpen(await r.arrayBuffer(), keys.key), cut = text.indexOf("\n");
+        const head = JSON.parse(text.slice(0, cut)), rb = readBackup(text.slice(cut + 1));
+        if (!rb.ok) { msg.textContent = rb.msg; return; }
+        if (head.rk) rb.data.rawgKey = head.rk;
+        applyBackup(rb.data);
+        CB.code = cbFmt(keys.code); CB.on = true; CB.saved = CB.saved || Date.now(); CB.at = it.t; CB.n = it.n; delete CB.hash; delete CB.err; cbKeep();
+        saveNow(); dyClose(); toast(rb.msg + " from " + new Date(it.t).toLocaleDateString());
+      } catch (x) { msg.textContent = /operation|decrypt/i.test(x.name + x.message) ? "That copy didn't open with this code." : "Couldn't restore it: " + (x.message === "helper-old" ? "the helper needs updating" : x.message); }
+    });
+  const f = box.querySelector(".cb-f"), inp = box.querySelector(".cb-in"), msg = box.querySelector(".cb-msg"), out = box.querySelector(".cb-list");
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const c = cbNorm(inp.value);
+    if (!c) { msg.textContent = "That doesn't look like a restore code: PN- then 20 letters and numbers."; return; }
+    msg.textContent = "Looking…"; out.innerHTML = "";
+    try {
+      keys = Object.assign(await cbKeys(c), { code: c });
+      list = (await cbFetch("list", keys)).list || [];
+      if (!list.length) { msg.textContent = "No backup found for that code."; return; }
+      msg.textContent = "Pick the copy to bring back:";
+      out.innerHTML = list.map(x => `<button type="button" class="cb-copy" data-cbk="${esc(x.k)}"><b>${esc(CB_DAY[x.k] || new Date(x.t).toLocaleDateString(undefined, { weekday: "long" }))}</b><small>${x.n} games · ${esc(new Date(x.t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</small><em>›</em></button>`).join("");
+    } catch (x) { msg.textContent = x.status === 403 ? "That code doesn't match a backup." : "Couldn't look it up: " + (x.message === "helper-old" ? "the helper needs updating" : x.message); }
+  };
+  setTimeout(() => inp.focus(), 350);
+}
+/* the Queue's backup reminder: with the cloud working and the code saved there's nothing to nag about;
+   with the cloud working but the code unsaved, it asks for that instead */
+{ const _nb = nudgeBar; nudgeBar = function () {
+  if (cbOn() && CB.at && !CB.saved && !(S.nudgeSnooze && Date.now() - S.nudgeSnooze < 3 * 864e5))
+    return `<div class="nudge"><span><b>Your games are backed up to the cloud.</b> Save your restore code so you can get them back on any phone.</span>
+      <span class="nudge-acts"><button class="chip" id="nudge-cbsave"><span>🔑 Save code</span></button><button class="chip" id="nudge-later"><span>Later</span></button></span></div>`;
+  return _nb.apply(this, arguments); }; }
+document.addEventListener("click", async e => { if (!e.target.closest("#nudge-cbsave")) return; beep("tap"); if (await cbSaveCode()) renderQueue(); });
+WHATS_NEW.push(
+  { v: 211, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Cloud backup", text: "Your restore code" }); }, at: "#s-cbcode",
+    say: "Your games now back up to the cloud by themselves, locked with a code only you have. Lose or wipe this phone and that code brings everything back: games, scores, duels, art and settings.",
+    tryIt: "Tap 🔑 Save it so the code lives in your password manager (or Notes), not only on this phone." }
+);
+</script>
+<style>
+.cb-code { margin: 6px 0 10px; padding: 12px 14px; border-radius: 14px; background: rgba(var(--vrgb), .08); border: 1px solid rgba(var(--vrgb), .28);
+  font: 600 clamp(13px, 3.9vw, 15px)/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .04em; color: var(--ice); overflow-wrap: anywhere; user-select: all; }
+.cb-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.cb-f { display: grid; gap: 10px; margin: 6px 0 4px; }
+.cb-f input, .cb-f .btn { margin: 0; }
+.cb-u { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cb-in { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 14px; font: 600 15px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .05em; }
+.cb-list { display: grid; gap: 8px; margin-top: 8px; }
+.cb-copy { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "b e" "s e"; gap: 2px 10px; align-items: center; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: 16px; border: 1px solid var(--u-line, rgba(234,242,255,.08)); background: var(--u-card, #131a32); color: var(--ice); font-family: inherit; cursor: pointer; }
+.cb-copy b { grid-area: b; font-size: 15px; }
+.cb-copy small { grid-area: s; color: var(--mute); font-size: 12px; }
+.cb-copy em { grid-area: e; font-style: normal; font-size: 20px; color: var(--mute); }
+.cb-copy:active { transform: scale(.98); }
+</style>
