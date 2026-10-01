@@ -3988,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "212";
+const APP_V = "213";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6375,6 +6375,8 @@ function openSettings(scope) {
       </div>
       <button class="btn ghost" data-bugreport=""><span>🐞 Report a problem</span></button>
     </div>
+
+    <div class="setgroup" data-scope="app"><h4 data-desc="Steam and PlayStation Store prices for the games you're waiting on, and a ping when one drops.">Price alerts</h4><div id="s-pxbox">${typeof pxSetHtml === "function" ? pxSetHtml() : ""}</div></div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Your games, locked and backed up by themselves. Get them back on any phone with your code.">Cloud backup</h4><div id="s-cbbox">${typeof cbSetHtml === "function" ? cbSetHtml() : ""}</div></div>
 
@@ -8793,6 +8795,7 @@ function hubActs(g) {
     [`data-trailer="${id}"`, "▶", "Trailer"],
     [`data-sim="${id}"`, "🔍", "Similar"],
     [`data-lists="${id}"`, "📋", "Lists" + ((g.lists || []).length ? " · " + g.lists.length : "")],
+    !isPlayed(g) && !g.comp ? [`data-px="${id}"`, "💸", "Prices"] : null,
     [`data-wasi="${id}"`, "📍", "Where was I?" + ((g.wasI || []).length ? " · " + g.wasI.length : "")],
     [`data-sess="${id}"`, "⏱", "Sessions" + (sessOf(g.id).length ? " · " + sessOf(g.id).length : "")],
     [`data-aiwhy="${id}"`, "✨", "Why you'll love it"],
@@ -12850,9 +12853,9 @@ const NX_KINDS = [
   ["update", "✨", "New versions"], ["release", "📅", "Release days"], ["countdown", "⏳", "1 week to go"],
   ["recap", "📊", "Monthly recap"], ["weekly", "🗓️", "Week in review"], ["next", "🎮", "Tonight's pick"],
   ["duel", "⚔️", "Close duels"], ["playing", "🕹️", "How's it going?"], ["verdict", "⭐", "Needs a score"],
-  ["badge", "🏅", "Badges"], ["tip", "💡", "Tips"], ["memory", "🕰️", "On this day"], ["comeback", "👋", "Miss you"]];
+  ["badge", "🏅", "Badges"], ["tip", "💡", "Tips"], ["memory", "🕰️", "On this day"], ["comeback", "👋", "Miss you"], ["deal", "💸", "Price drops"]];
 const NX_DAILY = ["next", "duel", "playing", "verdict", "badge", "tip"];
-const NX_PICK_DEF = ["update", "release", "countdown", "recap", "weekly"];
+const NX_PICK_DEF = ["update", "release", "countdown", "recap", "weekly", "deal"];
 function nxKinds() {
   if (S.nudgeMode === "key") { S.nudgeMode = "pick"; S.nudgeKinds = ["update", "release", "recap"]; }      /* v191's "Updates + releases" */
   if ((S.nudgeMode || "all") === "all") return new Set(NX_KINDS.map(k => k[0]));
@@ -14958,7 +14961,7 @@ const GROUP_ICON = {
   "Dates that look wrong": "📅", "This build": "ℹ️", "Your data": "💾", "Tiles on Home": "🧩", "How tiles look": "🖌️",
   "The standings tile": "🏆", "Queue cards": "🃏", "Character art": "🧍", "The backdrop": "🖼️", "Opening a card": "✨",
   "Top board": "🥇", "Library": "📚", "A game's own page": "📄", "Timeline board": "🗓️", "Labels on the board": "🏷️",
-  "Your evening": "🌙", "Header cards": "🪪", "Cloud backup": "☁️", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
+  "Your evening": "🌙", "Header cards": "🪪", "Cloud backup": "☁️", "Price alerts": "💸", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
   "Name": "✏️", "Release": "📅", "Where it stands": "📍", "Platforms": "🎮", "Genres and tags": "🏷️", "Notes": "📝",
   "Hype": "🔥", "Critics": "⭐", "My rating": "💯", "Played": "✅", "Art from SteamGridDB": "🖼️", "Cover and colour": "🎨",
   "Backdrop": "🌄", "Hub page figure": "🧍", "Logo / character art": "🔤"
@@ -16421,7 +16424,7 @@ const GD_ICON = { fullopen: "🎮", fulledit: "✏️" };
 function gdMarkup(g) {
   const col = HEX.test(g.colour || "") ? g.colour : PALETTE[0];
   const state = (STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1];
-  const back = bgSource(g), acts = hubActs(g), main = acts.filter(a => a[3]), rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]) && !(/data-wasi/.test(a[0]) && ((g.wasI || []).length || g.state === "playing")));
+  const back = bgSource(g), acts = hubActs(g), main = acts.filter(a => a[3]), rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]) && !(/data-px=/.test(a[0]) && typeof pxCard === "function" && pxCard(g)) && !(/data-wasi/.test(a[0]) && ((g.wasI || []).length || g.state === "playing")));
   const ed = acts.find(a => /data-fulledit/.test(a[0]));
   const tags = [state ? [state, 1] : null, ...platList(g.genres).slice(0, 3).map(x => [x]), ...platList(g.platforms).slice(0, 3).map(x => [x])].filter(Boolean);
   const icon = a => a[1] || GD_ICON[(a[0].match(/data-(\w+)/) || [])[1]] || "•";
@@ -16441,6 +16444,7 @@ function gdMarkup(g) {
         </div>
         ${tags.length ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}</div>` : ""}
         ${typeof wiCard === "function" ? wiCard(g) : ""}
+        ${typeof pxCard === "function" ? pxCard(g) : ""}
         ${desc ? `<p class="gd-desc">${esc(desc)}</p>${desc.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}` : ""}
         <div class="hub-data">${hubStats(g).map(([v, l]) => `<div><b>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("")}</div>
         <div class="gd-main">${main.map(a => `<button type="button" class="hot" ${a[0]}>${a[1]} ${esc(a[2])}</button>`).join("")}${ed ? `<button type="button" class="${main.length ? "ed" : ""}" ${ed[0]}>✏️ Edit</button>` : ""}</div>
@@ -16637,7 +16641,7 @@ try {
 /* 4. Nexi's helper failing while you're online */
 { const _np = nxPost; nxPost = async function (path) {
   try { return await _np.apply(this, arguments); }
-  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(path === "/review" && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
+  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !((path === "/review" || path === "/prices") && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
 }; }
 
 /* 5. you spotted something: a few words, and the app adds the rest */
@@ -18480,4 +18484,242 @@ WHATS_NEW.push(
   color: var(--ice); font: 600 13px/1 inherit; cursor: pointer; }
 #wiask .wa-b .wa-go { background: var(--volt); color: var(--void, #04060e); border-color: transparent; }
 @media (min-width: 620px) { html.pnrail:not(.railhide) #wiask { left: calc(50% - 44px); } }
+</style>
+<script>
+/* ===== v213: price alerts (Steam + PlayStation Store) =====
+   Games you're waiting for (not played, not dropped, not competitive) are priced through the helper's /prices
+   about twice a day: Steam for PC games (or ones with a Steam id), the PS Store for PlayStation games, both when a game
+   has no platforms set. g.px = {st, ps}: {id, name, cur, base, now, pct, baseF, nowF, low, lowF, at}; g.pxSt / g.pxPs =
+   the store item it's tied to (found by title, or a link you pasted; -1 / "-" = not on that store, "never look").
+   With notifications on (and the 💸 kind), the helper keeps the list and checks it daily by itself, pushing drops. */
+const PX_GAP = 12 * 36e5, PX_RELOOK = 14 * 864e5;
+const PX_TZ = { "Asia/Kuwait": "kw", "Asia/Dubai": "ae", "Asia/Riyadh": "sa", "Asia/Qatar": "qa", "Asia/Bahrain": "bh", "Asia/Muscat": "om", "Africa/Cairo": "eg",
+  "Asia/Beirut": "lb", "Asia/Amman": "jo", "Europe/London": "gb", "Europe/Dublin": "ie", "Asia/Tokyo": "jp", "Asia/Kolkata": "in", "Australia/Sydney": "au", "America/Toronto": "ca" };
+const PX_REGIONS = [["us", "US $"], ["gb", "UK £"], ["de", "Europe €"], ["ae", "UAE"], ["sa", "Saudi"], ["kw", "Kuwait"], ["qa", "Qatar"], ["eg", "Egypt"], ["jp", "Japan"]];
+function pxCC() {
+  if (/^[a-z]{2}$/.test(S.pxCC || "")) return S.pxCC;
+  let g = ""; try { g = PX_TZ[Intl.DateTimeFormat().resolvedOptions().timeZone] || ""; } catch (e) {}
+  if (!g) { const m = /-([A-Z]{2})$/.exec(navigator.language || ""); g = m ? m[1].toLowerCase() : "us"; }
+  return g;
+}
+const pxOn = () => S.pxOff !== true;
+const pxStores = () => ({ st: S.pxSteam !== false, ps: S.pxPS !== false });
+const pxPl = g => platList(g.platforms).map(x => x.toLowerCase());
+const pxWantSt = g => pxStores().st && g.pxSt !== -1 && (+g.pxSt > 0 || !!g.steamId || !pxPl(g).length || pxPl(g).some(p => /pc|steam|windows|deck/.test(p)));
+const pxWantPs = g => pxStores().ps && g.pxPs !== "-" && (!!g.pxPs || !pxPl(g).length || pxPl(g).some(p => /^ps|playstation/.test(p)));
+const pxWatched = () => S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && (pxWantSt(g) || pxWantPs(g)));
+const pxUrl = (g, s) => s === "st"
+  ? (+g.pxSt > 0 ? `https://store.steampowered.com/app/${g.pxSt}/` : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title)}`)
+  : (g.pxPs && g.pxPs !== "-" ? `https://store.playstation.com/en-${pxCC()}/product/${g.pxPs}` : `https://store.playstation.com/en-${pxCC()}/search/${encodeURIComponent(g.title)}`);
+const PX_NAME = { st: "Steam", ps: "PS Store" };
+function pxItem(g) {
+  const relook = t => !t || Date.now() - t > PX_RELOOK;
+  const st = !pxWantSt(g) ? -1 : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : relook(g.pxStNo) ? 0 : -1;
+  const ps = !pxWantPs(g) ? "-" : g.pxPs && g.pxPs !== "-" ? g.pxPs : relook(g.pxPsNo) ? "" : "-";
+  return { k: g.id, t: g.title, st, ps };
+}
+let pxBusy = false;
+async function pxRun(force, only) {
+  if (pxBusy || !pxOn() || !navigator.onLine) return null;
+  if (!force && Date.now() - (S.pxAt || 0) < PX_GAP) return null;
+  const list = (only ? [only] : pxWatched()).map(pxItem).filter(x => x.st !== -1 || x.ps !== "-");
+  if (!list.length) { S.pxAt = Date.now(); return { n: 0 }; }
+  /* the oldest-checked first: each call can only look a few games up */
+  list.sort((a, b) => pxSeen(a.k) - pxSeen(b.k));
+  const alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
+  pxBusy = true;
+  try {
+    const r = await nxPost("/prices", { cc: pxCC(), items: list.slice(0, 40), min: num(S.pxMin, 0, 0, 90),
+      ...(alerts && !only ? { id: S.nudgeId, watch: true } : {}) });
+    if (!alerts && S.pxWatching && S.nudgeId) { nxPost("/prices", { id: S.nudgeId, off: 1 }).catch(() => {}); }
+    if (!only) S.pxWatching = alerts;
+    const drops = pxTake(r.res || {});
+    if (!only) S.pxAt = Date.now();
+    delete S.pxErr; save(); pxPaint();
+    return { n: list.length, drops };
+  } catch (e) {
+    S.pxErr = e.message === "helper-old" ? "helper-old" : String(e.message || e).slice(0, 80); S.pxErrAt = Date.now(); save(); pxPaint();
+    return null;
+  } finally { pxBusy = false; }
+}
+const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0) : 0; };
+function pxTake(res) {
+  const drops = [], min = num(S.pxMin, 0, 0, 90);
+  for (const id in res) {
+    const g = S.games.find(x => x.id === id); if (!g) continue;
+    g.px ||= {};
+    for (const s of ["st", "ps"]) {
+      const p = res[id][s]; if (!p) continue;
+      if (p.none) { if (s === "st") g.pxStNo = Date.now(); else g.pxPsNo = Date.now(); continue; }
+      if (p.err) continue;
+      if (p.id) { if (s === "st" && !(+g.pxSt > 0)) g.pxSt = +p.id; if (s === "ps" && !g.pxPs) g.pxPs = p.id; }
+      if (p.free) { g.px[s] = { id: p.id, name: p.name, free: 1, at: Date.now() }; continue; }
+      if (p.now == null) continue;
+      const was = g.px[s] || {};
+      const low = was.low != null && was.id === p.id ? Math.min(was.low, p.now) : p.now;
+      g.px[s] = { id: p.id, name: p.name || was.name || "", cur: p.cur, base: p.base, now: p.now, pct: p.pct || 0, baseF: p.baseF, nowF: p.nowF,
+        low, lowF: low === p.now ? p.nowF : (was.lowF || p.nowF), at: Date.now(), t0: was.id === p.id && was.t0 ? was.t0 : Date.now() };
+      if (was.now != null && was.id === p.id && p.now < was.now && (p.pct || 0) >= min) drops.push({ g, s, p: g.px[s] });
+    }
+  }
+  if (drops.length) {
+    S.pxNews = (S.pxNews || []).concat(drops.map(d => ({ id: d.g.id, s: d.s, t: Date.now(), pct: d.p.pct, nowF: d.p.nowF }))).slice(-20);
+    const d = drops.sort((a, b) => b.p.pct - a.p.pct)[0];
+    toast(`💸 ${d.g.title}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"} on ${PX_NAME[d.s]}: ${d.p.nowF}` + (drops.length > 1 ? ` (+${drops.length - 1} more)` : ""));
+    if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
+      try { pnBubSay([`Price drop! ${d.g.title} is ${d.p.nowF} on ${PX_NAME[d.s]} right now.`, "deals"]); } catch (e) {}
+  }
+  return drops;
+}
+/* the game page: what it costs now on each store, with the deal and the lowest seen */
+function pxCard(g) {
+  if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g))) return "";
+  const row = s => {
+    const p = (g.px || {})[s], want = s === "st" ? pxWantSt(g) : pxWantPs(g); if (!want) return "";
+    const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : p.free ? "<b>Free</b>"
+      : `<b>${esc(p.nowF || "")}</b>${p.pct ? `<s>${esc(p.baseF || "")}</s><em>−${p.pct}%</em>` : ""}`;
+    return `<button type="button" class="px-r" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : "PS Store"}</i><span>${v}</span><u aria-hidden="true">↗</u></button>`;
+  };
+  const p = g.px || {}, low = ["st", "ps"].map(s => p[s]).filter(x => x && x.low != null && x.now != null && x.low < x.now);
+  return `<div class="px" data-g="${g.id}">${row("st")}${row("ps")}
+    <button type="button" class="px-more" data-px="${g.id}">${low.length ? "Lowest seen " + esc(low[0].lowF) + " · " : ""}Price alerts ›</button></div>`;
+}
+function pxPaint() {
+  document.querySelectorAll(".px[data-g]").forEach(el => { const g = S.games.find(x => x.id === el.dataset.g); if (g) el.outerHTML = pxCard(g); });
+  const st = $("#s-pxst"); if (st) st.textContent = pxStatus();
+}
+function pxStatus() {
+  if (!pxOn()) return "Off.";
+  if (S.pxErr === "helper-old") return "⚠️ Waiting for Nexi's helper to be updated on Cloudflare.";
+  const w = pxWatched(), sale = w.filter(g => ["st", "ps"].some(s => ((g.px || {})[s] || {}).pct > 0)).length;
+  return (S.pxErr ? "⚠️ Last check didn't work (" + S.pxErr + "). " : "") + `Watching ${w.length} game${w.length === 1 ? "" : "s"}` +
+    (S.pxAt ? ` · checked ${wiAgo(S.pxAt) === "today" ? "today" : wiAgo(S.pxAt)}` : "") + (sale ? ` · ${sale} on sale now` : "") + ".";
+}
+function pxSheet(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const box = dyBox();
+  const row = s => {
+    const p = (g.px || {})[s], want = s === "st" ? pxWantSt(g) : pxWantPs(g), tied = s === "st" ? +g.pxSt > 0 : g.pxPs && g.pxPs !== "-";
+    const off = s === "st" ? g.pxSt === -1 : g.pxPs === "-";
+    return `<div class="pxs-r"><div class="pxs-h"><b>${PX_NAME[s]}</b>${p && p.at ? `<small>checked ${esc(wiAgo(p.at))}</small>` : ""}</div>
+      ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : (s === "st" ? pxStores().st : pxStores().ps) ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
+        : p ? (p.free ? `<p class="pxs-p"><b>Free</b> ${esc(p.name || "")}</p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
+        : `<p class="note">${tied ? "Linked; the price comes with the next check." : "Not found yet. Paste its store link below if I can't find it."}</p>`}
+      <div class="pxs-a"><button type="button" class="btn ghost" data-pxgo="${s}:${g.id}"><span>Open ${PX_NAME[s]} ↗</span></button>
+        ${want ? `<button type="button" class="btn ghost" data-pxno="${s}"><span>Not on ${PX_NAME[s]}</span></button>` : off ? `<button type="button" class="btn ghost" data-pxyes="${s}"><span>Watch it again</span></button>` : ""}</div></div>`;
+  };
+  dyShow(box, `<div class="dy-h"><b>💸 Prices · ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${row("st")}${row("ps")}
+    <label class="pxs-l" for="px-link">Wrong game, or not found? Paste its Steam or PS Store link</label>
+    <div class="pxs-in"><input id="px-link" type="url" inputmode="url" placeholder="https://store.steampowered.com/app/… or store.playstation.com/…/product/…"><button type="button" class="btn" data-pxlink><span>Use it</span></button></div>
+    <p class="note px-msg">Prices for ${esc(PX_REGIONS.find(r => r[0] === pxCC()) ? PX_REGIONS.find(r => r[0] === pxCC())[1] : pxCC().toUpperCase())} · change the region in Settings → Price alerts.</p>
+    <button type="button" class="btn" data-pxnow><span>Check this game now</span></button>`,
+    async e => {
+      const m = box.querySelector(".px-msg");
+      const no = e.target.closest("[data-pxno]"); if (no) { if (no.dataset.pxno === "st") { g.pxSt = -1; delete (g.px || {}).st; } else { g.pxPs = "-"; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
+      const yes = e.target.closest("[data-pxyes]"); if (yes) { if (yes.dataset.pxyes === "st") { delete g.pxSt; delete g.pxStNo; } else { delete g.pxPs; delete g.pxPsNo; } save(); beep("tap"); return pxSheet(id); }
+      if (e.target.closest("[data-pxlink]")) {
+        const v = box.querySelector("#px-link").value.trim(), sm = /store\.steampowered\.com\/app\/(\d+)/.exec(v), pm = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/.exec(v);
+        if (sm) { g.pxSt = +sm[1]; delete g.pxStNo; if (g.px) delete g.px.st; }
+        else if (pm) { g.pxPs = pm[0]; delete g.pxPsNo; if (g.px) delete g.px.ps; }
+        else { m.textContent = /playstation\.com\/.*concept\//.test(v) ? "That's a game's overview page: open the edition you'd buy and copy that link (it has /product/ in it)." : "That isn't a Steam app link or a PS Store product link."; return; }
+        save(); m.textContent = "Linked. Checking…"; await pxRun(true, g); return pxSheet(id);
+      }
+      if (e.target.closest("[data-pxnow]")) { m.textContent = "Checking…"; const r = await pxRun(true, g); if (!r) m.textContent = S.pxErr === "helper-old" ? "Nexi's helper needs its update first." : "Couldn't check right now."; else pxSheet(id); }
+    });
+}
+/* every watched game on sale right now, biggest discount first */
+function pxDeals() {
+  const box = dyBox(), w = pxWatched();
+  const deals = w.flatMap(g => ["st", "ps"].map(s => [g, s, (g.px || {})[s]])).filter(([, , p]) => p && p.pct > 0).sort((a, b) => b[2].pct - a[2].pct);
+  dyShow(box, `<div class="dy-h"><b>💸 Deals on your list</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="note">${esc(pxStatus())}</p>
+    ${deals.length ? `<div class="dy-gl">${deals.map(([g, s, p]) => `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${PX_NAME[s]} · ${esc(p.nowF || "")} <s>${esc(p.baseF || "")}</s>${p.low != null && p.now <= p.low && p.t0 && Date.now() - p.t0 > 2 * 864e5 ? " · lowest we've seen" : ""}</small></span><em class="pxd-p">−${p.pct}%</em></button>`).join("")}</div>`
+      : `<p class="dy-empty">Nothing on your list is on sale right now. I'll tell you when something drops.</p>`}
+    <button type="button" class="btn ghost" data-pxnow style="margin-top:12px"><span>Check prices now</span></button>`,
+    async e => { if (e.target.closest("[data-pxnow]")) { const b = e.target.closest("[data-pxnow]"); b.querySelector("span").textContent = "Checking…"; await pxRun(true); pxDeals(); } });
+}
+document.addEventListener("click", e => {
+  const go = e.target.closest("[data-pxgo]");
+  if (go) { e.stopPropagation(); const [s, id] = go.dataset.pxgo.split(":"), g = S.games.find(x => x.id === id); if (g) { beep("tap"); window.open(pxUrl(g, s), "_blank", "noopener"); } return; }
+  const px = e.target.closest("[data-px]"); if (px) { e.stopPropagation(); beep("tap"); pxSheet(px.dataset.px); return; }
+  if (e.target.closest("[data-pxdeals]")) { e.stopPropagation(); beep("tap"); pxDeals(); }
+}, true);
+/* settings */
+function pxSetHtml() {
+  const cc = pxCC(), st = pxStores(), min = num(S.pxMin, 0, 0, 90);
+  return `<label>Price alerts</label>
+    <div class="chips" id="s-px">${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(pxOn() ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note" id="s-pxst">${esc(pxStatus())}</p>
+    <button class="btn ghost" data-pxdeals><span>💸 See deals on your list</span></button>
+    <label>Stores</label>
+    <div class="chips" id="s-pxstores"><button class="chip" data-k="st" aria-pressed="${st.st}"><span>Steam</span></button><button class="chip" data-k="ps" aria-pressed="${st.ps}"><span>PlayStation Store</span></button></div>
+    <p class="note">Steam for PC games, the PS Store for PlayStation games; both for a game with no platforms set.</p>
+    <label>Your store region</label>
+    <div class="chips" id="s-pxcc">${PX_REGIONS.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${cc === v}"><span>${l}</span></button>`).join("")}</div>
+    ${PX_REGIONS.some(r => r[0] === cc) ? "" : `<p class="note">Using ${esc(cc.toUpperCase())} (from this phone).</p>`}
+    <label>Tell me when</label>
+    <div class="chips" id="s-pxmin">${[[0, "Any drop"], [25, "25% off or more"], [50, "50% off or more"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${min === v}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note">Prices are checked when you open the app (twice a day at most). With notifications on (Settings → Nexi → Notifications, 💸 Price drops), Nexi's helper also checks once a day by itself and sends you the drop. PS Store prices are read from its public pages, so now and then one may be missing; the store link always works.</p>`;
+}
+function pxSetWire() {
+  const w = $("#s-pxbox"); if (!w) return;
+  const redraw = () => { w.innerHTML = pxSetHtml(); pxSetWire(); };
+  const done = rerun => { save(); beep("tap"); redraw(); if (rerun) { S.pxAt = 0; pxRun(true).then(redraw); } };
+  $("#s-px").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxOff = c.dataset.v === "off"; done(!S.pxOff); };
+  $("#s-pxstores").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; if (c.dataset.k === "st") S.pxSteam = S.pxSteam === false; else S.pxPS = S.pxPS === false; done(true); };
+  $("#s-pxcc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxCC = c.dataset.v; S.games.forEach(g => { delete g.px; delete g.pxStNo; delete g.pxPsNo; }); done(true); };
+  $("#s-pxmin").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxMin = +c.dataset.v; S.pxWatching = false; done(true); };
+}
+{ const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) pxSetWire(); return o; }; openSettings.tplOnly = false; }
+/* a game with no price yet (added since the last check): check just that one when its page opens */
+{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
+  const g = S.games.find(x => x.id === id);
+  if (g && pxOn() && !g.px && (pxWantSt(g) || pxWantPs(g)) && !isPlayed(g) && !isDropped(g) && !g.comp && Date.now() - (g.pxTry || 0) > 36e5) {
+    g.pxTry = Date.now(); setTimeout(() => pxRun(true, g), 700); }
+  return o; }; }
+/* tapping Nexi's price-drop line opens the deals */
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "deals") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); pxDeals(); }, true);
+/* people who picked their notification kinds before this get 💸 Price drops switched on once */
+if (!S.pxKindMig) { if (Array.isArray(S.nudgeKinds) && !S.nudgeKinds.includes("deal")) S.nudgeKinds.push("deal"); S.pxKindMig = 1; save(); }
+/* open: check if it's been a while; a notification link can open the deals */
+setTimeout(() => pxRun(false), 9000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => pxRun(false), 3000); });
+{ const q = new URLSearchParams(location.search).get("nudge"); if (q === "deals") setTimeout(pxDeals, 2200); }
+WHATS_NEW.push(
+  { v: 213, go: () => { closeFull(); dyClose(); nxShut(); const g = pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px") || $("#full [data-px]"),
+    say: "Price alerts: I now watch Steam and the PlayStation Store for the games you're waiting on, and tell you when one gets cheaper. Each game page shows its price with a link straight to the store.",
+    tryIt: "Tap a price to open the store, or Price alerts › if I picked the wrong game." },
+  { v: 213, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Your store region" }); }, at: "#s-pxcc",
+    say: "Pick your store region so prices are in your currency, and choose whether any drop counts or only big ones. With notifications on, I'll ping you even when the app is closed.",
+    tryIt: "Check the region, then tap 💸 See deals on your list." }
+);
+</script>
+<style>
+.px { display: grid; gap: 8px; margin: 12px 0 2px; }
+.px-r { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border-radius: 16px;
+  border: 1px solid var(--u-line, rgba(234,242,255,.1)); background: rgba(8,11,24,.74); color: var(--ice); font-family: inherit; text-align: left; cursor: pointer; }
+.px-r i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--mute); }
+.px-r span { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.px-r b { font: 700 17px/1.1 "Poppins", system-ui, sans-serif; }
+.px-r s { font-size: 12.5px; color: var(--mute); }
+.px-r em, .pxs-p em, .pxd-p { font-style: normal; font-size: 12px; font-weight: 700; padding: 3px 7px; border-radius: 99px; background: #2fbf71; color: #04130a; }
+.px-r small { font-size: 12.5px; color: var(--mute); }
+.px-r u { text-decoration: none; color: var(--mute); font-size: 15px; }
+.px-r:active, .px-more:active { transform: scale(.98); }
+.px-more { justify-self: end; min-height: 30px; padding: 4px 2px; border: 0; background: none; color: var(--volt); font: 600 12.5px/1.2 inherit; cursor: pointer; }
+.pxs-r { padding: 12px 14px; margin-bottom: 10px; border-radius: 16px; background: var(--u-card, #131a32); }
+.pxs-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pxs-h small { color: var(--mute); font-size: 12px; }
+.pxs-p { margin: 6px 0 8px; font-size: 13px; color: var(--ice); line-height: 1.5; }
+.pxs-p b { font: 700 20px/1.2 "Poppins", system-ui, sans-serif; }
+.pxs-p s, .pxs-p small { color: var(--mute); }
+.pxs-a { display: flex; gap: 8px; flex-wrap: wrap; }
+.pxs-a .btn { margin: 0; }
+.pxs-l { display: block; margin: 14px 0 6px; font-size: 12.5px; color: var(--mute); font-weight: 600; }
+.pxs-in { display: flex; gap: 8px; }
+.pxs-in input { flex: 1; min-width: 0; margin: 0; padding: 10px 12px; border-radius: 12px; }
+.pxs-in .btn { margin: 0; flex: none; }
+.pxd small s { color: var(--mute); }
+.dy-g.pxd .pxd-p { flex: none; align-self: center; color: #04130a; font-size: 12.5px; line-height: 1; }
 </style>

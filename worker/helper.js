@@ -8,6 +8,7 @@
    POST /announce     → tells every phone about a new version of the app now (GitHub calls it once the site is live).
    POST /bug          → the app's automatic problem reports (no game data), kept in KV as bug:<sig>.
    GET  /bugs, POST /bugs/ack → for the GitHub "Problem reports" job only (Bearer BUG_KEY), which files them as issues.
+   POST /prices       → Steam + PlayStation Store prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
    cron (every 15 min) → sends the nudges that are due, and is the backup for new-version pings.
@@ -16,7 +17,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 6;
+const HELPER_V = 7;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -41,7 +42,7 @@ export default {
     try { return await handle(req, env); }
     catch (e) { return json({ error: String(e && e.message || e) }, 500, cors(req.headers.get("Origin") || "")); }
   },
-  async scheduled(ev, env, ctx) { ctx.waitUntil(Promise.all([sendDue(env), checkUpdate(env)])); }
+  async scheduled(ev, env, ctx) { ctx.waitUntil(Promise.all([sendDue(env), checkUpdate(env), pxCron(env).catch(() => {})])); }
 };
 
 async function ask(env, messages, maxTokens, big) {
@@ -111,7 +112,8 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true }, 200, h);
+    if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
        ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
@@ -426,6 +428,165 @@ async function vault(req, env, url, h) {
     return json({ ok: true }, 200, h);
   }
   return json({ error: "not found" }, 404, h);
+}
+/* ===== v7: price alerts. Steam's store API (no key) and the PlayStation Store's public pages, read here because a
+   browser can't (no CORS). POST /prices checks a list now; with an id (the phone's nudge id) the list is also kept as
+   px:<id> and the cron re-checks it about once a day and pushes a notification when a price drops. ===== */
+const PX_TTL = 60 * 86400, PX_UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
+const pxNorm = s => String(s || "").toLowerCase().replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
+function pxSame(a, b) {
+  const x = pxNorm(a), y = pxNorm(b); if (!x || !y) return 0; if (x === y) return 1;
+  if (x.length > 4 && y.length > 4 && (x.startsWith(y) || y.startsWith(x))) return .86;
+  const A = new Set(x.split(" ")), B = new Set(y.split(" ")), n = [...A].filter(w => B.has(w)).length;
+  return n / new Set([...A, ...B]).size;
+}
+const pxCC = cc => /^[a-z]{2}$/.test(String(cc || "").toLowerCase()) ? String(cc).toLowerCase() : "us";
+/* Steam: one call prices up to 50 apps (only the price_overview filter allows several ids) */
+async function pxSteamPrices(cc, ids) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const r = await fetch(`https://store.steampowered.com/api/appdetails?appids=${ids.slice(i, i + 50).join(",")}&cc=${cc}&filters=price_overview`, { headers: PX_UA });
+    const j = await r.json().catch(() => null); if (!j) continue;
+    for (const id of ids.slice(i, i + 50)) {
+      const d = j[id]; if (!d || !d.success) continue;
+      const p = d.data && d.data.price_overview;
+      out[id] = p ? { cur: p.currency, base: p.initial, now: p.final, pct: p.discount_percent || 0, baseF: p.initial_formatted || p.final_formatted, nowF: p.final_formatted }
+        : { free: 1 };   /* success with no price = free, or not sold here */
+    }
+  }
+  return out;
+}
+async function pxSteamFind(cc, title) {
+  const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(title).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
+  const j = await r.json().catch(() => null), items = (j && j.items || []).filter(x => x.type === "app" || !x.type);
+  let best = null, bs = 0;
+  for (const x of items.slice(0, 10)) { const s = pxSame(title, x.name); if (s > bs) { bs = s; best = x; } }
+  return best && bs >= .7 ? { id: best.id, name: best.name } : null;
+}
+/* PlayStation Store: no public API, so read the price objects out of the page's embedded data. Each one carries
+   basePriceValue / discountedValue (minor units), the formatted prices and the currency; the product id and name sit
+   just before it. Prices tied to a subscription (PS Plus) are skipped. Regex windows, not JSON.parse: the pages are big. */
+const PS_ID = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/g;
+function pxPsParse(html) {
+  const out = [], seen = new Set(), re = /"basePriceValue":(\d+)/g; let m;
+  while ((m = re.exec(html)) && out.length < 40) {
+    /* the price object itself: from its "{" to its "}" (price objects are flat) */
+    const a = html.lastIndexOf("{", m.index), z = html.indexOf("}", m.index);
+    if (a < 0 || z < 0 || m.index - a > 1500 || z - m.index > 1500) continue;
+    const obj = html.slice(a, z + 1), f = k => (new RegExp('"' + k + '":("([^"]{0,40})"|true|false|-?\\d+)').exec(obj) || [])[2] ?? (new RegExp('"' + k + '":(true|false|-?\\d+)').exec(obj) || [])[1];
+    if (f("isTiedToSubscription") === "true") continue;
+    const id = pxPsIdBefore(html, a);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const base = +m[1], dv = f("discountedValue"), now = dv != null ? +dv : base;
+    out.push({ id, name: pxPsName(html, id, html.slice(Math.max(0, a - 3000), a)), cur: f("currencyCode") || "", base, now,
+      pct: base > now ? Math.round((1 - now / base) * 100) : 0, baseF: f("basePrice") || "", nowF: f("discountedPrice") || f("basePrice") || "" });
+  }
+  return out;
+}
+/* the nearest product id before a price (the product's media can sit between them, so look back up to 40k characters) */
+function pxPsIdBefore(html, at) {
+  let i = at;
+  while ((i = html.lastIndexOf("_00-", i - 1)) > 0 && at - i < 40000) {
+    const m = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/.exec(html.slice(i - 20, i + 24));
+    if (m) return m[0];
+  }
+  return "";
+}
+/* the product's name: next to its id ("id":"…","name":"…" either way round), else the nearest name before the price */
+function pxPsName(html, id, before) {
+  const un = s => { try { return JSON.parse('"' + s + '"'); } catch (e) { return s; } };
+  let i = html.indexOf('"' + id + '"');
+  while (i >= 0) {
+    const a = Math.max(0, i - 300), w = html.slice(a, i + 400), c = i - a;
+    const m = /"name":"((?:[^"\\]|\\.){1,120})"/.exec(w.slice(c)) || [...w.slice(0, c).matchAll(/"name":"((?:[^"\\]|\\.){1,120})"/g)].pop();
+    if (m) return un(m[1]);
+    i = html.indexOf('"' + id + '"', i + 1);
+  }
+  const n = [...before.matchAll(/"name":"((?:[^"\\]|\\.){1,120})"/g)].pop();
+  return n ? un(n[1]) : "";
+}
+const psLoc = cc => "en-" + cc;
+async function pxPsPage(url) {
+  const r = await fetch(url, { headers: PX_UA, redirect: "follow" });
+  if (!r.ok) throw new Error("PS Store said " + r.status);
+  return pxPsParse(await r.text());
+}
+async function pxPsFind(cc, title) {
+  const list = await pxPsPage(`https://store.playstation.com/${psLoc(cc)}/search/${encodeURIComponent(String(title).slice(0, 80))}`);
+  let best = null, bs = 0;
+  for (const x of list) { const s = pxSame(title, x.name) - (/bundle|soundtrack|season pass|upgrade|pack\b|dlc/i.test(x.name) ? .3 : 0); if (s > bs) { bs = s; best = x; } }
+  return best && bs >= .7 ? best : null;
+}
+async function pxPsPrice(cc, id) {
+  const list = await pxPsPage(`https://store.playstation.com/${psLoc(cc)}/product/${id}`);
+  return list.find(x => x.id === id) || list[0] || null;
+}
+/* check a list: [{k, t: title, st: steam app id | 0 = look it up | -1 = don't, ps: product id | "" = look it up | "-" = don't}]
+   at most 8 lookups and 12 PS pages per call (Workers allow ~50 outside requests per run) */
+async function pxCheck(cc, items) {
+  cc = pxCC(cc);
+  const res = {}, look = { st: 0, ps: 0 };
+  for (const it of items) res[it.k] = {};
+  for (const it of items) {
+    if (it.st === 0 && look.st < 8) { look.st++; try { const f = await pxSteamFind(cc, it.t); it.st = f ? f.id : -1; if (f) res[it.k].stName = f.name; else res[it.k].st = { none: 1 }; } catch (e) { res[it.k].st = { err: String(e.message || e).slice(0, 60) }; } }
+  }
+  const ids = items.filter(it => +it.st > 0).map(it => +it.st);
+  let sp = {}; try { sp = ids.length ? await pxSteamPrices(cc, ids) : {}; } catch (e) {}
+  for (const it of items) if (+it.st > 0) res[it.k].st = Object.assign({ id: +it.st, name: res[it.k].stName || "" }, sp[+it.st] || { err: "no answer" });
+  for (const it of items) {
+    if (it.ps === "-" || look.ps >= 12) continue;
+    look.ps++;
+    try {
+      const p = it.ps ? await pxPsPrice(cc, it.ps) : await pxPsFind(cc, it.t);
+      res[it.k].ps = p ? p : { none: 1 };
+    } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
+  }
+  for (const k in res) delete res[k].stName;
+  return res;
+}
+async function pxRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const id = String(b && b.id || ""), okId = /^[A-Za-z0-9_-]{16,40}$/.test(id);
+  if (b && b.off) { if (okId && env.NUDGE) await env.NUDGE.delete("px:" + id); return json({ ok: true }, 200, h); }
+  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 40).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").slice(0, 100),
+    st: Number.isFinite(+x.st) ? Math.trunc(+x.st) : 0, ps: x.ps === "-" ? "-" : (String(x.ps || "").match(PS_ID) || [""])[0] })).filter(x => x.k && x.t);
+  const cc = pxCC(b.cc), res = await pxCheck(cc, items);
+  /* keep the list for the daily check (only what was found), with the prices seen now as the baseline */
+  if (okId && env.NUDGE && b.watch) {
+    const keep = items.map(it => { const r = res[it.k] || {}, st = r.st && r.st.id ? r.st.id : -1, ps = r.ps && r.ps.id ? r.ps.id : "-";
+      return { k: it.k, t: it.t, st, ps, last: { st: r.st && r.st.now != null ? r.st.now : null, ps: r.ps && r.ps.now != null ? r.ps.now : null } }; }).filter(x => x.st > 0 || x.ps !== "-");
+    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, min: Math.max(0, Math.min(90, +b.min || 0)), items: keep, t: Date.now() }), { expirationTtl: PX_TTL, metadata: { t: Date.now() } });
+  }
+  return json({ ok: true, cc, res, at: Date.now() }, 200, h);
+}
+/* cron: the one watch list checked longest ago (if over 20 h), drops pushed to that phone */
+async function pxCron(env) {
+  if (!env.NUDGE) return;
+  const keys = (await env.NUDGE.list({ prefix: "px:" })).keys.filter(k => !k.metadata || Date.now() - (k.metadata.t || 0) > 20 * 36e5)
+    .sort((a, b) => ((a.metadata || {}).t || 0) - ((b.metadata || {}).t || 0));
+  const k = keys[0]; if (!k) return;
+  const rec = await env.NUDGE.get(k.name, "json"); if (!rec) return;
+  const id = k.name.slice(3), sub = await env.NUDGE.get("sub:" + id, "json");
+  const res = await pxCheck(rec.cc, rec.items.map(x => ({ k: x.k, t: x.t, st: x.st, ps: x.ps })));
+  const drops = [];
+  for (const it of rec.items) {
+    const r = res[it.k] || {};
+    for (const s of ["st", "ps"]) {
+      const p = r[s]; if (!p || p.now == null) continue;
+      const was = it.last ? it.last[s] : null;
+      if (was != null && p.now < was && p.pct >= (rec.min || 0)) drops.push({ it, s, p });
+      it.last = it.last || {}; it.last[s] = p.now;
+    }
+  }
+  await env.NUDGE.put(k.name, JSON.stringify({ ...rec, t: Date.now() }), { expirationTtl: PX_TTL, metadata: { t: Date.now() } });
+  if (!sub || !sub.sub) return;
+  for (const d of drops.slice(0, 3)) {
+    const store = d.s === "st" ? "Steam" : "PS Store";
+    try { await webPush(env, sub.sub, { title: `💸 ${d.it.t.slice(0, 40)}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"}`,
+      body: `${store}: ${d.p.nowF || ""}${d.p.baseF && d.p.pct ? " (was " + d.p.baseF + ")" : ""}`.trim(), tag: "deal-" + d.it.k, url: "./?nudge=game&g=" + d.it.k }, 2 * 86400); } catch (e) {}
+  }
 }
 function sameKey(a, b) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 async function bugTake(env, body) {
