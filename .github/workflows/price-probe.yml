@@ -1,4 +1,4 @@
-# By hand (Actions tab) or when the probe changes: fetch real Steam / PlayStation Store data and run the helper's price
+# By hand (Actions tab), or when the probe or the helper changes: fetch real Steam / PlayStation Store data and run the helper's price
 # reader on it, so it can be checked against what the stores really send. Raw pages are kept as the "probe" artifact.
 name: Price probe
 on:
@@ -14,6 +14,7 @@ on:
     paths:
       - ".github/scripts/priceprobe.mjs"
       - ".github/scripts/psprobe.mjs"
+      - "worker/helper.js"
       - ".github/workflows/price-probe.yml"
 permissions:
   contents: read
@@ -29,7 +30,7 @@ jobs:
         env:
           TITLES: ${{ github.event.inputs.titles }}
           CCS: ${{ github.event.inputs.ccs }}
-        run: mkdir -p probe; node .github/scripts/psprobe.mjs; node .github/scripts/priceprobe.mjs > probe/steam.log 2>&1 || true
+        run: mkdir -p probe; node .github/scripts/priceprobe.mjs | tee probe/prices.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
