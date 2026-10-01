@@ -18529,11 +18529,16 @@ async function pxRun(force, only) {
   const alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
   pxBusy = true;
   try {
-    const r = await nxPost("/prices", { cc: pxCC(), items: list.slice(0, 40), min: num(S.pxMin, 0, 0, 90),
-      ...(alerts && !only ? { id: S.nudgeId, watch: true } : {}) });
+    /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
+    const all = list.slice(0, 60).map(x => x.k), drops = [];
+    for (let i = 0; i < Math.min(list.length, 60); i += 10) {
+      const r = await nxPost("/prices", { cc: pxCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90),
+        ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
+      drops.push(...pxTake(r.res || {}));
+      if (only) break;
+    }
     if (!alerts && S.pxWatching && S.nudgeId) { nxPost("/prices", { id: S.nudgeId, off: 1 }).catch(() => {}); }
     if (!only) S.pxWatching = alerts;
-    const drops = pxTake(r.res || {});
     if (!only) S.pxAt = Date.now();
     delete S.pxErr; save(); pxPaint();
     return { n: list.length, drops };
@@ -18553,7 +18558,7 @@ function pxTake(res) {
       if (p.none) { if (s === "st") g.pxStNo = Date.now(); else g.pxPsNo = Date.now(); continue; }
       if (p.err) continue;
       if (p.id) { if (s === "st" && !(+g.pxSt > 0)) g.pxSt = +p.id; if (s === "ps" && !g.pxPs) g.pxPs = p.id; }
-      if (p.free) { g.px[s] = { id: p.id, name: p.name, free: 1, at: Date.now() }; continue; }
+      if (p.free || p.nop || p.nosale) { g.px[s] = { id: p.id, name: p.name, nop: p.nosale ? 0 : 1, nosale: p.nosale ? 1 : 0, at: Date.now() }; continue; }
       if (p.now == null) continue;
       const was = g.px[s] || {};
       const low = was.low != null && was.id === p.id ? Math.min(was.low, p.now) : p.now;
@@ -18576,7 +18581,7 @@ function pxCard(g) {
   if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g))) return "";
   const row = s => {
     const p = (g.px || {})[s], want = s === "st" ? pxWantSt(g) : pxWantPs(g); if (!want) return "";
-    const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : p.free ? "<b>Free</b>"
+    const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : p.nosale ? "<small>Not sold in your region</small>" : (p.nop || p.free) ? "<small>No price yet</small>"
       : `<b>${esc(p.nowF || "")}</b>${p.pct ? `<s>${esc(p.baseF || "")}</s><em>−${p.pct}%</em>` : ""}`;
     return `<button type="button" class="px-r" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : "PS Store"}</i><span>${v}</span><u aria-hidden="true">↗</u></button>`;
   };
@@ -18603,7 +18608,7 @@ function pxSheet(id) {
     const off = s === "st" ? g.pxSt === -1 : g.pxPs === "-";
     return `<div class="pxs-r"><div class="pxs-h"><b>${PX_NAME[s]}</b>${p && p.at ? `<small>checked ${esc(wiAgo(p.at))}</small>` : ""}</div>
       ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : (s === "st" ? pxStores().st : pxStores().ps) ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
-        : p ? (p.free ? `<p class="pxs-p"><b>Free</b> ${esc(p.name || "")}</p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
+        : p ? (p.nosale || p.nop || p.free ? `<p class="pxs-p">${p.nosale ? "Not sold in your region" : "No price yet (not out, or free)"}<br><small>${esc(p.name || "")}</small></p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
         : `<p class="note">${tied ? "Linked; the price comes with the next check." : "Not found yet. Paste its store link below if I can't find it."}</p>`}
       <div class="pxs-a"><button type="button" class="btn ghost" data-pxgo="${s}:${g.id}"><span>Open ${PX_NAME[s]} ↗</span></button>
         ${want ? `<button type="button" class="btn ghost" data-pxno="${s}"><span>Not on ${PX_NAME[s]}</span></button>` : off ? `<button type="button" class="btn ghost" data-pxyes="${s}"><span>Watch it again</span></button>` : ""}</div></div>`;

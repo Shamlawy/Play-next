@@ -448,10 +448,11 @@ async function pxSteamPrices(cc, ids) {
     const r = await fetch(`https://store.steampowered.com/api/appdetails?appids=${ids.slice(i, i + 50).join(",")}&cc=${cc}&filters=price_overview`, { headers: PX_UA });
     const j = await r.json().catch(() => null); if (!j) continue;
     for (const id of ids.slice(i, i + 50)) {
-      const d = j[id]; if (!d || !d.success) continue;
+      const d = j[id]; if (!d) continue;
+      if (!d.success) { out[id] = { nosale: 1 }; continue; }   /* Steam won't sell it in this region */
       const p = d.data && d.data.price_overview;
       out[id] = p ? { cur: p.currency, base: p.initial, now: p.final, pct: p.discount_percent || 0, baseF: p.initial_formatted || p.final_formatted, nowF: p.final_formatted }
-        : { free: 1 };   /* success with no price = free, or not sold here */
+        : { nop: 1 };   /* listed with no price: not out yet, or free */
     }
   }
   return out;
@@ -533,7 +534,7 @@ async function pxCheck(cc, items) {
   }
   const ids = items.filter(it => +it.st > 0).map(it => +it.st);
   let sp = {}; try { sp = ids.length ? await pxSteamPrices(cc, ids) : {}; } catch (e) {}
-  for (const it of items) if (+it.st > 0) res[it.k].st = Object.assign({ id: +it.st, name: res[it.k].stName || "" }, sp[+it.st] || { err: "no answer" });
+  for (const it of items) if (+it.st > 0) res[it.k].st = Object.assign({ id: +it.st, name: res[it.k].stName || "" }, sp[+it.st] || { nosale: 1 });
   for (const it of items) {
     if (it.ps === "-" || look.ps >= 12) continue;
     look.ps++;
@@ -557,7 +558,10 @@ async function pxRoute(req, env, h) {
   if (okId && env.NUDGE && b.watch) {
     const keep = items.map(it => { const r = res[it.k] || {}, st = r.st && r.st.id ? r.st.id : -1, ps = r.ps && r.ps.id ? r.ps.id : "-";
       return { k: it.k, t: it.t, st, ps, last: { st: r.st && r.st.now != null ? r.st.now : null, ps: r.ps && r.ps.now != null ? r.ps.now : null } }; }).filter(x => x.st > 0 || x.ps !== "-");
-    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, min: Math.max(0, Math.min(90, +b.min || 0)), items: keep, t: Date.now() }), { expirationTtl: PX_TTL, metadata: { t: Date.now() } });
+    /* the phone sends its list in batches: merge this batch into what's kept, and drop games it no longer watches (b.all) */
+    const old = await env.NUDGE.get("px:" + id, "json"), all = Array.isArray(b.all) ? new Set(b.all.map(String)) : null;
+    const ks = new Set(keep.map(x => x.k)), was = old && old.cc === cc ? (old.items || []).filter(x => !ks.has(x.k) && (!all || all.has(x.k))) : [];
+    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, min: Math.max(0, Math.min(90, +b.min || 0)), items: was.concat(keep).slice(0, 80), t: old && old.cc === cc ? old.t : Date.now() }), { expirationTtl: PX_TTL, metadata: { t: old && old.cc === cc && old.t ? old.t : Date.now() } });
   }
   return json({ ok: true, cc, res, at: Date.now() }, 200, h);
 }
