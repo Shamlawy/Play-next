@@ -19,7 +19,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 9;
+const HELPER_V = 10;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -759,10 +759,12 @@ async function pxCron(env) {
     try { await webPush(env, sub.sub, { title: `🎮 ${j.it.t.slice(0, 40)} is in PS Plus ${PLUS[j.p.plus] || "Extra"}`, body: "It's in the Game Catalog now: play it with your subscription, nothing to buy.",
       tag: "plus-" + j.it.k, url: "./?nudge=game&g=" + j.it.k }, 2 * 86400); } catch (e) {}
   }
-  for (const d of drops.slice(0, 3)) {
+  /* deal-radar games ("d:<appid>", not in the library) only push at half price or better, and open Deals */
+  for (const d of drops.filter(d => !String(d.it.k).startsWith("d:") || d.p.pct >= 50).slice(0, 3)) {
     const store = d.s === "st" ? "Steam" : d.s === "ns" ? "Nintendo eShop" : "PS Store";
     try { await webPush(env, sub.sub, { title: `💸 ${d.it.t.slice(0, 40)}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"}`,
-      body: `${store}: ${d.p.nowF || ""}${d.p.baseF && d.p.pct ? " (was " + d.p.baseF + ")" : ""}`.trim(), tag: "deal-" + d.it.k, url: "./?nudge=game&g=" + d.it.k }, 2 * 86400); } catch (e) {}
+      body: `${store}: ${d.p.nowF || ""}${d.p.baseF && d.p.pct ? " (was " + d.p.baseF + ")" : ""}${String(d.it.k).startsWith("d:") ? " · a game you'd probably love" : ""}`.trim(), tag: "deal-" + d.it.k,
+      url: String(d.it.k).startsWith("d:") ? "./?nudge=deals" : "./?nudge=game&g=" + d.it.k }, 2 * 86400); } catch (e) {}
   }
 }
 function sameKey(a, b) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
