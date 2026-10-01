@@ -3730,7 +3730,7 @@ const esc = t => { const l = liteFor(t); return l ? escRaw(l) : bigData(t) ? blo
    thumb, or a downscaled copy of an upload). Once the screen settles the full picture is decoded off to the
    side and swapped in where it's shown big (liteUp). A picture that has had its full copy shown once in this
    session stays full. Only a light copy that is known to load is ever used, so a bad guess costs nothing. */
-const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set(), LITE_DEC = new Set();
+const LITE = new Map(), LITE_W = new Map(), LITE_FULL = new Map(), LITE_WARM = new Set(), LITE_BAD = new Set(), LITE_Q = new Set(), LITE_DEC = new Set(), LITE_NOFULL = new Set();
 let LITE_OK = null;
 function liteFor(t) {
   if (typeof t !== "string" || t.length < 8) return null;
@@ -3803,21 +3803,31 @@ function liteUp() {
   if (!LITE_FULL.size) return;
   const dpr = Math.min(3, devicePixelRatio || 1), H = innerHeight, Wd = innerWidth;
   const seen = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > -40 && r.top < H + 40 && r.right > 0 && r.left < Wd ? r : null; };
-  const go = (lite, apply) => {
+  const go = (lite, apply, el) => {
     const full = LITE_FULL.get(lite), src = full;
     if (LITE_DEC.has(src)) { LITE_WARM.add(src); return apply(src); }   /* v203: warmGame already decoded it */
-    const im = new Image(); im.decoding = "async"; im.src = src;
-    (im.decode ? im.decode() : new Promise(ok => { im.onload = ok; })).then(() => {
-      const orig = [...LITE.entries()].find(([, v]) => v === lite); if (orig) LITE_WARM.add(orig[0]);
-      apply(src);
-    }).catch(() => {});
+    if (LITE_NOFULL.has(src)) return;
+    /* v209 (#81): one failed download or decode() used to leave the light copy up for good. decode() can refuse a big
+       picture that still draws fine, so a loaded picture is used anyway; a failed download gets two more tries */
+    const tryIt = (u, n) => {
+      const im = new Image(); im.decoding = "async"; im.src = u;
+      const loaded = () => new Promise((ok, no) => { if (im.complete) return im.naturalWidth ? ok() : no(); im.onload = ok; im.onerror = no; });
+      (im.decode ? im.decode().catch(loaded) : loaded()).then(() => {
+        const orig = [...LITE.entries()].find(([, v]) => v === lite); if (orig) LITE_WARM.add(orig[0]);
+        apply(u);
+      }).catch(() => {
+        if (n < 2) return setTimeout(() => tryIt(src + (src.indexOf("?") < 0 ? "?" : "&") + "r=" + (n + 1), n + 1), 2500 * (n + 1));
+        LITE_NOFULL.add(src); if (el) el._lu = "fail";   /* the sharp copy won't load: bugBlurry may report it */
+      });
+    };
+    tryIt(src, 0);
   };
   document.querySelectorAll("img").forEach(i => {
     const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || i._lu) return;
     const r = seen(i); if (!r || !i.complete || !i.naturalWidth) return;
     /* object-fit: cover can stretch the short side: go by whichever side runs out first */
     if (Math.max(r.width * dpr / i.naturalWidth, r.height * dpr / i.naturalHeight) <= 1.05) return;
-    i._lu = 1; go(s, f => { if (i.getAttribute("src") === s) i.src = f; });
+    i._lu = 1; go(s, f => { if (i.getAttribute("src") === s) i.src = f; }, i);
   });
   document.querySelectorAll('[style*="url("]').forEach(el => {
     const st = el.getAttribute("style") || ""; if (el._lu === st) return;
@@ -3978,7 +3988,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "208";
+const APP_V = "209";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8739,7 +8749,10 @@ function warmGame(g) {
     const im = new Image();
     im.onload = im.onerror = () => res();
     im.src = u;
-    if (im.decode) im.decode().then(() => { res(); if (typeof warmDone === "function") warmDone(u); }, () => {});
+    if (im.decode) im.decode().then(() => { res(); if (typeof warmDone === "function") warmDone(u); }, () => {
+      /* v209: decode() can refuse a big picture that has loaded fine */
+      const w = () => { if (im.naturalWidth && typeof warmDone === "function") warmDone(u); };
+      if (im.complete) w(); else im.addEventListener("load", w); });
     setTimeout(res, 350);
   })));
 }
@@ -16804,7 +16817,7 @@ function bugBlurry() {
     return r.width > 48 && r.height > 32 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W &&
       (!el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) ? r : null; };
   document.querySelectorAll("img").forEach(i => {
-    const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || i._lu || !i.complete || !i.naturalWidth) return;
+    const s = i.getAttribute("src"); if (!s || !LITE_FULL.has(s) || (i._lu && i._lu !== "fail") || !i.complete || !i.naturalWidth) return;
     const r = on(i); if (r && Math.max(r.width * dpr / i.naturalWidth, r.height * dpr / i.naturalHeight) > 1.4) out.push([i, s]); });
   document.querySelectorAll('[style*="url("]').forEach(el => {
     const st = el.getAttribute("style") || ""; if (el._lu === st) return;
@@ -17835,5 +17848,14 @@ WHATS_NEW.push(
   { v: 208, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "This build", text: "Nexi reviews the design" }); }, at: () => $("#s-review"),
     say: "My design reviews can be switched off here. They only send a map of sizes, positions and colours, never your game titles.",
     tryIt: "Leave it on: it's how I learn taste." }
+);
+</script>
+<script>
+/* ===== v209: #81 (4K art stayed low-res). The fix itself is in liteUp's go() (retries, decode() fallback, LITE_NOFULL)
+   and warmGame; this is the tour entry. ===== */
+WHATS_NEW.push(
+  { v: 209, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.hero) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
+    say: "Fixed: 4K pictures that stayed low-res. If the sharp copy's download hiccuped even once, the small copy stayed up for good. Now it tries again, and if it really won't load I'll notice and report it.",
+    tryIt: "Open the game with your 4K backdrop and give it a second to sharpen." }
 );
 </script>
