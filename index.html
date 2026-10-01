@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "219";
+const APP_V = "220";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6265,6 +6265,36 @@ function openSettings(scope) {
         ${[["on", "Ask me"], ["off", "Don't ask"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.sgOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>While you were away</label>
+      <p class="note">Back after a few hours, Nexi hands you a short report of everything he did and noticed by himself (price drops, dates, reviews, glitches, releases), and can read it to you.</p>
+      <div class="chips" id="s-xaw">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.awOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Finish forecast</label>
+      <p class="note">Games you're playing get a finish date from your pace, and Nexi warns when a game you're hyped for comes out before you'll be done.</p>
+      <div class="chips" id="s-xeta">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.etaOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Then & now</label>
+      <p class="note">A finished game's page shows how it went against what you expected: your hype, Nexi's guess, how long it took, your first and last notes.</p>
+      <div class="chips" id="s-xcap">
+        ${[["on", "Show it"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.capOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Seasons & holidays</label>
+      <p class="note">Nexi dresses up and has his own lines for Halloween, Ramadan, both Eids and New Year. In Ramadan his nudges move to the late evening.</p>
+      <div class="chips" id="s-xssn">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.ssnOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Battery saver</label>
+      <p class="note">At 15% battery or less (and not charging), the animations pause until you charge. Works where the phone shares its battery level (Chrome on Android).</p>
+      <div class="chips" id="s-xbat">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.batOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Animation everywhere, and the parts that cost the most.">Motion</h4>
@@ -6318,7 +6348,7 @@ function openSettings(scope) {
       <label>Theme</label>
       <div class="thpick" id="s-theme">${Object.entries(THEMES).map(([k, t]) =>
         `<button type="button" class="chip" data-v="${k}" aria-pressed="${(S.theme || "midnight") === k}" style="--ta:${t.a};--tb:${t.b}"><i></i><span>${t.n}</span></button>`).join("")}</div>
-      <p class="note">Changes the accent colour everywhere and the wash behind the panels. You can still fine-tune the wash below.</p>
+      <p class="note">Changes the accent colour everywhere and the wash behind the panels. You can still fine-tune the wash below. <b>Now playing</b> takes its colour from the game you're playing and changes by itself when you start another.</p>
       <label>Style</label>
       <div class="chips" id="s-uistyle">
         ${[["clean", "Clean"], ["arcade", "Arcade"]].map(([v, l]) =>
@@ -6613,6 +6643,11 @@ function openSettings(scope) {
   pick("#s-xrv", v => S.rvOff = v === "off", () => { if (!S.rvOff && typeof rvWatch === "function") rvWatch(true); });
   pick("#s-xhb", v => S.hbOff = v === "off", () => { if (!S.hbOff && typeof hbRun === "function") hbRun(true); });
   pick("#s-xsg", v => S.sgOff = v === "off");
+  pick("#s-xaw", v => S.awOff = v === "off");
+  pick("#s-xeta", v => S.etaOff = v === "off");
+  pick("#s-xcap", v => S.capOff = v === "off");
+  pick("#s-xssn", v => S.ssnOff = v === "off", () => { if (typeof ssnHat === "function") { try { pnBubReact(); } catch (e) {} } });
+  pick("#s-xbat", v => S.batOff = v === "off", () => { if (typeof batApply === "function") batApply(); });
   pick("#s-stgen", v => { S.stGenOff = v === "off"; if (typeof stApply === "function") { S.games.forEach(stApply); render(); } if (!S.stGenOff && typeof stSync === "function") stSync(true); });
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
@@ -15524,7 +15559,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 <script>
 /* ===== v183 what's new + settings extras ===== */
 GROUP_ICON["Extra features"] = "🧪";
-GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff", "rvOff", "hbOff", "sgOff"];
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff", "rvOff", "hbOff", "sgOff", "awOff", "etaOff", "capOff", "ssnOff", "batOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
   { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
@@ -17905,6 +17940,9 @@ function flickWatch(el, name, opening) {
     const c = getComputedStyle(x); if (c.display === "none" || c.visibility === "hidden") return 0; o *= +c.opacity; } return o; };
   const step = () => {
     if (!el.isConnected || (!opening && !el.childElementCount) || (opening && el._flkShut > t0)) return done();
+    /* v220: closing, then something opens the same sheet again (Settings → Edit) isn't a flicker: stop at the reopen.
+       Only a real open call counts (`_flkOpen`), so a sheet that snaps back by itself is still caught. */
+    if (!opening && el._flkOpen > t0) return done();
     s.push(eff());
     if (performance.now() - t0 < 750) requestAnimationFrame(step); else done();
   };
@@ -17922,6 +17960,7 @@ function flickWatch(el, name, opening) {
   const f = window[fn]; if (typeof f !== "function") return;
   window[fn] = function () { const el = document.getElementById(id), was = el && el.classList.contains("on");
     if (!op && el) el._flkShut = performance.now();   /* v219: an opening watch stops when you close it (a quick open + close isn't a flicker) */
+    if (op && el) el._flkOpen = performance.now();
     const o = f.apply(this, arguments);
     if (op ? el && el.classList.contains("on") && !was : was) flickWatch(el, name, !!op);
     return o; };
@@ -18498,11 +18537,11 @@ function wiAsk() {
 { const seen = () => +(localStorage.getItem("gq:seen") || 0), mark = () => { try { localStorage.setItem("gq:seen", Date.now()); } catch (e) {} };
   addEventListener("visibilitychange", () => {
     if (document.hidden) mark();
-    else { const s0 = seen(); if (s0 && Date.now() - s0 >= WI_GAP) wiAsk(); mark(); }
+    else { const s0 = seen(); window.PN_SEEN0 = s0; if (s0 && Date.now() - s0 >= WI_GAP) wiAsk(); mark(); }
   });
   addEventListener("pagehide", mark);
-  /* a fresh open counts too */
-  const s0 = seen(); if (s0 && Date.now() - s0 >= WI_GAP) setTimeout(wiAsk, 4000);
+  /* a fresh open counts too (v220: PN_SEEN0 = when the app was last on screen, before this visit, for the away report) */
+  const s0 = seen(); window.PN_SEEN0 = s0; if (s0 && Date.now() - s0 >= WI_GAP) setTimeout(wiAsk, 4000);
   mark();
 }
 /* Nexi's chat knows where you are in the games you're playing */
@@ -19544,7 +19583,7 @@ function rvPaint() { document.querySelectorAll(".rv[data-g]").forEach(el => { co
   return at < 0 ? o : o.slice(0, at) + c + "\n        " + o.slice(at); }; }
 /* opening a fresh game's page checks it if it's due (no waiting for the next sweep) */
 { const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
-  try { const g = S.games.find(x => x.id === id); if (g) { const m = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); m[g.id] = Date.now(); localStorage.setItem("gq:seenG", JSON.stringify(m)); }
+  try { const g = S.games.find(x => x.id === id); if (g) { const m = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); m[g.id] = Date.now(); localStorage.setItem("gq:seenG", JSON.stringify(m)); sgSeenMemo = null; }
     if (g && rvWant(g) && rvDue(g) && rvAge(g) >= 0) setTimeout(() => rvWatch(false, g), 900); } catch (e) {}
   return o; }; }
 setTimeout(() => rvWatch(false), 30000);
@@ -19596,9 +19635,11 @@ setTimeout(() => hbRun(false), 40000);
 
 /* ---- still playing? ---- */
 const SG_AFTER = 14 * 864e5;
+let sgSeenMemo = null;   /* v220: parsed once per second (sorting called this per comparison) */
 function sgLast(g) {
   let t = +g.plAt || 0, seen = {};
-  try { seen = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); } catch (e) {}
+  if (sgSeenMemo && Date.now() - sgSeenMemo.at < 1000) seen = sgSeenMemo.m;
+  else { try { seen = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); } catch (e) {} sgSeenMemo = { at: Date.now(), m: seen }; }
   t = Math.max(t, +seen[g.id] || 0, +g.sgOk || 0, +g.logAt || 0);
   (g.wasI || []).forEach(n => t = Math.max(t, +n.t || 0));
   (S.sessions || []).forEach(s => { if (s.g === g.id) t = Math.max(t, +s.e || +s.s || 0); });
@@ -19650,5 +19691,284 @@ WHATS_NEW.push(
   { v: 219, go: () => { closeFull(); dyClose(); nxShut(); openSettings("app"); }, at: () => $("#sheet-in .ssch"),
     say: "Fixed: Settings opens about twice as fast now (no more stutter when it opens), and every screen got a little quicker too.",
     tryIt: "Open Settings or any screen's Customise." }
+);
+</script>
+<style>
+/* ===== v220: away report, finish forecast, time capsule, seasons ===== */
+.aw-h { display: flex; align-items: center; gap: 12px; }
+.aw-h .nc-f { flex: none; }
+.aw-h b { flex: 1; font: 700 18px/1.2 "Poppins", system-ui, sans-serif; }
+.aw-h b small { display: block; font: 500 12px/1.3 inherit; color: var(--mute); margin-top: 2px; }
+.aw-say { margin: 12px 0 4px; font-size: 14.5px; line-height: 1.45; color: var(--ice); }
+.aw-l { display: grid; gap: 8px; margin: 12px 0 14px; }
+.aw-i { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 10px; width: 100%; padding: 11px 12px; border-radius: 14px;
+  background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.1)); color: var(--ice); text-align: left; font: 500 13.5px/1.4 inherit; cursor: pointer; }
+.aw-i i { font-style: normal; font-size: 18px; line-height: 1.2; text-align: center; }
+.aw-i span { min-width: 0; overflow-wrap: anywhere; }
+.aw-i small { display: block; color: var(--mute); font-size: 12px; margin-top: 2px; }
+.aw-i.hot { border-color: rgba(var(--vrgb), .5); }
+.aw-i:active { transform: scale(.98); }
+.aw-b { display: flex; gap: 8px; flex-wrap: wrap; }
+.aw-b .btn { margin: 0; }
+.eta { display: grid; gap: 6px; margin: 12px 0 2px; padding: 12px 14px; border-radius: 18px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.1)); }
+.eta b { font-size: 12.5px; font-weight: 600; color: var(--volt); }
+.eta p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ice); }
+.eta p small { color: var(--mute); font-size: 12px; }
+.eta .clash { padding: 9px 11px; border-radius: 12px; background: rgba(255,92,122,.1); border: 1px solid rgba(255,92,122,.35); }
+.cap { margin: 12px 0 2px; padding: 12px 14px; border-radius: 18px; background: linear-gradient(120deg, rgba(var(--vrgb), .12), var(--u-card, #131a32) 60%); border: 1px solid var(--u-line, rgba(234,242,255,.1)); }
+.cap > b { font-size: 12.5px; font-weight: 600; color: var(--volt); }
+.cap-r { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 10px; }
+.cap-c { display: grid; gap: 3px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.04); min-width: 0; }
+.cap-c b { font: 700 18px/1.1 "Poppins", system-ui, sans-serif; color: var(--ice); overflow-wrap: anywhere; }
+.cap-c small { font-size: 11.5px; line-height: 1.3; color: var(--mute); }
+.cap q { display: block; margin-top: 10px; font-size: 13.5px; line-height: 1.45; color: var(--ice); quotes: none; overflow-wrap: anywhere; }
+.cap q small { display: block; color: var(--mute); font-size: 11.5px; margin-bottom: 2px; }
+</style>
+<script>
+/* ===== v220: six more things that happen by themselves (the owner: "more auto, unique, rare and out of the box").
+   1. While you were away (`aw*`): back after 6h+ (or the first open of the day), Nexi hands you a short report of
+      everything he did and noticed by himself since you last looked (price drops, deal radar finds, release dates that
+      moved, reviews that came in, hours he filled in, glitches he reported, releases today / this week, clashes, where you
+      left off), built from the logs those features already keep (no extra tracking). "🔊 Read it to me" speaks it with
+      the browser's own voice, tuned per personality, like a radio host. Last seen = window.PN_SEEN0 (gq:seen before this
+      visit). Switch S.awOff.
+   2. Finish forecast + clash radar (`eta*`): every game you're playing gets a finish date from your real pace (logged hours
+      since you started it, or your hours-a-day plan, or your usual evening), and Nexi warns when a game you're hyped for
+      (hype 7+) comes out before you'll be done: "About 1.4h a day finishes it in time". On the game page, in the away
+      report, and one Nexi line per clash.
+   3. Now playing theme (`cham*`): a theme whose accent colour follows the game you're playing, by itself.
+   4. Seasons (`ssn*`): Nexi dresses up and has his own lines for Halloween, Ramadan (the nudge window moves to the late
+      evening), Eid al-Fitr, Eid al-Adha and New Year, by the Umm al-Qura calendar for the Islamic dates. Switch S.ssnOff.
+   5. Battery saver (`bat*`): Chrome tells pages the battery level; at 15% or less (not charging) the animations pause
+      until you charge. Safari doesn't share it, so nothing happens there. Switch S.batOff.
+   6. Then & now (`cap*`): when a game becomes played, a snapshot (hype, Nexi's guess, critics, start date, first note) is
+      kept in g.cap; a played game's page shows how it went vs what you expected, with your first and last notes. ===== */
+const awItems = since => {
+  const out = [], td = new Date().toLocaleDateString("en-CA"), byId = id => S.games.find(g => g.id === id), T = x => x && x.title;
+  (S.pxNews || []).filter(x => x.t > since).slice(-4).reverse().forEach(x => { const g = byId(x.id); if (g) out.push({ i: "💸", t: `${g.title}${x.pct ? " is " + x.pct + "% off" : " got cheaper"}`, s: `${PX_NAME[x.s] || "Store"}: ${x.nowF || ""}`, g: g.id, hot: 1 }); });
+  (S.drList || []).filter(x => x.at > since && x.pct >= 50).slice(0, 2).forEach(x => out.push({ i: "🔭", t: `${x.name} is ${x.pct}% off`, s: `Fans of ${x.by} love it · ${x.nowF || ""}`, act: "deals" }));
+  (S.rvLog || []).filter(x => x.t > since).slice(-3).forEach(x => { const g = byId(x.id); if (!g || !g.rv) return; const f = typeof rvFor === "function" ? rvFor(g) : null;
+    out.push({ i: "⭐", t: `Reviews are in for ${g.title}: ${g.rv.mc ? g.rv.mc + " from critics" : (g.rv.st && g.rv.st.p) + "% on Steam"}`, s: f ? `You'd probably give it ${f.v.toFixed(1)}` : "", g: g.id, hot: 1 }); });
+  (S.rdLog || []).filter(x => x.t > since).slice(-3).forEach(x => { const g = byId(x.id); if (!g) return;
+    out.push({ i: "📅", t: x.k === "later" ? `${g.title} slipped to ${rdNice(x.to)}` : x.k === "sooner" ? `${g.title} moved up to ${rdNice(x.to)}` : x.k === "tba" ? `${g.title} lost its date` : `${g.title} has a date: ${rdNice(x.to)}`, s: x.from ? "was " + rdNice(x.from) : "", g: g.id }); });
+  const hb = S.games.filter(g => g.hbV && g.hbAt > since);
+  if (hb.length) out.push({ i: "⏱", t: `I filled in how long ${hb.length} game${hb.length === 1 ? "" : "s"} take${hb.length === 1 ? "s" : ""} to beat`, s: hb.slice(0, 3).map(T).join(", "), act: "games" });
+  const bugs = (S.bugLog || []).filter(x => x.t > since);
+  if (bugs.length) out.push({ i: "🐞", t: `I spotted ${bugs.length === 1 ? "a glitch" : bugs.length + " glitches"} and reported ${bugs.length === 1 ? "it" : "them"} myself`, s: bugs[bugs.length - 1].m || "" });
+  S.games.filter(g => !isPlayed(g) && g.date === td).slice(0, 2).forEach(g => out.push({ i: "🎉", t: `${g.title} is out today!`, g: g.id, hot: 1 }));
+  S.games.filter(g => !isPlayed(g) && g.date > td && rvAge(g) >= -7).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 2).forEach(g => out.push({ i: "📆", t: `${g.title} in ${-rvAge(g)} day${rvAge(g) === -1 ? "" : "s"}`, g: g.id }));
+  etaClashes().slice(0, 2).forEach(c => out.push({ i: "⚠️", t: `${c.r.title} lands before you'll finish ${c.g.title}`, s: etaFix(c), g: c.g.id, hot: 1 }));
+  const p = playingNow().filter(g => !g.comp && wiLast(g)).sort((a, b) => wiLast(b).t - wiLast(a).t)[0], n = p && wiLast(p);
+  if (n) out.push({ i: "📍", t: `Where you left off in ${p.title}`, s: n.x, g: p.id });
+  return out;
+};
+const AW_GAP = 6 * 36e5;
+function awAgo(ms) { const h = Math.round(ms / 36e5); return h < 24 ? h + " hour" + (h === 1 ? "" : "s") : Math.round(h / 24) + " day" + (Math.round(h / 24) === 1 ? "" : "s"); }
+function awShow(since, manual) {
+  since = since || Date.now() - 864e5;
+  const L = awItems(since);
+  if (!L.length && !manual) return false;
+  const nm = S.userName ? ", " + S.userName : "", hr = new Date().getHours();
+  const hi = hr < 5 ? `Late one${nm}.` : hr < 12 ? `Morning${nm}!` : hr < 18 ? `Hey${nm}.` : `Evening${nm}.`;
+  const say = L.length ? `${hi} While you were away I kept an eye on things. Here's what happened.` : `${hi} All quiet since you left. Nothing new to report.`;
+  const box = dyBox();
+  dyShow(box, `<div class="aw-h"><span class="nc-f" aria-hidden="true"><i></i><i></i></span><b>While you were away<small>${esc(awAgo(Date.now() - since))} · ${esc(pnName())}'s report</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="aw-say">${esc(typeof nxVoice === "function" ? nxVoice(say) : say)}</p>
+    <div class="aw-l">${L.map((x, k) => `<button type="button" class="aw-i${x.hot ? " hot" : ""}" data-aw="${k}"><i aria-hidden="true">${x.i}</i><span>${esc(x.t)}${x.s ? `<small>${esc(x.s)}</small>` : ""}</span></button>`).join("")}</div>
+    <div class="aw-b">${"speechSynthesis" in window && L.length ? `<button type="button" class="btn ghost" data-awsay><span>🔊 Read it to me</span></button>` : ""}<button type="button" class="btn" data-awok><span>Got it</span></button></div>`, e => {
+    const it = e.target.closest("[data-aw]");
+    if (it) { const x = L[+it.dataset.aw]; awHush(); dyClose(); beep("open"); if (x.g) setTimeout(() => openFull(x.g), 320); else if (x.act === "deals") setTimeout(pxDeals, 320); else if (x.act) goTab(x.act); return; }
+    if (e.target.closest("[data-awsay]")) { awSpeak([say].concat(L.map(x => x.t + (x.s ? ". " + x.s : ""))).join(". ")); return; }
+    if (e.target.closest("[data-awok]")) { awHush(); dyClose(); beep("back"); }
+  });
+  { const x = box.querySelector(".dy-x"); if (x) x.addEventListener("click", awHush); }
+  return true;
+}
+/* the browser's own voice, a little different per personality */
+const AW_VOICE = { hype: [1.08, 1.15], butler: [.92, .85], coach: [1.05, 1], rival: [1.1, .95], bard: [.96, 1.2], nerd: [1.12, 1.05] };
+function awSpeak(text) {
+  try { const s = window.speechSynthesis; s.cancel();
+    const u = new SpeechSynthesisUtterance(String(text).replace(/[\u{1F300}-\u{1FAFF}☀-➿]/gu, "").replace(/\s+/g, " ").slice(0, 1400));
+    const [rate, pitch] = AW_VOICE[typeof nxP === "function" ? nxP() : "hype"] || [1, 1]; u.rate = rate; u.pitch = pitch;
+    const en = s.getVoices().filter(v => /^en/i.test(v.lang)); if (en.length) u.voice = en.find(v => v.localService) || en[0];
+    if (typeof pnBubMood === "function") try { pnBubMood("talk", 4000); } catch (e) {}
+    s.speak(u); } catch (e) {}
+}
+function awHush() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} }
+function awCheck(since) {
+  if (S.awOff || document.hidden || !since || Date.now() - since < AW_GAP) return;
+  const td = new Date().toLocaleDateString("en-CA");
+  let tries = 0;
+  const go = () => {
+    const busy = document.documentElement.classList.contains("nxtouring") || $("#diary.on, #sheet.on, #full.on, #wiask.on, #fnask.on, #shuf, #wrap, #nxtour");
+    if (busy) { if (++tries < 15) setTimeout(go, 3000); return; }
+    if (awShow(since)) { S.awAt = Date.now(); S.awDay = td; save(); }
+  };
+  setTimeout(go, 2600);
+}
+setTimeout(() => awCheck(window.PN_SEEN0), 0);
+addEventListener("visibilitychange", () => { if (!document.hidden) awCheck(window.PN_SEEN0); });
+
+/* the flicker check's "opened again" mark (v220) for the two openers flickWatch doesn't wrap */
+{ const _os = openSettings; openSettings = function () { if (!openSettings.tplOnly) { const el = document.getElementById("sheet"); if (el) el._flkOpen = performance.now(); } return _os.apply(this, arguments); }; openSettings.tplOnly = false; }
+{ const _ds = dyShow; dyShow = function (box) { if (box) box._flkOpen = performance.now(); return _ds.apply(this, arguments); }; }
+
+/* ---- 2. finish forecast + clash radar ---- */
+const etaDay = 864e5;
+function etaOf(g) {
+  if (!g || g.comp || isPlayed(g) || (g.state || "") !== "playing") return null;
+  const need = hrsOf(g); if (!(need > 0)) return null;
+  const have = loggedOf(g), left = Math.max(0, need - have), days = g.plAt ? (Date.now() - g.plAt) / etaDay : 0;
+  let pace = 0, src = "";
+  if (have > 0 && days >= 3) { pace = have / days; src = "your pace so far"; }
+  else if (dailyOf(g) > 0) { pace = dailyOf(g); src = `your plan of ${dailyOf(g)}h a day`; }
+  else { const ev = num(S.evening, 4, 1, 12); pace = ev * 4 / 7; src = `about ${ev}h an evening, 4 evenings a week`; }
+  if (!(pace > .05)) return null;
+  const d = Math.ceil(left / pace), at = Date.now() + d * etaDay;
+  return { need, have, left, pace, days: d, at, src, date: new Date(at).toLocaleDateString("en-CA") };
+}
+const etaNice = at => new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+function etaClashes() {
+  const td = new Date().toLocaleDateString("en-CA"), out = [];
+  const hyped = S.games.filter(r => !isPlayed(r) && !isDropped(r) && !r.comp && r.date && r.date > td && r.status !== "tba" && num(r.hype, 0, 0, 10) >= 7);
+  playingNow().forEach(g => { const e = etaOf(g); if (!e || e.left <= 0) return;
+    hyped.filter(r => r.date < e.date).sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 1).forEach(r => {
+      const until = Math.max(1, Math.round((new Date(r.date + "T12:00:00") - Date.now()) / etaDay));
+      if (until <= 60) out.push({ g, r, e, until, per: e.left / until }); }); });
+  return out.sort((a, b) => a.until - b.until);
+}
+/* what to do about a clash, in plain words (more than 5h a day isn't advice anyone can take) */
+const etaFix = c => c.per <= 5 ? `About ${c.per.toFixed(1)}h a day finishes it in time` : `You'd need ${Math.round(c.per)}h a day, so you'll probably switch to ${c.r.title} and come back`;
+function etaCard(g) {
+  const e = etaOf(g); if (!e) return "";
+  const c = etaClashes().find(x => x.g.id === g.id);
+  return `<div class="eta" data-g="${g.id}"><b>🏁 Finish forecast</b>
+    <p>${e.left <= 0 ? "By the hours, you should be about done!" : `Done around <b>${esc(etaNice(e.at))}</b> · ${Math.round(e.left)}h left`}<br><small>Going by ${esc(e.src)}.</small></p>
+    ${c ? `<p class="clash">⚠️ ${esc(c.r.title)} comes out ${esc(rdNice(c.r.date))}, before you'll finish. ${esc(etaFix(c))}.</p>` : ""}</div>`;
+}
+{ const _gd = gdMarkup; gdMarkup = function (g) { const o = _gd.apply(this, arguments);
+  const add = (S.etaOff ? "" : etaCard(g)) + capCard(g); if (!add) return o;
+  const at = o.indexOf('<p class="gd-desc">') >= 0 ? o.indexOf('<p class="gd-desc">') : o.indexOf('<div class="hub-data">');
+  return at < 0 ? o : o.slice(0, at) + add + "\n        " + o.slice(at); }; }
+/* one Nexi line per clash (when it first shows up) */
+function etaSay() {
+  if (S.etaOff || document.hidden || document.documentElement.classList.contains("nxtouring")) return;
+  const c = etaClashes().find(x => !(S.etaSaid || {})[x.g.id + ">" + x.r.id]); if (!c) return;
+  (S.etaSaid ||= {})[c.g.id + ">" + c.r.id] = Date.now(); save();
+  if (typeof pnBubSay === "function") try { pnBubSay([`Heads up: ${c.r.title} comes out ${rdNice(c.r.date)}, and at your pace you'll still be on ${c.g.title}. ${etaFix(c)}.`, c.g.id]); } catch (e) {}
+}
+setTimeout(etaSay, 45000);
+
+/* ---- 3. now playing theme ---- */
+let chamMemo = null;
+function chamGame() { if (chamMemo && Date.now() - chamMemo.at < 500) return chamMemo.g;
+  const p = playingNow().filter(g => !g.comp && HEX.test(g.colour || "")).map(g => [g, sgLast(g)]).sort((a, b) => b[1] - a[1]).map(x => x[0])[0];
+  const g = p || (typeof onDeck === "function" ? onDeck(1).find(g => HEX.test(g.colour || "")) : null) || null;
+  chamMemo = { at: Date.now(), g }; return g; }
+function chamTone(hex, l) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0; if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360;
+  const s = Math.max(.55, Math.min(.95, d ? d / (1 - Math.abs(mx + mn - 1)) : 0)), sat = d ? s : 0;
+  const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [R, G, B] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return "#" + [R, G, B].map(v => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+THEMES.chameleon = { n: "Now playing", get a() { const g = chamGame(); return g ? chamTone(g.colour, .64) : "#4DA3FF"; }, get b() { const g = chamGame(); return g ? chamTone(g.colour, .42) : "#2F6BFF"; } };
+{ let last = ""; const check = () => { if (S.theme !== "chameleon") { last = ""; return; } const k = THEMES.chameleon.a; if (k !== last) { last = k; applyLook(); } };
+  const _sp = syncPlayed; syncPlayed = function () { const o = _sp.apply(this, arguments); setTimeout(check, 0); return o; };
+  const _rn = render; render = function () { const o = _rn.apply(this, arguments); check(); return o; };
+  setTimeout(check, 0); }
+
+/* ---- 4. seasons ---- */
+function ssnHijri(d) {
+  for (const cal of ["islamic-umalqura", "islamic"]) { try { const p = new Intl.DateTimeFormat("en-u-ca-" + cal + "-nu-latn", { day: "numeric", month: "numeric" }).formatToParts(d);
+    const m = +(p.find(x => x.type === "month") || {}).value, dd = +(p.find(x => x.type === "day") || {}).value; if (m && dd) return { m, d: dd }; } catch (e) {} }
+  return null;
+}
+function ssnNow(d) {
+  d = d || new Date(); if (S.ssnOff) return null;
+  const M = d.getMonth() + 1, D = d.getDate(), h = ssnHijri(d), Y = d.getFullYear();
+  if (h && h.m === 10 && h.d <= 3) return { k: "fitr", hat: "🎊", n: "Eid al-Fitr" };
+  if (h && h.m === 12 && h.d >= 10 && h.d <= 13) return { k: "adha", hat: "🎊", n: "Eid al-Adha" };
+  if (h && h.m === 9) return { k: "ramadan", hat: "🌙", n: "Ramadan" };
+  if ((M === 12 && D === 31) || (M === 1 && D <= 2)) return { k: "newyear", hat: "🥳", n: "New Year", y: M === 12 ? Y + 1 : Y };
+  if (M === 10 && D >= 24) return { k: "halloween", hat: "🎃", n: "Halloween" };
+  return null;
+}
+const ssnGenre = re => S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && re.test(String(g.genres || "") + " " + (g.stTags || []).join(" ")))[0];
+function ssnLines(s) {
+  if (!s) return [];
+  const pick = onDeck(1)[0], short = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && hrsOf(g) > 0 && hrsOf(g) <= 12).sort((a, b) => hrsOf(a) - hrsOf(b))[0];
+  if (s.k === "halloween") { const sp = ssnGenre(/horror|survival|creepy|psychological|dark|gothic/i);
+    return [[sp ? `🎃 Spooky week. ${sp.title} is the scariest thing in your queue. Lights off?` : "🎃 Spooky week. Not one horror game in your queue? Brave of you.", sp ? sp.id : ""], ["I'm wearing a pumpkin. Don't make it weird 🎃", ""]]; }
+  if (s.k === "ramadan") return [["Ramadan Kareem 🌙 I'll keep my nudges for the late evening, after iftar.", ""], [short ? `A short one for Ramadan nights: ${short.title}, about ${hrsOf(short)}h 🌙` : "Ramadan nights are for long, slow RPGs 🌙", short ? short.id : ""]];
+  if (s.k === "fitr" || s.k === "adha") return [[`Eid Mubarak! 🎊 Holiday days are marathon days. ${pick ? pick.title + " is ready when you are." : ""}`, pick ? pick.id : ""], ["Eid Mubarak 🎊 I put on my best hat.", ""]];
+  if (s.k === "newyear") { const fin = (S.played || []).filter(p => String(p.t || "").startsWith(String(s.y - 1))).length;
+    return [[`Happy New Year 🥳 ${fin ? `You finished ${fin} game${fin === 1 ? "" : "s"} in ${s.y - 1}. Let's beat it.` : "New year, fresh backlog."}`, "played"], ["🥳 New year resolution: fewer games added, more games finished. (I'll believe it in March.)", ""]]; }
+  return [];
+}
+{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments); const s = ssnNow(), x = ssnLines(s);
+  return x.length && Array.isArray(L) ? L.concat(x, x) : L; }; }
+{ const _rx = pnBubReact; pnBubReact = function () { const o = _rx.apply(this, arguments); ssnHat(); return o; }; }
+function ssnHat() { const b = document.getElementById("pnbub"), h = b && b.querySelector(".hat"), s = ssnNow(); if (!h || !s) return;
+  const t = new Date().toLocaleDateString("en-CA"); if (S.bubBorn && S.bubBorn.slice(5) === t.slice(5) && S.bubBorn !== t) return; h.textContent = s.hat; }
+setTimeout(ssnHat, 1500);
+/* a greeting once per season, and Ramadan moves the nudges to the late evening */
+setTimeout(() => { const s = ssnNow(); if (!s || document.documentElement.classList.contains("nxtouring")) return;
+  const k = s.k + new Date().getFullYear(); if ((S.ssnSaid || {})[k]) return; (S.ssnSaid ||= {})[k] = Date.now(); save();
+  const L = ssnLines(s); if (!L.length || typeof pnBubSay !== "function") return;
+  try { if (typeof pnBubBurst === "function") pnBubBurst(); pnBubSay(L[0]); } catch (e) {} }, 12000);
+{ const _nw = nxWindow; nxWindow = function () { const w = _nw.apply(this, arguments); const s = ssnNow(); return s && s.k === "ramadan" ? [Math.max(w[0], 20), 23] : w; }; }
+
+/* ---- 5. battery saver ---- */
+let batLow = false;
+function batApply() { const r = document.documentElement; if (batLow && !S.batOff) r.classList.add("still", "batsave"); else { r.classList.remove("batsave"); r.classList.toggle("still", S.motion === false); } }
+{ const _al = applyLook; applyLook = function () { const o = _al.apply(this, arguments); if (batLow && !S.batOff) document.documentElement.classList.add("still", "batsave"); return o; }; }
+if (navigator.getBattery) navigator.getBattery().then(b => {
+  const upd = () => { const low = !b.charging && b.level <= .15; if (low === batLow) return; batLow = low; batApply();
+    if (S.batOff || document.hidden) return;
+    if (typeof pnBubSay === "function") try { pnBubSay([low ? `Battery's at ${Math.round(b.level * 100)}%, so I've paused the animations until you charge 🔋` : "Charging! Animations are back ⚡", ""]); } catch (e) {} };
+  b.addEventListener("levelchange", upd); b.addEventListener("chargingchange", upd); upd();
+}).catch(() => {});
+
+/* ---- 6. then & now ---- */
+{ const _sp = syncPlayed; syncPlayed = function (g, state) {
+  try { if (g && state === "played" && !isPlayed(g) && !g.cap) { const f = typeof rvFor === "function" ? rvFor(g) : null, n0 = (g.wasI || [])[0];
+    g.cap = { h: num(g.hype, 0, 0, 10) || 0, pr: f ? f.v : (expected(g) || 0), cr: +g.critic || 0, st: +g.plAt || 0, ad: g.added || "", hrs: loggedOf(g) || 0, n1: n0 ? { t: n0.t, x: n0.x } : null, at: Date.now() }; } } catch (e) {}
+  return _sp.apply(this, arguments); }; }
+function capCard(g) {
+  if (!g || S.capOff || !isPlayed(g) || g.comp) return "";
+  const p = playedRec(g), c = g.cap || {}, sc = p && scored(p) ? p.real : null, hype = c.h || num(g.hype, 0, 0, 10);
+  const cells = [];
+  if (sc != null && hype) { const d = sc - hype; cells.push([`${hype} → ${sc}`, d === 0 ? "hype → score: spot on" : `hype → score (${d > 0 ? "+" : "−"}${Math.abs(d)})`]); }
+  if (sc != null && c.pr) cells.push([`${c.pr.toFixed(1)}`, `${pnName()}'s guess (off by ${Math.abs(sc - c.pr).toFixed(1)})`]);
+  const start = c.st || 0, end = p && p.t ? new Date(p.t + "T12:00:00").getTime() : c.at || 0;
+  if (start && end > start) cells.push([`${Math.max(1, Math.round((end - start) / etaDay))} days`, `from ${etaNice(start)} to ${etaNice(end)}`]);
+  else if (c.ad && end) { const a = new Date(c.ad + "T12:00:00").getTime(); if (end > a) cells.push([`${Math.round((end - a) / etaDay)} days`, "in your library before you finished it"]); }
+  if (c.cr && sc != null) cells.push([`${c.cr}`, `critics · you ${sc * 10 >= c.cr ? "liked it more" : "liked it less"}`]);
+  const first = c.n1 || (g.wasI || [])[0], last = (g.wasI || [])[(g.wasI || []).length - 1];
+  if (cells.length < 2 && !first) return "";
+  return `<div class="cap" data-g="${g.id}"><b>🕰️ Then & now</b>${cells.length ? `<div class="cap-r">${cells.map(([v, l]) => `<span class="cap-c"><b>${esc(v)}</b><small>${esc(l)}</small></span>`).join("")}</div>` : ""}
+    ${first ? `<q><small>Your first note · ${esc(wiAgo(first.t))}</small>“${esc(first.x)}”</q>` : ""}${last && first && last.t !== first.t ? `<q><small>Your last note · ${esc(wiAgo(last.t))}</small>“${esc(last.x)}”</q>` : ""}</div>`;
+}
+WHATS_NEW.push(
+  { v: 220, go: () => { closeFull(); dyClose(); nxShut(); awShow(Math.max(window.PN_SEEN0 || 0, Date.now() - 3 * 864e5) - 36e5, true); },
+    at: () => { const l = $("#diary .aw-l"); return l && l.children.length ? l : $("#diary .aw-say"); },
+    say: "While you were away: come back after a few hours and I hand you a short report of everything I did and noticed by myself (price drops, dates, reviews, glitches, releases), and I can read it to you like a radio host.",
+    tryIt: "Tap 🔊 Read it to me, or tap any line to jump to that game." },
+  { v: 220, go: () => { dyClose(); nxShut(); const g = playingNow().find(x => etaOf(x)); if (g) openFull(g.id); else setJump({ scope: "app", group: "Extra features", text: "Finish forecast" }); },
+    at: () => $("#full .eta") || $("#s-xeta"),
+    say: "Finish forecast: games you're playing get a finish date from your real pace, and I warn you when a game you're hyped for comes out before you'll be done.",
+    tryIt: "Open a game you're playing and look for 🏁." },
+  { v: 220, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Theme" }); }, at: () => $('#s-theme [data-v="chameleon"]') || $("#s-theme"),
+    say: "A new theme, <b>Now playing</b>: the app's colour follows the game you're playing, and changes by itself when you start another one.",
+    tryIt: "Tap Now playing to try it." },
+  { v: 220, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => isPlayed(x) && capCard(x)); if (g) openFull(g.id); else setJump({ scope: "app", group: "Extra features", text: "Then & now" }); },
+    at: () => $("#full .cap") || $("#s-xcap"),
+    say: "Then & now: a game you've finished shows how it went against what you expected: your hype, my guess, how long it took, and your first and last notes.",
+    tryIt: "Open a game you've finished and scored." },
+  { v: 220, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Seasons & holidays" }); }, at: "#s-xssn",
+    say: "I dress up now: a pumpkin for Halloween, a crescent for Ramadan (my nudges move to after iftar), my best hat for Eid and New Year. And when your battery drops to 15%, I pause the animations until you charge.",
+    tryIt: "Nothing to do: it all happens on its own." }
 );
 </script>
