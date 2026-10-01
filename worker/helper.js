@@ -8,7 +8,9 @@
    POST /announce     → tells every phone about a new version of the app now (GitHub calls it once the site is live).
    POST /bug          → the app's automatic problem reports (no game data), kept in KV as bug:<sig>.
    GET  /bugs, POST /bugs/ack → for the GitHub "Problem reports" job only (Bearer BUG_KEY), which files them as issues.
-   POST /prices       → Steam + PlayStation Store prices for a list of games; with an id it's re-checked daily and drops are pushed.
+   POST /recap        → "the story so far" up to the player's own note (Workers AI, no spoilers past it).
+   POST /steam        → Steam's own tags (genres players use) and "more like this" for a list of games.
+   POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
    cron (every 15 min) → sends the nudges that are due, and is the backup for new-version pings.
@@ -17,7 +19,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 8;
+const HELPER_V = 9;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -112,8 +114,9 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
+    if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
        ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
@@ -173,6 +176,27 @@ ${favs.length ? "The player's favourite games (lean towards these tastes): " + f
       const games = (Array.isArray(list) ? list : []).filter(x => x && typeof x.name === "string" && x.name.trim())
         .slice(0, 14).map(x => ({ name: x.name.trim().slice(0, 100), why: String(x.why || "").trim().slice(0, 80) }));
       return json({ games }, 200, h);
+    }
+
+    /* v9: "the story so far" up to where the player's own note says they are (no spoilers past that point) */
+    if (url.pathname === "/recap" && req.method === "POST") {
+      if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+      let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+      const title = String(b && b.title || "").slice(0, 120), note = String(b && b.note || "").slice(0, 240);
+      if (!title || !note) return json({ error: "need a title and a note" }, 400, h);
+      const earlier = (Array.isArray(b.earlier) ? b.earlier : []).slice(-5).map(x => "- " + String(x).slice(0, 200)).join("\n");
+      const text = await ask(env, [
+        { role: "system", content: "You are a video game story expert and a careful, spoiler-free friend. You recap the plot of a game ONLY up to the point the player has reached, never past it. If you don't know the game's story well, or can't tell where the player's note sits in it, you say so and keep to the opening setup. You never invent characters or events. You answer with JSON only." },
+        { role: "user", content: `Game: "${title}"${b.year ? " (" + String(b.year).slice(0, 4) + ")" : ""}${b.platform ? ", played on " + String(b.platform).slice(0, 30) : ""}.
+${b.about ? "Official description: " + String(b.about).replace(/<[^>]+>/g, " ").slice(0, 600) + "\n" : ""}${b.hours ? "They've played about " + Math.round(+b.hours) + " hours.\n" : ""}${earlier ? "Their earlier notes (oldest first):\n" + earlier + "\n" : ""}Their latest note about where they are: "${note}"
+
+Write "the story so far": what has happened in the plot up to that point, so they can pick the game up again. 4 to 6 short sentences, second person ("You've just..."), plain words, main characters by name, end with what they were about to do. Absolutely nothing that happens after their point.
+Answer with ONLY JSON: {"recap":"...","where":"max 8 words: where they are in the story","sure":0.0-1.0 how sure you are about the story and their place in it}` }
+      ], 600, true);
+      const m = text.match(/\{[\s\S]*\}/);
+      let o = null; try { o = JSON.parse(m ? m[0] : text); } catch (e) { const r = text.match(/"recap"\s*:\s*"([^"]+)"/); o = r ? { recap: r[1], sure: .4 } : null; }
+      if (!o || typeof o.recap !== "string" || o.recap.trim().length < 20) return json({ error: "no recap" }, 502, h);
+      return json({ recap: o.recap.trim().slice(0, 900), where: String(o.where || "").trim().slice(0, 80), sure: Math.max(0, Math.min(1, +o.sure || 0)) }, 200, h);
     }
 
     if (url.pathname === "/chat/memory" && req.method === "POST") {
@@ -429,6 +453,59 @@ async function vault(req, env, url, h) {
   }
   return json({ error: "not found" }, 404, h);
 }
+/* ===== v9: Steam's own tags (the genres players vote on: "Souls-like", "Metroidvania", "JRPG"…) and Steam's "More like this".
+   Store search finds the app (pxSteamFind); IStoreBrowseService/GetItems gives names + weighted tag ids for many apps in one
+   call (no key); IStoreService/GetTagList turns ids into names (kept in KV a week). "More like this" = the app ids on
+   store.steampowered.com/recommended/morelike/app/<id>/ in Steam's order. ===== */
+let ST_NAMES = null;
+async function stTagNames(env) {
+  if (ST_NAMES) return ST_NAMES;
+  try { const c = env.NUDGE && await env.NUDGE.get("steam:tags", "json"); if (c && Date.now() - c.t < 7 * 864e5) return (ST_NAMES = c.m); } catch (e) {}
+  const r = await fetch("https://api.steampowered.com/IStoreService/GetTagList/v1/?language=english", { headers: PX_UA });
+  const j = await r.json().catch(() => ({})), m = {};
+  for (const t of (j.response && j.response.tags) || []) m[t.tagid] = t.name;
+  if (!Object.keys(m).length) throw new Error("Steam tag list empty");
+  ST_NAMES = m;
+  if (env.NUDGE) try { await env.NUDGE.put("steam:tags", JSON.stringify({ t: Date.now(), m }), { expirationTtl: 30 * 86400 }); } catch (e) {}
+  return m;
+}
+async function stItems(env, ids, cc) {
+  const names = await stTagNames(env), out = {};
+  for (let i = 0; i < ids.length; i += 40) {
+    const input = { ids: ids.slice(i, i + 40).map(appid => ({ appid })), context: { language: "english", country_code: cc.toUpperCase(), steam_realm: 1 },
+      data_request: { include_basic_info: true, include_tag_count: 15 } };
+    const r = await fetch("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=" + encodeURIComponent(JSON.stringify(input)), { headers: PX_UA });
+    const j = await r.json().catch(() => ({}));
+    for (const it of (j.response && j.response.store_items) || []) {
+      if (!it.success || !it.appid) continue;
+      out[it.appid] = { id: it.appid, name: it.name || "", tags: (it.tags || []).sort((a, b) => b.weight - a.weight).map(t => names[t.tagid]).filter(Boolean),
+        desc: String((it.basic_info || {}).short_description || "").replace(/\s+/g, " ").slice(0, 160), type: it.type || 0 };
+    }
+  }
+  return out;
+}
+async function stMore(id) {
+  const r = await fetch(`https://store.steampowered.com/recommended/morelike/app/${id}/?l=english`, { headers: { ...PX_UA, Cookie: "birthtime=0; lastagecheckage=1-0-1990; mature_content=1; wants_mature_content=1" } });
+  const t = await r.text();
+  return [...new Set([...t.matchAll(/data-ds-appid="(\d+)"/g)].map(x => +x[1]))].filter(x => x !== +id);
+}
+async function stRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const cc = pxCC(b && b.cc), res = {};
+  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 30).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").slice(0, 100), st: Number.isFinite(+x.st) ? Math.trunc(+x.st) : 0 })).filter(x => x.k && x.t);
+  let n = 0;
+  for (const it of items) { if (it.st !== 0) continue; if (n++ >= 8) { it.st = -2; continue; }
+    try { const f = await pxSteamFind(cc, it.t); it.st = f ? f.id : -1; if (!f) res[it.k] = { none: 1 }; } catch (e) { it.st = -2; res[it.k] = { err: String(e.message || e).slice(0, 60) }; } }
+  const ids = items.filter(it => it.st > 0).map(it => it.st);
+  const more = Number.isFinite(+b.more) && +b.more > 0 ? Math.trunc(+b.more) : 0;
+  let moreIds = []; if (more) try { moreIds = (await stMore(more)).slice(0, 18); } catch (e) {}
+  const info = ids.length || moreIds.length ? await stItems(env, [...new Set(ids.concat(moreIds, more ? [more] : []))], cc) : {};
+  for (const it of items) if (it.st > 0) res[it.k] = info[it.st] ? { st: it.st, name: info[it.st].name, tags: info[it.st].tags.slice(0, 15) } : { st: it.st, tags: [] };
+  const out = { ok: true, res };
+  if (more) out.more = { of: info[more] ? { name: info[more].name, tags: info[more].tags } : null, games: moreIds.map(x => info[x]).filter(x => x && x.type === 0 && x.name).map(x => ({ id: x.id, name: x.name, tags: x.tags.slice(0, 8), desc: x.desc })) };
+  return json(out, 200, h);
+}
 /* ===== v7: price alerts. Steam's store API (no key) and the PlayStation Store's public pages, read here because a
    browser can't (no CORS). POST /prices checks a list now; with an id (the phone's nudge id) the list is also kept as
    px:<id> and the cron re-checks it about once a day and pushes a notification when a price drops. ===== */
@@ -535,13 +612,70 @@ async function pxPsPrice(cc, id, cid) {
   if (plus) Object.assign(out, { plusNow: +plus.p.discountedValue, plusNowF: plus.p.discountedPrice || "" });
   return out;
 }
+/* ===== v9: Nintendo eShop. Search: Nintendo of America's store search (Algolia, the key their own site ships) for the
+   Americas, Nintendo of Europe's search for Europe/UK/Australia/NZ/South Africa (their game ids work there). Prices: Nintendo's
+   price service for that country (up to 50 ids a call). There's no eShop in the Gulf, so the phone sends the eShop it uses (nscc).
+   Checked against the real services with .github/scripts/nsprobe.mjs. ===== */
+const NS_AM = new Set(["us", "ca", "mx", "br", "ar", "cl", "co", "pe"]);
+const NS_EU = new Set(["gb", "de", "fr", "it", "es", "nl", "be", "pt", "at", "ch", "ie", "pl", "se", "dk", "no", "fi", "cz", "gr", "hu", "ro", "sk", "si", "hr", "bg", "lu", "za", "au", "nz"]);
+const nsCC = cc => { cc = pxCC(cc); return NS_AM.has(cc) || NS_EU.has(cc) ? cc : "us"; };
+const NS_JUNK = /upgrade pack|expansion pass|season pass|\bdlc\b|bundle|soundtrack|\bbgm\b|\bset\b|costume|\bdemo\b|add-?on|\bpack\b/i;
+async function pxNsFind(cc, title, sw2) {
+  const want = t => { let s = pxSame(title, String(t).replace(/[–—-]\s*Nintendo Switch\s*2 Edition/i, "")); if (NS_JUNK.test(t) && !NS_JUNK.test(title)) s -= .6; return s; };
+  if (NS_AM.has(cc)) {
+    const r = await fetch("https://U3B6GR4UA3-dsn.algolia.net/1/indexes/store_game_en_us/query", { method: "POST",
+      headers: { "X-Algolia-Application-Id": "U3B6GR4UA3", "X-Algolia-API-Key": "a29c6927638bfd8cee23993e51e721c9", "Content-Type": "application/json" },
+      body: JSON.stringify({ query: String(title).replace(/[™®©]/g, "").slice(0, 80), hitsPerPage: 12 }) });
+    if (!r.ok) throw new Error("eShop search said " + r.status);
+    const j = await r.json().catch(() => ({}));
+    let best = null, bs = 0;
+    for (const x of j.hits || []) {
+      if (!x.nsuid || (x.dlcType && x.dlcType !== "null")) continue;
+      let sc = want(x.title); const two = /Switch 2/.test(x.platform || "") || /Switch\s*2 Edition/i.test(x.title);
+      if (two !== !!sw2) sc -= .05;   /* the edition for your console first, the other one if that's all there is */
+      if (sc > bs) { bs = sc; best = x; }
+    }
+    return best && bs >= .55 ? { id: String(best.nsuid), name: String(best.title).replace(/[™®]/g, ""), url: best.url ? "https://www.nintendo.com" + best.url : "" } : null;
+  }
+  const r = await fetch(`https://searching.nintendo-europe.com/en/select?q=${encodeURIComponent(String(title).replace(/[™®©]/g, "").slice(0, 80))}&fq=type:GAME%20AND%20system_type:nintendoswitch*&rows=12&wt=json`, { headers: PX_UA });
+  if (!r.ok) throw new Error("eShop search said " + r.status);
+  const j = await r.json().catch(() => ({}));
+  let best = null, bs = 0;
+  for (const d of (j.response && j.response.docs) || []) {
+    const ids = d.nsuid_txt || []; if (!ids.length) continue;
+    let sc = want(d.title); const two = /Switch 2/.test(String(d.system_names_txt || "")) || /Switch\s*2 Edition/i.test(d.title);
+    if (two !== !!sw2) sc -= .05;
+    if (sc > bs) { bs = sc; best = d; }
+  }
+  if (!best) return null;
+  /* a Switch 2 Edition can list the upgrade's id first: the game's own id starts 7001 */
+  const id = (best.nsuid_txt.find(x => /^7001/.test(x)) || best.nsuid_txt[0]);
+  return bs >= .55 ? { id: String(id), name: best.title, url: best.url ? "https://www.nintendo.com" + best.url : "" } : null;
+}
+async function pxNsPrices(cc, ids) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const r = await fetch(`https://api.ec.nintendo.com/v1/price?country=${cc.toUpperCase()}&lang=en&ids=${ids.slice(i, i + 50).join(",")}`, { headers: PX_UA });
+    const j = await r.json().catch(() => null); if (!j) continue;
+    for (const p of j.prices || []) {
+      const id = String(p.title_id);
+      if (p.sales_status === "not_found" || p.sales_status === "sales_termination") { out[id] = { nosale: 1 }; continue; }
+      const reg = p.regular_price, dis = p.discount_price;
+      if (!reg) { out[id] = { nop: 1 }; continue; }   /* listed, no price yet (pre-release) */
+      const base = +reg.raw_value, now = dis ? +dis.raw_value : base;
+      out[id] = { cur: reg.currency, base, now, pct: base > now ? Math.round((1 - now / base) * 100) : 0, baseF: reg.amount, nowF: dis ? dis.amount : reg.amount,
+        end: dis && dis.end_datetime ? Date.parse(dis.end_datetime) || 0 : 0, free: base === 0 ? 1 : 0, pre: p.sales_status === "preorder" ? 1 : 0 };
+    }
+  }
+  return out;
+}
 /* check a list: [{k, t: title, st: steam app id | 0 = look it up | -1 = don't, ps: product id | "" = look it up | "-" = don't}]
    at most 8 Steam lookups and 10 PS games per call (up to 3 PS calls each the first time; Workers allow ~50 outside requests) */
 /* what the phone would pay: the PS Plus member price counts when they have PS Plus */
 const pxEff = (p, tier) => !p || p.now == null ? null : tier >= 1 && p.plusNow != null ? Math.min(p.now, p.plusNow) : p.now;
-async function pxCheck(cc, items) {
-  cc = pxCC(cc);
-  const res = {}, look = { st: 0, ps: 0 };
+async function pxCheck(cc, items, nscc) {
+  cc = pxCC(cc); nscc = nsCC(nscc || cc);
+  const res = {}, look = { st: 0, ps: 0, ns: 0 };
   for (const it of items) res[it.k] = {};
   for (const it of items) {
     if (it.st === 0 && look.st < 8) { look.st++; try { const f = await pxSteamFind(cc, it.t); it.st = f ? f.id : -1; if (f) res[it.k].stName = f.name; else res[it.k].st = { none: 1 }; } catch (e) { res[it.k].st = { err: String(e.message || e).slice(0, 60) }; } }
@@ -559,7 +693,18 @@ async function pxCheck(cc, items) {
       res[it.k].ps = Object.assign({ id }, p, { name: p.name || name });
     } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
   }
-  for (const k in res) delete res[k].stName;
+  /* Nintendo eShop: look up (≤8 a call), then price every found id in one call */
+  for (const it of items) {
+    if (it.ns !== "" || look.ns >= 8) continue;
+    look.ns++;
+    try { const f = await pxNsFind(nscc, it.t, it.sw2); if (!f) { res[it.k].ns = { none: 1 }; it.ns = "-"; continue; } it.ns = f.id; res[it.k].nsF = f; }
+    catch (e) { res[it.k].ns = { err: String(e.message || e).slice(0, 60) }; it.ns = "-"; }
+  }
+  const nids = items.filter(it => it.ns && it.ns !== "-").map(it => it.ns);
+  let np = {}; try { np = nids.length ? await pxNsPrices(nscc, nids) : {}; } catch (e) {}
+  for (const it of items) if (it.ns && it.ns !== "-") { const f = res[it.k].nsF || {};
+    res[it.k].ns = Object.assign({ id: it.ns, name: f.name || "", url: f.url || "", ncc: nscc }, np[it.ns] || { nosale: 1 }); }
+  for (const k in res) { delete res[k].stName; delete res[k].nsF; }
   return res;
 }
 async function pxRoute(req, env, h) {
@@ -569,18 +714,19 @@ async function pxRoute(req, env, h) {
   if (b && b.off) { if (okId && env.NUDGE) await env.NUDGE.delete("px:" + id); return json({ ok: true }, 200, h); }
   const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 40).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").slice(0, 100),
     st: Number.isFinite(+x.st) ? Math.trunc(+x.st) : 0, ps: x.ps === "-" ? "-" : (String(x.ps || "").match(PS_ID) || [""])[0],
-    pc: /^\d{4,12}$/.test(String(x.pc || "")) ? String(x.pc) : "" })).filter(x => x.k && x.t);
-  const cc = pxCC(b.cc), tier = Math.max(0, Math.min(3, +b.tier || 0)), res = await pxCheck(cc, items);
+    pc: /^\d{4,12}$/.test(String(x.pc || "")) ? String(x.pc) : "",
+    ns: x.ns === "-" || x.ns == null ? "-" : /^\d{14}$/.test(String(x.ns)) ? String(x.ns) : "", sw2: !!x.sw2 })).filter(x => x.k && x.t);
+  const cc = pxCC(b.cc), nscc = nsCC(b.nscc || cc), tier = Math.max(0, Math.min(3, +b.tier || 0)), res = await pxCheck(cc, items, nscc);
   /* keep the list for the daily check (only what was found), with the prices seen now as the baseline */
   if (okId && env.NUDGE && b.watch) {
-    const keep = items.map(it => { const r = res[it.k] || {}, st = r.st && r.st.id ? r.st.id : -1, ps = r.ps && r.ps.id ? r.ps.id : "-";
-      return { k: it.k, t: it.t, st, ps, pc: r.ps && r.ps.cid || "", last: { st: r.st && r.st.now != null ? r.st.now : null, ps: pxEff(r.ps, tier), plus: r.ps && r.ps.plus || 0 } }; }).filter(x => x.st > 0 || x.ps !== "-");
+    const keep = items.map(it => { const r = res[it.k] || {}, st = r.st && r.st.id ? r.st.id : -1, ps = r.ps && r.ps.id ? r.ps.id : "-", ns = r.ns && r.ns.id ? r.ns.id : "-";
+      return { k: it.k, t: it.t, st, ps, ns, pc: r.ps && r.ps.cid || "", last: { st: r.st && r.st.now != null ? r.st.now : null, ps: pxEff(r.ps, tier), ns: r.ns && r.ns.now != null ? r.ns.now : null, plus: r.ps && r.ps.plus || 0 } }; }).filter(x => x.st > 0 || x.ps !== "-" || x.ns !== "-");
     /* the phone sends its list in batches: merge this batch into what's kept, and drop games it no longer watches (b.all) */
     const old = await env.NUDGE.get("px:" + id, "json"), all = Array.isArray(b.all) ? new Set(b.all.map(String)) : null;
     const ks = new Set(keep.map(x => x.k)), was = old && old.cc === cc ? (old.items || []).filter(x => !ks.has(x.k) && (!all || all.has(x.k))) : [];
-    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, tier, min: Math.max(0, Math.min(90, +b.min || 0)), items: was.concat(keep).slice(0, 80), t: old && old.cc === cc ? old.t : Date.now() }), { expirationTtl: PX_TTL, metadata: { t: old && old.cc === cc && old.t ? old.t : Date.now() } });
+    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, nscc, tier, min: Math.max(0, Math.min(90, +b.min || 0)), items: was.concat(keep).slice(0, 80), t: old && old.cc === cc ? old.t : Date.now() }), { expirationTtl: PX_TTL, metadata: { t: old && old.cc === cc && old.t ? old.t : Date.now() } });
   }
-  return json({ ok: true, cc, res, at: Date.now() }, 200, h);
+  return json({ ok: true, cc, nscc, res, at: Date.now() }, 200, h);
 }
 /* cron: the one watch list checked longest ago (if over 20 h), drops pushed to that phone */
 async function pxCron(env) {
@@ -590,12 +736,12 @@ async function pxCron(env) {
   const k = keys[0]; if (!k) return;
   const rec = await env.NUDGE.get(k.name, "json"); if (!rec) return;
   const id = k.name.slice(3), sub = await env.NUDGE.get("sub:" + id, "json");
-  const res = await pxCheck(rec.cc, rec.items.map(x => ({ k: x.k, t: x.t, st: x.st, ps: x.ps, pc: x.pc || "" })));
+  const res = await pxCheck(rec.cc, rec.items.map(x => ({ k: x.k, t: x.t, st: x.st, ps: x.ps, pc: x.pc || "", ns: x.ns || "-" })), rec.nscc);
   const drops = [], joins = [], tier = rec.tier || 0;
   for (const it of rec.items) {
     const r = res[it.k] || {};
     it.last = it.last || {};
-    for (const s of ["st", "ps"]) {
+    for (const s of ["st", "ps", "ns"]) {
       const p = r[s]; if (!p) continue;
       if (s === "ps" && p.cid) it.pc = p.cid;
       if (s === "ps" && tier >= 2 && p.plus && p.plus <= tier && !(it.last.plus && it.last.plus <= tier)) joins.push({ it, p });
@@ -614,7 +760,7 @@ async function pxCron(env) {
       tag: "plus-" + j.it.k, url: "./?nudge=game&g=" + j.it.k }, 2 * 86400); } catch (e) {}
   }
   for (const d of drops.slice(0, 3)) {
-    const store = d.s === "st" ? "Steam" : "PS Store";
+    const store = d.s === "st" ? "Steam" : d.s === "ns" ? "Nintendo eShop" : "PS Store";
     try { await webPush(env, sub.sub, { title: `💸 ${d.it.t.slice(0, 40)}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"}`,
       body: `${store}: ${d.p.nowF || ""}${d.p.baseF && d.p.pct ? " (was " + d.p.baseF + ")" : ""}`.trim(), tag: "deal-" + d.it.k, url: "./?nudge=game&g=" + d.it.k }, 2 * 86400); } catch (e) {}
   }

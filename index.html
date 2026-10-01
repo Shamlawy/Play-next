@@ -3990,7 +3990,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "215";
+const APP_V = "216";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6223,6 +6223,12 @@ function openSettings(scope) {
         ${[["on", "Ask me"], ["off", "Don't ask"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.wiAskOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>The story so far</label>
+      <p class="note">Under your 📍 note on a game's page, Nexi writes a short recap of the story up to where you are (never past it), all by himself.</p>
+      <div class="chips" id="s-xwis">
+        ${[["on", "Show it"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.wiStoryOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Animation everywhere, and the parts that cost the most.">Motion</h4>
@@ -6342,6 +6348,11 @@ function openSettings(scope) {
       <label for="s-key">RAWG API key</label>
       <input id="s-key" value="${escRaw(rawgKey)}" placeholder="Paste key from rawg.io">
       <button class="btn ghost" id="s-keysave"><span>Save key</span></button>
+      <label>Genres from Steam</label>
+      <div class="chips" id="s-stgen">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.stGenOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">Nexi picks up Steam's own genre tags (Souls-like, Metroidvania, JRPG…) for every game that's on Steam, by himself, and puts them first. They also make "games like this" sharper. Off takes exactly those away again.</p>
       <label>SteamGridDB art</label>
       <button class="btn" id="s-sgbulk"><span>✨ Fill missing art for every game</span></button>
       <p class="note" id="s-sgbulk-msg">Goes through your whole list and fills only what's empty — logo, backdrop, cover. Anything you already picked is left alone.</p>
@@ -6561,6 +6572,8 @@ function openSettings(scope) {
   pick("#s-deck", v => S.deckOff = v === "off", () => renderQueue());
   pick("#s-xdiary", v => S.diaryOn = v === "on", () => { xFeatures(); render(); });
   pick("#s-xwi", v => S.wiAskOff = v === "off");
+  pick("#s-xwis", v => S.wiStoryOff = v === "off");
+  pick("#s-stgen", v => { S.stGenOff = v === "off"; if (typeof stApply === "function") { S.games.forEach(stApply); render(); } if (!S.stGenOff && typeof stSync === "function") stSync(true); });
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
   if ($("#s-papercol")) swatchRow($("#s-papercol"), S.paperCol || "#2F6BFF", c => {
@@ -12712,7 +12725,9 @@ async function nxRemember() {
 }
 
 /* ---- similar games: from your library, and new ones from RAWG ---- */
-const simTags = g => new Set(platList(g.genres).map(x => "g:" + x.toLowerCase()).concat(whyOf(g).map(w => "w:" + w)));
+const simTags = g => new Set(platList(g.genres).map(x => "g:" + x.toLowerCase()).concat(whyOf(g).map(w => "w:" + w),
+  /* v216: Steam's tags count too (the generic ones like Singleplayer don't) */
+  typeof stSimTags === "function" ? stSimTags(g) : []));
 /* v186: a tag counts for more the rarer it is in your library, so sharing "JRPG" or "Turn-based" beats
    sharing "Adventure" or "Action" (which used to make almost anything look alike) */
 function simLocal(g, n) {
@@ -15469,7 +15484,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 <script>
 /* ===== v183 what's new + settings extras ===== */
 GROUP_ICON["Extra features"] = "🧪";
-GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff"];
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
   { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
@@ -15692,7 +15707,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 8 && j.nudge ? "✅ Helper is up to date: chat, smart similar games, notifications, problem reports, design reviews, cloud backup and price alerts are all on."
+    el.textContent = ok && j.v >= 9 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup and price alerts (Steam, PlayStation and Nintendo eShop) are all on."
+      : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
       : ok && j.v >= 5 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except cloud backup, which needs the new helper."
       : ok && j.v >= 4 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Nexi's design reviews, which need the new helper."
@@ -16655,7 +16671,7 @@ try {
 /* 4. Nexi's helper failing while you're online */
 { const _np = nxPost; nxPost = async function (path) {
   try { return await _np.apply(this, arguments); }
-  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !((path === "/review" || path === "/prices") && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
+  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(/^\/(review|prices|recap|steam)$/.test(path) && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
 }; }
 
 /* 5. you spotted something: a few words, and the app adds the rest */
@@ -18526,26 +18542,36 @@ const pxTier = () => num(S.psPlus, 0, 0, 3);
 const pxEff = p => !p || p.now == null ? null : pxTier() >= 1 && p.plusNow != null ? Math.min(p.now, p.plusNow) : p.now;
 const pxIncl = p => !!(p && p.plus && pxTier() >= 2 && p.plus <= pxTier());
 const pxEnd = t => t ? new Date(+t).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
-const pxStores = () => ({ st: S.pxSteam !== false, ps: S.pxPS !== false });
+const pxStores = () => ({ st: S.pxSteam !== false, ps: S.pxPS !== false, ns: S.pxNS !== false });
 const pxPl = g => platList(g.platforms).map(x => x.toLowerCase());
 const pxWantSt = g => pxStores().st && g.pxSt !== -1 && (+g.pxSt > 0 || !!g.steamId || !pxPl(g).length || pxPl(g).some(p => /pc|steam|windows|deck/.test(p)));
 const pxWantPs = g => pxStores().ps && g.pxPs !== "-" && (!!g.pxPs || !pxPl(g).length || pxPl(g).some(p => /^ps|playstation/.test(p)));
-const pxWatched = () => S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && (pxWantSt(g) || pxWantPs(g)));
-const pxUrl = (g, s) => s === "st"
+/* v216 Nintendo eShop for Switch games (and ones with no platforms set) */
+const pxWantNs = g => pxStores().ns && g.pxNs !== "-" && (!!g.pxNs || !pxPl(g).length || pxPl(g).some(p => /switch|nintendo|\bns\b/.test(p)));
+const pxWant = (g, s) => s === "st" ? pxWantSt(g) : s === "ps" ? pxWantPs(g) : pxWantNs(g);
+const PX_S = ["st", "ps", "ns"];
+/* the eShop you buy from: there's no eShop in the Gulf, so it can differ from the region */
+const NS_REGIONS = [["us", "US $"], ["gb", "UK £"], ["de", "Europe €"], ["au", "Australia"], ["ca", "Canada"], ["za", "South Africa"]];
+const NS_OK = new Set(["us", "ca", "mx", "br", "ar", "cl", "co", "pe", "gb", "de", "fr", "it", "es", "nl", "be", "pt", "at", "ch", "ie", "pl", "se", "dk", "no", "fi", "cz", "gr", "hu", "ro", "sk", "si", "hr", "bg", "lu", "za", "au", "nz"]);
+const pxNsCC = () => /^[a-z]{2}$/.test(S.pxNsCC || "") ? S.pxNsCC : NS_OK.has(pxCC()) ? pxCC() : "us";
+const pxWatched = () => S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && (pxWantSt(g) || pxWantPs(g) || pxWantNs(g)));
+const pxUrl = (g, s) => s === "ns" ? (g.pxNsU || (["us", "ca", "mx", "br", "ar", "cl", "co", "pe"].includes(pxNsCC()) ? `https://www.nintendo.com/us/search/#q=${encodeURIComponent(g.title)}` : `https://www.nintendo.com/en-gb/Search/Search-299117.html?q=${encodeURIComponent(g.title)}`))
+  : s === "st"
   ? (+g.pxSt > 0 ? `https://store.steampowered.com/app/${g.pxSt}/` : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title)}`)
   : (g.pxPs && g.pxPs !== "-" ? `https://store.playstation.com/en-${pxCC()}/product/${g.pxPs}` : `https://store.playstation.com/en-${pxCC()}/search/${encodeURIComponent(g.title)}`);
-const PX_NAME = { st: "Steam", ps: "PS Store" };
+const PX_NAME = { st: "Steam", ps: "PS Store", ns: "eShop" };
 function pxItem(g) {
   const relook = t => !t || Date.now() - t > PX_RELOOK;
   const st = !pxWantSt(g) ? -1 : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : relook(g.pxStNo) ? 0 : -1;
   const ps = !pxWantPs(g) ? "-" : g.pxPs && g.pxPs !== "-" ? g.pxPs : relook(g.pxPsNo) ? "" : "-";
-  return { k: g.id, t: g.title, st, ps, pc: ps && ps !== "-" ? (g.pxPsC || "") : "" };
+  const ns = !pxWantNs(g) ? "-" : g.pxNs && g.pxNs !== "-" ? g.pxNs : relook(g.pxNsNo) ? "" : "-";
+  return { k: g.id, t: g.title, st, ps, pc: ps && ps !== "-" ? (g.pxPsC || "") : "", ns, sw2: pxPl(g).some(p => /switch\s*2/.test(p)) };
 }
 let pxBusy = false;
 async function pxRun(force, only) {
   if (pxBusy || !pxOn() || !navigator.onLine) return null;
   if (!force && Date.now() - (S.pxAt || 0) < PX_GAP) return null;
-  const list = (only ? [only] : pxWatched()).map(pxItem).filter(x => x.st !== -1 || x.ps !== "-");
+  const list = (only ? [only] : pxWatched()).map(pxItem).filter(x => x.st !== -1 || x.ps !== "-" || x.ns !== "-");
   if (!list.length) { S.pxAt = Date.now(); return { n: 0 }; }
   /* the oldest-checked first: each call can only look a few games up */
   list.sort((a, b) => pxSeen(a.k) - pxSeen(b.k));
@@ -18555,7 +18581,7 @@ async function pxRun(force, only) {
     /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
     const all = list.slice(0, 60).map(x => x.k), drops = [];
     for (let i = 0; i < Math.min(list.length, 60); i += 10) {
-      const r = await nxPost("/prices", { cc: pxCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
         ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
       drops.push(...pxTake(r.res || {}));
       if (only) break;
@@ -18570,19 +18596,20 @@ async function pxRun(force, only) {
     return null;
   } finally { pxBusy = false; }
 }
-const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0) : 0; };
+const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0, (p.ns || {}).at || 0) : 0; };
 function pxTake(res) {
   const drops = [], joins = [], min = num(S.pxMin, 0, 0, 90);
   for (const id in res) {
     const g = S.games.find(x => x.id === id); if (!g) continue;
     g.px ||= {};
-    for (const s of ["st", "ps"]) {
+    for (const s of PX_S) {
       const p = res[id][s]; if (!p) continue;
-      if (p.none) { if (s === "st") g.pxStNo = Date.now(); else g.pxPsNo = Date.now(); continue; }
+      if (p.none) { if (s === "st") g.pxStNo = Date.now(); else if (s === "ps") g.pxPsNo = Date.now(); else g.pxNsNo = Date.now(); continue; }
       if (p.err) continue;
-      if (p.id) { if (s === "st" && !(+g.pxSt > 0)) g.pxSt = +p.id; if (s === "ps" && !g.pxPs) g.pxPs = p.id; }
+      if (p.id) { if (s === "st" && !(+g.pxSt > 0)) g.pxSt = +p.id; if (s === "ps" && !g.pxPs) g.pxPs = p.id; if (s === "ns" && !g.pxNs) g.pxNs = String(p.id); }
+      if (s === "ns" && p.url) g.pxNsU = p.url;
       if (s === "ps" && p.cid) g.pxPsC = p.cid;
-      const was = g.px[s] || {}, extra = s === "ps" ? { plus: p.plus || 0, trial: p.trial || 0, plusNow: p.plusNow, plusNowF: p.plusNowF, end: p.end || 0, pre: p.pre || 0 } : {};
+      const was = g.px[s] || {}, extra = s === "ps" ? { plus: p.plus || 0, trial: p.trial || 0, plusNow: p.plusNow, plusNowF: p.plusNowF, end: p.end || 0, pre: p.pre || 0 } : s === "ns" ? { end: p.end || 0, pre: p.pre || 0 } : {};
       /* a game you're waiting for just landed in your PS Plus catalogue: that's the best deal there is */
       if (s === "ps" && pxIncl(p) && was.at && !pxIncl(was)) joins.push(g);
       if (p.free || p.nop || p.nosale) { g.px[s] = Object.assign({ id: p.id, name: p.name, nop: p.nosale ? 0 : 1, nosale: p.nosale ? 1 : 0, free: p.free ? 1 : 0, at: Date.now() }, extra); continue; }
@@ -18618,17 +18645,17 @@ function pxPriceHtml(p) {
 }
 /* the game page: what it costs now on each store, with the deal and the lowest seen */
 function pxCard(g) {
-  if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g))) return "";
+  if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g) && !pxWantNs(g))) return "";
   const row = s => {
-    const p = (g.px || {})[s], want = s === "st" ? pxWantSt(g) : pxWantPs(g); if (!want) return "";
+    const p = (g.px || {})[s], want = pxWant(g, s); if (!want) return "";
     const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : pxIncl(p) ? `<b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><small>${p.nowF ? "or buy " + esc(p.nowF) : ""}</small>`
       : p.nosale ? "<small>Not sold in your region</small>" : p.free ? "<b>Free</b>" : p.nop ? "<small>No price yet</small>" : pxPriceHtml(p);
     const note = [p && p.pct && p.end ? "sale ends " + pxEnd(p.end) : "", p && p.pre ? "pre-order" : "", p && !pxIncl(p) && p.plus ? `in PS Plus ${PS_PLUS[p.plus]}` : "",
       p && p.trial && pxTier() >= p.trial ? "2-hour trial with Premium" : ""].filter(Boolean).join(" · ");
-    return `<button type="button" class="px-r${pxIncl(p) ? " incl" : ""}" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : "PS Store"}</i><span>${v}${note ? `<small class="px-n">${esc(note)}</small>` : ""}</span><u aria-hidden="true">↗</u></button>`;
+    return `<button type="button" class="px-r${pxIncl(p) ? " incl" : ""}" data-pxgo="${s}:${g.id}"><i>${s === "st" ? "Steam" : s === "ns" ? "eShop" : "PS Store"}</i><span>${v}${note ? `<small class="px-n">${esc(note)}</small>` : ""}</span><u aria-hidden="true">↗</u></button>`;
   };
-  const p = g.px || {}, low = ["st", "ps"].map(s => p[s]).filter(x => x && x.low != null && x.now != null && !pxIncl(x) && x.low < pxEff(x));
-  return `<div class="px" data-g="${g.id}">${row("st")}${row("ps")}
+  const p = g.px || {}, low = PX_S.map(s => p[s]).filter(x => x && x.low != null && x.now != null && !pxIncl(x) && x.low < pxEff(x));
+  return `<div class="px" data-g="${g.id}">${row("st")}${row("ps")}${row("ns")}
     <button type="button" class="px-more" data-px="${g.id}">${low.length ? "Lowest seen " + esc(low[0].lowF) + " · " : ""}Price alerts ›</button></div>`;
 }
 function pxPaint() {
@@ -18639,7 +18666,7 @@ function pxStatus() {
   if (!pxOn()) return "Off.";
   if (S.pxErr === "helper-old") return "⚠️ Waiting for Nexi's helper to be updated on Cloudflare.";
   const onSale = p => { const e = pxEff(p); return !!p && !pxIncl(p) && e != null && p.base > e; };
-  const w = pxWatched(), sale = w.filter(g => ["st", "ps"].some(s => onSale((g.px || {})[s]))).length, incl = w.filter(g => pxIncl((g.px || {}).ps)).length;
+  const w = pxWatched(), sale = w.filter(g => PX_S.some(s => onSale((g.px || {})[s]))).length, incl = w.filter(g => pxIncl((g.px || {}).ps)).length;
   return (S.pxErr ? "⚠️ Last check didn't work (" + S.pxErr + "). " : "") + `Watching ${w.length} game${w.length === 1 ? "" : "s"}` +
     (S.pxAt ? ` · checked ${wiAgo(S.pxAt) === "today" ? "today" : wiAgo(S.pxAt)}` : "") + (sale ? ` · ${sale} on sale now` : "") + (incl ? ` · ${incl} in your PS Plus` : "") + ".";
 }
@@ -18647,10 +18674,10 @@ function pxSheet(id) {
   const g = S.games.find(x => x.id === id); if (!g) return;
   const box = dyBox();
   const row = s => {
-    const p = (g.px || {})[s], want = s === "st" ? pxWantSt(g) : pxWantPs(g), tied = s === "st" ? +g.pxSt > 0 : g.pxPs && g.pxPs !== "-";
-    const off = s === "st" ? g.pxSt === -1 : g.pxPs === "-";
+    const p = (g.px || {})[s], want = pxWant(g, s), tied = s === "st" ? +g.pxSt > 0 : s === "ns" ? g.pxNs && g.pxNs !== "-" : g.pxPs && g.pxPs !== "-";
+    const off = s === "st" ? g.pxSt === -1 : s === "ns" ? g.pxNs === "-" : g.pxPs === "-";
     return `<div class="pxs-r"><div class="pxs-h"><b>${PX_NAME[s]}</b>${p && p.at ? `<small>checked ${esc(wiAgo(p.at))}</small>` : ""}</div>
-      ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : (s === "st" ? pxStores().st : pxStores().ps) ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
+      ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : pxStores()[s] ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
         : p ? (pxIncl(p) ? `<p class="pxs-p"><b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><br><small>${esc(p.name || "")}${p.nowF ? " · or buy for " + esc(p.nowF) : ""}</small></p>`
           : p.nosale || p.nop || p.free ? `<p class="pxs-p">${p.nosale ? "Not sold in your region" : p.free ? "<b>Free</b>" : "No price yet (not out yet)"}<br><small>${esc(p.name || "")}</small></p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
         : `<p class="note">${tied ? "Linked; the price comes with the next check." : "Not found yet. Paste its store link below if I can't find it."}</p>`}
@@ -18658,15 +18685,15 @@ function pxSheet(id) {
         ${want ? `<button type="button" class="btn ghost" data-pxno="${s}"><span>Not on ${PX_NAME[s]}</span></button>` : off ? `<button type="button" class="btn ghost" data-pxyes="${s}"><span>Watch it again</span></button>` : ""}</div></div>`;
   };
   dyShow(box, `<div class="dy-h"><b>💸 Prices · ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
-    ${row("st")}${row("ps")}
+    ${row("st")}${row("ps")}${row("ns")}
     <label class="pxs-l" for="px-link">Wrong game, or not found? Paste its Steam or PS Store link</label>
     <div class="pxs-in"><input id="px-link" type="url" inputmode="url" placeholder="https://store.steampowered.com/app/… or store.playstation.com/…/product/…"><button type="button" class="btn" data-pxlink><span>Use it</span></button></div>
     <p class="note px-msg">Prices for ${esc(PX_REGIONS.find(r => r[0] === pxCC()) ? PX_REGIONS.find(r => r[0] === pxCC())[1] : pxCC().toUpperCase())} · change the region in Settings → Price alerts.</p>
     <button type="button" class="btn" data-pxnow><span>Check this game now</span></button>`,
     async e => {
       const m = box.querySelector(".px-msg");
-      const no = e.target.closest("[data-pxno]"); if (no) { if (no.dataset.pxno === "st") { g.pxSt = -1; delete (g.px || {}).st; } else { g.pxPs = "-"; delete g.pxPsC; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
-      const yes = e.target.closest("[data-pxyes]"); if (yes) { if (yes.dataset.pxyes === "st") { delete g.pxSt; delete g.pxStNo; } else { delete g.pxPs; delete g.pxPsNo; delete g.pxPsC; } save(); beep("tap"); return pxSheet(id); }
+      const no = e.target.closest("[data-pxno]"); if (no) { const k = no.dataset.pxno; if (k === "st") { g.pxSt = -1; delete (g.px || {}).st; } else if (k === "ns") { g.pxNs = "-"; delete g.pxNsU; delete (g.px || {}).ns; } else { g.pxPs = "-"; delete g.pxPsC; delete (g.px || {}).ps; } save(); pxPaint(); beep("back"); return pxSheet(id); }
+      const yes = e.target.closest("[data-pxyes]"); if (yes) { const k = yes.dataset.pxyes; if (k === "st") { delete g.pxSt; delete g.pxStNo; } else if (k === "ns") { delete g.pxNs; delete g.pxNsNo; delete g.pxNsU; } else { delete g.pxPs; delete g.pxPsNo; delete g.pxPsC; } save(); beep("tap"); return pxSheet(id); }
       if (e.target.closest("[data-pxlink]")) {
         const v = box.querySelector("#px-link").value.trim(), sm = /store\.steampowered\.com\/app\/(\d+)/.exec(v), pm = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/.exec(v);
         if (sm) { g.pxSt = +sm[1]; delete g.pxStNo; if (g.px) delete g.px.st; }
@@ -18682,7 +18709,7 @@ function pxDeals() {
   const box = dyBox(), w = pxWatched();
   const incl = w.filter(g => pxIncl((g.px || {}).ps));
   const pc = p => { const e = pxEff(p); return p.base && e != null ? Math.round((1 - e / p.base) * 100) : p.pct; };
-  const deals = w.flatMap(g => ["st", "ps"].map(s => [g, s, (g.px || {})[s]])).filter(([, , p]) => p && !pxIncl(p) && pc(p) > 0).sort((a, b) => pc(b[2]) - pc(a[2]));
+  const deals = w.flatMap(g => PX_S.map(s => [g, s, (g.px || {})[s]])).filter(([, , p]) => p && !pxIncl(p) && pc(p) > 0).sort((a, b) => pc(b[2]) - pc(a[2]));
   dyShow(box, `<div class="dy-h"><b>💸 Deals on your list</b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="note">${esc(pxStatus())}</p>
     ${incl.length ? `<p class="pxd-h">🎮 Included in your PS Plus ${PS_PLUS[pxTier()]}</p><div class="dy-gl">${incl.map(g => `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>Game Catalog · nothing to buy</small></span><em class="pxd-p">✓</em></button>`).join("")}</div>` : ""}
@@ -18706,8 +18733,11 @@ function pxSetHtml() {
     <p class="note" id="s-pxst">${esc(pxStatus())}</p>
     <button class="btn ghost" data-pxdeals><span>💸 See deals on your list</span></button>
     <label>Stores</label>
-    <div class="chips" id="s-pxstores"><button class="chip" data-k="st" aria-pressed="${st.st}"><span>Steam</span></button><button class="chip" data-k="ps" aria-pressed="${st.ps}"><span>PlayStation Store</span></button></div>
-    <p class="note">Steam for PC games, the PS Store for PlayStation games; both for a game with no platforms set.</p>
+    <div class="chips" id="s-pxstores"><button class="chip" data-k="st" aria-pressed="${st.st}"><span>Steam</span></button><button class="chip" data-k="ps" aria-pressed="${st.ps}"><span>PlayStation Store</span></button><button class="chip" data-k="ns" aria-pressed="${st.ns}"><span>Nintendo eShop</span></button></div>
+    <p class="note">Steam for PC games, the PS Store for PlayStation games, the eShop for Switch games; all of them for a game with no platforms set.</p>
+    <label>Your Nintendo eShop</label>
+    <div class="chips" id="s-pxnscc">${NS_REGIONS.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${pxNsCC() === v}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note">${NS_OK.has(pxCC()) ? "The eShop your Nintendo account uses." : "There's no Nintendo eShop in your region, so pick the one your Nintendo account uses (most people here use the US or UK one)."}</p>
     <label>Your PS Plus</label>
     <div class="chips" id="s-psplus">${PS_PLUS.map((l, i) => `<button class="chip" data-v="${i}" aria-pressed="${pxTier() === i}"><span>${l}</span></button>`).join("")}</div>
     <p class="note">With Extra or Premium, games in your Game Catalog show as included (and I tell you when one you're waiting for joins). From Essential up, PS Plus member prices count as your price.</p>
@@ -18723,8 +18753,9 @@ function pxSetWire() {
   const redraw = () => { w.innerHTML = pxSetHtml(); pxSetWire(); };
   const done = rerun => { save(); beep("tap"); redraw(); if (rerun) { S.pxAt = 0; pxRun(true).then(redraw); } };
   $("#s-px").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxOff = c.dataset.v === "off"; done(!S.pxOff); };
-  $("#s-pxstores").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; if (c.dataset.k === "st") S.pxSteam = S.pxSteam === false; else S.pxPS = S.pxPS === false; done(true); };
-  $("#s-pxcc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxCC = c.dataset.v; S.games.forEach(g => { delete g.px; delete g.pxStNo; delete g.pxPsNo; }); done(true); };
+  $("#s-pxstores").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; if (c.dataset.k === "st") S.pxSteam = S.pxSteam === false; else if (c.dataset.k === "ns") S.pxNS = S.pxNS === false; else S.pxPS = S.pxPS === false; done(true); };
+  if ($("#s-pxnscc")) $("#s-pxnscc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxNsCC = c.dataset.v; S.games.forEach(g => { if (g.px) delete g.px.ns; delete g.pxNs; delete g.pxNsNo; delete g.pxNsU; }); done(true); };
+  $("#s-pxcc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxCC = c.dataset.v; S.games.forEach(g => { delete g.px; delete g.pxStNo; delete g.pxPsNo; if (!S.pxNsCC) { delete g.pxNs; delete g.pxNsNo; delete g.pxNsU; } }); done(true); };
   $("#s-psplus").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.psPlus = +c.dataset.v; S.pxWatching = false; done(true); };
   $("#s-pxmin").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxMin = +c.dataset.v; S.pxWatching = false; done(true); };
 }
@@ -18858,6 +18889,11 @@ addEventListener("pointerdown", e => {
     for (const el of SK) { if (!el.isConnected) { SK.delete(el); continue; }
       const r = el.getBoundingClientRect(), vis = Math.min(r.bottom, H) - Math.max(r.top, 0);
       if (r.width < 40 || vis < Math.min(40, r.height * .4)) { seen.delete(el); continue; }
+      /* only what you could see: not inside a hidden screen, and not under a page/sheet on top of it (v216: the Played board's
+         rows in the hidden Played panel were reported from Plan) */
+      if (el.closest(".panel:not(.on)") || (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))) { seen.delete(el); continue; }
+      { const cx = Math.max(1, Math.min(innerWidth - 2, r.left + r.width / 2)), cy = Math.max(1, Math.min(H - 2, Math.max(r.top, 0) + vis / 2)), top = document.elementFromPoint(cx, cy);
+        if (!top || (!el.contains(top) && !top.contains(el))) { seen.delete(el); continue; } }
       const s = seen.get(el) || { n: 0, t: 0 }; if (now - s.t < 90) continue;
       s.n++; s.t = now; seen.set(el, s);
       if (s.n >= 3) { seen.delete(el); SK.delete(el); bugReport("layout", "Part of the screen stayed blank while scrolling", { at: bugPath(el) + " skipped while " + Math.round(vis) + "px of it was on screen", screen: bugScreen() }); return; } } };
@@ -18911,4 +18947,193 @@ WHATS_NEW.push(
   if (kind === "layout" && /blank while scrolling/.test(msg)) return `Part of ${at} went blank while you scrolled.`;
   if (kind === "look" && /nothing more/.test(msg)) return `A "Read more" on ${at} had nothing more to show.`;
   return _bn.apply(this, arguments); }; }
+</script>
+<style>
+/* ===== v216: the story so far ===== */
+.wis { margin: 8px 0 2px; padding: 12px 14px; border-radius: 16px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
+.wis > b { display: block; font-size: 12px; font-weight: 600; color: var(--volt); margin-bottom: 6px; }
+.wis-t { margin: 0; font-size: 14px; line-height: 1.55; color: #C9D6F2; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.wis.open .wis-t { -webkit-line-clamp: unset; display: block; }
+.wis small { display: block; margin-top: 6px; font-size: 12px; color: var(--mute); }
+.wis .gd-rm { margin-top: 4px; }
+.wis-load .wis-t { display: grid; gap: 7px; }
+.wis-load .wis-t i { display: block; height: 10px; border-radius: 6px; background: rgba(234,242,255,.08); animation: wisPulse 1.2s ease-in-out infinite alternate; }
+.wis-load .wis-t i:nth-child(2) { width: 86%; animation-delay: .15s; } .wis-load .wis-t i:nth-child(3) { width: 60%; animation-delay: .3s; }
+@keyframes wisPulse { from { opacity: .35; } to { opacity: 1; } }
+html.still .wis-load .wis-t i { animation: none; }
+#wiask .wa-st { display: block; margin-top: 4px; font-size: 12.5px; color: var(--mute); }
+</style>
+<script>
+/* ===== v216: "the story so far". Under your newest 📍 note on a game's page, Nexi writes a short recap of the plot up to
+   where the note says you are (helper POST /recap, Llama 3.3 70B, told never to go past that point and to keep to the setup
+   when unsure). Fully automatic: it's fetched when you save a note (ready for next time) and when a page with a note opens
+   without one. Cached per note in g.wiStory = {t (the note's time), x, w (where), sure, at} (or {t, err, at} → retried after 6h). ===== */
+const WIS_RETRY = 6 * 36e5;
+function wiStoryHtml(g) {
+  const n = wiLast(g); if (!n || S.wiStoryOff || g.comp) return "";
+  const c = g.wiStory && g.wiStory.t === n.t ? g.wiStory : null;
+  if (c && c.x) return `<div class="wis" data-g="${g.id}"><b>📖 The story so far${c.w ? " · " + esc(c.w) : ""}</b><p class="wis-t">${esc(c.x)}</p>${
+    c.sure < .5 ? `<small>I'm not sure exactly where that is in the story, so I kept to what I know for certain.</small>` : ""}<button type="button" class="gd-rm" data-wismore hidden>Read more</button></div>`;
+  if (c && c.err) return "";
+  return `<div class="wis wis-load" data-g="${g.id}" aria-busy="true"><b>📖 Remembering the story so far…</b><p class="wis-t"><i></i><i></i><i></i></p></div>`;
+}
+function wiStoryPaint(g) {
+  const h = wiStoryHtml(g);
+  document.querySelectorAll(`.wis[data-g="${g.id}"]`).forEach(el => { if (h) el.outerHTML = h; else el.remove(); });
+  if (h) document.querySelectorAll(`.wi[data-g="${g.id}"]`).forEach(w => { if (!(w.nextElementSibling && w.nextElementSibling.matches(".wis"))) w.insertAdjacentHTML("afterend", h); });
+  wiStoryFit();
+}
+/* Read more only when the recap is really cut (same as descriptions) */
+function wiStoryFit() { requestAnimationFrame(() => document.querySelectorAll(".wis:not(.open)").forEach(w => { const t = w.querySelector(".wis-t"), b = w.querySelector("[data-wismore]"); if (t && b) b.hidden = t.scrollHeight <= t.clientHeight + 2; })); }
+const WIS_BUSY = new Set();
+async function wiStoryGet(g) {
+  const n = wiLast(g); if (!g || !n || S.wiStoryOff || g.comp || !navigator.onLine || WIS_BUSY.has(g.id)) return;
+  const c = g.wiStory; if (c && c.t === n.t && (c.x || Date.now() - (c.at || 0) < WIS_RETRY)) return;
+  WIS_BUSY.add(g.id);
+  try {
+    const earlier = (g.wasI || []).slice(0, -1).map(x => x.x);
+    const j = await nxPost("/recap", { title: g.title, year: (g.date || "").slice(0, 4), platform: platList(g.platforms)[0] || "", about: String(g.desc || g.about || "").slice(0, 600),
+      hours: +g.logged || 0, note: n.x, earlier });
+    if (wiLast(g) !== n) return;   /* a newer note came in meanwhile */
+    g.wiStory = { t: n.t, x: j.recap, w: j.where || "", sure: +j.sure || 0, at: Date.now() };
+  } catch (e) { g.wiStory = { t: n.t, err: String(e.message || e).slice(0, 40), at: Date.now() }; }
+  finally { WIS_BUSY.delete(g.id); }
+  save(); wiStoryPaint(g);
+}
+/* on the New game page: the recap sits under the note card */
+{ const _wc = wiCard; wiCard = function (g, force) { const c = _wc.apply(this, arguments); return force || !c ? c : c + wiStoryHtml(g); }; }
+{ const _wr = wiRefresh; wiRefresh = function (g) { const o = _wr.apply(this, arguments); wiStoryPaint(g); return o; }; }
+{ const _wa = wiAdd; wiAdd = function (g) { const o = _wa.apply(this, arguments); if (g) setTimeout(() => wiStoryGet(g), 300); return o; }; }
+{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments); const g = S.games.find(x => x.id === id);
+  if (g && wiLast(g)) { wiStoryFit(); setTimeout(() => wiStoryGet(g), 600); } return o; }; }
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-wismore]"); if (!b) return; e.stopPropagation();
+  const w = b.closest(".wis"), t = w && w.querySelector(".wis-t"); if (!t) return;
+  const h0 = t.getBoundingClientRect().height, open = w.classList.toggle("open"); b.textContent = open ? "Read less" : "Read more"; beep("tap");
+  if (calm()) return; const dh = t.getBoundingClientRect().height - h0; if (Math.abs(dh) < 2) return;
+  const below = [b]; for (let x = w.nextElementSibling; x; x = x.nextElementSibling) below.push(x);
+  below.forEach(x => x.animate([{ transform: `translateY(${-dh}px)` }, { transform: "none" }], { duration: 420, easing: PN_EASE }));
+  if (open) t.animate([{ opacity: .45 }, { opacity: 1 }], { duration: 420, easing: "ease-out" }); }, true);
+/* the "Played X since last time?" card carries the first line of the recap, and asking also gets one ready */
+{ const _ask = wiAsk; wiAsk = function () { const g = typeof wiPick === "function" ? wiPick() : null; if (g) wiStoryGet(g);
+  const o = _ask.apply(this, arguments);
+  setTimeout(() => { const el = $("#wiask"), gg = g && g.wiStory && wiLast(g) && g.wiStory.t === wiLast(g).t ? g.wiStory : null;
+    if (el && gg && gg.x && !el.querySelector(".wa-st")) { const sp = el.querySelector("span"); if (sp) sp.insertAdjacentHTML("beforeend", `<small class="wa-st">📖 ${esc(gg.x.split(/(?<=[.!?])\s/)[0].slice(0, 160))}</small>`); } }, 2700);
+  return o; }; }
+</script>
+<script>
+/* ===== v216: Steam's genres and "more like this". Steam's own tags are the genres players vote on ("Souls-like",
+   "Metroidvania", "JRPG", "Roguelite"…), far better than RAWG's handful. stSync() runs by itself: ≥15s after opening (and
+   once a day), games without tags (or tags older than 30 days) go to the helper's POST /steam in batches (it finds the
+   Steam app by title, ≤8 lookups a call, then gets every game's tags in one call). g.stTags = Steam's top tags, g.stAt;
+   not on Steam → g.stNo (looked up again after 30 days). The genre-type tags (generic ones like Singleplayer or Great
+   Soundtrack left out, `ST_GENERIC`) go to the front of g.genres (the ones added are remembered in g.stG so turning
+   "Genres from Steam" off takes exactly those away again). Similar games: tags feed simLocal, and the Similar sheet gets
+   "Steam players also like" (Steam's own More like this list, cached 14 days in S.stMore). ===== */
+const ST_GENERIC = new Set(["singleplayer", "multiplayer", "great soundtrack", "soundtrack", "atmospheric", "difficult", "2d", "3d", "third person", "first-person", "first person",
+  "controller", "family friendly", "violent", "gore", "nudity", "sexual content", "mature", "free to play", "early access", "co-op", "online co-op", "local co-op", "pvp", "online pvp",
+  "colorful", "cute", "beautiful", "funny", "classic", "masterpiece", "addictive", "replay value", "multiple endings", "character customization", "realistic", "cinematic", "dark",
+  "vr", "moddable", "achievements", "steam achievements", "full controller support", "partial controller support", "great for beginners", "short", "female protagonist",
+  "remake", "remaster", "relaxing", "emotional", "choices matter", "lore-rich", "story rich", "exploration", "fantasy", "sci-fi", "anime", "pixel graphics", "hand-drawn",
+  "stylized", "cartoony", "cartoon", "minimalist", "psychological", "mystery", "comedy", "romance", "drama", "dark fantasy", "dark humor", "indie", "casual", "action", "adventure",
+  "singleplayer", "split screen", "local multiplayer", "massively multiplayer", "competitive", "e-sports", "team-based", "inventory management", "loot", "crafting", "building",
+  "resource management", "time management", "management", "isometric", "top-down", "side scroller", "linear", "nonlinear", "sandbox", "physics", "hack and slash", "medieval",
+  "historical", "mythology", "magic", "zombies", "space", "post-apocalyptic", "cyberpunk", "dystopian", "military", "war", "crime", "heist", "detective", "stealth", "survival",
+  "horror", "open world", "rpg", "strategy", "simulation", "sports", "racing", "puzzle", "platformer"]);
+/* genres worth showing as genres: the specific ones first (JRPG, Souls-like…), plus a few broad ones when they're the game's top tags */
+const ST_BROAD = new Set(["open world", "rpg", "strategy", "simulation", "sports", "racing", "puzzle", "platformer", "survival", "horror", "stealth", "action", "adventure", "story rich", "exploration", "hack and slash", "sandbox", "anime"]);
+function stGenres(tags) {
+  const t = (tags || []).slice(0, 12), out = [];
+  for (const x of t) { const k = x.toLowerCase(); if (!ST_GENERIC.has(k)) out.push(x); if (out.length >= 3) break; }
+  for (const x of t.slice(0, 6)) { if (out.length >= 4) break; const k = x.toLowerCase(); if (ST_BROAD.has(k) && !out.includes(x)) out.push(x); }
+  return out;
+}
+const stOn = () => S.stGenOff !== true;
+function stApply(g) {
+  const was = Array.isArray(g.stG) ? g.stG : [], base = platList(g.genres).filter(x => !was.includes(x));
+  if (!stOn() || !g.stTags || !g.stTags.length) { if (was.length) { g.genres = base.join(", "); delete g.stG; } return; }
+  const add = stGenres(g.stTags).filter(x => !base.some(b => b.toLowerCase() === x.toLowerCase()));
+  g.genres = add.concat(base).slice(0, 6).join(", "); g.stG = add;
+}
+const stIdOf = g => +g.stId > 0 ? +g.stId : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : 0;
+let stBusy = false;
+async function stSync(force) {
+  if (stBusy || !navigator.onLine || (!force && Date.now() - (S.stAt || 0) < 864e5)) return;
+  const stale = g => !g.comp && (!g.stAt || Date.now() - g.stAt > 30 * 864e5) && !(g.stNo && Date.now() - g.stNo < 30 * 864e5);
+  const todo = S.games.filter(stale); if (!todo.length) { S.stAt = Date.now(); save(); return; }
+  stBusy = true; let changed = 0;
+  try {
+    /* known Steam ids are cheap; unknown ones cost a lookup each (the helper does 8 a call) */
+    const known = todo.filter(g => stIdOf(g)), unk = todo.filter(g => !stIdOf(g));
+    const batches = []; for (let i = 0; i < known.length; i += 25) batches.push(known.slice(i, i + 25));
+    for (let i = 0; i < unk.length && batches.length < 6; i += 8) batches.push(unk.slice(i, i + 8));
+    for (const b of batches) {
+      const j = await nxPost("/steam", { cc: pxCC(), items: b.map(g => ({ k: g.id, t: g.title, st: stIdOf(g) })) });
+      for (const g of b) { const r = (j.res || {})[g.id]; if (!r) continue;
+        if (r.none) { g.stNo = Date.now(); continue; } if (r.err || !r.st) continue;
+        g.stId = +r.st;   /* its own field: being on Steam doesn't mean you want Steam prices for a Switch game */
+        g.stTags = (r.tags || []).slice(0, 15); g.stAt = Date.now(); delete g.stNo; stApply(g); changed++; }
+    }
+    S.stAt = Date.now();
+  } catch (e) { if (e.message !== "helper-old") S.stErr = String(e.message || e).slice(0, 60); }
+  finally { stBusy = false; }
+  save(); if (changed) { render(); if (hubAt && $("#full.on")) openFull(hubAt); }
+}
+setTimeout(() => stSync(false), 15000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => stSync(false), 6000); });
+/* Steam tags count in "games like this" (rarer tags weigh more, as before) */
+function stSimTags(g) { return (g.stTags || []).slice(0, 12).filter(x => !ST_GENERIC.has(x.toLowerCase()) || ST_BROAD.has(x.toLowerCase())).map(x => "g:" + x.toLowerCase()); }
+/* ---- the Similar sheet: Steam players also like ---- */
+async function stMore(g) {
+  const id = stIdOf(g); if (!id) return null;
+  const c = (S.stMore ||= {})[g.id]; if (c && c.id === id && Date.now() - c.t < 14 * 864e5) return c;
+  const j = await nxPost("/steam", { cc: pxCC(), items: [], more: id });
+  const l = ((j.more && j.more.games) || []).slice(0, 14).map(x => ({ id: x.id, name: x.name, tags: x.tags || [], desc: x.desc || "" }));
+  const rec = { id, t: Date.now(), l }; if (l.length) { S.stMore[g.id] = rec; const k = Object.keys(S.stMore); if (k.length > 40) delete S.stMore[k[0]]; save(); }
+  return rec;
+}
+{ const _os = openSimilar; openSimilar = function (id) { const o = _os.apply(this, arguments); const g = S.games.find(x => x.id === id), box = dyBox();
+  if (!g || !stIdOf(g)) return o;
+  const anchor = box.querySelector(".sim-new"); if (!anchor) return o;
+  anchor.insertAdjacentHTML("afterend", `<p class="dy-q" style="margin-top:14px"><b>Steam players also like</b> <small>Steam's own "More like this"</small></p><div class="st-more"><p class="dy-empty">Asking Steam…</p></div>`);
+  const mine = S.games.map(x => [normT(x.title), x]);
+  const myTags = new Set((g.stTags || []).map(x => x.toLowerCase()));
+  stMore(g).then(rec => { const el = box.querySelector(".st-more"); if (!el) return;
+    const l = (rec && rec.l) || []; box._st = l;
+    el.innerHTML = l.length ? `<div class="dy-gl">${l.map((x, i) => { const have = (mine.find(([t]) => simSame(t, normT(x.name)) >= .9) || [])[1];
+      const why = x.tags.filter(t => myTags.has(t.toLowerCase()) && (!ST_GENERIC.has(t.toLowerCase()) || ST_BROAD.has(t.toLowerCase()))).slice(0, 3);
+      return `<div class="dy-g sim-h"><img decoding="async" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${x.id}/header.jpg" alt="" onerror="this.style.visibility='hidden'">
+        <span><b>${esc(x.name)}</b><small>${esc(why.length ? "Both: " + why.join(", ") : x.tags.slice(0, 3).join(", "))}</small></span>
+        ${have ? `<button class="sim-yt" data-opg="${have.id}" aria-label="Open">›</button>` : `<button class="sim-yt" data-ytq="${esc(x.name)}" aria-label="Trailer">▶</button><button class="hitadd" data-stadd="${i}" aria-label="Add ${esc(x.name)}">＋</button>`}</div>`; }).join("")}</div>`
+      : `<p class="dy-empty">Steam had nothing to add.</p>`; })
+    .catch(e => { const el = box.querySelector(".st-more"); if (el) el.innerHTML = `<p class="dy-empty">${e && e.message === "helper-old" ? "This switches on once Nexi's helper is updated." : "Couldn't reach Steam right now."}</p>`; });
+  return o; }; }
+document.addEventListener("click", async e => { const a = e.target.closest && e.target.closest("[data-stadd]"); if (!a) return; e.stopPropagation();
+  const box = dyBox(), x = (box._st || [])[+a.dataset.stadd]; if (!x) return;
+  if (!rawgKey) { toast("Add your RAWG key in Settings first (it fills in the cover and dates)"); return; }
+  a.textContent = "…";
+  try { const r = await rawgApi("games?search=" + encodeURIComponent(x.name) + "&search_precise=true&page_size=5");
+    const best = (r.results || []).map(h => ({ h, s: simSame(h.name, x.name) })).sort((p, q) => q.s - p.s)[0];
+    if (!best || best.s < .6) { a.textContent = "＋"; toast("Couldn't find " + x.name + " on RAWG"); return; }
+    dyClose(); simAdd(simHit(best.h));
+    setTimeout(() => { const g = S.games.find(y => simSame(y.title, x.name) >= .9); if (g && !stIdOf(g)) { g.stId = x.id; g.stTags = x.tags.slice(0, 15); g.stAt = Date.now(); stApply(g); save(); } }, 1500);
+  } catch (err) { a.textContent = "＋"; toast("Couldn't add it right now"); } }, true);
+</script>
+<script>
+WHATS_NEW.push(
+  { v: 216, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => wiLast(x) && !x.comp) || wiPick() || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .wis") || $("#full .wi") || $("#full [data-wasi]"),
+    say: "New: the story so far. Under your 📍 Where was I? note, I now write a short recap of the story up to where you are (never past it), all by myself, so you can jump straight back in.",
+    tryIt: "Leave a note on a game you're playing; the recap is ready next time you open it." },
+  { v: 216, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Your Nintendo eShop" }); }, at: "#s-pxnscc",
+    say: "Switch prices are here: I watch the Nintendo eShop too now, with sales and when they end, and ping you when a Switch game you're waiting for drops. No eShop where you live? Pick the one your Nintendo account uses.",
+    tryIt: "Pick your eShop, then open a Switch game on your list." },
+  { v: 216, go: () => { closeFull(); dyClose(); nxShut(); if (typeof stSync === "function") stSync(true); const g = S.games.find(x => x.stG && x.stG.length) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .gd-tags") || $("#full .gd-head"),
+    say: "Genres from Steam: every game that's on Steam gets the genres players actually use (Souls-like, Metroidvania, JRPG…), picked up automatically. They make “games like this” sharper too.",
+    tryIt: "Look at the tags on a few games. Settings → Games database turns it off." },
+  { v: 216, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => stIdOf(x)) || rankedGames()[0] || S.games[0]; if (g) openSimilar(g.id); },
+    at: () => $("#diary .st-more") || $("#diary .sim-new"),
+    say: "Similar games now include <b>Steam players also like</b>: Steam's own “More like this” list, with what each one shares with your game.",
+    tryIt: "Tap ＋ to add one, or ▶ for its trailer." }
+);
 </script>
