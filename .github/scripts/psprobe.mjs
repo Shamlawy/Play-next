@@ -1,47 +1,33 @@
-/* PS Store probe 3: find a working search (title → concept id), and dump the pricing CTAs compactly (PS Plus types). */
+/* PS Store probe 4: search (chihiro tumbler) → product id → GraphQL product pricing; dump shapes compactly. */
 const UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en-US,en" };
-const T = (s, n = 1500) => String(s).slice(0, n);
+const T = (s, n = 1200) => String(s).slice(0, n);
 const H = { metGetProductById: "a128042177bd93dd831164103d53b73ef790d56f51dae647064cb8f9d9fc9d1a", metGetConceptById: "cc90404ac049d935afbd9968aef523da2b6723abfb9d586e5f77ebf7c5289006",
   metGetPricingDataByConceptId: "abcb311ea830e679fe2b697a27f755764535d825b24510ab1239a4ca3092bd09" };
-const gql = async (op, hash, vars, loc = "en-US") => {
-  const u = `https://web.np.playstation.com/api/graphql/v1/op?operationName=${op}&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify({ persistedQuery: { version: 1, sha256Hash: hash } }))}`;
+const gql = async (op, vars, loc = "en-US") => {
+  const u = `https://web.np.playstation.com/api/graphql/v1/op?operationName=${op}&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify({ persistedQuery: { version: 1, sha256Hash: H[op] } }))}`;
   const r = await fetch(u, { headers: { ...UA, "x-psn-store-locale-override": loc, "content-type": "application/json" } });
-  return [r.status, await r.text()];
+  const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch (e) {} return [r.status, t, j];
 };
-/* 1. look through every JS chunk the search page and the build manifest name for search queries */
-const page = await (await fetch("https://store.playstation.com/en-us/search/elden%20ring", { headers: UA })).text();
-let srcs = [...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m => new URL(m[1], "https://store.playstation.com/").href);
-const man = srcs.find(s => /_buildManifest/.test(s));
-if (man) { const mt = await (await fetch(man)).text(); for (const m of mt.matchAll(/"(static\/chunks\/[^"]+\.js)"/g)) srcs.push("https://store.playstation.com/_next/" + m[1]); }
-srcs = [...new Set(srcs)].filter(s => /\.js/.test(s));
-console.log("chunks:", srcs.length);
-const hits = [];
-for (const s of srcs.slice(0, 160)) {
-  let js = ""; try { js = await (await fetch(s, { headers: UA })).text(); } catch (e) { continue; }
-  for (const m of js.matchAll(/(getSearchResults|universalSearch|searchTerm|SearchResults|sha256Hash|persistedQuery|[a-f0-9]{64})/g)) {
-    hits.push(s.split("/").pop() + " :: " + js.slice(Math.max(0, m.index - 140), m.index + 180).replace(/\s+/g, " "));
-    if (hits.length > 60) break;
+const walk = (o, f, p = "") => { if (o && typeof o === "object") { f(o, p); for (const k in o) walk(o[k], f, p + "." + k); } };
+const ctas = (j) => { const out = []; walk(j, (o, p) => { if (o.__typename === "GameCTA") out.push(`${o.type} ${JSON.stringify(o.price && { b: o.price.basePrice, d: o.price.discountedPrice, bv: o.price.basePriceValue, dv: o.price.discountedValue, t: o.price.discountText, sub: o.price.isTiedToSubscription, br: o.price.serviceBranding, end: o.price.endTime, up: T(o.price.upsellText || "", 70) })} tier=${(((o.action || {}).param || []).find(x => x.name === "tierNumber") || {}).values} sku=${(((o.action || {}).param || []).find(x => x.name === "skuId") || {}).values} @${p.slice(-60)}`); }); return out; };
+for (const [cc, q] of [["US", "returnal"], ["US", "elden ring"], ["AE", "elden ring"], ["US", "ghost of yotei"], ["US", "stellar blade"], ["AE", "persona 3 reload"]]) {
+  const r = await fetch(`https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/${cc}/en/999/${encodeURIComponent(q)}?suggested_size=8&mode=game`, { headers: UA });
+  const j = await r.json().catch(() => ({}));
+  console.log(`\n#### tumbler ${cc} "${q}" → ${r.status}`);
+  for (const l of (j.links || []).slice(0, 8)) console.log(`  ${l.container_type} ${l.bucket} ${l.id} | ${l.name} | ${(l.default_sku || {}).display_price} | plat ${JSON.stringify(l.playable_platform)} | sku rewards ${JSON.stringify(((l.default_sku || {}).rewards || []).map(x => ({ d: x.discount, p: x.display_price, plus: x.isPlus, bonus: x.bonus_display_price, end: x.end_date })))} | top-level keys ${Object.keys(l).slice(0, 30).join(",")}`);
+  const pid = ((j.links || []).find(l => l.container_type === "product") || {}).id;
+  if (!pid) continue;
+  const [st, t, pj] = await gql("metGetProductById", { productId: pid }, "en-" + cc);
+  const pr = pj && pj.data && pj.data.productRetrieve;
+  console.log(`  metGetProductById ${pid} → ${st} keys ${pr ? Object.keys(pr).join(",") : T(t, 300)}`);
+  if (pr) {
+    console.log("   name", pr.name, "| concept", JSON.stringify(pr.concept && { id: pr.concept.id }), "| price", JSON.stringify(pr.price));
+    ctas(pj).slice(0, 10).forEach(x => console.log("   CTA", x));
+    const cid = pr.concept && pr.concept.id;
+    if (cid) { const [s2, t2, cj] = await gql("metGetPricingDataByConceptId", { conceptId: cid }, "en-" + cc); console.log(`  pricing by concept ${cid} → ${s2}`); ctas(cj).slice(0, 8).forEach(x => console.log("   CTA", x)); }
   }
-}
-console.log("hits:\n" + hits.slice(0, 60).join("\n---\n"));
-/* 2. known candidates for search */
-const CAND = [["getSearchResults", "a2fbc15433b37ca7bfcd7112f741735e13268f5e9ebd5ffce51b85acc126f41a"], ["getSearchResults", "6ef5e809c35ab5bc1b8a5bd8e1aa5a5e9fc7d3b31da6f61b8a7ab2ffc8ff13f1"],
-  ["universalSearch", "4cd67a3e17f9e3f1c4a6e6c7c95b44a4e5bfaf4f2b4fa17bba4b6a0ad48e7b1e"]];
-for (const [op, h] of CAND) { const [st, t] = await gql(op, h, { searchTerm: "elden ring", searchContext: "MobileUniversalSearchGame", displayTitleLocale: "en-US", pageArgs: { size: 5, offset: 0 } }); console.log(`\n${op} ${h.slice(0, 8)} → ${st} ${T(t, 400)}`); }
-/* 3. other search endpoints */
-for (const u of ["https://store.playstation.com/store/api/chihiro/00_09_000/tumbler/US/en/999/elden%20ring?suggested_size=5&mode=game",
-  "https://store.playstation.com/valkyrie-api/en/US/999/search/elden%20ring?suggested_size=5&mode=game",
-  "https://m.np.playstation.com/api/search/v1/universalSearch?searchTerm=elden%20ring&countryCode=US&languageCode=en&domainRequests=%5B%7B%22domain%22%3A%22ConceptGameMobileApp%22%2C%22pagination%22%3A%7B%22cursor%22%3A%22%22%2C%22pageSize%22%3A5%7D%7D%5D"]) {
-  try { const r = await fetch(u, { headers: UA }); console.log(`\n${u.slice(0, 90)} → ${r.status} ${T(await r.text(), 700)}`); } catch (e) { console.log(u, "FAILED", e.message); }
-}
-/* 4. the pricing CTAs for a few concepts, compact */
-for (const [cid, loc] of [["10002694", "en-US"], ["10001130", "en-US"], ["10001130", "en-AE"], ["10010645", "en-US"], ["10000176", "en-US"]]) {
-  const [st, t] = await gql("metGetPricingDataByConceptId", H.metGetPricingDataByConceptId, { conceptId: cid }, loc);
-  let j = {}; try { j = JSON.parse(t); } catch (e) {}
-  const c = j.data && j.data.conceptRetrieve, dp = c && c.defaultProduct;
-  console.log(`\n== concept ${cid} ${loc} → ${st} name=${c && c.name} product=${dp && dp.id}`);
-  if (!c) { console.log(T(t, 300)); continue; }
-  const walk = (o, f) => { if (o && typeof o === "object") { f(o); for (const k in o) walk(o[k], f); } };
-  walk(c, o => { if (o.__typename === "GameCTA") console.log("  CTA", o.type, JSON.stringify(o.price && { b: o.price.basePrice, d: o.price.discountedPrice, bv: o.price.basePriceValue, dv: o.price.discountedValue, t: o.price.discountText, sub: o.price.isTiedToSubscription, br: o.price.serviceBranding, up: T(o.price.upsellText || "", 90), end: o.price.endTime, cur: o.price.currencyCode }), "tier", JSON.stringify(((o.action || {}).param || []).filter(p => /tier|membership/.test(p.name)).map(p => p.name + "=" + p.values))); });
-  console.log("  keys:", Object.keys(c).join(","), "| dp keys:", dp ? Object.keys(dp).join(",") : "");
+  /* legacy product container */
+  const lr = await fetch(`https://store.playstation.com/store/api/chihiro/00_09_000/container/${cc}/en/999/${pid}`, { headers: UA });
+  const lj = await lr.json().catch(() => null);
+  console.log(`  chihiro container → ${lr.status} name=${lj && lj.name} default_sku=${T(JSON.stringify(lj && lj.default_sku && { price: lj.default_sku.price, display_price: lj.default_sku.display_price, rewards: lj.default_sku.rewards, eligibilities: (lj.default_sku.eligibilities || []).length }), 700)}`);
 }
