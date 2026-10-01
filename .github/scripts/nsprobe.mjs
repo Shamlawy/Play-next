@@ -1,20 +1,31 @@
-/* Probe (v216, round 2): Steam names+tags for many apps in one call; a discounted eShop price shape; Switch 2 vs Switch titles. */
-const UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
-const cut = (s, n = 600) => String(s).replace(/\s+/g, " ").slice(0, n);
-async function get(u, o = {}) { try { const r = await fetch(u, { ...o, headers: { ...UA, ...(o.headers || {}) } }); const t = await r.text(); return { s: r.status, t }; } catch (e) { return { s: "ERR " + e.message, t: "" }; } }
-console.log("===== IStoreBrowseService/GetItems =====");
-{ const input = { ids: [374320, 570940, 335300, 2584270, 1627720].map(appid => ({ appid })), context: { language: "english", country_code: "US", steam_realm: 1 }, data_request: { include_basic_info: true, include_tag_count: 12, include_assets: false } };
-  const r = await get("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=" + encodeURIComponent(JSON.stringify(input)));
-  console.log(r.s, cut(r.t, 1500)); }
-console.log("\n===== GetTagList =====");
-{ const r = await get("https://api.steampowered.com/IStoreService/GetTagList/v1/?language=english"); console.log(r.s, cut(r.t, 600)); }
-console.log("\n===== Algolia: discounted games + editions =====");
-const alg = async (body) => { const r = await get("https://U3B6GR4UA3-dsn.algolia.net/1/indexes/store_game_en_us/query", { method: "POST", headers: { "X-Algolia-Application-Id": "U3B6GR4UA3", "X-Algolia-API-Key": "a29c6927638bfd8cee23993e51e721c9", "Content-Type": "application/json" }, body: JSON.stringify(body) }); try { return JSON.parse(r.t); } catch (e) { return { err: cut(r.t, 300) }; } };
-{ const j = await alg({ query: "", hitsPerPage: 5, filters: "price.discounted:true" }); console.log(j.err || j.hits.map(h => `${h.title} | ${h.nsuid} | ${JSON.stringify(h.price)} | dlcType ${h.dlcType} | topLevelCategory ${h.topLevelCategory} | urlKey ${h.urlKey} | url ${h.url} | genres ${JSON.stringify(h.gameGenreLabels)}`).join("\n"));
-  const ns = j.hits ? j.hits.map(h => h.nsuid).filter(Boolean).slice(0, 3) : [];
-  if (ns.length) { const r = await get(`https://api.ec.nintendo.com/v1/price?country=US&lang=en&ids=${ns.join(",")}`); console.log("price:", cut(r.t, 1200)); } }
-for (const q of ["Pokemon Legends Z-A", "Mario Kart World", "Donkey Kong Bananza", "Persona 5 Royal", "Hades II", "Metroid Prime 4"]) {
-  const j = await alg({ query: q, hitsPerPage: 5 }); console.log(q, "→", j.err || j.hits.map(h => `${h.title} [${h.platform}] ${h.nsuid} ${h.price && h.price.finalPrice} dlc:${h.dlcType} cat:${h.topLevelCategory}`).join(" || "));
+/* Probe (v216): runs the helper's own Nintendo eShop and Steam code (worker/helper.js) against the real services from GitHub
+   and prints what the app would get. */
+import fs from "fs";
+let src = fs.readFileSync("worker/helper.js", "utf8").replace("export default {", "const __def = {");
+src += "\nexport { pxCheck, pxNsFind, pxNsPrices, stItems, stMore, stTagNames, stRoute };\n";
+fs.writeFileSync("/tmp/hx.mjs", src);
+const H = await import("/tmp/hx.mjs");
+const env = {};   /* no KV: the tag list is fetched each run */
+const show = p => !p ? "—" : p.none ? "not found" : p.err ? "ERROR " + p.err : p.nosale ? "not sold here" : p.nop ? "no price yet" :
+  `${p.name || ""} | ${p.free ? "free" : (p.nowF || "") + (p.pct ? ` (was ${p.baseF}, −${p.pct}%${p.end ? ", ends " + new Date(p.end).toISOString().slice(0, 10) : ""})` : "")}${p.pre ? " | pre-order" : ""} | ${p.id || ""} | ${p.ncc || ""} | ${p.url || ""}`;
+const SW = (process.env.NSTITLES || "Super Mario Odyssey|The Legend of Zelda: Tears of the Kingdom|Hollow Knight|Fire Emblem: Three Houses|Metroid Prime 4: Beyond|Persona 5 Royal|Mario Kart World|Hades II|Pokemon Legends: Z-A|Xenoblade Chronicles 3|Octopath Traveler II|Animal Crossing: New Horizons").split("|");
+for (const nscc of ["us", "gb", "au", "ae"]) {
+  console.log(`\n===== eShop ${nscc.toUpperCase()} =====`);
+  for (let i = 0; i < SW.length; i += 6) {
+    const items = SW.slice(i, i + 6).map((t, n) => ({ k: "g" + (i + n), t, st: -1, ps: "-", ns: "", sw2: /Mario Kart World/.test(t) }));
+    const res = await H.pxCheck(nscc, items, nscc);
+    for (const it of items) console.log(`${it.t.padEnd(42)} ${show(res[it.k].ns)}`);
+    const again = items.map(it => ({ ...it, ns: res[it.k].ns && res[it.k].ns.id || "-" }));
+    const r2 = await H.pxCheck(nscc, again, nscc);
+    const bad = again.filter(it => it.ns !== "-" && !(r2[it.k].ns && r2[it.k].ns.now != null));
+    console.log(`  (re-check with saved ids: ${bad.length ? "no price for " + bad.map(b => b.t).join(", ") : "ok"})`);
+  }
 }
-console.log("\n===== EU search: discounted + url =====");
-{ const r = await get(`https://searching.nintendo-europe.com/en/select?q=hades&fq=type:GAME%20AND%20system_type:nintendoswitch*&rows=3&wt=json`); let j = null; try { j = JSON.parse(r.t); } catch (e) {} console.log(j ? j.response.docs.map(d => `${d.title} | ${JSON.stringify(d.nsuid_txt)} | url ${d.url} | type ${d.type} | ${d.system_names_txt} | price ${d.price_regular_f}`).join("\n") : cut(r.t, 300)); }
+console.log("\n===== Steam tags (stRoute) =====");
+const mk = body => new Request("https://x/steam", { method: "POST", headers: { Origin: "https://shamlawy.github.io", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const ST = (process.env.STTITLES || "Elden Ring|Hollow Knight|Persona 5 Royal|Metaphor: ReFantazio|Clair Obscur: Expedition 33|Stardew Valley|Hades II|Baldur's Gate 3|Resident Evil 4").split("|");
+{ const r = await H.stRoute(mk({ cc: "us", items: ST.map((t, i) => ({ k: "s" + i, t, st: 0 })) }), env, {}); const j = await r.json();
+  ST.forEach((t, i) => { const x = j.res["s" + i]; console.log(t.padEnd(30), x ? (x.none ? "not found" : x.err ? "ERR " + x.err : `${x.st} ${x.name} | ${x.tags.join(", ")}`) : "—"); }); }
+console.log("\n===== Steam more like this =====");
+for (const id of [1245620, 1687950]) { const r = await H.stRoute(mk({ cc: "us", items: [], more: id }), env, {}); const j = await r.json();
+  console.log(id, j.more && j.more.of && j.more.of.name, "→", j.more ? j.more.games.slice(0, 12).map(g => g.name + " [" + g.tags.slice(0, 3).join("/") + "]").join(" ; ") : JSON.stringify(j).slice(0, 300)); }
