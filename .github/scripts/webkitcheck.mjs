@@ -33,6 +33,11 @@ function seed() {
   return { games, played, duels: [], lastV: APP_V, tourFrom: +APP_V, tourRedo: 1, nxAsked: 1, userName: "Sam", fxSeen: 1, fxCal: 1, scoreMig: 1, gdMig: 1, pxOff: true, cbOn: false };
 }
 
+/* mobile WebKit has no mouse wheel: scroll whatever is scrollable on screen (the open page's own scroller, else the window) */
+const scrollBy = (page, dy) => page.evaluate(dy => {
+  const els = [...document.querySelectorAll("#full.on .hub, #full.on, .sheet.on, #sheet-in, main, .wrap")].filter(e => e.scrollHeight > e.clientHeight + 10 && e.getClientRects().length);
+  (els[0] || document.scrollingElement).scrollBy(0, dy);
+}, dy);
 const RUNS = [["iPhone 11", devices["iPhone 11"]], ["iPad", devices["iPad (gen 7)"]], ["iPad landscape", devices["iPad (gen 7) landscape"]]];
 const SCREENS = ["home", "queue", "lib", "played", "replay", "month", "flow", "plan", "psych", "duels", "friend", "add"];
 let failed = 0;
@@ -65,10 +70,10 @@ for (const [name, dev] of RUNS) {
     for (const s of SCREENS) {
       await step("goTab " + s, `goTab(${JSON.stringify(s)})`, pass ? 700 : 1600);
       await shot(s);
-      await page.mouse.wheel(0, 900); await page.waitForTimeout(pass ? 300 : 900);
+      await scrollBy(page, 900); await page.waitForTimeout(pass ? 300 : 900);
     }
     await step("game page", `openFull("g1")`, 1600); await shot("game");
-    await page.mouse.wheel(0, 700); await page.waitForTimeout(800); await shot("game-scrolled");
+    await scrollBy(page, 700); await page.waitForTimeout(800); await shot("game-scrolled");
     await step("close game", `closeFull()`, 800);
     await step("settings", `(document.querySelector("#gear") || {}).click && document.querySelector("#gear").click()`, 1500); await shot("settings");
     await page.keyboard.press("Escape"); await page.waitForTimeout(400);

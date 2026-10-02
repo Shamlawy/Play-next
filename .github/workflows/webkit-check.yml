@@ -23,7 +23,7 @@ jobs:
       - name: Install WebKit
         run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps webkit >/dev/null 2>&1
       - name: Walk the app on iPhone 11 and iPad
-        run: node .github/scripts/webkitcheck.mjs | tee webkit-report.txt
+        run: set -o pipefail; node .github/scripts/webkitcheck.mjs | tee webkit-report.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -16761,6 +16761,13 @@ function bugClipped(el, root) {
   }
   return false;
 }
+/* true while it or anything around it is mid-animation (a screen sliding in starts 24px off to the side); looping
+   animations (blinks, glows) don't count. The WebKit check caught Home's Nexi face "cut off" 31ms into the slide-in. */
+function bugMoving(el) {
+  for (let a = el; a && a !== document.documentElement; a = a.parentElement)
+    if (a.getAnimations && a.getAnimations().some(x => x.playState === "running" && x.effect && x.effect.getComputedTiming && x.effect.getComputedTiming().iterations !== Infinity)) return true;
+  return false;
+}
 function bugVisible(el, r, root) {
   let v = { l: r.left, r: r.right, t: r.top, b: r.bottom };
   for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
@@ -16801,7 +16808,7 @@ function bugLayout() {
     const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) continue;
     if (el.closest(BUG_SKIP)) continue;
     const cut = (r.left < W - 6 && r.right > W + 2) || (r.right > 6 && r.left < -2);
-    if (cut && !bugClipped(el, root)) { n++; bugReport("layout", "A button is cut off by the " + (r.left < 0 ? "left" : "right") + " edge of the screen", { at: bugPath(el), screen: scr }); continue; }
+    if (cut && !bugClipped(el, root) && !bugMoving(el)) { n++; bugReport("layout", "A button is cut off by the " + (r.left < 0 ? "left" : "right") + " edge of the screen", { at: bugPath(el), screen: scr }); continue; }
     /* hidden under the Nexi rail: the rail sits on top of its middle */
     if (railOn && r.top >= 0 && r.bottom <= H && r.left >= 0 && r.right <= W && r.right > W - 110) {
       /* only the part you can actually see: a scrolling row clips what's past its edge */
