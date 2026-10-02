@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "227";
+const APP_V = "228";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -15862,8 +15862,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 11 && j.v < 12 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except prices for games the store searches miss (like GTA 6) and short names like “GTA 6”, which need the new helper."
-      : ok && j.v >= 12 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+    el.textContent = ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
+      : ok && j.v >= 13 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
@@ -20545,5 +20545,14 @@ WHATS_NEW.push(
   { v: 227, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && x.px.ps && x.px.ps.now != null) || pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px-l") || $("#full .px") || null,
     say: "Prices now turn up for games the store searches miss, like GTA 6 on the PlayStation Store. Short names such as “GTA 6” or “FF7 Rebirth” match the store's full name too.",
     tryIt: "Nothing to do: missing prices fill in by themselves on the next check." }
+);
+</script>
+<script>
+/* ===== v228: platform logos in one pill; price checks never skip a store for good (pxStale/pxGap, batches of 5); helper v13 ===== */
+WHATS_NEW.push(
+  { v: 228, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => platChips(x.platforms).filter(c => c.k).length > 1) || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .gd-tags .pfms") || $("#full .gd-tags") || null,
+    say: "Platforms now sit together in one tidy strip: PlayStation 4·5, Switch, PC and more side by side. And every store gets checked for every game now: no more prices stuck on “—”, add-ons mistaken for the game, or “soon” on games your region doesn't sell.",
+    tryIt: "Open a game you're waiting for and look under its title." }
 );
 </script>
