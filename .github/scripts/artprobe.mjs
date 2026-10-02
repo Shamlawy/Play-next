@@ -4,8 +4,8 @@ import fs from "fs";
 const UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
 const cut = (s, n) => String(s).slice(0, n || 3000);
 const get = async (u, o) => { try { const r = await fetch(u, { ...(o || {}), headers: { ...UA, ...((o || {}).headers || {}) } }); const t = await r.text(); return [r.status, t]; } catch (e) { return [0, String(e)]; } };
-const T = (process.env.ARTTITLES || "Elden Ring|Persona 5 Royal|Metaphor: ReFantazio|Clair Obscur: Expedition 33").split("|");
-if (process.env.RAW !== "0") {
+const T = (process.env.ARTTITLES || "Elden Ring|Persona 5 Royal|Metaphor: ReFantazio|Clair Obscur: Expedition 33|Hollow Knight|The Legend of Zelda: Tears of the Kingdom|Ghost of Yotei|GTA 6|STEINS;GATE ELITE|Fire Emblem: Fortune's Weave|Persona 3 Reload").split("|");
+if (process.env.RAW === "1") {
   console.log("===== Steam GetItems assets + screenshots (1245620 Elden Ring, 2679460 Metaphor) =====");
   for (const id of [1245620, 2679460, 1903340]) {
     const input = { ids: [{ appid: id }], context: { language: "english", country_code: "US", steam_realm: 1 },
@@ -41,4 +41,30 @@ if (process.env.RAW !== "0") {
     try { const h = JSON.parse(t).hits[0]; console.log(s, JSON.stringify(Object.fromEntries(Object.entries(h).filter(([k, v]) => /image|art|hero|box|media|asset|url/i.test(k))))); } catch (e) { console.log(s, cut(t, 600)); } }
   { const [s, t] = await get("https://searching.nintendo-europe.com/en/select?q=Persona%205%20Royal&fq=type:GAME&rows=2&wt=json");
     try { const d = JSON.parse(t).response.docs[0]; console.log(s, JSON.stringify(Object.fromEntries(Object.entries(d).filter(([k]) => /image|art|hero|box|media|screenshot/i.test(k))))); } catch (e) { console.log(s, cut(t, 600)); } }
+}
+
+/* the helper's own /art route on each title */
+let src = fs.readFileSync("worker/helper.js", "utf8").replace("export default {", "const __def = {");
+src += "\nexport { artRoute, artSize };\n";
+fs.writeFileSync("/tmp/hart.mjs", src);
+const H = await import("/tmp/hart.mjs");
+const mk = body => new Request("https://x/art", { method: "POST", headers: { Origin: "https://shamlawy.github.io", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const thSeen = new Set();
+for (const t of T) {
+  const t0 = Date.now();
+  const j = await (await H.artRoute(mk({ t, cc: process.env.ARTCC || "ae", sw2: /Fortune/.test(t) }), {}, {})).json();
+  console.log(`\n===== ${t} (${Date.now() - t0} ms) =====`);
+  console.log("found:", JSON.stringify(j.found));
+  const by = {};
+  for (const p of j.pics || []) (by[p.r] ||= []).push(p);
+  for (const r of ["cover", "hero", "art", "shot"]) {
+    const l = by[r] || [];
+    console.log(`  ${r} (${l.length}):`, l.slice(0, 14).map(p => `${p.s}:${p.w ? p.w + "x" + p.h : "?"}:${p.k}`).join(" | "));
+  }
+  /* do the small copies load? one of each kind per store */
+  for (const p of j.pics || []) {
+    const key = p.s + p.r; if (!p.th || thSeen.has(key)) continue; thSeen.add(key);
+    const d = await H.artSize(p.th); console.log(`  thumb ${key}: ${d ? d.w + "x" + d.h : "FAILED"} ${p.th.slice(0, 140)}`);
+  }
+  if (t === T[0]) console.log("  sample:", JSON.stringify((j.pics || []).slice(0, 6)).slice(0, 1500));
 }
