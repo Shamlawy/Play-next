@@ -629,9 +629,10 @@ async function artSteam(cc, title, id) {
   add(A.library_hero_2x, "hero", "Library hero (2x)");
   add(A.library_hero, "hero", "Library hero");
   /* the transparent logo isn't in the list: it sits next to the library pictures */
-  const dir = String(A.library_capsule || "").includes("/") ? A.library_capsule.split("/")[0] + "/" : "";
   pics.push({ s: "st", r: "art", u: ST_IMG + `steam/apps/${id}/logo_2x.png`, k: "Logo (2x)" }, { s: "st", r: "art", u: ST_IMG + `steam/apps/${id}/logo.png`, k: "Logo" });
-  if (dir) pics.push({ s: "st", r: "art", u: at(dir + "logo.png"), k: "Logo" });
+  /* newer games keep the logo in a hash folder: the box art's or the library hero's (v16) */
+  for (const dir of new Set([A.library_capsule, A.library_hero].map(f => String(f || "").includes("/") ? f.split("/")[0] + "/" : "").filter(Boolean)))
+    pics.push({ s: "st", r: "art", u: at(dir + "logo_2x.png"), k: "Logo (2x)" }, { s: "st", r: "art", u: at(dir + "logo.png"), k: "Logo" });
   add(A.header_2x || A.header, "hero", "Store header", A.header);
   add(A.main_capsule_2x || A.main_capsule, "hero", "Store capsule", A.main_capsule);
   add(A.raw_page_background, "hero", "Store page background");
