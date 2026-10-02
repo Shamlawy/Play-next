@@ -643,8 +643,11 @@ const PS_JUNK = /bundle|soundtrack|season pass|upgrade|\bpack\b|\bdlc\b|add-?on|
 const PS_ED = /deluxe|complete|ultimate|gold|premium|definitive|collector|digital|special|anniversary|director'?s cut|edition/i;
 async function pxPsFind(cc, title) {
   /* the website's search first (it knows every game); the old tumbler search if it fails or finds nothing */
-  try { const f = await pxPsSearchWeb(cc, title) || (pxExpand(title) !== title ? await pxPsSearchWeb(cc, pxExpand(title), title) : null); if (f) return f; } catch (e) {}
-  return pxPsFindOld(cc, title);
+  let f = null;
+  try { f = await pxPsSearchWeb(cc, title) || (pxExpand(title) !== title ? await pxPsSearchWeb(cc, pxExpand(title), title) : null); } catch (e) {}
+  /* only an edition found ("Ghost of Yōtei Complete Edition") while you named the plain game: the old search may have the plain one */
+  if (f && PS_ED.test(f.name) && !PS_ED.test(title)) { const o = await pxPsFindOld(cc, title).catch(() => null); if (o && !PS_ED.test(o.name) && pxSame(title, o.name) >= .9) return o; }
+  return f || pxPsFindOld(cc, title);
 }
 async function pxPsSearchWeb(cc, q, title) {
   title = title || q;
