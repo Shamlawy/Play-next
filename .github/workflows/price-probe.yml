@@ -39,6 +39,7 @@ jobs:
           TITLES: ${{ github.event.inputs.titles }}
           CCS: ${{ github.event.inputs.ccs }}
           DEBUG: ${{ github.event.inputs.debug == 'yes' && '1' || '' }}
+          NS: ${{ github.event.inputs.titles && '1' || '' }}
         run: mkdir -p probe; node .github/scripts/priceprobe.mjs | tee probe/prices.log
       - name: PS search probe
         if: ${{ github.event.inputs.browser == 'yes' }}

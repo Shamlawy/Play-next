@@ -16677,10 +16677,12 @@ WHATS_NEW.push(
 const BUG = { q: [], crumbs: [], lastScreen: "", t: 0, boot: performance.now() };
 const bugOn = () => S.bugOff !== true;
 function bugDev() {
-  const u = navigator.userAgent, os = /iPhone|iPad/.test(u) ? "iPhone" : /Android/.test(u) ? "Android" : /Mac OS/.test(u) ? "Mac" : /Windows/.test(u) ? "Windows" : "Other";
+  /* v229: an iPad's Safari says it's a Mac (only its touch screen gives it away); iOS version from "OS 17_5" */
+  const u = navigator.userAgent, pad = /iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1), iv = (u.match(/OS (\d+)_(\d+)/) || []).slice(1, 3).join(".");
+  const os = pad ? "iPad" + (iv ? " iOS " + iv : "") : /iPhone/.test(u) ? "iPhone" + (iv ? " iOS " + iv : "") : /Android/.test(u) ? "Android" : /Mac OS/.test(u) ? "Mac" : /Windows/.test(u) ? "Windows" : "Other";
   const b = /Edg\//.test(u) ? "Edge" : /SamsungBrowser/.test(u) ? "Samsung Internet" : /CriOS|Chrome\//.test(u) ? "Chrome " + ((u.match(/(?:Chrome|CriOS)\/(\d+)/) || [])[1] || "")
     : /Firefox|FxiOS/.test(u) ? "Firefox" : /Safari/.test(u) ? "Safari " + ((u.match(/Version\/(\d+)/) || [])[1] || "") : "browser";
-  return os + " " + b.trim() + (window.matchMedia && matchMedia("(display-mode: standalone)").matches ? " (installed)" : "");
+  return os + " " + b.trim() + ((window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? " (installed)" : "");
 }
 function bugHash(t) { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }
 /* titles (and anything else personal) never leave the phone */
@@ -18729,15 +18731,51 @@ const pxWatched = () => S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.
 const pxUrl = (g, s) => s === "ns" ? (g.pxNsU || (["us", "ca", "mx", "br", "ar", "cl", "co", "pe"].includes(pxNsCC()) ? `https://www.nintendo.com/us/search/#q=${encodeURIComponent(g.title)}` : `https://www.nintendo.com/en-gb/Search/Search-299117.html?q=${encodeURIComponent(g.title)}`))
   : s === "st"
   ? (+g.pxSt > 0 ? `https://store.steampowered.com/app/${g.pxSt}/` : `https://store.steampowered.com/search/?term=${encodeURIComponent(g.title)}`)
-  : (g.pxPs && g.pxPs !== "-" ? `https://store.playstation.com/en-${pxCC()}/product/${g.pxPs}` : `https://store.playstation.com/en-${pxCC()}/search/${encodeURIComponent(g.title)}`);
+  : (g.pxPs && g.pxPs !== "-" ? `https://store.playstation.com/en-${pxPsCC()}/product/${g.pxPs}` : `https://store.playstation.com/en-${pxPsCC()}/search/${encodeURIComponent(g.title)}`);
 const PX_NAME = { st: "Steam", ps: "PS Store", ns: "eShop" };
+/* v229: every price in your own currency. The UAE/Gulf PS Store and the US eShop (used in the Gulf) sell in US dollars, Steam
+   in Egypt too, so prices are converted at today's rate: S.fx = {r: rates per 1 USD, t, at} from the helper (twice a day,
+   with the price check), pegged Gulf rates until then. S.pxCur: "" = your region's currency, "store" = each store's own, or a code.
+   The store's own price stays in the details (tooltips, the Prices sheet). */
+const PX_CUR = { us: "USD", gb: "GBP", ie: "EUR", de: "EUR", fr: "EUR", it: "EUR", es: "EUR", nl: "EUR", ae: "AED", sa: "SAR", kw: "KWD", qa: "QAR", bh: "BHD", om: "OMR",
+  eg: "EGP", jo: "JOD", lb: "USD", jp: "JPY", in: "INR", au: "AUD", ca: "CAD", tr: "TRY", za: "ZAR", ma: "MAD", br: "BRL", mx: "MXN" };
+const FX_PEG = { USD: 1, AED: 3.6725, SAR: 3.75, QAR: 3.64, BHD: .376, OMR: .3845, JOD: .709 };
+const PX_CURS = [["", "Auto"], ["AED", "AED"], ["EGP", "EGP"], ["SAR", "SAR"], ["USD", "US $"], ["EUR", "Euro"], ["GBP", "Pound"], ["store", "Store's own"]];
+const pxMyCur = () => S.pxCur === "store" ? "" : /^[A-Z]{3}$/.test(S.pxCur || "") ? S.pxCur : PX_CUR[pxCC()] || "";
+const fxRate = c => (S.fx && S.fx.r && +S.fx.r[c] > 0 ? +S.fx.r[c] : FX_PEG[c]) || 0;
+const PX_ZD = new Set(["JPY", "KRW", "CLP", "VND", "IDR", "HUF", "TWD", "COP"]);
+/* Steam and the PS Store send cents, the eShop the amount itself */
+const pxMaj = (s, cur, v) => v == null || isNaN(+v) ? null : s === "ns" ? +v : s === "ps" && PX_ZD.has(cur) ? +v : +v / 100;
+/* {a, c, x}: the amount in your currency (x = converted), else in the store's */
+function pxTo(s, p, v) {
+  const from = p && p.cur, a = pxMaj(s, from, v); if (a == null || !from) return null;
+  const to = pxMyCur(), rf = fxRate(from), rt = fxRate(to);
+  return to && to !== from && rf && rt ? { a: a / rf * rt, c: to, x: 1 } : { a, c: from, x: 0 };
+}
+const PX_NF = {};
+function pxFmtN(a, c) {
+  const k = c + (a >= 100 ? 0 : 2);
+  try { return (PX_NF[k] ||= new Intl.NumberFormat("en", { style: "currency", currency: c, maximumFractionDigits: a >= 100 ? 0 : 2, minimumFractionDigits: a >= 100 ? 0 : 2 })).format(a); }
+  catch (e) { return c + " " + Math.round(a); }
+}
+/* what to show for a store price: in your currency when it's converted, else the store's own text */
+const pxM = (s, p, v, f) => { const t = pxTo(s, p, v); return t && t.x ? pxFmtN(t.a, t.c) : f || ""; };
+const pxMx = (s, p, v) => { const t = pxTo(s, p, v); return !!(t && t.x); };
+/* the PlayStation Store you buy from: Egypt and a few others have none (checked with the price probe), so the UAE store for
+   the Arab world, the US one elsewhere, or the one you pick */
+const PS_NONE = new Set(["eg", "ma", "dz", "tn", "ly", "iq", "jo", "sy", "ye", "sd", "pk", "ng", "ph", "ir", "af"]);
+const PS_ARAB = new Set(["eg", "ma", "dz", "tn", "ly", "iq", "jo", "sy", "ye", "sd"]);
+const PS_REGIONS = [["ae", "UAE"], ["sa", "Saudi"], ["us", "US $"], ["gb", "UK £"]];
+const pxPsCC = () => /^[a-z]{2}$/.test(S.pxPsCC || "") && !PS_NONE.has(S.pxPsCC) ? S.pxPsCC : PS_NONE.has(pxCC()) ? (PS_ARAB.has(pxCC()) ? "ae" : "us") : pxCC();
 function pxItem(g) {
   const relook = t => !t || Date.now() - t > PX_RELOOK;
   const st = !pxWantSt(g) ? -1 : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : relook(g.pxStNo) ? 0 : -1;
   /* v227: a known store page (concept, from RAWG's link or a pasted /concept/ link) is priced even when the title search found nothing */
   const ps = !pxWantPs(g) ? "-" : g.pxPs && g.pxPs !== "-" ? g.pxPs : g.pxPsC || relook(g.pxPsNo) ? "" : "-";
   const ns = !pxWantNs(g) ? "-" : g.pxNs && g.pxNs !== "-" ? g.pxNs : relook(g.pxNsNo) ? "" : "-";
-  return { k: g.id, t: g.title, st, ps, pc: ps !== "-" ? (g.pxPsC || "") : "", ns, sw2: pxPl(g).some(p => /switch\s*2/.test(p)) };
+  /* v229: the name another store knows it by, for a store that hasn't found it by your title ("Yu-Gi-Oh! TAG FORCE GX") */
+  const P = g.px || {}, n2 = ["st", "ps", "ns"].map(s => P[s] && P[s].name).find(n => n && n.toLowerCase() !== String(g.title).toLowerCase()) || "";
+  return { k: g.id, t: g.title, st, ps, pc: ps !== "-" ? (g.pxPsC || "") : "", ns, sw2: pxPl(g).some(p => /switch\s*2/.test(p)), ...(n2 ? { n2 } : {}) };
 }
 let pxBusy = false;
 async function pxRun(force, only) {
@@ -18755,15 +18793,16 @@ async function pxRun(force, only) {
     const all = list.slice(0, 60).map(x => x.k).concat(typeof drKeys === "function" ? drKeys() : []), drops = [];
     /* v228: 5 games per call (each can take several store requests; the helper has a budget per call) */
     for (let i = 0; i < Math.min(list.length, 60); i += 5) {
-      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
-        ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), pscc: pxPsCC(), mc: pxMyCur(), items: list.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
+        ...(fxOld() ? { fx: 1 } : {}), ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
+      fxTake(r.fx);
       drops.push(...pxTake(r.res || {}));
       if (only) break;
     }
     /* anything a store still didn't answer for gets one more go */
     const miss = (only ? [only] : pxWatched()).map(pxItem).filter(x => pxGap(x)).slice(0, 10);
     for (let i = 0; i < miss.length; i += 5) {
-      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: miss.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier() });
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), pscc: pxPsCC(), mc: pxMyCur(), items: miss.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier() });
       drops.push(...pxTake(r.res || {}));
     }
     if (!alerts && S.pxWatching && S.nudgeId) { nxPost("/prices", { id: S.nudgeId, off: 1 }).catch(() => {}); }
@@ -18775,6 +18814,14 @@ async function pxRun(force, only) {
     S.pxErr = e.message === "helper-old" ? "helper-old" : String(e.message || e).slice(0, 80); S.pxErrAt = Date.now(); save(); pxPaint();
     return null;
   } finally { pxBusy = false; pxPaint(); }
+}
+/* exchange rates: asked for with the price check when over 12 h old; also on their own (fxGet) for a currency change */
+const fxOld = () => !S.fx || !S.fx.r || Date.now() - (S.fx.at || 0) > 12 * 36e5;
+function fxTake(f) { if (f && f.ok && f.r && +f.r.USD === 1) { S.fx = { r: f.r, t: +f.t || Date.now(), at: Date.now() }; save(); } }
+let fxBusy = 0;
+async function fxGet(force) {
+  if (fxBusy || !navigator.onLine || (!force && !fxOld()) || !pxOn()) return;
+  fxBusy = 1; try { fxTake(await nxPost("/fx", {})); pxPaint(); } catch (e) {} finally { fxBusy = 0; }
 }
 /* a store this game is watched on that has no answer yet */
 const pxGap = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px) || {}; return (it.st !== -1 && !p.st) || (it.ps !== "-" && !p.ps) || (it.ns !== "-" && !p.ns); };
@@ -18815,11 +18862,12 @@ function pxTake(res) {
       try { pnBubSay([`Good news: ${g.title} just joined PS Plus ${t}. It's included in your subscription!`, "deals"]); } catch (e) {}
   }
   if (drops.length) {
-    S.pxNews = (S.pxNews || []).concat(drops.map(d => ({ id: d.g.id, s: d.s, t: Date.now(), pct: d.p.pct, nowF: d.p.nowF }))).slice(-20);
+    const mf = d => pxM(d.s, d.p, d.p.now, d.p.nowF);
+    S.pxNews = (S.pxNews || []).concat(drops.map(d => ({ id: d.g.id, s: d.s, t: Date.now(), pct: d.p.pct, nowF: mf(d) }))).slice(-20);
     const d = drops.sort((a, b) => b.p.pct - a.p.pct)[0];
-    toast(`💸 ${d.g.title}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"} on ${PX_NAME[d.s]}: ${d.p.nowF}` + (drops.length > 1 ? ` (+${drops.length - 1} more)` : ""));
+    toast(`💸 ${d.g.title}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"} on ${PX_NAME[d.s]}: ${mf(d)}` + (drops.length > 1 ? ` (+${drops.length - 1} more)` : ""));
     if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
-      try { pnBubSay([`Price drop! ${d.g.title} is ${d.p.nowF} on ${PX_NAME[d.s]} right now.`, "deals"]); } catch (e) {}
+      try { pnBubSay([`Price drop! ${d.g.title} is ${mf(d)} on ${PX_NAME[d.s]} right now.`, "deals"]); } catch (e) {}
   }
   return drops;
 }
@@ -18838,7 +18886,10 @@ function pxCard(g) {
   if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g) && !pxWantNs(g))) return "";
   const P = g.px || {}, list = ["ps", "st", "ns"].filter(s => pxWant(g, s));
   const priced = list.filter(s => { const p = P[s]; return p && !p.none && !p.err && !p.nop && !p.nosale && (p.free || p.now != null); });
-  const val = s => P[s].free ? 0 : pxEff(P[s]), cur = s => P[s].free ? "*" : P[s].cur || "";
+  /* v229: compared (and shown) in your currency when it can be converted */
+  const val = s => { if (P[s].free) return 0; const t = pxTo(s, P[s], pxEff(P[s])); return t ? t.a : pxEff(P[s]); };
+  const cur = s => { if (P[s].free) return "*"; const t = pxTo(s, P[s], pxEff(P[s])); return t ? t.c : P[s].cur || ""; };
+  const effF = s => { const p = P[s], e = pxEff(p); return pxM(s, p, e, (e < p.now && p.plusNowF) || p.nowF); };
   const pct = s => { const p = P[s], e = pxEff(p); return p.base && e != null && e < p.base ? Math.round((1 - e / p.base) * 100) : p.pct || 0; };
   /* the best deal: in your PS Plus, else the cheapest (same currency only: the eShop can be in another region's), else the biggest sale */
   let best = list.find(s => pxIncl(P[s])) || "", why = best ? "is in your PS Plus" : "";
@@ -18848,7 +18899,7 @@ function pxCard(g) {
     else { const d = priced.filter(s => pct(s) > 0).sort((a, b) => pct(b) - pct(a)); if (d.length) { best = d[0]; why = "has the best sale"; } }
   }
   const lab = list.map(s => { const p = P[s];
-    return !p ? (pxBusy ? "checking" : "—") : p.none || p.nosale ? "n/a" : p.err ? "retry" : pxIncl(p) ? "✓ Plus" : p.free ? "Free" : p.nop ? "soon" : pxShort((pxEff(p) < p.now && p.plusNowF) || p.nowF); });
+    return !p ? (pxBusy ? "checking" : "—") : p.none || p.nosale ? "n/a" : p.err ? "retry" : pxIncl(p) ? "✓ Plus" : p.free ? "Free" : p.nop ? "soon" : pxShort(effF(s)); });
   /* a currency code ("AED 249") is drawn small, so only the digits count toward the width */
   const tight = list.length > 2 && lab.some(x => x.replace(/[A-Z]{2,4}/, "~~").replace(/\s/g, "").length > 6);
   const cu = t => esc(t).replace(/^([A-Z]{2,4})\s?(?=\d)/, "<u>$1</u>").replace(/(\d)\s?([A-Z]{2,4})$/, "$1<u>$2</u>");
@@ -18856,15 +18907,16 @@ function pxCard(g) {
     const p = P[s], t = lab[i], d = p && !pxIncl(p) && priced.includes(s) ? pct(s) : 0;
     const tip = [PX_NAME[s], !p ? (pxBusy ? "checking…" : S.pxErr === "helper-old" ? "waiting for Nexi's helper update" : "not checked yet")
       : p.none ? "not found: paste its link in Price alerts" : p.nosale ? "not sold in your region" : p.err ? "couldn't check just now, I'll try again"
-      : pxIncl(p) ? `in your PS Plus ${PS_PLUS[pxTier()]}${p.nowF ? ", or buy " + p.nowF : ""}` : p.nop ? "no price yet" : (pxEff(p) < p.now ? "PS Plus price " : "") + t + (d ? ` (−${d}%, was ${p.baseF || ""})` : ""),
+      : pxIncl(p) ? `in your PS Plus ${PS_PLUS[pxTier()]}${p.nowF ? ", or buy " + pxM(s, p, p.now, p.nowF) : ""}` : p.nop ? "no price yet" : (pxEff(p) < p.now ? "PS Plus price " : "") + (pxMx(s, p, pxEff(p)) ? "≈ " : "") + t + (d ? ` (−${d}%, was ${pxM(s, p, p.base, p.baseF)})` : "") + (pxMx(s, p, pxEff(p)) ? `; the store's price is ${(pxEff(p) < p.now && p.plusNowF) || p.nowF}` : ""),
       p && p.pct && p.end ? "sale ends " + pxEnd(p.end) : "", p && p.pre ? "pre-order" : "", p && !pxIncl(p) && p.plus ? `in PS Plus ${PS_PLUS[p.plus]}` : ""].filter(Boolean).join(" · ");
-    const v = !p ? (pxBusy ? `<small class="pxck">checking</small>` : "<small>—</small>") : priced.includes(s) && !pxIncl(p) ? (d && p.baseF ? `<s>${esc(pxShort(p.baseF))}</s>` : "") + `<b>${cu(t)}</b>` : pxIncl(p) ? `<b class="px-in">${t}</b>` : `<small>${esc(t)}</small>`;
+    const v = !p ? (pxBusy ? `<small class="pxck">checking</small>` : "<small>—</small>") : priced.includes(s) && !pxIncl(p) ? (d && p.baseF ? `<s>${esc(pxShort(pxM(s, p, p.base, p.baseF)))}</s>` : "") + `<b>${cu(t)}</b>` : pxIncl(p) ? `<b class="px-in">${t}</b>` : `<small>${esc(t)}</small>`;
     return `<button type="button" class="px-c px-${s}${s === best ? " best" : ""}${pxIncl(p) ? " incl" : ""}" data-pxgo="${s}:${g.id}" title="${esc(tip)}" aria-label="${esc(tip)}">${pxLogo(s)}<i>${PX_NAME[s]}</i>${v}${d ? `<em>−${d}%</em>` : ""}</button>`;
   };
   /* the line under the chips: why the ringed one wins, its sale's end, the lowest seen; always opens Price alerts */
-  const bp = best && P[best], low = PX_S.map(s => P[s]).filter(x => x && x.low != null && x.now != null && !pxIncl(x) && x.low < pxEff(x));
+  const bp = best && P[best], low = list.filter(s => { const x = P[s]; return x && x.low != null && x.now != null && !pxIncl(x) && x.low < pxEff(x); });
+  const conv = priced.some(s => pxMx(s, P[s], pxEff(P[s])));
   const se = bp && bp.pct && bp.end ? bp : !best && priced.map(s => P[s]).find(p => p.pct && p.end);
-  const cap = [best ? `${PX_NAME[best]} ${why}` : "", se ? (best ? "ends " : "sale ends ") + pxEnd(se.end) : "", low.length ? "lowest seen " + low[0].lowF : ""].filter(Boolean).join(" · ");
+  const cap = [best ? `${PX_NAME[best]} ${why}` : "", se ? (best ? "ends " : "sale ends ") + pxEnd(se.end) : "", low.length ? "lowest seen " + pxM(low[0], P[low[0]], P[low[0]].low, P[low[0]].lowF) : "", conv ? "≈ in " + pxMyCur() : ""].filter(Boolean).join(" · ");
   return `<div class="px" data-g="${g.id}"><div class="px-l n${list.length}${tight ? " tight" : ""}">${list.map(chip).join("")}</div>
     <button type="button" class="px-more" data-px="${g.id}"><span>${esc(cap)}</span>Price alerts ›</button></div>`;
 }
@@ -18890,8 +18942,8 @@ function pxSheet(id) {
       ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : pxStores()[s] ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
         : p && p.none ? `<p class="note">I couldn't find it on ${PX_NAME[s]}. Paste its store link below, or tell me it isn't sold there.</p>`
         : p && p.err ? `<p class="note">The last check didn't work (${esc(p.err)}). I'll try again on my own.</p>`
-        : p ? (pxIncl(p) ? `<p class="pxs-p"><b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><br><small>${esc(p.name || "")}${p.nowF ? " · or buy for " + esc(p.nowF) : ""}</small></p>`
-          : p.nosale || p.nop || p.free ? `<p class="pxs-p">${p.nosale ? "Not sold in your region" : p.free ? "<b>Free</b>" : "No price yet (not out yet)"}<br><small>${esc(p.name || "")}</small></p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
+        : p ? (pxIncl(p) ? `<p class="pxs-p"><b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><br><small>${esc(p.name || "")}${p.nowF ? " · or buy for " + esc(pxM(s, p, p.now, p.nowF)) : ""}</small></p>`
+          : p.nosale || p.nop || p.free ? `<p class="pxs-p">${p.nosale ? "Not sold in your region" : p.free ? "<b>Free</b>" : "No price yet (not out yet)"}<br><small>${esc(p.name || "")}</small></p>` : `<p class="pxs-p"><b>${pxMx(s, p, p.now) ? "≈ " : ""}${esc(pxM(s, p, p.now, p.nowF))}</b>${p.pct ? ` <s>${esc(pxM(s, p, p.base, p.baseF))}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(pxM(s, p, p.low, p.lowF)) : ""}</small>${pxMx(s, p, p.now) ? `<br><small class="pxs-o">Store price ${esc(p.nowF || "")}${p.pct ? " (was " + esc(p.baseF || "") + ")" : ""} · converted at today's rate</small>` : ""}</p>`)
         : `<p class="note">${tied ? "Linked; the price comes with the next check." : "Not found yet. Paste its store link below if I can't find it."}</p>`}
       <div class="pxs-a"><button type="button" class="btn ghost" data-pxgo="${s}:${g.id}"><span>Open ${PX_NAME[s]} ↗</span></button>
         ${want ? `<button type="button" class="btn ghost" data-pxno="${s}"><span>Not on ${PX_NAME[s]}</span></button>` : off ? `<button type="button" class="btn ghost" data-pxyes="${s}"><span>Watch it again</span></button>` : ""}</div></div>`;
@@ -18900,7 +18952,7 @@ function pxSheet(id) {
     ${row("st")}${row("ps")}${row("ns")}
     <label class="pxs-l" for="px-link">Wrong game, or not found? Paste its Steam or PS Store link</label>
     <div class="pxs-in"><input id="px-link" type="url" inputmode="url" placeholder="https://store.steampowered.com/app/… or store.playstation.com/…/product/…"><button type="button" class="btn" data-pxlink><span>Use it</span></button></div>
-    <p class="note px-msg">Prices for ${esc(PX_REGIONS.find(r => r[0] === pxCC()) ? PX_REGIONS.find(r => r[0] === pxCC())[1] : pxCC().toUpperCase())} · change the region in Settings → Price alerts.</p>
+    <p class="note px-msg">Prices for ${esc(PX_REGIONS.find(r => r[0] === pxCC()) ? PX_REGIONS.find(r => r[0] === pxCC())[1] : pxCC().toUpperCase())}${pxPsCC() !== pxCC() ? ` (PlayStation: the ${esc(pxPsCC().toUpperCase())} store)` : ""}${pxMyCur() ? ", shown in " + esc(pxMyCur()) : ""} · change it in Settings → Price alerts.</p>
     <button type="button" class="btn" data-pxnow><span>Check this game now</span></button>`,
     async e => {
       const m = box.querySelector(".px-msg");
@@ -18927,7 +18979,7 @@ function pxDeals() {
     <p class="note">${esc(pxStatus())}</p>
     ${incl.length ? `<p class="pxd-h">🎮 Included in your PS Plus ${PS_PLUS[pxTier()]}</p><div class="dy-gl">${incl.map(g => `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>Game Catalog · nothing to buy</small></span><em class="pxd-p">✓</em></button>`).join("")}</div>` : ""}
     ${deals.length ? `${incl.length ? `<p class="pxd-h">💸 On sale</p>` : ""}<div class="dy-gl">${deals.map(([g, s, p]) => { const e = pxEff(p), mem = e != null && e < p.now;
-      return `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${PX_NAME[s]} · ${esc((mem ? p.plusNowF : p.nowF) || "")}${mem ? " with PS Plus" : ""} <s>${esc(p.baseF || "")}</s>${p.end ? " · ends " + esc(pxEnd(p.end)) : ""}${p.low != null && e <= p.low && p.t0 && Date.now() - p.t0 > 2 * 864e5 ? " · lowest we've seen" : ""}</small></span><em class="pxd-p">−${pc(p)}%</em></button>`; }).join("")}</div>`
+      return `<button class="dy-g pxd" data-opg="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${PX_NAME[s]} · ${esc(pxM(s, p, mem ? p.plusNow : p.now, (mem ? p.plusNowF : p.nowF) || ""))}${mem ? " with PS Plus" : ""} <s>${esc(pxM(s, p, p.base, p.baseF || ""))}</s>${p.end ? " · ends " + esc(pxEnd(p.end)) : ""}${p.low != null && e <= p.low && p.t0 && Date.now() - p.t0 > 2 * 864e5 ? " · lowest we've seen" : ""}</small></span><em class="pxd-p">−${pc(p)}%</em></button>`; }).join("")}</div>`
       : incl.length ? "" : `<p class="dy-empty">Nothing on your list is on sale right now. I'll tell you when something drops.</p>`}
     <button type="button" class="btn ghost" data-pxnow style="margin-top:12px"><span>Check prices now</span></button>`,
     async e => { if (e.target.closest("[data-pxnow]")) { const b = e.target.closest("[data-pxnow]"); b.querySelector("span").textContent = "Checking…"; await pxRun(true); pxDeals(); } });
@@ -18957,6 +19009,12 @@ function pxSetHtml() {
     <label>Your store region</label>
     <div class="chips" id="s-pxcc">${PX_REGIONS.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${cc === v}"><span>${l}</span></button>`).join("")}</div>
     ${PX_REGIONS.some(r => r[0] === cc) ? "" : `<p class="note">Using ${esc(cc.toUpperCase())} (from this phone).</p>`}
+    <label>Show prices in</label>
+    <div class="chips" id="s-pxcur">${PX_CURS.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.pxCur || "") === v}"><span>${v ? l : "Auto (" + esc(PX_CUR[cc] || "store's") + ")"}</span></button>`).join("")}</div>
+    <p class="note">Some stores here sell in US dollars (the PlayStation Store in the Gulf, the US eShop, Steam in Egypt). I convert every price to ${esc(pxMyCur() || "nothing: each store's own currency")} at today's rate${S.fx && S.fx.t ? " (rates from " + esc(new Date(S.fx.t).toLocaleDateString(undefined, { day: "numeric", month: "short" })) + ")" : ""}; the store's own price is in each game's Prices sheet.</p>
+    ${PS_NONE.has(cc) || S.pxPsCC ? `<label>Your PlayStation Store</label>
+    <div class="chips" id="s-pxpscc">${PS_REGIONS.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${pxPsCC() === v}"><span>${l}</span></button>`).join("")}</div>
+    <p class="note">${PS_NONE.has(cc) ? "There's no PlayStation Store in your country, so pick the one your PlayStation account uses." : "The PlayStation Store your account uses."}</p>` : ""}
     <label>Tell me when</label>
     <div class="chips" id="s-pxmin">${[[0, "Any drop"], [25, "25% off or more"], [50, "50% off or more"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${min === v}"><span>${l}</span></button>`).join("")}</div>
     <p class="note">Prices are checked when you open the app (twice a day at most). With notifications on (Settings → Nexi → Notifications, 💸 Price drops), Nexi's helper also checks once a day by itself and sends you the drop. PS Store prices are read from its public pages, so now and then one may be missing; the store link always works.</p>`;
@@ -18969,6 +19027,8 @@ function pxSetWire() {
   $("#s-pxstores").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; if (c.dataset.k === "st") S.pxSteam = S.pxSteam === false; else if (c.dataset.k === "ns") S.pxNS = S.pxNS === false; else S.pxPS = S.pxPS === false; done(true); };
   if ($("#s-pxnscc")) $("#s-pxnscc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxNsCC = c.dataset.v; S.games.forEach(g => { if (g.px) delete g.px.ns; delete g.pxNs; delete g.pxNsNo; delete g.pxNsU; }); done(true); };
   $("#s-pxcc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxCC = c.dataset.v; S.games.forEach(g => { delete g.px; delete g.pxStNo; delete g.pxPsNo; if (!S.pxNsCC) { delete g.pxNs; delete g.pxNsNo; delete g.pxNsU; } }); done(true); };
+  $("#s-pxcur").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxCur = c.dataset.v; S.pxWatching = false; save(); beep("tap"); redraw(); pxPaint(); fxGet(true); };
+  if ($("#s-pxpscc")) $("#s-pxpscc").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxPsCC = c.dataset.v; S.games.forEach(g => { if (g.px) delete g.px.ps; delete g.pxPs; delete g.pxPsC; delete g.pxPsNo; }); done(true); };
   $("#s-psplus").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.psPlus = +c.dataset.v; S.pxWatching = false; done(true); };
   $("#s-pxmin").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxMin = +c.dataset.v; S.pxWatching = false; done(true); };
 }
@@ -18986,8 +19046,22 @@ function pxSetWire() {
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "deals") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); pxDeals(); }, true);
 /* people who picked their notification kinds before this get 💸 Price drops switched on once */
 if (!S.pxKindMig) { if (Array.isArray(S.nudgeKinds) && !S.nudgeKinds.includes("deal")) S.nudgeKinds.push("deal"); S.pxKindMig = 1; save(); }
+/* v229 once: games tied to a sequel by mistake ("The Caligula Effect" → "The Caligula Effect 2": the store's name has a number
+   yours doesn't) are looked up again, and every "not found" gets a fresh look (the helper now also tries the name another
+   store knows the game by, and Egypt's PlayStation games go to a store that exists) */
+if (!S.pxMig229) {
+  const R = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13 };
+  const nums = t => new Set(String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").map(w => R[w] != null ? String(R[w]) : w).filter(w => /^\d{1,2}$/.test(w)));
+  S.games.forEach(g => { const P = g.px || {}, mine = nums(g.title);
+    for (const s of PX_S) { const p = P[s];
+      if (p && p.name && [...nums(p.name)].some(n => !mine.has(n))) { delete P[s]; if (s === "st") delete g.pxSt; else if (s === "ps") { delete g.pxPs; delete g.pxPsC; } else { delete g.pxNs; delete g.pxNsU; } }
+      if (p && p.none) delete P[s]; }
+    delete g.pxStNo; delete g.pxPsNo; delete g.pxNsNo; });
+  S.pxMig229 = 1; S.pxAt = 0; save();
+}
 /* open: check if it's been a while; a notification link can open the deals */
 setTimeout(() => pxRun(false), 9000);
+setTimeout(() => fxGet(false), 12000);
 addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => pxRun(false), 3000); });
 { const q = new URLSearchParams(location.search).get("nudge"); if (q === "deals") setTimeout(pxDeals, 2200); }
 WHATS_NEW.push(
@@ -19048,6 +19122,7 @@ html.still .px-c .pxck { animation: none; }
 .pxs-r { padding: 12px 14px; margin-bottom: 10px; border-radius: 16px; background: var(--u-card, #131a32); }
 .pxs-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .pxs-h small { color: var(--mute); font-size: 12px; }
+.pxs-p .pxs-o { color: var(--mute); font-size: 11.5px; }
 .pxs-p { margin: 6px 0 8px; font-size: 13px; color: var(--ice); line-height: 1.5; }
 .pxs-p b { font: 700 20px/1.2 "Poppins", system-ui, sans-serif; }
 .pxs-p s, .pxs-p small { color: var(--mute); }
@@ -19459,23 +19534,23 @@ async function drRun(force) {
     const all = pxWatched().map(g => g.id).slice(0, 60).concat(pick.map(x => "d:" + x.id)), news = [];
     for (let i = 0; i < pick.length; i += 10) {
       const b = pick.slice(i, i + 10);
-      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: b.map(x => ({ k: "d:" + x.id, t: x.name, st: x.id, ps: "-", ns: "-" })), min: 50, tier: pxTier(),
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), pscc: pxPsCC(), mc: pxMyCur(), items: b.map(x => ({ k: "d:" + x.id, t: x.name, st: x.id, ps: "-", ns: "-" })), min: 50, tier: pxTier(),
         ...(alerts ? { id: S.nudgeId, watch: true, all } : {}) });
       for (const x of b) { const p = ((r.res || {})["d:" + x.id] || {}).st; if (!p || p.now == null) continue;
-        const o = old.get(x.id); Object.assign(x, { now: p.now, base: p.base, pct: p.pct || 0, nowF: p.nowF, baseF: p.baseF, at: Date.now() });
+        const o = old.get(x.id); Object.assign(x, { cur: p.cur, now: p.now, base: p.base, pct: p.pct || 0, nowF: p.nowF, baseF: p.baseF, at: Date.now() });
         if (x.pct >= 50 && !(o && o.pct >= 50)) news.push(x); }
     }
     S.drList = pick.map(({ w, ...x }) => x); S.drAt = Date.now(); save();
     if (news.length) { const x = news.sort((a, b) => b.pct - a.pct)[0];
       if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
-        try { pnBubSay([`Players who love ${x.by} also love ${x.name}, and it's ${x.pct}% off right now (${x.nowF}). Want a look?`, "deals"]); } catch (e) {} }
+        try { pnBubSay([`Players who love ${x.by} also love ${x.name}, and it's ${x.pct}% off right now (${pxM("st", x, x.now, x.nowF)}). Want a look?`, "deals"]); } catch (e) {} }
   } catch (e) {} finally { drBusy = false; }
 }
 setTimeout(() => drRun(false), 25000);
 /* Deals shows them under your own list */
 { const _pd = pxDeals; pxDeals = function () { const o = _pd.apply(this, arguments); const box = dyBox(), l = drOn() ? (S.drList || []).filter(x => x.pct >= 30).sort((a, b) => b.pct - a.pct) : [];
   const btn = box.querySelector("[data-pxnow]"); if (!btn || !l.length) return o;
-  btn.insertAdjacentHTML("beforebegin", `<p class="pxd-h">🔭 You'd probably like these · on sale</p><div class="dy-gl">${l.slice(0, 8).map(x => `<div class="dy-g pxd drd"><img decoding="async" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${x.id}/header.jpg" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(x.name)}</b><small>Fans of ${esc(x.by)} love it · Steam ${esc(x.nowF || "")} <s>${esc(x.baseF || "")}</s></small></span><button class="sim-yt" data-drgo="${x.id}" aria-label="Open on Steam">↗</button><em class="pxd-p">−${x.pct}%</em></div>`).join("")}</div>`);
+  btn.insertAdjacentHTML("beforebegin", `<p class="pxd-h">🔭 You'd probably like these · on sale</p><div class="dy-gl">${l.slice(0, 8).map(x => `<div class="dy-g pxd drd"><img decoding="async" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${x.id}/header.jpg" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(x.name)}</b><small>Fans of ${esc(x.by)} love it · Steam ${esc(pxM("st", x, x.now, x.nowF || ""))} <s>${esc(pxM("st", x, x.base, x.baseF || ""))}</s></small></span><button class="sim-yt" data-drgo="${x.id}" aria-label="Open on Steam">↗</button><em class="pxd-p">−${x.pct}%</em></div>`).join("")}</div>`);
   return o; }; }
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-drgo]"); if (!b) return; e.stopPropagation(); beep("tap"); window.open(`https://store.steampowered.com/app/${b.dataset.drgo}/`, "_blank", "noopener"); }, true);
 /* the deal-radar games ride along on a manual "check now" too */
@@ -19903,7 +19978,7 @@ WHATS_NEW.push(
 const awItems = since => {
   const out = [], td = new Date().toLocaleDateString("en-CA"), byId = id => S.games.find(g => g.id === id), T = x => x && x.title;
   (S.pxNews || []).filter(x => x.t > since).slice(-4).reverse().forEach(x => { const g = byId(x.id); if (g) out.push({ i: "💸", t: `${g.title}${x.pct ? " is " + x.pct + "% off" : " got cheaper"}`, s: `${PX_NAME[x.s] || "Store"}: ${x.nowF || ""}`, g: g.id, hot: 1 }); });
-  (S.drList || []).filter(x => x.at > since && x.pct >= 50).slice(0, 2).forEach(x => out.push({ i: "🔭", t: `${x.name} is ${x.pct}% off`, s: `Fans of ${x.by} love it · ${x.nowF || ""}`, act: "deals" }));
+  (S.drList || []).filter(x => x.at > since && x.pct >= 50).slice(0, 2).forEach(x => out.push({ i: "🔭", t: `${x.name} is ${x.pct}% off`, s: `Fans of ${x.by} love it · ${pxM("st", x, x.now, x.nowF || "")}`, act: "deals" }));
   (S.rvLog || []).filter(x => x.t > since).slice(-3).forEach(x => { const g = byId(x.id); if (!g || !g.rv) return; const f = typeof rvFor === "function" ? rvFor(g) : null;
     out.push({ i: "⭐", t: `Reviews are in for ${g.title}: ${g.rv.mc ? g.rv.mc + " from critics" : (g.rv.st && g.rv.st.p) + "% on Steam"}`, s: f ? `You'd probably give it ${f.v.toFixed(1)}` : "", g: g.id, hot: 1 }); });
   (S.rdLog || []).filter(x => x.t > since).slice(-3).forEach(x => { const g = byId(x.id); if (!g) return;
@@ -20555,4 +20630,298 @@ WHATS_NEW.push(
     say: "Platforms now sit together in one tidy strip: PlayStation 4·5, Switch, PC and more side by side. And every store gets checked for every game now: no more prices stuck on “—”, add-ons mistaken for the game, or “soon” on games your region doesn't sell.",
     tryIt: "Open a game you're waiting for and look under its title." }
 );
+</script>
+
+<script>
+/* ===== v229: Nexi's brain. The owner wants Nexi "super smart", saying a lot more, all of it different and useful, and using
+   their name much more. nxSC() gathers what the app already knows (prices, PS Plus, releases, finish forecasts, reviews,
+   predictions, rankings, duels, habits, dust, notes); NX_SMART holds ~130 lines over it, each [when, text, act] with the
+   name woven in (c.Y = ", Name", c.H = "Name, "). nxSmartLine() picks one that fits right now (no repeats of the last 20).
+   Idle chatter: 45% smart, then the persona lines and the old pool as before; every line goes through nxVoice. Name: any
+   line without it gets it ~45% of the time (nxNamed), never inside HTML. ===== */
+const NX_DAY = 864e5;
+const nxT = g => (g && g.title) || "";
+const nxDaysTo = g => Math.ceil((new Date(g.date + "T00:00:00") - Date.now()) / NX_DAY);
+function nxSC() {
+  if (nxSC.m && Date.now() - nxSC.at < 20000) return nxSC.m;
+  const c = nxPCtx(), now = new Date(), td = now.toLocaleDateString("en-CA"), n = S.userName || "";
+  c.n = n; c.Y = n ? ", " + n : ""; c.H = n ? n + ", " : "";
+  const gone = g => isPlayed(g) || (typeof isDropped === "function" && isDropped(g));
+  const waiting = S.games.filter(g => !gone(g) && !g.comp);
+  const T = f => { try { return f(); } catch (e) { return null; } };
+  /* prices */
+  const deals = [];
+  if (typeof pxEff === "function") waiting.forEach(g => { const P = g.px || {}; ["ps", "st", "ns"].forEach(s => { const p = P[s];
+    if (!p || p.now == null || pxIncl(p)) return; const e = pxEff(p), pct = p.base && e != null && e < p.base ? Math.round((1 - e / p.base) * 100) : 0;
+    if (pct > 0) deals.push({ g, s, p, pct, f: pxM(s, p, e, (e < p.now && p.plusNowF) || p.nowF), bf: pxM(s, p, p.base, p.baseF), store: PX_NAME[s], end: p.end }); }); });
+  deals.sort((a, b) => b.pct - a.pct); c.deal = deals[0]; c.deals = deals.length; c.deal2 = deals.find(d => c.deal && d.g !== c.deal.g);
+  c.incl = typeof pxIncl === "function" ? waiting.filter(g => g.px && pxIncl(g.px.ps)) : [];
+  c.endSoon = deals.filter(d => d.end && d.end - Date.now() < 3 * NX_DAY && d.end > Date.now())[0];
+  /* releases */
+  const fut = waiting.filter(g => g.date && g.date > td && g.status !== "tba").sort((a, b) => a.date < b.date ? -1 : 1);
+  c.week = fut.filter(g => nxDaysTo(g) <= 7); c.month = fut.filter(g => nxDaysTo(g) <= 30); c.next = fut[0]; c.next2 = fut[1];
+  c.today = S.games.filter(g => g.date === td && !gone(g));
+  c.tba = waiting.filter(g => g.status === "tba").length;
+  /* playing */
+  c.plays = S.games.filter(g => (g.state || "") === "playing" && !g.comp && !gone(g));
+  c.eta = c.playing ? T(() => etaOf(c.playing)) : null;
+  c.clash = T(() => etaClashes()[0]);
+  c.note = c.playing && (c.playing.wasI || []).slice(-1)[0];
+  c.logged = c.playing ? num(c.playing.logged, 0, 0, 1e5) : 0;
+  /* queue */
+  const outWait = waiting.filter(g => typeof isOutNow === "function" && isOutNow(g) && (g.state || "") !== "playing");
+  c.outWait = outWait.length;
+  c.quick = outWait.filter(g => hrsOf(g) > 0).sort((a, b) => hrsOf(a) - hrsOf(b))[0]; c.quickH = c.quick ? Math.round(hrsOf(c.quick)) : 0;
+  c.dusty = typeof dustDays === "function" ? outWait.map(g => [g, dustDays(g)]).filter(x => x[1] >= 60).sort((a, b) => b[1] - a[1])[0] : null;
+  c.hyped = waiting.filter(g => num(g.hype, 0, 0, 10) >= 8).sort((a, b) => num(b.hype, 0, 0, 10) - num(a.hype, 0, 0, 10))[0];
+  c.evn = num(S.evening, 4, 1, 12); c.weeks = c.hours ? Math.max(1, Math.round(c.hours / (c.evn * 4))) : 0;
+  c.deck = T(() => onDeck(3)) || []; c.why = c.pick ? T(() => deckWhy(c.pick)) : "";
+  /* reviews and predictions */
+  c.rev = waiting.filter(g => g.rv && g.rv.mc).sort((a, b) => b.rv.mc - a.rv.mc)[0];
+  const preds = typeof rvFor === "function" ? waiting.map(g => [g, T(() => rvFor(g))]).filter(x => x[1] && x[1].v) : [];
+  preds.sort((a, b) => b[1].v - a[1].v); c.predTop = preds[0]; c.predLow = preds.length > 2 ? preds[preds.length - 1] : null;
+  /* played */
+  const P = (S.played || []).filter(p => scored(p) && !p.dk), yr = now.getFullYear(), mo = now.getMonth();
+  c.yearN = (S.played || []).filter(p => p.t && new Date(p.t).getFullYear() === yr).length;
+  c.monthN = (S.played || []).filter(p => p.t && new Date(p.t).getFullYear() === yr && new Date(p.t).getMonth() === mo).length;
+  const low = P.slice().sort((a, b) => a.real - b.real)[0]; c.lowG = low && S.games.find(g => g.id === low.id); c.low = low ? low.real : 0;
+  const t = T(() => rankTable()); const R = T(() => rankedGames()) || [];
+  c.tiers = { S: 0, A: 0, B: 0, C: 0 }; if (t) R.forEach(g => { const k = tierOf(t.sc[g.id]); if (c.tiers[k] != null) c.tiers[k]++; });
+  c.second = R[1]; c.third = R[2];
+  c.pair = T(() => qDuelPair()); c.orc = T(() => orcStats());
+  const wk = Date.now() - 7 * NX_DAY; c.sessMin = Math.round((S.sessions || []).filter(x => x.s >= wk).reduce((a, x) => a + (x.e - x.s), 0) / 6e4);
+  c.added30 = S.games.filter(g => g.added && Date.now() - new Date(g.added).getTime() < 30 * NX_DAY).length;
+  c.lists = (S.lists || []).length; c.total = S.games.length; c.weekend = c.dow === 5 || c.dow === 6;
+  c.ssn = T(() => ssnNow());
+  nxSC.m = c; nxSC.at = Date.now(); return c;
+}
+const nxS = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+/* [when, text, act]. act: a game id, "pick", "games", "played", "taste", "duel", "add", "deals", "plan", "settings" */
+const NX_SMART = [
+  /* ---- prices and deals ---- */
+  [c => c.deal && c.deal.pct >= 50, c => `${nxT(c.deal.g)} is ${c.deal.pct}% off on ${c.deal.store} right now (${c.deal.f}). That's a real deal${c.Y}.`, c => c.deal.g.id],
+  [c => c.deal && c.deal.pct >= 20 && c.deal.pct < 50, c => `Heads up${c.Y}: ${nxT(c.deal.g)} is ${c.deal.pct}% off on ${c.deal.store}. ${c.deal.f} instead of ${c.deal.bf}.`, c => c.deal.g.id],
+  [c => c.deals >= 3, c => `${c.deals} games on your list are on sale at the same time${c.Y}. Want me to show you the deals?`, () => "deals"],
+  [c => c.deal2, c => `Another one${c.Y}: ${nxT(c.deal2.g)} is ${c.deal2.pct}% off on ${c.deal2.store}.`, c => c.deal2.g.id],
+  [c => c.endSoon, c => `Hurry${c.Y}: the ${nxT(c.endSoon.g)} sale on ${c.endSoon.store} ends ${pxEnd(c.endSoon.end)}.`, c => c.endSoon.g.id],
+  [c => c.incl.length, c => `${nxT(c.incl[0])} is in your PS Plus${c.Y}. You already own the right to play it, no need to buy it.`, c => c.incl[0].id],
+  [c => c.incl.length > 1, c => `${c.incl.length} games you're waiting for are included in your PS Plus${c.Y}. Free value sitting right there.`, () => "deals"],
+  [c => c.deals === 0 && c.live > 3, c => `Nothing on your list is on sale today${c.Y}. I check the stores for you every day, so you don't have to.`, () => ""],
+  [c => c.deal && c.deal.g.state !== "playing" && c.quick && c.deal.g === c.quick, c => `${nxT(c.quick)} is short (${c.quickH}h) AND on sale. Cheap and quick${c.Y}, perfect combo.`, c => c.quick.id],
+  [() => S.pxOff !== true, c => `Tip${c.Y}: tap a store on any game page and I open it straight to that game's price.`, () => ""],
+  /* ---- releases ---- */
+  [c => c.today.length, c => `${nxT(c.today[0])} is out TODAY${c.Y}! 🎉`, c => c.today[0].id],
+  [c => c.next && c.days === 1, c => `${nxT(c.next)} comes out tomorrow${c.Y}. Clear your evening!`, c => c.next.id],
+  [c => c.next && c.days > 1 && c.days <= 7, c => `${c.days} days until ${nxT(c.next)}${c.Y}. Want to finish something before it lands?`, c => c.next.id],
+  [c => c.week.length > 1, c => `${c.week.length} of your games come out this week${c.Y}: ${c.week.slice(0, 3).map(nxT).join(", ")}.`, () => "plan"],
+  [c => c.month.length > 2, c => `${c.month.length} releases in the next 30 days${c.Y}. Busy month ahead!`, () => "plan"],
+  [c => c.next && c.next2 && nxDaysTo(c.next2) - c.days <= 7, c => `${nxT(c.next)} and ${nxT(c.next2)} land within a week of each other${c.Y}. Pick your first one early.`, c => c.next.id],
+  [c => c.next && c.days > 30, c => `Nothing of yours releases this month${c.Y}. Perfect time to clear the backlog.`, () => "games"],
+  [c => c.tba > 0, c => `${nxS(c.tba, "game")} on your list still ${c.tba === 1 ? "has" : "have"} no date${c.Y}. I re-check them every few days and tell you the moment one gets a date.`, () => "plan"],
+  [c => c.next && c.next.hype >= 8, c => `${nxT(c.next)} is your most hyped upcoming game${c.Y}, and it's only ${c.days} days away.`, c => c.next.id],
+  [c => c.clash, c => `${c.n ? c.n + ", heads up" : "Heads up"}: at your pace ${nxT(c.clash.g)} finishes after ${nxT(c.clash.r)} comes out. ${typeof etaFix === "function" ? etaFix(c.clash) : ""}`, c => c.clash.g.id],
+  /* ---- what you're playing ---- */
+  [c => c.playing && c.eta && c.eta.left > 0, c => `At your pace you'll finish ${nxT(c.playing)} around ${etaNice(c.eta.at)}${c.Y}. About ${Math.round(c.eta.left)}h to go.`, c => c.playing.id],
+  [c => c.playing && c.note, c => `Last time in ${nxT(c.playing)} you wrote: “${String(c.note.x).slice(0, 80)}”. Ready to pick it up${c.Y}?`, c => c.playing.id],
+  [c => c.playing && !c.note, c => `Tip${c.Y}: after a session of ${nxT(c.playing)}, leave yourself a 📍 note. I'll remind you where you were.`, c => c.playing.id],
+  [c => c.plays.length > 2, c => `You're juggling ${c.plays.length} games at once${c.Y}. Finishing one first usually feels better than spreading thin.`, () => "games"],
+  [c => c.playing && c.logged > 0 && hrsOf(c.playing) > 0 && c.logged / hrsOf(c.playing) > .75, c => `You're ${Math.round(c.logged / hrsOf(c.playing) * 100)}% through ${nxT(c.playing)}${c.Y}. The ending is close!`, c => c.playing.id],
+  [c => c.playing && c.logged > 0 && hrsOf(c.playing) > 0 && c.logged / hrsOf(c.playing) < .2, c => `${nxT(c.playing)} is just getting started${c.Y}. The first few hours are the hardest, it gets better.`, c => c.playing.id],
+  [c => c.playing && c.evening, c => `Evening${c.Y}. ${nxT(c.playing)} is waiting right where you left it 🎮`, c => c.playing.id],
+  [c => !c.playing && c.pick, c => `You're not playing anything right now${c.Y}. ${nxT(c.pick)} is my pick to start.`, c => c.pick.id],
+  [c => c.sessMin > 300, c => `${Math.round(c.sessMin / 60)} hours of play this week${c.Y}. Nice week 💪`, () => ""],
+  [c => c.playing && c.playing.wiStory && c.playing.wiStory.x, c => `Forgot the story of ${nxT(c.playing)}? Open its page${c.Y}, I wrote you a "story so far".`, c => c.playing.id],
+  /* ---- queue strategy ---- */
+  [c => c.pick && c.why, c => `${nxT(c.pick)} is my pick for you${c.Y}: ${String(c.why).replace(/<[^>]+>/g, "").slice(0, 110)}.`, c => c.pick.id],
+  [c => c.quick && c.quickH <= 12, c => `Quick win${c.Y}: ${nxT(c.quick)} takes about ${c.quickH}h. A few evenings and it's done.`, c => c.quick.id],
+  [c => c.hours > 0 && c.weeks, c => `Your backlog is about ${c.hours}h${c.Y}. At ${c.evn}h a night, 4 nights a week, that's ~${nxS(c.weeks, "week")} of gaming.`, () => "games"],
+  [c => c.longest && c.lh >= 60, c => `${nxT(c.longest)} is a ${c.lh}h giant${c.Y}. Best saved for a holiday or a long weekend.`, c => c.longest.id],
+  [c => c.dusty, c => `${nxT(c.dusty[0])} has been waiting ${Math.round(c.dusty[1] / 30)} months${c.Y}. Still want it, or should it go?`, c => c.dusty[0].id],
+  [c => c.outWait > 8, c => `${c.outWait} games already out and waiting${c.Y}. Maybe hold off on buying new ones for a bit? 😄`, () => "games"],
+  [c => c.added30 >= 4, c => `You added ${c.added30} games this month${c.Y}. Your wishlist is growing faster than you can play 😅`, () => "games"],
+  [c => c.hyped && c.hyped.state !== "playing" && typeof isOutNow === "function" && isOutNow(c.hyped), c => `${nxT(c.hyped)} is out and you rated your hype ${c.hyped.hype}/10${c.Y}. What are we waiting for?`, c => c.hyped.id],
+  [c => c.deck.length >= 3, c => `My top 3 for you right now${c.Y}: ${c.deck.map(nxT).join(", ")}.`, () => "pick"],
+  [c => c.outWait > 2, () => `Can't choose? Let me roll the dice for you 🎲`, () => "pick"],
+  [c => c.lists === 0 && c.total > 10, c => `Tip${c.Y}: make your own lists (like "Co-op with friends" or "Short games") from any game page.`, () => ""],
+  [c => c.live > 0 && c.weekend, c => `Weekend${c.Y}! Good time for one of your longer games.`, () => "pick"],
+  /* ---- reviews and predictions ---- */
+  [c => c.rev, c => `Critics gave ${nxT(c.rev)} a ${c.rev.rv.mc}${c.Y}. The reviews are in!`, c => c.rev.id],
+  [c => c.predTop && c.predTop[1].v >= 8, c => `I predict you'll love ${nxT(c.predTop[0])}${c.Y}: my guess is ${c.predTop[1].v}/10.`, c => c.predTop[0].id],
+  [c => c.predLow && c.predLow[1].v < 7, c => `Honest guess${c.Y}: ${nxT(c.predLow[0])} might not click for you (I'd say ${c.predLow[1].v}/10). Maybe play it last.`, c => c.predLow[0].id],
+  [c => c.orc && c.orc.n >= 3, c => `My crystal ball so far${c.Y}: ${c.orc.hits} of ${c.orc.n} guesses within a point. I'm learning you 🔮`, () => "taste"],
+  [c => c.orc && c.orc.n >= 1 && c.orc.n < 3, c => `Every game you finish and score makes my guesses sharper${c.Y} 🔮`, () => "taste"],
+  /* ---- taste and ranking ---- */
+  [c => c.top, c => `${nxT(c.top)} is your #1 of all time${c.Y}. Bold choice, I respect it.`, c => c.top.id],
+  [c => c.top && c.second, c => `${nxT(c.top)} vs ${nxT(c.second)} for your #1${c.Y}. One duel could change everything ⚔️`, () => "duel"],
+  [c => c.tiers.S >= 3, c => `You have ${c.tiers.S} S-tier games${c.Y}. Your taste is elite.`, () => "taste"],
+  [c => c.tiers.S === 0 && c.ranked >= 3, c => `No S-tier game yet${c.Y}. The one that earns it will be special.`, () => "taste"],
+  [c => c.genre, c => `${c.genre} is your most common genre${c.Y}. I keep that in mind when I pick.`, () => "taste"],
+  [c => c.avg >= 8, c => `Your average score is ${c.avg}${c.Y}. You pick your games well!`, () => "played"],
+  [c => c.avg > 0 && c.avg < 6.5, c => `Average score ${c.avg}${c.Y}. You're a tough critic... I like that.`, () => "played"],
+  [c => c.lowG, c => `${nxT(c.lowG)} is your lowest score (${c.low})${c.Y}. Still think it deserved that? 😄`, c => c.lowG.id],
+  [c => c.bestG && c.best >= 9, c => `${nxT(c.bestG)} got a ${c.best} from you${c.Y}. I'm looking for games with the same magic.`, c => c.bestG.id],
+  [c => c.ranked >= 5, c => `Your top 3${c.Y}: ${[c.top, c.second, c.third].filter(Boolean).map(nxT).join(", ")}. Strong list.`, () => "taste"],
+  [c => c.top, c => `Want something new like ${nxT(c.top)}${c.Y}? Open it and tap Similar 🔍`, c => c.top.id],
+  /* ---- scores and duels ---- */
+  [c => c.pair, c => `Quick question${c.Y}: ${nxT(c.pair[0])} or ${nxT(c.pair[1])}? One tap sharpens your ranking ⚔️`, () => "duel"],
+  [c => c.un > 0, c => `${nxS(c.un, "game")} you finished still ${c.un === 1 ? "needs" : "need"} a score${c.Y}. It takes 2 seconds.`, () => "played"],
+  [c => c.duels >= 50, c => `${c.duels} duels done${c.Y}. Your ranking is seriously accurate now.`, () => "taste"],
+  [c => c.duels < 10 && c.ranked >= 4, c => `A few duels a day make your ranking way more accurate${c.Y}. Want to do one?`, () => "duel"],
+  [c => c.played >= 10, c => `${c.played} games finished in total${c.Y}. That's a real gaming history 🏆`, () => "played"],
+  /* ---- milestones ---- */
+  [c => c.yearN > 0, c => `You finished ${nxS(c.yearN, "game")} this year${c.Y}. ${c.yearN >= 12 ? "Amazing year!" : "Let's keep going!"}`, () => "played"],
+  [c => c.monthN > 0, c => `${nxS(c.monthN, "game")} finished this month${c.Y}. Proud of you.`, () => "played"],
+  [c => c.monthN === 0 && c.playing && new Date().getDate() > 20, c => `Last stretch of the month${c.Y}. Finishing ${nxT(c.playing)} would be a nice way to close it.`, c => c.playing.id],
+  [c => c.streak >= 3, c => `${c.streak} days in a row together${c.Y} 🔥`, () => ""],
+  [c => c.rate >= 50, c => `You've finished ${c.rate}% of your whole library${c.Y}. Most people never get close.`, () => "played"],
+  [c => c.total >= 50, c => `${c.total} games in your library${c.Y}. That's a proper collection.`, () => "games"],
+  /* ---- time of day and wellbeing ---- */
+  [c => c.morning, c => `Good morning${c.Y} ☀️ ${c.next ? `${c.days} days until ${nxT(c.next)}.` : "Have a great day."}`, c => c.next ? c.next.id : ""],
+  [c => c.hr >= 12 && c.hr < 17, c => `Good afternoon${c.Y}. Planning tonight's game already? I like it.`, () => "pick"],
+  [c => c.evening, c => `Good evening${c.Y}. ${c.playing ? `${nxT(c.playing)} tonight?` : c.pick ? `How about ${nxT(c.pick)} tonight?` : "Game time?"}`, c => (c.playing || c.pick || {}).id || ""],
+  [c => c.late, c => `It's late${c.Y}. One more level, then sleep? Deal? 🌙`, () => ""],
+  [c => c.late && c.playing, c => `${nxT(c.playing)} will still be there tomorrow${c.Y}. Get some sleep 😴`, () => ""],
+  [() => 1, c => `Remember to drink some water${c.Y} 💧`, () => ""],
+  [() => 1, c => `Long session? Rest your eyes for 20 seconds${c.Y}: look at something far away.`, () => ""],
+  [() => 1, c => `Stretch your hands between sessions${c.Y}. Your future self says thanks 🙌`, () => ""],
+  [c => c.dow === 5, c => `Friday${c.Y}! The weekend gaming plan starts now 🎮`, () => "pick"],
+  [c => c.dow === 0, c => `Sunday${c.Y}. A relaxed session to end the week?`, () => "pick"],
+  [c => c.ssn && c.ssn.k === "ramadan", c => `Ramadan Kareem${c.Y} 🌙 A calm game after iftar sounds perfect.`, () => "pick"],
+  /* ---- app tips that save time ---- */
+  [() => 1, c => `Did you know${c.Y}? Swiping between games on a game page is faster than going back each time.`, () => ""],
+  [() => 1, c => `Tip${c.Y}: double-tap me for shortcuts.`, () => ""],
+  [() => 1, c => `Your data is backed up to the cloud automatically${c.Y}. Nothing to worry about ☁️`, () => ""],
+  [() => 1, c => `Tip${c.Y}: hold a queue card to drag it into a new spot.`, () => "games"],
+  [() => 1, c => `Not sure about a game${c.Y}? Every game page has a ▶ Trailer button.`, () => ""],
+  [() => 1, c => `I'll ping you when a game you want gets cheaper${c.Y}. Just keep notifications on.`, () => ""],
+  [() => 1, c => `Settings has a search box${c.Y}. Type what you want to change and I'll take you there.`, () => "settings"],
+  [() => 1, c => `Want me to talk differently${c.Y}? I have 6 personalities. Double-tap me, then ⚙️`, () => ""],
+  [() => 1, c => `You can chat with me${c.Y}: ask me what to play, or for tips on any game 💬`, () => ""],
+  [c => c.playing, c => `Tap the 📍 on ${nxT(c.playing)}'s page after playing${c.Y}, and I'll remember where you stopped.`, c => c.playing.id],
+  /* ---- fun facts and numbers ---- */
+  [c => c.hours > 100, c => `Fun fact${c.Y}: your backlog is ${c.hours}h long. That's ${Math.round(c.hours / 24)} full days of gaming nonstop 😳`, () => "games"],
+  [c => c.duels > 0, c => `${c.duels} duels so far${c.Y}. Each one makes my picks smarter.`, () => "taste"],
+  [c => c.live > 0, c => `${c.live} games waiting, ${c.outN} already out${c.Y}. The rest are on their way.`, () => "games"],
+  [c => c.peak, c => `You usually show up around ${c.peak}${c.Y}. I time my nudges for then 🕙`, () => ""],
+  [() => 1, c => `I'm always learning${c.Y}. The more you score and duel, the better I know you.`, () => "taste"],
+  [() => 1, c => `I'm proud to be your gaming buddy${c.Y} 💙`, () => ""],
+  [() => 1, c => `Whatever you play tonight${c.Y}, enjoy it. That's the whole point 🎮`, () => "pick"],
+  [() => 1, c => `If you ever spot something broken${c.Y}, double-tap me → 🐞. I fix things fast.`, () => ""],
+  [c => c.comp, c => `Competitive game tip${c.Y}: stop after two losses in a row. Tilt is real 😤`, () => ""],
+  [c => c.comp, c => `Warm up with one casual match before ranked${c.Y}. Your hands will thank you.`, () => ""],
+  /* ---- extra variety ---- */
+  [c => c.pick && c.pick.date && typeof isOutNow === "function" && isOutNow(c.pick), c => `${nxT(c.pick)} has been out for a while${c.Y}. No waiting needed, it's ready when you are.`, c => c.pick.id],
+  [c => c.next && c.next.hours > 40, c => `${nxT(c.next)} is a big one (~${Math.round(hrsOf(c.next))}h)${c.Y}. Finish shorter games before it arrives?`, c => c.next.id],
+  [c => c.quick && c.next && c.days > 5 && c.quickH && c.quickH < c.days * 2, c => `You could finish ${nxT(c.quick)} before ${nxT(c.next)} comes out${c.Y}. Tight but doable 💪`, c => c.quick.id],
+  [c => c.evening && c.evn, c => `${c.evn}h tonight${c.Y}? ${c.quick && c.quickH <= c.evn ? `That's enough to finish ${nxT(c.quick)}!` : "Let's make it count."}`, () => "pick"],
+  [c => c.top && c.top.hours, c => `${nxT(c.top)} took about ${Math.round(c.top.hours)}h${c.Y}. Worth every minute, right?`, c => c.top.id],
+  [c => c.tiers.C >= 2, c => `${c.tiers.C} games ended up in C-tier${c.Y}. Lessons learned for next time 😄`, () => "taste"],
+  [c => c.tiers.A >= 3, c => `${c.tiers.A} A-tier games${c.Y}. Any of them secretly S-tier? A duel would tell.`, () => "duel"],
+  [c => c.played === 0 && c.live > 0, c => `Finish your first game in the app${c.Y} and I'll start learning your taste!`, () => "pick"],
+  [c => c.total > 0 && c.total < 6, c => `Add a few more games${c.Y}, and my picks get much smarter.`, () => "add"],
+  [c => c.next && c.next.state !== "playing" && c.next.hype && c.next.hype < 6, c => `${nxT(c.next)} comes soon but your hype is only ${c.next.hype}/10${c.Y}. Still want it?`, c => c.next.id],
+  [c => c.hr >= 22 && c.dow >= 0 && c.dow <= 4, c => `School or work tomorrow${c.Y}? Maybe a short session tonight 😉`, () => ""],
+  [c => c.ranked >= 3, c => `Your ranking has ${c.ranked} games${c.Y}. Every new finish slots in somewhere. Where will the next one land?`, () => "taste"],
+  [() => 1, c => `Hi${c.Y}! 👋`, () => ""],
+  [() => 1, c => `Thanks for hanging out with me${c.Y} 💙`, () => ""],
+  [() => 1, c => `Ready when you are${c.Y} 🎮`, () => "pick"]
+];
+/* second batch: tips for the genres you actually play, and more ways of saying things (all still about your data or useful) */
+const nxGen = (c, re) => { const g = c.playing || c.pick; return !!(g && re.test(platList(g.genres).join(" "))); };
+const nxGG = c => nxT(c.playing || c.pick);
+NX_SMART.push(
+  [c => nxGen(c, /rpg|jrpg|role/i), c => `RPG tip for ${nxGG(c)}${c.Y}: do side quests early, they're tuned for your level then and give the best rewards.`, c => (c.playing || c.pick).id],
+  [c => nxGen(c, /rpg|jrpg|role/i), c => `In ${nxGG(c)}, save before every boss${c.Y}. Future you will be grateful.`, c => (c.playing || c.pick).id],
+  [c => nxGen(c, /jrpg|turn-based/i), c => `Turn-based tip${c.Y}: buffs and debuffs matter more than raw damage in most JRPG boss fights.`, () => ""],
+  [c => nxGen(c, /souls|difficult/i), c => `Souls-like tip${c.Y}: learn the boss's patterns before you try to win. Deaths are lessons.`, () => ""],
+  [c => nxGen(c, /action|hack|slash|musou/i), c => `Action tip for ${nxGG(c)}${c.Y}: master the dodge first, combos second.`, c => (c.playing || c.pick).id],
+  [c => nxGen(c, /open world/i), c => `Open-world tip${c.Y}: follow the main story a bit before exploring. You'll unlock better tools to explore with.`, () => ""],
+  [c => nxGen(c, /strategy|tactic/i), c => `Strategy tip${c.Y}: position beats power. Check enemy range before every move.`, () => ""],
+  [c => nxGen(c, /horror|survival/i), c => `Horror tip${c.Y}: play with headphones in the dark... if you dare 😱`, () => ""],
+  [c => nxGen(c, /visual novel|adventure|story/i), c => `Story game tip${c.Y}: no rush. Read everything, the best moments are in the small conversations.`, () => ""],
+  [c => nxGen(c, /puzzle/i), c => `Puzzle tip${c.Y}: stuck? Walk away for 10 minutes. The answer often shows up by itself.`, () => ""],
+  [c => nxGen(c, /platform|metroidvania/i), c => `Metroidvania tip${c.Y}: when you get a new ability, think back to every place you couldn't reach.`, () => ""],
+  [c => nxGen(c, /racing|sport/i), c => `Racing tip${c.Y}: brake before the corner, not in it.`, () => ""],
+  [c => nxGen(c, /shooter|fps/i), c => `Shooter tip${c.Y}: keep your crosshair at head height while you move. Less aiming, more hitting.`, () => ""],
+  [c => nxGen(c, /simulation|farming|life/i), c => `Cozy game tip${c.Y}: set yourself one small goal per session. It keeps them relaxing.`, () => ""],
+  [c => nxGen(c, /time travel|mystery/i), c => `Mystery tip for ${nxGG(c)}${c.Y}: take notes on names and dates. The twist always hides in the details 🔎`, c => (c.playing || c.pick).id],
+  [c => c.top && c.pick && c.top !== c.pick, c => `People who loved ${nxT(c.top)} often love ${nxT(c.pick)} too${c.Y}. That's partly why it's my pick.`, c => c.pick.id],
+  [c => c.next && c.deal && c.deal.g !== c.next, c => `Saving for ${nxT(c.next)}${c.Y}? ${nxT(c.deal.g)} on sale (${c.deal.f}) won't hurt the budget much 😉`, c => c.deal.g.id],
+  [c => c.played >= 3 && c.avg, c => `Fun stat${c.Y}: if every game in your queue scored your average (${c.avg}), that's ${Math.round(c.live * c.avg)} points of fun waiting 😄`, () => "games"],
+  [c => c.playing && c.plays.length === 1, c => `One game at a time${c.Y}. That's how the pros finish backlogs.`, () => ""],
+  [c => c.hours && c.evn, c => `If you played ${c.evn}h every single day${c.Y}, your backlog would be done in ${Math.ceil(c.hours / c.evn)} days. Challenge? 😏`, () => "games"],
+  [c => c.next && c.days <= 14 && c.days > 0, c => `Countdown${c.Y}: ${nxT(c.next)} in ${c.days} days. I'll remind you the evening before.`, c => c.next.id],
+  [c => c.top, c => `If a new game beats ${nxT(c.top)}${c.Y}, I'll throw a party 🥳`, c => c.top.id],
+  [c => c.ranked >= 2 && c.duels === 0, c => `You haven't done a single duel yet${c.Y}. Try one, it's surprisingly fun ⚔️`, () => "duel"],
+  [c => c.un >= 3, c => `${c.un} unscored games${c.Y}. Five minutes of scoring and your stats light up.`, () => "played"],
+  [c => c.added30 === 0 && c.total > 5, c => `No new games added this month${c.Y}. Disciplined! Or just busy? 😄`, () => ""],
+  [c => c.outWait > 0 && c.outWait <= 3, c => `Only ${nxS(c.outWait, "game")} ready and waiting${c.Y}. Your backlog is under control 👌`, () => "games"],
+  [c => c.morning && c.dow >= 1 && c.dow <= 5, c => `Have a good day${c.Y}. Tonight: ${c.playing ? nxT(c.playing) : c.pick ? nxT(c.pick) : "games"} 🎮`, c => (c.playing || c.pick || {}).id || ""],
+  [c => c.hr >= 1 && c.hr < 5, c => `${c.H || ""}${c.H ? "it's" : "It's"} ${c.hr}am... legendary gamer hours 😅 Sleep soon?`, () => ""],
+  [c => !c.n, () => `I don't know your name yet! Tell me in Settings → Nexi so I can stop calling you "you" 😄`, () => "settings"],
+  [() => 1, c => `Best games aren't the newest ones${c.Y}. They're the ones you actually finish.`, () => ""],
+  [() => 1, c => `Your backlog isn't homework${c.Y}. Play what makes you happy.`, () => "pick"],
+  [() => 1, c => `Dropping a game you don't enjoy is a skill${c.Y}, not a failure.`, () => ""],
+  [() => 1, c => `The perfect game for tonight is the one you're in the mood for${c.Y}. I can help you find it.`, () => "pick"],
+  [() => 1, c => `I keep an eye on prices, release dates and reviews for you${c.Y}, even when the app is closed.`, () => ""],
+  [() => 1, c => `Got friends who game${c.Y}? Your taste card in Taste → Friend shows how you compare.`, () => "taste"],
+  [() => 1, c => `Every time you open me, I check what changed${c.Y}: deals, dates, reviews. Then I tell you what matters.`, () => ""]
+);
+function nxSmartLine() {
+  let c; try { c = nxSC(); } catch (e) { return null; }
+  const ok = NX_SMART.map((x, i) => [x, i]).filter(([x]) => { try { return !!x[0](c); } catch (e) { return false; } });
+  if (!ok.length) return null;
+  const seen = (nxSmartLine.seen ||= []), fresh = ok.filter(([, i]) => !seen.includes(i));
+  /* lines about your own data first: the generic ones ([() => 1, …]) only fill in */
+  const pool = fresh.length ? fresh : ok, spec = pool.filter(([x]) => String(x[0]).indexOf("=> 1") < 0);
+  const from = spec.length && Math.random() < .8 ? spec : pool;
+  const [x, i] = from[Math.floor(Math.random() * from.length)];
+  seen.push(i); if (seen.length > 20) seen.shift();
+  try { return [String(x[1](c)).replace(/\s+/g, " ").trim(), x[2](c) || ""]; } catch (e) { return null; }
+}
+/* the name: lines without it get it ~45% of the time, before the closing punctuation ("…tonight, Hussam!") */
+function nxNamed(txt) {
+  const n = S.userName; txt = String(txt || "");
+  if (!n || !txt || /</.test(txt) || txt.toLowerCase().includes(n.toLowerCase()) || txt.length > 150 || Math.random() > .45) return txt;
+  const raw = txt.charAt(0) === NX_RAW ? NX_RAW : "", t = raw ? txt.slice(1) : txt;
+  const m = t.match(/^(.*?[^\s.!?…])([.!?…]+)(\s*(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\u{FE0F}?\s*)*)$/u);
+  if (m) return raw + m[1] + ", " + n + m[2] + m[3];
+  return raw + n + "! " + t;
+}
+{ const _say = pnBubSay; pnBubSay = function (line) {
+  if (!line && !document.documentElement.classList.contains("nxtouring") && Math.random() < .45) { const sl = nxSmartLine(); if (sl) line = sl; }
+  try { if (Array.isArray(line)) line = [nxNamed(line[0]), line[1]]; else if (typeof line === "string") line = nxNamed(line); } catch (e) {}
+  return _say.call(this, line); }; }
+/* the bubble's new actions: deals / plan / settings (the old handler opens tabs and games) */
+document.addEventListener("click", e => {
+  const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m) return;
+  const a = m.dataset.act;
+  if (a === "deals" && typeof pxDeals === "function") { e.stopImmediatePropagation(); pnBubHush(); pxDeals(); }
+  else if (a === "plan") { e.stopImmediatePropagation(); pnBubHush(); goTab("plan"); }
+  else if (a === "settings") { e.stopImmediatePropagation(); pnBubHush(); const gb = $("#gear"); if (gb) gb.click(); }
+}, true);
+/* Home's line and the "What should I play?" pick use the name too (they already do when it's set); the chat gets
+   much more of what the app knows (nxFacts), so Nexi can answer like he's really paying attention */
+function nxFacts() {
+  const c = nxSC(), F = [];
+  const add = s => { if (s) F.push(String(s).replace(/\s+/g, " ").slice(0, 200)); };
+  if (c.deal) add(`On sale now: ${c.deals ? c.deals + " games" : ""}; best: ${nxT(c.deal.g)} ${c.deal.pct}% off on ${c.deal.store} (${c.deal.f})${c.deal2 ? `; also ${nxT(c.deal2.g)} ${c.deal2.pct}% off` : ""}`);
+  if (c.incl.length) add(`Included in their PS Plus: ${c.incl.slice(0, 4).map(nxT).join(", ")}`);
+  if (c.next) add(`Next release: ${nxT(c.next)} in ${c.days} days${c.week.length > 1 ? `; ${c.week.length} releases this week` : ""}${c.month.length ? `; ${c.month.length} in 30 days` : ""}`);
+  if (c.playing && c.eta) add(`Finish forecast for ${nxT(c.playing)}: about ${Math.round(c.eta.left)}h left, done around ${etaNice(c.eta.at)} (${c.eta.src})`);
+  if (c.note) add(`Their last note in ${nxT(c.playing)}: "${String(c.note.x).slice(0, 120)}"`);
+  if (c.clash) add(`Clash: ${nxT(c.clash.g)} won't be finished before ${nxT(c.clash.r)} releases`);
+  if (c.quick) add(`Shortest game ready to play: ${nxT(c.quick)} (~${c.quickH}h)`);
+  if (c.hours) add(`Backlog: ${c.live} games, ~${c.hours}h, ${c.outWait} already out; they play ~${c.evn}h an evening`);
+  if (c.dusty) add(`Waiting longest: ${nxT(c.dusty[0])} (${Math.round(c.dusty[1] / 30)} months)`);
+  if (c.predTop) add(`Predicted favourite in the backlog: ${nxT(c.predTop[0])} (${c.predTop[1].v}/10)${c.predLow ? `; least likely to click: ${nxT(c.predLow[0])} (${c.predLow[1].v})` : ""}`);
+  if (c.rev) add(`Best-reviewed waiting game: ${nxT(c.rev)} (Metacritic ${c.rev.rv.mc})`);
+  if (c.played) add(`Finished ${c.played} games (${c.yearN} this year, ${c.monthN} this month); average score ${c.avg}; tiers S${c.tiers.S} A${c.tiers.A} B${c.tiers.B} C${c.tiers.C}`);
+  if (c.un) add(`${c.un} finished games still unscored`);
+  if (c.orc && c.orc.n) add(`Nexi's score guesses: ${c.orc.hits}/${c.orc.n} within a point`);
+  if (c.sessMin) add(`Played ${Math.round(c.sessMin / 60 * 10) / 10}h in the last 7 days`);
+  const d = new Date(); add(`Now: ${d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}, ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`);
+  return F.slice(0, 18);
+}
+{ const _nc = nxContext; nxContext = function () { const o = _nc.apply(this, arguments) || {}; try { o.facts = nxFacts(); } catch (e) {} return o; }; }
 </script>
