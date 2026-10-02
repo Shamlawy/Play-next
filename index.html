@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "220";
+const APP_V = "221";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5936,6 +5936,12 @@ function openSettings(scope) {
       <div class="rowline"><input id="s-apunch" type="range" min="-40" max="80" value="${num(S.artPunch, 0, -40, 80)}">
         <span class="v" id="s-apunch-v">${num(S.artPunch, 0, -40, 80)}</span></div>
       <p class="note">Lifts a washed-out logo off the card. Push it too far and a bright one blows out — the preview above moves with the slider, so stop where it still looks like art.</p>
+      <label>Fit each logo automatically</label>
+      <div class="chips" id="s-lfit">
+        ${[["on", "Yes"], ["off", "No, same box for all"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.lfOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">Nexi measures each logo once (its real shape, without the see-through edges) and sizes it so every row looks balanced: wide logos get room, tall ones don't tower.</p>
       <label for="s-raw">On a row — how big</label>
       <div class="rowline"><input id="s-raw" type="range" min="40" max="200" value="${num(S.rowArtW, 150, 40, 200)}">
         <span class="v" id="s-raw-v">${num(S.rowArtW, 150, 40, 200)}px</span></div>
@@ -6295,6 +6301,24 @@ function openSettings(scope) {
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.batOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>Dusty backlog</label>
+      <p class="note">Games that came out and sat untouched for 2+ months gather dust in your queue (more the longer they wait). Open one and the dust blows off.</p>
+      <div class="chips" id="s-xdust">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.dustOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Icon badge</label>
+      <p class="note">The app icon on your home screen shows how many Play next notifications are waiting, and a dot when a game you're waiting for comes out today.</p>
+      <div class="chips" id="s-xbdg">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.bdgOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Nexi sits in the rail</label>
+      <p class="note">On wide screens with the side rail open, Nexi stays with you at the foot of the rail instead of disappearing, and glides out when you hide it.</p>
+      <div class="chips" id="s-xseat">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.nxSeatOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Animation everywhere, and the parts that cost the most.">Motion</h4>
@@ -6648,6 +6672,10 @@ function openSettings(scope) {
   pick("#s-xcap", v => S.capOff = v === "off");
   pick("#s-xssn", v => S.ssnOff = v === "off", () => { if (typeof ssnHat === "function") { try { pnBubReact(); } catch (e) {} } });
   pick("#s-xbat", v => S.batOff = v === "off", () => { if (typeof batApply === "function") batApply(); });
+  pick("#s-lfit", v => S.lfOff = v === "off", () => renderQueue());
+  pick("#s-xdust", v => S.dustOff = v === "off", () => renderQueue());
+  pick("#s-xbdg", v => S.bdgOff = v === "off", () => { if (S.bdgOff && navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); });
+  pick("#s-xseat", v => S.nxSeatOff = v === "off", () => { if (typeof seatSync === "function") seatSync(true); });
   pick("#s-stgen", v => { S.stGenOff = v === "off"; if (typeof stApply === "function") { S.games.forEach(stApply); render(); } if (!S.stGenOff && typeof stSync === "function") stSync(true); });
   pick("#s-xtimer", v => S.timerOn = v === "on", () => { xFeatures(); render(); if (typeof renderCal === "function") renderCal(); });
   pick("#s-reactions", v => { S.reactions = v === "on"; if (S.reactions) react("called", { title: "That" }); });
@@ -15559,7 +15587,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 <script>
 /* ===== v183 what's new + settings extras ===== */
 GROUP_ICON["Extra features"] = "🧪";
-GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff", "rvOff", "hbOff", "sgOff", "awOff", "etaOff", "capOff", "ssnOff", "batOff"];
+GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff", "rvOff", "hbOff", "sgOff", "awOff", "etaOff", "capOff", "ssnOff", "batOff", "dustOff", "bdgOff", "nxSeatOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
   { v: 183, go: () => nxHome(), at: () => $("#p-home .dxhero [data-qduel]"),
@@ -18657,7 +18685,7 @@ async function pxRun(force, only) {
   /* the oldest-checked first: each call can only look a few games up */
   list.sort((a, b) => pxSeen(a.k) - pxSeen(b.k));
   const alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
-  pxBusy = true;
+  pxBusy = true; pxPaint();
   try {
     /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
     const all = list.slice(0, 60).map(x => x.k).concat(typeof drKeys === "function" ? drKeys() : []), drops = [];
@@ -18675,7 +18703,7 @@ async function pxRun(force, only) {
   } catch (e) {
     S.pxErr = e.message === "helper-old" ? "helper-old" : String(e.message || e).slice(0, 80); S.pxErrAt = Date.now(); save(); pxPaint();
     return null;
-  } finally { pxBusy = false; }
+  } finally { pxBusy = false; pxPaint(); }
 }
 const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0, (p.ns || {}).at || 0) : 0; };
 function pxTake(res) {
@@ -18685,8 +18713,9 @@ function pxTake(res) {
     g.px ||= {};
     for (const s of PX_S) {
       const p = res[id][s]; if (!p) continue;
-      if (p.none) { if (s === "st") g.pxStNo = Date.now(); else if (s === "ps") g.pxPsNo = Date.now(); else g.pxNsNo = Date.now(); continue; }
-      if (p.err) continue;
+      /* v221 (#118): "not on this store" and "couldn't check" are kept too, so the row says so instead of "checking…" forever */
+      if (p.none) { if (s === "st") g.pxStNo = Date.now(); else if (s === "ps") g.pxPsNo = Date.now(); else g.pxNsNo = Date.now(); g.px[s] = { none: 1, at: Date.now() }; continue; }
+      if (p.err) { if (!(g.px[s] && g.px[s].now != null)) g.px[s] = { err: String(p.err).slice(0, 60), at: Date.now() }; continue; }
       if (p.id) { if (s === "st" && !(+g.pxSt > 0)) g.pxSt = +p.id; if (s === "ps" && !g.pxPs) g.pxPs = p.id; if (s === "ns" && !g.pxNs) g.pxNs = String(p.id); }
       if (s === "ns" && p.url) g.pxNsU = p.url;
       if (s === "ps" && p.cid) g.pxPsC = p.cid;
@@ -18694,7 +18723,7 @@ function pxTake(res) {
       /* a game you're waiting for just landed in your PS Plus catalogue: that's the best deal there is */
       if (s === "ps" && pxIncl(p) && was.at && !pxIncl(was)) joins.push(g);
       if (p.free || p.nop || p.nosale) { g.px[s] = Object.assign({ id: p.id, name: p.name, nop: p.nosale ? 0 : 1, nosale: p.nosale ? 1 : 0, free: p.free ? 1 : 0, at: Date.now() }, extra); continue; }
-      if (p.now == null) continue;
+      if (p.now == null) { if (!(g.px[s] && g.px[s].now != null)) g.px[s] = Object.assign({ id: p.id, name: p.name, nop: 1, at: Date.now() }, extra); continue; }
       const eff = pxEff(p), wasEff = pxEff(was);
       const low = was.low != null && was.id === p.id ? Math.min(was.low, eff) : eff;
       const effF = eff !== p.now && p.plusNowF ? p.plusNowF : p.nowF;
@@ -18729,7 +18758,9 @@ function pxCard(g) {
   if (!pxOn() || isPlayed(g) || isDropped(g) || g.comp || (!pxWantSt(g) && !pxWantPs(g) && !pxWantNs(g))) return "";
   const row = s => {
     const p = (g.px || {})[s], want = pxWant(g, s); if (!want) return "";
-    const v = !p ? `<small>${S.pxErr ? "not checked yet" : "checking…"}</small>` : pxIncl(p) ? `<b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><small>${p.nowF ? "or buy " + esc(p.nowF) : ""}</small>`
+    const v = !p ? (pxBusy ? `<small class="pxck">checking…</small>` : `<small>${S.pxErr === "helper-old" ? "waiting for Nexi's helper update" : "not checked yet"}</small>`)
+      : p.none ? `<small>Not found on this store · paste its link in Price alerts</small>` : p.err ? `<small>Couldn't check just now · I'll try again</small>`
+      : pxIncl(p) ? `<b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><small>${p.nowF ? "or buy " + esc(p.nowF) : ""}</small>`
       : p.nosale ? "<small>Not sold in your region</small>" : p.free ? "<b>Free</b>" : p.nop ? "<small>No price yet</small>" : pxPriceHtml(p);
     const note = [p && p.pct && p.end ? "sale ends " + pxEnd(p.end) : "", p && p.pre ? "pre-order" : "", p && !pxIncl(p) && p.plus ? `in PS Plus ${PS_PLUS[p.plus]}` : "",
       p && p.trial && pxTier() >= p.trial ? "2-hour trial with Premium" : ""].filter(Boolean).join(" · ");
@@ -18759,6 +18790,8 @@ function pxSheet(id) {
     const off = s === "st" ? g.pxSt === -1 : s === "ns" ? g.pxNs === "-" : g.pxPs === "-";
     return `<div class="pxs-r"><div class="pxs-h"><b>${PX_NAME[s]}</b>${p && p.at ? `<small>checked ${esc(wiAgo(p.at))}</small>` : ""}</div>
       ${!want ? `<p class="note">${off ? "You told me it isn't on this store." : pxStores()[s] ? "Not watched: its platforms don't include this store." : "This store is switched off in Settings."}</p>`
+        : p && p.none ? `<p class="note">I couldn't find it on ${PX_NAME[s]}. Paste its store link below, or tell me it isn't sold there.</p>`
+        : p && p.err ? `<p class="note">The last check didn't work (${esc(p.err)}). I'll try again on my own.</p>`
         : p ? (pxIncl(p) ? `<p class="pxs-p"><b class="px-in">✓ In your PS Plus ${PS_PLUS[pxTier()]}</b><br><small>${esc(p.name || "")}${p.nowF ? " · or buy for " + esc(p.nowF) : ""}</small></p>`
           : p.nosale || p.nop || p.free ? `<p class="pxs-p">${p.nosale ? "Not sold in your region" : p.free ? "<b>Free</b>" : "No price yet (not out yet)"}<br><small>${esc(p.name || "")}</small></p>` : `<p class="pxs-p"><b>${esc(p.nowF || "")}</b>${p.pct ? ` <s>${esc(p.baseF || "")}</s> <em>−${p.pct}%</em>` : ""}<br><small>${esc(p.name || "")}${p.low != null && p.low < p.now ? " · lowest seen " + esc(p.lowF) : ""}</small></p>`)
         : `<p class="note">${tied ? "Linked; the price comes with the next check." : "Not found yet. Paste its store link below if I can't find it."}</p>`}
@@ -18844,8 +18877,11 @@ function pxSetWire() {
 /* a game with no price yet (added since the last check): check just that one when its page opens */
 { const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
   const g = S.games.find(x => x.id === id);
-  if (g && pxOn() && !g.px && (pxWantSt(g) || pxWantPs(g)) && !isPlayed(g) && !isDropped(g) && !g.comp && Date.now() - (g.pxTry || 0) > 36e5) {
-    g.pxTry = Date.now(); setTimeout(() => pxRun(true, g), 700); }
+  /* v221 (#118): any store this game is watched on without an answer yet (not only games with no prices at all, and the eShop too);
+     if a check is already running, try again when it's done */
+  const miss = g && PX_S.some(s => pxWant(g, s) && !(g.px || {})[s]);
+  if (g && pxOn() && miss && !isPlayed(g) && !isDropped(g) && !g.comp && Date.now() - (g.pxTry || 0) > 36e5) {
+    g.pxTry = Date.now(); const go = (n) => { if (pxBusy) { if (n < 20) setTimeout(() => go(n + 1), 1500); return; } pxRun(true, g); }; setTimeout(() => go(0), 700); }
   return o; }; }
 /* tapping Nexi's price-drop line opens the deals */
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "deals") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); pxDeals(); }, true);
@@ -19970,5 +20006,257 @@ WHATS_NEW.push(
   { v: 220, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Seasons & holidays" }); }, at: "#s-xssn",
     say: "I dress up now: a pumpkin for Halloween, a crescent for Ramadan (my nudges move to after iftar), my best hat for Eid and New Year. And when your battery drops to 15%, I pause the animations until you charge.",
     tryIt: "Nothing to do: it all happens on its own." }
+);
+</script>
+<style>
+/* ===== v221: logo fit, Nexi in the rail, dusty backlog, crystal ball ===== */
+@media (min-width: 620px) {
+  html.nxseat #pnbub { display: block; }
+  html.nxseat #hrail { padding-bottom: 92px; }
+}
+html.nxseat #pnbub > * { scale: .84; }
+html.nxseat #pnbub { cursor: pointer; }
+.dustpuff { position: fixed; z-index: 120; pointer-events: none; width: 0; height: 0; }
+.dustpuff i { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: rgba(200,192,178,.55); animation: dustPuff .8s ease-out forwards; }
+@keyframes dustPuff { from { transform: translate(0, 0) scale(.4); opacity: .9; } to { transform: translate(var(--dx), var(--dy)) scale(1.8); opacity: 0; } }
+html.still .dustpuff { display: none; }
+.orc-r { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-top: 8px; }
+.orc-r b { font: 700 26px/1 "Poppins", system-ui, sans-serif; color: var(--volt); }
+.orc-r span { color: var(--mute); font-size: 13px; }
+.orc-l { display: grid; gap: 6px; margin-top: 10px; }
+.orc-l button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 12px; border: 0; background: rgba(255,255,255,.04); color: var(--ice); font: 500 13px/1.3 inherit; text-align: left; cursor: pointer; }
+.orc-l button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-l button em { font-style: normal; color: var(--mute); flex: none; }
+</style>
+<script>
+/* ===== v221: the owner's and their friend's reports (#118 prices stuck on "checking…", #114 "fit the logo in the queue
+   automatically", #123 "the rail and Nexi at the same time, with a good transition, be smart about it"), and three more
+   things that run by themselves: the app icon badge, the dusty backlog and Nexi's crystal ball. ===== */
+
+/* ---- #114: logos that fit their tile ----
+   Each row logo is measured once (localStorage gq:logofit, by URL): its aspect and, when the picture host allows reading
+   pixels (CORS), the box of its non-transparent pixels, so see-through padding doesn't count. lfApply sizes every logo
+   to about the same visual area in its tile (wide ones run long and thin, square ones stay short), content centred
+   vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size is read once in rAF. */
+let LF = {}; try { LF = JSON.parse(localStorage.getItem("gq:logofit") || "{}"); } catch (e) {}
+const lfSave = () => { try { localStorage.setItem("gq:logofit", JSON.stringify(LF)); } catch (e) {} };
+let lfBox = null, lfQ = [], lfBusy = false;
+function lfMeasure(url) {
+  return new Promise(res => {
+    const done = v => { LF[url] = v; lfSave(); res(v); };
+    const plain = () => { const p = new Image(); p.onload = () => done(p.naturalWidth && p.naturalHeight ? [+(p.naturalWidth / p.naturalHeight).toFixed(3), 0, 0, 1, 1] : null); p.onerror = () => res(null); p.src = url; };
+    const im = new Image(); im.crossOrigin = "anonymous"; im.decoding = "async";
+    im.onload = () => {
+      const W = im.naturalWidth, H = im.naturalHeight; if (!W || !H) return res(null);
+      try {
+        const k = Math.min(1, 200 / Math.max(W, H)), w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
+        const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h);
+        const d = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) if (d[(y * w + xx) * 4 + 3] > 24) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        if (x1 < 0) return done([+(W / H).toFixed(3), 0, 0, 1, 1]);
+        done([+(W / H).toFixed(3), +(x0 / w).toFixed(3), +(y0 / h).toFixed(3), +((x1 + 1) / w).toFixed(3), +((y1 + 1) / h).toFixed(3)]);
+      } catch (e) { done([+(W / H).toFixed(3), 0, 0, 1, 1]); }
+    };
+    im.onerror = plain; im.src = url;
+  });
+}
+/* the fit lives in one stylesheet (#lfcss), a rule per game: a redraw of the queue needs no work at all, and the sheet
+   is only rewritten when a logo is measured, the tile changes size, or fitting is switched */
+function lfRule(id, m) {
+  const [a, x0, y0, x1, y1] = m, cw = Math.max(.05, x1 - x0), ch = Math.max(.05, y1 - y0), ca = a * cw / ch;
+  const A = lfBox.w * lfBox.h * .36, Hm = lfBox.h * .8, Wm = lfBox.w;
+  let hc = Math.sqrt(A / ca), wc = ca * hc;
+  if (hc > Hm) { hc = Hm; wc = ca * hc; } if (wc > Wm) { wc = Wm; hc = wc / ca; }
+  const ih = hc / ch, iw = ih * a, sel = `#p-queue [data-row="${CSS.escape(id)}"] .rowart img`, pc = v => (v * 100).toFixed(2) + "%";
+  /* Safari: the whole picture, padding and all, placed so its content sits right. Chrome: cropped to the content with
+     object-view-box, so the (filtered, rotated) picture is only as big as what you see: cheaper to draw than before */
+  /* in normal flow with margins (absolute positioning gave every rotated logo its own layer: layerize ×5 per redraw) */
+  return `${sel}{display:block;max-width:none;max-height:none;object-fit:fill;object-position:0 0;width:${iw.toFixed(1)}px!important;height:${ih.toFixed(1)}px;margin:${(lfBox.h / 2 - (y0 + y1) / 2 * ih).toFixed(1)}px 0 0 ${(-x0 * iw).toFixed(1)}px}
+@supports (object-view-box: inset(0%)) { ${sel}{object-view-box:inset(${pc(y0)} ${pc(1 - x1)} ${pc(1 - y1)} ${pc(x0)});width:${wc.toFixed(1)}px!important;height:${hc.toFixed(1)}px;margin:${((lfBox.h - hc) / 2).toFixed(1)}px 0 0 0} }`;
+}
+let lfCss = "", lfKey = "";
+function lfSheet() {
+  let el = document.getElementById("lfcss"); if (!el) { el = document.createElement("style"); el.id = "lfcss"; document.head.appendChild(el); }
+  /* rebuilt only when something it depends on changed (the games' logos, what's measured, the tile, the switch) */
+  const key = S.lfOff || !lfBox ? "off" : lfBox.w + "x" + lfBox.h + "|" + Object.keys(LF).length + "|" + S.games.map(g => g.art ? g.id + g.art.length : "").join();
+  if (key === lfKey && lfCss != null) return; lfKey = key;
+  const css = S.lfOff || !lfBox ? "" : S.games.filter(g => g.art && LF[g.art]).map(g => lfRule(g.id, LF[g.art])).join("\n");
+  if (css !== lfCss) { lfCss = css; el.textContent = css; }
+}
+const lfFitted = img => { const row = img.closest("[data-row]"), g = row && S.games.find(x => x.id === row.dataset.row); return !!(g && g.art && LF[g.art] && lfBox && !S.lfOff); };
+function lfClear() { lfCss = null; lfSheet(); }
+function lfApply() {
+  if (S.lfOff) { lfSheet(); return; }
+  const missing = S.games.filter(g => g.art && !(g.art in LF) && !lfQ.includes(g.art)).map(g => g.art);
+  lfQ.push(...missing);
+  /* the tile's size is read once, in a frame (never right after a redraw) */
+  if (lfBox) { lfSheet(); lfNext(); return; }
+  const im = document.querySelector("#p-queue .rowart"); if (!im) return;
+  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return; lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
+}
+function lfNext() {
+  if (lfBusy || !lfQ.length) return; lfBusy = true;
+  const u = lfQ.shift();
+  (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => lfMeasure(u).then(() => { lfBusy = false; lfSheet(); lfNext(); }));
+}
+addEventListener("resize", () => { lfBox = null; clearTimeout(lfApply.t); lfApply.t = setTimeout(lfApply, 300); }, { passive: true });
+
+/* Nexi learned both reports: a price row that stays on "checking…" while no check is running (#118), and a queue logo
+   drawn under 30% of its tile's height (#114; not when you chose "same box for all") */
+{ const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
+  try {
+    if (!pxBusy) { const el = [...document.querySelectorAll(".px .pxck")].find(x => x.getClientRects().length); if (el) bugReport("look", "A price stayed on “checking…”", { at: bugPath(el), screen: scr }); }
+    if (!S.lfOff) for (const img of document.querySelectorAll("#p-queue .rowart img")) {
+      if (lfFitted(img) || !img.complete || !img.naturalWidth || !img.getClientRects().length) continue;
+      const b = img.parentElement.getBoundingClientRect(); if (!b.height || b.bottom < 0 || b.top > innerHeight) continue;
+      const k = Math.min(b.width / img.naturalWidth, b.height / img.naturalHeight);
+      if (img.naturalHeight * k / b.height < .3) { bugReport("look", "A logo is too small for its card", { at: bugPath(img), screen: scr }); break; } }
+  } catch (e) {}
+  return o; }; }
+
+/* ---- the dusty backlog ---- */
+const DUST_DAY = 864e5;
+function dustDays(g) {
+  if (!g || S.dustOff || g.comp || isPlayed(g) || isDropped(g) || (g.state || "") === "playing") return 0;
+  const td = new Date().toLocaleDateString("en-CA"), out = g.state === "backlog" || (g.date && g.date <= td);
+  if (!out) return 0;
+  let since = g.added ? Date.parse(g.added + "T12:00:00") || 0 : 0;
+  if (g.date && g.date <= td) since = Math.max(since, Date.parse(g.date + "T12:00:00") || 0);
+  try { since = Math.max(since, typeof sgLast === "function" ? sgLast(g) : 0); } catch (e) {}
+  since = Math.max(since, +g.dustOff || 0);
+  return since ? Math.floor((Date.now() - since) / DUST_DAY) : 0;
+}
+const dustLvl = g => { const d = dustDays(g); return d >= 240 ? 3 : d >= 120 ? 2 : d >= 60 ? 1 : 0; };
+/* dust lives in a stylesheet too (#dustcss: one rule per level listing its rows), so a queue redraw costs nothing */
+const DUST_BASE = 'content:"";position:absolute;inset:0;z-index:3;border-radius:inherit;pointer-events:none;background-image:radial-gradient(rgba(214,206,190,.55) .8px,transparent 1.3px),radial-gradient(rgba(214,206,190,.4) .6px,transparent 1.1px),linear-gradient(180deg,rgba(190,180,160,.10),rgba(190,180,160,.04));background-size:23px 19px,13px 17px,100% 100%;background-position:3px 5px,9px 2px,0 0;';
+const DUST_LV = { 1: "opacity:.5", 2: "opacity:.8", 3: 'opacity:1;content:"🕸️";display:flex;justify-content:flex-end;align-items:flex-start;padding:2px 10px;font-size:15px' };
+let dustCss = "";
+function dustApply() {
+  let el = document.getElementById("dustcss"); if (!el) { el = document.createElement("style"); el.id = "dustcss"; document.head.appendChild(el); }
+  const lv = { 1: [], 2: [], 3: [] }; S.games.forEach(g => { const l = dustLvl(g); if (l) lv[l].push(`#p-queue [data-row="${CSS.escape(g.id)}"]::after`); });
+  const css = [1, 2, 3].filter(k => lv[k].length).map(k => `${lv[k].join(",")}{${DUST_BASE}${DUST_LV[k]}}`).join("\n");
+  if (css !== dustCss) { dustCss = css; el.textContent = css; }
+}
+function dustPuff(x, y) {
+  if (calm()) return;
+  const p = document.createElement("div"); p.className = "dustpuff"; p.style.left = x + "px"; p.style.top = y + "px";
+  p.innerHTML = [...Array(9)].map((_, i) => { const a = i / 9 * 6.283 + Math.random() * .4, r = 40 + Math.random() * 50; return `<i style="--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r - 20}px;animation-delay:${i * 12}ms"></i>`; }).join("");
+  document.body.appendChild(p); setTimeout(() => p.remove(), 1100);
+}
+{ const _rq = renderQueue; renderQueue = function () { const o = _rq.apply(this, arguments); try { dustApply(); lfApply(); } catch (e) {} return o; }; }
+/* the queue is first drawn by load(), before this script exists, and isn't redrawn until something changes: apply both
+   now, and measure the tile when the queue comes on screen (it can't be measured while its tab is hidden) */
+setTimeout(() => { try { dustApply(); lfApply(); } catch (e) {} }, 0);
+{ const _gt = goTab; goTab = function () { const o = _gt.apply(this, arguments); if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); return o; }; }
+{ const _ss = setSub; setSub = function () { const o = _ss.apply(this, arguments); if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); return o; }; }
+/* opening a dusty game blows the dust off */
+{ const _of = openFull; openFull = function (id) { const g = S.games.find(x => x.id === id), d = g ? dustDays(g) : 0, l = g ? dustLvl(g) : 0;
+  const o = _of.apply(this, arguments);
+  if (g && l) { g.dustOff = Date.now(); save(); dustApply(); setTimeout(() => { dustPuff(innerWidth / 2, innerHeight * .3);
+    if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([`*cough* ${g.title} had ${d >= 60 ? Math.round(d / 30) + " months" : d + " days"} of dust on it. Blown off ✨`, ""]); } catch (e) {} }, 380); }
+  return o; }; }
+/* Nexi points at the dustiest one now and then */
+{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments);
+  try { const g = S.games.filter(x => dustLvl(x) >= 2).sort((a, b) => dustDays(b) - dustDays(a))[0];
+    if (g && Array.isArray(L)) L.push([`${g.title} has been gathering dust for ${Math.round(dustDays(g) / 30)} months 🕸️ Blow it off tonight?`, g.id]); } catch (e) {}
+  return L; }; }
+
+/* ---- the app icon badge ---- */
+function bdgSync(leaving) {
+  if (!navigator.setAppBadge) return;
+  if (S.bdgOff) { navigator.clearAppBadge().catch(() => {}); return; }
+  if (!leaving) { navigator.clearAppBadge().catch(() => {}); return; }
+  /* leaving: a dot if a game you're waiting for comes out today and you haven't opened it */
+  const td = new Date().toLocaleDateString("en-CA"); let seen = {}; try { seen = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); } catch (e) {}
+  const out = S.games.filter(g => g.date === td && !isPlayed(g) && !isDropped(g) && !(seen[g.id] && new Date(seen[g.id]).toLocaleDateString("en-CA") === td));
+  if (out.length) navigator.setAppBadge(out.length).catch(() => {});
+}
+addEventListener("visibilitychange", () => bdgSync(document.hidden));
+bdgSync(false);
+
+/* ---- #123: Nexi sits in the rail ----
+   With the rail open (wide screens), Nexi used to vanish; now he takes a seat at the rail's foot (the rail keeps 92px
+   for him) and glides between his seat and his free spot when the rail hides or comes back. Seated: a tap makes him
+   talk, a double tap or long press opens his wheel (dragging him out isn't possible; » hides the rail as before). */
+const seatOn = () => { const H = document.documentElement; return !S.nxSeatOff && innerWidth >= 620 && H.classList.contains("pnrail") && !H.classList.contains("railhide") && !H.classList.contains("nxtouring") && !H.classList.contains("nxguide"); };
+/* the rail's resting place (offset*, not the rect: the rail slides in with a transform, and mid-slide it's off screen) */
+function seatPos() { const r = document.getElementById("hrail"); if (!r || !r.offsetWidth) return null; return { x: r.offsetLeft + (r.offsetWidth - 62) / 2, y: r.offsetTop + r.offsetHeight - 62 - 16 }; }
+function seatSync(anim) {
+  const H = document.documentElement, b = document.getElementById("pnbub"); if (!b) return;
+  const on = seatOn(); H.classList.toggle("nxseat", on); if (!on) return;
+  requestAnimationFrame(() => { const p = seatPos(); if (!p) return; const from = { x: pnBubX, y: pnBubY };
+    try { pnBubFace(); } catch (e) {} b.classList.remove("peek", "pkl", "pkr");
+    pnBubPlace(p.x, p.y);
+    if (anim && !calm() && Math.hypot(from.x - p.x, from.y - p.y) > 4) b.animate([{ transform: `translate3d(${from.x}px,${from.y}px,0)` }, { transform: `translate3d(${p.x}px,${p.y}px,0)` }], { duration: 560, easing: "cubic-bezier(.34,1.3,.64,1)" }); });
+}
+/* leaving the seat (rail hidden): glide from the seat to his usual spot instead of popping up there */
+{ const _bs = pnBubShow; pnBubShow = function () { const H = document.documentElement, b = document.getElementById("pnbub"), was = H.classList.contains("nxseat") ? { x: pnBubX, y: pnBubY } : null;
+  if (was) H.classList.remove("nxseat");
+  const o = _bs.apply(this, arguments);
+  if (was && b && !calm()) b.animate([{ transform: `translate3d(${was.x}px,${was.y}px,0)` }, { transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }], { duration: 560, easing: "cubic-bezier(.34,1.3,.64,1)" });
+  return o; }; }
+new MutationObserver(() => { const H = document.documentElement, want = seatOn();
+  if (want !== H.classList.contains("nxseat")) seatSync(true); }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+addEventListener("resize", () => { if (document.documentElement.classList.contains("nxseat")) seatSync(false); else if (seatOn()) seatSync(false); }, { passive: true });
+setTimeout(() => seatSync(true), 900);
+/* seated taps: talk / wheel; the free-Nexi handler (drag, tap = show the rail) is skipped */
+{ let taps = 0, tT = 0, hold = 0;
+  addEventListener("pointerdown", e => { const b = e.target.closest && e.target.closest("#pnbub"); if (!b || !document.documentElement.classList.contains("nxseat")) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    clearTimeout(hold); hold = setTimeout(() => { hold = -1; taps = 0; try { pnBubWheel(); } catch (x) {} }, 600);
+    const up = () => { removeEventListener("pointerup", up, true); if (hold === -1) { hold = 0; return; } clearTimeout(hold); hold = 0;
+      taps++; clearTimeout(tT);
+      if (taps >= 2) { taps = 0; try { pnBubMood("happy", 900); pnBubWheel(); } catch (x) {} return; }
+      tT = setTimeout(() => { if (taps === 1) { try { pnBubSay(); } catch (x) {} } taps = 0; }, 400); };
+    addEventListener("pointerup", up, true); }, true); }
+
+/* ---- Nexi's crystal ball ---- */
+/* the first finish forecast for a game is kept, so Then & now can say how it went */
+{ const _eo = etaOf; etaOf = function (g) { const e = _eo.apply(this, arguments); if (e && g && !g.eta0 && e.left > 0) { g.eta0 = { d: e.date, at: Date.now() }; } return e; }; }
+{ const _sp = syncPlayed; syncPlayed = function (g, state) { const o = _sp.apply(this, arguments); try { if (g && g.cap && g.eta0 && !g.cap.e0) g.cap.e0 = g.eta0.d; } catch (e) {} return o; }; }
+{ const _sw = scoreWrite; scoreWrite = function (rec, v) { const o = _sw.apply(this, arguments);
+  try { const g = rec && S.games.find(x => x.id === rec.id);
+    if (g && g.cap && g.cap.pr > 0 && typeof v === "number" && g.cap.got == null) { g.cap.got = v; const d = v - g.cap.pr, pr = g.cap.pr.toFixed(1);
+      const line = Math.abs(d) <= .5 ? `Called it! 🔮 I guessed ${pr}, you gave it ${v}.` : Math.abs(d) <= 1.5 ? `Close: I guessed ${pr}, you said ${v}. My crystal ball's getting warm 🔮` : `You surprised me: I guessed ${pr}, you gave it ${v}. Noted for next time 📝`;
+      setTimeout(() => { if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([line, "taste"]); } catch (e) {} }, 1400); } } catch (e) {}
+  return o; }; }
+function orcStats() {
+  const L = S.games.filter(g => g.cap && g.cap.pr > 0 && isPlayed(g)).map(g => { const p = playedRec(g); return p && scored(p) ? { g, pr: g.cap.pr, v: p.real, d: Math.abs(p.real - g.cap.pr) } : null; }).filter(Boolean);
+  return { n: L.length, hits: L.filter(x => x.d <= 1).length, mae: L.length ? L.reduce((s, x) => s + x.d, 0) / L.length : 0, L: L.sort((a, b) => (b.g.cap.at || 0) - (a.g.cap.at || 0)) };
+}
+function orcCard() {
+  const o = orcStats();
+  return `<div class="ix-card ix-full orc"><h4>🔮 ${esc(pnName())}'s crystal ball<small>Before you finish a game I guess your score. Here's how I'm doing.</small></h4>
+    ${o.n ? `<div class="orc-r"><b>${o.hits}/${o.n}</b><span>called within a point · I miss by ${o.mae.toFixed(1)} on average</span></div>
+      <div class="orc-l">${o.L.slice(0, 5).map(x => `<button type="button" data-opg="${x.g.id}"><span>${esc(x.g.title)}</span><em>guessed ${x.pr.toFixed(1)} · you ${x.v}</em></button>`).join("")}</div>`
+      : `<p class="ix-s">Finish a game I've guessed (I guess every game you play) and I'll keep score here.</p>`}</div>`;
+}
+{ const _tp = tasteInsightsPage; tasteInsightsPage = function () { const o = _tp.apply(this, arguments);
+  return typeof o === "string" && o.endsWith("</div>") ? o.slice(0, -6) + orcCard() + "</div>" : o; }; }
+/* Then & now also shows the finish forecast against the real finish */
+{ const _cc = capCard; capCard = function (g) { const o = _cc.apply(this, arguments); const c = g && g.cap, p = g && playedRec(g);
+  if (!o || !c || !c.e0 || !p || !p.t) return o;
+  const dd = Math.round((Date.parse(p.t + "T12:00:00") - Date.parse(c.e0 + "T12:00:00")) / 864e5);
+  const cell = `<span class="cap-c"><b>${dd === 0 ? "On the day" : Math.abs(dd) + " days " + (dd < 0 ? "early" : "late")}</b><small>vs my finish forecast (${esc(rdNice(c.e0))})</small></span>`;
+  return o.includes('<div class="cap-r">') ? o.replace('<div class="cap-r">', '<div class="cap-r">' + cell) : o; }; }
+WHATS_NEW.push(
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => [...document.querySelectorAll("#p-queue [data-row]")].find(r => { const g = S.games.find(x => x.id === r.dataset.row); return g && dustLvl(g); }) || $("#p-queue .row"),
+    say: "Your backlog gathers dust now: games that came out and sat untouched for months get dustier in your queue (cobwebs after 8 months). Open one and the dust blows off.",
+    tryIt: "Look for the dusty rows in your queue." },
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .rowart") || $("#p-queue .row"),
+    say: "Logos fit their cards by themselves (you asked for this one): I measure each logo's real shape once and size it so every row looks balanced. I've learned to spot a logo that's too small myself now.",
+    tryIt: "Scroll your queue. Customise → Queue cards turns it off." },
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Nexi sits in the rail" }); }, at: "#s-xseat",
+    say: "On wide screens I don't disappear when the side rail is open any more: I sit at the foot of the rail, and glide out when you hide it. Tap me to hear from me, double-tap for my wheel.",
+    tryIt: "Unfold the phone (or use a wide screen) with the rail open." },
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setSub("taste", "insights"); goTab("taste"); setTimeout(() => { const c = $(".orc"); if (c) c.scrollIntoView({ block: "center" }); }, 400); }, at: () => $(".orc") || $("#p-taste .ixp") || null,
+    say: "My crystal ball: I guess your score before you finish a game, and when you score it I tell you if I called it. Taste → Insights keeps my track record.",
+    tryIt: "Finish and score a game you're playing." },
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Icon badge" }); }, at: "#s-xbdg",
+    say: "Your home-screen icon shows how many of my notifications are waiting, and a dot when a game you're waiting for comes out today.",
+    tryIt: "Nothing to do: it clears when you open the app." },
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && PX_S.some(s => x.px[s])) || S.games.find(x => typeof pxCard === "function" && pxCard(x)); if (g) openFull(g.id); }, at: () => $("#full .px") || null,
+    say: "Fixed: prices never sit on “checking…” any more. A store that doesn't have the game says so, a failed check says it'll try again, and opening a game checks every store it's missing. I've learned to spot that one myself now.",
+    tryIt: "Open a game you're waiting for." }
 );
 </script>
