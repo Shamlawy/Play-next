@@ -47,6 +47,7 @@ const body = b => {
     s.stack ? (b.kind === "user" ? "What was at the spot they tapped:\n" : b.kind === "slow" ? "Timing:\n" : "Stack:\n") + fence(s.stack) : "",
     `| | |\n|---|---|\n| Times | ${b.n} |\n| Versions | ${(b.vs || []).join(", ")} |\n| Phones | ${(b.devs || []).join(", ")} |\n| Screens | ${(b.screens || []).join(", ")} |\n| Latest | ${s.w}×${s.h} @${s.dpr}x, ${s.style || "clean"} style |\n| First / last | ${when(b.first)} / ${when(b.last)} |`,
     s.crumbs && s.crumbs.length ? "What happened just before:\n" + fence(s.crumbs.join("\n")) : "",
+    /^(iPhone|iPad|Mac[^,]*Safari)/.test(s.dev || "") ? "_Safari (WebKit): reproduce with Playwright's WebKit (the WebKit check workflow), not Chromium. Before v229 an iPad reported itself as \"Mac\"._" : "",
     "_Sent automatically by the app. No game titles, scores or notes are included._"
   ].filter(Boolean).join("\n\n");
 };
@@ -56,7 +57,9 @@ for (const b of bugs) {
   const i = bySig.get(b.sig), s = b.sample || {};
   if (!i) {
     if (made >= MAX_NEW) continue;
-    const title = `🐞 ${KIND[b.kind] || b.kind}: ${String(b.msg).replace(/\s+/g, " ").slice(0, 80)} [bug:${b.sig}]`;
+    /* which kind of device: the friend uses an iPhone and an iPad (Safari), the owner an Android Fold (Chrome) */
+    const fam = (String(s.dev || "").match(/^(iPhone|iPad|Android|Mac|Windows)/) || [])[1];
+    const title = `🐞 ${KIND[b.kind] || b.kind}${fam ? " (" + fam + ")" : ""}: ${String(b.msg).replace(/\s+/g, " ").slice(0, 80)} [bug:${b.sig}]`;
     const n = await gh(`/repos/${REPO}/issues`, "POST", { title, body: body(b), labels: [LABEL] });
     console.log("new issue #" + n.number + " " + title); made++;
   } else {

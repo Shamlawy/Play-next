@@ -21,7 +21,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 13;
+const HELPER_V = 14;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -116,8 +116,9 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
+    if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
     if (url.pathname === "/reviews" && req.method === "POST") return rvRoute(req, env, h);
     if (url.pathname === "/hours" && req.method === "POST") return hbRoute(req, env, h);
@@ -273,11 +274,16 @@ function chatSystem(b) {
   if (list("competitive", 6).length) lines.push("Competitive games they play (no win/loss tracking): " + list("competitive", 6).join("; "));
   if (list("insights", 6).length) lines.push("What the app learned from their duels: " + list("insights", 6).join("; "));
   if (c.platform) lines.push("Main platform right now: " + String(c.platform).slice(0, 30));
+  /* v14: everything else the app knows right now (deals, PS Plus, releases, finish forecasts, notes, predictions, habits) */
+  if (list("facts", 20).length) lines.push("What the app knows right now:\n- " + list("facts", 20).join("\n- "));
   if (b && b.memory) lines.push("Your memory of them from earlier chats: " + String(b.memory).slice(0, 700));
-  return `You are Nexi, the little mascot inside the game-ranking app "Play next". Your personality: ${p}
+  const nm = c.name ? String(c.name).slice(0, 30) : "";
+  return `You are Nexi, the little mascot inside the game-ranking app "Play next", and the player's sharp, well-informed gaming companion. Your personality: ${p}
 Keep the same facts and tips whatever the personality; only the voice changes.
-Help with: what to play next, recommendations (say if a game is already in their list), explaining their taste from the data below, and game tips (no spoilers unless asked).
-Be short: 1–4 sentences or a tiny list. Use only the data below for claims about the player; if unsure, say so. Never invent their scores.
+Help with: what to play next, recommendations (say if a game is already in their list), explaining their taste from the data below, deals and prices, release dates, how long games take, and game tips (no spoilers unless asked).
+Be smart and specific: point at concrete games, numbers and dates from the data below, give the reason behind every suggestion, and end with one clear next step when it helps. Prefer one confident answer over a vague list.
+${nm ? `Call them ${nm} naturally: use their name in most replies (at the start or end, not every sentence).` : ""}
+Be short: 1–4 sentences or a tiny list. Use only the data below for claims about the player; if unsure, say so. Never invent their scores or prices.
 ${lines.join("\n")}`;
 }
 
@@ -593,7 +599,10 @@ function pxSame(a, b) {
   const x = pxNorm(a), y = pxNorm(b); if (!x || !y) return 0; if (x === y) return 1;
   const A = x.split(" "), B = new Set(y.split(" ")), hit = A.filter(w => B.has(w)).length, cov = hit / A.length;
   const jac = hit / new Set([...A, ...B]).size;
-  return cov < 1 ? jac * cov * cov : Math.max(jac, .8 - Math.min(.3, (B.size - A.length) * .06));
+  /* v14: a number the store's name has and yours doesn't is another game in the series ("The Caligula Effect" isn't
+     "The Caligula Effect 2", "Hades" isn't "Hades II") */
+  const As = new Set(A), seq = [...B].some(w => /^\d{1,2}$/.test(w) && !As.has(w));
+  return cov < 1 ? jac * cov * cov : Math.max(jac, .8 - Math.min(.3, (B.size - A.length) * .06)) - (seq ? .5 : 0);
 }
 const pxCC = cc => /^[a-z]{2}$/.test(String(cc || "").toLowerCase()) ? String(cc).toLowerCase() : "us";
 /* Steam: one call prices up to 50 apps (only the price_overview filter allows several ids) */
@@ -795,16 +804,54 @@ async function pxNsPrices(cc, ids) {
   }
   return out;
 }
+/* ===== v14: exchange rates. The UAE PlayStation Store and the US eShop (used in the Gulf) sell in US dollars, Steam in
+   Egypt too, so the phone shows every price in its own currency. Rates per 1 USD from open.er-api.com (daily, no key), the
+   fawazahmed0 currency API as the backup; kept in KV for 12 h. ===== */
+async function fxFetch() {
+  try { const j = await (await fetch("https://open.er-api.com/v6/latest/USD", { headers: PX_UA })).json();
+    if (j && j.result === "success" && j.rates && j.rates.AED) return { r: j.rates, t: (+j.time_last_update_unix || 0) * 1000 || Date.now(), src: "er-api" }; } catch (e) {}
+  for (const u of ["https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", "https://latest.currency-api.pages.dev/v1/currencies/usd.json"]) {
+    try { const j = await (await fetch(u, { headers: PX_UA })).json(), r = {};
+      for (const k in (j && j.usd) || {}) if (/^[a-z]{3}$/.test(k) && +j.usd[k] > 0) r[k.toUpperCase()] = +j.usd[k];
+      if (r.AED) return { r, t: Date.parse(j.date) || Date.now(), src: "currency-api" }; } catch (e) {}
+  }
+  return null;
+}
+async function fxRates(env) {
+  const kv = env && env.NUDGE;
+  let old = null; try { old = kv ? await kv.get("fx", "json") : null; } catch (e) {}
+  if (old && Date.now() - (old.at || 0) < 12 * 36e5) return { ok: true, base: "USD", r: old.r, t: old.t, at: old.at };
+  const f = await fxFetch();
+  if (!f) return old ? { ok: true, base: "USD", r: old.r, t: old.t, at: old.at, stale: 1 } : { ok: false };
+  const rec = { r: f.r, t: f.t, at: Date.now() };
+  try { if (kv) await kv.put("fx", JSON.stringify(rec), { expirationTtl: 7 * 86400 }); } catch (e) {}
+  return { ok: true, base: "USD", r: rec.r, t: rec.t, at: rec.at };
+}
+/* v14: countries with no PlayStation Store of their own (Egypt: the store's search returns nothing there). People there
+   use another country's store; the phone can say which (pscc), else the UAE store for the Arab world, the US one otherwise. */
+/* a store's price as a plain amount: Steam and the PS Store send minor units (cents), the eShop the amount itself */
+const FX_ZD = new Set(["JPY", "KRW", "CLP", "VND", "IDR", "HUF", "TWD", "COP"]);
+const pxMaj = (s, cur, v) => v == null ? null : s === "ns" ? +v : s === "ps" && FX_ZD.has(cur) ? +v : +v / 100;
+function fxShow(fx, s, p, v, to) {
+  const from = p && p.cur, a = pxMaj(s, from, v);
+  if (!fx || !fx.r || !to || !from || to === from || a == null || !fx.r[from] || !fx.r[to]) return "";
+  const x = a / fx.r[from] * fx.r[to];
+  try { return new Intl.NumberFormat("en", { style: "currency", currency: to, maximumFractionDigits: x >= 100 ? 0 : 2, minimumFractionDigits: x >= 100 ? 0 : 2 }).format(x); } catch (e) { return ""; }
+}
+/* checked with the price probe (Oct 2026): no store in eg, ma, dz, jo, iq, pk, ng, ph; stores in lb, tr, in, za and the Gulf */
+const PS_NONE = new Set(["eg", "ma", "dz", "tn", "ly", "iq", "jo", "sy", "ye", "sd", "pk", "ng", "ph", "ir", "af"]);
+const PS_ARAB = new Set(["eg", "ma", "dz", "tn", "ly", "iq", "jo", "sy", "ye", "sd"]);
+const psCC = (cc, pick) => { pick = String(pick || "").toLowerCase(); if (/^[a-z]{2}$/.test(pick) && !PS_NONE.has(pick)) return pick; cc = pxCC(cc); return PS_NONE.has(cc) ? (PS_ARAB.has(cc) ? "ae" : "us") : cc; };
 /* check a list: [{k, t: title, st: steam app id | 0 = look it up | -1 = don't, ps: product id | "" = look it up | "-" = don't}]
    at most 8 Steam lookups and 10 PS games per call (up to 3 PS calls each the first time; Workers allow ~50 outside requests) */
 /* what the phone would pay: the PS Plus member price counts when they have PS Plus */
 const pxEff = (p, tier) => !p || p.now == null ? null : tier >= 1 && p.plusNow != null ? Math.min(p.now, p.plusNow) : p.now;
-async function pxCheck(cc, items, nscc) {
-  cc = pxCC(cc); nscc = nsCC(nscc || cc);
+async function pxCheck(cc, items, nscc, pscc) {
+  cc = pxCC(cc); nscc = nsCC(nscc || cc); const pcc = psCC(cc, pscc);
   const res = {}, look = { st: 0, ps: 0, ns: 0 };
   for (const it of items) res[it.k] = {};
   for (const it of items) {
-    if (it.st === 0 && look.st < 8) { look.st++; try { const f = await pxSteamFind(cc, it.t); it.st = f ? f.id : -1; if (f) res[it.k].stName = f.name; else res[it.k].st = { none: 1 }; } catch (e) { res[it.k].st = { err: String(e.message || e).slice(0, 60) }; } }
+    if (it.st === 0 && look.st < 8) { look.st++; try { const f = await pxSteamFind(cc, it.t) || (it.n2 && it.n2 !== it.t ? await pxSteamFind(cc, it.n2) : null); it.st = f ? f.id : -1; if (f) res[it.k].stName = f.name; else res[it.k].st = { none: 1 }; } catch (e) { res[it.k].st = { err: String(e.message || e).slice(0, 60) }; } }
   }
   const ids = items.filter(it => +it.st > 0).map(it => +it.st);
   let sp = {}; try { sp = ids.length ? await pxSteamPrices(cc, ids) : {}; } catch (e) {}
@@ -817,20 +864,25 @@ async function pxCheck(cc, items, nscc) {
       /* v227: a concept with no product id (the phone found the game's store page some other way, e.g. RAWG's link) is
          priced straight from the concept: the store's old search doesn't list some new games (GTA VI) */
       let pc = it.pc || "", found = false;
-      if (!id && !pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id || ""; pc = f.cid || ""; name = f.name; found = true; }
-      let p = await pxPsPrice(cc, id, pc);
+      /* v14: not found by your title: try the name Steam (or another store) knows it by ("Yu-Gi-Oh GX: Tag Force" is
+         "Yu-Gi-Oh! TAG FORCE GX" on the stores) */
+      const alt = [res[it.k].stName, it.n2].filter(n => n && pxNorm(n) !== pxNorm(it.t));
+      if (!id && !pc) { let f = await pxPsFind(pcc, it.t); for (const n of alt) { if (f) break; f = await pxPsFind(pcc, n); }
+        if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id || ""; pc = f.cid || ""; name = f.name; found = true; }
+      let p = await pxPsPrice(pcc, id, pc);
       /* the website's search can pick another region's edition (Persona 3 Reload in the UAE): then try the old search's pick */
-      if (found && p.nosale) { const f2 = await pxPsFindOld(cc, it.t).catch(() => null);
-        if (f2 && f2.id !== id) { const p2 = await pxPsPrice(cc, f2.id, ""); if (!p2.nosale) { id = f2.id; name = f2.name; p = p2; } } }
+      if (found && p.nosale) { const f2 = await pxPsFindOld(pcc, it.t).catch(() => null);
+        if (f2 && f2.id !== id) { const p2 = await pxPsPrice(pcc, f2.id, ""); if (!p2.nosale) { id = f2.id; name = f2.name; p = p2; } } }
       if (!id) id = p.id || "";
-      res[it.k].ps = Object.assign({ id }, p, { id: id || p.id, name: p.name || name });
+      res[it.k].ps = Object.assign({ id }, p, { id: id || p.id, name: p.name || name, pcc });
     } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
   }
   /* Nintendo eShop: look up (≤8 a call), then price every found id in one call */
   for (const it of items) {
     if (it.ns !== "" || look.ns >= 8) continue;
     look.ns++;
-    try { const f = await pxNsFind(nscc, it.t, it.sw2); if (!f) { res[it.k].ns = { none: 1 }; it.ns = "-"; continue; } it.ns = f.id; res[it.k].nsF = f; }
+    try { let f = await pxNsFind(nscc, it.t, it.sw2); for (const n of [res[it.k].stName, it.n2]) { if (f || !n || pxNorm(n) === pxNorm(it.t)) continue; f = await pxNsFind(nscc, n, it.sw2); }
+      if (!f) { res[it.k].ns = { none: 1 }; it.ns = "-"; continue; } it.ns = f.id; res[it.k].nsF = f; }
     catch (e) { res[it.k].ns = { err: String(e.message || e).slice(0, 60) }; it.ns = "-"; }
   }
   const nids = items.filter(it => it.ns && it.ns !== "-").map(it => it.ns);
@@ -848,8 +900,8 @@ async function pxRoute(req, env, h) {
   const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 40).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").slice(0, 100),
     st: Number.isFinite(+x.st) ? Math.trunc(+x.st) : 0, ps: x.ps === "-" ? "-" : (String(x.ps || "").match(PS_ID) || [""])[0],
     pc: /^\d{4,12}$/.test(String(x.pc || "")) ? String(x.pc) : "",
-    ns: x.ns === "-" || x.ns == null ? "-" : /^\d{14}$/.test(String(x.ns)) ? String(x.ns) : "", sw2: !!x.sw2 })).filter(x => x.k && x.t);
-  const cc = pxCC(b.cc), nscc = nsCC(b.nscc || cc), tier = Math.max(0, Math.min(3, +b.tier || 0)), res = await pxCheck(cc, items, nscc);
+    ns: x.ns === "-" || x.ns == null ? "-" : /^\d{14}$/.test(String(x.ns)) ? String(x.ns) : "", sw2: !!x.sw2, n2: String(x.n2 || "").slice(0, 100) })).filter(x => x.k && x.t);
+  const cc = pxCC(b.cc), nscc = nsCC(b.nscc || cc), pscc = psCC(cc, b.pscc), tier = Math.max(0, Math.min(3, +b.tier || 0)), res = await pxCheck(cc, items, nscc, pscc);
   /* keep the list for the daily check (only what was found), with the prices seen now as the baseline */
   if (okId && env.NUDGE && b.watch) {
     const keep = items.map(it => { const r = res[it.k] || {}, st = r.st && r.st.id ? r.st.id : -1, ps = r.ps && r.ps.id ? r.ps.id : "-", ns = r.ns && r.ns.id ? r.ns.id : "-";
@@ -857,9 +909,11 @@ async function pxRoute(req, env, h) {
     /* the phone sends its list in batches: merge this batch into what's kept, and drop games it no longer watches (b.all) */
     const old = await env.NUDGE.get("px:" + id, "json"), all = Array.isArray(b.all) ? new Set(b.all.map(String)) : null;
     const ks = new Set(keep.map(x => x.k)), was = old && old.cc === cc ? (old.items || []).filter(x => !ks.has(x.k) && (!all || all.has(x.k))) : [];
-    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, nscc, tier, min: Math.max(0, Math.min(90, +b.min || 0)), items: was.concat(keep).slice(0, 80), t: old && old.cc === cc ? old.t : Date.now() }), { expirationTtl: PX_TTL, metadata: { t: old && old.cc === cc && old.t ? old.t : Date.now() } });
+    await env.NUDGE.put("px:" + id, JSON.stringify({ cc, nscc, pscc, mc: /^[A-Z]{3}$/.test(String(b.mc || "")) ? b.mc : "", tier, min: Math.max(0, Math.min(90, +b.min || 0)), items: was.concat(keep).slice(0, 80), t: old && old.cc === cc ? old.t : Date.now() }), { expirationTtl: PX_TTL, metadata: { t: old && old.cc === cc && old.t ? old.t : Date.now() } });
   }
-  return json({ ok: true, cc, nscc, res, at: Date.now() }, 200, h);
+  /* v14: today's exchange rates ride along, so the phone can show every price in its own currency */
+  let fx = null; if (b.fx) try { fx = await fxRates(env); } catch (e) {}
+  return json({ ok: true, cc, nscc, pscc, res, at: Date.now(), ...(fx && fx.ok ? { fx } : {}) }, 200, h);
 }
 /* cron: the one watch list checked longest ago (if over 20 h), drops pushed to that phone */
 async function pxCron(env) {
@@ -869,7 +923,7 @@ async function pxCron(env) {
   const k = keys[0]; if (!k) return;
   const rec = await env.NUDGE.get(k.name, "json"); if (!rec) return;
   const id = k.name.slice(3), sub = await env.NUDGE.get("sub:" + id, "json");
-  const res = await pxCheck(rec.cc, rec.items.map(x => ({ k: x.k, t: x.t, st: x.st, ps: x.ps, pc: x.pc || "", ns: x.ns || "-" })), rec.nscc);
+  const res = await pxCheck(rec.cc, rec.items.map(x => ({ k: x.k, t: x.t, st: x.st, ps: x.ps, pc: x.pc || "", ns: x.ns || "-" })), rec.nscc, rec.pscc);
   const drops = [], joins = [], tier = rec.tier || 0;
   for (const it of rec.items) {
     const r = res[it.k] || {};
@@ -893,10 +947,12 @@ async function pxCron(env) {
       tag: "plus-" + j.it.k, url: "./?nudge=game&g=" + j.it.k }, 2 * 86400); } catch (e) {}
   }
   /* deal-radar games ("d:<appid>", not in the library) only push at half price or better, and open Deals */
+  /* v14: in the phone's own currency when the store sells in another one (the store's price in brackets) */
+  let fx = null; if (rec.mc && drops.length) try { fx = await fxRates(env); } catch (e) {}
   for (const d of drops.filter(d => !String(d.it.k).startsWith("d:") || d.p.pct >= 50).slice(0, 3)) {
-    const store = d.s === "st" ? "Steam" : d.s === "ns" ? "Nintendo eShop" : "PS Store";
+    const store = d.s === "st" ? "Steam" : d.s === "ns" ? "Nintendo eShop" : "PS Store", mine = fxShow(fx, d.s, d.p, d.p.now, rec.mc), wasM = d.p.pct ? fxShow(fx, d.s, d.p, d.p.base, rec.mc) : "";
     try { await webPush(env, sub.sub, { title: `💸 ${d.it.t.slice(0, 40)}${d.p.pct ? " is " + d.p.pct + "% off" : " got cheaper"}`,
-      body: `${store}: ${d.p.nowF || ""}${d.p.baseF && d.p.pct ? " (was " + d.p.baseF + ")" : ""}${String(d.it.k).startsWith("d:") ? " · a game you'd probably love" : ""}`.trim(), tag: "deal-" + d.it.k,
+      body: `${store}: ${mine ? "≈ " + mine + " (" + (d.p.nowF || "") + ")" : d.p.nowF || ""}${d.p.pct && (wasM || d.p.baseF) ? " · was " + (wasM || d.p.baseF) : ""}${String(d.it.k).startsWith("d:") ? " · a game you'd probably love" : ""}`.trim(), tag: "deal-" + d.it.k,
       url: String(d.it.k).startsWith("d:") ? "./?nudge=deals" : "./?nudge=game&g=" + d.it.k }, 2 * 86400); } catch (e) {}
   }
 }

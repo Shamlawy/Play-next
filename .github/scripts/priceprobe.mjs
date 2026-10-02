@@ -3,7 +3,10 @@
 import fs from "fs";
 const src = fs.readFileSync("worker/helper.js", "utf8");
 const px = src.slice(src.indexOf("const PX_TTL"), src.indexOf("async function pxRoute"));
-const F = new Function(px + "; return { pxCheck, pxPsFind, pxPsPrice, pxSame };")();
+const F = new Function(px + "; return { pxCheck, pxPsFind, pxPsPrice, pxSame, fxRates, fxShow };")();
+const FX = await F.fxRates({}).catch(e => ({ ok: false, e: e.message }));
+console.log("FX:", FX.ok ? `ok, ${Object.keys(FX.r).length} rates, AED ${FX.r.AED} EGP ${FX.r.EGP} SAR ${FX.r.SAR} EUR ${FX.r.EUR} JPY ${FX.r.JPY}, as of ${new Date(FX.t).toISOString()}` : "FAILED " + JSON.stringify(FX));
+const MC = { ae: "AED", eg: "EGP", sa: "SAR", us: "USD", gb: "GBP", jp: "JPY", de: "EUR", kw: "KWD", qa: "QAR" };
 const CCS = (process.env.CCS || "us,ae").split(",");
 const TITLES = (process.env.TITLES || "Elden Ring|Returnal|Stellar Blade|Final Fantasy VII Rebirth|Metaphor: ReFantazio|Persona 3 Reload|Ghost of Yotei|Death Stranding 2|Monster Hunter Wilds|The Last of Us Part I|Astro Bot|Silent Hill 2|Hollow Knight: Silksong|Marvel's Spider-Man 2|Clair Obscur: Expedition 33").split("|");
 const show = p => !p ? "—" : p.none ? "not found" : p.err ? "ERROR " + p.err : p.nosale ? "not sold here" : p.nop ? "no price yet" :
@@ -11,11 +14,12 @@ const show = p => !p ? "—" : p.none ? "not found" : p.err ? "ERROR " + p.err :
 for (const cc of CCS) {
   console.log(`\n===== ${cc.toUpperCase()} =====`);
   for (let i = 0; i < TITLES.length; i += 5) {
-    const items = TITLES.slice(i, i + 5).map((t, n) => ({ k: "g" + (i + n), t, st: 0, ps: "" }));
+    const items = TITLES.slice(i, i + 5).map((t, n) => ({ k: "g" + (i + n), t, st: 0, ps: "", ns: process.env.NS ? "" : "-" }));
     const res = await F.pxCheck(cc, items);
-    for (const it of items) console.log(`${it.t.padEnd(32)} Steam: ${show(res[it.k].st)}\n${"".padEnd(32)} PS:    ${show(res[it.k].ps)}`);
+    const mine = (s, p) => p && p.now != null && FX.ok ? ` [raw ${p.cur} ${p.now} → ${F.fxShow(FX, s, p, p.now, MC[cc] || "USD") || "same"}]` : "";
+    for (const it of items) console.log(`${it.t.padEnd(32)} Steam: ${show(res[it.k].st)}${mine("st", res[it.k].st)}\n${"".padEnd(32)} PS:    ${show(res[it.k].ps)}${mine("ps", res[it.k].ps)}${res[it.k].ps && res[it.k].ps.pcc ? " (store " + res[it.k].ps.pcc + ")" : ""}${process.env.NS ? `\n${"".padEnd(32)} eShop: ${show(res[it.k].ns)}${mine("ns", res[it.k].ns)}` : ""}`);
     /* second pass the way the phone does it: with the ids it got back (one PS call each) */
-    const again = items.map(it => ({ ...it, st: res[it.k].st && res[it.k].st.id || -1, ps: res[it.k].ps && res[it.k].ps.id || "-", pc: res[it.k].ps && res[it.k].ps.cid || "" }));
+    const again = items.map(it => ({ ...it, ns: "-", st: res[it.k].st && res[it.k].st.id || -1, ps: res[it.k].ps && res[it.k].ps.id || "-", pc: res[it.k].ps && res[it.k].ps.cid || "" }));
     const r2 = await F.pxCheck(cc, again);
     const bad = again.filter(it => it.ps !== "-" && !(r2[it.k].ps && r2[it.k].ps.id));
     console.log(`  (re-check with saved ids: ${bad.length ? "FAILED for " + bad.map(b => b.t).join(", ") : "ok"})`);
