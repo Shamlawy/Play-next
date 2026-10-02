@@ -7437,9 +7437,12 @@ function platChips(str) {
   const subSort = a => a.sort((x, y) => (parseFloat(x) || 99) - (parseFloat(y) || 99));
   return PLAT_ORDER.filter(k => fam[k]).map(k => ({ k, sub: subSort(fam[k].subs).join(" · "), names: fam[k].names })).concat(rest.slice(0, 2).map(text => ({ text })));
 }
+/* v228: all the logos share one pill (thin dividers between them), the version sits right after its logo in the same
+   colour and weight ("4·5"), so it reads as one mark instead of a logo and a faint number in separate pills */
 function platHtml(str, cls) {
-  return platChips(str).map(c => c.text ? `<span class="${cls || ""}">${esc(c.text)}</span>`
-    : `<span class="plat ${cls || ""}" title="${esc(c.names.join(" · "))}" aria-label="${esc(c.k === "io" ? "iOS" : PLAT_NAME[c.k] + (c.sub ? " " + c.sub : ""))}">${c.k === "io" ? "<b>iOS</b>" : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${PLAT_LOGO[c.k]}"/></svg>`}${c.sub ? `<small>${esc(c.sub)}</small>` : ""}</span>`).join("");
+  const C = platChips(str), known = C.filter(c => !c.text), text = C.filter(c => c.text);
+  const logo = c => `<i class="pfm" title="${esc(c.names.join(" · "))}" aria-label="${esc(c.k === "io" ? "iOS" : PLAT_NAME[c.k] + (c.sub ? " " + c.sub : ""))}">${c.k === "io" ? "<b>iOS</b>" : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${PLAT_LOGO[c.k]}"/></svg>`}${c.sub ? `<small>${esc(c.sub.replace(/ · /g, "·"))}</small>` : ""}</i>`;
+  return (known.length ? `<span class="pfms ${cls || ""}">${known.map(logo).join("")}</span>` : "") + text.map(c => `<span class="${cls || ""}">${esc(c.text)}</span>`).join("");
 }
 function platPicker(id, current) {
   const on = platList(current).map(x => x.toLowerCase());
@@ -16566,12 +16569,14 @@ html.still .gd-bg { transition: none; }
   font-style: normal; text-transform: none; text-shadow: none; }
 .gd-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
 .gd-tags span { padding: 5px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 500; color: var(--ice); background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
-/* v226: platform logos */
-.gd-tags span.plat { display: inline-flex; align-items: center; align-self: stretch; gap: 5px; padding: 5px 11px; }
-.gd-tags span.plat svg { width: 15px; height: 15px; flex: none; fill: currentColor; }
-.gd-tags span.plat::before { content: "\200b"; width: 0; margin-right: -5px; }   /* a text strut: same height as the name chips */
-.gd-tags span.plat small { font-size: 11px; font-weight: 600; color: var(--mute); line-height: 1; text-transform: none; letter-spacing: 0; }
-.gd-tags span.plat b { font-size: 11.5px; font-weight: 700; line-height: 1; text-transform: none; letter-spacing: 0; }
+/* v226/v228: platform logos, all in one pill */
+.gd-tags span.pfms { display: inline-flex; align-items: stretch; padding: 0 4px; }
+.gd-tags span.pfms::before { content: "\200b"; width: 0; padding: 5px 0; }   /* a text strut: as tall as the name chips */
+.gd-tags .pfm { display: inline-flex; align-items: center; gap: 3px; padding: 0 9px; font-style: normal; color: var(--ice); }
+.gd-tags .pfm + .pfm { border-left: 1px solid var(--u-line2, rgba(234,242,255,.14)); }
+.gd-tags .pfm svg { width: 17px; height: 17px; flex: none; fill: currentColor; }
+.gd-tags .pfm small { font: 700 12px/1 "Poppins", system-ui, sans-serif; color: var(--ice); letter-spacing: -.01em; text-transform: none; }
+.gd-tags .pfm b { font: 700 12px/1 "Poppins", system-ui, sans-serif; text-transform: none; letter-spacing: 0; }
 .gd-tags span.acc { background: color-mix(in srgb, var(--accent) 26%, #0a0e1b); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .gd-desc { margin: 14px 0 0; color: #B9C8EA; font-size: 13.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 /* v208 (#70): the whole description on a tap */
