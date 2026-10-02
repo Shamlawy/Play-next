@@ -798,9 +798,12 @@ async function pxCheck(cc, items, nscc) {
       let id = it.ps, name = "";
       /* v227: a concept with no product id (the phone found the game's store page some other way, e.g. RAWG's link) is
          priced straight from the concept: the store's old search doesn't list some new games (GTA VI) */
-      let pc = it.pc || "";
-      if (!id && !pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id || ""; pc = f.cid || ""; name = f.name; }
-      const p = await pxPsPrice(cc, id, pc);
+      let pc = it.pc || "", found = false;
+      if (!id && !pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id || ""; pc = f.cid || ""; name = f.name; found = true; }
+      let p = await pxPsPrice(cc, id, pc);
+      /* the website's search can pick another region's edition (Persona 3 Reload in the UAE): then try the old search's pick */
+      if (found && p.nosale) { const f2 = await pxPsFindOld(cc, it.t).catch(() => null);
+        if (f2 && f2.id !== id) { const p2 = await pxPsPrice(cc, f2.id, ""); if (!p2.nosale) { id = f2.id; name = f2.name; p = p2; } } }
       if (!id) id = p.id || "";
       res[it.k].ps = Object.assign({ id }, p, { id: id || p.id, name: p.name || name });
     } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
