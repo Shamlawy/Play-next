@@ -77,10 +77,17 @@ function show(m) {
     /* badge = the small status-bar icon: Android paints it as a white silhouette of its see-through shape,
        so it must be the » on transparent (the full square logo showed as a plain white box) */
     icon: "logo-192.png", badge: "badge-96.png", data: { url: m.url || "./" }
-  });
+  }).then(iconBadge);
+}
+/* v221: the home-screen icon shows how many Play next notifications are waiting (iPhone home-screen apps and Android
+   launchers that support it); the app clears it when it opens */
+function iconBadge() {
+  const n = self.navigator;
+  if (!n || !n.setAppBadge) return;
+  return self.registration.getNotifications().then(l => l.length ? n.setAppBadge(l.length) : n.clearAppBadge()).catch(() => {});
 }
 self.addEventListener("notificationclick", e => {
-  e.notification.close();
+  e.notification.close(); iconBadge();
   const url = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
     const c = list.find(x => x.url.startsWith(self.registration.scope));
@@ -102,3 +109,5 @@ self.addEventListener("periodicsync", e => {
     await show(due);
   })());
 });
+/* a notification swiped away: one fewer on the icon */
+self.addEventListener("notificationclose", () => { iconBadge(); });
