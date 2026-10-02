@@ -15,6 +15,7 @@ on:
       - ".github/scripts/priceprobe.mjs"
       - ".github/scripts/psprobe.mjs"
       - ".github/scripts/nsprobe.mjs"
+      - ".github/scripts/pssearchprobe.mjs"
       - "worker/helper.js"
       - ".github/workflows/price-probe.yml"
 permissions:
@@ -32,6 +33,11 @@ jobs:
           TITLES: ${{ github.event.inputs.titles }}
           CCS: ${{ github.event.inputs.ccs }}
         run: mkdir -p probe; node .github/scripts/priceprobe.mjs | tee probe/prices.log
+      - name: PS search probe
+        if: always()
+        env:
+          Q: ${{ github.event.inputs.titles }}
+        run: node .github/scripts/pssearchprobe.mjs | tee probe/pssearch.log
       - name: Nintendo + Steam probe
         if: always()
         run: node .github/scripts/nsprobe.mjs | tee probe/ns.log
