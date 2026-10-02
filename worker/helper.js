@@ -572,7 +572,21 @@ Answer with ONLY JSON, one entry per game in the same order: [{"n":1,"m":0,"x":0
    browser can't (no CORS). POST /prices checks a list now; with an id (the phone's nudge id) the list is also kept as
    px:<id> and the cron re-checks it about once a day and pushes a notification when a price drops. ===== */
 const PX_TTL = 60 * 86400, PX_UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
-const pxNorm = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
+/* v227: short names people type ("GTA 6", "FF7 Rebirth", "COD") and Roman numerals ("VI") mean the same game as the store's
+   full name, so both sides are spelled out the same way before comparing, and searches also try the spelled-out title */
+const PX_ABBR = { gta: "grand theft auto", ff: "final fantasy", cod: "call of duty", rdr: "red dead redemption", tlou: "the last of us",
+  mgs: "metal gear solid", kh: "kingdom hearts", nfs: "need for speed", gow: "god of war", dmc: "devil may cry", smt: "shin megami tensei",
+  bg: "baldurs gate", hzd: "horizon zero dawn", ac: "assassins creed", mhw: "monster hunter world", re: "resident evil" };
+const PX_ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13, xiv: 14, xv: 15, xvi: 16 };
+/* "GTA 6" → "grand theft auto 6", "FF7" → "final fantasy 7"; only a whole first word is expanded ("re" only when a number
+   follows, so "Returnal"/"Resident…" are untouched) */
+const pxExpand = t => String(t || "").replace(/^\s*([A-Za-z]{2,4})(\d{0,2})(?=\b|\d)/, (all, w, n) => {
+  const k = w.toLowerCase(), full = PX_ABBR[k]; if (!full || full === k) return all;
+  if ((k === "re" || k === "ac" || k === "bg") && !n && !/^\s*[A-Za-z]{2,4}\s+\d/.test(t)) return all;
+  return full + (n ? " " + n : ""); });
+const pxNum = s => s.replace(/\b(i{1,3}|iv|vi{0,3}|ix|xi{0,3}|xiv|xv|xvi)\b/g, w => PX_ROMAN[w] != null ? String(PX_ROMAN[w]) : w);
+const pxNorm0 = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
+const pxNorm = s => pxNum(pxNorm0(pxExpand(s).replace(/['’]/g, ""))).replace(/\s+/g, " ").trim();
 /* every word of your title must be in the store's name (so "Final Fantasy VII Rebirth" never matches plain "Final Fantasy VII",
    nor "Death Stranding 2" the first game); extra words (editions, subtitles) cost a little each */
 function pxSame(a, b) {
@@ -599,11 +613,15 @@ async function pxSteamPrices(cc, ids) {
   return out;
 }
 async function pxSteamFind(cc, title) {
-  const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(title).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
-  const j = await r.json().catch(() => null), items = (j && j.items || []).filter(x => x.type === "app" || !x.type);
-  let best = null, bs = 0;
-  for (const x of items.slice(0, 10)) { const s = pxSame(title, x.name); if (s > bs) { bs = s; best = x; } }
-  return best && bs >= .55 ? { id: best.id, name: best.name } : null;
+  const full = pxExpand(title);
+  for (const q of full !== title ? [title, full] : [title]) {
+    const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(q).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
+    const j = await r.json().catch(() => null), items = (j && j.items || []).filter(x => x.type === "app" || !x.type);
+    let best = null, bs = 0;
+    for (const x of items.slice(0, 10)) { const s = pxSame(title, x.name); if (s > bs) { bs = s; best = x; } }
+    if (best && bs >= .55) return { id: best.id, name: best.name };
+  }
+  return null;
 }
 /* PlayStation Store (rebuilt in v214 from real responses, see .github/scripts/psprobe.mjs). Its web search is drawn in the
    browser, so: search = the store's older "tumbler" search (product ids + names); price = the store's own GraphQL, product
@@ -623,7 +641,8 @@ const PS_ED = /deluxe|complete|ultimate|gold|premium|definitive|collector|digita
 async function pxPsFind(cc, title) {
   const clean = String(title).replace(/[™®©]/g, "").replace(/['’]/g, "").replace(/[:\-–—]/g, " ").replace(/\s+/g, " ").trim();
   const before = String(title).split(":")[0].trim();
-  for (const q of [...new Set([String(title), clean !== title ? clean : before])].filter(Boolean).slice(0, 2)) {
+  const full = pxExpand(title);
+  for (const q of [...new Set([String(title), full !== title ? full : "", clean !== title ? clean : before])].filter(Boolean).slice(0, 3)) {
     const f = await pxPsSearch(cc, q, title); if (f) return f;
   }
   return null;
