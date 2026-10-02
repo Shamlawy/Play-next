@@ -7,7 +7,7 @@ const SHELL = "play-next-shell-2";
 /* v189: img-1 could hold failed downloads (a no-cors reply hides its status, so a 404 was saved and shown forever).
    Renaming drops it; the activate step below deletes every cache it doesn't know. */
 const IMG = "play-next-img-2", IMG_MAX = 350;
-const IMG_HOST = /(^|\.)(steamstatic\.com|steamgriddb\.com|rawg\.io|steampowered\.com)$/;
+const IMG_HOST = /(^|\.)(steamstatic\.com|steamgriddb\.com|rawg\.io|steampowered\.com|s-microsoft\.com|playstation\.com|nintendo\.com)$/;
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
   "./logo-192.png", "./logo-512.png", "./logo-mask.png", "./badge-96.png"];
 

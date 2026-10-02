@@ -3759,6 +3759,11 @@ function liteGuess(u) {
   let m;
   /* v189: only the cover has a smaller sharp copy. library_hero_blur is the same size and blurred on purpose: using it left wide art blurry for good */
   if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/steam\/apps\/\d+\/)library_600x900_2x\.jpg(\?.*)?$/))) return m[1] + "library_600x900.jpg";
+  /* v230: Steam's newer address (store_item_assets, sometimes a hash folder), the Xbox store and Nintendo resize on request */
+  if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/store_item_assets\/steam\/apps\/\d+\/(?:[0-9a-f]{40}\/)?)library_600x900_2x\.jpg(\?.*)?$/))) return m[1] + "library_600x900.jpg" + (m[2] || "");
+  if ((m = u.match(/^https:\/\/store-images\.s-microsoft\.com\/image\/apps\.[\w.-]+$/))) return u + "?w=960";
+  if ((m = u.match(/^https:\/\/image\.api\.playstation\.com\/vulcan\/[^?]+\.(png|jpe?g)$/))) return u + "?w=960&h=960";
+  if ((m = u.match(/^https:\/\/assets\.nintendo\.com\/image\/upload\/(store\/.+)$/))) return "https://assets.nintendo.com/image/upload/c_scale,w_960/" + m[1];
   if ((m = u.match(/^https:\/\/media\.rawg\.io\/media\/(games|screenshots)\/(.+)$/))) return "https://media.rawg.io/media/resize/640/-/" + m[1] + "/" + m[2];
   if ((m = u.match(/^(https:\/\/cdn\d*\.steamgriddb\.com\/)(grid|hero)\/([^/?#]+)\.(png|jpe?g|webp)$/))) return m[1] + (m[2] === "grid" ? "thumb" : "hero_thumb") + "/" + m[3] + ".jpg";
   return "";
@@ -3992,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "229";
+const APP_V = "230";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4371,8 +4376,8 @@ async function sgdbTop(title) {
     one("/logos/game/" + id), one("/heroes/game/" + id),
     one("/grids/game/" + id + "?dimensions=600x900,660x930")]);
   /* the sharpest of the community's top five, so auto-pick lands on the 4K backdrop when there is one */
-  const u = l => (l.length && l.slice(0, 5).reduce((a, x) => picArea(x) > picArea(a) ? x : a, l[0]).url) || "";
-  return { name: hits[0].name, art: u(logos), hero: u(heroes), cover: u(grids) };
+  const top = l => l.length ? l.slice(0, 5).reduce((a, x) => picArea(x) > picArea(a) ? x : a, l[0]) : null, u = l => (top(l) || {}).url || "";
+  return { name: hits[0].name, art: u(logos), hero: u(heroes), cover: u(grids), heroA: picArea(top(heroes)) };
 }
 /* a new game quietly gets whatever art it's missing */
 async function sgdbFillOne(g) {
@@ -5124,10 +5129,10 @@ function openEdit(id) {
 
     <div class="epanel" data-ep="look">
     <div class="stickprev"><div class="eprev" id="e-prev"></div></div>
-    <div class="setgroup"><h4 data-sum="SteamGridDB">Art from SteamGridDB</h4>
+    <div class="setgroup"><h4 data-sum="SteamGridDB, Steam, Xbox, PlayStation">Art from SteamGridDB and the stores</h4>
     <div class="chips"><button class="btn" id="e-sgauto"><span>✨ Auto-pick all</span></button>
     <button class="btn ghost" id="e-sgdb"><span>Browse and choose</span></button></div>
-    <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the sharpest of the community's top picks. Browse shows every picture's size, sharpest first, so you can choose each one yourself. Tap Save to keep either.</p>
+    <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the sharpest of SteamGridDB's top picks, or the stores' own art when that's much sharper or SteamGridDB has none. Browse shows every picture from SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG with its size, sharpest first, so you can choose each one yourself. Tap Save to keep either.</p>
     <div id="e-sgdb-out"></div>
     </div>
     <div class="setgroup"><h4 data-sum="${esc(sums.cover)}">Cover and colour</h4>
@@ -7328,9 +7333,13 @@ function bindSteam(p, onPick) {
     out.innerHTML = "";
     if (!id) { msg.textContent = "That doesn't look like a Steam link. Paste the store page address."; return; }
     msg.textContent = "Checking what Steam has…";
-    const shots = steamArt(id);
     const found = [];
-    for (const a of shots) {
+    /* v230: Steam's own list of this app's pictures, through the helper (newer games keep them under a hash folder nobody can guess) */
+    if (typeof artStores === "function") {
+      const a = await artStores((editing && editing.title) || "Steam app " + id, { st: +id, want: ["st"] }).catch(() => null);
+      ((a && a.pics) || []).filter(x => x.s === "st").forEach(x => found.push({ url: x.u, th: x.th, label: x.k, role: x.r === "art" ? "art" : "cover", w: x.w, h: x.h }));
+    }
+    if (!found.length) for (const a of steamArt(id)) {
       for (const u of a.urls) {
         const d = await probeImage(u);
         if (d) { found.push(Object.assign({}, a, { url: u, w: d.w, h: d.h })); break; }
@@ -7349,7 +7358,7 @@ function bindSteam(p, onPick) {
     all.innerHTML = "<span>Use all of these</span>";
     all.onclick = () => {
       const box2 = found.find(a => /library_600x900/.test(a.url)) || found[0];
-      const logo = found.find(a => /logo\.png$/.test(a.url));
+      const logo = found.find(a => /logo(_2x)?\.png(\?|$)/.test(a.url));
       const heroA = found.find(a => /library_hero/.test(a.url)) || found.find(a => /capsule|header/.test(a.url));
       if (box2) onPick("cover", box2.url, id);
       if (heroA) onPick("hero", heroA.url, id);
@@ -7360,7 +7369,7 @@ function bindSteam(p, onPick) {
     };
     msg.after(all);
     out.innerHTML = found.map(a => `<div class="steamtile">
-      <img src="${esc(a.url)}" alt="${esc(a.label)}">
+      <img src="${esc(a.th || a.url)}" alt="${esc(a.label)}" loading="lazy" decoding="async">
       <small>${esc(a.label)}</small>${picQ(a.w, a.h)}
       <div class="chips">
         <button class="chip" data-take="cover" data-url="${esc(a.url)}"><span>Cover</span></button>
@@ -15864,7 +15873,8 @@ function helperCheck() {
     if (!$("#s-helperv")) return;
     el.textContent = ok && j.v === 13 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except prices in your own currency (exchange rates) and PlayStation prices for countries without a PS Store, which need the new helper."
       : ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
-      : ok && j.v >= 14 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+      : ok && j.v >= 15 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews, hours to beat and game pictures from the stores are all on."
+      : ok && j.v === 14 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except game pictures from Steam, Xbox, PlayStation and Nintendo in Browse and choose, which need the new helper."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
@@ -20943,5 +20953,135 @@ WHATS_NEW.push(
   { v: 229, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || $(".nxhome") || null,
     say: "I got a lot smarter: 150 new things to tell you about your deals, releases, finish dates, scores and habits, with real tips for the games you play, and I'll call you by your name. In chat I now know your deals, dates and forecasts too.",
     tryIt: "Tap me now and then, or open the chat and ask what to buy next." }
+);
+</script>
+<style>
+/* v230: Browse and choose, every store */
+.sgsrcs { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.sgsrcs::-webkit-scrollbar { display: none; }
+.sgsrcs button { flex: none; font: 600 12px/1 Poppins, system-ui, sans-serif; color: var(--ice); background: transparent; border: 1px solid rgba(var(--vrgb), .28);
+  border-radius: 999px; padding: 8px 12px; min-height: 32px; cursor: pointer; }
+.sgsrcs button[aria-pressed="true"] { background: var(--volt); color: #05070d; border-color: transparent; }
+.sgsrcs b { font-weight: 800; opacity: .75; margin-left: 3px; }
+.sgrow.tall .sgpick { width: 96px; height: 144px; }
+.sgrow.logo .sgpick { width: 116px; height: 74px; }
+.sgs { position: absolute; left: 3px; top: 3px; font: 800 8.5px/1 Poppins, system-ui, sans-serif; font-style: normal; padding: 2px 4px; border-radius: 4px;
+  background: rgba(4, 6, 14, .82); color: var(--ice); pointer-events: none; white-space: nowrap; }
+.sgpick.sgoff { display: none; }
+.sgpick.sgsel { outline: 2px solid var(--volt); outline-offset: 2px; }
+.sgsec > label { display: block; }
+</style>
+<script>
+/* ===== v230: pictures straight from the stores. Browse and choose (Edit → Look) now shows, next to SteamGridDB and RAWG, the
+   official art of Steam (found by the game's title; exact addresses from Steam's own API, so newer games whose pictures sit
+   behind a hash folder work too, and screenshots in their original size), the Xbox / Microsoft Store (4K backdrops, 1440×2160
+   posters, 4K screenshots), the PlayStation Store (key art, portrait art, logos, screenshots) and the Nintendo eShop, through
+   the helper's POST /art (HELPER_V 15). Every picture has its real size and a tag saying where it's from; chips at the top
+   show one place at a time. Auto-pick (and the quiet art fill for new games) takes a store's picture when SteamGridDB has
+   none, and a store backdrop when it's much sharper (Steam's 3840 library hero, Xbox's 4K art). The Steam link panel asks the
+   helper for the real addresses first and only guesses when it can't. ===== */
+const ART_SRC = [["sg", "SteamGridDB"], ["st", "Steam"], ["xb", "Xbox"], ["ps", "PlayStation"], ["ns", "Nintendo"], ["rw", "RAWG"]];
+const ART_NAME = Object.fromEntries(ART_SRC);
+const ART_C = new Map();   /* this session's answers, per title */
+function artStId(title) {
+  const e = editing; if (!e || (e.title && normT(e.title) !== normT(title))) return 0;
+  return [e.stId, e.pxSt, e.steamId].map(Number).find(x => x > 0) || 0;
+}
+function artStores(title, o) {
+  o = o || {};
+  let sw2 = false; try { sw2 = !!(editing && pxPl(editing).some(p => /switch\s*2/.test(p))); } catch (e) {}
+  const st = o.st || artStId(title), want = o.want || [], key = normT(title) + "|" + st + "|" + want.join();
+  if (!ART_C.has(key)) ART_C.set(key, nxPost("/art", { t: title, st, cc: pxCC(), pscc: pxPsCC(), sw2, ...(want.length ? { want } : {}) })
+    .catch(e => { ART_C.delete(key); return { err: String((e && e.message) || e), pics: [] }; }));
+  return ART_C.get(key);
+}
+const artArea = p => (+p.w || 0) * (+p.h || 0);
+const artBest = (pics, r, re, shape) => pics.filter(p => p.r === r && p.w && (!re || re.test(p.k)) && (!shape || shape(p))).sort((a, b) => artArea(b) - artArea(a))[0];
+/* clean backdrops (no title text on them) and real box covers */
+const ART_HERO_OK = /Library hero|4K backdrop|Key art|Game hub|Background|Store art/;
+const artPortrait = p => p.h > p.w * 1.3;
+
+sgdbFind = async function (title) {
+  const msg = $("#e-sgdb-msg"), out = $("#e-sgdb-out");
+  if (!msg || !out) return;
+  out.innerHTML = "";
+  if (!title) { msg.textContent = "Give the game a title first."; return; }
+  msg.textContent = "Looking on SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG…";
+  const shots = rawgShots(title), stores = artStores(title);
+  let hits = [], sgErr = "";
+  try { hits = await sgdbGet("/search/autocomplete/" + encodeURIComponent(title)); } catch (e) { sgErr = String((e && e.message) || e); }
+  const id = hits[0] && hits[0].id, one = p2 => id ? sgdbGet(p2).catch(() => []) : Promise.resolve([]);
+  const [logos, heroes, grids, rshots, sa] = await Promise.all([one("/logos/game/" + id), one("/heroes/game/" + id),
+    one("/grids/game/" + id + "?dimensions=600x900,660x930"), shots, stores]);
+  if (!out.isConnected) return;
+  const P = [];
+  const sg = (l, r, k) => l.forEach(x => x && x.url && P.push({ s: "sg", r, u: x.url, th: x.thumb || x.url, w: +x.width || 0, h: +x.height || 0, k }));
+  sg(grids, "cover", "Grid"); sg(heroes, "hero", "Hero"); sg(logos, "art", "Logo");
+  rshots.forEach(x => P.push({ s: "rw", r: "shot", u: x.url, th: x.thumb, w: +x.width || 0, h: +x.height || 0, k: "Screenshot" }));
+  ((sa && sa.pics) || []).forEach(p => p && p.u && P.push({ s: p.s, r: p.r, u: p.u, th: p.th || p.u, w: +p.w || 0, h: +p.h || 0, k: p.k || "" }));
+  const old = sa && sa.err === "helper-old" ? " Steam, Xbox, PlayStation and Nintendo pictures arrive once the helper updates." : "";
+  if (!P.length) { msg.textContent = (sgErr || "Nothing there under that name. Try a shorter one.") + old; return; }
+  const cnt = {}; P.forEach(p => { cnt[p.s] = (cnt[p.s] || 0) + 1; });
+  const srcs = ART_SRC.filter(([k]) => cnt[k]);
+  const ROWS = [["cover", "Cover — the box art", "tall"], ["hero", "Backdrop — the wide scene behind the page", "wide"],
+    ["art", "Logo — the cut-out that floats on the card", "logo"], ["shot", "Screenshots — more wide backdrops", "wide"]];
+  const tile = p => `<button type="button" class="sgpick" data-s="${p.s}" data-role="${p.r === "shot" ? "hero" : p.r}" data-url="${esc(p.u)}"
+      aria-label="${esc(ART_NAME[p.s] + " · " + p.k + (p.w ? " · " + p.w + "×" + p.h : ""))}"
+      ><img decoding="async" loading="lazy" src="${esc(p.th || p.u)}" alt="" onerror="this.parentNode.classList.add('sgoff')"><i class="sgs">${esc(ART_NAME[p.s])}</i>${picQ(p.w, p.h, 1)}</button>`;
+  out.innerHTML = (srcs.length > 1 ? `<div class="sgsrcs" role="group" aria-label="Where the pictures come from"><button type="button" data-sgsrc="" aria-pressed="true">All<b>${P.length}</b></button>` +
+      srcs.map(([k, n]) => `<button type="button" data-sgsrc="${k}" aria-pressed="false">${esc(n)}<b>${cnt[k]}</b></button>`).join("") + "</div>" : "") +
+    ROWS.map(([r, label, cls]) => {
+      /* sharpest first (covers shaped like a box first: a square one gets cut to fit); the sort is stable, so equal sizes keep each place's own order */
+      const fit = p => r !== "cover" || !p.w || artPortrait(p) ? 1 : 0;
+      const l = P.filter(p => p.r === r).sort((a, b) => fit(b) - fit(a) || artArea(b) - artArea(a));
+      return l.length ? `<div class="sgsec" data-r="${r}"><label>${esc(label)}</label><div class="sgrow${cls ? " " + cls : ""}">${l.slice(0, 40).map(tile).join("")}</div></div>` : "";
+    }).join("");
+  const names = srcs.map(([, n]) => n), list = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+  msg.textContent = P.length + " pictures from " + list + ". Sharpest first, each with its size and where it's from. Tap one to use it." + old;
+  out.onclick = e => {
+    const f = e.target.closest("[data-sgsrc]");
+    if (f) {
+      const k = f.dataset.sgsrc;
+      out.querySelectorAll("[data-sgsrc]").forEach(b => b.setAttribute("aria-pressed", String(b === f)));
+      out.querySelectorAll(".sgpick").forEach(b => b.classList.toggle("sgoff", !!k && b.dataset.s !== k || b.querySelector("img").naturalWidth === 0 && b.querySelector("img").complete));
+      out.querySelectorAll(".sgsec").forEach(s => { s.hidden = !s.querySelector(".sgpick:not(.sgoff)"); const r = s.querySelector(".sgrow"); if (r) r.scrollLeft = 0; });
+      beep("tap"); return;
+    }
+    const b = e.target.closest(".sgpick"); if (!b) return;
+    sgdbPut(b.dataset.role, b.dataset.url);
+    out.querySelectorAll(".sgpick.sgsel").forEach(x => x.classList.remove("sgsel")); b.classList.add("sgsel");
+  };
+};
+
+/* SteamGridDB's top picks (sgdbTop) plus the stores: a store fills whatever SteamGridDB has none of, and its clean backdrop
+   wins when it has at least 1.5× the pixels of SteamGridDB's */
+{ const _top = sgdbTop;
+  sgdbTop = async function (title) {
+    let t = null, err = null, a = null;
+    try { t = await _top.apply(this, arguments); } catch (e) { err = e; }
+    try { a = await artStores(title); } catch (e) {}
+    const pics = (a && a.pics) || [];
+    if (!pics.length) { if (err) throw err; return t; }
+    const f = (a && a.found) || {}, nm = (ART_SRC.map(([k]) => f[k]).find(x => x && x.name) || {}).name;
+    t = t || { name: nm || title, art: "", hero: "", cover: "" };
+    const c = artBest(pics, "cover", null, artPortrait), h = artBest(pics, "hero", ART_HERO_OK), l = artBest(pics, "art");
+    if (!t.cover && c) t.cover = c.u;
+    if (h && (!t.hero || artArea(h) >= 1.5 * (t.heroA || 0))) t.hero = h.u;
+    if (!t.art && l) t.art = l.u;
+    return t;
+  }; }
+WHATS_NEW.push(
+  { v: 230, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (!g) return; openEdit(g.id);
+      setTimeout(() => { const t = $('[data-etab="look"]'); if (t) t.click();
+        const s = [...document.querySelectorAll("#sheet-in details.grp summary")].find(x => x.offsetParent && /SteamGridDB/.test(x.textContent)); if (s) s.click(); }, 250); },
+    at: "#e-sgdb",
+    say: "Game pictures now come straight from the stores too: <b>Steam</b>, <b>Xbox</b>, <b>PlayStation</b> and <b>Nintendo</b>, next to SteamGridDB and RAWG. Official covers, 4K backdrops, logos and screenshots, each with its size and where it's from.",
+    tryIt: "Edit a game → Look → Browse and choose, then tap a store's chip to see only its pictures." },
+  { v: 230, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (!g) return; openEdit(g.id);
+      setTimeout(() => { const t = $('[data-etab="look"]'); if (t) t.click();
+        const s = [...document.querySelectorAll("#sheet-in details.grp summary")].find(x => x.offsetParent && /SteamGridDB/.test(x.textContent)); if (s) s.click(); }, 250); },
+    at: "#e-sgauto",
+    say: "Auto-pick and the art I add to new games by myself now look in the stores too: when SteamGridDB has nothing, or a store has a much sharper backdrop (Steam's and Xbox's are often 4K), you get that one.",
+    tryIt: "Tap ✨ Auto-pick all on a game with a soft backdrop." }
 );
 </script>

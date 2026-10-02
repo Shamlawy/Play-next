@@ -22,6 +22,7 @@ on:
       - ".github/scripts/psprobe.mjs"
       - ".github/scripts/nsprobe.mjs"
       - ".github/scripts/pssearchprobe.mjs"
+      - ".github/scripts/artprobe.mjs"
       - "worker/helper.js"
       - ".github/workflows/price-probe.yml"
 permissions:
@@ -49,6 +50,9 @@ jobs:
       - name: Nintendo + Steam probe
         if: ${{ !github.event.inputs.titles }}
         run: node .github/scripts/nsprobe.mjs | tee probe/ns.log
+      - name: Art probe
+        if: ${{ !github.event.inputs.titles }}
+        run: node .github/scripts/artprobe.mjs | tee probe/art.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

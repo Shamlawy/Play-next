@@ -11,6 +11,7 @@
    POST /recap        → "the story so far" up to the player's own note (Workers AI, no spoilers past it).
    POST /steam        → Steam's own tags (genres players use) and "more like this" for a list of games.
    POST /reviews      → Steam's player-review summary (e.g. "Very Positive", 93% of 1,240) for a list of games (v11).
+   POST /art          → game pictures straight from Steam, the Xbox store, the PlayStation Store and the Nintendo eShop, each with its size (v15).
    POST /hours        → typical time to beat (main / main + extras / everything) for a list of games, from the AI (v11).
    POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
@@ -21,7 +22,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 14;
+const HELPER_V = 15;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -116,12 +117,13 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
     if (url.pathname === "/reviews" && req.method === "POST") return rvRoute(req, env, h);
     if (url.pathname === "/hours" && req.method === "POST") return hbRoute(req, env, h);
+    if (url.pathname === "/art" && req.method === "POST") return artRoute(req, env, h);
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
        ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
@@ -537,6 +539,191 @@ async function rvRoute(req, env, h) {
   await Promise.all(items.filter(it => it.st > 0).map(async it => { try { res[it.k] = await rvSteam(it.st); } catch (e) { res[it.k] = { st: it.st, err: String(e.message || e).slice(0, 60) }; } }));
   for (const it of items) if (it.st === -1 && !res[it.k]) res[it.k] = { none: 1 };
   return json({ ok: true, res }, 200, h);
+}
+/* ===== v15: game pictures from the stores themselves, for Edit → Look → Browse and choose (and auto-pick when SteamGridDB has
+   nothing). {t (title), st (Steam id, optional), cc, pscc, sw2} → {found: {st|xb|ps|ns: {id, name}}, pics: [{s (store), r (cover |
+   hero | art | shot), u (full picture), th (small copy), w, h, k (what the store calls it)}]}. Shapes recorded from the real stores by
+   .github/scripts/artprobe.mjs:
+   - Steam: IStoreBrowseService/GetItems include_assets gives each picture's real path (newer games keep them under a hash folder,
+     which is why guessing the address failed), include_screenshots the screenshots in their original size.
+   - Xbox / Microsoft Store: displaycatalog autosuggest (productFamilyNames=Games is required) → products?bigIds= lists every
+     picture with its size: SuperHeroArt (4K backdrop), Poster (2:3 cover, 1440×2160), BoxArt (square), Logo, Screenshot (often 4K).
+   - PlayStation Store: the website's search results carry the media: MASTER (key art), GAMEHUB_COVER_ART, BACKGROUND,
+     PORTRAIT_BANNER, LOGO, SCREENSHOT…
+   - Nintendo: Nintendo of America's store search (Algolia) productImage (a Cloudinary id) and productImageSquare.
+   Pictures without a known size are measured from their first bytes (artDim), which also drops addresses that don't exist. ===== */
+const ST_IMG = "https://shared.akamai.steamstatic.com/store_item_assets/";
+/* stricter than the price match: a store name with a word your title doesn't have (other than edition words) is another game
+   ("Hollow Knight" is not "Hollow Knight: Silksong"), and a picture of the wrong game is worse than none */
+const ART_ED = new Set("deluxe complete ultimate gold premium definitive collector collectors digital special anniversary director directors cut edition standard bundle goty year of the remastered remaster hd ps4 ps5 switch nintendo xbox series one pc windows and for launch cross gen".split(" "));
+function artSame(title, name) {
+  const s = pxSame(title, name), T = pxNorm(title), A = new Set(T.split(" "));
+  /* a numbered title with the store's subtitle after a colon is the same game ("The Witcher 3" = "The Witcher 3: Wild Hunt") */
+  if (/\d$/.test(T) && pxNorm(String(name).split(/[:–—]| - /)[0]) === T) return s;
+  return pxNorm(name).split(" ").some(w => w && !A.has(w) && !ART_ED.has(w)) ? s - .3 : s;
+}
+function artDim(b) {
+  const u16 = i => (b[i] << 8) | b[i + 1], l16 = i => b[i] | (b[i + 1] << 8), u32 = i => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return { w: u32(16), h: u32(20) };
+  if (b.length > 10 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return { w: l16(6), h: l16(8) };
+  if (b.length > 30 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45) {
+    const t = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    if (t === "VP8 ") return { w: l16(26) & 0x3fff, h: l16(28) & 0x3fff };
+    if (t === "VP8L") { const n = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24); return { w: (n & 0x3fff) + 1, h: ((n >> 14) & 0x3fff) + 1 }; }
+    if (t === "VP8X") return { w: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), h: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) };
+  }
+  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) { i++; continue; }
+      const m = b[i + 1];
+      if (m === 0xff) { i++; continue; }
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: u16(i + 5), w: u16(i + 7) };
+      if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { i += 2; continue; }
+      i += 2 + u16(i + 2);
+    }
+  }
+  return null;
+}
+/* the size of a picture from its first 64 KB (a Range request; a server that ignores it is cut off after 64 KB). null = no picture there */
+async function artSize(u) {
+  try {
+    const r = await fetch(u, { headers: { ...PX_UA, Range: "bytes=0-65535" }, signal: AbortSignal.timeout(6000) });
+    if (!r.ok || !r.body || !/^image\//.test(r.headers.get("content-type") || "image/")) { try { r.body && r.body.cancel(); } catch (e) {} return null; }
+    const rd = r.body.getReader(), parts = []; let n = 0;
+    while (n < 65536) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; }
+    try { rd.cancel(); } catch (e) {}
+    return artDim(cat(...parts));
+  } catch (e) { return null; }
+}
+/* Steam's store search ranked by artSame ("The Witcher 3" finds Wild Hunt, not "The Witcher 3 REDkit", which the price match takes) */
+async function artSteamFind(cc, title) {
+  const full = pxExpand(title);
+  for (const q of full !== title ? [title, full] : [title]) {
+    const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(q).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
+    const j = await r.json().catch(() => null);
+    let best = null, bs = 0;
+    for (const x of ((j && j.items) || []).filter(x => x.type === "app" || !x.type).slice(0, 10)) {
+      let sc = artSame(title, x.name); if (PS_JUNK.test(x.name) && !PS_JUNK.test(title)) sc -= .5;
+      if (sc > bs) { bs = sc; best = x; }
+    }
+    if (best && bs >= .55) return { id: best.id, name: best.name };
+  }
+  return null;
+}
+async function artSteam(cc, title, id) {
+  let name = "";
+  if (!(id > 0)) { const f = await artSteamFind(cc, title) || (cc !== "us" ? await artSteamFind("us", title) : null); if (!f) return null; id = f.id; name = f.name; }
+  const input = { ids: [{ appid: id }], context: { language: "english", country_code: "US", steam_realm: 1 }, data_request: { include_assets: true, include_screenshots: true } };
+  const j = await (await fetch("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=" + encodeURIComponent(JSON.stringify(input)), { headers: PX_UA })).json().catch(() => ({}));
+  const it = ((j.response || {}).store_items || [])[0];
+  if (!it || !it.success) return null;
+  const A = it.assets || {}, fmt = A.asset_url_format || `steam/apps/${id}/\${FILENAME}`, at = f => ST_IMG + fmt.replace("${FILENAME}", f);
+  const pics = [], add = (f, r, k, th) => { if (f) pics.push({ s: "st", r, u: at(f), th: th ? at(th) : "", k }); };
+  add(A.library_capsule_2x, "cover", "Box art", A.library_capsule);
+  add(A.library_hero_2x, "hero", "Library hero (2x)");
+  add(A.library_hero, "hero", "Library hero");
+  /* the transparent logo isn't in the list: it sits next to the library pictures */
+  const dir = String(A.library_capsule || "").includes("/") ? A.library_capsule.split("/")[0] + "/" : "";
+  pics.push({ s: "st", r: "art", u: ST_IMG + `steam/apps/${id}/logo_2x.png`, k: "Logo (2x)" }, { s: "st", r: "art", u: ST_IMG + `steam/apps/${id}/logo.png`, k: "Logo" });
+  if (dir) pics.push({ s: "st", r: "art", u: at(dir + "logo.png"), k: "Logo" });
+  add(A.header_2x || A.header, "hero", "Store header", A.header);
+  add(A.main_capsule_2x || A.main_capsule, "hero", "Store capsule", A.main_capsule);
+  add(A.raw_page_background, "hero", "Store page background");
+  for (const s of ((it.screenshots || {}).all_ages_screenshots || []).sort((a, b) => a.ordinal - b.ordinal).slice(0, 12)) {
+    const f = String(s.filename || ""); if (!f) continue;
+    const u = /^https?:/.test(f) ? f : ST_IMG + f;
+    pics.push({ s: "st", r: "shot", u, th: u.replace(/(ss_[0-9a-f]+)\.jpg/, "$1.600x338.jpg"), k: "Screenshot" });
+  }
+  return { id, name: it.name || name, pics };
+}
+const XB_ROLE = { SuperHeroArt: ["hero", "4K backdrop"], TitledHeroArt: ["hero", "Backdrop with title"], Poster: ["cover", "Poster"], BoxArt: ["cover", "Box art (square)"],
+  BrandedKeyArt: ["cover", "Key art"], Logo: ["art", "Logo"], Screenshot: ["shot", "Screenshot"] };
+async function artXbox(title) {
+  const q = String(title).replace(/[™®©]/g, "").slice(0, 80);
+  const j = await (await fetch(`https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/autosuggest?market=US&languages=en-US&query=${encodeURIComponent(q)}&productFamilyNames=Games`, { headers: PX_UA })).json().catch(() => ({}));
+  let best = null, bs = 0;
+  for (const g of j.Results || []) for (const p of g.Products || []) {
+    if (!p.ProductId || (p.Type && p.Type !== "Game")) continue;
+    let sc = artSame(title, p.Title || ""); if (PS_JUNK.test(p.Title || "") && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(p.Title || "") && !PS_ED.test(title)) sc -= .08;
+    if (sc > bs) { bs = sc; best = p; }
+  }
+  if (!best || bs < .55) return null;
+  const d = await (await fetch(`https://displaycatalog.mp.microsoft.com/v7.0/products?bigIds=${best.ProductId}&market=US&languages=en-US`, { headers: PX_UA })).json().catch(() => ({}));
+  const L = ((((d.Products || [])[0] || {}).LocalizedProperties) || [])[0] || {}, pics = [], seen = new Set();
+  for (const im of L.Images || []) {
+    const ro = XB_ROLE[im.ImagePurpose]; if (!ro || !im.Uri) continue;
+    const u = (/^\/\//.test(im.Uri) ? "https:" : "") + im.Uri; if (seen.has(u)) continue; seen.add(u);
+    const w = +im.Width || 0, h = +im.Height || 0, wide = w >= h;
+    pics.push({ s: "xb", r: ro[0], u, th: u + (ro[0] === "art" ? "?w=300" : wide ? "?w=480&h=270&q=80" : "?w=300&h=450&q=80"), w, h, k: ro[1] });
+  }
+  return { id: best.ProductId, name: L.ProductTitle || best.Title || "", pics };
+}
+/* sizes seen: MASTER 1024² (the square tile), EDITION_KEY_ART / GAMEHUB_COVER_ART 3840×2160, BACKGROUND 1920–3840 wide, PORTRAIT_BANNER 1440×2160 */
+const PSA_ROLE = { EDITION_KEY_ART: ["hero", "Key art"], GAMEHUB_COVER_ART: ["hero", "Game hub art"], BACKGROUND: ["hero", "Background"], FOUR_BY_THREE_BANNER: ["hero", "Banner"],
+  PORTRAIT_BANNER: ["cover", "Portrait art"], MASTER: ["cover", "Square art"], LOGO: ["art", "Logo"], SCREENSHOT: ["shot", "Screenshot"] };
+async function artPs(cc, title) {
+  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: String(title).replace(/[™®©]/g, "").slice(0, 80) });
+  let best = null, bs = 0;
+  for (const r of (((j || {}).data || {}).universalSearch || {}).results || []) {
+    const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
+    if (!name || !(r.media || []).length) continue;
+    if (PS_ID.test(r.id || "") && cls && !/full game|bundle|edition|^game$/i.test(cls)) continue;
+    let sc = artSame(title, name); if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
+    if (sc > bs) { bs = sc; best = r; }
+  }
+  if (!best || bs < .55) return null;
+  const pics = [], seen = new Set();
+  for (const m of best.media) {
+    const ro = PSA_ROLE[m.role]; if (!ro || m.type !== "IMAGE" || !m.url || seen.has(m.url)) continue; seen.add(m.url);
+    /* ?w=&h= fits the picture inside that box (keeps its shape); ?w= alone is ignored */
+    pics.push({ s: "ps", r: ro[0], u: m.url, th: m.url + "?w=480&h=480", k: ro[1] });
+  }
+  return { id: String(best.id), name: String(best.name || "").replace(/\s*PS4\s*(&|and)\s*PS5\s*$/i, ""), pics };
+}
+async function artNs(title, sw2) {
+  const r = await fetch("https://U3B6GR4UA3-dsn.algolia.net/1/indexes/store_game_en_us/query", { method: "POST",
+    headers: { "X-Algolia-Application-Id": "U3B6GR4UA3", "X-Algolia-API-Key": "a29c6927638bfd8cee23993e51e721c9", "Content-Type": "application/json" },
+    body: JSON.stringify({ query: String(title).replace(/[™®©]/g, "").slice(0, 80), hitsPerPage: 12 }) });
+  const j = await r.json().catch(() => ({}));
+  let best = null, bs = 0;
+  for (const x of j.hits || []) {
+    if (x.dlcType && x.dlcType !== "null") continue;
+    let sc = artSame(title, String(x.title || "").replace(/[–—-]\s*Nintendo Switch\s*2 Edition/i, "")); if (NS_JUNK.test(x.title || "") && !NS_JUNK.test(title)) sc -= .6;
+    if ((/Switch 2/.test(x.platform || "") || /Switch\s*2 Edition/i.test(x.title || "")) !== !!sw2) sc -= .05;
+    if (sc > bs) { bs = sc; best = x; }
+  }
+  if (!best || bs < .55) return null;
+  const pics = [];
+  if (best.productImage) { const id = String(best.productImage).replace(/^https?:\/\/[^/]+\/image\/upload\//, "");
+    pics.push({ s: "ns", r: "hero", u: /^https?:/.test(best.productImage) ? best.productImage : "https://assets.nintendo.com/image/upload/" + id, th: "https://assets.nintendo.com/image/upload/c_scale,w_480/" + id, k: "Store art" }); }
+  if (best.productImageSquare) pics.push({ s: "ns", r: "cover", u: best.productImageSquare, k: "Square art" });
+  return { id: String(best.nsuid || best.objectID || ""), name: String(best.title || "").replace(/[™®]/g, ""), pics };
+}
+async function artRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const t = String((b && b.t) || "").replace(/\s+/g, " ").trim().slice(0, 100);
+  if (!t) return json({ error: "no title" }, 400, h);
+  const cc = pxCC(b.cc), st = Number.isFinite(+b.st) && +b.st > 0 ? Math.trunc(+b.st) : 0;
+  const want = new Set(Array.isArray(b.want) && b.want.length ? b.want : ["st", "xb", "ps", "ns"]);
+  const run = (k, f) => want.has(k) ? f().catch(e => ({ err: String(e.message || e).slice(0, 60) })) : Promise.resolve(null);
+  const [S1, X, P, N] = await Promise.all([run("st", () => artSteam(cc, t, st)), run("xb", () => artXbox(t)), run("ps", () => artPs(psCC(cc, b.pscc), t)), run("ns", () => artNs(t, !!b.sw2))]);
+  const found = {}, pics = [];
+  [["st", S1], ["xb", X], ["ps", P], ["ns", N]].forEach(([k, r]) => { if (!r) return; if (r.err) { found[k] = { err: r.err }; return; }
+    found[k] = { id: r.id, name: r.name }; pics.push(...r.pics); });
+  /* measure what has no size: covers, backdrops and logos first, then a few screenshots per store (≤ 24, the Workers request budget) */
+  const need = pics.filter(p => !p.w), order = need.filter(p => p.r !== "shot").concat(need.filter(p => p.r === "shot")), per = {};
+  const pick = order.filter(p => p.r !== "shot" || (per[p.s] = (per[p.s] || 0) + 1) <= 4).slice(0, 24);
+  await Promise.all(pick.map(async p => { const d = await artSize(p.u); if (d && d.w && d.h) { p.w = d.w; p.h = d.h; } else p.gone = 1; }));
+  /* a measured picture that isn't there is dropped (the guessed Steam logo addresses); the rest are kept unmeasured */
+  const out = pics.filter(p => !p.gone && !(p.s === "st" && p.r === "art" && !p.w));
+  /* Steam's logo can be found under two or three addresses (1x, 2x, hash folder): keep the sharpest */
+  const logo = out.filter(p => p.s === "st" && p.r === "art").sort((a, b) => b.w * b.h - a.w * a.h)[0];
+  const keep = out.filter(p => !(p.s === "st" && p.r === "art") || p === logo);
+  /* a picture shaped differently from its usual job does the job its shape fits (a portrait "background" is a cover) */
+  for (const p of keep) if (p.w && p.h && p.r !== "art" && p.r !== "shot") p.r = p.h > p.w * 1.15 ? "cover" : p.w > p.h * 1.3 ? "hero" : p.r;
+  return json({ ok: true, found, pics: keep }, 200, h);
 }
 /* ===== v11: hours to beat. {items: [{k, t, year, plat}]} (≤12) → res[k] = {m (main story), x (main + extras), c (everything),
    sure 0–1}, from the big model's knowledge of typical play times (HowLongToBeat-style averages). It's told to say
