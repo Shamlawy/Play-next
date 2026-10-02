@@ -11416,7 +11416,8 @@ function pnBubble() {
     if (!moved) { taps++; clearTimeout(tapT);
       /* v204: a double tap opens his wheel (shortcuts + his settings); it used to be a poke that made him angry */
       if (taps >= 2) { taps = 0; if (navigator.vibrate) navigator.vibrate(14); pnBubMood("happy", 900); pnBubWheel(); return; }
-      tapT = setTimeout(() => { if (taps === 1) { document.documentElement.classList.toggle("railleft", S.railSide === "left"); S.railHide = false; save();
+      tapT = setTimeout(() => { if (taps === 1) { S.railSide = pnBubX + 31 < innerWidth / 2 ? "left" : "right";   /* v221 (#129): the rail opens on Nexi's side */
+        document.documentElement.classList.toggle("railleft", S.railSide === "left"); S.railHide = false; save();
         document.documentElement.classList.remove("railhide"); pnBubHush(); } taps = 0; }, 400); return; }
     pnBubPlace(pnBubX + vx * 120, pnBubY + vy * 120);           /* a flick carries it a little further */
     const from = { x: pnBubX, y: pnBubY }, to = pnBubEdge();
@@ -20248,7 +20249,7 @@ WHATS_NEW.push(
     tryIt: "Scroll your queue. Customise → Queue cards turns it off." },
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Nexi sits in the rail" }); }, at: "#s-xseat",
     say: "On wide screens I don't disappear when the side rail is open any more: I sit at the foot of the rail, and glide out when you hide it. Tap me to hear from me, double-tap for my wheel.",
-    tryIt: "Unfold the phone (or use a wide screen) with the rail open." },
+    tryIt: "Unfold the phone (or use a wide screen) with the rail open. Tapping me opens it on my side now." },
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setSub("taste", "insights"); goTab("taste"); setTimeout(() => { const c = $(".orc"); if (c) c.scrollIntoView({ block: "center" }); }, 400); }, at: () => $(".orc") || $("#p-taste .ixp") || null,
     say: "My crystal ball: I guess your score before you finish a game, and when you score it I tell you if I called it. Taste → Insights keeps my track record.",
     tryIt: "Finish and score a game you're playing." },
