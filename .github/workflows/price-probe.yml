@@ -10,6 +10,9 @@ on:
       ccs:
         description: "Regions, comma separated"
         required: false
+      debug:
+        description: "Print the raw store search results too (yes/no)"
+        required: false
       browser:
         description: "Also record the PS Store website's own search in a headless browser (yes/no)"
         required: false
@@ -35,6 +38,7 @@ jobs:
         env:
           TITLES: ${{ github.event.inputs.titles }}
           CCS: ${{ github.event.inputs.ccs }}
+          DEBUG: ${{ github.event.inputs.debug == 'yes' && '1' || '' }}
         run: mkdir -p probe; node .github/scripts/priceprobe.mjs | tee probe/prices.log
       - name: PS search probe
         if: ${{ github.event.inputs.browser == 'yes' }}

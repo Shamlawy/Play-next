@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "227";
+const APP_V = "228";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -7437,9 +7437,12 @@ function platChips(str) {
   const subSort = a => a.sort((x, y) => (parseFloat(x) || 99) - (parseFloat(y) || 99));
   return PLAT_ORDER.filter(k => fam[k]).map(k => ({ k, sub: subSort(fam[k].subs).join(" · "), names: fam[k].names })).concat(rest.slice(0, 2).map(text => ({ text })));
 }
+/* v228: all the logos share one pill (thin dividers between them), the version sits right after its logo in the same
+   colour and weight ("4·5"), so it reads as one mark instead of a logo and a faint number in separate pills */
 function platHtml(str, cls) {
-  return platChips(str).map(c => c.text ? `<span class="${cls || ""}">${esc(c.text)}</span>`
-    : `<span class="plat ${cls || ""}" title="${esc(c.names.join(" · "))}" aria-label="${esc(c.k === "io" ? "iOS" : PLAT_NAME[c.k] + (c.sub ? " " + c.sub : ""))}">${c.k === "io" ? "<b>iOS</b>" : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${PLAT_LOGO[c.k]}"/></svg>`}${c.sub ? `<small>${esc(c.sub)}</small>` : ""}</span>`).join("");
+  const C = platChips(str), known = C.filter(c => !c.text), text = C.filter(c => c.text);
+  const logo = c => `<i class="pfm" title="${esc(c.names.join(" · "))}" aria-label="${esc(c.k === "io" ? "iOS" : PLAT_NAME[c.k] + (c.sub ? " " + c.sub : ""))}">${c.k === "io" ? "<b>iOS</b>" : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${PLAT_LOGO[c.k]}"/></svg>`}${c.sub ? `<small>${esc(c.sub.replace(/ · /g, "·"))}</small>` : ""}</i>`;
+  return (known.length ? `<span class="pfms ${cls || ""}">${known.map(logo).join("")}</span>` : "") + text.map(c => `<span class="${cls || ""}">${esc(c.text)}</span>`).join("");
 }
 function platPicker(id, current) {
   const on = platList(current).map(x => x.toLowerCase());
@@ -15859,8 +15862,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 11 && j.v < 12 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except prices for games the store searches miss (like GTA 6) and short names like “GTA 6”, which need the new helper."
-      : ok && j.v >= 12 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+    el.textContent = ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
+      : ok && j.v >= 13 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
@@ -16566,12 +16569,14 @@ html.still .gd-bg { transition: none; }
   font-style: normal; text-transform: none; text-shadow: none; }
 .gd-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
 .gd-tags span { padding: 5px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 500; color: var(--ice); background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
-/* v226: platform logos */
-.gd-tags span.plat { display: inline-flex; align-items: center; align-self: stretch; gap: 5px; padding: 5px 11px; }
-.gd-tags span.plat svg { width: 15px; height: 15px; flex: none; fill: currentColor; }
-.gd-tags span.plat::before { content: "\200b"; width: 0; margin-right: -5px; }   /* a text strut: same height as the name chips */
-.gd-tags span.plat small { font-size: 11px; font-weight: 600; color: var(--mute); line-height: 1; text-transform: none; letter-spacing: 0; }
-.gd-tags span.plat b { font-size: 11.5px; font-weight: 700; line-height: 1; text-transform: none; letter-spacing: 0; }
+/* v226/v228: platform logos, all in one pill */
+.gd-tags span.pfms { display: inline-flex; align-items: stretch; padding: 0 4px; }
+.gd-tags span.pfms::before { content: "\200b"; width: 0; padding: 5px 0; }   /* a text strut: as tall as the name chips */
+.gd-tags .pfm { display: inline-flex; align-items: center; gap: 3px; padding: 0 9px; font-style: normal; color: var(--ice); }
+.gd-tags .pfm + .pfm { border-left: 1px solid var(--u-line2, rgba(234,242,255,.14)); }
+.gd-tags .pfm svg { width: 17px; height: 17px; flex: none; fill: currentColor; }
+.gd-tags .pfm small { font: 700 12px/1 "Poppins", system-ui, sans-serif; color: var(--ice); letter-spacing: -.01em; text-transform: none; }
+.gd-tags .pfm b { font: 700 12px/1 "Poppins", system-ui, sans-serif; text-transform: none; letter-spacing: 0; }
 .gd-tags span.acc { background: color-mix(in srgb, var(--accent) 26%, #0a0e1b); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .gd-desc { margin: 14px 0 0; color: #B9C8EA; font-size: 13.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 /* v208 (#70): the whole description on a tap */
@@ -18740,18 +18745,26 @@ async function pxRun(force, only) {
   if (!force && Date.now() - (S.pxAt || 0) < PX_GAP) return null;
   const list = (only ? [only] : pxWatched()).map(pxItem).filter(x => x.st !== -1 || x.ps !== "-" || x.ns !== "-");
   if (!list.length) { S.pxAt = Date.now(); return { n: 0 }; }
-  /* the oldest-checked first: each call can only look a few games up */
-  list.sort((a, b) => pxSeen(a.k) - pxSeen(b.k));
+  /* the stalest first, judged by the store checked longest ago (v228: by the most recent store, a game whose PlayStation
+     check kept being skipped looked freshly checked because its Steam/eShop prices were new, so it never got its turn) */
+  list.sort((a, b) => pxStale(a) - pxStale(b));
   const alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
   pxBusy = true; pxPaint();
   try {
     /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
     const all = list.slice(0, 60).map(x => x.k).concat(typeof drKeys === "function" ? drKeys() : []), drops = [];
-    for (let i = 0; i < Math.min(list.length, 60); i += 10) {
-      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
+    /* v228: 5 games per call (each can take several store requests; the helper has a budget per call) */
+    for (let i = 0; i < Math.min(list.length, 60); i += 5) {
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
         ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
       drops.push(...pxTake(r.res || {}));
       if (only) break;
+    }
+    /* anything a store still didn't answer for gets one more go */
+    const miss = (only ? [only] : pxWatched()).map(pxItem).filter(x => pxGap(x)).slice(0, 10);
+    for (let i = 0; i < miss.length; i += 5) {
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: miss.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier() });
+      drops.push(...pxTake(r.res || {}));
     }
     if (!alerts && S.pxWatching && S.nudgeId) { nxPost("/prices", { id: S.nudgeId, off: 1 }).catch(() => {}); }
     if (!only) S.pxWatching = alerts;
@@ -18763,6 +18776,11 @@ async function pxRun(force, only) {
     return null;
   } finally { pxBusy = false; pxPaint(); }
 }
+/* a store this game is watched on that has no answer yet */
+const pxGap = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px) || {}; return (it.st !== -1 && !p.st) || (it.ps !== "-" && !p.ps) || (it.ns !== "-" && !p.ns); };
+/* when the store checked longest ago was checked (0 = a watched store never answered) */
+const pxStale = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px) || {};
+  return Math.min(...[["st", it.st !== -1], ["ps", it.ps !== "-"], ["ns", it.ns !== "-"]].filter(x => x[1]).map(([s]) => (p[s] || {}).at || 0), Infinity); };
 const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0, (p.ns || {}).at || 0) : 0; };
 function pxTake(res) {
   const drops = [], joins = [], min = num(S.pxMin, 0, 0, 90);
@@ -20527,5 +20545,14 @@ WHATS_NEW.push(
   { v: 227, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && x.px.ps && x.px.ps.now != null) || pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px-l") || $("#full .px") || null,
     say: "Prices now turn up for games the store searches miss, like GTA 6 on the PlayStation Store. Short names such as “GTA 6” or “FF7 Rebirth” match the store's full name too.",
     tryIt: "Nothing to do: missing prices fill in by themselves on the next check." }
+);
+</script>
+<script>
+/* ===== v228: platform logos in one pill; price checks never skip a store for good (pxStale/pxGap, batches of 5); helper v13 ===== */
+WHATS_NEW.push(
+  { v: 228, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => platChips(x.platforms).filter(c => c.k).length > 1) || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .gd-tags .pfms") || $("#full .gd-tags") || null,
+    say: "Platforms now sit together in one tidy strip: PlayStation 4·5, Switch, PC and more side by side. And every store gets checked for every game now: no more prices stuck on “—”, add-ons mistaken for the game, or “soon” on games your region doesn't sell.",
+    tryIt: "Open a game you're waiting for and look under its title." }
 );
 </script>

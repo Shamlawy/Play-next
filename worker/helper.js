@@ -21,7 +21,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 12;
+const HELPER_V = 13;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -586,7 +586,7 @@ const pxExpand = t => String(t || "").replace(/^\s*([A-Za-z]{2,4})(\d{0,2})(?=\b
   return full + (n ? " " + n : ""); });
 const pxNum = s => s.replace(/\b(i{1,3}|iv|vi{0,3}|ix|xi{0,3}|xiv|xv|xvi)\b/g, w => PX_ROMAN[w] != null ? String(PX_ROMAN[w]) : w);
 const pxNorm0 = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
-const pxNorm = s => pxNum(pxNorm0(pxExpand(s).replace(/['’]/g, ""))).replace(/\s+/g, " ").trim();
+const pxNorm = s => pxNum(pxNorm0(pxExpand(s).replace(/['’]/g, "").replace(/[®™©]/g, " "))).replace(/\s+/g, " ").trim();   /* v13: "Persona®5" = "Persona 5" */
 /* every word of your title must be in the store's name (so "Final Fantasy VII Rebirth" never matches plain "Final Fantasy VII",
    nor "Death Stranding 2" the first game); extra words (editions, subtitles) cost a little each */
 function pxSame(a, b) {
@@ -609,6 +609,17 @@ async function pxSteamPrices(cc, ids) {
       out[id] = p ? { cur: p.currency, base: p.initial, now: p.final, pct: p.discount_percent || 0, baseF: p.initial_formatted || p.final_formatted, nowF: p.final_formatted }
         : { nop: 1 };   /* listed with no price: not out yet, or free */
     }
+  }
+  /* v13: listed with no price means "not out yet", "free" or "not sold in this region" (STEINS;GATE ELITE in the UAE is out
+     since 2019 with no price): a single-app call (filters only work for one app) tells them apart, ≤3 per call */
+  let n = 0;
+  for (const id of ids) {
+    if (!out[id] || !out[id].nop || n++ >= 3) continue;
+    try { const d = (await (await fetch(`https://store.steampowered.com/api/appdetails?appids=${id}&cc=${cc}&filters=basic,release_date`, { headers: PX_UA })).json())[id];
+      const x = d && d.success && d.data; if (!x) continue;
+      if (x.is_free) out[id] = { free: 1 };
+      else if (x.release_date && x.release_date.coming_soon === false) out[id] = { nosale: 1 };
+    } catch (e) {}
   }
   return out;
 }
@@ -644,7 +655,9 @@ const PS_ED = /deluxe|complete|ultimate|gold|premium|definitive|collector|digita
 async function pxPsFind(cc, title) {
   /* the website's search first (it knows every game); the old tumbler search if it fails or finds nothing */
   let f = null;
-  try { f = await pxPsSearchWeb(cc, title) || (pxExpand(title) !== title ? await pxPsSearchWeb(cc, pxExpand(title), title) : null); } catch (e) {}
+  try { f = await pxPsSearchWeb(cc, title) || (pxExpand(title) !== title ? await pxPsSearchWeb(cc, pxExpand(title), title) : null)
+    /* "13 Sentinels: Aegis Rim": the search sometimes only finds a game by the part before the colon */
+    || (/:/.test(title) && title.split(":")[0].trim().length > 3 ? await pxPsSearchWeb(cc, title.split(":")[0].trim(), title) : null); } catch (e) {}
   /* only an edition found ("Ghost of Yōtei Complete Edition") while you named the plain game: the old search may have the plain one */
   if (f && PS_ED.test(f.name) && !PS_ED.test(title)) { const o = await pxPsFindOld(cc, title).catch(() => null); if (o && !PS_ED.test(o.name) && pxSame(title, o.name) >= .9) return o; }
   return f || pxPsFindOld(cc, title);
@@ -659,7 +672,9 @@ async function pxPsSearchWeb(cc, q, title) {
     if (!name || !r.id) continue;
     const prod = PS_ID.test(r.id), con = /^\d{4,12}$/.test(String(r.id));
     if (!prod && !con) continue;
-    if (/add-?on|currency|theme|avatar|season pass|demo|soundtrack|application/i.test(cls)) continue;
+    /* v13: only games (seen: Full Game, Game Bundle, Premium Edition; concepts have none). Add-ons come as Add-On Pack, Add-on,
+       Episode, Item, Costume, Character, Track, Level, Map, Demo… ("Stellar Blade x NieR:Automata" is an Episode) */
+    if (prod && cls && !/full game|bundle|edition|^game$/i.test(cls)) continue;
     let sc = pxSame(title, name);
     if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5;
     if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;

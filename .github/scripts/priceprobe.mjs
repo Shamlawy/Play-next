@@ -21,3 +21,21 @@ for (const cc of CCS) {
     console.log(`  (re-check with saved ids: ${bad.length ? "FAILED for " + bad.map(b => b.t).join(", ") : "ok"})`);
   }
 }
+/* DEBUG=1: what the PS website search and Steam search return for each title (to tune matching) */
+if (process.env.DEBUG) {
+  const G = new Function(px + "; return { psGql, pxSame, pxNorm, PS_JUNK, PS_ED };")();
+  for (const cc of CCS) for (const t of TITLES) {
+    try {
+      const j = await G.psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: t });
+      const res = (((j || {}).data || {}).universalSearch || {}).results || [];
+      console.log(`\n## PS web ${cc} "${t}" → ${res.length} results (keys: ${Object.keys(res[0] || {}).join(",")})`);
+      res.slice(0, 10).forEach(r => console.log(`   ${r.__typename} ${r.id} | ${r.name} | ${r.localizedStoreDisplayClassification || r.storeDisplayClassification || ""} | score ${G.pxSame(t, r.name || "").toFixed(2)}`));
+    } catch (e) { console.log("PS web error", e.message); }
+    try {
+      const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(t)}&cc=${cc}&l=english`);
+      const j = await r.json(); console.log(`## Steam ${cc} "${t}":`, (j.items || []).slice(0, 6).map(x => `${x.id} ${x.name} [${x.type}] ${x.price ? JSON.stringify(x.price) : "noprice"}`).join(" ; "));
+      const top = (j.items || [])[0];
+      if (top) { const d = await (await fetch(`https://store.steampowered.com/api/appdetails?appids=${top.id}&cc=${cc}`)).json(); const x = d[top.id] || {}; console.log(`   appdetails ${top.id}: success=${x.success} free=${x.data && x.data.is_free} release=${JSON.stringify(x.data && x.data.release_date)} price=${JSON.stringify(x.data && x.data.price_overview)} packages=${JSON.stringify(x.data && x.data.packages)}`); }
+    } catch (e) { console.log("Steam error", e.message); }
+  }
+}
