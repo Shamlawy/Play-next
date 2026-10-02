@@ -553,6 +553,15 @@ async function rvRoute(req, env, h) {
    - Nintendo: Nintendo of America's store search (Algolia) productImage (a Cloudinary id) and productImageSquare.
    Pictures without a known size are measured from their first bytes (artDim), which also drops addresses that don't exist. ===== */
 const ST_IMG = "https://shared.akamai.steamstatic.com/store_item_assets/";
+/* stricter than the price match: a store name with a word your title doesn't have (other than edition words) is another game
+   ("Hollow Knight" is not "Hollow Knight: Silksong"), and a picture of the wrong game is worse than none */
+const ART_ED = new Set("deluxe complete ultimate gold premium definitive collector collectors digital special anniversary director directors cut edition standard bundle goty year of the remastered remaster hd ps4 ps5 switch nintendo xbox series one pc windows and for launch cross gen".split(" "));
+function artSame(title, name) {
+  const s = pxSame(title, name), T = pxNorm(title), A = new Set(T.split(" "));
+  /* a numbered title with the store's subtitle after a colon is the same game ("The Witcher 3" = "The Witcher 3: Wild Hunt") */
+  if (/\d$/.test(T) && pxNorm(String(name).split(/[:–—]| - /)[0]) === T) return s;
+  return pxNorm(name).split(" ").some(w => w && !A.has(w) && !ART_ED.has(w)) ? s - .3 : s;
+}
 function artDim(b) {
   const u16 = i => (b[i] << 8) | b[i + 1], l16 = i => b[i] | (b[i + 1] << 8), u32 = i => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
   if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return { w: u32(16), h: u32(20) };
@@ -589,7 +598,7 @@ async function artSize(u) {
 }
 async function artSteam(cc, title, id) {
   let name = "";
-  if (!(id > 0)) { const f = await pxSteamFind(cc, title) || (cc !== "us" ? await pxSteamFind("us", title) : null); if (!f) return null; id = f.id; name = f.name; }
+  if (!(id > 0)) { const f = await pxSteamFind(cc, title) || (cc !== "us" ? await pxSteamFind("us", title) : null); if (!f || artSame(title, f.name) < .55) return null; id = f.id; name = f.name; }
   const input = { ids: [{ appid: id }], context: { language: "english", country_code: "US", steam_realm: 1 }, data_request: { include_assets: true, include_screenshots: true } };
   const j = await (await fetch("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=" + encodeURIComponent(JSON.stringify(input)), { headers: PX_UA })).json().catch(() => ({}));
   const it = ((j.response || {}).store_items || [])[0];
@@ -621,7 +630,7 @@ async function artXbox(title) {
   let best = null, bs = 0;
   for (const g of j.Results || []) for (const p of g.Products || []) {
     if (!p.ProductId || (p.Type && p.Type !== "Game")) continue;
-    let sc = pxSame(title, p.Title || ""); if (PS_JUNK.test(p.Title || "") && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(p.Title || "") && !PS_ED.test(title)) sc -= .08;
+    let sc = artSame(title, p.Title || ""); if (PS_JUNK.test(p.Title || "") && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(p.Title || "") && !PS_ED.test(title)) sc -= .08;
     if (sc > bs) { bs = sc; best = p; }
   }
   if (!best || bs < .55) return null;
@@ -635,8 +644,9 @@ async function artXbox(title) {
   }
   return { id: best.ProductId, name: L.ProductTitle || best.Title || "", pics };
 }
-const PSA_ROLE = { MASTER: ["hero", "Key art"], GAMEHUB_COVER_ART: ["hero", "Game hub art"], BACKGROUND: ["hero", "Background"], FOUR_BY_THREE_BANNER: ["hero", "Banner"],
-  PORTRAIT_BANNER: ["cover", "Portrait art"], EDITION_KEY_ART: ["cover", "Edition art"], LOGO: ["art", "Logo"], SCREENSHOT: ["shot", "Screenshot"] };
+/* sizes seen: MASTER 1024² (the square tile), EDITION_KEY_ART / GAMEHUB_COVER_ART 3840×2160, BACKGROUND 1920–3840 wide, PORTRAIT_BANNER 1440×2160 */
+const PSA_ROLE = { EDITION_KEY_ART: ["hero", "Key art"], GAMEHUB_COVER_ART: ["hero", "Game hub art"], BACKGROUND: ["hero", "Background"], FOUR_BY_THREE_BANNER: ["hero", "Banner"],
+  PORTRAIT_BANNER: ["cover", "Portrait art"], MASTER: ["cover", "Square art"], LOGO: ["art", "Logo"], SCREENSHOT: ["shot", "Screenshot"] };
 async function artPs(cc, title) {
   const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: String(title).replace(/[™®©]/g, "").slice(0, 80) });
   let best = null, bs = 0;
@@ -644,7 +654,7 @@ async function artPs(cc, title) {
     const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
     if (!name || !(r.media || []).length) continue;
     if (PS_ID.test(r.id || "") && cls && !/full game|bundle|edition|^game$/i.test(cls)) continue;
-    let sc = pxSame(title, name); if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
+    let sc = artSame(title, name); if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
     if (sc > bs) { bs = sc; best = r; }
   }
   if (!best || bs < .55) return null;
@@ -663,7 +673,7 @@ async function artNs(title, sw2) {
   let best = null, bs = 0;
   for (const x of j.hits || []) {
     if (x.dlcType && x.dlcType !== "null") continue;
-    let sc = pxSame(title, String(x.title || "").replace(/[–—-]\s*Nintendo Switch\s*2 Edition/i, "")); if (NS_JUNK.test(x.title || "") && !NS_JUNK.test(title)) sc -= .6;
+    let sc = artSame(title, String(x.title || "").replace(/[–—-]\s*Nintendo Switch\s*2 Edition/i, "")); if (NS_JUNK.test(x.title || "") && !NS_JUNK.test(title)) sc -= .6;
     if ((/Switch 2/.test(x.platform || "") || /Switch\s*2 Edition/i.test(x.title || "")) !== !!sw2) sc -= .05;
     if (sc > bs) { bs = sc; best = x; }
   }

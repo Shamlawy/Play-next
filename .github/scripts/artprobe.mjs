@@ -4,7 +4,7 @@ import fs from "fs";
 const UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
 const cut = (s, n) => String(s).slice(0, n || 3000);
 const get = async (u, o) => { try { const r = await fetch(u, { ...(o || {}), headers: { ...UA, ...((o || {}).headers || {}) } }); const t = await r.text(); return [r.status, t]; } catch (e) { return [0, String(e)]; } };
-const T = (process.env.ARTTITLES || "Elden Ring|Persona 5 Royal|Metaphor: ReFantazio|Clair Obscur: Expedition 33|Hollow Knight|The Legend of Zelda: Tears of the Kingdom|Ghost of Yotei|GTA 6|STEINS;GATE ELITE|Fire Emblem: Fortune's Weave|Persona 3 Reload").split("|");
+const T = (process.env.ARTTITLES || "Elden Ring|Persona 5 Royal|Metaphor: ReFantazio|Clair Obscur: Expedition 33|Hollow Knight|The Legend of Zelda: Tears of the Kingdom|Ghost of Yotei|GTA 6|STEINS;GATE ELITE|Fire Emblem: Fortune's Weave|Persona 3 Reload|The Witcher 3").split("|");
 if (process.env.RAW === "1") {
   console.log("===== Steam GetItems assets + screenshots (1245620 Elden Ring, 2679460 Metaphor) =====");
   for (const id of [1245620, 2679460, 1903340]) {
@@ -68,3 +68,13 @@ for (const t of T) {
   }
   if (t === T[0]) console.log("  sample:", JSON.stringify((j.pics || []).slice(0, 6)).slice(0, 1500));
 }
+
+/* which PlayStation picture address gives a small copy */
+{ const u = "https://image.api.playstation.com/vulcan/ap/rnd/202108/0410/LWU1Z3vAh706rXPr2zWkKjGe.png";
+  for (const q of ["", "?w=440", "?w=440&thumb=false", "?w=440&thumb=true", "?thumb=true", "?w=440&h=440", "?w=480&f=webp", "?w=440&fmt=jpg"]) {
+    try { const r = await fetch(u + q, { headers: UA }); const b = new Uint8Array(await r.arrayBuffer());
+      console.log("PS thumb", q || "(none)", r.status, r.headers.get("content-type"), b.length, "bytes", r.headers.get("access-control-allow-origin") || "no-cors"); } catch (e) { console.log("PS thumb", q, String(e)); } } }
+for (const u of ["https://store-images.s-microsoft.com/image/apps.25322.14537704372270848.6ecb6038-5426-409a-8660-158d1eb64fb0.d230176a-d7a2-4696-ad23-ff53a6e004df?w=720",
+  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1245620/library_hero.jpg", "https://assets.nintendo.com/image/upload/c_scale,w_480/store/software/switch/70010000043147/684bd8b00abcbf6dd122727a27c01a337f667bef825f4f4662efad9854b72fd4"]) {
+  try { const r = await fetch(u, { headers: UA }); const b = new Uint8Array(await r.arrayBuffer());
+    console.log("CORS/size", u.slice(8, 40), r.status, b.length, "bytes", r.headers.get("access-control-allow-origin") || "no-cors"); } catch (e) { console.log(u, String(e)); } }
