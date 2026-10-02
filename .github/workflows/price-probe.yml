@@ -16,6 +16,9 @@ on:
       browser:
         description: "Also record the PS Store website's own search in a headless browser (yes/no)"
         required: false
+      art:
+        description: "Game pictures: titles to look up (| separated); prints each store's raw search and the live helper's /art"
+        required: false
   push:
     paths:
       - ".github/scripts/priceprobe.mjs"
@@ -51,8 +54,11 @@ jobs:
         if: ${{ !github.event.inputs.titles }}
         run: node .github/scripts/nsprobe.mjs | tee probe/ns.log
       - name: Art probe
-        if: ${{ !github.event.inputs.titles }}
-        run: node .github/scripts/artprobe.mjs | tee probe/art.log
+        if: ${{ !github.event.inputs.titles || github.event.inputs.art }}
+        env:
+          ARTTITLES: ${{ github.event.inputs.art }}
+          ARTQ: ${{ github.event.inputs.art }}
+        run: set -o pipefail; node .github/scripts/artprobe.mjs | tee probe/art.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
