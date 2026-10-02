@@ -37,9 +37,9 @@ jobs:
         if: always()
         env:
           Q: ${{ github.event.inputs.titles }}
-        run: node .github/scripts/pssearchprobe.mjs | tee probe/pssearch.log
+        run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1; node .github/scripts/pssearchprobe.mjs | tee probe/pssearch.log
       - name: Nintendo + Steam probe
-        if: always()
+        if: ${{ !github.event.inputs.titles }}
         run: node .github/scripts/nsprobe.mjs | tee probe/ns.log
       - uses: actions/upload-artifact@v4
         if: always()

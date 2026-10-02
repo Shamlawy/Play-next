@@ -686,6 +686,7 @@ async function pxPsPrice(cc, id, cid) {
   const out = { id, cid, name, plus: cat ? (cat.tier || 2) : 0, trial: trial ? (trial.tier || 3) : 0 };
   if (buy) {
     const b = buy.p, base = +b.basePriceValue, now = b.discountedValue != null ? +b.discountedValue : base;
+    if (!id) { const m = String(buy.sku || "").match(PS_ID); if (m) out.id = m[0]; }
     Object.assign(out, { cur: b.currencyCode || "", base, now, pct: base > now ? Math.round((1 - now / base) * 100) : 0,
       baseF: b.basePrice || "", nowF: /\d/.test(b.discountedPrice || "") ? b.discountedPrice : (b.basePrice || ""), end: +b.endTime || 0, pre: /PREORDER/.test(buy.type) ? 1 : 0 });
     if (b.isFree || (base === 0 && /DOWNLOAD/.test(buy.type))) { out.free = 1; out.base = out.now = 0; }
@@ -769,9 +770,12 @@ async function pxCheck(cc, items, nscc) {
     look.ps++;
     try {
       let id = it.ps, name = "";
-      if (!id) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id; name = f.name; }
+      /* v227: a concept with no product id (the phone found the game's store page some other way, e.g. RAWG's link) is
+         priced straight from the concept: the store's old search doesn't list some new games (GTA VI) */
+      if (!id && !it.pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id; name = f.name; }
       const p = await pxPsPrice(cc, id, it.pc || "");
-      res[it.k].ps = Object.assign({ id }, p, { name: p.name || name });
+      if (!id) id = p.id || "";
+      res[it.k].ps = Object.assign({ id }, p, { id: id || p.id, name: p.name || name });
     } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
   }
   /* Nintendo eShop: look up (≤8 a call), then price every found id in one call */

@@ -1,17 +1,17 @@
-/* PS Store search probe (v227), step 3: the website's scripts hold no persisted-query hashes, so find how its search
-   request is built: every "search"/"persisted"/"sha256"/"graphql" spot in the search page's own scripts, with context. */
-const UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en-US,en" };
+/* PS Store search probe (v227), step 4: open the store's real search page in a headless browser and record the GraphQL
+   requests it makes (operation name, variables, persisted-query hash) and what comes back, so the helper can make the same
+   search request. Needs playwright (installed by the workflow step). */
+import { chromium } from "playwright";
 const Q = process.env.Q || "grand theft auto vi";
-const base = "https://store.playstation.com";
-const html = await (await fetch(`${base}/en-us/search/${encodeURIComponent(Q)}`, { headers: UA })).text();
-let srcs = [...new Set([...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m => m[1]))].map(s => s.startsWith("http") ? s : base + s);
-const seen = new Set();
-for (const u of srcs) {
-  const t = await (await fetch(u, { headers: UA })).text().catch(() => "");
-  const name = u.split("/").slice(-1)[0].slice(0, 40);
-  const hits = [];
-  for (const re of [/persistedQuery/g, /sha256/gi, /operationName/g, /getSearchResults|universalSearch|SearchResults|searchTerm/g, /graphql\/v1/g, /createPersistedQuery|generateHash/g]) {
-    for (const m of t.matchAll(re)) { const k = name + Math.floor(m.index / 400); if (seen.has(k)) continue; seen.add(k); hits.push([m[0], t.slice(Math.max(0, m.index - 220), m.index + 280).replace(/\s+/g, " ")]); if (hits.length > 14) break; }
-  }
-  if (hits.length) { console.log(`\n##### ${name} (${t.length} bytes)`); hits.slice(0, 14).forEach(([w, c]) => console.log(`  [${w}] …${c}…`)); }
+const b = await chromium.launch();
+const pg = await b.newPage({ userAgent: "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", locale: "en-US" });
+pg.on("request", r => { const u = r.url(); if (/graphql/.test(u)) { const q = new URL(u); console.log("REQ", r.method(), q.searchParams.get("operationName"), "vars", q.searchParams.get("variables"), "ext", q.searchParams.get("extensions"), r.method() === "POST" ? "body " + String(r.postData()).slice(0, 600) : ""); console.log("   headers", JSON.stringify(Object.fromEntries(Object.entries(r.headers()).filter(([k]) => /^x-|apollo|content-type/i.test(k))))); } });
+pg.on("response", async r => { const u = r.url(); if (/graphql/.test(u)) { const t = await r.text().catch(() => ""); console.log("RES", r.status(), new URL(u).searchParams.get("operationName"), t.length, "bytes:", t.slice(0, 1500).replace(/\s+/g, " ")); } });
+for (const cc of ["en-us", "en-ae"]) {
+  console.log(`\n===== ${cc} "${Q}" =====`);
+  await pg.goto(`https://store.playstation.com/${cc}/search/${encodeURIComponent(Q)}`, { waitUntil: "networkidle", timeout: 60000 }).catch(e => console.log("goto", e.message));
+  await pg.waitForTimeout(3000);
+  const tiles = await pg.evaluate(() => [...document.querySelectorAll("a[href*='/concept/'], a[href*='/product/']")].slice(0, 8).map(a => a.getAttribute("href") + " | " + a.innerText.replace(/\s+/g, " ").slice(0, 80)));
+  console.log("tiles:", tiles.join("\n       "));
 }
+await b.close();
