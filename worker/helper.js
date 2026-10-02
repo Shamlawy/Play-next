@@ -21,7 +21,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 11;
+const HELPER_V = 12;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -572,7 +572,21 @@ Answer with ONLY JSON, one entry per game in the same order: [{"n":1,"m":0,"x":0
    browser can't (no CORS). POST /prices checks a list now; with an id (the phone's nudge id) the list is also kept as
    px:<id> and the cron re-checks it about once a day and pushes a notification when a price drops. ===== */
 const PX_TTL = 60 * 86400, PX_UA = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en" };
-const pxNorm = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
+/* v227: short names people type ("GTA 6", "FF7 Rebirth", "COD") and Roman numerals ("VI") mean the same game as the store's
+   full name, so both sides are spelled out the same way before comparing, and searches also try the spelled-out title */
+const PX_ABBR = { gta: "grand theft auto", ff: "final fantasy", cod: "call of duty", rdr: "red dead redemption", tlou: "the last of us",
+  mgs: "metal gear solid", kh: "kingdom hearts", nfs: "need for speed", gow: "god of war", dmc: "devil may cry", smt: "shin megami tensei",
+  bg: "baldurs gate", hzd: "horizon zero dawn", ac: "assassins creed", mhw: "monster hunter world", re: "resident evil" };
+const PX_ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13, xiv: 14, xv: 15, xvi: 16 };
+/* "GTA 6" → "grand theft auto 6", "FF7" → "final fantasy 7"; only a whole first word is expanded ("re" only when a number
+   follows, so "Returnal"/"Resident…" are untouched) */
+const pxExpand = t => String(t || "").replace(/^\s*([A-Za-z]{2,4})(\d{0,2})(?=\b|\d)/, (all, w, n) => {
+  const k = w.toLowerCase(), full = PX_ABBR[k]; if (!full || full === k) return all;
+  if ((k === "re" || k === "ac" || k === "bg") && !n && !/^\s*[A-Za-z]{2,4}\s+\d/.test(t)) return all;
+  return full + (n ? " " + n : ""); });
+const pxNum = s => s.replace(/\b(i{1,3}|iv|vi{0,3}|ix|xi{0,3}|xiv|xv|xvi)\b/g, w => PX_ROMAN[w] != null ? String(PX_ROMAN[w]) : w);
+const pxNorm0 = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
+const pxNorm = s => pxNum(pxNorm0(pxExpand(s).replace(/['’]/g, ""))).replace(/\s+/g, " ").trim();
 /* every word of your title must be in the store's name (so "Final Fantasy VII Rebirth" never matches plain "Final Fantasy VII",
    nor "Death Stranding 2" the first game); extra words (editions, subtitles) cost a little each */
 function pxSame(a, b) {
@@ -599,11 +613,15 @@ async function pxSteamPrices(cc, ids) {
   return out;
 }
 async function pxSteamFind(cc, title) {
-  const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(title).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
-  const j = await r.json().catch(() => null), items = (j && j.items || []).filter(x => x.type === "app" || !x.type);
-  let best = null, bs = 0;
-  for (const x of items.slice(0, 10)) { const s = pxSame(title, x.name); if (s > bs) { bs = s; best = x; } }
-  return best && bs >= .55 ? { id: best.id, name: best.name } : null;
+  const full = pxExpand(title);
+  for (const q of full !== title ? [title, full] : [title]) {
+    const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(q).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
+    const j = await r.json().catch(() => null), items = (j && j.items || []).filter(x => x.type === "app" || !x.type);
+    let best = null, bs = 0;
+    for (const x of items.slice(0, 10)) { const s = pxSame(title, x.name); if (s > bs) { bs = s; best = x; } }
+    if (best && bs >= .55) return { id: best.id, name: best.name };
+  }
+  return null;
 }
 /* PlayStation Store (rebuilt in v214 from real responses, see .github/scripts/psprobe.mjs). Its web search is drawn in the
    browser, so: search = the store's older "tumbler" search (product ids + names); price = the store's own GraphQL, product
@@ -611,7 +629,10 @@ async function pxSteamFind(cc, title) {
    a sale's end time, PS Plus member prices, and "Included" for games in the PS Plus Game Catalog (tierNumber 2 = Extra,
    3 = Premium) and Premium game trials. The concept id comes back to the phone, so later checks need one call. */
 const PS_ID = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/;
-const PSQ = { metGetProductById: "a128042177bd93dd831164103d53b73ef790d56f51dae647064cb8f9d9fc9d1a", metGetPricingDataByConceptId: "abcb311ea830e679fe2b697a27f755764535d825b24510ab1239a4ca3092bd09" };
+const PSQ = { metGetProductById: "a128042177bd93dd831164103d53b73ef790d56f51dae647064cb8f9d9fc9d1a", metGetPricingDataByConceptId: "abcb311ea830e679fe2b697a27f755764535d825b24510ab1239a4ca3092bd09",
+  /* v12: the store website's own search (recorded from store.playstation.com/<locale>/search/<term> in a real browser by
+     .github/scripts/pssearchprobe.mjs); the old tumbler search doesn't list some new games (GTA VI, FF VII Rebirth) */
+  getSearchResults: "4df6284f982e57bec70f23c77e2c219dc792eb19af7fb3d3a81767aa3f1958aa" };
 async function psGql(cc, op, vars) {
   const u = `https://web.np.playstation.com/api/graphql/v1/op?operationName=${op}&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify({ persistedQuery: { version: 1, sha256Hash: PSQ[op] } }))}`;
   const r = await fetch(u, { headers: { ...PX_UA, "x-psn-store-locale-override": "en-" + cc.toUpperCase(), "content-type": "application/json" } });
@@ -621,9 +642,36 @@ async function psGql(cc, op, vars) {
 const PS_JUNK = /bundle|soundtrack|season pass|upgrade|\bpack\b|\bdlc\b|add-?on|demo|\btrial\b|currency|coins|points|avatar|theme/i;
 const PS_ED = /deluxe|complete|ultimate|gold|premium|definitive|collector|digital|special|anniversary|director'?s cut|edition/i;
 async function pxPsFind(cc, title) {
+  /* the website's search first (it knows every game); the old tumbler search if it fails or finds nothing */
+  let f = null;
+  try { f = await pxPsSearchWeb(cc, title) || (pxExpand(title) !== title ? await pxPsSearchWeb(cc, pxExpand(title), title) : null); } catch (e) {}
+  /* only an edition found ("Ghost of Yōtei Complete Edition") while you named the plain game: the old search may have the plain one */
+  if (f && PS_ED.test(f.name) && !PS_ED.test(title)) { const o = await pxPsFindOld(cc, title).catch(() => null); if (o && !PS_ED.test(o.name) && pxSame(title, o.name) >= .9) return o; }
+  return f || pxPsFindOld(cc, title);
+}
+async function pxPsSearchWeb(cc, q, title) {
+  title = title || q;
+  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: String(q).slice(0, 80) });
+  const res = (((j || {}).data || {}).universalSearch || {}).results || [];
+  let best = null, bs = 0;
+  for (const r of res) {
+    const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
+    if (!name || !r.id) continue;
+    const prod = PS_ID.test(r.id), con = /^\d{4,12}$/.test(String(r.id));
+    if (!prod && !con) continue;
+    if (/add-?on|currency|theme|avatar|season pass|demo|soundtrack|application/i.test(cls)) continue;
+    let sc = pxSame(title, name);
+    if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5;
+    if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
+    if (sc > bs) { bs = sc; best = prod ? { id: r.id, name } : { cid: String(r.id), name }; }
+  }
+  return best && bs >= .55 ? best : null;
+}
+async function pxPsFindOld(cc, title) {
   const clean = String(title).replace(/[™®©]/g, "").replace(/['’]/g, "").replace(/[:\-–—]/g, " ").replace(/\s+/g, " ").trim();
   const before = String(title).split(":")[0].trim();
-  for (const q of [...new Set([String(title), clean !== title ? clean : before])].filter(Boolean).slice(0, 2)) {
+  const full = pxExpand(title);
+  for (const q of [...new Set([String(title), full !== title ? full : "", clean !== title ? clean : before])].filter(Boolean).slice(0, 3)) {
     const f = await pxPsSearch(cc, q, title); if (f) return f;
   }
   return null;
@@ -667,6 +715,7 @@ async function pxPsPrice(cc, id, cid) {
   const out = { id, cid, name, plus: cat ? (cat.tier || 2) : 0, trial: trial ? (trial.tier || 3) : 0 };
   if (buy) {
     const b = buy.p, base = +b.basePriceValue, now = b.discountedValue != null ? +b.discountedValue : base;
+    if (!id) { const m = String(buy.sku || "").match(PS_ID); if (m) out.id = m[0]; }
     Object.assign(out, { cur: b.currencyCode || "", base, now, pct: base > now ? Math.round((1 - now / base) * 100) : 0,
       baseF: b.basePrice || "", nowF: /\d/.test(b.discountedPrice || "") ? b.discountedPrice : (b.basePrice || ""), end: +b.endTime || 0, pre: /PREORDER/.test(buy.type) ? 1 : 0 });
     if (b.isFree || (base === 0 && /DOWNLOAD/.test(buy.type))) { out.free = 1; out.base = out.now = 0; }
@@ -750,9 +799,16 @@ async function pxCheck(cc, items, nscc) {
     look.ps++;
     try {
       let id = it.ps, name = "";
-      if (!id) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id; name = f.name; }
-      const p = await pxPsPrice(cc, id, it.pc || "");
-      res[it.k].ps = Object.assign({ id }, p, { name: p.name || name });
+      /* v227: a concept with no product id (the phone found the game's store page some other way, e.g. RAWG's link) is
+         priced straight from the concept: the store's old search doesn't list some new games (GTA VI) */
+      let pc = it.pc || "", found = false;
+      if (!id && !pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id || ""; pc = f.cid || ""; name = f.name; found = true; }
+      let p = await pxPsPrice(cc, id, pc);
+      /* the website's search can pick another region's edition (Persona 3 Reload in the UAE): then try the old search's pick */
+      if (found && p.nosale) { const f2 = await pxPsFindOld(cc, it.t).catch(() => null);
+        if (f2 && f2.id !== id) { const p2 = await pxPsPrice(cc, f2.id, ""); if (!p2.nosale) { id = f2.id; name = f2.name; p = p2; } } }
+      if (!id) id = p.id || "";
+      res[it.k].ps = Object.assign({ id }, p, { id: id || p.id, name: p.name || name });
     } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
   }
   /* Nintendo eShop: look up (≤8 a call), then price every found id in one call */

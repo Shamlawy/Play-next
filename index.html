@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "226";
+const APP_V = "227";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -15859,7 +15859,8 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 11 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+    el.textContent = ok && j.v >= 11 && j.v < 12 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except prices for games the store searches miss (like GTA 6) and short names like “GTA 6”, which need the new helper."
+      : ok && j.v >= 12 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
@@ -18728,9 +18729,10 @@ const PX_NAME = { st: "Steam", ps: "PS Store", ns: "eShop" };
 function pxItem(g) {
   const relook = t => !t || Date.now() - t > PX_RELOOK;
   const st = !pxWantSt(g) ? -1 : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : relook(g.pxStNo) ? 0 : -1;
-  const ps = !pxWantPs(g) ? "-" : g.pxPs && g.pxPs !== "-" ? g.pxPs : relook(g.pxPsNo) ? "" : "-";
+  /* v227: a known store page (concept, from RAWG's link or a pasted /concept/ link) is priced even when the title search found nothing */
+  const ps = !pxWantPs(g) ? "-" : g.pxPs && g.pxPs !== "-" ? g.pxPs : g.pxPsC || relook(g.pxPsNo) ? "" : "-";
   const ns = !pxWantNs(g) ? "-" : g.pxNs && g.pxNs !== "-" ? g.pxNs : relook(g.pxNsNo) ? "" : "-";
-  return { k: g.id, t: g.title, st, ps, pc: ps && ps !== "-" ? (g.pxPsC || "") : "", ns, sw2: pxPl(g).some(p => /switch\s*2/.test(p)) };
+  return { k: g.id, t: g.title, st, ps, pc: ps !== "-" ? (g.pxPsC || "") : "", ns, sw2: pxPl(g).some(p => /switch\s*2/.test(p)) };
 }
 let pxBusy = false;
 async function pxRun(force, only) {
@@ -18890,7 +18892,8 @@ function pxSheet(id) {
         const v = box.querySelector("#px-link").value.trim(), sm = /store\.steampowered\.com\/app\/(\d+)/.exec(v), pm = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/.exec(v);
         if (sm) { g.pxSt = +sm[1]; delete g.pxStNo; if (g.px) delete g.px.st; }
         else if (pm) { g.pxPs = pm[0]; delete g.pxPsNo; delete g.pxPsC; if (g.px) delete g.px.ps; }
-        else { m.textContent = /playstation\.com\/.*concept\//.test(v) ? "That's a game's overview page: open the edition you'd buy and copy that link (it has /product/ in it)." : "That isn't a Steam app link or a PS Store product link."; return; }
+        else if (/playstation\.com\/.*concept\/(\d+)/.test(v)) { g.pxPsC = /concept\/(\d+)/.exec(v)[1]; delete g.pxPs; delete g.pxPsNo; if (g.px) delete g.px.ps; }
+        else { m.textContent = "That isn't a Steam app link or a PlayStation Store link."; return; }
         save(); m.textContent = "Linked. Checking…"; await pxRun(true, g); return pxSheet(id);
       }
       if (e.target.closest("[data-pxnow]")) { m.textContent = "Checking…"; const r = await pxRun(true, g); if (!r) m.textContent = S.pxErr === "helper-old" ? "Nexi's helper needs its update first." : "Couldn't check right now."; else pxSheet(id); }
@@ -20470,5 +20473,59 @@ WHATS_NEW.push(
     at: () => $("#full .gd-tags .plat") || $("#full .gd-tags") || null,
     say: "A game's platforms now show as logos: PlayStation, Switch, Xbox, PC and more. PS4 and PS5 share one PlayStation logo marked 4 · 5.",
     tryIt: "Open any game. Prefer names? Customise → A game's own page → Platforms." }
+);
+</script>
+<script>
+/* ===== v227: prices for games the stores' title search can't find (the owner's GTA 6: the PS Store's old search doesn't list
+   it, though its store page exists). When a store says "not found", the game's own store links on RAWG (store_id 3 =
+   PlayStation Store, 1 = Steam) tie it to that store page: a PS /product/ id, or a /concept/ id the helper now prices
+   directly (helper v12). Once per game per 14 days (g.pxRw); needs the RAWG key and the game's RAWG id. ===== */
+const PXRW_GAP = 14 * 864e5;
+async function pxRawgLinks(g) {
+  if (!rawgKey || !g || !g.rawgId || (g.pxRw && Date.now() - g.pxRw < PXRW_GAP)) return false;
+  g.pxRw = Date.now();
+  let L = [];
+  try { const r = await fetch(`https://api.rawg.io/api/games/${encodeURIComponent(g.rawgId)}/stores?key=${encodeURIComponent(rawgKey)}`); if (!r.ok) return false; L = (await r.json()).results || []; }
+  catch (e) { return false; }
+  let got = false;
+  for (const x of L) {
+    const u = String(x.url || "");
+    if (x.store_id === 3 && pxWantPs(g) && !(g.pxPs && g.pxPs !== "-")) {
+      const pm = u.match(/[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/), cm = u.match(/concept\/(\d{4,12})/);
+      if (cm) { g.pxPsC = cm[1]; } else if (pm) { g.pxPs = pm[0]; delete g.pxPsC; } else continue;
+      delete g.pxPsNo; if (g.px) delete g.px.ps; got = true;
+    }
+    if (x.store_id === 1 && pxWantSt(g) && !(+g.pxSt > 0) && !(+g.steamId > 0)) {
+      const sm = u.match(/\/app\/(\d+)/); if (sm) { g.pxSt = +sm[1]; delete g.pxStNo; if (g.px) delete g.px.st; got = true; }
+    }
+  }
+  return got;
+}
+const pxRwNeed = g => !!(g && g.rawgId && g.px && ((g.px.ps && g.px.ps.none) || (g.px.st && g.px.st.none)) && !(g.pxRw && Date.now() - g.pxRw < PXRW_GAP));
+let pxRwBusy = false;
+async function pxRawgFix(ids) {
+  if (pxRwBusy || !rawgKey || !navigator.onLine || typeof pxOn !== "function" || !pxOn()) return;
+  pxRwBusy = true;
+  try {
+    const fixed = [];
+    for (const id of ids.slice(0, 6)) { const g = S.games.find(x => x.id === id); if (!pxRwNeed(g)) continue;
+      if (await pxRawgLinks(g)) fixed.push(g); await new Promise(r => setTimeout(r, 400)); }
+    save();
+    for (const g of fixed) {
+      for (let i = 0; i < 40 && pxBusy; i++) await new Promise(r => setTimeout(r, 500));
+      await pxRun(true, g);
+    }
+    if (fixed.length) pxPaint();
+  } finally { pxRwBusy = false; }
+}
+{ const _pt = pxTake; pxTake = function (res) { const o = _pt.apply(this, arguments);
+  try { const ids = Object.keys(res || {}).filter(id => pxRwNeed(S.games.find(x => x.id === id))); if (ids.length) setTimeout(() => pxRawgFix(ids), 1500); } catch (e) {}
+  return o; }; }
+/* games already stuck on "not found" from earlier checks */
+setTimeout(() => { try { const ids = (typeof pxWatched === "function" ? pxWatched() : []).filter(pxRwNeed).map(g => g.id); if (ids.length) pxRawgFix(ids); } catch (e) {} }, 25000);
+WHATS_NEW.push(
+  { v: 227, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && x.px.ps && x.px.ps.now != null) || pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px-l") || $("#full .px") || null,
+    say: "Prices now turn up for games the store searches miss, like GTA 6 on the PlayStation Store. Short names such as “GTA 6” or “FF7 Rebirth” match the store's full name too.",
+    tryIt: "Nothing to do: missing prices fill in by themselves on the next check." }
 );
 </script>
