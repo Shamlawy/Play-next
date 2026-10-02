@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "224";
+const APP_V = "225";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -20337,5 +20337,78 @@ WHATS_NEW.push(
   { v: 224, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Nexi sits in the rail" }); }, at: "#s-xseat",
     say: "When I'm sitting in the side rail, tap me once and I hide the rail and float out. Tap me again and it comes back. The » button is gone while I'm there.",
     tryIt: "Unfold the phone with the rail open and tap me." }
+);
+</script>
+<style>
+/* ===== v225: the cover you tap flies into the game page ===== */
+.cvfly { position: fixed; z-index: 71; left: 0; top: 0; margin: 0; object-fit: cover; border-radius: 16px; pointer-events: none; background: #131a32;
+  box-shadow: 0 16px 30px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.9); transform-origin: 50% 50%; will-change: transform, opacity; }
+#full .gd-cov.cvwait { visibility: hidden; }
+</style>
+<script>
+/* ===== v225: the cover you tap flies into the game page =====
+   Opening a game from anything that shows its cover (Home, queue, library, rail, deck, search…), a copy of that picture
+   lifts off the spot you tapped and lands on the page's cover while the page grows in. Transform/opacity only, one
+   fixed <img>, 360ms. The page's own cover waits hidden (`.cvwait`) and takes over when it lands. Skipped with reduced
+   motion / Still, page animations off (S.hubAnim, Customise → A game's own page), the tour, a swipe between pages, or when nothing with a cover was tapped. */
+let cvDown = { t: 0, x: 0, y: 0, el: null };
+document.addEventListener("pointerdown", e => { cvDown = { t: performance.now(), x: e.clientX, y: e.clientY, el: e.target }; }, { capture: true, passive: true });
+/* the cover inside what you tapped: an <img> that's cover-shaped (portrait or square, not a wide backdrop), 28px+ and under 40% of the
+   screen, the one under your finger first, else the biggest; pictures with pointer-events: none count too */
+function cvSource() {
+  const t = cvDown.el; if (performance.now() - cvDown.t > 1500 || !t || !t.isConnected || t.closest("#full, #nxtour, #pnbub, #bubwheel")) return null;
+  const box = t.closest("[data-home-open], [data-opg], [data-hub], [data-rg], .deck-g, .dy-g, button, a, .row, .libcard") || t.parentElement;
+  const list = [...(t.tagName === "IMG" ? [t] : []), ...(box ? box.querySelectorAll("img") : [])];
+  let best = null, bestA = 0;
+  for (const im of list) {
+    if (!im.complete || !im.naturalWidth) continue;
+    const r = im.getBoundingClientRect(), a = r.width * r.height;
+    if (Math.min(r.width, r.height) < 28 || r.width / r.height > 1.25 || a > innerWidth * innerHeight * .4) continue;
+    if (r.bottom < 0 || r.top > innerHeight || (im.checkVisibility && !im.checkVisibility({ opacityProperty: true, visibilityProperty: true }))) continue;
+    const hit = cvDown.x >= r.left && cvDown.x <= r.right && cvDown.y >= r.top && cvDown.y <= r.bottom;
+    const sc = a + (hit ? 1e7 : 0); if (sc > bestA) { best = { r, src: im.currentSrc || im.src }; bestA = sc; }
+  }
+  return best;
+}
+function cvFly(src) {
+  const box = $("#full"), cov = box && box.querySelector(".gd-cov"); if (!cov) return;
+  /* hide the page's cover now, measure in the next frame (reading layout straight after the page's innerHTML forced an extra layout) */
+  cov.classList.add("cvwait"); setTimeout(() => cov.classList.remove("cvwait"), 1200);
+  requestAnimationFrame(() => { try { cvLaunch(src, box, cov); } catch (e) { cov.classList.remove("cvwait"); } });
+}
+function cvLaunch(src, box, cov) {
+  if (!cov.isConnected || !box.classList.contains("on")) return cov.classList.remove("cvwait");
+  /* the cover's resting box: its layout size, and its centre mapped back through the page's grow (scale about the tap) */
+  const w = cov.offsetWidth, h = cov.offsetHeight; if (!w || !h) return cov.classList.remove("cvwait");
+  const r = cov.getBoundingClientRect(), m = new DOMMatrix(getComputedStyle(box).transform === "none" ? undefined : getComputedStyle(box).transform);
+  const o = (box.style.transformOrigin || "0px 0px").split(" ").map(parseFloat), k = m.a || 1;
+  const cx = o[0] + ((r.left + r.width / 2) - o[0] - m.e) / k, cy = o[1] + ((r.top + r.height / 2) - o[1] - m.f) / k;
+  const tx = cx - w / 2, ty = cy - h / 2;
+  if (ty > innerHeight || ty + h < 0) return cov.classList.remove("cvwait");
+  const s = src.r, sc = Math.max(s.width / w, s.height / h);
+  const fx = s.left + s.width / 2 - cx, fy = s.top + s.height / 2 - cy;
+  const im = document.createElement("img"); im.className = "cvfly"; im.alt = ""; im.src = src.src;
+  im.style.cssText = `width:${w}px;height:${h}px;left:${tx}px;top:${ty}px`;
+  document.body.appendChild(im);
+  const done = () => { cov.classList.remove("cvwait"); im.remove(); };
+  const a = im.animate([
+    { transform: `translate(${fx}px,${fy}px) scale(${sc}) rotate(0deg)`, opacity: 1 },
+    { transform: "translate(0,0) scale(1.06) rotate(-6deg)", offset: .72, opacity: 1 },
+    { transform: "translate(0,0) scale(1) rotate(-4deg)", opacity: 1 }],
+    { duration: 380, easing: "cubic-bezier(.3,.9,.35,1)" });
+  a.onfinish = a.oncancel = done; setTimeout(done, 900);
+}
+{ const _of = openFull; openFull = function (id) {
+  const box = $("#full"), wasOn = !!(box && box.classList.contains("on"));
+  const src = !wasOn && !calm() && S.hubAnim !== false && !document.documentElement.classList.contains("nxtouring") ? cvSource() : null;
+  const o = _of.apply(this, arguments);
+  if (src) try { cvFly(src); } catch (e) {}
+  return o; }; }
+/* closing mid-flight: no copy left floating over the screen */
+{ const _cf = closeFull; closeFull = function () { document.querySelectorAll(".cvfly").forEach(x => x.remove()); return _cf.apply(this, arguments); }; }
+WHATS_NEW.push(
+  { v: 225, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#p-home .dxhero") || $("#p-home .dxr") || null,
+    say: "Opening a game feels like picking up the box now: the cover you tap lifts off and flies into place on the game's page.",
+    tryIt: "Tap a game's cover on Home or in your queue. Too much? Customise → A game's own page → Motion on this page." }
 );
 </script>
