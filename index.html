@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "222";
+const APP_V = "223";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5939,9 +5939,9 @@ function openSettings(scope) {
       <label>Fit each logo automatically</label>
       <div class="chips" id="s-lfit">
         ${[["on", "Yes"], ["off", "No, same box for all"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.lfOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.lfOff !== false ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <p class="note">Nexi measures each logo once (its real shape, without the see-through edges) and sizes it so every row looks balanced: wide logos get room, tall ones don't tower.</p>
+      <p class="note">Off by default: every logo uses the same box (the classic look). On: Nexi measures each logo once (its real shape, without the see-through edges) and sizes it so wide logos get room and tall ones don't tower.</p>
       <label for="s-raw">On a row — how big</label>
       <div class="rowline"><input id="s-raw" type="range" min="40" max="200" value="${num(S.rowArtW, 150, 40, 200)}">
         <span class="v" id="s-raw-v">${num(S.rowArtW, 150, 40, 200)}px</span></div>
@@ -20042,6 +20042,8 @@ html.still .dustpuff { display: none; }
    pixels (CORS), the box of its non-transparent pixels, so see-through padding doesn't count. lfApply sizes every logo
    to about the same visual area in its tile (wide ones run long and thin, square ones stay short), content centred
    vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size is read once in rAF. */
+/* v223: off unless you turn it on (the owner preferred the logos as they were); S.lfOff === false = on */
+const LF_OFF = () => S.lfOff !== false;
 let LF = {}; try { LF = JSON.parse(localStorage.getItem("gq:logofit") || "{}"); } catch (e) {}
 const lfSave = () => { try { localStorage.setItem("gq:logofit", JSON.stringify(LF)); } catch (e) {} };
 let lfBox = null, lfQ = [], lfBusy = false;
@@ -20082,15 +20084,15 @@ let lfCss = "", lfKey = "";
 function lfSheet() {
   let el = document.getElementById("lfcss"); if (!el) { el = document.createElement("style"); el.id = "lfcss"; document.head.appendChild(el); }
   /* rebuilt only when something it depends on changed (the games' logos, what's measured, the tile, the switch) */
-  const key = S.lfOff || !lfBox ? "off" : lfBox.w + "x" + lfBox.h + "|" + Object.keys(LF).length + "|" + S.games.map(g => g.art ? g.id + g.art.length : "").join();
+  const key = LF_OFF() || !lfBox ? "off" : lfBox.w + "x" + lfBox.h + "|" + Object.keys(LF).length + "|" + S.games.map(g => g.art ? g.id + g.art.length : "").join();
   if (key === lfKey && lfCss != null) return; lfKey = key;
-  const css = S.lfOff || !lfBox ? "" : S.games.filter(g => g.art && LF[g.art]).map(g => lfRule(g.id, LF[g.art])).join("\n");
+  const css = LF_OFF() || !lfBox ? "" : S.games.filter(g => g.art && LF[g.art]).map(g => lfRule(g.id, LF[g.art])).join("\n");
   if (css !== lfCss) { lfCss = css; el.textContent = css; }
 }
-const lfFitted = img => { const row = img.closest("[data-row]"), g = row && S.games.find(x => x.id === row.dataset.row); return !!(g && g.art && LF[g.art] && lfBox && !S.lfOff); };
+const lfFitted = img => { const row = img.closest("[data-row]"), g = row && S.games.find(x => x.id === row.dataset.row); return !!(g && g.art && LF[g.art] && lfBox && !LF_OFF()); };
 function lfClear() { lfCss = null; lfSheet(); }
 function lfApply() {
-  if (S.lfOff) { lfSheet(); return; }
+  if (LF_OFF()) { lfSheet(); return; }
   const missing = S.games.filter(g => g.art && !(g.art in LF) && !lfQ.includes(g.art)).map(g => g.art);
   lfQ.push(...missing);
   /* the tile's size is read once, in a frame (never right after a redraw) */
@@ -20110,7 +20112,7 @@ addEventListener("resize", () => { lfBox = null; clearTimeout(lfApply.t); lfAppl
 { const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
   try {
     if (!pxBusy) { const el = [...document.querySelectorAll(".px .pxck")].find(x => x.getClientRects().length); if (el) bugReport("look", "A price stayed on “checking…”", { at: bugPath(el), screen: scr }); }
-    if (!S.lfOff) for (const img of document.querySelectorAll("#p-queue .rowart img")) {
+    if (!LF_OFF()) for (const img of document.querySelectorAll("#p-queue .rowart img")) {
       if (lfFitted(img) || !img.complete || !img.naturalWidth || !img.getClientRects().length) continue;
       const b = img.parentElement.getBoundingClientRect(); if (!b.height || b.bottom < 0 || b.top > innerHeight) continue;
       const k = Math.min(b.width / img.naturalWidth, b.height / img.naturalHeight);
@@ -20249,7 +20251,7 @@ WHATS_NEW.push(
     tryIt: "Look for the dusty rows in your queue." },
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .rowart") || $("#p-queue .row"),
     say: "Logos fit their cards by themselves (you asked for this one): I measure each logo's real shape once and size it so every row looks balanced. I've learned to spot a logo that's too small myself now.",
-    tryIt: "Scroll your queue. Customise → Queue cards turns it off." },
+    tryIt: "It's off since v223 (you preferred the old look): Customise → Queue cards → Fit each logo automatically turns it on." },
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Nexi sits in the rail" }); }, at: "#s-xseat",
     say: "On wide screens I don't disappear when the side rail is open any more: I sit at the foot of the rail, and glide out when you hide it. Tap me to hear from me, double-tap for my wheel.",
     tryIt: "Unfold the phone (or use a wide screen) with the rail open. Tapping me opens it on my side now." },
@@ -20271,6 +20273,9 @@ WHATS_NEW.push(
   { v: 222, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); },
     at: () => { const d = $("#p-taste .ix-head [data-qduel]"); return d && d.closest(".ix-card"); },
     say: "Fixed: the what's-new tour lost track of what to show on Insights when no games were ranked yet. Now it points at what I've learned about your taste instead.",
-    tryIt: "Settings → This build → Show me what's new replays the whole tour." }
+    tryIt: "Settings → This build → Show me what's new replays the whole tour." },
+  { v: 223, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .rowart") || $("#p-queue .row"),
+    say: "Your queue logos are back to how they looked before: same box for every card, no automatic resizing.",
+    tryIt: "Want the auto-fit back? Customise → Queue cards → Fit each logo automatically." }
 );
 </script>
