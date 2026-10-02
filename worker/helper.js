@@ -22,7 +22,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 15;
+const HELPER_V = 16;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -555,7 +555,13 @@ async function rvRoute(req, env, h) {
 const ST_IMG = "https://shared.akamai.steamstatic.com/store_item_assets/";
 /* stricter than the price match: a store name with a word your title doesn't have (other than edition words) is another game
    ("Hollow Knight" is not "Hollow Knight: Silksong"), and a picture of the wrong game is worse than none */
-const ART_ED = new Set("deluxe complete ultimate gold premium definitive collector collectors digital special anniversary director directors cut edition standard bundle goty year of the remastered remaster hd ps4 ps5 switch nintendo xbox series one pc windows and for launch cross gen".split(" "));
+const ART_ED = new Set("deluxe complete ultimate gold premium definitive collector collectors digital special anniversary director directors cut edition standard bundle goty year of the remastered remaster hd ps4 ps5 switch nintendo xbox series one pc windows and for launch cross gen legendary enhanced".split(" ").map(w => pxStem(w)));
+/* v16: what to search a store for. Its search can find nothing for the whole title (Steam had nothing for "Apothecary Diaries: The False
+   Imperial Brothers", only for "Apothecary Diaries"), so the part before the colon is tried next; results are always scored against the full title */
+function artQs(title) {
+  const t = String(title).replace(/[™®©]/g, "").trim(), head = t.split(/[:–—]| - /)[0].trim();
+  return [...new Set([t, pxExpand(t), head.length >= 4 && head !== t ? head : ""].filter(Boolean))].map(q => q.slice(0, 80));
+}
 function artSame(title, name) {
   const s = pxSame(title, name), T = pxNorm(title), A = new Set(T.split(" "));
   /* a numbered title with the store's subtitle after a colon is the same game ("The Witcher 3" = "The Witcher 3: Wild Hunt") */
@@ -598,9 +604,8 @@ async function artSize(u) {
 }
 /* Steam's store search ranked by artSame ("The Witcher 3" finds Wild Hunt, not "The Witcher 3 REDkit", which the price match takes) */
 async function artSteamFind(cc, title) {
-  const full = pxExpand(title);
-  for (const q of full !== title ? [title, full] : [title]) {
-    const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(q).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
+  for (const q of artQs(title)) {
+    const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(q)}&cc=${cc}&l=english`, { headers: PX_UA });
     const j = await r.json().catch(() => null);
     let best = null, bs = 0;
     for (const x of ((j && j.items) || []).filter(x => x.type === "app" || !x.type).slice(0, 10)) {
@@ -640,13 +645,15 @@ async function artSteam(cc, title, id) {
 const XB_ROLE = { SuperHeroArt: ["hero", "4K backdrop"], TitledHeroArt: ["hero", "Backdrop with title"], Poster: ["cover", "Poster"], BoxArt: ["cover", "Box art (square)"],
   BrandedKeyArt: ["cover", "Key art"], Logo: ["art", "Logo"], Screenshot: ["shot", "Screenshot"] };
 async function artXbox(title) {
-  const q = String(title).replace(/[™®©]/g, "").slice(0, 80);
-  const j = await (await fetch(`https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/autosuggest?market=US&languages=en-US&query=${encodeURIComponent(q)}&productFamilyNames=Games`, { headers: PX_UA })).json().catch(() => ({}));
   let best = null, bs = 0;
+  for (const q of artQs(title)) {
+  if (best && bs >= .55) break;
+  const j = await (await fetch(`https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/autosuggest?market=US&languages=en-US&query=${encodeURIComponent(q)}&productFamilyNames=Games`, { headers: PX_UA })).json().catch(() => ({}));
   for (const g of j.Results || []) for (const p of g.Products || []) {
     if (!p.ProductId || (p.Type && p.Type !== "Game")) continue;
     let sc = artSame(title, p.Title || ""); if (PS_JUNK.test(p.Title || "") && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(p.Title || "") && !PS_ED.test(title)) sc -= .08;
     if (sc > bs) { bs = sc; best = p; }
+  }
   }
   if (!best || bs < .55) return null;
   const d = await (await fetch(`https://displaycatalog.mp.microsoft.com/v7.0/products?bigIds=${best.ProductId}&market=US&languages=en-US`, { headers: PX_UA })).json().catch(() => ({}));
@@ -663,14 +670,17 @@ async function artXbox(title) {
 const PSA_ROLE = { EDITION_KEY_ART: ["hero", "Key art"], GAMEHUB_COVER_ART: ["hero", "Game hub art"], BACKGROUND: ["hero", "Background"], FOUR_BY_THREE_BANNER: ["hero", "Banner"],
   PORTRAIT_BANNER: ["cover", "Portrait art"], MASTER: ["cover", "Square art"], LOGO: ["art", "Logo"], SCREENSHOT: ["shot", "Screenshot"] };
 async function artPs(cc, title) {
-  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: String(title).replace(/[™®©]/g, "").slice(0, 80) });
   let best = null, bs = 0;
+  for (const q of artQs(title)) {
+  if (best && bs >= .55) break;
+  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: q });
   for (const r of (((j || {}).data || {}).universalSearch || {}).results || []) {
     const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
     if (!name || !(r.media || []).length) continue;
     if (PS_ID.test(r.id || "") && cls && !/full game|bundle|edition|^game$/i.test(cls)) continue;
     let sc = artSame(title, name); if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5; if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
     if (sc > bs) { bs = sc; best = r; }
+  }
   }
   if (!best || bs < .55) return null;
   const pics = [], seen = new Set();
@@ -682,16 +692,19 @@ async function artPs(cc, title) {
   return { id: String(best.id), name: String(best.name || "").replace(/\s*PS4\s*(&|and)\s*PS5\s*$/i, ""), pics };
 }
 async function artNs(title, sw2) {
+  let best = null, bs = 0;
+  for (const q of artQs(title)) {
+  if (best && bs >= .55) break;
   const r = await fetch("https://U3B6GR4UA3-dsn.algolia.net/1/indexes/store_game_en_us/query", { method: "POST",
     headers: { "X-Algolia-Application-Id": "U3B6GR4UA3", "X-Algolia-API-Key": "a29c6927638bfd8cee23993e51e721c9", "Content-Type": "application/json" },
-    body: JSON.stringify({ query: String(title).replace(/[™®©]/g, "").slice(0, 80), hitsPerPage: 12 }) });
+    body: JSON.stringify({ query: q, hitsPerPage: 12 }) });
   const j = await r.json().catch(() => ({}));
-  let best = null, bs = 0;
   for (const x of j.hits || []) {
     if (x.dlcType && x.dlcType !== "null") continue;
     let sc = artSame(title, String(x.title || "").replace(/[–—-]\s*Nintendo Switch\s*2 Edition/i, "")); if (NS_JUNK.test(x.title || "") && !NS_JUNK.test(title)) sc -= .6;
     if ((/Switch 2/.test(x.platform || "") || /Switch\s*2 Edition/i.test(x.title || "")) !== !!sw2) sc -= .05;
     if (sc > bs) { bs = sc; best = x; }
+  }
   }
   if (!best || bs < .55) return null;
   const pics = [];
@@ -779,7 +792,9 @@ const pxExpand = t => String(t || "").replace(/^\s*([A-Za-z]{2,4})(\d{0,2})(?=\b
   return full + (n ? " " + n : ""); });
 const pxNum = s => s.replace(/\b(i{1,3}|iv|vi{0,3}|ix|xi{0,3}|xiv|xv|xvi)\b/g, w => PX_ROMAN[w] != null ? String(PX_ROMAN[w]) : w);
 const pxNorm0 = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bps4\s*(&|and)\s*ps5\b/g, " ").replace(/[®™©]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b(the|edition|standard|digital|ps4|ps5|game)\b/g, " ").replace(/\s+/g, " ").trim();
-const pxNorm = s => pxNum(pxNorm0(pxExpand(s).replace(/['’]/g, "").replace(/[®™©]/g, " "))).replace(/\s+/g, " ").trim();   /* v13: "Persona®5" = "Persona 5" */
+/* v16: singular = plural ("The False Imperial Brothers" is the store's "The False Imperial Brother") */
+function pxStem(w) { return w.length > 3 && /[^s]s$/.test(w) ? w.slice(0, -1) : w; }   /* a function: ART_ED (earlier in the file) uses it at load */
+const pxNorm = s => pxNum(pxNorm0(pxExpand(s).replace(/['’]/g, "").replace(/[®™©]/g, " "))).replace(/\s+/g, " ").trim().split(" ").map(pxStem).join(" ");   /* v13: "Persona®5" = "Persona 5" */
 /* every word of your title must be in the store's name (so "Final Fantasy VII Rebirth" never matches plain "Final Fantasy VII",
    nor "Death Stranding 2" the first game); extra words (editions, subtitles) cost a little each */
 function pxSame(a, b) {
