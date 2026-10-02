@@ -69,3 +69,25 @@ for (const t of T) {
   if (t === T[0]) console.log("  sample:", JSON.stringify((j.pics || []).slice(0, 6)).slice(0, 1500));
 }
 
+
+/* ARTQ: each store's raw search for these titles (and shorter forms), SteamGridDB through the live helper, and the live /art */
+if (process.env.ARTQ) {
+  const HELP = "https://playnext-helper.hussamnabil48.workers.dev";
+  for (const t of process.env.ARTQ.split("|").map(x => x.trim()).filter(Boolean)) {
+    const qs = [...new Set([t, t.split(":")[0].trim(), t.replace(/^the\s+/i, ""), t.split(":").pop().trim()])];
+    console.log(`\n######## ${t} ########`);
+    for (const q of qs) {
+      console.log(`--- query "${q}"`);
+      { const [s, x] = await get(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(q)}&cc=us&l=english`); try { console.log(" steam", s, JSON.parse(x).items.slice(0, 6).map(i => i.id + " " + i.name).join(" | ")); } catch (e) { console.log(" steam", s, cut(x, 200)); } }
+      { const [s, x] = await get(`https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/autosuggest?market=US&languages=en-US&query=${encodeURIComponent(q)}&productFamilyNames=Games`); try { console.log(" xbox", s, JSON.parse(x).Results.flatMap(r => r.Products).slice(0, 6).map(p => p.ProductId + " " + p.Type + " " + p.Title).join(" | ")); } catch (e) { console.log(" xbox", s, cut(x, 200)); } }
+      { const [s, x] = await get(`https://web.np.playstation.com/api/graphql/v1/op?operationName=getSearchResults&variables=${encodeURIComponent(JSON.stringify({ countryCode: "US", languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: q }))}&extensions=${encodeURIComponent(JSON.stringify({ persistedQuery: { version: 1, sha256Hash: "4df6284f982e57bec70f23c77e2c219dc792eb19af7fb3d3a81767aa3f1958aa" } }))}`, { headers: { "x-psn-store-locale-override": "en-US", "content-type": "application/json" } });
+        try { console.log(" ps", s, JSON.parse(x).data.universalSearch.results.slice(0, 6).map(r => r.id + " [" + (r.localizedStoreDisplayClassification || "") + "] " + r.name + " media:" + (r.media || []).length).join(" | ")); } catch (e) { console.log(" ps", s, cut(x, 200)); } }
+      { const [s, x] = await get("https://U3B6GR4UA3-dsn.algolia.net/1/indexes/store_game_en_us/query", { method: "POST", headers: { "X-Algolia-Application-Id": "U3B6GR4UA3", "X-Algolia-API-Key": "a29c6927638bfd8cee23993e51e721c9", "Content-Type": "application/json" }, body: JSON.stringify({ query: q, hitsPerPage: 6 }) });
+        try { console.log(" ns", s, JSON.parse(x).hits.map(h => h.nsuid + " " + h.title + (h.productImage ? " (img)" : "")).join(" | ")); } catch (e) { console.log(" ns", s, cut(x, 200)); } }
+      { const [s, x] = await get(`${HELP}/sgdb/search/autocomplete/${encodeURIComponent(q)}`); try { const d = JSON.parse(x).data; console.log(" sgdb", s, d.slice(0, 6).map(g => g.id + " " + g.name).join(" | "));
+          if (d[0]) for (const k of ["grids", "heroes", "logos"]) { const [s2, y] = await get(`${HELP}/sgdb/${k}/game/${d[0].id}`); try { console.log("   sgdb " + k + " for " + d[0].id + ":", (JSON.parse(y).data || []).length); } catch (e) { console.log("   sgdb", k, s2); } } } catch (e) { console.log(" sgdb", s, cut(x, 200)); } }
+    }
+    { const [s, x] = await get(`${HELP}/art`, { method: "POST", headers: { Origin: "https://shamlawy.github.io", "Content-Type": "application/json" }, body: JSON.stringify({ t, cc: "ae" }) });
+      try { const j = JSON.parse(x); console.log("LIVE /art", s, JSON.stringify(j.found), (j.pics || []).length, "pictures"); } catch (e) { console.log("LIVE /art", s, cut(x, 300)); } }
+  }
+}
