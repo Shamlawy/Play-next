@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "228";
+const APP_V = "229";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -15862,8 +15862,9 @@ function helperCheck() {
   const el = $("#s-helperv"); if (!el) return;
   fetch(HELPER + "/version", { cache: "no-store" }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
     if (!$("#s-helperv")) return;
-    el.textContent = ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
-      : ok && j.v >= 13 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+    el.textContent = ok && j.v === 13 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except prices in your own currency (exchange rates) and PlayStation prices for countries without a PS Store, which need the new helper."
+      : ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
+      : ok && j.v >= 14 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."
@@ -20707,7 +20708,7 @@ const NX_SMART = [
   [c => c.incl.length, c => `${nxT(c.incl[0])} is in your PS Plus${c.Y}. You already own the right to play it, no need to buy it.`, c => c.incl[0].id],
   [c => c.incl.length > 1, c => `${c.incl.length} games you're waiting for are included in your PS Plus${c.Y}. Free value sitting right there.`, () => "deals"],
   [c => c.deals === 0 && c.live > 3, c => `Nothing on your list is on sale today${c.Y}. I check the stores for you every day, so you don't have to.`, () => ""],
-  [c => c.deal && c.deal.g.state !== "playing" && c.quick && c.deal.g === c.quick, c => `${nxT(c.quick)} is short (${c.quickH}h) AND on sale. Cheap and quick${c.Y}, perfect combo.`, c => c.quick.id],
+  [c => c.deal && c.deal.g.state !== "playing" && c.quick && c.quickH <= 15 && c.deal.g === c.quick, c => `${nxT(c.quick)} is short (${c.quickH}h) AND on sale. Cheap and quick${c.Y}, perfect combo.`, c => c.quick.id],
   [() => S.pxOff !== true, c => `Tip${c.Y}: tap a store on any game page and I open it straight to that game's price.`, () => ""],
   /* ---- releases ---- */
   [c => c.today.length, c => `${nxT(c.today[0])} is out TODAY${c.Y}! 🎉`, c => c.today[0].id],
@@ -20817,7 +20818,7 @@ const NX_SMART = [
   [c => c.top && c.top.hours, c => `${nxT(c.top)} took about ${Math.round(c.top.hours)}h${c.Y}. Worth every minute, right?`, c => c.top.id],
   [c => c.tiers.C >= 2, c => `${c.tiers.C} games ended up in C-tier${c.Y}. Lessons learned for next time 😄`, () => "taste"],
   [c => c.tiers.A >= 3, c => `${c.tiers.A} A-tier games${c.Y}. Any of them secretly S-tier? A duel would tell.`, () => "duel"],
-  [c => c.played === 0 && c.live > 0, c => `Finish your first game in the app${c.Y} and I'll start learning your taste!`, () => "pick"],
+  [c => c.played === 0 && c.live > 0, c => `Finish your first game in the app${c.Y}, and I'll start learning your taste!`, () => "pick"],
   [c => c.total > 0 && c.total < 6, c => `Add a few more games${c.Y}, and my picks get much smarter.`, () => "add"],
   [c => c.next && c.next.state !== "playing" && c.next.hype && c.next.hype < 6, c => `${nxT(c.next)} comes soon but your hype is only ${c.next.hype}/10${c.Y}. Still want it?`, c => c.next.id],
   [c => c.hr >= 22 && c.dow >= 0 && c.dow <= 4, c => `School or work tomorrow${c.Y}? Maybe a short session tonight 😉`, () => ""],
@@ -20924,4 +20925,16 @@ function nxFacts() {
   return F.slice(0, 18);
 }
 { const _nc = nxContext; nxContext = function () { const o = _nc.apply(this, arguments) || {}; try { o.facts = nxFacts(); } catch (e) {} return o; }; }
+WHATS_NEW.push(
+  { v: 229, go: () => { closeFull(); dyClose(); nxShut(); const g = pxWatched().find(x => x.px && PX_S.some(s => x.px[s] && x.px[s].now != null)) || pxWatched()[0]; if (g) openFull(g.id); },
+    at: () => $("#full .px") || null,
+    say: "Prices now show in your own currency: dirhams in the UAE, pounds in Egypt, converted at today's rate even when a store sells in dollars. Egypt gets PlayStation prices too, and games no longer match their sequel by mistake.",
+    tryIt: "Tap a price to see the store's own price in the details." },
+  { v: 229, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Show prices in" }); }, at: "#s-pxcur",
+    say: "Pick the currency you want, or \u201cStore's own\u201d to see each store's price as it is. If your country has no PlayStation Store, you can pick the one your account uses.",
+    tryIt: "Leave it on Auto unless you shop in another currency." },
+  { v: 229, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || $(".nxhome") || null,
+    say: "I got a lot smarter: 150 new things to tell you about your deals, releases, finish dates, scores and habits, with real tips for the games you play, and I'll call you by your name. In chat I now know your deals, dates and forecasts too.",
+    tryIt: "Tap me now and then, or open the chat and ask what to buy next." }
+);
 </script>

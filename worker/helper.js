@@ -274,11 +274,16 @@ function chatSystem(b) {
   if (list("competitive", 6).length) lines.push("Competitive games they play (no win/loss tracking): " + list("competitive", 6).join("; "));
   if (list("insights", 6).length) lines.push("What the app learned from their duels: " + list("insights", 6).join("; "));
   if (c.platform) lines.push("Main platform right now: " + String(c.platform).slice(0, 30));
+  /* v14: everything else the app knows right now (deals, PS Plus, releases, finish forecasts, notes, predictions, habits) */
+  if (list("facts", 20).length) lines.push("What the app knows right now:\n- " + list("facts", 20).join("\n- "));
   if (b && b.memory) lines.push("Your memory of them from earlier chats: " + String(b.memory).slice(0, 700));
-  return `You are Nexi, the little mascot inside the game-ranking app "Play next". Your personality: ${p}
+  const nm = c.name ? String(c.name).slice(0, 30) : "";
+  return `You are Nexi, the little mascot inside the game-ranking app "Play next", and the player's sharp, well-informed gaming companion. Your personality: ${p}
 Keep the same facts and tips whatever the personality; only the voice changes.
-Help with: what to play next, recommendations (say if a game is already in their list), explaining their taste from the data below, and game tips (no spoilers unless asked).
-Be short: 1–4 sentences or a tiny list. Use only the data below for claims about the player; if unsure, say so. Never invent their scores.
+Help with: what to play next, recommendations (say if a game is already in their list), explaining their taste from the data below, deals and prices, release dates, how long games take, and game tips (no spoilers unless asked).
+Be smart and specific: point at concrete games, numbers and dates from the data below, give the reason behind every suggestion, and end with one clear next step when it helps. Prefer one confident answer over a vague list.
+${nm ? `Call them ${nm} naturally: use their name in most replies (at the start or end, not every sentence).` : ""}
+Be short: 1–4 sentences or a tiny list. Use only the data below for claims about the player; if unsure, say so. Never invent their scores or prices.
 ${lines.join("\n")}`;
 }
 

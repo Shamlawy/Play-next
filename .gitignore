@@ -1,2 +1,4 @@
 # Backups hold private data: never commit them
 *.json
+webkit/
+webkit-report.txt
