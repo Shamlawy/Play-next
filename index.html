@@ -18740,18 +18740,26 @@ async function pxRun(force, only) {
   if (!force && Date.now() - (S.pxAt || 0) < PX_GAP) return null;
   const list = (only ? [only] : pxWatched()).map(pxItem).filter(x => x.st !== -1 || x.ps !== "-" || x.ns !== "-");
   if (!list.length) { S.pxAt = Date.now(); return { n: 0 }; }
-  /* the oldest-checked first: each call can only look a few games up */
-  list.sort((a, b) => pxSeen(a.k) - pxSeen(b.k));
+  /* the stalest first, judged by the store checked longest ago (v228: by the most recent store, a game whose PlayStation
+     check kept being skipped looked freshly checked because its Steam/eShop prices were new, so it never got its turn) */
+  list.sort((a, b) => pxStale(a) - pxStale(b));
   const alerts = !!(S.nudgeOn && S.nudgeId && typeof nxKinds === "function" && nxKinds().has("deal"));
   pxBusy = true; pxPaint();
   try {
     /* a call can only look a few games up (the helper's outside-request budget), so go through the list in batches */
     const all = list.slice(0, 60).map(x => x.k).concat(typeof drKeys === "function" ? drKeys() : []), drops = [];
-    for (let i = 0; i < Math.min(list.length, 60); i += 10) {
-      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 10), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
+    /* v228: 5 games per call (each can take several store requests; the helper has a budget per call) */
+    for (let i = 0; i < Math.min(list.length, 60); i += 5) {
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: list.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier(),
         ...(alerts && !only ? { id: S.nudgeId, watch: true, all } : {}) });
       drops.push(...pxTake(r.res || {}));
       if (only) break;
+    }
+    /* anything a store still didn't answer for gets one more go */
+    const miss = (only ? [only] : pxWatched()).map(pxItem).filter(x => pxGap(x)).slice(0, 10);
+    for (let i = 0; i < miss.length; i += 5) {
+      const r = await nxPost("/prices", { cc: pxCC(), nscc: pxNsCC(), items: miss.slice(i, i + 5), min: num(S.pxMin, 0, 0, 90), tier: pxTier() });
+      drops.push(...pxTake(r.res || {}));
     }
     if (!alerts && S.pxWatching && S.nudgeId) { nxPost("/prices", { id: S.nudgeId, off: 1 }).catch(() => {}); }
     if (!only) S.pxWatching = alerts;
@@ -18763,6 +18771,11 @@ async function pxRun(force, only) {
     return null;
   } finally { pxBusy = false; pxPaint(); }
 }
+/* a store this game is watched on that has no answer yet */
+const pxGap = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px) || {}; return (it.st !== -1 && !p.st) || (it.ps !== "-" && !p.ps) || (it.ns !== "-" && !p.ns); };
+/* when the store checked longest ago was checked (0 = a watched store never answered) */
+const pxStale = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px) || {};
+  return Math.min(...[["st", it.st !== -1], ["ps", it.ps !== "-"], ["ns", it.ns !== "-"]].filter(x => x[1]).map(([s]) => (p[s] || {}).at || 0), Infinity); };
 const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0, (p.ns || {}).at || 0) : 0; };
 function pxTake(res) {
   const drops = [], joins = [], min = num(S.pxMin, 0, 0, 90);
