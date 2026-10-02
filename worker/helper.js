@@ -674,7 +674,9 @@ async function artPs(cc, title) {
   let best = null, bs = 0;
   for (const q of artQs(title)) {
   if (best && bs >= .55) break;
-  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: q });
+  const vars = { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: q };
+  /* the store now and then answers 403 to a Cloudflare request: one more try */
+  const j = await psGql(cc, "getSearchResults", vars).catch(() => new Promise(r => setTimeout(r, 700)).then(() => psGql(cc, "getSearchResults", vars)));
   for (const r of (((j || {}).data || {}).universalSearch || {}).results || []) {
     const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
     if (!name || !(r.media || []).length) continue;
