@@ -10,6 +10,9 @@ on:
       ccs:
         description: "Regions, comma separated"
         required: false
+      browser:
+        description: "Also record the PS Store website's own search in a headless browser (yes/no)"
+        required: false
   push:
     paths:
       - ".github/scripts/priceprobe.mjs"
@@ -34,7 +37,7 @@ jobs:
           CCS: ${{ github.event.inputs.ccs }}
         run: mkdir -p probe; node .github/scripts/priceprobe.mjs | tee probe/prices.log
       - name: PS search probe
-        if: always()
+        if: ${{ github.event.inputs.browser == 'yes' }}
         env:
           Q: ${{ github.event.inputs.titles }}
         run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1; node .github/scripts/pssearchprobe.mjs | tee probe/pssearch.log

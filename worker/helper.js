@@ -21,7 +21,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 11;
+const HELPER_V = 12;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -629,7 +629,10 @@ async function pxSteamFind(cc, title) {
    a sale's end time, PS Plus member prices, and "Included" for games in the PS Plus Game Catalog (tierNumber 2 = Extra,
    3 = Premium) and Premium game trials. The concept id comes back to the phone, so later checks need one call. */
 const PS_ID = /[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_00-[A-Z0-9]{16}/;
-const PSQ = { metGetProductById: "a128042177bd93dd831164103d53b73ef790d56f51dae647064cb8f9d9fc9d1a", metGetPricingDataByConceptId: "abcb311ea830e679fe2b697a27f755764535d825b24510ab1239a4ca3092bd09" };
+const PSQ = { metGetProductById: "a128042177bd93dd831164103d53b73ef790d56f51dae647064cb8f9d9fc9d1a", metGetPricingDataByConceptId: "abcb311ea830e679fe2b697a27f755764535d825b24510ab1239a4ca3092bd09",
+  /* v12: the store website's own search (recorded from store.playstation.com/<locale>/search/<term> in a real browser by
+     .github/scripts/pssearchprobe.mjs); the old tumbler search doesn't list some new games (GTA VI, FF VII Rebirth) */
+  getSearchResults: "4df6284f982e57bec70f23c77e2c219dc792eb19af7fb3d3a81767aa3f1958aa" };
 async function psGql(cc, op, vars) {
   const u = `https://web.np.playstation.com/api/graphql/v1/op?operationName=${op}&variables=${encodeURIComponent(JSON.stringify(vars))}&extensions=${encodeURIComponent(JSON.stringify({ persistedQuery: { version: 1, sha256Hash: PSQ[op] } }))}`;
   const r = await fetch(u, { headers: { ...PX_UA, "x-psn-store-locale-override": "en-" + cc.toUpperCase(), "content-type": "application/json" } });
@@ -639,6 +642,29 @@ async function psGql(cc, op, vars) {
 const PS_JUNK = /bundle|soundtrack|season pass|upgrade|\bpack\b|\bdlc\b|add-?on|demo|\btrial\b|currency|coins|points|avatar|theme/i;
 const PS_ED = /deluxe|complete|ultimate|gold|premium|definitive|collector|digital|special|anniversary|director'?s cut|edition/i;
 async function pxPsFind(cc, title) {
+  /* the website's search first (it knows every game); the old tumbler search if it fails or finds nothing */
+  try { const f = await pxPsSearchWeb(cc, title) || (pxExpand(title) !== title ? await pxPsSearchWeb(cc, pxExpand(title), title) : null); if (f) return f; } catch (e) {}
+  return pxPsFindOld(cc, title);
+}
+async function pxPsSearchWeb(cc, q, title) {
+  title = title || q;
+  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: String(q).slice(0, 80) });
+  const res = (((j || {}).data || {}).universalSearch || {}).results || [];
+  let best = null, bs = 0;
+  for (const r of res) {
+    const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
+    if (!name || !r.id) continue;
+    const prod = PS_ID.test(r.id), con = /^\d{4,12}$/.test(String(r.id));
+    if (!prod && !con) continue;
+    if (/add-?on|currency|theme|avatar|season pass|demo|soundtrack|application/i.test(cls)) continue;
+    let sc = pxSame(title, name);
+    if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5;
+    if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
+    if (sc > bs) { bs = sc; best = prod ? { id: r.id, name } : { cid: String(r.id), name }; }
+  }
+  return best && bs >= .55 ? best : null;
+}
+async function pxPsFindOld(cc, title) {
   const clean = String(title).replace(/[™®©]/g, "").replace(/['’]/g, "").replace(/[:\-–—]/g, " ").replace(/\s+/g, " ").trim();
   const before = String(title).split(":")[0].trim();
   const full = pxExpand(title);
@@ -772,8 +798,9 @@ async function pxCheck(cc, items, nscc) {
       let id = it.ps, name = "";
       /* v227: a concept with no product id (the phone found the game's store page some other way, e.g. RAWG's link) is
          priced straight from the concept: the store's old search doesn't list some new games (GTA VI) */
-      if (!id && !it.pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id; name = f.name; }
-      const p = await pxPsPrice(cc, id, it.pc || "");
+      let pc = it.pc || "";
+      if (!id && !pc) { const f = await pxPsFind(cc, it.t); if (!f) { res[it.k].ps = { none: 1 }; continue; } id = f.id || ""; pc = f.cid || ""; name = f.name; }
+      const p = await pxPsPrice(cc, id, pc);
       if (!id) id = p.id || "";
       res[it.k].ps = Object.assign({ id }, p, { id: id || p.id, name: p.name || name });
     } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; }
