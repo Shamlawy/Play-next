@@ -3759,6 +3759,11 @@ function liteGuess(u) {
   let m;
   /* v189: only the cover has a smaller sharp copy. library_hero_blur is the same size and blurred on purpose: using it left wide art blurry for good */
   if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/steam\/apps\/\d+\/)library_600x900_2x\.jpg(\?.*)?$/))) return m[1] + "library_600x900.jpg";
+  /* v230: Steam's newer address (store_item_assets, sometimes a hash folder), the Xbox store and Nintendo resize on request */
+  if ((m = u.match(/^(https:\/\/[^/]*steamstatic\.com\/store_item_assets\/steam\/apps\/\d+\/(?:[0-9a-f]{40}\/)?)library_600x900_2x\.jpg(\?.*)?$/))) return m[1] + "library_600x900.jpg" + (m[2] || "");
+  if ((m = u.match(/^https:\/\/store-images\.s-microsoft\.com\/image\/apps\.[\w.-]+$/))) return u + "?w=960";
+  if ((m = u.match(/^https:\/\/image\.api\.playstation\.com\/vulcan\/[^?]+\.(png|jpe?g)$/))) return u + "?w=960&h=960";
+  if ((m = u.match(/^https:\/\/assets\.nintendo\.com\/image\/upload\/(store\/.+)$/))) return "https://assets.nintendo.com/image/upload/c_scale,w_960/" + m[1];
   if ((m = u.match(/^https:\/\/media\.rawg\.io\/media\/(games|screenshots)\/(.+)$/))) return "https://media.rawg.io/media/resize/640/-/" + m[1] + "/" + m[2];
   if ((m = u.match(/^(https:\/\/cdn\d*\.steamgriddb\.com\/)(grid|hero)\/([^/?#]+)\.(png|jpe?g|webp)$/))) return m[1] + (m[2] === "grid" ? "thumb" : "hero_thumb") + "/" + m[3] + ".jpg";
   return "";
@@ -5124,10 +5129,10 @@ function openEdit(id) {
 
     <div class="epanel" data-ep="look">
     <div class="stickprev"><div class="eprev" id="e-prev"></div></div>
-    <div class="setgroup"><h4 data-sum="SteamGridDB">Art from SteamGridDB</h4>
+    <div class="setgroup"><h4 data-sum="SteamGridDB, Steam, Xbox, PlayStation">Art from SteamGridDB and the stores</h4>
     <div class="chips"><button class="btn" id="e-sgauto"><span>✨ Auto-pick all</span></button>
     <button class="btn ghost" id="e-sgdb"><span>Browse and choose</span></button></div>
-    <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the sharpest of the community's top picks. Browse shows every picture's size, sharpest first, so you can choose each one yourself. Tap Save to keep either.</p>
+    <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the sharpest of SteamGridDB's top picks, or the stores' own art when that's much sharper or SteamGridDB has none. Browse shows every picture from SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG with its size, sharpest first, so you can choose each one yourself. Tap Save to keep either.</p>
     <div id="e-sgdb-out"></div>
     </div>
     <div class="setgroup"><h4 data-sum="${esc(sums.cover)}">Cover and colour</h4>
@@ -15868,7 +15873,8 @@ function helperCheck() {
     if (!$("#s-helperv")) return;
     el.textContent = ok && j.v === 13 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except prices in your own currency (exchange rates) and PlayStation prices for countries without a PS Store, which need the new helper."
       : ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
-      : ok && j.v >= 14 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews and hours to beat are all on."
+      : ok && j.v >= 15 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews, hours to beat and game pictures from the stores are all on."
+      : ok && j.v === 14 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except game pictures from Steam, Xbox, PlayStation and Nintendo in Browse and choose, which need the new helper."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
       : ok && j.v >= 8 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except story recaps, Steam genres and Nintendo eShop prices, which need the new helper."
       : ok && j.v >= 6 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except PlayStation Store prices and PS Plus, which need the new helper."

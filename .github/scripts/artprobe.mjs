@@ -69,11 +69,3 @@ for (const t of T) {
   if (t === T[0]) console.log("  sample:", JSON.stringify((j.pics || []).slice(0, 6)).slice(0, 1500));
 }
 
-/* the PlayStation small copy keeps its shape? and the Steam lookup for a short title */
-{ src = fs.readFileSync("worker/helper.js", "utf8").replace("export default {", "const __def = {") + "\nexport { artSize, pxSteamFind, artSame };\n";
-  fs.writeFileSync("/tmp/hart2.mjs", src); const H2 = await import("/tmp/hart2.mjs");
-  for (const u of ["https://image.api.playstation.com/vulcan/ap/rnd/202108/0410/LWU1Z3vAh706rXPr2zWkKjGe.png", "https://image.api.playstation.com/vulcan/ap/rnd/202108/0410/8BDt7H1bBfOhd2G4X20G6RQv.png", "https://image.api.playstation.com/vulcan/ap/rnd/202108/0410/yy4ZrerXT2WBtubBjJZVuLKl.png"])
-    for (const q of ["", "?w=440&h=440", "?w=480&h=480", "?w=960&h=960"]) console.log("PS", u.slice(-12), q || "(full)", JSON.stringify(await H2.artSize(u + q)));
-  for (const t of ["The Witcher 3", "Witcher 3", "The Witcher 3: Wild Hunt"]) for (const cc of ["ae", "us"]) {
-    const f = await H2.pxSteamFind(cc, t); console.log("Steam find", cc, t, "→", JSON.stringify(f), f ? H2.artSame(t, f.name).toFixed(2) : ""); }
-  const r = await fetch("https://store.steampowered.com/api/storesearch/?term=The%20Witcher%203&cc=us&l=english", { headers: UA }); console.log((await r.text()).slice(0, 600)); }

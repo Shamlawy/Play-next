@@ -596,9 +596,24 @@ async function artSize(u) {
     return artDim(cat(...parts));
   } catch (e) { return null; }
 }
+/* Steam's store search ranked by artSame ("The Witcher 3" finds Wild Hunt, not "The Witcher 3 REDkit", which the price match takes) */
+async function artSteamFind(cc, title) {
+  const full = pxExpand(title);
+  for (const q of full !== title ? [title, full] : [title]) {
+    const r = await fetch(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(String(q).slice(0, 80))}&cc=${cc}&l=english`, { headers: PX_UA });
+    const j = await r.json().catch(() => null);
+    let best = null, bs = 0;
+    for (const x of ((j && j.items) || []).filter(x => x.type === "app" || !x.type).slice(0, 10)) {
+      let sc = artSame(title, x.name); if (PS_JUNK.test(x.name) && !PS_JUNK.test(title)) sc -= .5;
+      if (sc > bs) { bs = sc; best = x; }
+    }
+    if (best && bs >= .55) return { id: best.id, name: best.name };
+  }
+  return null;
+}
 async function artSteam(cc, title, id) {
   let name = "";
-  if (!(id > 0)) { const f = await pxSteamFind(cc, title) || (cc !== "us" ? await pxSteamFind("us", title) : null); if (!f || artSame(title, f.name) < .55) return null; id = f.id; name = f.name; }
+  if (!(id > 0)) { const f = await artSteamFind(cc, title) || (cc !== "us" ? await artSteamFind("us", title) : null); if (!f) return null; id = f.id; name = f.name; }
   const input = { ids: [{ appid: id }], context: { language: "english", country_code: "US", steam_realm: 1 }, data_request: { include_assets: true, include_screenshots: true } };
   const j = await (await fetch("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=" + encodeURIComponent(JSON.stringify(input)), { headers: PX_UA })).json().catch(() => ({}));
   const it = ((j.response || {}).store_items || [])[0];
@@ -661,7 +676,8 @@ async function artPs(cc, title) {
   const pics = [], seen = new Set();
   for (const m of best.media) {
     const ro = PSA_ROLE[m.role]; if (!ro || m.type !== "IMAGE" || !m.url || seen.has(m.url)) continue; seen.add(m.url);
-    pics.push({ s: "ps", r: ro[0], u: m.url, th: m.url + "?w=440", k: ro[1] });
+    /* ?w=&h= fits the picture inside that box (keeps its shape); ?w= alone is ignored */
+    pics.push({ s: "ps", r: ro[0], u: m.url, th: m.url + "?w=480&h=480", k: ro[1] });
   }
   return { id: String(best.id), name: String(best.name || "").replace(/\s*PS4\s*(&|and)\s*PS5\s*$/i, ""), pics };
 }
