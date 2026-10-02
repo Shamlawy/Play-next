@@ -3992,7 +3992,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "221";
+const APP_V = "222";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -14731,7 +14731,10 @@ function nxTour(was, all) {
     setTimeout(() => {
       if (gone) return;
       const el = typeof st.at === "function" ? st.at() : st.at ? document.querySelector(st.at) : null;
-      if (st.at && !el && typeof bugReport === "function") bugReport("tour", "Tour step v" + st.v + " can't find what it points at", { at: String(st.at).slice(0, 120) });
+      /* v222 (#153): many steps point at things that only exist once you've scored games (ranking, Played board, finish dates);
+         on a phone without them a missing target is expected, the step just parks Nexi beside the card */
+      if (st.at && !el && typeof bugReport === "function" && (S.played || []).filter(p => typeof scored === "function" ? scored(p) : p.real > 0).length >= 3)
+        bugReport("tour", "Tour step v" + st.v + " can't find what it points at", { at: String(st.at).slice(0, 120) });
       if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
       setTimeout(() => {
         if (gone) return;
@@ -15642,7 +15645,7 @@ WHATS_NEW.push(
   { v: 184, go: () => { nxShut(); qdToday = 0; qDuel(null); }, at: () => $("#diary .qd-acts"),
     say: "Duels only pit games you've <b>played</b> against each other, and I pick pairs sitting close in your ranking. If it's close, tap <b>Slight edge</b> instead of Even. Each pick shows how far a game climbs.",
     tryIt: "Settle a few, then close this." },
-  { v: 184, go: () => { dyClose(); nxShut(); goTab("taste"); }, at: () => $("#p-taste .tins"),
+  { v: 184, go: () => { dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => { const d = $("#p-taste .ix-head [data-qduel]"); return $("#p-taste .tins") || $("#p-taste .ix-ins") || (d && d.closest(".ix-card")); },
     say: "The Taste tab now learns from your <b>duels</b> and from the games you <b>add or remove</b>. It tells you things like which kinds of game win most of their duels.",
     tryIt: "Check back after a few more duels." },
   { v: 184, go: () => { nxShut(); goTab("queue"); }, at: () => $("#p-queue .deck"),
@@ -19056,7 +19059,7 @@ WHATS_NEW.push(
     at: () => { const b = $("#full .gd-rm"); return b && !b.hidden ? b : $("#full .gd-desc"); },
     say: "<b>Read more</b> now slides open smoothly, and it only shows up when there really is more to read (on the unfolded screen it often had nothing to add).",
     tryIt: "Tap Read more, then Read less." },
-  { v: 215, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-rk"),
+  { v: 215, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => { const d = $("#p-taste .ix-head [data-qduel]"); return $("#p-taste .ix-rk") || (d && d.closest(".ix-card")); },   /* v222 (#153): the top 5 only shows once games are ranked */
     say: "Fixed: your top 5 on Insights wraps onto a new line instead of cutting names off, and Queue rows no longer go blank for a moment when you scroll fast. I watch for blank patches while you scroll now, too.",
     tryIt: "Tap a name to open that game." }
 );
@@ -20259,5 +20262,15 @@ WHATS_NEW.push(
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && PX_S.some(s => x.px[s])) || S.games.find(x => typeof pxCard === "function" && pxCard(x)); if (g) openFull(g.id); }, at: () => $("#full .px") || null,
     say: "Fixed: prices never sit on “checking…” any more. A store that doesn't have the game says so, a failed check says it'll try again, and opening a game checks every store it's missing. I've learned to spot that one myself now.",
     tryIt: "Open a game you're waiting for." }
+);
+</script>
+<script>
+/* ===== v222: #153 tour steps that point at things only there once you've scored games. The fixes are in the v184/v215
+   steps (fall back to the "What I've learned" card) and nxTour's show() (no report without 3 scored games). ===== */
+WHATS_NEW.push(
+  { v: 222, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); },
+    at: () => { const d = $("#p-taste .ix-head [data-qduel]"); return d && d.closest(".ix-card"); },
+    say: "Fixed: the what's-new tour lost track of what to show on Insights when no games were ranked yet. Now it points at what I've learned about your taste instead.",
+    tryIt: "Settings → This build → Show me what's new replays the whole tour." }
 );
 </script>
