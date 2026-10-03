@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "236";
+const APP_V = "237";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -19409,7 +19409,9 @@ const stOn = () => S.stGenOff !== true;
 function stApply(g) {
   const was = Array.isArray(g.stG) ? g.stG : [], base = platList(g.genres).filter(x => !was.includes(x));
   if (!stOn() || !g.stTags || !g.stTags.length) { if (was.length) { g.genres = base.join(", "); delete g.stG; } return; }
-  const add = stGenres(g.stTags).filter(x => !base.some(b => b.toLowerCase() === x.toLowerCase()));
+  /* v237: "Story Rich" (Steam) and "Story-rich" (RAWG) are one genre: compare without case, spaces or hyphens */
+  const nk = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const add = stGenres(g.stTags).filter(x => !base.some(b => nk(b) === nk(x)));
   g.genres = add.concat(base).slice(0, 6).join(", "); g.stG = add;
 }
 const stIdOf = g => +g.stId > 0 ? +g.stId : +g.pxSt > 0 ? +g.pxSt : +g.steamId > 0 ? +g.steamId : 0;
@@ -21300,10 +21302,10 @@ function gdAbout(g) {
 /* v234 (the owner: "it only shows 2–3 genres, what about the rest? tap to show all?"): the first 3 genres, then +N unfolds the
    rest in place, plus what Steam players call it (g.stTags, fetched by stSync, never shown before). Each genre says how many of
    your games share it, and a tap opens your Queue filtered to it ("G:<genre>", next to your lists) */
-const gdKey = t => String(t || "").trim().toLowerCase();
+const gdKey = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 const gdGenreSet = x => new Set(platList(x.genres).concat(x.stTags || []).map(gdKey));
 function gdTagData(g) {
-  const base = platList(g.genres), seen = new Set(base.map(gdKey));
+  const base = platList(g.genres).filter((t, i, a) => a.findIndex(x => gdKey(x) === gdKey(t)) === i), seen = new Set(base.map(gdKey));
   const gen = typeof ST_GENERIC !== "undefined" ? ST_GENERIC : new Set();
   const st = (g.stTags || []).filter(t => { const k = gdKey(t); if (!k || seen.has(k) || gen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
   const sets = S.games.map(gdGenreSet), n = t => { const k = gdKey(t); return sets.reduce((a, s) => a + (s.has(k) ? 1 : 0), 0); };
@@ -21405,6 +21407,7 @@ gdMarkup = function (g) {
         <div class="gd-x" hidden>${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
         ${gdProgress(g)}
         ${gdAbout(g)}
+        ${typeof gdShots === "function" ? gdShots(g) : ""}
         ${extra ? `<div class="gd-pair">${extra}</div>` : ""}
       </div>
     </div>`;
@@ -21861,5 +21864,143 @@ WHATS_NEW.push(
     at: () => $("#diary .sgl") || $("#diary .sim-new"),
     say: "Similar games are big picture cards now. Tap one for screenshots (Steam, PlayStation or Nintendo), the description and why it was picked; swipe → to add. Also fixed: adding Baldur's Gate 3 added the old Baldur's Gate, because I treated the numbers as unimportant. Numbers count now.",
     tryIt: "Share a Steam or YouTube link to Play next from another app: it opens that game, ready to add (Android)." }
+);
+</script>
+<style>
+/* ===== v237: screenshots on every game page; Grumble only takes real hits ===== */
+.gd-shots { display: flex; gap: 8px; overflow-x: auto; margin: 10px -4px 0; padding: 0 4px 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.gd-shots::-webkit-scrollbar { display: none; }
+.gd-shots button { flex: 0 0 min(78%, 300px); aspect-ratio: 16 / 9; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: #05070f; cursor: zoom-in; scroll-snap-align: start; }
+.gd-shots img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (min-width: 760px) { .gd-shots button { flex-basis: 260px; } }
+#shv { position: fixed; inset: 0; z-index: 98; display: flex; flex-direction: column; justify-content: center; background: #020308; opacity: 0; transition: opacity .25s; }
+#shv.on { opacity: 1; }
+#shv .shv-l { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+#shv .shv-l::-webkit-scrollbar { display: none; }
+#shv .shv-l img { flex: 0 0 100%; width: 100%; max-height: 82vh; object-fit: contain; scroll-snap-align: center; }
+#shv .shv-x { position: absolute; right: 14px; top: calc(14px + env(safe-area-inset-top)); width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.12); color: #fff; font-size: 18px; cursor: pointer; }
+#shv .shv-n { margin-top: 12px; text-align: center; color: var(--mute); font: 600 13px "Poppins", system-ui, sans-serif; }
+</style>
+<script>
+/* ===== v237: the owner: "I deleted Baldur's Gate and Grumble lost HP, which is wrong; and when I add a game, forget to say it's
+   played and then say so, Grumble loses HP too" + "add 4–5 screenshots of the game on its page".
+   Grumble: his HP is the hours left in your backlog, so every drop was a hit. A save that only loses deleted games, or games
+   marked played shortly after adding them (never Playing, no notes/sessions/hours, added ≤7 days ago or finished before they were
+   added) runs with pnSilentHP (no HUD, no "ouch"), and his max drops by the same hours so the bar doesn't show it as damage. Nexi
+   says "already played, Grumble keeps his HP" instead of "Grumble just lost Nh". Finishing a game you were playing still hits. ===== */
+/* the backlog the same way the boss HUD counts it (its bossNow() lives inside another script's scope) */
+const grumL = () => S.games.filter(g => !g.comp && !isPlayed(g) && g.state !== "played" && !isDropped(g) && (g.state === "backlog" || g.state === "playing" || isOutNow(g))).map(g => ({ g, h: +g.hours || 20 }));
+{ const snapOf = () => { const m = new Map(); grumL().forEach(x => { const g = x.g;
+      m.set(g.id, { h: x.h, st: g.state || "", ad: g.added || "", w: !!(g.plAt || (g.wasI || []).length || loggedOf(g) || (typeof sessOf === "function" && sessOf(g.id).length)) }); }); return m; };
+  const fixPlayed = (g, was) => { if (!g || !isPlayed(g) || was.st === "playing" || was.w) return false;
+    const p = playedRec(g), ad = was.ad ? new Date(was.ad + "T12:00:00").getTime() : 0;
+    return !!((p && p.t && was.ad && p.t < was.ad) || (ad && Date.now() - ad < 7 * 864e5)); };
+  let snap = snapOf();
+  const _sv = save;
+  save = function () {
+    let now; try { now = snapOf(); } catch (e) { return _sv.apply(this, arguments); }
+    let quiet = 0, real = 0; const fixed = [];
+    snap.forEach((was, id) => { const n = now.get(id);
+      if (n) { if (was.h > n.h) real += was.h - n.h; return; }
+      const g = S.games.find(x => x.id === id);
+      if (!g) quiet += was.h; else if (fixPlayed(g, was)) { quiet += was.h; fixed.push(g); } else real += was.h; });
+    snap = now;
+    if (!quiet || real) return _sv.apply(this, arguments);
+    const was = window.pnSilentHP; window.pnSilentHP = true;
+    let r; try { r = _sv.apply(this, arguments); } finally { window.pnSilentHP = was; }
+    S.fxBossMax = Math.max(grumL().reduce((a, x) => a + x.h, 0), (S.fxBossMax || 0) - quiet);
+    fixed.forEach(g => { g.hpFix = 1; });
+    return r; }; }
+{ const _r = pnBubReact; pnBubReact = function () {
+  const pl = S.played || [], old = S.bubSnap, last = pl[pl.length - 1], g = last && S.games.find(x => x.id === last.id);
+  if (old && pl.length > (old.p || 0) && g && g.hpFix) { old.p = pl.length; delete g.hpFix; save();
+    const o = _r.apply(this, arguments);
+    try { pnBubSay([`Noted: ${g.title} was already played. That's not a hit, so Grumble keeps his HP. Fair's fair.`, g.id]); } catch (e) {}
+    return o; }
+  return _r.apply(this, arguments); }; }
+
+/* ---- screenshots on a game's page: 4–5 from the stores (Steam, else PlayStation, else Nintendo; Nintendo first for a
+   Switch-only game), RAWG's when the stores have none. Fetched by themselves when the page opens, and for a few games a day. ---- */
+function gdShots(g) {
+  const l = (g.shots || []).filter(x => x && x.u);
+  if (!l.length) return `<section class="gd-sec gd-s-shots" data-g="${g.id}" hidden></section>`;
+  return `<section class="gd-sec gd-s-shots" data-g="${g.id}"><div class="gd-sh"><i aria-hidden="true">📸</i><span>Screenshots</span>${g.shotsSrc ? `<small>from ${esc(g.shotsSrc)}</small>` : ""}</div>
+    <div class="gd-shots">${l.map((x, i) => `<button type="button" data-gdshot="${g.id}:${i}" aria-label="Screenshot ${i + 1} of ${l.length}"><img decoding="async" loading="lazy" src="${esc(x.t || x.b || x.u)}" alt=""></button>`).join("")}</div></section>`;
+}
+const SHOT_BUSY = new Set();
+async function shotsFetch(g, force) {
+  if (!g || SHOT_BUSY.has(g.id) || (!force && (g.shots || g.shotsNo) && Date.now() - (g.shotsAt || 0) < 30 * 864e5)) return;
+  SHOT_BUSY.add(g.id);
+  try {
+    const plats = platList(g.platforms);
+    const [art, rs] = await Promise.all([
+      typeof artStores === "function" ? artStores(g.title, stIdOf(g) ? { st: stIdOf(g) } : {}).catch(() => null) : null,
+      rawgKey && g.rawgId ? rawgApi("games/" + g.rawgId + "/screenshots?page_size=6").catch(() => null) : null]);
+    if (art && art.err === "helper-old" && !(rs && rs.results)) return;
+    const pick = gpPickShots(art && art.pics, plats);
+    let l = pick.l.map(p => ({ u: p.u, b: gpBig(p), t: p.th || "", s: p.s })), src = pick.s ? ART_NAME[pick.s] : "";
+    if (l.length < 4 && rs && rs.results) { const r = rs.results.filter(x => x.image).slice(0, 5 - l.length).map(x => ({ u: x.image, b: x.image.replace("/media/screenshots/", "/media/resize/1280/-/screenshots/"),
+      t: x.image.replace("/media/screenshots/", "/media/resize/640/-/screenshots/"), s: "rw" })); if (!l.length) src = "RAWG"; else if (r.length) src += " and RAWG"; l = l.concat(r); }
+    g.shotsAt = Date.now();
+    if (l.length) { g.shots = l.slice(0, 5); g.shotsSrc = src; delete g.shotsNo; } else g.shotsNo = 1;
+    save();
+    document.querySelectorAll(`.gd-s-shots[data-g="${g.id}"]`).forEach(el => { el.outerHTML = gdShots(g); });
+  } catch (e) {} finally { SHOT_BUSY.delete(g.id); }
+}
+{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
+  try { const g = S.games.find(x => x.id === id); if (g && fullStyleOf() === "dash") setTimeout(() => shotsFetch(g), 700); } catch (e) {}
+  return o; }; }
+/* a few a day by themselves: playing, then On deck, then the rest */
+setTimeout(() => { if (document.hidden || Date.now() - (S.shotsRun || 0) < 20 * 36e5) return; S.shotsRun = Date.now();
+  const l = [...playingNow(), ...(typeof onDeck === "function" ? onDeck(6) : []), ...S.games].filter((g, i, a) => a.indexOf(g) === i && !g.shots && !g.shotsNo).slice(0, 6);
+  l.reduce((p, g) => p.then(() => shotsFetch(g)).then(() => new Promise(r => setTimeout(r, 1500))), Promise.resolve()); }, 70000);
+/* screenshots seen in a preview come along when the game is added */
+{ const _a = sgAdd; sgAdd = async function (it) { const g = await _a.apply(this, arguments);
+  if (g && it && it._shots && it._shots.length && !g.shots) { g.shots = it._shots.slice(0, 5).map(x => ({ u: x.u, b: x.big || x.u, t: "", s: x.s })); g.shotsSrc = it._src || ""; g.shotsAt = Date.now(); save(); }
+  return g; }; }
+/* tap one: full screen, swipe through, ✕ or a tap outside closes */
+function shotView(g, i) {
+  const l = g.shots || []; if (!l.length) return;
+  const v = document.createElement("div"); v.id = "shv"; noHub(v);
+  v.innerHTML = `<button class="shv-x" aria-label="Close">✕</button><div class="shv-l">${l.map(x => `<img decoding="async" src="${esc(x.b || x.u)}" alt="">`).join("")}</div><div class="shv-n">${i + 1} / ${l.length}</div>`;
+  document.body.appendChild(v); requestAnimationFrame(() => v.classList.add("on"));
+  const sc = v.querySelector(".shv-l"), n = v.querySelector(".shv-n");
+  requestAnimationFrame(() => { sc.scrollLeft = sc.clientWidth * i; });
+  sc.addEventListener("scroll", () => { n.textContent = (Math.round(sc.scrollLeft / (sc.clientWidth || 1)) + 1) + " / " + l.length; }, { passive: true });
+  const close = () => { v.classList.remove("on"); setTimeout(() => v.remove(), 260); removeEventListener("keydown", key); };
+  const key = e => { if (e.key === "Escape") close(); };
+  addEventListener("keydown", key);
+  v.addEventListener("click", e => { if (e.target.closest(".shv-x") || e.target === v || e.target.classList.contains("shv-n")) close(); });
+}
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-gdshot]"); if (!b) return; e.stopPropagation(); beep("open");
+  const [id, i] = b.dataset.gdshot.split(":"), g = S.games.find(x => x.id === id); if (g) shotView(g, +i); }, true);
+/* Nexi learned: the game page swiping to another game while a sheet, preview or screenshot viewer is open on top of it */
+{ const over = () => !!document.querySelector("#gprev.on, #diary.on, #shv, #sheet.on");
+  const rep = () => { if (over()) bugReport("layout", "The game page swiped behind an open sheet", { at: ["#gprev.on", "#diary.on", "#shv", "#sheet.on"].filter(x => document.querySelector(x)).join(", "), screen: bugScreen() }); };
+  const _hs = hubStep; hubStep = function () { rep(); return _hs.apply(this, arguments); };
+  const _hd = hubDragStart; hubDragStart = function () { rep(); return _hd.apply(this, arguments); }; }
+{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
+  if (kind === "layout" && /swiped behind an open sheet/.test(msg)) return "A swipe inside a sheet moved the game page behind it.";
+  return _bn.apply(this, arguments); }; }
+/* the owner: "2 times Story Rich?": Steam's "Story Rich" sat next to RAWG's "Story-rich". One-time clean of every game's genres
+   (same name ignoring case, spaces and hyphens = one genre, the first one kept); stApply now compares the same way */
+if (!S.genDedup) { let n = 0; S.games.forEach(g => { const l = platList(g.genres), u = l.filter((t, i) => l.findIndex(x => gdKey(x) === gdKey(t)) === i);
+  if (u.length < l.length) { g.genres = u.join(", "); n++; } }); S.genDedup = 1; save(); }
+/* the owner: "switching between pictures of a game I chose to see also switches the game page". The game page's swipe (and the
+   tab swipe) listen to every touch on the document, so a sideways swipe inside the preview, the Similar sheet or the screenshot
+   viewer also moved the page behind. Touches now stay inside those layers, and inside the page's own screenshot strip. */
+const NO_HUB = ["touchstart", "touchmove", "touchend", "touchcancel"];
+function noHub(el) { if (!el || el._noHub) return; el._noHub = 1; NO_HUB.forEach(t => el.addEventListener(t, e => e.stopPropagation(), { passive: true })); }
+{ const _gb = gpBox; gpBox = function () { const b = _gb.apply(this, arguments); noHub(b); return b; }; }
+{ const _db = dyBox; dyBox = function () { const b = _db.apply(this, arguments); noHub(b); return b; }; }
+{ const f = $("#full"); if (f) NO_HUB.forEach(t => f.addEventListener(t, e => { if (e.target.closest && e.target.closest(".gd-shots, .gd-tags")) e.stopPropagation(); }, { passive: true })); }
+WHATS_NEW.push(
+  { v: 237, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => (x.shots || []).length) || onDeck(1)[0] || S.games[0]; if (g) { openFull(g.id); shotsFetch(g); } },
+    at: () => { const s = $("#full .gd-s-shots:not([hidden])"); return s || $("#full .gd-s-about") || $("#full .gd-s-prog"); },
+    say: "Every game page now has <b>Screenshots</b>: 4–5 shots from Steam, PlayStation or Nintendo (Nintendo when it's a Switch game), found by myself. Tap one to see it full screen.",
+    tryIt: "Open a game and swipe through its screenshots." },
+  { v: 237, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: null,
+    say: "Fixed: Grumble lost HP when you deleted a game, or when you marked a game you'd just added as already played. Those aren't hits, so his HP stays. Also fixed: swiping through screenshots in a preview switched the game page behind it, and genres written two ways (Story Rich / Story-rich) showed twice.",
+    tryIt: "Nothing to do. Grumble's HP only drops when you really beat a game." }
 );
 </script>
