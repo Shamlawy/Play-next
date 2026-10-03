@@ -762,10 +762,12 @@ async function hltbSearch(q) {
     searchOptions: { games: { userId: 0, platform: { mode: "include", values: [] }, sortCategory: "popular", rangeCategory: "main", rangeTime: { min: null, max: null },
       gameplay: { perspective: { mode: "include", values: [] }, flow: { mode: "include", values: [] }, genre: { mode: "include", values: [] } },
       year: { mode: "include", values: [] }, modifier: "" }, users: { sortCategory: "postcount" }, lists: { sortCategory: "follows" }, filter: "", sort: 0, randomizer: 0 }, useCache: true });
-  for (let i = 0; i < 2; i++) {
+  /* the token is bound to the outgoing IP, and a Worker's two calls can leave from different IPs (the live helper got a 403
+     on its first search): up to 3 fresh tokens */
+  for (let i = 0; i < 3; i++) {
     const tok = await hltbToken(i > 0);
     const r = await fetch(`${HLTB}/api/search/site`, { method: "POST", headers: { ...HLTB_H, "Content-Type": "application/json", "x-auth-token": tok }, body });
-    if ((r.status === 401 || r.status === 403) && !i) continue;   /* token expired (or another outgoing IP): a fresh one */
+    if ((r.status === 401 || r.status === 403) && i < 2) continue;
     if (!r.ok) throw new Error("HowLongToBeat search " + r.status);
     const j = await r.json(); return Array.isArray(j && j.data) ? j.data : [];
   }
