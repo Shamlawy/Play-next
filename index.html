@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "235";
+const APP_V = "236";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6287,6 +6287,12 @@ function openSettings(scope) {
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.awOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>Discover: games picked for you</label>
+      <p class="note">Once a day Nexi gathers games you'd probably love from your favourites and what you're playing (his picks and Steam's), and deals them on the Add screen to swipe through.</p>
+      <div class="chips" id="s-xdc">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.dcOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
       <label>Finish forecast</label>
       <p class="note">Games you're playing get a finish date from your pace, and Nexi warns when a game you're hyped for comes out before you'll be done.</p>
       <div class="chips" id="s-xeta">
@@ -6679,6 +6685,7 @@ function openSettings(scope) {
   pick("#s-xhb", v => S.hbOff = v === "off", () => { if (!S.hbOff && typeof hbRun === "function") hbRun(true); });
   pick("#s-xsg", v => S.sgOff = v === "off");
   pick("#s-xaw", v => S.awOff = v === "off");
+  pick("#s-xdc", v => S.dcOff = v === "off", () => { if (typeof dcPaint === "function") dcPaint(); if (!S.dcOff && typeof dcRun === "function") dcRun(true); });
   pick("#s-xeta", v => S.etaOff = v === "off");
   pick("#s-xcap", v => S.capOff = v === "off");
   pick("#s-xssn", v => S.ssnOff = v === "off", () => { if (typeof ssnHat === "function") { try { pnBubReact(); } catch (e) {} } });
@@ -12911,12 +12918,19 @@ const normT = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
    kept returning unrelated games), then every name is looked up on RAWG and anything it can't find is dropped,
    so a made-up title never shows. Without the updated helper: only games from the same series. */
 const simWords = t => new Set(String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w && !["the", "of", "a", "and"].includes(w)));
+/* v236: numbers decide which game it is. "Baldur's Gate" was an 85% match for "Baldur's Gate 3" (one name contains the other)
+   and RAWG's "Baldur's Gate III" only 60%, so adding Baldur's Gate 3 from Similar added the 1998 game. Roman numerals count as
+   digits (III = 3; a lone "I" stays a word: I Am Setsuna) and two titles with different numbers are never the same game. */
+const SIM_ROMAN = { ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13, xiv: 14, xv: 15, xvi: 16 };
+const simNum = t => String(t || "").toLowerCase().replace(/[a-z]+/g, w => SIM_ROMAN[w] != null ? " " + SIM_ROMAN[w] + " " : w);
+const simNums = t => (simNum(t).match(/\d+/g) || []).map(n => String(+n)).sort().join(",");
 function simSame(a, b) {
-  const x = normT(a), y = normT(b); if (!x || !y) return 0;
+  const x = normT(simNum(a)), y = normT(simNum(b)); if (!x || !y) return 0;
   if (x === y) return 1;
-  if (x.length > 4 && y.length > 4 && (x.includes(y) || y.includes(x))) return .85;
-  const A = simWords(a), B = simWords(b), inter = [...A].filter(w => B.has(w)).length;
-  return inter / (new Set([...A, ...B]).size || 1);
+  const cap = simNums(a) !== simNums(b) ? .3 : 1;
+  if (x.length > 4 && y.length > 4 && (x.includes(y) || y.includes(x))) return Math.min(.85, cap);
+  const A = simWords(simNum(a)), B = simWords(simNum(b)), inter = [...A].filter(w => B.has(w)).length;
+  return Math.min(cap, inter / (new Set([...A, ...B]).size || 1));
 }
 const rawgApi = p => fetch("https://api.rawg.io/api/" + p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(rawgKey)).then(r => { if (!r.ok) throw new Error("RAWG said " + r.status); return r.json(); });
 const simHit = h => ({ name: h.name, background_image: h.background_image || "", released: h.released || "", tba: !!h.tba, playtime: h.playtime || 0, metacritic: h.metacritic || 0, id: h.id,
@@ -21458,5 +21472,394 @@ WHATS_NEW.push(
   { v: 235, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: () => $("#p-queue .hero") || $("#p-queue .row"),
     say: "Fixed: open queue cards were still different sizes on the unfolded screen. A played game's flip side (scores, rings, tips) stretched its card; now it scrolls inside, and every open card is the same height.",
     tryIt: "Tap a game you've played, then one that's coming." }
+);
+</script>
+<style>
+/* ===== v236: game suggestions you can see (big cards, a preview with store screenshots), swipe to add, Discover, share to add ===== */
+.sgl { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 4px 0 6px; }
+.sgc { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 18px; overflow: hidden; background: var(--u-card, #131a32);
+  border: 1px solid var(--u-line, rgba(234,242,255,.08)); cursor: pointer; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.sgc-p { position: relative; aspect-ratio: 16 / 9; background: #0a0e1b; overflow: hidden; }
+.sgc-p img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.sgc-p::after { content: ""; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(4,6,14,.7)); pointer-events: none; }
+.sgc-t { display: grid; gap: 3px; padding: 10px 12px 12px; min-width: 0; }
+.sgc-t b { font: 700 15px/1.25 "Poppins", system-ui, sans-serif; color: #fff; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sgc-t .sgc-w { font-size: 13px; line-height: 1.35; color: var(--volt); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sgc-t .sgc-m { font-size: 11.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgc-b { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 2; }
+.sgc-b button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(4,6,14,.72); color: #fff; font-size: 15px; cursor: pointer; display: grid; place-items: center; }
+.sgc-b .sgc-add { background: var(--volt); border-color: transparent; color: var(--void); font-size: 22px; font-weight: 700; }
+.sgc-b .sgc-have { width: auto; padding: 0 12px; border-radius: 999px; font: 600 12px "Poppins", system-ui, sans-serif; }
+.sgc-st { position: absolute; left: 12px; top: 12px; z-index: 3; padding: 4px 10px; border-radius: 8px; font: 800 14px/1 "Poppins", system-ui, sans-serif; letter-spacing: .06em; opacity: 0; pointer-events: none; }
+.sgc-st.y { color: #3fd9a4; border: 2px solid #3fd9a4; }
+.sgc-st.n { left: auto; right: 12px; color: #ff6b88; border: 2px solid #ff6b88; }
+.sgc.done { opacity: .45; }
+.sgc.done .sgc-add { display: none; }
+.sg-lib { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
+.sg-lib::-webkit-scrollbar { display: none; }
+.sg-lib button { flex: 0 0 84px; display: grid; gap: 5px; padding: 0; border: 0; background: none; color: var(--ice); cursor: pointer; text-align: left; }
+.sg-lib img { width: 84px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; display: block; }
+.sg-lib small { font-size: 11px; line-height: 1.25; color: var(--mute); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sg-hint { margin: 0 0 10px; font-size: 12px; color: var(--mute); }
+/* the preview: screenshots across the top, everything about the game under them */
+#gprev { position: fixed; inset: 0; z-index: 97; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0); pointer-events: none; transition: background .3s; }
+#gprev.on { background: rgba(0,0,0,.66); pointer-events: auto; }
+#gprev:empty { display: none; }
+.gp-in { position: relative; width: 100%; max-width: 620px; max-height: 92vh; overflow-y: auto; overscroll-behavior: contain; background: var(--u-pan, #0a0e1b); border-radius: 24px 24px 0 0;
+  translate: 0 100%; transition: translate .42s cubic-bezier(.16,1,.3,1); padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+#gprev.on .gp-in { translate: 0 0; }
+@media (min-width: 760px) { #gprev { align-items: center; } .gp-in { border-radius: 24px; } }
+.gp-shots { position: relative; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; aspect-ratio: 16 / 9; background: #05070f; }
+.gp-shots::-webkit-scrollbar { display: none; }
+.gp-shots img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; display: block; }
+.gp-dots { position: absolute; left: 0; right: 0; top: calc(min(620px, 100vw) * .5625 - 22px); display: flex; justify-content: center; gap: 6px; pointer-events: none; }
+.gp-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.45); transition: transform .2s, background .2s; }
+.gp-dots i.on { background: #fff; transform: scale(1.35); }
+.gp-src { position: absolute; left: 12px; top: 12px; padding: 4px 9px; border-radius: 999px; background: rgba(4,6,14,.72); color: var(--ice); font: 600 11px "Poppins", system-ui, sans-serif; }
+.gp-x { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(4,6,14,.72); color: #fff; font-size: 16px; cursor: pointer; z-index: 2; }
+.gp-body { position: relative; padding: 14px 18px 4px; touch-action: pan-y; }
+.gp-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; }
+.gp-nav button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--u-line2, rgba(234,242,255,.14)); background: var(--u-card, #131a32); color: var(--ice); font-size: 18px; cursor: pointer; }
+.gp-nav button:disabled { opacity: .3; cursor: default; }
+.gp-nav small { font-size: 12px; color: var(--mute); text-align: center; }
+.gp-body h3 { margin: 0; font: 700 clamp(20px, 5.4vw, 26px)/1.15 "Poppins", system-ui, sans-serif; color: #fff; }
+.gp-why { margin: 8px 0 0; padding: 10px 12px; border-radius: 14px; background: rgba(var(--vrgb), .12); color: var(--ice); font-size: 13.5px; line-height: 1.4; }
+.gp-why b { color: var(--volt); font-weight: 600; }
+.gp-facts.gd-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.gp-facts span { padding: 5px 11px; border-radius: 999px; font-size: 11.5px; color: var(--ice); background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); }
+.gp-facts span.mc { border-color: rgba(63,217,164,.5); color: #3fd9a4; font-weight: 600; }
+.gp-desc { margin: 12px 0 0; font-size: 14px; line-height: 1.55; color: var(--ice); display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.gp-desc.open { display: block; -webkit-line-clamp: unset; }
+.gp-more { margin: 4px 0 0; padding: 4px 0; border: 0; background: none; color: var(--volt); font: 600 13px "Poppins", system-ui, sans-serif; cursor: pointer; }
+.gp-wait { margin: 12px 0 0; color: var(--mute); font-size: 13px; }
+.gp-acts { display: flex; gap: 8px; margin: 16px 0 0; }
+.gp-acts button { flex: 1 1 auto; min-width: 0; padding: 13px 12px; border-radius: 999px; border: 1px solid var(--u-line2, rgba(234,242,255,.14)); background: var(--u-card, #131a32); color: var(--ice);
+  font: 600 14px "Poppins", system-ui, sans-serif; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-acts .hot { flex: 1.4 1 auto; background: var(--volt); border-color: transparent; color: var(--void); }
+.gp-acts .hot:disabled { background: rgba(63,217,164,.18); color: #3fd9a4; }
+.gp-hint { margin: 10px 0 0; font-size: 11.5px; color: var(--mute); text-align: center; }
+@media (max-width: 400px) { .gp-acts { flex-wrap: wrap; } .gp-acts .hot { flex-basis: 100%; } }
+/* Discover on the Add screen */
+.dc-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; margin: 0 0 16px; padding: 12px 14px; border-radius: 20px; cursor: pointer; text-align: left;
+  border: 1px solid rgba(var(--vrgb), .4); background: linear-gradient(120deg, rgba(var(--vrgb), .16), var(--u-card, #131a32) 70%); color: var(--ice); font: inherit; }
+.dc-fan { position: relative; width: 74px; height: 58px; }
+.dc-fan img { position: absolute; top: 0; width: 40px; height: 56px; object-fit: cover; border-radius: 8px; box-shadow: 0 6px 14px rgba(0,0,0,.5); }
+.dc-fan img:nth-child(1) { left: 0; transform: rotate(-10deg); }
+.dc-fan img:nth-child(2) { left: 17px; transform: rotate(-2deg); z-index: 1; }
+.dc-fan img:nth-child(3) { left: 34px; transform: rotate(8deg); z-index: 2; }
+.dc-card b { display: block; font: 700 15px/1.25 "Poppins", system-ui, sans-serif; color: #fff; }
+.dc-card small { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.35; color: var(--mute); }
+.dc-card em { font-style: normal; color: var(--volt); font-size: 20px; }
+</style>
+<script>
+/* ===== v236: the owner: "adding Baldur's Gate 3 from Similar added the wrong game; the pictures are too small and I need more
+   of a description; maybe tap and hold; I only add games by hand, give me smarter ways to add". simSame now knows numbers (the
+   wrong game). Suggestions (Nexi's picks, Steam's "more like this") are big picture cards; a tap opens a preview: 4–5
+   screenshots from the stores (Steam, else PlayStation, else Nintendo; Nintendo first for a Switch-only game, via the helper's
+   /art), the full RAWG description, platforms, genres, Metacritic, why it was picked, Trailer, Add, Not for me, and ‹ › to the
+   next one. Swipe a card or the preview → to add, ← for "not for me" (S.simNo, never suggested again). Discover (S.dcPool):
+   Nexi gathers picks from your top-ranked and playing games by himself once a day and deals them as a deck. Share to add:
+   share a store / YouTube link or a name from any app (Android, installed) → Play next opens that game's preview. ===== */
+const sgK = t => normT(simNum(t));
+const sgNo = t => !!(S.simNo || {})[sgK(t)];
+const sgHave = it => S.games.find(g => simSame(g.title, it.name) >= .9) || null;
+const stImg = id => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/capsule_616x353.jpg`;
+const stImgB = id => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/header.jpg`;
+function sgFromRawg(h, extra) {
+  const yr = (h.released || "").slice(0, 4);
+  return Object.assign({ name: h.name, why: h.why || "", img: h.background_image || "", meta: [yr, (h.genres || []).slice(0, 2).map(x => x.name).join(", "), h.metacritic ? "MC " + h.metacritic : ""].filter(Boolean).join(" · "),
+    rawg: h, st: 0, tags: (h.tags || []).map(t => t.name).slice(0, 8), who: "nexi" }, extra || {});
+}
+function sgFromSteam(x, g) {
+  const mine = new Set(((g && g.stTags) || []).map(t => t.toLowerCase()));
+  const both = (x.tags || []).filter(t => mine.has(t.toLowerCase()) && (!ST_GENERIC.has(t.toLowerCase()) || ST_BROAD.has(t.toLowerCase()))).slice(0, 3);
+  return { name: x.name, why: both.length ? "Steam players who like " + (g ? g.title : "it") + " love this · both " + both.join(", ") : "Steam players also like it", img: stImg(x.id), img2: stImgB(x.id),
+    meta: (x.tags || []).slice(0, 3).join(", "), rawg: null, st: x.id, tags: x.tags || [], desc: x.desc || "", who: "steam" };
+}
+const SGL = {};   /* lists on screen, by key */
+function sgCards(key, list) {
+  SGL[key] = list;
+  return `<div class="sgl" data-sgl="${key}">${list.map((it, i) => { const have = sgHave(it);
+    return `<div class="sgc${have ? " done" : ""}" data-sgc="${key}:${i}" role="button" tabindex="0" aria-label="${esc(it.name)}: see more">
+      <div class="sgc-p"><img decoding="async" loading="lazy" src="${esc(it.img || "")}" alt="" onerror="${it.img2 ? `if(this.src!=='${esc(it.img2)}'){this.src='${esc(it.img2)}'}else{this.style.visibility='hidden'}` : "this.style.visibility='hidden'"}"></div>
+      <div class="sgc-b">${have ? `<button type="button" class="sgc-have" data-opg="${have.id}">In your library ›</button>` : `<button type="button" class="sgc-yt" data-ytq="${esc(it.name)}" aria-label="Trailer">▶</button><button type="button" class="sgc-add" data-sgadd="${key}:${i}" aria-label="Add ${esc(it.name)}">＋</button>`}</div>
+      <i class="sgc-st y" aria-hidden="true">ADD</i><i class="sgc-st n" aria-hidden="true">NOPE</i>
+      <div class="sgc-t"><b>${esc(it.name)}</b>${it.why ? `<small class="sgc-w">${esc(it.why)}</small>` : ""}${it.meta ? `<small class="sgc-m">${esc(it.meta)}</small>` : ""}</div></div>`; }).join("")}</div>`;
+}
+/* the RAWG record behind a suggestion (numbers count: Baldur's Gate 3 is not Baldur's Gate) */
+async function sgResolve(it) {
+  if (it.rawg && it.rawg.id) return it.rawg;
+  if (!rawgKey) return null;
+  const r = await rawgApi("games?search=" + encodeURIComponent(it.name) + "&search_precise=true&page_size=8");
+  const best = (r.results || []).map(h => ({ h, s: simSame(h.name, it.name) })).sort((a, b) => b.s - a.s)[0];
+  return best && best.s >= .6 ? (it.rawg = simHit(best.h)) : null;
+}
+async function sgAdd(it) {
+  const have = sgHave(it); if (have) return have;
+  if (!rawgKey) { toast("Add your RAWG key in Settings first (it fills in the cover and dates)"); return null; }
+  let h = null; try { h = await sgResolve(it); } catch (e) {}
+  if (!h) { toast("Couldn't find " + it.name + " on RAWG"); return null; }
+  /* Nexi learned (v236): the add that turned Baldur's Gate 3 into the 1998 Baldur's Gate. A game added under a different
+     name (or with a different number) than the one picked is reported, so a matching slip shows up by itself */
+  if (simSame(h.name, it.name) < .9 || simNums(h.name) !== simNums(it.name))
+    bugReport("look", "Added a different game than the one picked", { at: `picked “${it.name}”, RAWG gave “${h.name}” (${(h.released || "").slice(0, 4)})`, screen: bugScreen() });
+  simAdd(h);
+  const g = S.games[S.games.length - 1];
+  if (g && simSame(g.title, h.name) >= .9) {
+    if (it.why && !g.desc) g.desc = it.why.replace(/^Steam players who like .* love this · /, "Steam fans: ").slice(0, 90);
+    if (it.st && typeof stIdOf === "function" && !stIdOf(g)) { g.stId = it.st; g.stTags = (it.tags || []).slice(0, 15); g.stAt = Date.now(); try { stApply(g); } catch (e) {} }
+    if (it.full && it.full.description_raw && !g.about) g.about = it.full.description_raw.slice(0, 1200);
+    save(); sigAdd && sigAdd("add", g);
+  }
+  return g;
+}
+function sgNope(it) { (S.simNo ||= {})[sgK(it.name)] = Date.now(); const k = Object.keys(S.simNo); if (k.length > 300) delete S.simNo[k[0]];
+  if (S.dcPool) S.dcPool = S.dcPool.filter(x => sgK(x.name) !== sgK(it.name)); save(); }
+/* a card or the preview, dragged sideways: → add, ← not for me. Vertical moves stay scrolls. */
+function sgSwipe(el, go) {
+  let x0 = 0, y0 = 0, dx = 0, on = false, dead = false, id = null;
+  el.addEventListener("pointerdown", e => { if (e.button > 0 || e.target.closest("button, a, .gp-shots")) return; x0 = e.clientX; y0 = e.clientY; dx = 0; on = false; dead = false; id = e.pointerId; }, { passive: true });
+  el.addEventListener("pointermove", e => { if (id !== e.pointerId || dead) return; const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!on) { if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { dead = true; return; } if (Math.abs(mx) < 12) return; on = true; try { el.setPointerCapture(id); } catch (x) {} }
+    dx = mx; el.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`;
+    const y = el.querySelector(".sgc-st.y"), n = el.querySelector(".sgc-st.n");
+    if (y) y.style.opacity = Math.max(0, Math.min(1, dx / 90)); if (n) n.style.opacity = Math.max(0, Math.min(1, -dx / 90)); });
+  const end = e => { if (id !== e.pointerId) return; id = null; if (!on) return;
+    el._swiped = Date.now();
+    const st = el.querySelectorAll(".sgc-st"); const back = () => { el.animate([{ transform: el.style.transform }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.2,1.3,.4,1)" }); el.style.transform = ""; st.forEach(s => s.style.opacity = ""); };
+    if (Math.abs(dx) < 90) return back();
+    const dir = dx > 0 ? 1 : -1;
+    el.animate([{ transform: el.style.transform, opacity: 1 }, { transform: `translateX(${dir * 120}%) rotate(${dir * 8}deg)`, opacity: 0 }], { duration: 240, easing: "ease-in" }).onfinish = () => { el.style.transform = ""; st.forEach(s => s.style.opacity = ""); go(dir, el); };
+  };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", e => { if (id === e.pointerId) { id = null; if (on) { el.style.transform = ""; } } });
+}
+function sgWire(root) {
+  root.querySelectorAll(".sgc:not([data-sw])").forEach(c => { c.dataset.sw = 1;
+    sgSwipe(c, async (dir, el) => { const [k, i] = c.dataset.sgc.split(":"), it = (SGL[k] || [])[+i]; if (!it) return;
+      if (dir > 0) { beep("add"); const g = await sgAdd(it); if (g) { c.classList.add("done"); toastIn(c, "Added ✓"); } }
+      else { beep("back"); sgNope(it); c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: "forwards" }).onfinish = () => c.remove(); } }); });
+}
+/* a small confirmation inside the sheet (the app's toast sits under sheets) */
+function toastIn(el, t) { const s = document.createElement("i"); s.className = "sgc-st y"; s.textContent = t; s.style.opacity = 1; el.appendChild(s);
+  s.animate([{ opacity: 0, transform: "scale(.8)" }, { opacity: 1, transform: "none" }], { duration: 200 }); setTimeout(() => s.remove(), 1600); }
+/* taps: a card → its preview; ＋ → add right there */
+document.addEventListener("click", async e => {
+  const a = e.target.closest && e.target.closest("[data-sgadd]");
+  if (a) { e.stopPropagation(); const [k, i] = a.dataset.sgadd.split(":"), it = (SGL[k] || [])[+i]; if (!it) return; a.textContent = "…"; beep("add");
+    const g = await sgAdd(it); const c = a.closest(".sgc"); if (g && c) { c.classList.add("done"); toastIn(c, "Added ✓"); } else a.textContent = "＋"; return; }
+  const c = e.target.closest && e.target.closest("[data-sgc]");
+  if (c && !e.target.closest("button")) { if (c._swiped && Date.now() - c._swiped < 400) return; e.stopPropagation(); const [k, i] = c.dataset.sgc.split(":"); beep("tap"); gpOpen(SGL[k] || [], +i, k); }
+}, true);
+
+/* ---- the Similar sheet, rebuilt: your library as a strip of covers, then big cards ---- */
+openSimilar = function (id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  uCount("o", "similar");
+  const loc = simLocal(g, 8), box = dyBox();
+  dyShow(box, `<div class="dy-h"><b>🔍 Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${loc.length ? `<p class="dy-q"><b>In your library</b> · <button class="gp-more" data-simq="${g.id}">show them in the Queue</button></p>
+      <div class="sg-lib">${loc.map(x => `<button type="button" data-opg="${x.g.id}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><small>${esc(x.g.title)} · ${Math.round(x.s * 100)}%</small></button>`).join("")}</div>` : ""}
+    <p class="dy-q" style="margin-top:10px"><b>Picked by ${esc(pnName())}</b> <small>checked on RAWG</small></p>
+    <p class="sg-hint">Tap one to see screenshots and more · swipe → to add, ← not for me</p>
+    <div class="sim-new"><p class="dy-empty">${esc(pnName())} is thinking…</p></div>
+    ${stIdOf(g) ? `<p class="dy-q" style="margin-top:16px"><b>Steam players also like</b> <small>Steam's own "More like this"</small></p><div class="st-more"><p class="dy-empty">Asking Steam…</p></div>` : ""}
+    <button class="dy-more" data-trailer="${g.id}">▶ Watch the ${esc(g.title)} trailer</button>`,
+    e => { const q = e.target.closest("[data-simq]"); if (q) { dyClose(); nxShut(); simFilter(q.dataset.simq); goTab("queue"); return; }
+      const tr = e.target.closest("[data-ytq]"); if (tr) { trailer(tr.dataset.ytq); return; } });
+  simFind(g).then(rec => { const el = box.querySelector(".sim-new"); if (!el) return;
+    const l = (rec.l || []).filter(h => !sgNo(h.name)).map(h => sgFromRawg(h));
+    el.innerHTML = (rec.how === "series" ? `<p class="dy-empty">${esc(nxVoice("Smarter picks switch on once the helper on Cloudflare is updated. For now, here's the same series."))}</p>` : "")
+      + (l.length ? sgCards("ai", l) : rec.how === "series" ? "" : '<p class="dy-empty">Nothing close turned up.</p>'); sgWire(el); })
+    .catch(err => { const el = box.querySelector(".sim-new"); if (el) el.innerHTML = `<p class="dy-empty">Couldn't find new ones right now${err && err.message ? " (" + esc(err.message) + ")" : ""}.</p>`; });
+  if (stIdOf(g)) stMore(g).then(rec => { const el = box.querySelector(".st-more"); if (!el) return;
+    const l = ((rec && rec.l) || []).filter(x => !sgNo(x.name)).map(x => sgFromSteam(x, g));
+    el.innerHTML = l.length ? sgCards("st", l) : `<p class="dy-empty">Steam had nothing to add.</p>`; sgWire(el); })
+    .catch(err => { const el = box.querySelector(".st-more"); if (el) el.innerHTML = `<p class="dy-empty">${err && err.message === "helper-old" ? "This switches on once Nexi's helper is updated." : "Couldn't reach Steam right now."}</p>`; });
+};
+
+/* ---- the preview ---- */
+const GP = { list: [], i: 0, key: "", tok: 0 };
+function gpBox() { let b = document.getElementById("gprev"); if (!b) { b = document.createElement("div"); b.id = "gprev"; document.body.appendChild(b); } return b; }
+function gpClose() { const b = gpBox(); b.classList.remove("on"); GP.tok++; setTimeout(() => { if (!b.classList.contains("on")) b.innerHTML = ""; }, 320); }
+/* a screenshot at a size that suits a phone screen: Steam's 1920 copy, the stores' scaled copies */
+function gpBig(p) {
+  const u = p.u || "";
+  if (/steamstatic\.com\/.*\/ss_[0-9a-f]+\.jpg$/.test(u)) return u.replace(/\.jpg$/, ".1920x1080.jpg");
+  if (/image\.api\.playstation\.com/.test(u)) return u.split("?")[0] + "?w=1280&h=1280";
+  if (/store-images\.s-microsoft\.com/.test(u)) return u.split("?")[0] + "?w=1280&h=720";
+  return u;
+}
+/* Steam first, then PlayStation, then Nintendo; Nintendo first for a game that's only on Nintendo machines */
+function gpPickShots(pics, plats) {
+  const shots = (pics || []).filter(p => p.r === "shot" && p.u);
+  const nOnly = plats.length && plats.every(n => /nintendo|switch|wii|3ds/i.test(n));
+  const order = nOnly ? ["ns", "st", "ps", "xb"] : ["st", "ps", "ns", "xb"];
+  for (const s of order) { const l = shots.filter(p => p.s === s); if (l.length >= 3) return { s, l: l.slice(0, 5) }; }
+  const any = order.map(s => shots.filter(p => p.s === s)).flat();
+  return { s: any[0] ? any[0].s : "", l: any.slice(0, 5) };
+}
+function gpOpen(list, i, key) {
+  GP.list = list; GP.i = Math.max(0, Math.min(i, list.length - 1)); GP.key = key || "";
+  const b = gpBox();
+  if (!b.firstChild) { b.innerHTML = `<div class="gp-in" role="dialog" aria-label="Game preview"></div>`;
+    b.onclick = e => { if (e.target === b) gpClose(); };
+    sgSwipe(b.firstChild, (dir) => gpDecide(dir)); }
+  gpPaint(); requestAnimationFrame(() => b.classList.add("on"));
+}
+function gpPaint() {
+  const it = GP.list[GP.i]; if (!it) return gpClose();
+  const box = gpBox().firstChild, tok = ++GP.tok, have = sgHave(it), n = GP.list.length;
+  const shots = it._shots || (it.img ? [{ u: it.img, s: "" }] : []);
+  box.innerHTML = `<div class="gp-shots">${shots.map((p, j) => `<img decoding="async" ${j ? 'loading="lazy"' : ""} src="${esc(p.big || p.u)}" alt="">`).join("") || "<span></span>"}</div>
+    ${shots.length > 1 ? `<div class="gp-dots">${shots.map((p, j) => `<i${j ? "" : ' class="on"'}></i>`).join("")}</div>` : ""}
+    ${it._src ? `<span class="gp-src">${esc(it._src)} screenshots</span>` : ""}
+    <button class="gp-x" data-gpx aria-label="Close">✕</button>
+    <div class="gp-body">
+      ${n > 1 ? `<div class="gp-nav"><button data-gpnav="-1" aria-label="Previous"${GP.i ? "" : " disabled"}>‹</button><small>${GP.i + 1} of ${n}${GP.key === "dc" ? " · picked for you" : ""}</small><button data-gpnav="1" aria-label="Next"${GP.i < n - 1 ? "" : " disabled"}>›</button></div>` : ""}
+      <h3>${esc(it.full ? it.full.name : it.name)}</h3>
+      ${it.why ? `<p class="gp-why"><b>${it.who === "steam" ? "Steam" : esc(pnName())}:</b> ${esc(it.why)}</p>` : ""}
+      <div class="gp-facts gd-tags">${gpFacts(it)}</div>
+      ${it.full && it.full.description_raw ? `<p class="gp-desc">${esc(it.full.description_raw)}</p><button class="gp-more" data-gpdesc>Read more</button>`
+        : it.desc ? `<p class="gp-desc">${esc(it.desc)}</p>` : `<p class="gp-wait">${it._fail ? "Couldn't load the details right now." : "Getting screenshots and the full story…"}</p>`}
+      <div class="gp-acts">${have ? `<button class="hot" data-opg="${have.id}">In your library ›</button>` : `<button class="hot" data-gpadd>＋ Add to queue</button>`}<button data-ytq="${esc(it.name)}">▶ Trailer</button>${have ? "" : `<button data-gpno>Not for me</button>`}</div>
+      ${have ? "" : `<p class="gp-hint">Swipe → to add · ← not for me${n > 1 ? " · ‹ › just looks" : ""}</p>`}
+    </div>`;
+  box.scrollTop = 0;
+  const sh = box.querySelector(".gp-shots"), dots = box.querySelectorAll(".gp-dots i");
+  if (sh && dots.length) sh.addEventListener("scroll", () => { const k = Math.round(sh.scrollLeft / (sh.clientWidth || 1)); dots.forEach((d, j) => d.classList.toggle("on", j === k)); }, { passive: true });
+  const d = box.querySelector(".gp-desc"), m = box.querySelector("[data-gpdesc]");
+  if (d && m) requestAnimationFrame(() => { if (d.scrollHeight <= d.clientHeight + 2) m.hidden = true; });
+  if (!it._done) gpLoad(it, tok);
+  /* warm the next one */
+  const nx = GP.list[GP.i + 1]; if (nx && !nx._done && !nx._busy) setTimeout(() => gpLoad(nx, -1), 900);
+}
+function gpFacts(it) {
+  const f = it.full || it.rawg || {}, out = [];
+  const plats = (f.platforms || []).map(x => x.platform ? x.platform.name : x).filter(Boolean);
+  if (f.released) out.push(`<span>${esc(f.released.slice(0, 4))}${new Date(f.released) > new Date() ? " · coming" : ""}</span>`);
+  if (plats.length) out.push(typeof platHtml === "function" && !S.platText ? platHtml(plats.join(", ")) : `<span>${esc(plats.slice(0, 4).join(" · "))}</span>`);
+  if (f.metacritic) out.push(`<span class="mc">Metacritic ${f.metacritic}</span>`);
+  if (f.playtime) out.push(`<span>~${f.playtime}h</span>`);
+  (f.genres || []).slice(0, 3).forEach(gn => out.push(`<span>${esc(gn.name)}</span>`));
+  if (!f.genres && it.tags) it.tags.slice(0, 3).forEach(t => out.push(`<span>${esc(t)}</span>`));
+  return out.join("");
+}
+async function gpLoad(it, tok) {
+  if (it._busy) return; it._busy = 1;
+  try {
+    const h = await sgResolve(it).catch(() => null);
+    const [full, art, rs] = await Promise.all([
+      h && h.id ? rawgApi("games/" + h.id).catch(() => null) : null,
+      typeof artStores === "function" ? artStores(it.name, it.st ? { st: it.st } : {}).catch(() => null) : null,
+      h && h.id ? rawgApi("games/" + h.id + "/screenshots?page_size=6").catch(() => null) : null]);
+    if (full) it.full = full;
+    const plats = ((full || h || {}).platforms || []).map(x => x.platform ? x.platform.name : "").filter(Boolean);
+    const pick = gpPickShots(art && art.pics, plats);
+    let shots = pick.l.map(p => ({ u: p.u, big: gpBig(p), s: p.s })), src = pick.s ? (ART_NAME[pick.s] || "") : "";
+    if (shots.length < 3 && rs && rs.results) { const r = rs.results.filter(x => x.image).slice(0, 5 - shots.length).map(x => ({ u: x.image, big: x.image.replace("/media/screenshots/", "/media/resize/1280/-/screenshots/"), s: "rw" }));
+      if (!shots.length) src = "RAWG"; shots = shots.concat(r); }
+    if (shots.length) { it._shots = shots; it._src = src; }
+    it._done = 1;
+  } catch (e) { it._fail = 1; } finally { it._busy = 0; }
+  if (tok > 0 && tok === GP.tok && GP.list[GP.i] === it) { const sc = gpBox().firstChild.scrollTop; gpPaint(); gpBox().firstChild.scrollTop = sc; }
+}
+async function gpDecide(dir) {
+  const it = GP.list[GP.i]; if (!it || sgHave(it)) { if (dir) gpStep(1); return; }
+  if (dir > 0) { beep("add"); const g = await sgAdd(it); if (!g) return; it.added = 1; sgMark(it); }
+  else { beep("back"); sgNope(it); sgMark(it, 1); }
+  if (GP.i < GP.list.length - 1) gpStep(1, true); else { gpPaint(); setTimeout(gpClose, 700); }
+}
+function gpStep(d, decided) {
+  const k = GP.i + d; if (k < 0 || k >= GP.list.length) return;
+  GP.i = k; gpPaint();
+  if (!calm()) gpBox().firstChild.animate([{ opacity: decided ? 0 : .4, transform: `translateX(${decided ? 0 : d * 30}px) scale(${decided ? .97 : 1})` }, { opacity: 1, transform: "none" }], { duration: 260, easing: "ease-out" });
+}
+/* keep the cards behind the preview in step */
+function sgMark(it, gone) { document.querySelectorAll(".sgc").forEach(c => { const [k, i] = c.dataset.sgc.split(":"); if ((SGL[k] || [])[+i] !== it) return; if (gone) c.remove(); else c.classList.add("done"); }); dcPaint(); }
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#gprev"); if (!b) return;
+  if (e.target.closest("[data-gpx]")) { e.stopPropagation(); gpClose(); return; }
+  const nv = e.target.closest("[data-gpnav]"); if (nv) { e.stopPropagation(); beep("tap"); gpStep(+nv.dataset.gpnav); return; }
+  if (e.target.closest("[data-gpadd]")) { e.stopPropagation(); gpDecide(1); return; }
+  if (e.target.closest("[data-gpno]")) { e.stopPropagation(); gpDecide(-1); return; }
+  const m = e.target.closest("[data-gpdesc]"); if (m) { e.stopPropagation(); const d = b.querySelector(".gp-desc"); if (d) { const o = d.classList.toggle("open"); m.textContent = o ? "Read less" : "Read more"; } return; }
+  const y = e.target.closest("[data-ytq]"); if (y) { e.stopPropagation(); trailer(y.dataset.ytq); return; }
+  if (e.target.closest("[data-opg]")) gpClose();
+}, true);
+addEventListener("keydown", e => { if (!gpBox().classList.contains("on")) return; if (e.key === "Escape") gpClose(); if (e.key === "ArrowRight") gpStep(1); if (e.key === "ArrowLeft") gpStep(-1); });
+
+/* ---- Discover: Nexi gathers picks by himself (once a day) from your top-ranked and playing games ---- */
+async function dcRun(force) {
+  if (S.dcOff || document.hidden) return;
+  if (!force && Date.now() - (S.dcAt || 0) < 20 * 36e5) return;
+  S.dcAt = Date.now(); save();
+  const src = []; [...(typeof rankedGames === "function" ? rankedGames().slice(0, 3) : []), ...playingNow().filter(g => !g.comp)].forEach(g => { if (!src.includes(g)) src.push(g); });
+  const pool = new Map(), old = new Set((S.dcPool || []).map(x => sgK(x.name)));
+  const put = (it, g, w) => { const k = sgK(it.name); if (!k || sgNo(it.name) || sgHave(it)) return;
+    const was = pool.get(k); if (was) { was.sc += w; if (!was.from.includes(g.title)) was.from.push(g.title); if (!was.rawg && it.rawg) was.rawg = it.rawg; return; }
+    pool.set(k, Object.assign(it, { sc: w, from: [g.title] })); };
+  for (const g of src.slice(0, 5)) {
+    try { const r = await simFind(g); (r.l || []).forEach((h, j) => put(sgFromRawg(h), g, 2 - j * .08)); } catch (e) {}
+    try { if (stIdOf(g)) { const r = await stMore(g); ((r && r.l) || []).slice(0, 8).forEach((x, j) => put(sgFromSteam(x, g), g, 1.4 - j * .1)); } } catch (e) {}
+  }
+  const l = [...pool.values()].sort((a, b) => b.sc - a.sc).slice(0, 24).map(x => { const o = Object.assign({}, x);
+    if (x.from.length > 1) o.why = `Fits ${x.from.slice(0, 2).join(" and ")}` + (x.why ? " · " + x.why : "");
+    delete o._shots; delete o.full; delete o._done; delete o._busy; return o; });
+  if (!l.length) return;
+  S.dcPool = l; save(); dcPaint();
+  const fresh = l.filter(x => !old.has(sgK(x.name))).length;
+  if (fresh >= 3 && typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring"))
+    try { pnBubSay([`I found ${fresh} games you'd probably love, picked from ${src.slice(0, 2).map(g => g.title).join(" and ")}. Want to swipe through them?`, "discover"]); } catch (e) {}
+}
+function dcOpen() { const l = (S.dcPool || []).filter(x => !sgNo(x.name) && !sgHave(x)); if (!l.length) { toast("Nothing new right now. I'll look again tomorrow."); return; } SGL.dc = l; gpOpen(l, 0, "dc"); }
+function dcPaint() {
+  const host = $("#p-add .astep[data-s='1']"); if (!host) return;
+  let el = $("#dcAdd"); if (!el) { el = document.createElement("div"); el.id = "dcAdd"; host.insertBefore(el, host.firstChild); }
+  const l = (S.dcPool || []).filter(x => !sgNo(x.name) && !sgHave(x));
+  el.innerHTML = l.length && !S.dcOff ? `<button type="button" class="dc-card" data-dcopen><span class="dc-fan">${l.slice(0, 3).map(x => `<img decoding="async" src="${esc(x.img || "")}" alt="" onerror="this.style.visibility='hidden'">`).join("")}</span>
+    <span><b>✨ ${l.length} games picked for you</b><small>From ${esc([...new Set(l.flatMap(x => x.from || []))].slice(0, 2).join(" and "))}. Swipe → to add, ← to skip.</small></span><em aria-hidden="true">›</em></button>` : "";
+}
+document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-dcopen]")) { e.stopPropagation(); beep("open"); dcOpen(); } }, true);
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "discover") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); dcOpen(); }, true);
+setTimeout(dcPaint, 0);
+setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(() => dcRun(false), { timeout: 8000 }) : dcRun(false)), 50000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => dcRun(false), 20000); });
+
+/* ---- share to add: Play next is a share target on Android (manifest share_target). A shared Steam / PlayStation / Nintendo /
+   Xbox / YouTube / RAWG link or a plain name → the game's preview with Add. ---- */
+function shName(title, text, url) {
+  const all = [title, text, url].filter(Boolean).join(" ");
+  const st = all.match(/store\.steampowered\.com\/app\/(\d+)(?:\/([^/?#\s]+))?/i);
+  if (st && st[2]) return { st: +st[1], name: decodeURIComponent(st[2]).replace(/_/g, " ").trim() };
+  const rw = all.match(/rawg\.io\/games\/([a-z0-9-]+)/i); if (rw) return { name: rw[1].replace(/-/g, " ") };
+  const ns = all.match(/nintendo\.com\/[^\s]*\/(?:products?|store\/products)\/([a-z0-9-]+?)(?:-switch|-\d{3,})?\/?(?:[?#\s]|$)/i); if (ns) return { name: ns[1].replace(/-/g, " ") };
+  let t = String(title || text || "").replace(/https?:\/\/\S+/g, " ");
+  t = t.replace(/\s*[|–—-]\s*(PS[45] Games|PlayStation.*|Xbox.*|Nintendo.*|Steam.*|YouTube|Official.*|Launch Trailer.*|Trailer.*|Gameplay.*)$/i, "")
+    .replace(/\b(official|launch|announce(ment)?|reveal|story|gameplay|game ?play)?\s*trailer\b.*$/i, "").replace(/\bon steam\b/i, "").replace(/[#@][\w-]+/g, "").replace(/\s+/g, " ").trim();
+  return t ? { name: t, st: st ? +st[1] : 0 } : null;
+}
+async function shOpen(q) {
+  const s = shName(q.get("title"), q.get("text"), q.get("url")); if (!s || !s.name) { toast("I couldn't tell which game that is"); return; }
+  const it = { name: s.name, why: "", img: s.st ? stImg(s.st) : "", img2: s.st ? stImgB(s.st) : "", st: s.st || 0, tags: [], who: "share", rawg: null };
+  if (rawgKey) try { const h = await sgResolve(it); if (h) Object.assign(it, sgFromRawg(h, { st: it.st, who: "share", why: "", img: it.img || h.background_image })); } catch (e) {}
+  SGL.share = [it]; gpOpen([it], 0, "share");
+}
+{ const q = new URLSearchParams(location.search);
+  if (q.has("url") || q.has("text") || q.has("title")) { history.replaceState(null, "", location.pathname); setTimeout(() => { if (typeof nxShut === "function") try { nxShut(); } catch (e) {} goTab("add"); shOpen(q); }, 1600); } }
+
+{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
+  if (kind === "look" && /different game than the one picked/.test(msg)) return "A game I added wasn't the one you picked. I'll double-check the name next time.";
+  return _bn.apply(this, arguments); }; }
+/* Settings → Extra features → Discover (#s-xdc) */
+if (GROUP_KEYS["Extra features"]) GROUP_KEYS["Extra features"].push("dcOff");
+WHATS_NEW.push(
+  { v: 236, go: () => { closeFull(); dyClose(); nxShut(); goTab("add"); if (!(S.dcPool || []).length) dcRun(true); },
+    at: () => $("#dcAdd .dc-card") || $("#p-add .aq"),
+    say: "Smarter adding: I now pick games for you by myself from your favourites and what you're playing. Swipe through them like the Shuffler: → adds, ← skips, and every one has big store screenshots and the full story.",
+    tryIt: "Tap the ✨ card on Add, or Similar on any game page." },
+  { v: 236, go: () => { gpClose(); dyClose(); nxShut(); const g = rankedGames()[0] || onDeck(1)[0] || S.games[0]; if (g) { openFull(g.id); setTimeout(() => openSimilar(g.id), 500); } },
+    at: () => $("#diary .sgl") || $("#diary .sim-new"),
+    say: "Similar games are big picture cards now. Tap one for screenshots (Steam, PlayStation or Nintendo), the description and why it was picked; swipe → to add. Also fixed: adding Baldur's Gate 3 added the old Baldur's Gate, because I treated the numbers as unimportant. Numbers count now.",
+    tryIt: "Share a Steam or YouTube link to Play next from another app: it opens that game, ready to add (Android)." }
 );
 </script>
