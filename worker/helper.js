@@ -757,6 +757,14 @@ async function hltbToken(fresh) {
   const j = await r.json(); if (!j || !j.token) throw new Error("HowLongToBeat gave no token");
   hltbTok = { t: j.token, at: Date.now() }; return j.token;
 }
+/* the live helper's searches were refused (403) right after a fresh token and accepted a moment later with the same one: the
+   site seems to reject a token used too soon after it was issued (a browser or GitHub takes longer between the two calls than
+   a Worker does), so a new token waits until it's ~1.2s old (longer on a retry) */
+async function hltbTokenAged(fresh, min) {
+  const t = await hltbToken(fresh), age = Date.now() - hltbTok.at;
+  if (age < min) await new Promise(r => setTimeout(r, min - age));
+  return t;
+}
 async function hltbSearch(q) {
   const body = JSON.stringify({ searchType: "games", searchTerms: q.split(/\s+/).filter(Boolean), searchPage: 1, size: 20,
     searchOptions: { games: { userId: 0, platform: { mode: "include", values: [] }, sortCategory: "popular", rangeCategory: "main", rangeTime: { min: null, max: null },
@@ -765,7 +773,7 @@ async function hltbSearch(q) {
   /* the token is bound to the outgoing IP, and a Worker's two calls can leave from different IPs (the live helper got a 403
      on its first search): up to 3 fresh tokens */
   for (let i = 0; i < 3; i++) {
-    const tok = await hltbToken(i > 0);
+    const tok = await hltbTokenAged(i > 0, i ? 2500 : 1200);
     const r = await fetch(`${HLTB}/api/search/site`, { method: "POST", headers: { ...HLTB_H, "Content-Type": "application/json", "x-auth-token": tok }, body });
     if ((r.status === 401 || r.status === 403) && i < 2) continue;
     if (!r.ok) throw new Error("HowLongToBeat search " + r.status);
