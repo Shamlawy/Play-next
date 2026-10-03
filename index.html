@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "240";
+const APP_V = "241";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6269,8 +6269,9 @@ function openSettings(scope) {
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.rvOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <label>Fill in hours to beat</label>
-      <p class="note">Games with no hours get typical times to beat (main story, with extras, 100%) by themselves, so time-to-beat numbers and plans are real. Anything you type in Edit wins.</p>
+      <label>Hours to beat from HowLongToBeat</label>
+      <p class="note">Every game gets HowLongToBeat's times (main story, with extras, 100%: real players' averages) by themselves, and they stay up to date. Hours you type in Edit stay yours.</p>
+      ${typeof hlStatus === "function" ? hlStatus() : ""}
       <div class="chips" id="s-xhb">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.hbOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
@@ -19961,7 +19962,7 @@ WHATS_NEW.push(
     at: () => $("#full .rv") || $("#s-xrv"),
     say: "Reviews are in: when a game you're waiting for comes out, I fetch what critics and players think by myself, tell you, and guess the score <b>you'd</b> give it from how you usually land against critics.",
     tryIt: "Open a game you haven't played that has a critic score: “You, probably” is my guess for you." },
-  { v: 219, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Fill in hours to beat" }); }, at: "#s-xhb",
+  { v: 219, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Hours to beat from HowLongToBeat" }); }, at: "#s-xhb",
     say: "Games with no hours now get their typical time to beat (main story, with extras, 100%) filled in by themselves, so time to beat, your plans and “Finished it?” work for every game.",
     tryIt: "Open Edit on a game: hours I filled in say so. Type your own and yours win." },
   { v: 219, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Still playing?" }); }, at: "#s-xsg",
@@ -22404,5 +22405,239 @@ WHATS_NEW.push(
   { v: 239, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: () => $("#lib-view [data-room]"),
     say: "Your games now have a <b>Game room</b>: a little 3D room that spins with your finger. Your #1 stands in it as a giant case, what you're playing hangs on the wall and your best games sit on the shelf. It fills itself as you play.",
     tryIt: "Library → 🧊 Room. Drag to spin, pinch to zoom, tap a game to open it, double tap to reset." }
+);
+</script>
+<style>
+/* v241: hours to beat from HowLongToBeat */
+.hub.gpage .gd-glance > .gd-hl { position: relative; cursor: pointer; transition: transform .15s; }
+.hub.gpage .gd-glance > .gd-hl:active { transform: scale(.96); }
+.hub.gpage .gd-glance > .gd-hl::after { content: "↗"; position: absolute; top: 5px; right: 7px; font-size: 10px; line-height: 1; color: var(--mute); }
+.hub.gpage .gd-glance > .gd-hl.src::after { content: "HLTB"; font-size: 7.5px; font-weight: 700; letter-spacing: .04em; top: 6px; right: 6px; }
+.hl-t { margin: 4px 0 12px; color: var(--mute); font-size: 13px; }
+.hl-n { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.hl-n > div { padding: 12px 6px 10px; border-radius: 16px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); text-align: center; min-width: 0; }
+.hl-n > div.on { border-color: var(--volt); box-shadow: inset 0 0 0 1px var(--volt); }
+.hl-n b { display: block; font: 700 24px/1.1 "Poppins", system-ui, sans-serif; color: #fff; }
+.hl-n b i { font-style: normal; font-size: 14px; color: var(--mute); margin-left: 1px; }
+.hl-n span { display: block; margin-top: 4px; font-size: 11.5px; color: var(--ice); }
+.hl-n small { display: block; margin-top: 2px; font-size: 10.5px; color: var(--volt); }
+.hl-by, .hl-wait, .hl-ok { margin: 10px 0 0; font-size: 13px; color: var(--mute); line-height: 1.45; }
+.hl-ok { color: var(--ice); }
+.hl-me { margin-top: 12px; padding: 12px; border-radius: 16px; background: var(--u-card, #131a32); display: grid; gap: 10px; font-size: 13px; }
+.hl-me > div, .hl-a { display: flex; flex-wrap: wrap; gap: 8px; }
+.hl-a { margin-top: 14px; }
+.hl-a .btn, .hl-me .btn { flex: 1 1 140px; text-align: center; text-decoration: none; }
+.hl-rv { display: grid; gap: 6px; margin-top: 12px; }
+.hl-r { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; background: var(--u-card, #131a32); }
+.hl-r img { width: 34px; aspect-ratio: 3/4; object-fit: cover; border-radius: 7px; flex: none; }
+.hl-r > span { flex: 1; min-width: 0; }
+.hl-r b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hl-r small { font-size: 12px; color: var(--mute); }
+.hl-r small em { font-style: normal; color: var(--volt); font-weight: 700; }
+.hl-r button { flex: none; min-width: 52px; min-height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--volt); background: var(--volt); color: var(--void); font: 600 13px/1 inherit; cursor: pointer; }
+.hl-r button.k { background: none; color: var(--ice); border-color: var(--u-line2, rgba(234,242,255,.16)); }
+#e-hl .chip { margin-left: 4px; vertical-align: middle; }
+</style>
+<script>
+/* ===== v241: hours to beat from HowLongToBeat (`hl*`). The owner: "most hours I type by hand; the automatic ones are
+   super wrong". Two automatic sources were guesses: v219's AI (`hbRun`, helper /hours) and RAWG's `playtime` (what RAWG
+   users logged, not time to beat), which filled the Add form and Edit's RAWG pull. Now the helper's /hours reads
+   HowLongToBeat itself (v17: `src: "hltb"`, res[k] = {id, n, m, x, c, cnt} or {none} / {err}); g.hl keeps that answer
+   ({id, n, m, x, c, cnt, at} | {none, at} | {err, at}). Whose number g.hours is (`hlSrc`): "hltb" (g.hrsSrc, filled from
+   it), "me" (typed in Edit/Add after v241), "ai" (v219's guess, unchanged: g.hbV), "old" (from before v241: typed by
+   hand or RAWG's average, can't tell), "none". Empty, AI and HLTB numbers follow HowLongToBeat by themselves; "old" ones
+   that differ (>15% and 2h+) are listed in a review sheet (`hlReview`: Use / Keep, or all at once) that Nexi offers
+   once; "me" ones are never touched (Edit shows HLTB's numbers with "Use these"). The game page's Length tile opens
+   `hlSheet` (the three numbers, your play style marked, players counted, link to the game on howlongtobeat.com).
+   Checks: every game without an answer, 20s after opening; found games again after 45 days (7 while it's new: HLTB
+   fills in after release), not found after 14, errors after 6h. Switch: Settings → Extra features (S.hbOff). ===== */
+const HL_K = [["hours", "m"], ["hoursX", "x"], ["hours100", "c"]];
+const hlHas = g => !!(g && g.hl && g.hl.m > 0);
+const hlUrl = g => g.hl && g.hl.id ? "https://howlongtobeat.com/game/" + g.hl.id : "https://howlongtobeat.com/?q=" + encodeURIComponent(g.title);
+function hlSrc(g) {
+  if (!(+g.hours > 0)) return "none";
+  if (g.hrsSrc === "me") return "me";
+  if (g.hrsSrc === "hltb") return "hltb";
+  if (g.hbV && +g.hours === g.hbV.m) return "ai";
+  if (g.hrsSrc === "rawg") return "rawg";
+  return "old";
+}
+const hlFmt = h => !(h > 0) ? "—" : h < 10 ? String(Math.round(h * 2) / 2).replace(".5", "½") : String(Math.round(h));
+/* follows HowLongToBeat by itself? */
+const hlAuto = g => ["none", "ai", "rawg", "hltb"].includes(hlSrc(g));
+const hlSame = g => HL_K.every(([k, kk]) => (+g[k] || 0) === (g.hl[kk] || 0) || (kk !== "m" && !(g.hl[kk] > 0)));
+function hlUse(g) {
+  if (!hlHas(g)) return false;
+  const was = HL_K.map(([k]) => +g[k] || 0).join();
+  for (const [k, kk] of HL_K) g[k] = g.hl[kk] > 0 ? g.hl[kk] : 0;
+  g.hrsSrc = "hltb"; delete g.hbV; delete g.hlKeep;
+  return was !== HL_K.map(([k]) => +g[k] || 0).join();
+}
+/* an older number that's far from HowLongToBeat's (and you haven't said "keep mine" to this HLTB number) */
+const hlDiff = g => hlHas(g) && !g.comp && hlSrc(g) === "old" && g.hlKeep !== g.hl.m && Math.abs(+g.hours - g.hl.m) >= Math.max(2, g.hl.m * .15);
+const hlDue = g => {
+  if (S.hbOff || g.comp || !g.title) return false;
+  const h = g.hl; if (!h) return true;
+  const age = Date.now() - (h.at || 0);
+  if (h.err) return age > 6 * 36e5;
+  if (h.none) return age > 14 * 864e5;
+  const fresh = g.date && Math.abs(Date.now() - new Date(g.date + "T12:00:00")) < 90 * 864e5;
+  return age > (fresh || isUpcoming(g) ? 7 : 45) * 864e5;
+};
+let hlBusy = false, hlOld = 0;
+async function hlRun(force, only) {
+  if (hlBusy || S.hbOff || !navigator.onLine || (!force && Date.now() - hlOld < 36e5)) return;
+  const todo = (only ? [only] : S.games.filter(hlDue)).filter(g => !g.comp)
+    .sort((a, b) => ((a.state === "playing" ? 0 : isPlayed(a) ? 2 : 1) - (b.state === "playing" ? 0 : isPlayed(b) ? 2 : 1)) || (!!a.hl - !!b.hl));
+  if (!todo.length) return;
+  hlBusy = true; hlPaint(); const filled = [], fixed = [];
+  try {
+    for (let i = 0; i < todo.length; i += 8) {
+      if (i) await new Promise(r => setTimeout(r, 1500));
+      const b = todo.slice(i, i + 8);
+      let j; try { j = await nxPost("/hours", { src: "hltb", items: b.map(g => ({ k: g.id, t: g.title, year: (g.date || "").slice(0, 4), plat: platList(g.platforms)[0] || "" })) }); }
+      catch (e) { if (e.message === "helper-old") hlOld = Date.now(); break; }
+      /* a helper from before v17 answers /hours with the AI's guesses: don't use them, ask again in an hour */
+      if (j.src !== "hltb") { hlOld = Date.now(); break; }
+      for (const g of b) {
+        const r = (j.res || {})[g.id] || { err: "no answer" }, at = Date.now();
+        if (r.m > 0) g.hl = { id: r.id || 0, n: r.n || "", m: r.m, x: r.x || 0, c: r.c || 0, cnt: r.cnt || 0, at };
+        else if (r.none) g.hl = { none: 1, id: r.id || 0, n: r.n || "", at };
+        else { if (!hlHas(g)) g.hl = { err: String(r.err || "error").slice(0, 80), at }; else g.hl.at = at - 38 * 864e5; continue; }
+        if (!hlHas(g)) continue;
+        const src = hlSrc(g);
+        if (hlAuto(g) && hlUse(g)) (src === "none" ? filled : fixed).push(g);
+      }
+    }
+  } finally { hlBusy = false; }
+  save(); hlPaint();
+  if (filled.length || fixed.length) { render(); if (typeof hubAt !== "undefined" && hubAt && $("#full.on") && typeof hlRepaint === "function") hlRepaint(); }
+  hlTell(filled, fixed);
+}
+/* Nexi says what changed, and offers the review once per new set of differences */
+function hlTell(filled, fixed) {
+  if (document.documentElement.classList.contains("nxtouring") || typeof pnBubSay !== "function") return;
+  const n = filled.length + fixed.length, diff = S.games.filter(hlDiff), key = diff.map(g => g.id + ":" + g.hl.m).sort().join();
+  try {
+    if (n) pnBubSay([`I took ${n === 1 ? (filled[0] || fixed[0]).title + "'s" : n + " games'"} hours to beat from HowLongToBeat` + (fixed.length ? `, ${fixed.length === 1 ? "one" : fixed.length} of them replacing my old guess${fixed.length === 1 ? "" : "es"}` : "") + ". Real players' times now.", "games"]);
+    else if (diff.length && S.hlSaid !== key) { S.hlSaid = key; save();
+      pnBubSay([`${diff.length === 1 ? diff[0].title + "'s" : diff.length + " of your games'"} hours don't match HowLongToBeat. Want to check ${diff.length === 1 ? "it" : "them"}?`, "hltb"]); }
+  } catch (e) {}
+}
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "hltb") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); hlReview(); }, true);
+/* the old AI fill is retired: its callers (start timer, Settings switch) now run this */
+hbRun = force => hlRun(force);
+setTimeout(() => hlRun(false), 20000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(() => hlRun(false), 9000); });
+addEventListener("online", () => setTimeout(() => hlRun(true), 3000));
+/* a game you add is looked up straight away */
+{ const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => { if (g && !g.hl) hlRun(true, g); }, 2500); return o; }; }
+
+/* ---- whose number: typing in Edit or the Add form makes it yours ---- */
+document.addEventListener("click", e => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#e-save")) {
+    const g = typeof editing !== "undefined" && editing && S.games.find(x => x.id === editing.id); if (!g) return;
+    const before = HL_K.map(([k]) => +g[k] || 0).join();
+    setTimeout(() => { const n = S.games.find(x => x.id === g.id); if (!n) return;
+      if (HL_K.map(([k]) => +n[k] || 0).join() !== before) { n.hrsSrc = +n.hours > 0 ? (hlHas(n) && hlSame(n) ? "hltb" : "me") : ""; if (!n.hrsSrc) delete n.hrsSrc; delete n.hbV; save(); } }, 0);
+  }
+  if (e.target.closest("#f-save")) {
+    const typed = +($("#f-hours") || {}).value > 0, n0 = S.games.length;
+    setTimeout(() => { const n = S.games[S.games.length - 1]; if (S.games.length > n0 && n && typed) { n.hrsSrc = "me"; save(); } }, 0);
+  }
+}, true);
+/* RAWG's "playtime" is what its users logged, not the time to beat: it no longer fills the Add form or Edit's RAWG pull */
+{ const _fill = fill; fill = function (h) { const o = _fill.apply(this, arguments); try { if (h && +$("#f-hours").value === +h.playtime) $("#f-hours").value = ""; } catch (e) {} return o; }; }
+{ const _rp = rawgLookup; rawgLookup = async function () { const d = await _rp.apply(this, arguments); if (d && !d.err && d.hoursFrom === "RAWG players") { d.hours = 0; d.hoursFrom = ""; } return d; }; }
+
+/* ---- the game page: the Length tile opens HowLongToBeat's numbers ---- */
+{ const _gg = gdGlance; gdGlance = function (g) { const o = _gg.apply(this, arguments);
+  if (!g || g.comp) return o;
+  const i = o.indexOf("</div>") + 6;
+  return o.slice(0, i) + o.slice(i).replace(/^<div>/, `<div class="gd-hl${hlSrc(g) === "hltb" ? " src" : ""}" role="button" tabindex="0" data-hltb="${esc(g.id)}" aria-label="How long to beat">`); }; }
+function hlRepaint() { const f = $("#full .gd-glance"); if (!f || typeof hubAt === "undefined") return; const g = S.games.find(x => x.id === hubAt); if (g) f.innerHTML = gdGlance(g); }
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-hltb]"); if (!b) return; e.stopPropagation(); beep("tap"); hlSheet(b.dataset.hltb); }, true);
+document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest("[data-hltb]")) { e.preventDefault(); hlSheet(e.target.closest("[data-hltb]").dataset.hltb); } });
+
+function hlRows(g) {
+  const st = playStyle(), h = g.hl;
+  return `<div class="hl-n">${[["m", "main", "Main story"], ["x", "extras", "Story + extras"], ["c", "all", "Everything"]].map(([k, s, l]) =>
+    `<div class="${st === s ? "on" : ""}"><b>${h[k] > 0 ? hlFmt(h[k]) + "<i>h</i>" : "—"}</b><span>${l}</span>${st === s ? "<small>how you play</small>" : ""}</div>`).join("")}</div>`;
+}
+function hlSheet(id) {
+  const g = S.games.find(x => x.id === id); if (!g) return;
+  const box = dyBox();
+  const draw = () => {
+    const h = g.hl, src = hlSrc(g), has = hlHas(g), mine = +g.hours > 0 && has && !hlSame(g);
+    const body = S.hbOff ? `<p class="note">Hours from HowLongToBeat are off (Settings → Extra features).</p>`
+      : hlBusy && !has ? `<p class="hl-wait">Asking HowLongToBeat…</p>`
+      : has ? hlRows(g) + `<p class="hl-by">${h.cnt ? `From ${h.cnt.toLocaleString()} players' times` : "Players' times"} on HowLongToBeat${h.n && !titleMatch(g.title, h.n) ? ` · as “${esc(h.n)}”` : ""}</p>`
+        + (mine ? `<div class="hl-me"><span>Yours: <b>${HL_K.map(([k]) => hlFmt(+g[k] || 0)).join(" · ")} h</b>${src === "me" ? " · typed by you" : ""}</span>
+            <div><button type="button" class="btn" data-hluse><span>Use HowLongToBeat's</span></button>${src === "old" && g.hlKeep !== h.m ? `<button type="button" class="btn ghost" data-hlkeep><span>Keep mine</span></button>` : ""}</div></div>`
+          : src === "hltb" ? `<p class="hl-ok">✓ Your plans use these numbers and follow HowLongToBeat by themselves.</p>` : "")
+      : h && h.none ? `<p class="hl-wait">HowLongToBeat doesn't have this game yet (or not under this name). I'll look again in two weeks.</p>`
+      : h && h.err ? `<p class="hl-wait">Couldn't reach HowLongToBeat just now. I'll try again soon.</p>`
+      : `<p class="hl-wait">Not checked yet.</p>`;
+    dyShow(box, `<div class="dy-h"><b>⏱ How long to beat</b><button class="dy-x" aria-label="Close">✕</button></div>
+      <p class="hl-t">${esc(g.title)}</p>${body}
+      <div class="hl-a"><a class="btn ghost" href="${esc(hlUrl(g))}" target="_blank" rel="noopener"><span>${h && h.id ? "HowLongToBeat ↗" : "Search it ↗"}</span></a>
+      ${S.hbOff ? "" : `<button type="button" class="btn ghost" data-hlagain ${hlBusy ? "disabled" : ""}><span>Check again</span></button>`}</div>`,
+      async e => {
+        if (e.target.closest("[data-hluse]")) { hlUse(g); save(); render(); hlRepaint(); beep("add"); toast("Using HowLongToBeat's hours"); draw(); return; }
+        if (e.target.closest("[data-hlkeep]")) { g.hlKeep = g.hl.m; g.hrsSrc = "me"; save(); beep("tap"); toast("Kept yours"); draw(); return; }
+        if (e.target.closest("[data-hlagain]")) { beep("tap"); const p = hlRun(true, g); draw(); await p; if (box.classList.contains("on")) draw(); }
+      });
+  };
+  draw();
+  if (!g.hl && !S.hbOff && !hlBusy) hlRun(true, g).then(() => { if (box.classList.contains("on")) draw(); });
+}
+/* every game whose older number is far from HowLongToBeat's */
+function hlReview() {
+  const box = dyBox();
+  const draw = () => {
+    const L = S.games.filter(hlDiff);
+    if (!L.length) { dyShow(box, `<div class="dy-h"><b>⏱ Hours to beat</b><button class="dy-x" aria-label="Close">✕</button></div><p class="hl-ok">✓ All your hours match HowLongToBeat (or you've chosen to keep yours).</p>`, () => {}); return; }
+    dyShow(box, `<div class="dy-h"><b>⏱ Hours that don't match</b><button class="dy-x" aria-label="Close">✕</button></div>
+      <p class="note">These were typed by hand or came from RAWG players' averages, before I could read HowLongToBeat. Main story hours, yours → HowLongToBeat's.</p>
+      <button type="button" class="btn" data-hlall><span>${L.length === 1 ? "Use HowLongToBeat's" : "Use HowLongToBeat for all " + L.length}</span></button>
+      <div class="hl-rv">${L.map(g => `<div class="hl-r"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${hlFmt(+g.hours)}h → <em>${hlFmt(g.hl.m)}h</em></small></span>
+        <button type="button" data-hlr="${esc(g.id)}" data-a="use" aria-label="Use HowLongToBeat's for ${esc(g.title)}">Use</button><button type="button" class="k" data-hlr="${esc(g.id)}" data-a="keep" aria-label="Keep yours for ${esc(g.title)}">Keep</button></div>`).join("")}</div>`,
+      e => {
+        if (e.target.closest("[data-hlall]")) { L.forEach(hlUse); save(); render(); hlRepaint(); beep("add"); toast(`Using HowLongToBeat for ${L.length} game${L.length === 1 ? "" : "s"}`); dyClose(); return; }
+        const b = e.target.closest("[data-hlr]"); if (!b) return;
+        const g = S.games.find(x => x.id === b.dataset.hlr); if (!g) return;
+        if (b.dataset.a === "use") hlUse(g); else { g.hlKeep = g.hl.m; g.hrsSrc = "me"; }
+        save(); render(); hlRepaint(); beep("tap"); draw();
+      });
+  };
+  draw();
+}
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-hlrev]"); if (!b) return; e.stopPropagation(); beep("open"); hlReview(); }, true);
+/* Settings → Extra features: what HowLongToBeat has given so far */
+function hlStatus() {
+  const L = S.games.filter(g => !g.comp), f = L.filter(hlHas).length, d = S.games.filter(hlDiff).length;
+  return `<p class="note" id="s-hlst">${hlBusy ? "Checking HowLongToBeat now… " : ""}${f} of ${L.length} games found on HowLongToBeat.</p>`
+    + (d ? `<button type="button" class="btn ghost" data-hlrev><span>Review ${d} game${d === 1 ? "" : "s"} that don't match</span></button>` : "");
+}
+function hlPaint() { const s = $("#s-hlst"); if (s) s.outerHTML = hlStatus().replace(/<button[\s\S]*$/, ""); }
+
+/* ---- Edit: say where the numbers come from, and offer HowLongToBeat's ---- */
+{ const _oe = openEdit; openEdit = function (id) { const o = _oe.apply(this, arguments);
+  try { const g = S.games.find(x => x.id === id), el = $("#e-hours100");
+    document.querySelectorAll(".e-auto").forEach(x => x.remove());
+    const row = el && el.closest(".duo"); if (g && row && !g.comp && hlHas(g) && !$("#e-hl")) {
+      const same = hlSame(g);
+      row.insertAdjacentHTML("afterend", `<p class="note" id="e-hl">⏱ HowLongToBeat: <b>${hlFmt(g.hl.m)} · ${hlFmt(g.hl.x)} · ${hlFmt(g.hl.c)} h</b>${same ? " · these are them" : ` <button type="button" class="chip" data-ehl><span>Use these</span></button>`}</p>`);
+      const b = $("[data-ehl]"); if (b) b.onclick = () => { HL_K.forEach(([k, kk]) => { const i = $(k === "hours" ? "#e-hours" : k === "hoursX" ? "#e-hoursx" : "#e-hours100"); if (i) i.value = g.hl[kk] > 0 ? g.hl[kk] : ""; }); b.remove(); beep("tap"); };
+    } } catch (e) {}
+  return o; }; }
+
+/* While you were away: the old AI line becomes this */
+WHATS_NEW.push(
+  { v: 241, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => hlHas(x) && !isPlayed(x)) || S.games.find(x => !x.comp && !isPlayed(x)) || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .gd-hl") || $("#full .gd-glance"),
+    say: "Hours to beat now come from <b>HowLongToBeat</b>, real players' times, instead of my guesses and RAWG's averages (which were often way off). Empty and guessed hours fill in by themselves; hours you typed stay yours, and if an older one doesn't match I'll show you the list to fix in one tap.",
+    tryIt: "Tap the length tile on a game page: main story, extras and 100%, with a link to the game on HowLongToBeat." }
 );
 </script>
