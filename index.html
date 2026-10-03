@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "238";
+const APP_V = "239";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -22107,5 +22107,259 @@ WHATS_NEW.push(
     at: () => $("#full .gd-s-shots:not([hidden])") || $("#full .gd-s-about") || $("#full .gd-s-prog"),
     say: "Screenshots are ready before you look now: I fetch them for every game in the background (and right away for a game you add), keep small copies on your phone so they show instantly, and search harder for games the stores don't have.",
     tryIt: "Open any game: the screenshots are already there." }
+);
+</script>
+<style>
+/* ===== v239: Game room — a little 3D room built from your games (owner's isometric "B" room reference: layout and style, our colours).
+   Plain CSS 3D boxes (every face a flat <i>); spinning only changes the world's transform, shading is 4 CSS vars. ===== */
+#room { position: fixed; inset: 0; z-index: 96; background: radial-gradient(120% 80% at 50% 58%, #0c1124 0%, #04060d 70%); opacity: 0; transition: opacity .28s;
+  touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; --rm-ink: #04050b;
+  --rm-sofa: #2a50b8; --rm-sofa: color-mix(in srgb, var(--volt2) 62%, #0b1022); }
+#room.on { opacity: 1; }
+#room .rm-head { position: absolute; left: 18px; right: 74px; top: calc(16px + env(safe-area-inset-top)); z-index: 2; pointer-events: none; }
+#room .rm-head h3 { margin: 0; font: 700 22px/1.15 "Poppins", system-ui, sans-serif; color: var(--ice); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#room .rm-head p { margin: 4px 0 0; font: 500 13px/1.35 "Poppins", system-ui, sans-serif; color: var(--mute); }
+#room .rm-x { position: absolute; right: 14px; top: calc(14px + env(safe-area-inset-top)); z-index: 3; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.08); color: #fff; font-size: 18px; cursor: pointer; }
+#room .rm-hint { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 2; text-align: center; pointer-events: none;
+  font: 600 13px "Poppins", system-ui, sans-serif; color: var(--mute); transition: opacity .5s; }
+#room.used .rm-hint { opacity: 0; }
+#room .rm-cam { position: absolute; inset: 0; perspective: 1800px; perspective-origin: 50% 40%; cursor: grab; }
+#room.drag .rm-cam { cursor: grabbing; }
+#room .rm-w { position: absolute; left: 50%; top: 58%; width: 300px; height: 300px; margin: -150px 0 0 -150px; transform-style: preserve-3d; transform-origin: 150px 150px 0; will-change: transform;
+}
+#room .rm-w.wb .rm-wallg { visibility: hidden; }
+#room .rb { position: absolute; left: 0; top: 0; transform-style: preserve-3d; }
+#room .rf { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  background-color: var(--c); background-size: cover; background-position: center; box-shadow: inset 0 0 0 1.5px var(--rm-ink); overflow: hidden; }
+#room .rf > .sh { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; text-decoration: none; }
+#room .lit .sh { display: none; }
+#room .two { backface-visibility: visible; -webkit-backface-visibility: visible; }
+#room [data-rmg] .rf { cursor: pointer; }
+#room .rm-floor { background-color: #0b1022; background-image: linear-gradient(rgba(var(--vrgb), .07) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--vrgb), .07) 1px, transparent 1px); background-size: 30px 30px; background-position: 0 0; }
+#room .rm-rug { border-radius: 50%; background: radial-gradient(closest-side, rgba(var(--v2rgb), .55), rgba(var(--v2rgb), .32) 70%, rgba(var(--v2rgb), .1)); box-shadow: inset 0 0 0 1.5px var(--rm-ink); }
+#room .rm-pool { border-radius: 50%; background: radial-gradient(closest-side, rgba(var(--vrgb), .38), rgba(var(--vrgb), .12) 60%, transparent); box-shadow: none; }
+#room .rm-wall { background-color: #111833; background-image: linear-gradient(180deg, rgba(var(--vrgb), .1), transparent 45%); }
+#room .rm-top { background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 1px, transparent 1px 5px); }
+#room .rm-spine { display: flex; align-items: center; justify-content: center; }
+#room .rm-spine em { writing-mode: vertical-rl; font: 700 11px/1 "Poppins", system-ui, sans-serif; font-style: normal; color: rgba(255,255,255,.88); white-space: nowrap; overflow: hidden; max-height: 92%; text-overflow: ellipsis; }
+#room .rm-plaque { display: flex; align-items: center; justify-content: center; }
+#room .rm-plaque em { font: 700 9px/1 "Poppins", system-ui, sans-serif; font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: rgba(var(--vrgb), .9); white-space: nowrap; }
+#room .rm-frame { box-shadow: inset 0 0 0 1.5px var(--rm-ink), inset 0 0 0 5px #1a2140, inset 0 0 0 6.5px var(--rm-ink); }
+#room .rm-tag { display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; }
+#room .rm-tag em { font: 700 8px/1 "Poppins", system-ui, sans-serif; font-style: normal; color: #fff; background: rgba(4,5,11,.78); padding: 3px 6px; border-radius: 99px; white-space: nowrap; }
+#room .leaf { position: absolute; left: 0; top: 0; transform-origin: 0 50%; border-radius: 0 100% 0 100%; background: linear-gradient(160deg, transparent 47%, rgba(4,5,11,.55) 48% 52%, transparent 53%), #3f9a63;
+  box-shadow: inset 0 0 0 1.5px var(--rm-ink); backface-visibility: visible; }
+#room .leaf.d { background-color: #2f7d50; }
+html.still #room .rm-hint { transition: none; }
+</style>
+<script>
+/* ===== v239: Game room. The owner sent an isometric illustration (a room built around a giant book-letter) and asked for something
+   like it in 3D that spins with the finger. The room fills itself from your games: the giant case is your #1 (else On deck),
+   the poster is what you're playing, the shelf holds your best and next games, the plaque says whose room it is.
+   Library → 🧊 Room. Drag = spin (and tilt), pinch = zoom, tap a game = open it, double tap = back to the start view.
+   Only the world's transform changes per frame; the 4 shade vars change when the light on a side moves by .03+. ===== */
+const RM = { yaw: 40, pitch: 58, zoom: 1, base: 1, vy: 0, raf: 0, el: null, w: null, sh: {} };
+function rmFace(cls, w, h, tf, f) {
+  f = f || {};
+  const sh = /^[senw]\b/.test(cls) && !/\blit\b/.test(cls) ? `<s class="sh"></s>` : "";
+  return `<i class="rf ${cls}${f.c ? " " + f.c : ""}" style="width:${w}px;height:${h}px;transform:${tf};${f.st || ""}">${f.h || ""}${sh}</i>`;
+}
+/* a box in floor coordinates: x → east, y → south, z → up; o.f = per-face extras {t,s,n,e,w: {c, st, h}}, o.no = faces to leave out */
+function rmBox(x, y, z, w, d, h, o) {
+  o = o || {}; const f = o.f || {}, no = o.no || "";
+  let s = `<b class="rb${o.cls ? " " + o.cls : ""}" style="--c:${o.c || "#19213d"}"${o.attr || ""}>`;
+  if (!no.includes("t")) s += rmFace("t", w, d, `translate3d(${x}px,${y}px,${z + h}px)`, f.t);
+  if (!no.includes("s")) s += rmFace("s", w, h, `translate3d(${x}px,${y + d}px,${z + h}px) rotateX(-90deg)`, f.s);
+  if (!no.includes("n")) s += rmFace("n", w, h, `translate3d(${x + w}px,${y}px,${z + h}px) rotateZ(180deg) rotateX(-90deg)`, f.n);
+  if (!no.includes("e")) s += rmFace("e", d, h, `translate3d(${x + w}px,${y + d}px,${z + h}px) rotateZ(-90deg) rotateX(-90deg)`, f.e);
+  if (!no.includes("w")) s += rmFace("w", d, h, `translate3d(${x}px,${y}px,${z + h}px) rotateZ(90deg) rotateX(-90deg)`, f.w);
+  return s + "</b>";
+}
+const rmImg = u => u ? `background-image:url('${cssUrl(u)}');` : "";
+function rmPick() {
+  const live = S.games.filter(g => !g.comp);
+  const rk = typeof rankedGames === "function" ? rankedGames() : [];
+  const deck = typeof onDeck === "function" ? onDeck(8) : [];
+  const play = playingNow().filter(g => !g.comp);
+  const hero = rk[0] || deck[0] || play[0] || live[0] || null;
+  const poster = play.find(g => g !== hero) || play[0] || deck.find(g => g !== hero) || null;
+  const shelf = [...rk, ...play, ...deck, ...live].filter((g, i, a) => g && g !== hero && a.indexOf(g) === i).slice(0, 6);
+  const next = live.filter(g => isUpcoming(g) && g.date).sort((a, b) => String(a.date).localeCompare(String(b.date)))[0] || null;
+  return { hero, poster, shelf, next, n: S.games.length, rk: !!rk[0] && rk[0] === hero };
+}
+function rmScene(p) {
+  const ink = "#04050b", wood = "#1b2445", wood2 = "#141b36", acc = "var(--volt)", acc2 = "var(--volt2)";
+  const gc = g => (g && g.colour) || "#4DA3FF";
+  let h = "";
+  /* the platform and the floor */
+  h += rmBox(0, 0, -16, 300, 300, 16, { c: "#0f1530", f: { t: { c: "rm-floor" }, s: { c: "rm-plaque", h: `<em>${esc((S.userName ? S.userName + "'s" : "My") + " game room")}</em>` } } });
+  h += rmFace("t lit rm-rug", 150, 112, "translate3d(92px,150px,.6px)", {});
+  /* the wall on the west side, with the poster of what you're playing */
+  h += `<b class="rb rm-wallg">` + rmBox(-10, 0, 0, 10, 300, 210, { c: "#111833", no: "w", f: { e: { c: "rm-wall" }, t: { st: "background-color:#1a2244" } } });
+  if (p.poster) h += rmFace("e rm-frame", 120, 76, "translate3d(.8px,258px,170px) rotateZ(-90deg) rotateX(-90deg)",
+    { c: "rm-tag", st: rmImg(bgSource(p.poster) || cover(p.poster)) + "background-color:#0b1022", h: `<em>${esc(p.poster.state === "playing" ? "Playing now" : "Up next")}</em>` });
+  if (p.next) { const dd = Math.max(0, Math.ceil((new Date(p.next.date) - Date.now()) / 864e5));
+    h += rmFace("e rm-frame rm-tag", 44, 62, "translate3d(.8px,118px,150px) rotateZ(-90deg) rotateX(-90deg)",
+      { st: rmImg(cover(p.next)) + "background-color:#0b1022", h: `<em>${dd ? "in " + dd + "d" : "today"}</em>` }); }
+  h += "</b>";
+  /* the giant case: your #1 */
+  if (p.hero) { const g = p.hero, gid = ` data-rmg="${g.id}"`;
+    h += rmBox(118, 6, 0, 170, 46, 236, { c: gc(g), attr: gid, f: {
+      s: { st: rmImg(cover(g)) + "background-color:#0b1022", c: "rm-tag", h: `<em>${p.rk ? "Your #1" : "Up next"}</em>` },
+      w: { c: "rm-spine", st: `background-color:${gc(g)}`, h: `<em>${esc(g.title)}</em>` },
+      e: { c: "rm-spine", st: `background-color:${gc(g)}`, h: `<em>${esc(g.title)}</em>` },
+      t: { c: "rm-top", st: "background-color:#e9eefc" }, n: { st: rmImg(bgSource(g) || cover(g)) + "background-color:#0b1022" } } }); }
+  /* the shelf: 2 × 3 cubbies, open to the south, a game standing in each */
+  const sx = 12, sy = 10, sw = 92, sd = 36, sh = 168, t = 6, cw = (sw - t * 3) / 2, ch = (sh - t * 4) / 3;
+  h += rmBox(sx, sy, 0, sw, 4, sh, { c: wood2 });
+  h += rmBox(sx, sy, 0, t, sd, sh, { c: wood });
+  h += rmBox(sx + sw - t, sy, 0, t, sd, sh, { c: wood });
+  h += rmBox(sx + t + cw, sy, 0, t, sd, sh, { c: wood });
+  for (let r = 0; r < 4; r++) h += rmBox(sx + t, sy, r * (ch + t), sw - t * 2, sd, t, { c: wood });
+  p.shelf.forEach((g, i) => { const c = i % 2, r = 2 - Math.floor(i / 2), cx = sx + t + c * (cw + t), cz = t + r * (ch + t);
+    const bw = cw - 8, bh = Math.min(ch - 6, bw * 1.4);
+    h += rmBox(cx + 4, sy + sd - 10, cz, bw, 6, bh, { c: gc(g), attr: ` data-rmg="${g.id}"`, f: { s: { st: rmImg(cover(g)) + "background-color:#0b1022" } } }); });
+  /* a plant on top of the shelf */
+  h += rmBox(sx + 30, sy + 8, sh, 26, 22, 20, { c: "#2a335c" });
+  const lz = sh + 20, lx = sx + 43, ly = sy + 19;
+  [[-30, 35, 0], [40, 30, 1], [150, 40, 0], [210, 28, 1], [95, 55, 0], [280, 42, 1]].forEach(([a, tilt, d]) => {
+    h += `<i class="leaf${d ? " d" : ""}" style="width:${40 + (a % 3) * 4}px;height:18px;transform:translate3d(${lx}px,${ly - 9}px,${lz}px) rotateZ(${a}deg) rotateY(${-tilt}deg)"></i>`; });
+  /* the lamp, and its light on the floor */
+  h += rmFace("t lit rm-pool", 110, 110, "translate3d(124px,186px,.8px)", {});
+  h += rmBox(170, 232, 0, 20, 20, 4, { c: "#2a335c" });
+  h += rmBox(178, 240, 4, 4, 4, 112, { c: acc });
+  h += rmBox(166, 228, 116, 28, 28, 26, { c: acc, cls: "lit", f: { t: { st: "background:radial-gradient(closest-side,#fff,rgba(255,255,255,.4))" } } });
+  /* the couch facing south, and a small one by the wall facing east */
+  const cc = "var(--rm-sofa)";
+  h += rmBox(196, 190, 0, 92, 34, 16, { c: cc });
+  h += rmBox(196, 190, 16, 92, 10, 30, { c: cc });
+  h += rmBox(196, 200, 16, 44, 24, 8, { c: cc }); h += rmBox(242, 200, 16, 44, 24, 8, { c: cc });
+  h += rmBox(188, 190, 0, 8, 34, 28, { c: cc }); h += rmBox(288, 190, 0, 8, 34, 28, { c: cc });
+  h += rmBox(4, 196, 0, 30, 54, 14, { c: cc });
+  h += rmBox(4, 196, 14, 9, 54, 28, { c: cc });
+  h += rmBox(4, 188, 0, 30, 8, 24, { c: cc }); h += rmBox(4, 250, 0, 30, 8, 24, { c: cc });
+  /* a low table with a controller on it */
+  h += rmBox(214, 250, 0, 56, 26, 14, { c: wood });
+  h += rmBox(232, 258, 14, 20, 9, 4, { c: "#e9eefc" });
+  return h;
+}
+/* each side face has a black <s class="sh"> whose opacity is a paused animation per direction: setting currentTime restyles only
+   those overlays (a CSS var on the room restyled all ~380 elements: 10ms a frame on desktop, 40ms at 4x throttle) */
+function rmShadeWire() {
+  RM.an = { s: [], e: [], n: [], w: [] };
+  RM.w.querySelectorAll(".rf > .sh").forEach(o => { const k = o.parentNode.classList[1], l = RM.an[k]; if (!l) return;
+    if (o.animate) { const a = o.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 1000, fill: "both" }); a.pause(); l.push(a); } else l.push(o); });
+}
+function rmShade() {
+  /* the light comes from the viewer's upper left; a side's world direction turns with the room */
+  const a = RM.yaw * Math.PI / 180, L = [-.56, .83], sh = RM.sh;
+  [["s", 0, 1], ["e", 1, 0], ["n", 0, -1], ["w", -1, 0]].forEach(([k, x, y]) => {
+    const nx = x * Math.cos(a) - y * Math.sin(a), ny = x * Math.sin(a) + y * Math.cos(a);
+    const v = Math.round(Math.max(.04, Math.min(.66, .62 - .58 * (nx * L[0] + ny * L[1]))) * 40) / 40;
+    if (sh[k] !== v && RM.an) { sh[k] = v; RM.an[k].forEach(x => { if (x.pause) x.currentTime = v * 1000; else x.style.opacity = v; }); }
+    /* the wall is a cutaway: seen from behind it goes, so the room stays open to you */
+    if (k === "e") { const back = ny < -.05; if (sh.wb !== back) { sh.wb = back; RM.w.classList.toggle("wb", back); } } });
+}
+function rmDraw() {
+  if (!RM.w) return;
+  RM.w.style.transform = `scale(${(RM.base * RM.zoom).toFixed(3)}) rotateX(${RM.pitch.toFixed(2)}deg) rotateZ(${RM.yaw.toFixed(2)}deg)`;
+  rmShade();
+}
+function rmFit() { RM.base = Math.max(.6, Math.min(1.5, Math.min((innerWidth - 32) / 440, innerHeight / 720))); rmDraw(); }
+function rmTween(to, ms) {
+  cancelAnimationFrame(RM.raf); const from = { yaw: RM.yaw, pitch: RM.pitch, zoom: RM.zoom }, t0 = performance.now();
+  const step = n => { const k = Math.min(1, (n - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+    for (const x in to) RM[x] = from[x] + (to[x] - from[x]) * e;
+    rmDraw(); if (k < 1) RM.raf = requestAnimationFrame(step); };
+  RM.raf = requestAnimationFrame(step);
+}
+function rmSpin() {
+  cancelAnimationFrame(RM.raf);
+  let last = performance.now();
+  const step = n => { const dt = Math.min(48, n - last) / 16.7; last = n;
+    RM.yaw += RM.vy * dt; RM.vy *= Math.pow(.94, dt); rmDraw();
+    if (Math.abs(RM.vy) > .03) RM.raf = requestAnimationFrame(step); };
+  RM.raf = requestAnimationFrame(step);
+}
+const RM_HOME = { yaw: 40, pitch: 58, zoom: 1 };
+function roomOpen() {
+  if ($("#room")) return;
+  const p = rmPick();
+  const v = document.createElement("div"); v.id = "room"; noHub(v);
+  v.setAttribute("role", "dialog"); v.setAttribute("aria-label", "Game room");
+  const nm = S.userName ? esc(S.userName) + "'s room" : "Your game room";
+  v.innerHTML = `<div class="rm-head"><h3>${nm}</h3><p>${p.n} game${p.n === 1 ? "" : "s"}${p.hero ? ` · ${p.rk ? "your #1" : "up next"}: ${esc(p.hero.title)}` : ""}</p></div>
+    <button class="rm-x" aria-label="Close">✕</button>
+    <div class="rm-cam" aria-hidden="true"><div class="rm-w">${rmScene(p)}</div></div>
+    <div class="rm-hint">Drag to spin · pinch to zoom · tap a game</div>`;
+  document.body.appendChild(v);
+  RM.el = v; RM.w = v.querySelector(".rm-w"); RM.sh = {}; RM.vy = 0; rmShadeWire();
+  Object.assign(RM, RM_HOME); rmFit();
+  requestAnimationFrame(() => v.classList.add("on"));
+  if (!calm()) { RM.yaw = RM_HOME.yaw - 130; RM.zoom = .82; rmDraw(); rmTween(RM_HOME, 1300); }
+  rmWire(v);
+  try { uCount("o", "room"); } catch (e) {}
+}
+function roomClose() {
+  const v = RM.el; if (!v) return;
+  cancelAnimationFrame(RM.raf); RM.el = RM.w = RM.an = null;
+  removeEventListener("keydown", rmKey); removeEventListener("resize", rmFit);
+  v.classList.remove("on"); setTimeout(() => v.remove(), 300);
+}
+function rmKey(e) { if (e.key === "Escape") roomClose(); else if (e.key === "ArrowLeft") { RM.vy = -3; rmSpin(); } else if (e.key === "ArrowRight") { RM.vy = 3; rmSpin(); } }
+function rmWire(v) {
+  addEventListener("keydown", rmKey); addEventListener("resize", rmFit);
+  const cam = v.querySelector(".rm-cam"), pts = new Map();
+  let start = null, lastTap = 0, pinch = null, hist = [];
+  v.querySelector(".rm-x").onclick = () => { beep("tap"); roomClose(); };
+  cam.addEventListener("pointerdown", e => {
+    cancelAnimationFrame(RM.raf); RM.vy = 0;
+    try { cam.setPointerCapture(e.pointerId); } catch (x) {}
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: RM.zoom }; start = null; return; }
+    start = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: RM.yaw, pitch: RM.pitch, moved: false, el: e.target };
+    hist = [{ x: e.clientX, t: performance.now() }];
+  });
+  cam.addEventListener("pointermove", e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pts.size >= 2) { const [a, b] = [...pts.values()]; RM.zoom = Math.max(.6, Math.min(2.2, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)); rmDraw(); return; }
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    if (!start.moved && Math.hypot(dx, dy) > 7) { start.moved = true; v.classList.add("drag", "used"); }
+    if (!start.moved) return;
+    RM.yaw = start.yaw + dx * .42; RM.pitch = Math.max(28, Math.min(78, start.pitch - dy * .22)); rmDraw();
+    const n = performance.now(); hist.push({ x: e.clientX, t: n }); while (hist.length > 2 && n - hist[0].t > 90) hist.shift();
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId); v.classList.remove("drag");
+    if (pinch) { if (pts.size < 2) pinch = null; start = null; return; }
+    if (!start) return;
+    const s = start; start = null;
+    if (s.moved) { const a = hist[0], n = performance.now(), dt = Math.max(16, n - a.t);
+      if (e.type === "pointerup" && n - a.t < 120) { RM.vy = Math.max(-14, Math.min(14, (e.clientX - a.x) * .42 / dt * 16.7)); if (Math.abs(RM.vy) > .2 && !calm()) rmSpin(); }
+      return; }
+    if (e.type !== "pointerup") return;
+    const now = performance.now(), g = s.el && s.el.closest && s.el.closest("[data-rmg]");
+    if (now - lastTap < 320) { lastTap = 0; clearTimeout(rmWire.tt); RM.vy = 0; calm() ? (Object.assign(RM, RM_HOME), rmDraw()) : rmTween(RM_HOME, 600); return; }
+    lastTap = now;
+    if (g) { const id = g.dataset.rmg; clearTimeout(rmWire.tt);
+      rmWire.tt = setTimeout(() => { if (!RM.el) return; beep("open"); roomClose(); setTimeout(() => openFull(id), 120); }, 330); }
+  };
+  cam.addEventListener("pointerup", up); cam.addEventListener("pointercancel", up);
+  cam.addEventListener("wheel", e => { e.preventDefault(); RM.zoom = Math.max(.6, Math.min(2.2, RM.zoom * Math.exp(-e.deltaY * .0015))); rmDraw(); }, { passive: false });
+}
+/* the way in: a 🧊 Room chip next to Grid / Swipe in the Library */
+{ const _rl = renderLib; renderLib = function () { const o = _rl.apply(this, arguments);
+  const lv = $("#lib-view"); if (lv && !lv.querySelector("[data-room]")) lv.insertAdjacentHTML("beforeend", `<button class="chip" data-room><span>🧊 Room</span></button>`);
+  return o; }; }
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-room]"); if (!b) return; e.stopPropagation(); beep("open"); roomOpen(); }, true);
+{ const lv = $("#lib-view"); if (lv && !lv.querySelector("[data-room]")) lv.insertAdjacentHTML("beforeend", `<button class="chip" data-room><span>🧊 Room</span></button>`); }
+WHATS_NEW.push(
+  { v: 239, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: () => $("#lib-view [data-room]"),
+    say: "Your games now have a <b>Game room</b>: a little 3D room that spins with your finger. Your #1 stands in it as a giant case, what you're playing hangs on the wall and your best games sit on the shelf. It fills itself as you play.",
+    tryIt: "Library → 🧊 Room. Drag to spin, pinch to zoom, tap a game to open it, double tap to reset." }
 );
 </script>
