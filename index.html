@@ -22492,9 +22492,11 @@ async function hlRun(force, only) {
   if (!todo.length) return;
   hlBusy = true; hlPaint(); const filled = [], fixed = [];
   try {
-    for (let i = 0; i < todo.length; i += 8) {
-      if (i) await new Promise(r => setTimeout(r, 1500));
-      const b = todo.slice(i, i + 8);
+    /* games that came back with an error are asked once more at the end (HowLongToBeat sometimes refuses a single search) */
+    const q = todo.slice(); let again = 0, first = true;
+    while (q.length) {
+      if (!first) await new Promise(r => setTimeout(r, 1500)); first = false;
+      const b = q.splice(0, 8);
       let j; try { j = await nxPost("/hours", { src: "hltb", items: b.map(g => ({ k: g.id, t: g.title, year: (g.date || "").slice(0, 4), plat: platList(g.platforms)[0] || "" })) }); }
       catch (e) { if (e.message === "helper-old") hlOld = Date.now(); break; }
       /* a helper from before v17 answers /hours with the AI's guesses: don't use them, ask again in an hour */
@@ -22508,6 +22510,7 @@ async function hlRun(force, only) {
         const src = hlSrc(g);
         if (hlAuto(g) && hlUse(g)) (src === "none" ? filled : fixed).push(g);
       }
+      if (!q.length && !again++) q.push(...todo.filter(g => g.hl && g.hl.err));
     }
   } finally { hlBusy = false; }
   save(); hlPaint();

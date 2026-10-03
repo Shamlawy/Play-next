@@ -45,3 +45,11 @@ try {
     for (const q of Q) { const t0 = Date.now(); const x = await mod.hltbFind({}, q).catch(e => ({ error: e.message })); console.log("\nhelper hltbFind", JSON.stringify(q), Date.now() - t0 + "ms", JSON.stringify(x)); }
   } else console.log("\n(helper has no hltbFind yet)");
 } catch (e) { console.log("helper import failed", e.message); }
+
+/* the live helper on Cloudflare (it may leave from other IPs than GitHub does) */
+try {
+  const t0 = Date.now();
+  const r = await fetch("https://playnext-helper.hussamnabil48.workers.dev/hours", { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://shamlawy.github.io" },
+    body: JSON.stringify({ src: "hltb", items: Q.slice(0, 8).map((t, i) => ({ k: "g" + i, t })) }), signal: AbortSignal.timeout(30000) });
+  console.log("\nlive helper /hours", r.status, Date.now() - t0 + "ms", (await r.text()).slice(0, 3000));
+} catch (e) { console.log("live helper failed", e.message); }
