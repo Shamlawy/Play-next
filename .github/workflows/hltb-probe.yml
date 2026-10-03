@@ -1,0 +1,35 @@
+# By hand (Actions tab), or when the probe or the helper changes: check HowLongToBeat's search from GitHub's servers (this
+# container can't reach the site) and run the helper's own hours code against the real site. Read it with the job log.
+name: HowLongToBeat probe
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: "Titles, | separated"
+        required: false
+      browser:
+        description: "Also record the site's own search in a headless browser (yes/no)"
+        required: false
+  push:
+    paths:
+      - ".github/scripts/hltbprobe.mjs"
+      - "worker/helper.js"
+      - ".github/workflows/hltb-probe.yml"
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Browser
+        if: ${{ github.event_name == 'push' || github.event.inputs.browser == 'yes' }}
+        run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1; echo ok
+      - name: Probe
+        env:
+          Q: ${{ github.event.inputs.titles }}
+          BROWSER: ${{ (github.event_name == 'push' || github.event.inputs.browser == 'yes') && '1' || '' }}
+        run: node .github/scripts/hltbprobe.mjs
