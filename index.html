@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "239";
+const APP_V = "240";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -21687,7 +21687,7 @@ function gpClose() { const b = gpBox(); b.classList.remove("on"); GP.tok++; setT
 /* a screenshot at a size that suits a phone screen: Steam's 1920 copy, the stores' scaled copies */
 function gpBig(p) {
   const u = p.u || "";
-  if (/steamstatic\.com\/.*\/ss_[0-9a-f]+\.jpg$/.test(u)) return u.replace(/\.jpg$/, ".1920x1080.jpg");
+  if (/steamstatic\.com\/.*\/ss_[0-9a-f]+\.jpg(\?|$)/.test(u)) return u.replace(/\.jpg(?=\?|$)/, ".1920x1080.jpg");
   if (/image\.api\.playstation\.com/.test(u)) return u.split("?")[0] + "?w=1280&h=1280";
   if (/store-images\.s-microsoft\.com/.test(u)) return u.split("?")[0] + "?w=1280&h=720";
   return u;
@@ -22014,7 +22014,7 @@ WHATS_NEW.push(
 /* a small copy of a screenshot, by host */
 function shotThumb(x) {
   const u = (x && (x.t || x.u)) || ""; if (x && x.t) return x.t;
-  if (/steamstatic\.com\/.*\/ss_[0-9a-f]+\.jpg$/.test(u)) return u.replace(/\.jpg$/, ".600x338.jpg");
+  if (/steamstatic\.com\/.*\/ss_[0-9a-f]+\.jpg(\?|$)/.test(u)) return u.replace(/\.jpg(?=\?|$)/, ".600x338.jpg");
   if (/image\.api\.playstation\.com/.test(u)) return u.split("?")[0] + "?w=640&h=640";
   if (/store-images\.s-microsoft\.com/.test(u)) return u.split("?")[0] + "?w=640&h=360";
   if (/assets\.nintendo\.com\/image\/upload\//.test(u)) return u.replace("/image/upload/", "/image/upload/c_scale,w_640/");
@@ -22046,43 +22046,82 @@ async function shotsWarm(g) {
   for (const u of l) await new Promise(r => { const i = new Image(); i.decoding = "async"; i.onload = i.onerror = r; i.src = u; setTimeout(r, 8000); });
   SHOT_W.add(key); shotWsave();
 }
+/* v240: the owner still saw no screenshots on Metaphor, Danganronpa, Persona 5 Royal, AI: The Somnium Files… although the stores
+   have dozens. Three causes: (1) a failed helper call (an error, a timeout, the phone offline for a moment) was saved as "this game
+   has none" and blocked it for a week (v237's mark, made with a weaker lookup, did too); (2) a page reached by swiping from the
+   game before never asked (only openFull did); (3) the sweep did 12 games every 2 minutes, played games last, so a short visit
+   never reached them. Now: an error is retried (once at once, then on the next pass) and never saved as "none"; any game page
+   that draws without screenshots asks for them (its swipe neighbours too); the sweep runs through the whole library in one go,
+   3 at a time. */
+const SHOT_TRY = new Map(), SHOT_ERR = new Map();
+const shotsNoNow = g => !!(g.shotsNo && g.shotsNoV === 240 && Date.now() - (g.shotsAt || 0) < 3 * 864e5);
+const shotsDue = g => (g.shots || []).length ? Date.now() - (g.shotsAt || 0) > 60 * 864e5 : !shotsNoNow(g);
+const artBad = a => !a || a.err || (a.found && Object.keys(a.found).length && Object.values(a.found).every(f => f && f.err));
 shotsFetch = async function (g, force) {
   if (!g || SHOT_BUSY.has(g.id)) return;
-  const fresh = (g.shots || []).length ? Date.now() - (g.shotsAt || 0) < 60 * 864e5 : g.shotsNo && Date.now() - (g.shotsAt || 0) < 7 * 864e5;
-  if (!force && fresh) { shotsWarm(g); return; }
-  SHOT_BUSY.add(g.id);
+  if (!force && !shotsDue(g)) { shotsWarm(g); return; }
+  SHOT_BUSY.add(g.id); SHOT_TRY.set(g.id, Date.now());
   try {
-    const plats = platList(g.platforms);
-    const art = typeof artStores === "function" ? await artStores(g.title, stIdOf(g) ? { st: stIdOf(g) } : {}).catch(() => null) : null;
+    const plats = platList(g.platforms), o = stIdOf(g) ? { st: stIdOf(g) } : {};
+    let art = typeof artStores === "function" ? await artStores(g.title, o).catch(e => ({ err: String((e && e.message) || e), pics: [] })) : null;
+    const forget = () => { const k0 = normT(g.title) + "|"; [...ART_C.keys()].forEach(k => { if (k.startsWith(k0)) ART_C.delete(k); }); };
+    if (artBad(art) && !(art && art.err === "helper-old")) { forget(); await new Promise(r => setTimeout(r, 4000));
+      art = await artStores(g.title, o).catch(e => ({ err: String((e && e.message) || e), pics: [] })); }
     const pick = gpPickShots(art && art.pics, plats);
     let l = pick.l.map(p => ({ u: p.u, b: gpBig(p), t: p.th || "", s: p.s })), src = pick.s ? ART_NAME[pick.s] : "";
     if (l.length < 4) { const id = await shotRawgId(g); const rs = id ? await rawgApi("games/" + id + "/screenshots?page_size=6").catch(() => null) : null;
       if (rs && rs.results) { const r = rs.results.filter(x => x.image).slice(0, 5 - l.length).map(x => ({ u: x.image, b: x.image.replace("/media/screenshots/", "/media/resize/1280/-/screenshots/"),
         t: x.image.replace("/media/screenshots/", "/media/resize/640/-/screenshots/"), s: "rw" }));
         if (r.length) src = l.length ? src + " and RAWG" : "RAWG"; l = l.concat(r); } }
-    if (!l.length && art && art.err === "helper-old") return;
+    /* a failed call is not "this game has none": try again on the next pass */
+    if (!l.length && artBad(art)) { forget(); SHOT_ERR.set(g.id, art && art.err ? String(art.err).slice(0, 80) : art ? "every store failed: " + Object.values(art.found).map(f => f.err).join(" / ").slice(0, 80) : "no answer"); return; }
+    SHOT_ERR.delete(g.id);
     g.shotsAt = Date.now();
-    if (l.length) { g.shots = l.slice(0, 5); g.shotsSrc = src; delete g.shotsNo; } else g.shotsNo = 1;
+    if (l.length) { g.shots = l.slice(0, 5); g.shotsSrc = src; delete g.shotsNo; delete g.shotsNoV; } else { g.shotsNo = 1; g.shotsNoV = 240; }
     save();
     document.querySelectorAll(`.gd-s-shots[data-g="${g.id}"]`).forEach(el => { el.outerHTML = gdShots(g); });
     shotsWarm(g);
-  } catch (e) {} finally { SHOT_BUSY.delete(g.id); }
+  } catch (e) { SHOT_ERR.set(g.id, String((e && e.message) || e).slice(0, 80)); } finally { SHOT_BUSY.delete(g.id); }
 };
-/* the background sweep: every game, a batch at a time, the ones you're most likely to open first */
-let shotsT = 0;
+/* a game page (or its swipe neighbour) drawn without screenshots asks for them: every way of reaching a page goes through gdShots */
+let SHOT_AUTO = true;
+{ const _gs = gdShots; gdShots = function (g) {
+  if (SHOT_AUTO && g && !(g.shots || []).length && shotsDue(g) && !SHOT_BUSY.has(g.id) && Date.now() - (SHOT_TRY.get(g.id) || 0) > 60000)
+    setTimeout(() => shotsFetch(g), 60);
+  return _gs.apply(this, arguments); }; }
+/* the background sweep: the whole library in one go, 3 at a time, the games you're most likely to open first */
+let shotsT = 0, shotsOn = false;
 async function shotsSweep() {
+  if (shotsOn || document.hidden || !navigator.onLine) return;
+  shotsOn = true;
+  try {
+    const order = [...playingNow(), ...(typeof onDeck === "function" ? onDeck(12) : []), ...S.games.filter(g => !isPlayed(g) && !isDropped(g)), ...S.games];
+    const due = order.filter((g, i, a) => a.indexOf(g) === i).filter(g => (g.shots || []).length
+      ? Date.now() - (g.shotsAt || 0) > 60 * 864e5 || !SHOT_W.has(g.id + ":" + g.shots.map(shotThumb).join("|").length)
+      : !shotsNoNow(g) && Date.now() - (SHOT_TRY.get(g.id) || 0) > 60000);
+    let k = 0;
+    const lane = async () => { while (k < due.length && !document.hidden) { const g = due[k++]; await shotsFetch(g); await new Promise(r => setTimeout(r, 400)); } };
+    await Promise.all([lane(), lane(), lane()]);
+  } finally { shotsOn = false; }
+  /* failures get another go in 10 minutes */
   clearTimeout(shotsT);
-  if (document.hidden || !navigator.onLine) return;
-  const order = [...playingNow(), ...(typeof onDeck === "function" ? onDeck(12) : []), ...S.games.filter(g => !isPlayed(g) && !isDropped(g)), ...S.games];
-  const due = order.filter((g, i, a) => a.indexOf(g) === i).filter(g => (g.shots || []).length
-    ? Date.now() - (g.shotsAt || 0) > 60 * 864e5 || !SHOT_W.has(g.id + ":" + g.shots.map(shotThumb).join("|").length)
-    : !(g.shotsNo && Date.now() - (g.shotsAt || 0) < 7 * 864e5));
-  for (const g of due.slice(0, 12)) { if (document.hidden) break; await shotsFetch(g); await new Promise(r => setTimeout(r, 1200)); }
-  if (due.length > 12) shotsT = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(shotsSweep, { timeout: 5000 }) : shotsSweep()), 120000);
+  if (S.games.some(g => !(g.shots || []).length && SHOT_ERR.has(g.id))) shotsT = setTimeout(shotsSweep, 600000);
 }
-setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(shotsSweep, { timeout: 8000 }) : shotsSweep()), 25000);
-addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(shotsSweep, 15000); else clearTimeout(shotsT); });
-addEventListener("online", () => setTimeout(shotsSweep, 5000));
+setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(shotsSweep, { timeout: 4000 }) : shotsSweep()), 12000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(shotsSweep, 8000); });
+addEventListener("online", () => setTimeout(shotsSweep, 3000));
+/* Nexi learned: a game page that stays without screenshots when nothing said the game has none */
+{ let tm = 0;
+  const check = id => { const f = $("#full"), g = S.games.find(x => x.id === id);
+    if (!g || !f || !f.classList.contains("on") || hubAt !== id || fullStyleOf() !== "dash" || (g.shots || []).length || shotsNoNow(g) || SHOT_BUSY.has(id) || !navigator.onLine || SHOT_ERR.get(id) === "helper-old") return;
+    const sec = f.querySelector(`.gd-s-shots[data-g="${id}"]`); if (!sec) return;
+    bugReport("look", "A game page never got its screenshots", { at: SHOT_ERR.get(id) || (SHOT_TRY.has(id) ? "asked, nothing came back" : "never asked"), screen: bugScreen() }); };
+  const _gs = gdShots; gdShots = function (g) { const o = _gs.apply(this, arguments);
+    if (g && !(g.shots || []).length) { const id = g.id; setTimeout(() => { if (hubAt === id) { clearTimeout(tm); tm = setTimeout(() => check(id), 15000); } }, 400); }
+    return o; }; }
+{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
+  if (kind === "look" && /never got its screenshots/.test(msg)) return "A game page stayed without screenshots.";
+  return _bn.apply(this, arguments); }; }
 /* a game you add gets its screenshots straight away */
 { const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => shotsFetch(g, true), 3000); return o; }; }
 /* the viewer: the small copy at once, the big one swapped in when it's ready */
@@ -22106,7 +22145,11 @@ WHATS_NEW.push(
   { v: 238, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => (x.shots || []).length) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
     at: () => $("#full .gd-s-shots:not([hidden])") || $("#full .gd-s-about") || $("#full .gd-s-prog"),
     say: "Screenshots are ready before you look now: I fetch them for every game in the background (and right away for a game you add), keep small copies on your phone so they show instantly, and search harder for games the stores don't have.",
-    tryIt: "Open any game: the screenshots are already there." }
+    tryIt: "Open any game: the screenshots are already there." },
+  { v: 240, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => isPlayed(x) && (x.shots || []).length) || S.games.find(x => (x.shots || []).length) || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .gd-s-shots:not([hidden])") || $("#full .gd-s-about") || $("#full .gd-s-prog"),
+    say: "Fixed: lots of games (Metaphor, Persona 5 Royal, Danganronpa…) had no screenshots. A hiccup while asking the stores was remembered as \"this game has none\", swiping to the next game never asked, and the background run reached your finished games last. Now every game is done in one go, a failed try is tried again, and I've learned to spot a page that stays without screenshots.",
+    tryIt: "Open a finished game, or swipe between games: the screenshots are there." }
 );
 </script>
 <style>
