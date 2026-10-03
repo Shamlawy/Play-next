@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "231";
+const APP_V = "232";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8304,8 +8304,10 @@ function renderQueue() {
             <span class="tag ${g.status}">${g.status}</span>
             <span class="tag st-${isFresh(g) ? "fresh" : g.state || "upcoming"}">${isFresh(g) ? "Out now" : (STATES.find(s => s[0] === (g.state || "upcoming")) || [, ""])[1]}</span>
           </div>
-          ${S.cardLayout === "logo" && g.art ? `<h2 class="h2logo"><img src="${esc(g.art)}" alt="${esc(g.title)}"></h2>` : `<h2>${esc(g.title)}</h2>`}
-          ${g.desc ? `<p class="desc">${esc(g.desc)}</p>` : ""}
+          <div class="htitle">${S.cardLayout === "logo" && g.art ? `<h2 class="h2logo"><img src="${esc(g.art)}" alt="${esc(g.title)}"></h2>` : `<h2>${esc(g.title)}</h2>`}</div>
+          ${(() => { /* v232: every open card has the same slots, so the description always takes three lines (genres when there's none) */
+            const t = g.desc || platList(g.genres).slice(0, 3).join(" · ");
+            return `<p class="desc${g.desc ? "" : " none"}">${t ? esc(t) : "&nbsp;"}</p>`; })()}
           <div class="stats">
             <div class="stat" style="animation-delay:60ms"><b>${
               typeof cd.v === "number" ? `<span data-count="${cd.v}">0</span>` : cd.v
@@ -8321,7 +8323,9 @@ function renderQueue() {
               /* your own hype, corrected by how wrong you've been on this genre
                  before. Only worth showing on something you haven't played. */
               const e = isPlayed(g) ? null : expected(g);
-              if (e == null) return "";
+              if (e == null) { /* v232: always four tiles: your score, else the critics, else an empty one */
+                const p = playedRec(g), v = p && scored(p) ? [p.real, "/10", "my score"] : g.critic ? [g.critic, "", "critics"] : ["—", "", "we'd expect"];
+                return `<div class="stat" style="animation-delay:210ms"><b>${esc(String(v[0]))}${v[1] ? `<i>${v[1]}</i>` : ""}</b><span>${v[2]}</span></div>`; }
               const d = e - (g.hype || 0);
               return `<div class="stat" style="animation-delay:210ms"><b>${e.toFixed(1)}<i>/10</i></b>
                 <span>we'd expect${Math.abs(d) >= .3 ? (d > 0 ? " · +" : " · ") + d.toFixed(1) : ""}</span></div>`;
@@ -21101,5 +21105,210 @@ WHATS_NEW.push(
   { v: 231, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Fixed: the tour's Next button felt slow when the next step opened a game or Settings. It answers straight away now, and the next screen follows a moment later.",
     tryIt: "Settings → This build → Show me what's new, and tap Next a few times." }
+);
+</script>
+<style>
+/* ===== v232: the same shape for every open queue card and every game page ===== */
+/* queue card: fixed slots, so opening a different game never makes the card grow or shrink */
+.hero .toprow { flex-wrap: nowrap; overflow: hidden; }
+.hero .toprow > * { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero .toprow > .kicker { flex: 0 0 auto; }
+.hero .htitle { display: flex; align-items: flex-end; font-size: clamp(23px, 6.4vw, 38px); height: 2.1em; margin: 0 0 8px; }
+.hero .htitle h2 { font-size: 1em; line-height: 1.05; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hero .htitle .h2logo { display: block; }
+.hero .htitle .h2logo img { max-height: 2em; width: auto; max-width: 100%; display: block; }
+.hero .desc { line-height: 1.45; height: 4.35em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.hero .desc.none { opacity: .75; }
+.hero .meta { container-type: inline-size; }
+.hero .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hero .stats .stat { min-width: 0; }
+.hero .stats .stat > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container (min-width: 470px) { .hero .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* on a phone the release-status tag (confirmed/TBA, also in the numbers) makes room for where the game is */
+@container (max-width: 420px) { .hero .toprow .tag:not([class*="st-"]) { display: none; } }
+
+/* game page: one skeleton for every game, whatever its state. Numbers → buttons → Progress → About → Reviews → Prices → More */
+.gd-glance { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 0; }
+.gd-glance > div { min-width: 0; padding: 11px 8px 10px; border-radius: 16px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); text-align: center; }
+.gd-glance b { display: block; font: 700 clamp(15px, 4.1vw, 22px)/1.1 "Poppins", system-ui, sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-glance > div:first-child b { color: var(--volt); }
+.gd-glance b.none { color: var(--mute); }
+.gd-glance span { display: block; margin-top: 4px; font-size: 10.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-main button.ed { flex: 1 1 0; padding: 14px 12px; }
+.gd-main button.off { background: transparent; color: var(--mute); border-style: dashed; cursor: default; box-shadow: none; }
+.gd-main button.off:active { transform: none; }
+.gd-sec { margin: 12px 0 0; padding: 14px 14px 15px; border-radius: 20px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); min-width: 0; }
+.gd-sh { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 13px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.gd-sh i { font-style: normal; font-size: 15px; width: 18px; text-align: center; }
+.gd-sh small { margin-left: auto; font: 500 11.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.gd-sec .gd-none { margin: 10px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--mute); }
+.gd-sec .gd-desc { margin: 10px 0 0; }
+.gd-sec .gd-link { display: inline-block; margin: 8px 0 0; padding: 4px 0; border: 0; background: none; color: var(--volt); font: 600 13px/1.2 "Poppins", system-ui, sans-serif; cursor: pointer; }
+/* the cards that used to stand alone lose their own frame and title inside a section */
+.gd-sec .wi, .gd-sec .wis, .gd-sec .rv, .gd-sec .eta, .gd-sec .cap, .gd-sec .px { margin: 10px 0 0; }
+.gd-sec .rv, .gd-sec .eta, .gd-sec .cap { padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+.gd-sec .rv-h b, .gd-sec .eta > b, .gd-sec .cap > b { display: none; }
+.gd-sec .rv-h { display: none; }
+.gd-sec .wi, .gd-sec .wi.back { background: rgba(255,255,255,.045); border-color: transparent; box-shadow: none; }
+.gd-sec .wis { background: rgba(255,255,255,.045); border-color: transparent; }
+/* progress: three steps, the same for every game; where the game is shows by which steps are lit */
+.gd-trk { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 12px 0 0; }
+.gd-st { position: relative; display: grid; justify-items: center; gap: 3px; min-width: 0; text-align: center; }
+.gd-st::before { content: ""; position: absolute; top: 6px; left: 0; right: 0; height: 2px; background: var(--u-line2, rgba(234,242,255,.14)); }
+.gd-st:first-child::before { left: 50%; }
+.gd-st:last-child::before { right: 50%; }
+/* a step's line is its left half (from the step before) + its right half (to the next): lit only up to steps you've reached */
+.gd-st:is(.done, .now)::before { background: linear-gradient(90deg, rgba(var(--vrgb), .55) 0 50%, var(--u-line2, rgba(234,242,255,.14)) 50%); }
+.gd-st:is(.done, .now):has(+ .gd-st:is(.done, .now))::before, .gd-st:last-child:is(.done, .now)::before { background: rgba(var(--vrgb), .55); }
+.gd-st:first-child::before { background: var(--u-line2, rgba(234,242,255,.14)); }
+.gd-st:first-child:has(+ .gd-st:is(.done, .now))::before { background: rgba(var(--vrgb), .55); }
+.gd-st i { position: relative; width: 14px; height: 14px; border-radius: 50%; background: var(--u-pan, #0a0e1b); border: 2px solid var(--u-line2, rgba(234,242,255,.22)); }
+.gd-st.done i { background: var(--volt); border-color: var(--volt); }
+.gd-st.now i { border-color: var(--volt); box-shadow: 0 0 0 4px rgba(var(--vrgb), .2); }
+.gd-st.drop i { background: #ff6b88; border-color: #ff6b88; }
+.gd-st b { font: 600 12.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--mute); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-st.done b, .gd-st.now b { color: var(--ice); }
+.gd-st small { font-size: 11px; color: var(--mute); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-sec .gd-ln { margin: 12px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ice); }
+.gd-sec .gd-ln small { color: var(--mute); font-size: 12px; }
+@media (min-width: 760px) {
+  .gd-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+  .gd-pair > .gd-sec { margin-top: 12px; }
+  .gd-glance, .gd-main { max-width: 640px; }
+}
+</style>
+<script>
+/* ===== v232: the owner: "each queue card is a different size when open" and "the new game page lacks organisation: each game
+   looks different because of its status". The open queue card now has fixed slots (title 2 lines, description 3 lines, 4 number
+   tiles), and the New game page has one skeleton for every game: 4 number tiles (release, length, hype, score), the same 3 buttons
+   (Score, Duel, Edit; greyed when they don't apply yet), then the same sections in the same order (Your progress, About, Reviews,
+   Prices), each with a line saying why it's empty when it is, then the same set of tiles. This replaces gdMarkup and its earlier
+   wrappers (v219 reviews, v220 forecast/then & now), which used to slip their cards in wherever they fitted. ===== */
+const GD_STATE = { upcoming: "Coming", backlog: "Waiting", playing: "Playing now", played: "Finished", dropped: "Dropped" };
+function gdState(g) { return isPlayed(g) ? "played" : isDropped(g) ? "dropped" : g.state === "playing" ? "playing" : isUpcoming(g) ? "upcoming" : "backlog"; }
+const gdSec = (cls, icon, title, meta, body) => `<section class="gd-sec ${cls}"><div class="gd-sh"><i aria-hidden="true">${icon}</i><span>${esc(title)}</span>${meta ? `<small>${esc(meta)}</small>` : ""}</div>${body}</section>`;
+const gdMonth = t => { const d = new Date(String(t).length <= 10 ? t + "T12:00:00" : t); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", year: "numeric" }); };
+function gdGuess(g) {
+  if (isPlayed(g) || g.comp) return 0;
+  try { const f = typeof rvFor === "function" ? rvFor(g) : null; if (f && f.v) return f.v; } catch (e) {}
+  const x = expected(g); return typeof x === "number" ? x : x && x.score ? x.score : 0;
+}
+/* 4 tiles, same order for every game */
+function gdGlance(g) {
+  const p = playedRec(g), h = hrsOf(g), ev = num(S.evening, 4, 1, 12), guess = gdGuess(g);
+  const sc = p && scored(p) ? [p.real, "your score"] : g.comp ? ["—", "competitive"] : guess ? [guess.toFixed(1), "likely score"] : g.critic ? [g.critic, "critics"] : ["—", "not scored"];
+  return [
+    (() => { /* another year's date doesn't fit a quarter of a phone: the year big, the day under it */
+      if (!g.date) return ["TBA", "no date yet"];
+      const d = new Date(g.date + "T12:00:00"), up = isUpcoming(g), dm = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      return isNaN(d) ? ["TBA", "no date yet"] : d.getFullYear() === new Date().getFullYear() ? [dm, up ? "release" : "released"] : [String(d.getFullYear()), (up ? "out " : "released ") + dm]; })(),
+    h ? [h + "h", Math.max(1, Math.round(h / ev)) + " evenings"] : ["—", g.comp ? "no end" : "length"],
+    [g.hype ? g.hype + "/10" : "—", "hype"],
+    sc
+  ].map(([v, l]) => `<div><b${v === "—" ? ' class="none"' : ""}>${esc(String(v))}</b><span>${esc(l)}</span></div>`).join("");
+}
+/* the three steps (out → playing → finished) and what goes under them */
+function gdProgress(g) {
+  const st = gdState(g), p = playedRec(g), td = new Date().toLocaleDateString("en-CA"), out = g.date && g.date <= td;
+  const e = st === "playing" && typeof etaOf === "function" ? etaOf(g) : null;
+  const s1 = { b: st === "upcoming" ? "Coming" : "Out", s: g.date ? shortDate(g.date) : "TBA", c: st === "upcoming" ? "now" : "done" };
+  const s2 = { b: "Playing", s: st === "playing" ? (loggedOf(g) ? loggedOf(g) + "h in" : g.plAt ? "since " + shortDate(new Date(g.plAt).toLocaleDateString("en-CA")) : "now") : st === "played" || st === "dropped" ? (loggedOf(g) ? loggedOf(g) + "h" : "") : "",
+    c: st === "playing" ? "now" : st === "played" || st === "dropped" ? "done" : "" };
+  const s3 = st === "dropped" ? { b: "Dropped", s: "", c: "drop" } : { b: "Finished", s: st === "played" ? (p && p.t ? gdMonth(p.t) : "") : e && e.left > 0 ? "~" + etaNice(e.at) : "", c: st === "played" ? "done" : "" };
+  const trk = `<div class="gd-trk" role="list">${[s1, s2, s3].map(x => `<div class="gd-st ${x.c}" role="listitem"><i aria-hidden="true"></i><b>${esc(x.b)}</b><small>${esc(x.s || " ")}</small></div>`).join("")}</div>`;
+  let body = "";
+  if (st === "upcoming") body = `<p class="gd-ln">${g.date ? `Comes out <b>${esc(new Date(g.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</b> · ${esc(days(g.date).toLowerCase())}` : "No release date yet."}<br><small>I check for date changes by myself and tell you when it moves.</small></p>`;
+  else if (st === "backlog") body = `<p class="gd-ln">${out ? `Out since <b>${esc(shortDate(g.date))}</b>. ` : ""}Ready when you are.<br><small>Mark it Playing now in Edit and I'll keep your place and forecast the finish.</small></p>` + wiCard(g);
+  else if (st === "playing") body = wiCard(g) + (S.etaOff ? "" : (typeof etaCard === "function" ? etaCard(g) : ""));
+  else if (st === "played") { const c = typeof capCard === "function" ? capCard(g) : "";
+    body = c || `<p class="gd-ln">${p && p.t ? `Finished in <b>${esc(gdMonth(p.t))}</b>. ` : "Finished. "}${p && scored(p) ? `You gave it <b>${p.real}</b>.` : "Not scored yet."}</p>` + wiCard(g); }
+  else body = `<p class="gd-ln">You put this one down.<br><small>Change its status in Edit if you pick it up again.</small></p>` + wiCard(g);
+  return gdSec("gd-s-prog", "🧭", "Your progress", GD_STATE[st], trk + body);
+}
+function gdReviews(g) {
+  const c = typeof rvCard === "function" ? rvCard(g) : "";
+  if (c) return gdSec("gd-s-rv", "⭐", "Reviews", g.rv && g.rv.at ? "checked " + wiAgo(g.rv.at) : "", c);
+  const p = playedRec(g), guess = gdGuess(g), cells = [];
+  if (+g.critic > 0) cells.push(`<span class="rv-c"><b>${esc(String(g.critic))}</b><small>Critics</small></span>`);
+  if (p && scored(p)) cells.push(`<span class="rv-c me"><b>${p.real}${typeof tierBadge === "function" ? tierBadge(p.real) : ""}</b><small>You</small></span>`);
+  else if (guess) cells.push(`<span class="rv-c me"><b>${guess.toFixed(1)}</b><small>You, probably</small></span>`);
+  return gdSec("gd-s-rv", "⭐", "Reviews", "", cells.length ? `<div class="rv-s" style="margin-top:10px">${cells.join("")}</div>` : `<p class="gd-none">${isUpcoming(g) ? "Not out yet. I'll fetch the reviews by myself when it lands." : "No reviews yet."}</p>`);
+}
+function gdPrices(g) {
+  const c = typeof pxCard === "function" ? pxCard(g) : "";
+  if (c) return gdSec("gd-s-px", "💸", "Prices", "", c);
+  const why = isPlayed(g) ? "You've played it, so I'm not watching its price." : isDropped(g) ? "You dropped it, so I'm not watching its price."
+    : g.comp ? "I don't watch prices of competitive games." : !pxOn() ? "Price alerts are off." : "Not sold on the stores I watch for its platforms.";
+  return gdSec("gd-s-px", "💸", "Prices", "", `<p class="gd-none">${esc(why)}</p><button type="button" class="gd-link" data-px="${g.id}">Price alerts ›</button>`);
+}
+function gdAbout(g) {
+  const d = g.desc || g.about || "";
+  return gdSec("gd-s-about", "📖", "About", platList(g.genres).slice(0, 2).join(" · "),
+    d ? `<p class="gd-desc">${esc(d)}</p>${d.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}`
+      : `<p class="gd-none">No description yet. Edit can fill one in from RAWG.</p>`);
+}
+gdMarkup = function (g) {
+  const col = HEX.test(g.colour || "") ? g.colour : PALETTE[0], st = gdState(g), p = playedRec(g);
+  const state = (STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1];
+  const back = bgSource(g), acts = hubActs(g);
+  /* the same tiles for every game (Prices and Where was I? stay even when their section shows them) */
+  const rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]));
+  if (!rest.some(a => /data-px=/.test(a[0]))) rest.splice(Math.max(0, rest.findIndex(a => /data-wasi/.test(a[0]))), 0, [`data-px="${g.id}"`, "💸", "Prices"]);
+  const tags = [state ? [state, 1] : null, ...platList(g.genres).slice(0, 3).map(x => [x])].filter(Boolean);
+  const plats = S.platText ? platList(g.platforms).slice(0, 3).map(x => `<span>${esc(x)}</span>`).join("") : platHtml(g.platforms);
+  const icon = a => a[1] || GD_ICON[(a[0].match(/data-(\w+)/) || [])[1]] || "•";
+  const canScore = !g.comp && (p || !isUpcoming(g)), canDuel = !!p && !g.comp;
+  const kick = st === "played" ? "Finished" + (p && p.t ? " · " + gdMonth(p.t) : "") : st === "dropped" ? "Dropped" : g.date ? days(g.date) : "No date yet";
+  const btn = (ok, attr, emo, lab, why) => ok ? `<button type="button" class="hot" ${attr}>${emo} ${esc(lab)}</button>`
+    : `<button type="button" class="off" disabled title="${esc(why)}" aria-label="${esc(lab + ": " + why)}">${emo} ${esc(lab)}</button>`;
+  return `
+    <div class="hub gpage gd2" style="--accent:${esc(col)}">
+      <div class="gd-hero">
+        <img class="gd-bg" decoding="async" fetchpriority="high" alt="" src="${esc(back)}" onload="this.classList.add('in')" style="object-position:${num(g.bgX, 50, 0, 100)}% ${num(g.bgY, 30, 0, 100)}%">
+        ${g.key && S.gdFig ? `<img class="gd-fig" decoding="async" src="${esc(g.key)}" alt="">` : ""}
+        ${g.art ? `<img class="gd-logo" decoding="async" src="${esc(g.art)}" alt="">` : ""}
+      </div>
+      <button class="fullx x" id="full-close" title="Close" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>
+      <div class="gd-body">
+        <div class="gd-head">
+          <img class="gd-cov" decoding="async" src="${esc(cover(g))}" alt="">
+          <div class="gd-tt"><span class="hub-kick">${esc(kick)}</span><h2>${esc(g.title)}</h2></div>
+        </div>
+        ${tags.length || plats ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}${plats}</div>` : ""}
+        <div class="hub-data gd-glance">${gdGlance(g)}</div>
+        <div class="gd-main">${btn(canScore, `data-qscore="${g.id}"`, "⭐", p && scored(p) ? "Score · " + p.real : "Score it", g.comp ? "Competitive games aren't scored" : "You can score it once it's out")}${
+          btn(canDuel, `data-qduel="${g.id}"`, "⚔️", "Duel it", "Duels are for games you've played")}<button type="button" class="ed" data-fulledit="${g.id}">✏️ Edit</button></div>
+        ${gdProgress(g)}
+        ${gdAbout(g)}
+        <div class="gd-pair">${gdReviews(g)}${gdPrices(g)}</div>
+        <div class="gd-more">${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
+      </div>
+    </div>`;
+};
+/* Nexi learned: open queue cards that come out different sizes. Each open card is watched with a ResizeObserver (no layout
+   reads after the redraw); two different games' cards at the same screen width, style and card layout more than 12px apart
+   = a report. Skips the flipped side, hidden pages and the same game resizing itself (pictures loading). */
+{ let last = null;
+  const ro = "ResizeObserver" in window ? new ResizeObserver(es => es.forEach(e => {
+    const h = e.target, id = h.dataset.row, b = e.borderBoxSize && e.borderBoxSize[0], ht = Math.round(b ? b.blockSize : e.contentRect.height);
+    if (!ht || !h.isConnected || document.hidden || h.querySelector(".hflip.on") || !h.closest("#p-queue")) return;
+    const k = innerWidth + "|" + (S.cardLayout || "") + "|" + (S.uiStyle || "") + "|" + (S.motion === false);
+    if (last && last.k === k && last.id !== id && Math.abs(last.h - ht) > 12)
+      bugReport("look", "Open queue cards are different sizes", { at: `.hero ${last.h}px, then ${ht}px at ${innerWidth}px wide`, screen: "games/queue" });
+    last = { k, id, h: ht };
+  })) : null;
+  const _rq = renderQueue; renderQueue = function () { const o = _rq.apply(this, arguments);
+    if (ro) requestAnimationFrame(() => { const h = document.querySelector("#p-queue .hero[data-row]"); if (h && !h._szo) { h._szo = 1; ro.observe(h); } });
+    return o; }; }
+{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
+  if (kind === "look" && /different sizes/.test(msg)) return "The open cards in your Queue weren't all the same size.";
+  return _bn.apply(this, arguments); }; }
+WHATS_NEW.push(
+  { v: 232, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: () => $("#p-queue .hero") || $("#p-queue .row"),
+    say: "Open queue cards are all the same size now: the title gets two lines, the description three, and there are always four numbers, so the list doesn't jump when you open another game. I've learned to spot a card that comes out a different size myself now.",
+    tryIt: "Tap a few games in the Queue one after another." },
+  { v: 232, go: () => { dyClose(); nxShut(); const g = playingNow().find(x => !x.comp) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-s-prog") || $("#full .gd-main"),
+    say: "Every game page has the same layout now, whatever the game's status: four numbers, the same three buttons, then <b>Your progress</b> (out → playing → finished), About, Reviews and Prices, always in that order.",
+    tryIt: "Open a game you're playing, then one you've finished, and compare." }
 );
 </script>
