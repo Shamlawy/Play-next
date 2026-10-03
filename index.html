@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "241";
+const APP_V = "242";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -18195,7 +18195,7 @@ function lookDesign2(root, scr) {
         const i = stack.indexOf(el), pic = i < 0 || stack.slice(i + 1).some(x => bh.host.contains(x) && x !== bh.host && !x.contains(el)
           && (x.tagName === "IMG" || x.tagName === "CANVAS" || x.tagName === "VIDEO" || (lookCS(x).backgroundImage || "none") !== "none"
             || ((lookRGB(lookCS(x).backgroundColor) || [0, 0, 0, 0])[3] > .1)));
-        /* v241: not while it (or a parent) is still fading in: the Library title was measured mid-entrance at 1.7:1 */
+        /* v242: not while it (or a parent) is still fading in: the Library title was measured mid-entrance at 1.7:1 */
         if (!pic && !bugMoving(el)) { nFaint++; bugReport("look", "Some text is too faint to read", { at: bugPath(el) + " contrast " + ratio.toFixed(1) + ":1, " + Math.round(px) + "px", screen: scr }); }
       }
     }
@@ -22155,7 +22155,7 @@ WHATS_NEW.push(
 );
 </script>
 <style>
-/* ===== v239/v241: Game room — a little 3D room built from your games (owner's isometric "B" room reference: layout and style, our colours).
+/* ===== v239/v242: Game room — a little 3D room built from your games (owner's isometric "B" room reference: layout and style, our colours).
    Plain CSS 3D boxes (every face a flat <i>); spinning only changes the world's transform. v240: day/night from the real clock, a lamp
    you switch, Nexi on the couch, the giant case opens, a pile of your queue, trophies, a hidden controller, phone tilt. ===== */
 #room { position: fixed; inset: 0; z-index: 96; background: radial-gradient(120% 80% at 50% 58%, #0c1124 0%, #04060d 70%); opacity: 0; transition: opacity .28s;
@@ -22263,7 +22263,7 @@ html.still #room .rm-hint { transition: none; }
    like it in 3D that spins with the finger. The room fills itself from your games: the giant case is your #1 (else On deck),
    the poster is what you're playing, the shelf holds your best and next games, the plaque says whose room it is.
    Library → 🧊 Room. Drag = spin (and tilt), pinch = zoom, tap = act on what you tapped, double tap empty space = start view.
-   v241 (the owner: "it turns opposite of my swipe" + "make it more and more cooler"): dragging right turns the room right
+   v242 (the owner: "it turns opposite of my swipe" + "make it more and more cooler"): dragging right turns the room right
    (yaw goes DOWN as the finger goes right); day/night from the clock (window sky, sun patch, everything dimmer at night); tap the
    lamp = on/off; Nexi on the couch (billboard, tap = hop + a line about your room); tap the giant case = its lid swings open and
    the disc spins (tap the disc = open the game); shelf games slide out; your queue lies on the floor as a pile (tap = Queue);
@@ -22390,7 +22390,7 @@ function rmScene(p) {
 }
 /* each face has an <s class="sh"> whose black is a paused animation per direction: setting currentTime restyles only those
    overlays (a CSS var on the room restyled all ~380 elements: 10ms a frame on desktop, 40ms at 4x throttle). It animates
-   background-color, not opacity: an opacity animation made every overlay its own compositor layer (484 layers in v241's first try). */
+   background-color, not opacity: an opacity animation made every overlay its own compositor layer (484 layers in v242's first try). */
 function rmShadeWire() {
   RM.an = { s: [], e: [], n: [], w: [], t: [] };
   RM.w.querySelectorAll(".rf > .sh").forEach(o => { const k = o.parentNode.classList[1], l = RM.an[k]; if (!l) return;
@@ -22625,7 +22625,7 @@ WHATS_NEW.push(
   { v: 239, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: () => $("#lib-view [data-room]"),
     say: "Your games now have a <b>Game room</b>: a little 3D room that spins with your finger. Your #1 stands in it as a giant case, what you're playing hangs on the wall and your best games sit on the shelf. It fills itself as you play.",
     tryIt: "Library → 🧊 Room. Drag to spin, pinch to zoom, tap a game to open it, double tap to reset." },
-  { v: 241, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: () => $("#lib-view [data-room]"),
+  { v: 242, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: () => $("#lib-view [data-room]"),
     say: "Your <b>Game room</b> came alive: it now turns the same way as your finger, follows the real sky (dark at night, tap the lamp), Nexi sits on the couch, your #1's giant case opens, your queue is a pile on the floor and 9+ games get gold cups. Something's hidden behind the big box.",
     tryIt: "Library → 🧊 Room. Tap Nexi, the lamp, the big box and the pile, and spin around to find the secret. (I've learned to check the spin goes your way myself now.)" }
 );
