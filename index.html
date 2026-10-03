@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "233";
+const APP_V = "234";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -21123,17 +21123,20 @@ WHATS_NEW.push(
 .hero .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .hero .stats .stat { min-width: 0; }
 .hero .stats .stat > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@container (min-width: 470px) { .hero .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (min-width: 470px) { .hero .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* v234: four across, "10.0/10" didn't fit a quarter of the card: numbers scale with the card, tighter padding */
+  .hero .stats .stat { padding-left: 12px; padding-right: 10px; }
+  .hero .stats .stat > b { font-size: min(clamp(28px, 3.4vw, 40px), 5.4cqi); } }
 /* on a phone the release-status tag (confirmed/TBA, also in the numbers) makes room for where the game is */
 @container (max-width: 420px) { .hero .toprow .tag:not([class*="st-"]) { display: none; } }
 
 /* game page: one skeleton for every game, whatever its state. Numbers → buttons → Progress → About → Reviews → Prices → More */
 .gd-glance { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 0; }
-.gd-glance > div { min-width: 0; padding: 11px 8px 10px; border-radius: 16px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); text-align: center; }
-.gd-glance b { display: block; font: 700 clamp(15px, 4.1vw, 22px)/1.1 "Poppins", system-ui, sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub.gpage .gd-glance > div { min-width: 0; padding: 11px 5px 10px; border-radius: 16px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); text-align: center; }
+.hub.gpage .gd-glance b { display: block; font: 700 clamp(14px, 3.7vw, 22px)/1.1 "Poppins", system-ui, sans-serif; letter-spacing: -.01em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gd-glance > div:first-child b { color: var(--volt); }
-.gd-glance b.none { color: var(--mute); }
-.gd-glance span { display: block; margin-top: 4px; font-size: 10.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub.gpage .gd-glance b.none { color: var(--mute); }
+.hub.gpage .gd-glance span { display: block; margin-top: 4px; font-size: 10.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gd-main button.ed { flex: 1 1 0; padding: 14px 12px; }
 .gd-main button.off { background: transparent; color: var(--mute); border-style: dashed; cursor: default; box-shadow: none; }
 .gd-main button.off:active { transform: none; }
@@ -21195,6 +21198,16 @@ WHATS_NEW.push(
   .gd2 .gd-main button.hot, .gd2 .gd-main button.soft { flex: 0 1 300px; }
   .gd2 .gd-pair { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 }
+/* v234: genre chips are buttons (tap = your games with that genre), +N unfolds the rest + Steam players' tags */
+.gd-tags .gtag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font: 500 11.5px/1.25 "Poppins", system-ui, sans-serif; color: var(--ice);
+  background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); cursor: pointer; transition: transform .2s var(--ease); }
+.gd-tags .gtag:active { transform: scale(.94); }
+.gd-tags .gtag small { font: 600 10.5px/1 "Poppins", system-ui, sans-serif; color: var(--mute); }
+.gd-tags .gtag.st { border-style: dashed; border-color: var(--u-line2, rgba(234,242,255,.2)); }
+.gd-tags .gd-tplus { color: var(--volt); border-color: rgba(var(--vrgb), .4); background: rgba(var(--vrgb), .1); font-weight: 600; }
+.gd-tags span.gd-tmore { display: contents; }
+.gd-tags span.gd-tmore[hidden] { display: none; }
+.gd-tags .gd-tlab { flex-basis: 100%; margin: 4px 0 -1px 2px; font: 500 11px/1.2 "Poppins", system-ui, sans-serif; font-style: normal; color: var(--mute); }
 </style>
 <script>
 /* ===== v232: the owner: "each queue card is a different size when open" and "the new game page lacks organisation: each game
@@ -21261,9 +21274,67 @@ function gdPrices(g) {
 }
 function gdAbout(g) {
   const d = g.desc || g.about || "";
-  return d ? gdSec("gd-s-about", "📖", "About", platList(g.genres).slice(0, 2).join(" · "),
+  return d ? gdSec("gd-s-about", "📖", "About", "",
     `<p class="gd-desc">${esc(d)}</p>${d.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}`) : "";
 }
+/* v234 (the owner: "it only shows 2–3 genres, what about the rest? tap to show all?"): the first 3 genres, then +N unfolds the
+   rest in place, plus what Steam players call it (g.stTags, fetched by stSync, never shown before). Each genre says how many of
+   your games share it, and a tap opens your Queue filtered to it ("G:<genre>", next to your lists) */
+const gdKey = t => String(t || "").trim().toLowerCase();
+const gdGenreSet = x => new Set(platList(x.genres).concat(x.stTags || []).map(gdKey));
+function gdTagData(g) {
+  const base = platList(g.genres), seen = new Set(base.map(gdKey));
+  const gen = typeof ST_GENERIC !== "undefined" ? ST_GENERIC : new Set();
+  const st = (g.stTags || []).filter(t => { const k = gdKey(t); if (!k || seen.has(k) || gen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+  const sets = S.games.map(gdGenreSet), n = t => { const k = gdKey(t); return sets.reduce((a, s) => a + (s.has(k) ? 1 : 0), 0); };
+  return { base, st, n };
+}
+function gdTags(g, state, plats) {
+  const { base, st, n } = gdTagData(g), more = base.slice(3).length + st.length;
+  const chip = (t, cls) => { const c = n(t); return `<button type="button" class="gtag${cls ? " " + cls : ""}" data-gtag="${esc(t)}" title="${esc(c > 1 ? `${c} of your games are ${t} · tap to see them` : `See your ${t} games`)}">${esc(t)}${c > 1 ? `<small>${c}</small>` : ""}</button>`; };
+  if (!state && !base.length && !st.length && !plats) return "";
+  return `<div class="gd-tags">${state ? `<span class="acc">${esc(state)}</span>` : ""}${base.slice(0, 3).map(t => chip(t)).join("")}${
+    more ? `<span class="gd-tmore" hidden>${base.slice(3).map(t => chip(t)).join("")}${st.length ? `<i class="gd-tlab">Steam players say</i>${st.map(t => chip(t, "st")).join("")}` : ""}</span>
+      <button type="button" class="gtag gd-tplus" data-gdtags aria-expanded="false" aria-label="Show ${more} more tags">+${more}</button>` : ""}${plats}</div>`;
+}
+/* +N / Less: what's below slides (transform only), the new chips fade in */
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-gdtags]"); if (!b) return;
+  const row = b.closest(".gd-tags"), x = row && row.querySelector(".gd-tmore"); if (!x) return;
+  e.stopPropagation(); beep("tap");
+  const h0 = row.offsetHeight, open = x.hidden; x.hidden = !open;
+  b.setAttribute("aria-expanded", String(open)); b.textContent = open ? "Less" : "+" + x.querySelectorAll(".gtag").length;
+  if (calm()) return;
+  const dh = row.offsetHeight - h0; if (Math.abs(dh) < 2) return;
+  for (let y = row.nextElementSibling; y; y = y.nextElementSibling) y.animate([{ transform: `translateY(${-dh}px)` }, { transform: "none" }], { duration: 360, easing: PN_EASE });
+  if (open) [...x.children].forEach((c, i) => c.animate([{ opacity: 0, transform: "scale(.9)" }, { opacity: 1, transform: "none" }], { duration: 240, delay: Math.min(i, 12) * 22, easing: "ease-out", fill: "backwards" }));
+}, true);
+/* the genre filter: one at a time, like "Like <game>" */
+function gtagFilter(t) {
+  for (let i = QFILTERS.length - 1; i >= 0; i--) if (/^G:/.test(QFILTERS[i][0])) QFILTERS.splice(i, 1);
+  QFILTERS.push(["G:" + t, t]); QICON["G:" + t] = "🏷️";
+  S.qFilter = "G:" + t; save();
+  if ($("#full.on")) closeFull();
+  goTab("queue"); renderQueue();
+  const c = allGames().filter(x => gdGenreSet(x).has(gdKey(t))).length;
+  toast(`${c} ${c === 1 ? "game" : "games"} tagged ${t} · switch back in the Queue's filter menu`);
+}
+{ const _qc = qCounts; qCounts = function () { const c = _qc.apply(this, arguments); QFILTERS.forEach(([k]) => { if (/^G:/.test(k)) c[k] = allGames().filter(x => gdGenreSet(x).has(gdKey(k.slice(2)))).length; }); return c; }; }
+{ const _ql = queueList; queueList = function () { const f = qNow(); if (/^G:/.test(f)) return allGames().filter(x => gdGenreSet(x).has(gdKey(f.slice(2)))); return _ql.apply(this, arguments); }; }
+/* a reload keeps the genre view (QFILTERS starts without it) */
+if (/^G:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { QFILTERS.push([S.qFilter, S.qFilter.slice(2)]); QICON[S.qFilter] = "🏷️"; try { renderQueue(); } catch (e) {} }
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-gtag]"); if (!b) return; e.stopPropagation(); beep("tap"); gtagFilter(b.dataset.gtag); }, true);
+/* Nexi learned (v234): a number in a stat tile cut short with "…" (the release tile showed "13 S…"). The ellipsis kept it out of
+   the cut-off-text check, but a number you can't read is still broken. Checks the tiles on screen: game page, open queue card */
+{ const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
+  try { for (const b of document.querySelectorAll(".gd-glance b, .hub-data b, .hero .stat > b")) {
+      if (b.scrollWidth <= b.clientWidth + 1 || !b.getClientRects().length) continue;
+      const r = b.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || (b.checkVisibility && !b.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))) continue;
+      bugReport("look", "A number in a tile is cut off", { at: bugPath(b) + " shows " + b.clientWidth + " of " + b.scrollWidth + "px", screen: scr }); break; } } catch (e) {}
+  return o; }; }
+{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
+  if (kind === "look" && /number in a tile/.test(msg)) return `A number on ${bugPlace(scr)} was too long for its tile.`;
+  return _bn.apply(this, arguments); }; }
 /* the one thing worth doing next, by where the game is: [attributes, label, kind] */
 function gdNext(g) {
   const st = gdState(g), p = playedRec(g), id = g.id;
@@ -21300,7 +21371,7 @@ gdMarkup = function (g) {
           <img class="gd-cov" decoding="async" src="${esc(cover(g))}" alt="">
           <div class="gd-tt"><span class="hub-kick">${esc(kick)}</span><h2>${esc(g.title)}</h2></div>
         </div>
-        ${tags.length || plats ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}${plats}</div>` : ""}
+        ${gdTags(g, state, plats)}
         <div class="hub-data gd-glance">${gdGlance(g)}</div>
         <div class="gd-main">${next.map(a => `<button type="button" class="${a[2] === "soft" ? "soft" : "hot"}" ${a[0]}>${esc(a[1])}</button>`).join("")}<button type="button" class="ic" data-fulledit="${g.id}" title="Edit" aria-label="Edit">✏️</button><button type="button" class="ic" data-gdx aria-expanded="false" title="More" aria-label="More for this game">⋯</button></div>
         <div class="gd-x" hidden>${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
@@ -21364,6 +21435,11 @@ WHATS_NEW.push(
     tryIt: "Open a game you're playing, then one you've finished, and compare." },
   { v: 233, go: () => { dyClose(); nxShut(); const g = S.games.find(x => gdState(x) === "backlog") || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-main"),
     say: "Game pages are calmer: one smart button for what to do next (watch the trailer, start playing, I finished it, or score and duel), and everything else tucked behind <b>⋯</b>. Sections without anything to say stay out of the way.",
-    tryIt: "Tap ⋯ to see the rest." }
+    tryIt: "Tap ⋯ to see the rest." },
+  { v: 234, go: () => { dyClose(); nxShut(); const n = x => platList(x.genres).length + (x.stTags || []).length;
+      const g = S.games.slice().sort((a, b) => n(b) - n(a))[0]; if (g) openFull(g.id); },
+    at: () => { const b = $("#full .gd-tplus"); if (b && b.getAttribute("aria-expanded") !== "true") b.click(); return $("#full .gd-tags"); },
+    say: "Every genre on a game page now: <b>+N</b> unfolds the rest, plus what Steam players call the game. The small number is how many of your games share it, and tapping a genre shows them all in your Queue. Also fixed: dates like “13 Sep” were cut off in the release tile, and I've learned to spot a cut-off number myself now.",
+    tryIt: "Tap a genre to see every game you have like it." }
 );
 </script>
