@@ -3,11 +3,11 @@
    real site in a headless browser, search, and record every /api/ request it makes (method, headers, body) and the answer.
    Part 3: run the helper's own /hours code against the real site. */
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36";
-const Q = (process.env.Q || "Elden Ring|Persona 5 Royal|Metaphor: ReFantazio|Hollow Knight").split("|").map(s => s.trim()).filter(Boolean);
+const Q = (process.env.Q || "Elden Ring|Persona 5 Royal|Metaphor: ReFantazio|Hollow Knight|Danganronpa: Trigger Happy Havoc|AI: The Somnium Files|Final Fantasy VII Rebirth|STEINS;GATE ELITE|The Apothecary Diaries: The False Imperial Brothers|GTA 6|Hades|The Witcher 3|Persona 3 Reload|Fire Emblem: Three Houses|Stardew Valley").split("|").map(s => s.trim()).filter(Boolean);
 const base = "https://howlongtobeat.com";
 const TO = () => AbortSignal.timeout(15000);
 setTimeout(() => { console.log("probe: 6 min, giving up"); process.exit(0); }, 360000);
-try {
+if (process.env.PLAIN) try {
   const r = await fetch(base + "/", { headers: { "User-Agent": UA, Referer: base + "/" }, signal: TO() });
   const html = await r.text();
   console.log("home", r.status, html.length, "bytes");

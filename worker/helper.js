@@ -12,7 +12,7 @@
    POST /steam        → Steam's own tags (genres players use) and "more like this" for a list of games.
    POST /reviews      → Steam's player-review summary (e.g. "Very Positive", 93% of 1,240) for a list of games (v11).
    POST /art          → game pictures straight from Steam, the Xbox store, the PlayStation Store and the Nintendo eShop, each with its size (v15).
-   POST /hours        → typical time to beat (main / main + extras / everything) for a list of games, from the AI (v11).
+   POST /hours        → time to beat (main / main + extras / everything) for a list of games, from HowLongToBeat (v17; the AI's guesses before).
    POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
@@ -22,7 +22,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 16;
+const HELPER_V = 17;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -741,41 +741,73 @@ async function artRoute(req, env, h) {
   for (const p of keep) if (p.w && p.h && p.r !== "art" && p.r !== "shot") p.r = p.h > p.w * 1.15 ? "cover" : p.w > p.h * 1.3 ? "hero" : p.r;
   return json({ ok: true, found, pics: keep }, 200, h);
 }
-/* ===== v11: hours to beat. {items: [{k, t, year, plat}]} (≤12) → res[k] = {m (main story), x (main + extras), c (everything),
-   sure 0–1}, from the big model's knowledge of typical play times (HowLongToBeat-style averages). It's told to say
-   sure: 0 for games it doesn't know or that aren't out, so the app only fills what it can trust. ===== */
+/* ===== v17: hours to beat from HowLongToBeat (v11 asked the AI, whose guesses were often far off). {items: [{k, t, year}]}
+   (≤10) → {src: "hltb", res[k] = {id, n (HLTB's name), m (main story), x (main + extras), c (completionist), cnt (players
+   counted), sure: 1}} | {none: 1, sure: 0[, id, n]} (not on HLTB, or no times yet) | {err, sure: 0}. HowLongToBeat has no
+   public API: its website asks GET /api/search/site/init?t=<ms> for a token (bound to the caller's IP and User-Agent, so both
+   calls use the same UA) and then POST /api/search/site with header x-auth-token; times come in seconds. Found with
+   .github/scripts/hltbprobe.mjs (hltb-probe.yml records the site's own requests in a headless browser): if hours stop
+   coming back, run that workflow and compare. ===== */
+const HLTB = "https://howlongtobeat.com", HLTB_H = { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36", "Accept-Language": "en-US", Referer: HLTB + "/", Origin: HLTB };
+let hltbTok = null;   /* {t, at}: reused by later requests in the same Worker for 5 minutes */
+async function hltbToken(fresh) {
+  if (!fresh && hltbTok && Date.now() - hltbTok.at < 5 * 60e3) return hltbTok.t;
+  const r = await fetch(`${HLTB}/api/search/site/init?t=${Date.now()}`, { headers: HLTB_H });
+  if (!r.ok) throw new Error("HowLongToBeat init " + r.status);
+  const j = await r.json(); if (!j || !j.token) throw new Error("HowLongToBeat gave no token");
+  hltbTok = { t: j.token, at: Date.now() }; return j.token;
+}
+async function hltbSearch(q) {
+  const body = JSON.stringify({ searchType: "games", searchTerms: q.split(/\s+/).filter(Boolean), searchPage: 1, size: 20,
+    searchOptions: { games: { userId: 0, platform: { mode: "include", values: [] }, sortCategory: "popular", rangeCategory: "main", rangeTime: { min: null, max: null },
+      gameplay: { perspective: { mode: "include", values: [] }, flow: { mode: "include", values: [] }, genre: { mode: "include", values: [] } },
+      year: { mode: "include", values: [] }, modifier: "" }, users: { sortCategory: "postcount" }, lists: { sortCategory: "follows" }, filter: "", sort: 0, randomizer: 0 }, useCache: true });
+  for (let i = 0; i < 2; i++) {
+    const tok = await hltbToken(i > 0);
+    const r = await fetch(`${HLTB}/api/search/site`, { method: "POST", headers: { ...HLTB_H, "Content-Type": "application/json", "x-auth-token": tok }, body });
+    if ((r.status === 401 || r.status === 403) && !i) continue;   /* token expired (or another outgoing IP): a fresh one */
+    if (!r.ok) throw new Error("HowLongToBeat search " + r.status);
+    const j = await r.json(); return Array.isArray(j && j.data) ? j.data : [];
+  }
+  return [];
+}
+const hltbH = s => { const h = (+s || 0) / 3600; return h <= 0 ? 0 : h < 10 ? Math.round(h * 2) / 2 : Math.round(h); };
+/* the best entry for a title: same name (or alias) by the art matcher's rules (different numbers = another game, extra words
+   cost), then the release year, then how many players logged it */
+function hltbPick(title, year, list) {
+  let best = null, bs = 0;
+  for (const d of list) {
+    const names = [d.game_name, ...String(d.game_alias || "").split(/,\s*/)].filter(Boolean);
+    let s = Math.max(...names.map(n => artSame(title, n)));
+    if (s < .55) continue;
+    if (year && d.release_world) s += Math.abs(+year - +d.release_world) <= 1 ? .08 : -.08;
+    if (d.game_type && d.game_type !== "game") s -= .03;
+    s += Math.min(.04, (+d.comp_all_count || 0) / 50000);
+    if (s > bs) { bs = s; best = d; }
+  }
+  return best;
+}
+export async function hltbFind(env, title, year) {
+  let seen = false;
+  for (const q of artQs(title)) {
+    const q2 = q.replace(/[:–—!?,.]/g, " ").replace(/\s+/g, " ").trim(); if (!q2) continue;
+    const d = hltbPick(title, year, await hltbSearch(q2)); seen = true;
+    if (!d) continue;
+    const m = hltbH(d.comp_main) || hltbH(d.comp_all), x = hltbH(d.comp_plus), c = hltbH(d.comp_100);
+    if (!m) return { none: 1, sure: 0, id: d.game_id, n: d.game_name };
+    return { id: d.game_id, n: d.game_name, m, x: x > m ? x : 0, c: c > Math.max(m, x) ? c : 0, cnt: (+d.comp_all_count || 0), sure: 1 };
+  }
+  return seen ? { none: 1, sure: 0 } : { err: "no search", sure: 0 };
+}
 async function hbRoute(req, env, h) {
   if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
   let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
-  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 12).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").replace(/["\n]/g, " ").slice(0, 100),
-    y: /^\d{4}$/.test(String(x.year || "")) ? String(x.year) : "", p: String(x.plat || "").replace(/["\n]/g, " ").slice(0, 40) })).filter(x => x.k && x.t);
+  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 10).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").replace(/["\n]/g, " ").slice(0, 100),
+    y: /^\d{4}$/.test(String(x.year || "")) ? String(x.year) : "" })).filter(x => x.k && x.t);
   if (!items.length) return json({ error: "no games" }, 400, h);
-  const list = items.map((x, i) => `${i + 1}. "${x.t}"${x.y ? " (" + x.y + ")" : ""}${x.p ? " on " + x.p : ""}`).join("\n");
-  const text = await ask(env, [
-    { role: "system", content: "You know video games very well, including how long they take to beat (the community averages HowLongToBeat lists). You never guess wildly: if you don't know a game, or it isn't released yet, you give sure 0." },
-    { role: "user", content: `For each game, the typical hours to beat it:
-- m: main story only
-- x: main story plus the main extras / side content
-- c: everything (completionist)
-- sure: 0.0-1.0, how sure you are these are right for THIS exact game (0 if you don't know it or it's unreleased)
-Live-service, endless or multiplayer-only games: m, x, c = 0 and sure 0.
-
-${list}
-
-Answer with ONLY JSON, one entry per game in the same order: [{"n":1,"m":0,"x":0,"c":0,"sure":0.0}, ...]` }
-  ], 700, true);
-  const m = text.match(/\[[\s\S]*\]/);
-  let arr = []; try { arr = JSON.parse(m ? m[0] : text); } catch (e) {
-    arr = [...text.matchAll(/\{[^{}]*\}/g)].map(x => { try { return JSON.parse(x[0]); } catch (e) { return null; } }).filter(Boolean); }
-  if (!Array.isArray(arr)) arr = [];
-  const res = {}, hr = v => { v = +v; return Number.isFinite(v) && v > 0 && v < 2000 ? Math.round(v * 2) / 2 : 0; };
-  arr.forEach((o, i) => { if (!o || typeof o !== "object") return; const it = items[(+o.n || i + 1) - 1]; if (!it || res[it.k]) return;
-    let a = hr(o.m), x = hr(o.x), c = hr(o.c); const sure = Math.max(0, Math.min(1, +o.sure || 0));
-    if (!a) { res[it.k] = { sure: 0 }; return; }
-    x = Math.max(a, x || 0); c = Math.max(x, c || 0);
-    res[it.k] = { m: a, x: x > a ? x : 0, c: c > x ? c : 0, sure }; });
-  for (const it of items) res[it.k] ||= { sure: 0 };
-  return json({ ok: true, res }, 200, h);
+  const res = {};
+  for (const it of items) { try { res[it.k] = await hltbFind(env, it.t, it.y); } catch (e) { res[it.k] = { err: String(e && e.message || e).slice(0, 80), sure: 0 }; } }
+  return json({ ok: true, src: "hltb", res }, 200, h);
 }
 /* ===== v7: price alerts. Steam's store API (no key) and the PlayStation Store's public pages, read here because a
    browser can't (no CORS). POST /prices checks a list now; with an id (the phone's nudge id) the list is also kept as
