@@ -18195,7 +18195,8 @@ function lookDesign2(root, scr) {
         const i = stack.indexOf(el), pic = i < 0 || stack.slice(i + 1).some(x => bh.host.contains(x) && x !== bh.host && !x.contains(el)
           && (x.tagName === "IMG" || x.tagName === "CANVAS" || x.tagName === "VIDEO" || (lookCS(x).backgroundImage || "none") !== "none"
             || ((lookRGB(lookCS(x).backgroundColor) || [0, 0, 0, 0])[3] > .1)));
-        if (!pic) { nFaint++; bugReport("look", "Some text is too faint to read", { at: bugPath(el) + " contrast " + ratio.toFixed(1) + ":1, " + Math.round(px) + "px", screen: scr }); }
+        /* v241: not while it (or a parent) is still fading in: the Library title was measured mid-entrance at 1.7:1 */
+        if (!pic && !bugMoving(el)) { nFaint++; bugReport("look", "Some text is too faint to read", { at: bugPath(el) + " contrast " + ratio.toFixed(1) + ":1, " + Math.round(px) + "px", screen: scr }); }
       }
     }
   }
@@ -22626,7 +22627,7 @@ WHATS_NEW.push(
     tryIt: "Library → 🧊 Room. Drag to spin, pinch to zoom, tap a game to open it, double tap to reset." },
   { v: 241, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: () => $("#lib-view [data-room]"),
     say: "Your <b>Game room</b> came alive: it now turns the same way as your finger, follows the real sky (dark at night, tap the lamp), Nexi sits on the couch, your #1's giant case opens, your queue is a pile on the floor and 9+ games get gold cups. Something's hidden behind the big box.",
-    tryIt: "Library → 🧊 Room. Tap Nexi, the lamp, the big box and the pile, and spin around to find the secret." }
+    tryIt: "Library → 🧊 Room. Tap Nexi, the lamp, the big box and the pile, and spin around to find the secret. (I've learned to check the spin goes your way myself now.)" }
 );
 </script>
 <style>
