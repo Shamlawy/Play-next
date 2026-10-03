@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "234";
+const APP_V = "235";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -21208,6 +21208,12 @@ WHATS_NEW.push(
 .gd-tags span.gd-tmore { display: contents; }
 .gd-tags span.gd-tmore[hidden] { display: none; }
 .gd-tags .gd-tlab { flex-basis: 100%; margin: 4px 0 -1px 2px; font: 500 11px/1.2 "Poppins", system-ui, sans-serif; font-style: normal; color: var(--mute); }
+/* v235 (the owner, unfolded: Persona 6's open card was shorter than Metaphor's): front and back share one grid cell, so the
+   taller side set the card's height, and a played game's back (scores, rings, tips) is taller. The back no longer sizes the card:
+   it fills it and scrolls inside. On wide screens every open card is the Metaphor height. */
+.hero .hflip > .pback { height: 0; min-height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.hero .hflip > .pback::-webkit-scrollbar { display: none; }
+@media (min-width: 620px) { .hero .hflip { min-height: 555px; } }
 </style>
 <script>
 /* ===== v232: the owner: "each queue card is a different size when open" and "the new game page lacks organisation: each game
@@ -21335,6 +21341,14 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
 { const _bn = bugNice; bugNice = function (kind, scr, msg) {
   if (kind === "look" && /number in a tile/.test(msg)) return `A number on ${bugPlace(scr)} was too long for its tile.`;
   return _bn.apply(this, arguments); }; }
+/* v235: the problem checks wait while a page or sheet is still animating in. An idle pass scheduled for the screen before could
+   run in the first frame of a game page's grow (#full at opacity .35) and measure its kicker pill as "too faint" (1.8:1). */
+{ const _bl = bugLayout; let tries = 0;
+  bugLayout = function () {
+    const busy = ["#full", "#sheet", "#diary", "#peek"].some(sel => { const el = document.querySelector(sel);
+      return el && el.getAnimations && el.getAnimations().some(a => a.playState === "running" && isFinite((a.effect && a.effect.getComputedTiming().endTime) || 0)); });
+    if (busy && tries++ < 8) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 450); return; }
+    tries = 0; return _bl.apply(this, arguments); }; }
 /* the one thing worth doing next, by where the game is: [attributes, label, kind] */
 function gdNext(g) {
   const st = gdState(g), p = playedRec(g), id = g.id;
@@ -21440,6 +21454,9 @@ WHATS_NEW.push(
       const g = S.games.slice().sort((a, b) => n(b) - n(a))[0]; if (g) openFull(g.id); },
     at: () => { const b = $("#full .gd-tplus"); if (b && b.getAttribute("aria-expanded") !== "true") b.click(); return $("#full .gd-tags"); },
     say: "Every genre on a game page now: <b>+N</b> unfolds the rest, plus what Steam players call the game. The small number is how many of your games share it, and tapping a genre shows them all in your Queue. Also fixed: dates like “13 Sep” were cut off in the release tile, and I've learned to spot a cut-off number myself now.",
-    tryIt: "Tap a genre to see every game you have like it." }
+    tryIt: "Tap a genre to see every game you have like it." },
+  { v: 235, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: () => $("#p-queue .hero") || $("#p-queue .row"),
+    say: "Fixed: open queue cards were still different sizes on the unfolded screen. A played game's flip side (scores, rings, tips) stretched its card; now it scrolls inside, and every open card is the same height.",
+    tryIt: "Tap a game you've played, then one that's coming." }
 );
 </script>
