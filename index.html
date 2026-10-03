@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "237";
+const APP_V = "238";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -22002,5 +22002,110 @@ WHATS_NEW.push(
   { v: 237, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: null,
     say: "Fixed: Grumble lost HP when you deleted a game, or when you marked a game you'd just added as already played. Those aren't hits, so his HP stays. Also fixed: swiping through screenshots in a preview switched the game page behind it, and genres written two ways (Story Rich / Story-rich) showed twice.",
     tryIt: "Nothing to do. Grumble's HP only drops when you really beat a game." }
+);
+</script>
+<script>
+/* ===== v238: the owner: "only a few games got screenshots, and the ones that did took time to load. I want them instant and
+   always ready, not fetched when I open the game". Every game is fetched in the background (playing → On deck → queue → the
+   rest; a batch of 12 every 2 minutes while the app is open, plus right away for a game you add), RAWG is searched by title when
+   the stores have nothing and the game has no RAWG id yet, and each game's small copies are downloaded ahead (sw.js keeps them;
+   its picture cache went 350 → 1200). The strip draws the small copies; the full-screen viewer shows them at once and swaps in
+   the big copy when it has arrived. ===== */
+/* a small copy of a screenshot, by host */
+function shotThumb(x) {
+  const u = (x && (x.t || x.u)) || ""; if (x && x.t) return x.t;
+  if (/steamstatic\.com\/.*\/ss_[0-9a-f]+\.jpg$/.test(u)) return u.replace(/\.jpg$/, ".600x338.jpg");
+  if (/image\.api\.playstation\.com/.test(u)) return u.split("?")[0] + "?w=640&h=640";
+  if (/store-images\.s-microsoft\.com/.test(u)) return u.split("?")[0] + "?w=640&h=360";
+  if (/assets\.nintendo\.com\/image\/upload\//.test(u)) return u.replace("/image/upload/", "/image/upload/c_scale,w_640/");
+  if (/media\.rawg\.io\/media\/screenshots\//.test(u)) return u.replace("/media/screenshots/", "/media/resize/640/-/screenshots/");
+  return u;
+}
+gdShots = function (g) {
+  const l = (g.shots || []).filter(x => x && x.u);
+  if (!l.length) return `<section class="gd-sec gd-s-shots" data-g="${g.id}" hidden></section>`;
+  return `<section class="gd-sec gd-s-shots" data-g="${g.id}"><div class="gd-sh"><i aria-hidden="true">📸</i><span>Screenshots</span>${g.shotsSrc ? `<small>from ${esc(g.shotsSrc)}</small>` : ""}</div>
+    <div class="gd-shots">${l.map((x, i) => `<button type="button" data-gdshot="${g.id}:${i}" aria-label="Screenshot ${i + 1} of ${l.length}"><img decoding="async" src="${esc(shotThumb(x))}" alt=""></button>`).join("")}</div></section>`;
+};
+/* the RAWG id of a game, found by title when it has none (numbers count, see simSame) */
+async function shotRawgId(g) {
+  if (g.rawgId) return g.rawgId;
+  if (!rawgKey || (g.rawgLook && Date.now() - g.rawgLook < 14 * 864e5)) return 0;
+  g.rawgLook = Date.now();
+  try { const r = await rawgApi("games?search=" + encodeURIComponent(g.title) + "&search_precise=true&page_size=6");
+    const best = (r.results || []).map(h => ({ h, s: simSame(h.name, g.title) })).sort((a, b) => b.s - a.s)[0];
+    if (best && best.s >= .85) { g.rawgId = best.h.id; delete g.rawgLook; return g.rawgId; } } catch (e) {}
+  return 0;
+}
+const SHOT_W = (() => { try { return new Set(JSON.parse(localStorage.getItem("gq:shotw") || "[]")); } catch (e) { return new Set(); } })();
+const shotWsave = () => { try { localStorage.setItem("gq:shotw", JSON.stringify([...SHOT_W].slice(-600))); } catch (e) {} };
+/* download the small copies once, so the service worker has them when the page opens */
+async function shotsWarm(g) {
+  const l = (g.shots || []).map(shotThumb).filter(Boolean), key = g.id + ":" + l.join("|").length;
+  if (!l.length || SHOT_W.has(key)) return;
+  for (const u of l) await new Promise(r => { const i = new Image(); i.decoding = "async"; i.onload = i.onerror = r; i.src = u; setTimeout(r, 8000); });
+  SHOT_W.add(key); shotWsave();
+}
+shotsFetch = async function (g, force) {
+  if (!g || SHOT_BUSY.has(g.id)) return;
+  const fresh = (g.shots || []).length ? Date.now() - (g.shotsAt || 0) < 60 * 864e5 : g.shotsNo && Date.now() - (g.shotsAt || 0) < 7 * 864e5;
+  if (!force && fresh) { shotsWarm(g); return; }
+  SHOT_BUSY.add(g.id);
+  try {
+    const plats = platList(g.platforms);
+    const art = typeof artStores === "function" ? await artStores(g.title, stIdOf(g) ? { st: stIdOf(g) } : {}).catch(() => null) : null;
+    const pick = gpPickShots(art && art.pics, plats);
+    let l = pick.l.map(p => ({ u: p.u, b: gpBig(p), t: p.th || "", s: p.s })), src = pick.s ? ART_NAME[pick.s] : "";
+    if (l.length < 4) { const id = await shotRawgId(g); const rs = id ? await rawgApi("games/" + id + "/screenshots?page_size=6").catch(() => null) : null;
+      if (rs && rs.results) { const r = rs.results.filter(x => x.image).slice(0, 5 - l.length).map(x => ({ u: x.image, b: x.image.replace("/media/screenshots/", "/media/resize/1280/-/screenshots/"),
+        t: x.image.replace("/media/screenshots/", "/media/resize/640/-/screenshots/"), s: "rw" }));
+        if (r.length) src = l.length ? src + " and RAWG" : "RAWG"; l = l.concat(r); } }
+    if (!l.length && art && art.err === "helper-old") return;
+    g.shotsAt = Date.now();
+    if (l.length) { g.shots = l.slice(0, 5); g.shotsSrc = src; delete g.shotsNo; } else g.shotsNo = 1;
+    save();
+    document.querySelectorAll(`.gd-s-shots[data-g="${g.id}"]`).forEach(el => { el.outerHTML = gdShots(g); });
+    shotsWarm(g);
+  } catch (e) {} finally { SHOT_BUSY.delete(g.id); }
+};
+/* the background sweep: every game, a batch at a time, the ones you're most likely to open first */
+let shotsT = 0;
+async function shotsSweep() {
+  clearTimeout(shotsT);
+  if (document.hidden || !navigator.onLine) return;
+  const order = [...playingNow(), ...(typeof onDeck === "function" ? onDeck(12) : []), ...S.games.filter(g => !isPlayed(g) && !isDropped(g)), ...S.games];
+  const due = order.filter((g, i, a) => a.indexOf(g) === i).filter(g => (g.shots || []).length
+    ? Date.now() - (g.shotsAt || 0) > 60 * 864e5 || !SHOT_W.has(g.id + ":" + g.shots.map(shotThumb).join("|").length)
+    : !(g.shotsNo && Date.now() - (g.shotsAt || 0) < 7 * 864e5));
+  for (const g of due.slice(0, 12)) { if (document.hidden) break; await shotsFetch(g); await new Promise(r => setTimeout(r, 1200)); }
+  if (due.length > 12) shotsT = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(shotsSweep, { timeout: 5000 }) : shotsSweep()), 120000);
+}
+setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(shotsSweep, { timeout: 8000 }) : shotsSweep()), 25000);
+addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(shotsSweep, 15000); else clearTimeout(shotsT); });
+addEventListener("online", () => setTimeout(shotsSweep, 5000));
+/* a game you add gets its screenshots straight away */
+{ const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => shotsFetch(g, true), 3000); return o; }; }
+/* the viewer: the small copy at once, the big one swapped in when it's ready */
+shotView = function (g, i) {
+  const l = g.shots || []; if (!l.length) return;
+  const v = document.createElement("div"); v.id = "shv"; noHub(v);
+  v.innerHTML = `<button class="shv-x" aria-label="Close">✕</button><div class="shv-l">${l.map(x => `<img decoding="async" src="${esc(shotThumb(x))}" alt="">`).join("")}</div><div class="shv-n">${i + 1} / ${l.length}</div>`;
+  document.body.appendChild(v); requestAnimationFrame(() => v.classList.add("on"));
+  const sc = v.querySelector(".shv-l"), n = v.querySelector(".shv-n"), imgs = [...sc.children];
+  requestAnimationFrame(() => { sc.scrollLeft = sc.clientWidth * i; });
+  const order = [i, ...l.map((x, k) => k).filter(k => k !== i)];
+  order.forEach(k => { const big = l[k].b || l[k].u; if (!big || big === imgs[k].src) return;
+    const p = new Image(); p.decoding = "async"; p.onload = () => { if (v.isConnected) imgs[k].src = big; }; p.src = big; });
+  sc.addEventListener("scroll", () => { n.textContent = (Math.round(sc.scrollLeft / (sc.clientWidth || 1)) + 1) + " / " + l.length; }, { passive: true });
+  const key = e => { if (e.key === "Escape") close(); };
+  const close = () => { v.classList.remove("on"); setTimeout(() => v.remove(), 260); removeEventListener("keydown", key); };
+  addEventListener("keydown", key);
+  v.addEventListener("click", e => { if (e.target.closest(".shv-x") || e.target === v || e.target.classList.contains("shv-n")) close(); });
+};
+WHATS_NEW.push(
+  { v: 238, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => (x.shots || []).length) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full .gd-s-shots:not([hidden])") || $("#full .gd-s-about") || $("#full .gd-s-prog"),
+    say: "Screenshots are ready before you look now: I fetch them for every game in the background (and right away for a game you add), keep small copies on your phone so they show instantly, and search harder for games the stores don't have.",
+    tryIt: "Open any game: the screenshots are already there." }
 );
 </script>
