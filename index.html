@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "232";
+const APP_V = "233";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -21176,6 +21176,25 @@ WHATS_NEW.push(
   .gd-pair > .gd-sec { margin-top: 12px; }
   .gd-glance, .gd-main { max-width: 640px; }
 }
+/* v233: one smart button + round Edit and ⋯; the rest in a drawer */
+.gd2 .gd-main { align-items: stretch; }
+.gd2 .gd-main button.hot, .gd2 .gd-main button.soft { flex: 1 1 0; }
+.gd2 .gd-main button.soft { background: rgba(var(--vrgb), .14); border-color: rgba(var(--vrgb), .35); color: var(--ice); }
+.gd2 .gd-main button.ic { flex: 0 0 auto; width: 50px; padding: 0; font-size: 18px; }
+.gd2 .gd-main button.ic.on { background: rgba(var(--vrgb), .18); border-color: rgba(var(--vrgb), .5); }
+.gd-x { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.gd-x[hidden] { display: none; }
+.gd-x button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 8px 14px 8px 11px; border-radius: 999px; border: 1px solid var(--u-line2, rgba(234,242,255,.14));
+  background: var(--u-card, #131a32); color: var(--ice); font: 500 13px/1.2 "Poppins", system-ui, sans-serif; cursor: pointer; transition: transform .2s var(--ease); }
+.gd-x button i { font-style: normal; font-size: 15px; line-height: 1; }
+.gd-x button:active { transform: scale(.95); }
+.gd-sec .rv-c.me { display: none; }
+.gd-sec .rv-c.you { background: rgba(var(--vrgb), .1); }
+@media (min-width: 760px) {
+  .gd2 .gd-glance, .gd2 .gd-main { max-width: none; }
+  .gd2 .gd-main button.hot, .gd2 .gd-main button.soft { flex: 0 1 300px; }
+  .gd2 .gd-pair { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+}
 </style>
 <script>
 /* ===== v232: the owner: "each queue card is a different size when open" and "the new game page lacks organisation: each game
@@ -21200,8 +21219,8 @@ function gdGlance(g) {
   return [
     (() => { /* another year's date doesn't fit a quarter of a phone: the year big, the day under it */
       if (!g.date) return ["TBA", "no date yet"];
-      const d = new Date(g.date + "T12:00:00"), up = isUpcoming(g), dm = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-      return isNaN(d) ? ["TBA", "no date yet"] : d.getFullYear() === new Date().getFullYear() ? [dm, up ? "release" : "released"] : [String(d.getFullYear()), (up ? "out " : "released ") + dm]; })(),
+      const d = new Date(g.date + "T12:00:00"), up = isUpcoming(g), dm = d.getDate() + " " + d.toLocaleDateString("en-GB", { month: "short" }).slice(0, 3);
+      return isNaN(d) ? ["TBA", "no date yet"] : d.getFullYear() === new Date().getFullYear() ? [dm, up ? "release" : "released"] : [String(d.getFullYear()), dm]; })(),
     h ? [h + "h", Math.max(1, Math.round(h / ev)) + " evenings"] : ["—", g.comp ? "no end" : "length"],
     [g.hype ? g.hype + "/10" : "—", "hype"],
     sc
@@ -21217,50 +21236,57 @@ function gdProgress(g) {
   const s3 = st === "dropped" ? { b: "Dropped", s: "", c: "drop" } : { b: "Finished", s: st === "played" ? (p && p.t ? gdMonth(p.t) : "") : e && e.left > 0 ? "~" + etaNice(e.at) : "", c: st === "played" ? "done" : "" };
   const trk = `<div class="gd-trk" role="list">${[s1, s2, s3].map(x => `<div class="gd-st ${x.c}" role="listitem"><i aria-hidden="true"></i><b>${esc(x.b)}</b><small>${esc(x.s || " ")}</small></div>`).join("")}</div>`;
   let body = "";
-  if (st === "upcoming") body = `<p class="gd-ln">${g.date ? `Comes out <b>${esc(new Date(g.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</b> · ${esc(days(g.date).toLowerCase())}` : "No release date yet."}<br><small>I check for date changes by myself and tell you when it moves.</small></p>`;
-  else if (st === "backlog") body = `<p class="gd-ln">${out ? `Out since <b>${esc(shortDate(g.date))}</b>. ` : ""}Ready when you are.<br><small>Mark it Playing now in Edit and I'll keep your place and forecast the finish.</small></p>` + wiCard(g);
+  if (st === "upcoming") body = `<p class="gd-ln">${g.date ? `Comes out <b>${esc(new Date(g.date + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}</b> · ${esc(days(g.date).toLowerCase())}` : "No release date yet. I'll tell you when one appears."}</p>`;
+  else if (st === "backlog") body = `<p class="gd-ln">${out ? `Out since <b>${esc(shortDate(g.date))}</b>. ` : ""}Ready when you are.</p>` + wiCard(g);
   else if (st === "playing") body = wiCard(g) + (S.etaOff ? "" : (typeof etaCard === "function" ? etaCard(g) : ""));
   else if (st === "played") { const c = typeof capCard === "function" ? capCard(g) : "";
     body = c || `<p class="gd-ln">${p && p.t ? `Finished in <b>${esc(gdMonth(p.t))}</b>. ` : "Finished. "}${p && scored(p) ? `You gave it <b>${p.real}</b>.` : "Not scored yet."}</p>` + wiCard(g); }
-  else body = `<p class="gd-ln">You put this one down.<br><small>Change its status in Edit if you pick it up again.</small></p>` + wiCard(g);
+  else body = `<p class="gd-ln">You put this one down.</p>` + wiCard(g);
   return gdSec("gd-s-prog", "🧭", "Your progress", GD_STATE[st], trk + body);
 }
+/* v233 (the owner: "too many buttons and stuff, make it better and smarter"): a section only shows when it has something to
+   say (no n/a row, no empty About, no second copy of the likely score), the order stays the same */
 function gdReviews(g) {
   const c = typeof rvCard === "function" ? rvCard(g) : "";
   if (c) return gdSec("gd-s-rv", "⭐", "Reviews", g.rv && g.rv.at ? "checked " + wiAgo(g.rv.at) : "", c);
-  const p = playedRec(g), guess = gdGuess(g), cells = [];
-  if (+g.critic > 0) cells.push(`<span class="rv-c"><b>${esc(String(g.critic))}</b><small>Critics</small></span>`);
-  if (p && scored(p)) cells.push(`<span class="rv-c me"><b>${p.real}${typeof tierBadge === "function" ? tierBadge(p.real) : ""}</b><small>You</small></span>`);
-  else if (guess) cells.push(`<span class="rv-c me"><b>${guess.toFixed(1)}</b><small>You, probably</small></span>`);
-  return gdSec("gd-s-rv", "⭐", "Reviews", "", cells.length ? `<div class="rv-s" style="margin-top:10px">${cells.join("")}</div>` : `<p class="gd-none">${isUpcoming(g) ? "Not out yet. I'll fetch the reviews by myself when it lands." : "No reviews yet."}</p>`);
+  if (!(+g.critic > 0)) return "";
+  const p = playedRec(g), cells = [`<span class="rv-c"><b>${esc(String(g.critic))}</b><small>Critics</small></span>`];
+  if (p && scored(p)) cells.push(`<span class="rv-c you"><b>${p.real}${typeof tierBadge === "function" ? tierBadge(p.real) : ""}</b><small>You · ${p.real * 10 >= +g.critic ? "liked it more" : "liked it less"}</small></span>`);
+  return gdSec("gd-s-rv", "⭐", "Reviews", "", `<div class="rv-s" style="margin-top:10px">${cells.join("")}</div>`);
 }
 function gdPrices(g) {
   const c = typeof pxCard === "function" ? pxCard(g) : "";
-  if (c) return gdSec("gd-s-px", "💸", "Prices", "", c);
-  const why = isPlayed(g) ? "You've played it, so I'm not watching its price." : isDropped(g) ? "You dropped it, so I'm not watching its price."
-    : g.comp ? "I don't watch prices of competitive games." : !pxOn() ? "Price alerts are off." : "Not sold on the stores I watch for its platforms.";
-  return gdSec("gd-s-px", "💸", "Prices", "", `<p class="gd-none">${esc(why)}</p><button type="button" class="gd-link" data-px="${g.id}">Price alerts ›</button>`);
+  /* only when a store has a price (or is being checked): a row of n/a or — says nothing; the ⋯ drawer keeps Prices */
+  return c && /<b[ >]|pxck|px-in/.test(c) ? gdSec("gd-s-px", "💸", "Prices", "", c) : "";
 }
 function gdAbout(g) {
   const d = g.desc || g.about || "";
-  return gdSec("gd-s-about", "📖", "About", platList(g.genres).slice(0, 2).join(" · "),
-    d ? `<p class="gd-desc">${esc(d)}</p>${d.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}`
-      : `<p class="gd-none">No description yet. Edit can fill one in from RAWG.</p>`);
+  return d ? gdSec("gd-s-about", "📖", "About", platList(g.genres).slice(0, 2).join(" · "),
+    `<p class="gd-desc">${esc(d)}</p>${d.length > 170 ? `<button type="button" class="gd-rm" data-descmore aria-expanded="false">Read more</button>` : ""}`) : "";
+}
+/* the one thing worth doing next, by where the game is: [attributes, label, kind] */
+function gdNext(g) {
+  const st = gdState(g), p = playedRec(g), id = g.id;
+  if (g.comp) return [[`data-wasi="${id}"`, "📍 Leave a note"]];
+  if (st === "played") return [[`data-qscore="${id}" ${p && scored(p) ? `aria-label="Change your score (${p.real})" title="Change your score"` : ""}`, p && scored(p) ? "⭐ " + p.real : "⭐ Score it"], [`data-qduel="${id}"`, "⚔️ Duel", "soft"]];
+  if (st === "playing") return [[`data-gdfin="${id}"`, "🏁 I finished it"]];
+  if (st === "dropped") return [[`data-gdplay="${id}"`, "▶ Pick it up again"]];
+  if (st === "backlog") return [[`data-gdplay="${id}"`, "▶ Start playing"]];
+  return [[`data-trailer="${id}"`, "▶ Watch the trailer"]];
 }
 gdMarkup = function (g) {
   const col = HEX.test(g.colour || "") ? g.colour : PALETTE[0], st = gdState(g), p = playedRec(g);
   const state = (STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1];
-  const back = bgSource(g), acts = hubActs(g);
-  /* the same tiles for every game (Prices and Where was I? stay even when their section shows them) */
-  const rest = acts.filter(a => !a[3] && !/data-fulledit/.test(a[0]));
-  if (!rest.some(a => /data-px=/.test(a[0]))) rest.splice(Math.max(0, rest.findIndex(a => /data-wasi/.test(a[0]))), 0, [`data-px="${g.id}"`, "💸", "Prices"]);
+  const back = bgSource(g), next = gdNext(g);
+  const used = next.map(a => a[0].match(/data-[\w-]+/)[0]);
+  /* everything else lives in the ⋯ drawer (Prices always, so a game without a price can still be tied to its store) */
+  const rest = hubActs(g).filter(a => !/data-fulledit/.test(a[0]) && !used.includes(a[0].match(/data-[\w-]+/)[0]) && !(/data-q(score|duel)/.test(a[0]) && !p));
+  if (!rest.some(a => /data-px=/.test(a[0])) && !used.includes("data-px")) rest.splice(Math.max(0, rest.findIndex(a => /data-wasi/.test(a[0]))), 0, [`data-px="${g.id}"`, "💸", "Prices"]);
   const tags = [state ? [state, 1] : null, ...platList(g.genres).slice(0, 3).map(x => [x])].filter(Boolean);
   const plats = S.platText ? platList(g.platforms).slice(0, 3).map(x => `<span>${esc(x)}</span>`).join("") : platHtml(g.platforms);
   const icon = a => a[1] || GD_ICON[(a[0].match(/data-(\w+)/) || [])[1]] || "•";
-  const canScore = !g.comp && (p || !isUpcoming(g)), canDuel = !!p && !g.comp;
   const kick = st === "played" ? "Finished" + (p && p.t ? " · " + gdMonth(p.t) : "") : st === "dropped" ? "Dropped" : g.date ? days(g.date) : "No date yet";
-  const btn = (ok, attr, emo, lab, why) => ok ? `<button type="button" class="hot" ${attr}>${emo} ${esc(lab)}</button>`
-    : `<button type="button" class="off" disabled title="${esc(why)}" aria-label="${esc(lab + ": " + why)}">${emo} ${esc(lab)}</button>`;
+  const extra = gdReviews(g) + gdPrices(g);
   return `
     <div class="hub gpage gd2" style="--accent:${esc(col)}">
       <div class="gd-hero">
@@ -21276,15 +21302,41 @@ gdMarkup = function (g) {
         </div>
         ${tags.length || plats ? `<div class="gd-tags">${tags.map(([t, a]) => `<span${a ? ' class="acc"' : ""}>${esc(t)}</span>`).join("")}${plats}</div>` : ""}
         <div class="hub-data gd-glance">${gdGlance(g)}</div>
-        <div class="gd-main">${btn(canScore, `data-qscore="${g.id}"`, "⭐", p && scored(p) ? "Score · " + p.real : "Score it", g.comp ? "Competitive games aren't scored" : "You can score it once it's out")}${
-          btn(canDuel, `data-qduel="${g.id}"`, "⚔️", "Duel it", "Duels are for games you've played")}<button type="button" class="ed" data-fulledit="${g.id}">✏️ Edit</button></div>
+        <div class="gd-main">${next.map(a => `<button type="button" class="${a[2] === "soft" ? "soft" : "hot"}" ${a[0]}>${esc(a[1])}</button>`).join("")}<button type="button" class="ic" data-fulledit="${g.id}" title="Edit" aria-label="Edit">✏️</button><button type="button" class="ic" data-gdx aria-expanded="false" title="More" aria-label="More for this game">⋯</button></div>
+        <div class="gd-x" hidden>${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
         ${gdProgress(g)}
         ${gdAbout(g)}
-        <div class="gd-pair">${gdReviews(g)}${gdPrices(g)}</div>
-        <div class="gd-more">${rest.map(a => `<button type="button" ${a[0]}><i aria-hidden="true">${icon(a)}</i><span>${esc(a[2])}</span></button>`).join("")}</div>
+        ${extra ? `<div class="gd-pair">${extra}</div>` : ""}
       </div>
     </div>`;
 };
+/* ⋯ opens the drawer under the buttons; what's below slides down (transform only), the drawer's buttons fade up */
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-gdx]"); if (!b) return;
+  const x = b.parentElement && b.parentElement.nextElementSibling; if (!x || !x.classList.contains("gd-x")) return;
+  e.stopPropagation(); beep("tap");
+  const open = x.hidden; x.hidden = !open; b.setAttribute("aria-expanded", String(open)); b.classList.toggle("on", open);
+  if (calm() || !open) return;
+  const dh = x.offsetHeight + 12;
+  for (let y = x.nextElementSibling; y; y = y.nextElementSibling) y.animate([{ transform: `translateY(${-dh}px)` }, { transform: "none" }], { duration: 380, easing: PN_EASE });
+  [...x.children].forEach((c, i) => c.animate([{ opacity: 0, transform: "translateY(-6px) scale(.96)" }, { opacity: 1, transform: "none" }], { duration: 260, delay: Math.min(i, 10) * 18, easing: "ease-out", fill: "backwards" }));
+}, true);
+/* older tour steps point at buttons that now live in the ⋯ drawer: the step opens it (only that step; the rest stay tidy) */
+WHATS_NEW.forEach(st => { if (!st.at) return; const at = st.at;
+  st.at = () => { const el = typeof at === "function" ? at() : document.querySelector(at), x = el && el.closest && el.closest(".gd-x[hidden]");
+    if (x) { x.hidden = false; const b = x.previousElementSibling && x.previousElementSibling.querySelector("[data-gdx]"); if (b) { b.setAttribute("aria-expanded", "true"); b.classList.add("on"); } }
+    return el; }; st.at.toString = () => String(at); });
+/* the smart buttons: start (or pick up again) and finish */
+document.addEventListener("click", e => {
+  const pl = e.target.closest && e.target.closest("[data-gdplay]"), fin = e.target.closest && e.target.closest("[data-gdfin]");
+  if (!pl && !fin) return;
+  e.stopPropagation();
+  const g = S.games.find(x => x.id === (pl ? pl.dataset.gdplay : fin.dataset.gdfin)); if (!g) return;
+  if (fin) { if (typeof fnDone === "function") fnDone(g); return; }
+  syncPlayed(g, "playing"); g.state = "playing"; save(); render(); beep("add");
+  toast(`${g.title} is now Playing · I'll keep your place and forecast the finish`);
+  if (hubAt === g.id && $("#full.on")) openFull(g.id);
+}, true);
 /* Nexi learned: open queue cards that come out different sizes. Each open card is watched with a ResizeObserver (no layout
    reads after the redraw); two different games' cards at the same screen width, style and card layout more than 12px apart
    = a report. Skips the flipped side, hidden pages and the same game resizing itself (pictures loading). */
@@ -21309,6 +21361,9 @@ WHATS_NEW.push(
     tryIt: "Tap a few games in the Queue one after another." },
   { v: 232, go: () => { dyClose(); nxShut(); const g = playingNow().find(x => !x.comp) || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-s-prog") || $("#full .gd-main"),
     say: "Every game page has the same layout now, whatever the game's status: four numbers, the same three buttons, then <b>Your progress</b> (out → playing → finished), About, Reviews and Prices, always in that order.",
-    tryIt: "Open a game you're playing, then one you've finished, and compare." }
+    tryIt: "Open a game you're playing, then one you've finished, and compare." },
+  { v: 233, go: () => { dyClose(); nxShut(); const g = S.games.find(x => gdState(x) === "backlog") || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-main"),
+    say: "Game pages are calmer: one smart button for what to do next (watch the trailer, start playing, I finished it, or score and duel), and everything else tucked behind <b>⋯</b>. Sections without anything to say stay out of the way.",
+    tryIt: "Tap ⋯ to see the rest." }
 );
 </script>
