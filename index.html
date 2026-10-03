@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "230";
+const APP_V = "231";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -14812,7 +14812,13 @@ function nxTour(was, all) {
   card.addEventListener("click", e => {
     const a = e.target.closest("[data-nx]"); if (!a) return;
     if (typeof beep === "function") beep("tap");
-    if (a.dataset.nx === "next" && ++i < steps.length) { mark(); card.classList.remove("on"); show(); } else finish();
+    if (a.dataset.nx === "next" && i + 1 < steps.length) {
+      /* v231 (#180/#181): the card fades out in the tap's own frame; saving the step and opening the next screen
+         (a game page or Settings) wait until that has painted, so the button answers at once */
+      if (!card.classList.contains("on")) return;   /* mid-change: a quick double tap no longer skips a step */
+      i++; card.classList.remove("on");
+      requestAnimationFrame(() => setTimeout(() => { if (gone) return; mark(); show(); }, 0));
+    } else finish();
   });
   nxNotch(() => { if (!gone) show(); });
 }
@@ -19243,6 +19249,9 @@ function revTrue(x, els) {
   if (/overlap|cover/.test(say)) { if (els.some(a => els.some(b => a !== b && a.contains(b)))) return false;
     if (!rs.some((a, i) => rs.some((b, k) => k > i && a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2))) return false; }
   if (/radius|round|corner/.test(say) && same(cs.map(c => parseFloat(c.borderTopLeftRadius) || 0).map(v => Math.min(v, 99)), 1)) return false;
+  /* v231 (#179): a Settings section row (summary) next to buttons isn't the same kind of control: different corners are on purpose */
+  if (/radius|round|corner/.test(say) && (new Set(els.map(e => e.tagName)).size > 1
+    || Math.max(...rs.map(r => r.height)) > 2 * Math.max(1, Math.min(...rs.map(r => r.height))))) return false;   /* #143: a text link vs list rows */
   if (/font|text size|type size/.test(say) && (same(cs.map(c => parseFloat(c.fontSize)), .5) || kinds.size > 1)) return false;
   if (/height|same size|taller|shorter/.test(say) && !/font/.test(say) && same(rs.map(r => r.height), 2)) return false;
   if (/spacing|gap|margin|padding/.test(say) && els.length > 2) { const o = [...rs].sort((a, b) => a.top - b.top), g = o.slice(1).map((r, i) => r.top - o[i].bottom); if (same(g, 2)) return false; }
@@ -21083,5 +21092,14 @@ WHATS_NEW.push(
     at: "#e-sgauto",
     say: "Auto-pick and the art I add to new games by myself now look in the stores too: when SteamGridDB has nothing, or a store has a much sharper backdrop (Steam's and Xbox's are often 4K), you get that one.",
     tryIt: "Tap ✨ Auto-pick all on a game with a soft backdrop." }
+);
+</script>
+<script>
+/* ===== v231 (daily fixer): #180/#181/#154 the tour's Next button answered slowly (it saved and opened the next screen
+   inside the tap; now that waits one frame, see nxTour's click handler); #179/#143 AI design review radius filter (revTrue). ===== */
+WHATS_NEW.push(
+  { v: 231, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Fixed: the tour's Next button felt slow when the next step opened a game or Settings. It answers straight away now, and the next screen follows a moment later.",
+    tryIt: "Settings → This build → Show me what's new, and tap Next a few times." }
 );
 </script>
