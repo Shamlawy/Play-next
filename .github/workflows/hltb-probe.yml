@@ -20,6 +20,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,4 +33,4 @@ jobs:
         env:
           Q: ${{ github.event.inputs.titles }}
           BROWSER: ${{ (github.event_name == 'push' || github.event.inputs.browser == 'yes') && '1' || '' }}
-        run: node .github/scripts/hltbprobe.mjs
+        run: node .github/scripts/hltbprobe.mjs 2>&1
