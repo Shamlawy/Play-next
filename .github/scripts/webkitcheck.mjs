@@ -41,8 +41,9 @@ const scrollBy = (page, dy) => page.evaluate(dy => {
 const RUNS = [["iPhone 11", devices["iPhone 11"]], ["iPad", devices["iPad (gen 7)"]], ["iPad landscape", devices["iPad (gen 7) landscape"]]];
 const SCREENS = ["home", "queue", "lib", "played", "replay", "month", "flow", "plan", "psych", "duels", "friend", "add"];
 let failed = 0;
-const browser = process.env.CHROMIUM ? await chromium.launch({ executablePath: process.env.CHROMIUM }) : await webkit.launch();
-for (const [name, dev] of RUNS) {
+const launch = () => process.env.CHROMIUM ? chromium.launch({ executablePath: process.env.CHROMIUM }) : webkit.launch();
+let browser = await launch();
+async function walk(name, dev) {
   const ctx = await browser.newContext({ ...dev, serviceWorkers: "block" });
   const reports = [], errors = [];
   await ctx.route(u => !u.href.startsWith(BASE), async r => {
@@ -93,5 +94,19 @@ for (const [name, dev] of RUNS) {
   if (errors.length) failed++;
   await ctx.close();
 }
+/* Playwright's WebKit page sometimes dies mid-walk on GitHub's runners ("Target page, context or browser has been closed";
+   983e68c, v231 and 2ba6dd7 each passed on a re-run). Say so, and walk that device once more; a second crash fails. */
+for (const [name, dev] of RUNS) {
+  for (let tries = 1; ; tries++) {
+    try { await walk(name, dev); break; }
+    catch (e) {
+      const msg = String(e && e.message || e).split("\n")[0];
+      if (!/has been closed|crash/i.test(msg)) throw e;
+      console.log(`\n===== ${name}: the WebKit page crashed (${msg}) — try ${tries} of 2 =====`);
+      if (!browser.isConnected()) browser = await launch();
+      if (tries >= 2) { failed++; break; }
+    }
+  }
+}
 await browser.close(); srv.close();
-if (failed) { console.log(`\n${failed} device(s) had script errors.`); process.exit(1); }
+if (failed) { console.log(`\n${failed} device(s) had script errors or crashed twice.`); process.exit(1); }
