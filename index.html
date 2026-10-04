@@ -16749,7 +16749,9 @@ function bugReport(kind, msg, x) {
   msg = bugScrub(msg).trim(); if (!msg) return;
   const at = bugScrub(x.at || ""), scr = x.screen || bugScreen();
   /* one problem = one signature (numbers ignored, so "a 520ms freeze" and "a 610ms freeze" are the same problem) */
-  const sig = bugHash(kind + "|" + msg.replace(/\d+/g, "#").slice(0, 240) + "|" + at.replace(/:\d+:\d+$/, "") + (kind === "layout" || kind === "slow" ? "|" + scr : "") + (kind === "user" ? "|" + Date.now() : ""));
+  /* v243: x.sigAt replaces `at` in the signature (slow taps: one report per screen, not one per element touched) */
+  const sigAt = x.sigAt != null ? String(x.sigAt) : at;
+  const sig = bugHash(kind + "|" + msg.replace(/\d+/g, "#").slice(0, 240) + "|" + sigAt.replace(/:\d+:\d+$/, "") + (kind === "layout" || kind === "slow" ? "|" + scr : "") + (kind === "user" ? "|" + Date.now() : ""));
   const day = new Date().toLocaleDateString("en-CA"), sent = (S.bugSent ||= {});
   if (sent[sig] === day) return;
   sent[sig] = day;
@@ -17078,7 +17080,7 @@ try {
     if (!lagOk()) return;
     for (const ev of list.getEntries()) {
       if (ev.duration < 250 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name) || bugModal(ev.startTime, ev.duration)) continue;
-      bugReport("slow", "A tap took " + Math.round(ev.duration / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen() });
+      bugReport("slow", "A tap took " + Math.round(ev.duration / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen(), sigAt: "" });   /* v243: one per screen a day (an iPad session filed 24 issues for one game page, one per element touched) */
     }
   }).observe({ type: "event", durationThreshold: 104, buffered: false });
 } catch (e) {}
@@ -19273,7 +19275,7 @@ function revTrue(x, els) {
   if (/radius|round|corner/.test(say) && (new Set(els.map(e => e.tagName)).size > 1
     || Math.max(...rs.map(r => r.height)) > 2 * Math.max(1, Math.min(...rs.map(r => r.height))))) return false;   /* #143: a text link vs list rows */
   if (/font|text size|type size/.test(say) && (same(cs.map(c => parseFloat(c.fontSize)), .5) || kinds.size > 1)) return false;
-  if (/height|same size|taller|shorter/.test(say) && !/font/.test(say) && same(rs.map(r => r.height), 2)) return false;
+  if (/height|size|taller|shorter|wider|narrower|width/.test(say) && !/font|text size|type size/.test(say) && same(rs.map(r => r.height), 2)) return false;   /* v243 (#285): pills sized by their text, same height */
   if (/spacing|gap|margin|padding/.test(say) && els.length > 2) { const o = [...rs].sort((a, b) => a.top - b.top), g = o.slice(1).map((r, i) => r.top - o[i].bottom); if (same(g, 2)) return false; }
   if (/align/.test(say) && (same(rs.map(r => r.left), 2) || same(rs.map(r => r.top), 2))) return false;
   if (/too long|truncat|shorten/.test(say) && els.some(e => { const c = getComputedStyle(e); return (c.webkitLineClamp && c.webkitLineClamp !== "none") || (e.nextElementSibling && e.nextElementSibling.matches("[data-descmore]")); })) return false;
