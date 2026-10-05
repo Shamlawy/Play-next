@@ -3,13 +3,14 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 const HOUR = 3_600_000
 const at = (ms: number) => new Date(ms).toISOString()
 
-function world(on: any, tokens: number, five: number, week: number) {
+function world(on: any, tokens: number, five: number, week: number, limits = true) {
+  mock.store(on)
   const clock = mock.clock(on, { now: Date.parse('2026-10-05T12:00:00Z') })
   const now = clock.now()
   on('session.usage', () => ({ value: {
     startedAt: 0,
     context: { tokens, window: 1_000_000, percent: Math.round(tokens / 10_000) },
-    rateLimits: [
+    rateLimits: !limits ? [] : [
       { kind: 'five_hour', percentUsed: five, resetsAt: at(now + 2 * HOUR + 10 * 60_000) },
       { kind: 'seven_day', percentUsed: week, resetsAt: at(now + 3 * 24 * HOUR) },
     ],
@@ -60,5 +61,25 @@ describe('usage-guard', () => {
     await $.prompt.submit({ text: 'please handoff the docs later' })
     expect(seen[0]).toContain('create_session')
     expect(seen[1]).not.toContain('create_session')
+  })
+
+  test('every reply ends with the usage line until "hide meter"', async ($, on) => {
+    const seen = world(on, 80_000, 12, 5)
+    await $.prompt.submit({ text: 'hi' })
+    await $.prompt.submit({ text: 'hide meter' })
+    await $.prompt.submit({ text: 'hi again' })
+    await $.prompt.submit({ text: 'show the usage meter' })
+    expect(seen[0]).toContain('very last line, exactly as written, after a blank line: ⛽ 5h 12%')
+    expect(seen[1]).toContain('now off')
+    expect(seen[1]).not.toContain('very last line')
+    expect(seen[2]).not.toContain('very last line')
+    expect(seen[3]).toContain('now on')
+    expect(seen[3]).toContain('very last line')
+  })
+
+  test('no limit readings says so', async ($, on) => {
+    const seen = world(on, 225_000, 0, 0, false)
+    await $.prompt.submit({ text: 'hi' })
+    expect(seen[0]).toContain('⛽ chat 225k · 5h/week limits not reported yet')
   })
 })
