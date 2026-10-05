@@ -2206,10 +2206,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
 
   /* ===== v68 transitions + more butter ===== */
   .tile, .chip, .btn, nav button { position: relative; overflow: hidden; }
-  .pnrip { position: absolute; border-radius: 50%; pointer-events: none; z-index: 5;
-    background: radial-gradient(circle, rgba(234,242,255,.28), rgba(234,242,255,0) 70%);
-    width: var(--d); height: var(--d); transform: translate(-50%,-50%) scale(0); animation: pnRip .7s var(--ease) forwards; }
-  @keyframes pnRip { 60% { opacity: 1; } to { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
   html:not(.dragging-now) .row { transition: scale .3s var(--ease); }
   html:not(.dragging-now) .row:active { scale: .985; transition-duration: .1s; }
   #pnorbs { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
@@ -3997,7 +3993,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "243";
+const APP_V = "244";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11092,9 +11088,11 @@ let pnSkipFlip = 0;
       a.onfinish = a.oncancel = () => { r.style.zIndex = ""; }; });
     return out; }; }
 /* live countdown — one ticker for the whole app, only the changed digit animates */
+/* v244: only countdowns you can see tick (Home's kept ticking behind the Queue and kept the whole page redrawing), and the
+   digits slide with transform/opacity only (the blur couldn't run on the graphics chip, so every frame went through paint) */
 setInterval(() => {
   if (document.hidden) return;
-  document.querySelectorAll("[data-cd-to]").forEach(cd => {
+  [...document.querySelectorAll("[data-cd-to]")].filter(cd => !cd.closest(".panel:not(.on)") && (cd.checkVisibility ? cd.checkVisibility() : cd.getClientRects().length)).forEach(cd => {
     let ms = new Date(cd.dataset.cdTo + "T00:00:00") - new Date(); if (ms < 0) ms = 0;
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
     cd.querySelectorAll("b[data-u]").forEach(b => {
@@ -11102,8 +11100,8 @@ setInterval(() => {
       const cn = b.querySelector(".cdn"), cur = cn ? cn.textContent : b.textContent;
       if (cur !== nv) { b.innerHTML = `<i class="cdn">${nv}</i>`; if (calm() || cur === "–") return;
         const gh = document.createElement("i"); gh.className = "cdg"; gh.textContent = cur; b.appendChild(gh);
-        gh.animate([{ transform: "none", opacity: 1, filter: "blur(0)" }, { transform: "translateY(-110%)", opacity: 0, filter: "blur(2px)" }], { duration: 520, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => gh.remove();
-        b.firstChild.animate([{ transform: "translateY(110%)", filter: "blur(2px)" }, { transform: "translateY(-10%)", filter: "blur(0)", offset: .75 }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
+        gh.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-110%)", opacity: 0 }], { duration: 520, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => gh.remove();
+        b.firstChild.animate([{ transform: "translateY(110%)", opacity: .4 }, { transform: "translateY(-10%)", opacity: 1, offset: .75 }, { transform: "none", opacity: 1 }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
     });
   });
 }, 1000);
@@ -11299,18 +11297,8 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
     a.onfinish = () => { if (pnClosing === a) { pnClosing = null; _cf(); } a.cancel(); };
   }; }
 
-/* a soft glow spreads from your finger on anything tappable */
-document.addEventListener("pointerdown", e => {
-  if (calm()) return;
-  let t = e.target.closest(".tile, .row, .un, .chip, .btn, nav button");
-  if (!t) return;
-  if (t.classList.contains("artrow")) t = t.querySelector(".rowbg") || t;
-  else if (t.classList.contains("pick")) t = t.querySelector(".scrim") || t;
-  else if (t.classList.contains("row")) { if (getComputedStyle(t).position === "static") return; }
-  const r = t.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2, sp = document.createElement("span");
-  sp.className = "pnrip"; sp.style.cssText = `--d:${d}px;left:${e.clientX - r.left}px;top:${e.clientY - r.top}px`;
-  t.appendChild(sp); setTimeout(() => sp.remove(), 750);
-}, { passive: true });
+/* v244: the soft glow that spread from your finger on every tap is gone (#309, the owner asked; it also measured the
+   tapped thing on every touch) */
 
 /* two slow glows drifting behind everything */
 document.body.insertAdjacentHTML("afterbegin", '<div id="pnorbs" aria-hidden="true"><i></i><i></i></div>');
@@ -22885,5 +22873,60 @@ WHATS_NEW.push(
     at: () => $("#full.on .gd-desc") || $("#full.on .gd-head"),
     say: "Tap a game's description to read all of it. It opens just like Read more, so no need to aim for the little button.",
     tryIt: "Open a game with a long description and tap the text." }
+);
+</script>
+<script>
+/* ===== v244 (#309/#310/#314, the owner: "the Queue lags a lot if I stay there, like it freezes"): Home's live countdown kept
+   ticking behind the Queue and slid its digits with a blur, which can't run on the graphics chip, so the whole page went
+   through style + paint every frame while nothing moved (6s still on the Queue: 180 redraws before, ~20 now). Nexi now spots
+   that himself. Every 10s (screen on, no finger for 1.5s) he lists what's animating: an animation of anything but
+   transform/opacity that runs where you can't see it (another screen, a hidden part) or one that never ends, seen in 3 checks
+   in a row → a "slow" report. Short scripted animations (Element.animate, like the countdown's) are noted when they start
+   (keyframes only, no layout read), so ones that keep coming back are caught even though each lasts half a second. ===== */
+(() => {
+  const OK = /^(transform|opacity|translate|scale|rotate|offset|computedOffset|easing|composite)$/;
+  const REC = [], STREAK = new Map();
+  let lastTouch = 0;
+  addEventListener("pointerdown", () => { lastTouch = performance.now(); }, { capture: true, passive: true });
+  const _an = Element.prototype.animate;
+  Element.prototype.animate = function (kf) {
+    try { if (REC.length < 300 && kf) {
+      const ks = Array.isArray(kf) ? kf : [kf], p = [...new Set(ks.flatMap(k => Object.keys(k || {})).filter(k => !OK.test(k)))];
+      if (p.length) REC.push({ el: this, par: this.parentElement, p: p.join(",") }); } } catch (e) {}
+    return _an.apply(this, arguments);
+  };
+  const unseen = el => !!el.closest(".panel:not(.on)") || (el.checkVisibility ? !el.checkVisibility() : !el.getClientRects().length);
+  const pass = () => {
+    const rec = REC.splice(0);
+    if (document.hidden || !document.getAnimations || !lagOk() || nxTouring() || performance.now() - lastTouch < 1500) return;
+    const now = new Map();
+    const note = (el, p, forever) => {
+      if (!el || !el.isConnected) return;
+      const hid = unseen(el); if (!hid && !forever) return;
+      const k = (hid ? "hidden" : "forever") + "|" + bugPath(el) + "|" + p; if (!now.has(k)) now.set(k, { el, p, hid });
+    };
+    rec.forEach(r => note(r.el.isConnected ? r.el : r.par, r.p, false));
+    document.getAnimations().forEach(a => {
+      if (a.playState !== "running" || !a.effect || !a.effect.target) return;
+      const p = [...new Set(a.effect.getKeyframes().flatMap(k => Object.keys(k)).filter(k => !OK.test(k)))];
+      if (p.length) note(a.effect.target, p.join(","), a.effect.getTiming().iterations === Infinity);
+    });
+    [...STREAK.keys()].forEach(k => { if (!now.has(k)) STREAK.delete(k); });
+    let told = 0;
+    now.forEach((v, k) => {
+      const n = (STREAK.get(k) || 0) + 1; STREAK.set(k, n);
+      if (n === 3 && !told++) bugReport("slow", "Something keeps animating " + (v.hid ? "where you can't see it" : "forever") + " on " + lagWhere(),
+        { at: bugPath(v.el) + " animates " + v.p + " (can't run on the graphics chip, so every frame is redrawn)", screen: bugScreen() });
+    });
+  };
+  setInterval(pass, 10000);
+})();
+WHATS_NEW.push(
+  { v: 244, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: null,
+    say: "Fixed: the Queue no longer gets laggy when you stay on it. Home's countdown kept ticking out of sight and made the whole screen redraw nonstop; it now rests when you can't see it. I've learned to spot this myself now.",
+    tryIt: "Sit on the Queue for a while, then scroll: it stays smooth." },
+  { v: 244, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row") || $("#p-queue .hero"),
+    say: "The glow that spread from your finger on every tap is gone, as you asked.",
+    tryIt: "Tap around: things respond without the flash." }
 );
 </script>
