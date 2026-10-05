@@ -9,6 +9,8 @@ const STEP = 50_000
 const LEVELS = [50, 75, 90]
 const NAMES: Record<string, string> = { five_hour: '5h', seven_day: 'week', spend_limit: 'spend' }
 
+const METER_SET = /^\s*\/?(hide|show|turn\s+off|turn\s+on)\s+(the\s+)?(usage\s+)?meter\s*[.!]?\s*$/i
+
 const HANDOFF_ASK = /^\s*\/?(hand\s*off|new\s+chat|fresh\s+chat|move\s+to\s+a\s+new\s+chat)\s*[.!]?\s*$/i
 
 const HANDOFF = [
@@ -37,7 +39,8 @@ function meter(limits: readonly SessionRateLimit[], ctx: SessionContextUsage, no
     return `${NAMES[r.kind] ?? r.kind} ${r.percentUsed}%${left ? ` (resets in ${left})` : ''}`
   })
   if (ctx.tokens) parts.push(`chat ${k(ctx.tokens)}`)
-  return parts.length ? parts.join(' · ') : 'no readings yet'
+  if (!limits.length) parts.push('5h/week limits not reported yet')
+  return parts.join(' · ')
 }
 
 // Highest level already announced per window (keyed by its reset time, so a new window starts over).
@@ -53,8 +56,11 @@ export const register: Register = on => {
   const told = new Map<string, number>()
   const toasted = new Map<string, number>()
   let lastSoft = -Infinity
+  // The meter line at the end of every reply (the one place every app shows); "hide meter" turns it off.
+  let footer = true
 
   on('session.start', async ($, e, next) => {
+    footer = (await $.store.get('footer')) !== false
     await $.command.register({ name: 'handoff', description: 'Write a handoff note and start a fresh chat with it.' })
     await $.command.register({ name: 'meter', description: 'Show usage limits and chat size.' })
     return next(e)
@@ -65,7 +71,13 @@ export const register: Register = on => {
     return { text: 'Handing off to a fresh chat…' }
   })
 
-  on('command.run', { command: 'meter' }, async $ => {
+  on('command.run', { command: 'meter' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'off' || arg === 'on') {
+      footer = arg === 'on'
+      await $.store.set('footer', footer)
+      return { text: `Usage line at the end of replies: ${arg}.` }
+    }
     const u = await $.session.usage()
     return { text: meter(u.rateLimits, u.context, await $.clock.now()) }
   })
@@ -74,11 +86,24 @@ export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
     $.ui.status(`⛽ ${meter(e.rateLimits, e.context, now)}`)
+    $.ui.invalidate('ui.render')
     for (const r of e.rateLimits) {
       const level = crossed(toasted, r)
       if (level) $.ui.toast(`${NAMES[r.kind] ?? r.kind} limit past ${level}% (resets in ${resetIn(r.resetsAt, now) || 'soon'})`)
     }
     return next(e)
+  })
+
+  // Terminal / desktop (and any app that draws it): the meter as a band above the message box.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const u = await $.session.usage()
+    if (!u.rateLimits.length && !u.context.tokens) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box>
+        <Text dimColor>⛽ {meter(u.rateLimits, u.context, await $.clock.now())}</Text>
+      </Box>
+    )
   })
 
   // Every surface (the phone app too): hidden notes for Claude, who passes warnings on in the reply.
@@ -105,6 +130,16 @@ export const register: Register = on => {
     }
 
     if (HANDOFF_ASK.test(e.text)) notes.push(HANDOFF)
+
+    const set = METER_SET.exec(e.text)
+    if (set) {
+      footer = !/hide|off/i.test(set[1] ?? '')
+      await $.store.set('footer', footer)
+      notes.push(`[usage-guard] The usage line at the end of replies is now ${footer ? 'on' : 'off'}. Confirm it in one short line.`)
+    }
+    if (footer) {
+      notes.push(`[usage-guard] End your reply with this as its very last line, exactly as written, after a blank line: ⛽ ${meter(u.rateLimits, u.context, now)}`)
+    }
 
     return next({ ...e, context: [...(e.context ?? []), notes.join('\n')] })
   })
