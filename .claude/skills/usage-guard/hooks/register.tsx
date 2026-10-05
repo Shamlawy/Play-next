@@ -52,6 +52,14 @@ function crossed(seen: Map<string, number>, r: SessionRateLimit): number {
   return level
 }
 
+async function drawnOn($: { session: { surfaces: () => Promise<readonly string[]> } }): Promise<string> {
+  try {
+    return (await $.session.surfaces()).join(', ') || 'none'
+  } catch {
+    return 'unknown'
+  }
+}
+
 export const register: Register = on => {
   const told = new Map<string, number>()
   const toasted = new Map<string, number>()
@@ -111,7 +119,7 @@ export const register: Register = on => {
     const u = await $.session.usage()
     const now = await $.clock.now()
     const notes = [
-      `[usage-guard] Usage now: ${meter(u.rateLimits, u.context, now)}. Mention it only when the person asks about usage or a note below says to.`,
+      `[usage-guard] Usage now: ${meter(u.rateLimits, u.context, now)}. Mention it only when the person asks about usage or a note below says to. Apps drawing this chat: ${await drawnOn($)}.`,
     ]
 
     for (const r of u.rateLimits) {
