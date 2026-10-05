@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "242";
+const APP_V = "243";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -22867,5 +22867,23 @@ WHATS_NEW.push(
     at: () => $("#full .gd-hl") || $("#full .gd-glance"),
     say: "Hours to beat now come from <b>HowLongToBeat</b>, real players' times, instead of my guesses and RAWG's averages (which were often way off). Empty and guessed hours fill in by themselves; hours you typed stay yours, and if an older one doesn't match I'll show you the list to fix in one tap.",
     tryIt: "Tap the length tile on a game page: main story, extras and 100%, with a link to the game on HowLongToBeat." }
+);
+</script>
+<script>
+/* ===== v243 (#313, the owner: "pressing on the text should expand it, not only Read more"): a tap on a cut-short description
+   (or the story so far) presses its own Read more button, so the slide-open animation and every check stay the same.
+   Only opens (a tap while reading doesn't fold it away), and not while text is being selected. ===== */
+document.addEventListener("click", e => {
+  const t = e.target.closest && e.target.closest(".gd-desc:not(.open), .wis:not(.open) .wis-t"); if (!t) return;
+  if (String(getSelection && getSelection() || "").trim()) return;
+  const b = t.classList.contains("gd-desc") ? t.nextElementSibling : t.closest(".wis").querySelector("[data-wismore]");
+  if (!b || b.hidden || !b.matches("[data-descmore], [data-wismore]")) return;
+  b.click();
+});
+WHATS_NEW.push(
+  { v: 243, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.filter(x => (x.desc || x.about || "").length > 400)[0] || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full.on .gd-desc") || $("#full.on .gd-head"),
+    say: "Tap a game's description to read all of it. It opens just like Read more, so no need to aim for the little button.",
+    tryIt: "Open a game with a long description and tap the text." }
 );
 </script>
