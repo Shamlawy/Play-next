@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "243";
+const APP_V = "244";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -20507,7 +20507,7 @@ WHATS_NEW.push(
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Icon badge" }); }, at: "#s-xbdg",
     say: "Your home-screen icon shows how many of my notifications are waiting, and a dot when a game you're waiting for comes out today.",
     tryIt: "Nothing to do: it clears when you open the app." },
-  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && PX_S.some(s => x.px[s])) || S.games.find(x => typeof pxCard === "function" && pxCard(x)); if (g) openFull(g.id); }, at: () => $("#full .px") || null,
+  { v: 221, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && PX_S.some(s => x.px[s])) || S.games.find(x => typeof pxCard === "function" && pxCard(x)); if (g) openFull(g.id); }, at: () => $("#full .px") || $("#full [data-px]"),
     say: "Fixed: prices never sit on “checking…” any more. A store that doesn't have the game says so, a failed check says it'll try again, and opening a game checks every store it's missing. I've learned to spot that one myself now.",
     tryIt: "Open a game you're waiting for." }
 );
@@ -20529,7 +20529,7 @@ WHATS_NEW.push(
 /* ===== v224: prices in one line (pxCard, store logos PX_LOGO) + a tap on seated Nexi hides the rail (railHideNow) ===== */
 WHATS_NEW.push(
   { v: 224, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && PX_S.some(s => x.px[s]) && typeof pxCard === "function" && pxCard(x)) || S.games.find(x => typeof pxCard === "function" && pxCard(x)); if (g) openFull(g.id); },
-    at: () => $("#full .px-l") || null,
+    at: () => $("#full .px-l") || $("#full [data-px]"),
     say: "Prices got a makeover: PlayStation, Steam and Nintendo side by side in one line, each with its logo, and the best deal lit up for you.",
     tryIt: "Tap a store to open it, or the line under it for price alerts." },
   { v: 224, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Nexi sits in the rail" }); }, at: "#s-xseat",
@@ -20668,7 +20668,7 @@ async function pxRawgFix(ids) {
 /* games already stuck on "not found" from earlier checks */
 setTimeout(() => { try { const ids = (typeof pxWatched === "function" ? pxWatched() : []).filter(pxRwNeed).map(g => g.id); if (ids.length) pxRawgFix(ids); } catch (e) {} }, 25000);
 WHATS_NEW.push(
-  { v: 227, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && x.px.ps && x.px.ps.now != null) || pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px-l") || $("#full .px") || null,
+  { v: 227, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => x.px && x.px.ps && x.px.ps.now != null) || pxWatched()[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .px-l") || $("#full .px") || $("#full [data-px]"),
     say: "Prices now turn up for games the store searches miss, like GTA 6 on the PlayStation Store. Short names such as “GTA 6” or “FF7 Rebirth” match the store's full name too.",
     tryIt: "Nothing to do: missing prices fill in by themselves on the next check." }
 );
@@ -20977,7 +20977,7 @@ function nxFacts() {
 { const _nc = nxContext; nxContext = function () { const o = _nc.apply(this, arguments) || {}; try { o.facts = nxFacts(); } catch (e) {} return o; }; }
 WHATS_NEW.push(
   { v: 229, go: () => { closeFull(); dyClose(); nxShut(); const g = pxWatched().find(x => x.px && PX_S.some(s => x.px[s] && x.px[s].now != null)) || pxWatched()[0]; if (g) openFull(g.id); },
-    at: () => $("#full .px") || null,
+    at: () => $("#full .px") || $("#full [data-px]"),
     say: "Prices now show in your own currency: dirhams in the UAE, pounds in Egypt, converted at today's rate even when a store sells in dollars. Egypt gets PlayStation prices too, and games no longer match their sequel by mistake.",
     tryIt: "Tap a price to see the store's own price in the details." },
   { v: 229, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Show prices in" }); }, at: "#s-pxcur",
@@ -21864,7 +21864,7 @@ WHATS_NEW.push(
     at: () => $("#dcAdd .dc-card") || $("#p-add .aq"),
     say: "Smarter adding: I now pick games for you by myself from your favourites and what you're playing. Swipe through them like the Shuffler: → adds, ← skips, and every one has big store screenshots and the full story.",
     tryIt: "Tap the ✨ card on Add, or Similar on any game page." },
-  { v: 236, go: () => { gpClose(); dyClose(); nxShut(); const g = rankedGames()[0] || onDeck(1)[0] || S.games[0]; if (g) { openFull(g.id); setTimeout(() => openSimilar(g.id), 500); } },
+  { v: 236, go: () => { gpClose(); dyClose(); nxShut(); const g = rankedGames()[0] || onDeck(1)[0] || S.games[0]; if (g) { openFull(g.id); setTimeout(() => openSimilar(g.id), 200); } },
     at: () => $("#diary .sgl") || $("#diary .sim-new"),
     say: "Similar games are big picture cards now. Tap one for screenshots (Steam, PlayStation or Nintendo), the description and why it was picked; swipe → to add. Also fixed: adding Baldur's Gate 3 added the old Baldur's Gate, because I treated the numbers as unimportant. Numbers count now.",
     tryIt: "Share a Steam or YouTube link to Play next from another app: it opens that game, ready to add (Android)." }
@@ -22874,7 +22874,7 @@ WHATS_NEW.push(
    (or the story so far) presses its own Read more button, so the slide-open animation and every check stay the same.
    Only opens (a tap while reading doesn't fold it away), and not while text is being selected. ===== */
 document.addEventListener("click", e => {
-  const t = e.target.closest && e.target.closest(".gd-desc:not(.open), .wis:not(.open) .wis-t"); if (!t) return;
+  const t = e.target.closest && e.target.closest(".gd-desc, .wis .wis-t"); if (!t) return;   /* v244 (#319): the owner wants a tap to close it again too */
   if (String(getSelection && getSelection() || "").trim()) return;
   const b = t.classList.contains("gd-desc") ? t.nextElementSibling : t.closest(".wis").querySelector("[data-wismore]");
   if (!b || b.hidden || !b.matches("[data-descmore], [data-wismore]")) return;
@@ -22885,5 +22885,16 @@ WHATS_NEW.push(
     at: () => $("#full.on .gd-desc") || $("#full.on .gd-head"),
     say: "Tap a game's description to read all of it. It opens just like Read more, so no need to aim for the little button.",
     tryIt: "Open a game with a long description and tap the text." }
+);
+</script>
+<script>
+/* ===== v244 (#319): a tap on a game's description (or the story so far) now closes it again too; see the v243 listener.
+   Tour fixes (#307): the v236 step opened Similar after the tour had already looked for it; price steps fall back to the
+   Prices tile when a game has no prices yet. ===== */
+WHATS_NEW.push(
+  { v: 244, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.filter(x => (x.desc || x.about || "").length > 400)[0] || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full.on .gd-desc") || $("#full.on .gd-head"),
+    say: "Tap a game's description again to fold it back up. One tap opens it, the next one closes it.",
+    tryIt: "Open a game with a long description and tap the text twice." }
 );
 </script>
