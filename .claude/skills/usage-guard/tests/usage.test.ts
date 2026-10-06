@@ -82,4 +82,19 @@ describe('usage-guard', () => {
     await $.prompt.submit({ text: 'hi' })
     expect(seen[0]).toContain('⛽ chat 225k · 5h/week limits not reported yet')
   })
+
+  test('the usage window draws a bar per limit on every app, the phone too', async ($, on) => {
+    world(on, 210_000, 78, 17)
+    for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+      const ui = await $.ui.mount({
+        plugin: 'usage-guard', surface, component: 'Pane', requestId: 'usage',
+        props: { title: '⛽ Usage', isFocused: false, bodyColumns: 30, placement: 'inline' } as any,
+      })
+      expect(await ui.find({ type: 'Text', text: /^78% · resets 2h 10m$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^17% · resets 3d 0h$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^210k of 300k$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^█{17}░{7}$/ })).toBeDefined()
+      await ui.unmount()
+    }
+  })
 })

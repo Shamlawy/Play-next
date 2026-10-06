@@ -9,6 +9,32 @@ const STEP = 50_000
 const LEVELS = [50, 75, 90]
 const NAMES: Record<string, string> = { five_hour: '5h', seven_day: 'week', spend_limit: 'spend' }
 
+// The usage window: a small pane with a bar per limit and the chat size.
+const WINDOW = 'usage'
+const WINDOW_TITLE = '⛽ Usage'
+
+function bar(percent: number, width: number): string {
+  const w = Math.max(4, width)
+  const full = Math.round((Math.min(100, Math.max(0, percent)) / 100) * w)
+  return '█'.repeat(full) + '░'.repeat(w - full)
+}
+
+const tone = (percent: number) => (percent >= 90 ? 'error' : percent >= 75 ? 'warning' : 'success')
+
+type Row = { name: string; percent: number; note: string }
+
+function windowRows(limits: readonly SessionRateLimit[], ctx: SessionContextUsage, now: number): Row[] {
+  const rows: Row[] = limits.map(r => {
+    const left = resetIn(r.resetsAt, now)
+    return { name: NAMES[r.kind] ?? r.kind, percent: r.percentUsed, note: `${r.percentUsed}%${left ? ` · resets ${left}` : ''}` }
+  })
+  if (ctx.tokens) {
+    // The chat bar fills toward the 300k "start a fresh chat" line, not the model's whole window.
+    rows.push({ name: 'chat', percent: Math.round((ctx.tokens / HARD) * 100), note: `${k(ctx.tokens)} of ${k(HARD)}` })
+  }
+  return rows
+}
+
 const METER_SET = /^\s*\/?(hide|show|turn\s+off|turn\s+on)\s+(the\s+)?(usage\s+)?meter\s*[.!]?\s*$/i
 
 const HANDOFF_ASK = /^\s*\/?(hand\s*off|new\s+chat|fresh\s+chat|move\s+to\s+a\s+new\s+chat)\s*[.!]?\s*$/i
@@ -70,7 +96,9 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     footer = (await $.store.get('footer')) !== false
     await $.command.register({ name: 'handoff', description: 'Write a handoff note and start a fresh chat with it.' })
-    await $.command.register({ name: 'meter', description: 'Show usage limits and chat size.' })
+    await $.command.register({ name: 'meter', description: 'Open the usage window (limits + chat size). /meter off|on: the line at the end of replies.' })
+    // Opens by itself where there is room for it (a sidebar), unless the person closed it last time.
+    if ((await $.store.get('window')) !== false) void $.ui.open({ id: WINDOW, title: WINDOW_TITLE })
     return next(e)
   })
 
@@ -86,8 +114,38 @@ export const register: Register = on => {
       await $.store.set('footer', footer)
       return { text: `Usage line at the end of replies: ${arg}.` }
     }
+    await $.store.set('window', true)
+    const opened = await $.ui.open({ id: WINDOW, title: WINDOW_TITLE })
     const u = await $.session.usage()
-    return { text: meter(u.rateLimits, u.context, await $.clock.now()) }
+    const line = meter(u.rateLimits, u.context, await $.clock.now())
+    return { text: opened.isPlaced ? `Usage window open. ${line}` : line }
+  })
+
+  // Closed by the person: stay closed in later chats until /meter opens it again.
+  on('ui.close', { id: WINDOW }, async ($, e, next) => {
+    if (e.origin.kind === 'person') await $.store.set('window', false)
+    return next(e)
+  })
+
+  on('ui.render', { component: 'Pane', requestId: WINDOW }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const u = await $.session.usage()
+    const rows = windowRows(u.rateLimits, u.context, await $.clock.now())
+    const width = Math.min(24, Math.max(4, (e.props.bodyColumns ?? 30) - 6))
+    return (
+      <Box flexDirection="column">
+        {rows.map(r => (
+          <Box flexDirection="column" key={r.name}>
+            <Text bold>{r.name}</Text>
+            <Text>
+              <Text color={tone(r.percent)}>{bar(r.percent, width)}</Text>
+            </Text>
+            <Text dimColor key={`${r.name}-note`}>{r.note}</Text>
+          </Box>
+        ))}
+        {!u.rateLimits.length && <Text dimColor key="no-limits">5h/week limits not reported yet</Text>}
+      </Box>
+    )
   })
 
   // Terminal / desktop: a status line plus a toast when a limit passes 50/75/90%.
