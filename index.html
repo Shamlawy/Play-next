@@ -23813,8 +23813,9 @@ function rlvFill() {
       es.forEach(e => { const h = e.borderBoxSize && e.borderBoxSize[0] ? e.borderBoxSize[0].blockSize : e.contentRect.height;
         if (e.target === RLV.el) { if (Math.abs(h - RLV.view) > 1) { RLV.view = h; ch = true; } }
         else if (e.target === RLV.el.querySelector(".rlv-k") && Math.abs(h - RLV.copy) > 1) { RLV.copy = h; ch = true; } });
-      if (ch) { const want = !RLV.dup || rlvCalm() || !RLV.copy ? 1 : Math.max(2, Math.ceil(RLV.view / RLV.copy) + 1);
-        if (want !== RLV.n) rlvFill(); else rlvRun(true); } }); }
+      /* v252: the redraw re-observes, so it waits for the next frame (Safari: "ResizeObserver loop completed with undelivered notifications") */
+      if (ch) requestAnimationFrame(() => { const want = !RLV.dup || rlvCalm() || !RLV.copy ? 1 : Math.max(2, Math.ceil(RLV.view / RLV.copy) + 1);
+        if (want !== RLV.n) rlvFill(); else rlvRun(true); }); }); }
   rlvFill.ro.disconnect(); rlvFill.ro.observe(v); rlvFill.ro.observe(t.firstElementChild);
   rlvRun(keep != null, keep);
 }
