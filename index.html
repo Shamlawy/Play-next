@@ -2908,18 +2908,59 @@ html.still .hacc-ring{animation:none}
 @keyframes pnShim{from{opacity:.55}to{opacity:1}}
 html.still :where(img[src]:not([data-ld])){animation:none}
 .fr-sync{font-size:13px;color:var(--mute);margin:-6px 0 14px}
-/* v144: launch intro */
-#pnboot{position:fixed;inset:0;z-index:10000;background:#000;display:grid;place-items:center;overflow:hidden;cursor:pointer;clip-path:polygon(-20% 0,120% 0,100% 100%,-40% 100%)}
-#pnboot .pb-in{display:flex;align-items:center;gap:16px;transform:rotate(-7deg)}
-#pnboot .pb-logo{position:relative;width:84px;height:84px;flex:none;animation:pbLogo .5s cubic-bezier(.2,1.4,.4,1) both}
-#pnboot .pb-logo svg,#pnboot .pb-logo img{position:absolute;inset:0;width:100%;height:100%;border-radius:22px}
-#pnboot b{font:italic 900 clamp(36px,10vw,64px)/.9 "Archivo",system-ui,sans-serif;color:#fff;letter-spacing:-.03em;white-space:nowrap;animation:pbWord .45s cubic-bezier(.16,1,.3,1) .16s both}
-#pnboot i{position:absolute;top:-10%;bottom:-10%;left:110%;width:16vw;background:var(--volt);transform:skewX(-12deg);animation:pbBar .6s cubic-bezier(.7,0,.3,1) .08s forwards}
-#pnboot.out{animation:pbOut .38s cubic-bezier(.75,0,.25,1) forwards}
-@keyframes pbLogo{from{opacity:0;transform:scale(1.8) rotate(14deg)}}
-@keyframes pbWord{from{opacity:0;transform:translateX(44px) skewX(-14deg)}}
-@keyframes pbBar{to{left:-30%}}
-@keyframes pbOut{to{clip-path:polygon(-20% 0,-20% 0,-40% 100%,-40% 100%)}}
+/* v252: the card (launch intro, release-day invite, calling card). After a clip the owner sent: a black card is handed
+   over, its logo glitches into [GREETINGS], a slash crosses it and a triangle pattern takes over (here the slash is the
+   accent). transform/opacity only; --k stretches or squeezes the whole timeline; .pcdrv = the triangles fly off again and
+   show what's on the card (.pcd-face); .pcdst = no animation, just the face. */
+.pcd{--k:1;--w:min(80vw,440px);--ar:1.75;position:relative;display:grid;place-items:center;pointer-events:none}
+.pcd-card{position:relative;width:var(--w);aspect-ratio:var(--ar);border-radius:12px;overflow:hidden;background:rgb(6,7,10);box-shadow:0 0 0 1px rgba(255,255,255,.1),0 30px 80px rgba(0,0,0,.8);transform:rotate(-3deg);animation:pcdIn calc(.42s*var(--k)) cubic-bezier(.2,1.1,.3,1) both;pointer-events:auto}
+.pcd-face,.pcd-cov,.pcd-tri{position:absolute;inset:0}
+.pcd-art{position:absolute;inset:0;background:center/cover no-repeat}
+.pcd-face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pcd-txt{position:absolute;left:0;right:0;bottom:0;padding:34px 16px 14px;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.88));display:flex;flex-direction:column;gap:3px;text-align:left;animation:pcdUp calc(.4s*var(--k)) ease-out calc(2.25s*var(--k)) both}
+.pcd-txt small{font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.14em;color:var(--volt)}
+.pcd-txt b{font:800 clamp(18px,5.4vw,24px)/1.1 "Archivo",system-ui,sans-serif;color:var(--ice);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pcd-cov{background:rgb(6,7,10);display:grid;place-items:center}
+.pcd-logo{grid-area:1/1;width:22%;max-width:64px;aspect-ratio:1;color:var(--volt);animation:pcdGl calc(.3s*var(--k)) steps(1) calc(.48s*var(--k)) forwards}
+.pcd-logo svg{display:block;width:100%;height:100%}
+.pcd-gr{grid-area:1/1;display:flex;font:700 clamp(11px,3.4vw,14px)/1 ui-monospace,monospace;letter-spacing:.18em;color:var(--ice);white-space:nowrap}
+.pcd-gr span{opacity:0;animation:pcdTy calc(.1s*var(--k)) linear calc(var(--d)*var(--k)) forwards}
+.pcd-ln{position:absolute;right:-12%;top:20%;width:62%;height:1px;background:rgba(255,255,255,.55);transform-origin:100% 50%;transform:rotate(-24deg) scaleX(0);animation:pcdLn calc(.25s*var(--k)) ease-out calc(.95s*var(--k)) forwards}
+.pcd-tri i{position:absolute;left:calc(var(--c)*var(--cw));top:calc(var(--r)*var(--rh));width:calc(var(--cw) + 1px);height:calc(var(--rh) + 1px);background:var(--f);animation:pcdTi calc(.22s*var(--k)) ease-out calc(var(--d)*var(--k)) both}
+.pcd-tri i.a{-webkit-clip-path:polygon(0 0,100% 0,0 100%);clip-path:polygon(0 0,100% 0,0 100%)}
+.pcd-tri i.b{-webkit-clip-path:polygon(100% 0,100% 100%,0 100%);clip-path:polygon(100% 0,100% 100%,0 100%)}
+.pcd-tri i.c{-webkit-clip-path:polygon(0 0,100% 0,100% 100%);clip-path:polygon(0 0,100% 0,100% 100%)}
+.pcd-tri i.d{-webkit-clip-path:polygon(0 0,100% 100%,0 100%);clip-path:polygon(0 0,100% 100%,0 100%)}
+/* the slash is hidden outside its run: on a tall card its slant reaches past the edges (--sa/--sb = start/end) */
+.pcd-sl{--sa:-190%;--sb:390%;position:absolute;top:-30%;bottom:-30%;left:0;width:34%;background:var(--volt);opacity:0;transform:translateX(var(--sa)) skewX(-28deg);animation:pcdSl calc(.5s*var(--k)) cubic-bezier(.6,0,.3,1) calc(1.12s*var(--k)) forwards}
+.pcd.pcdrv .pcd-cov{animation:pcdOut calc(.3s*var(--k)) ease-in calc(1.95s*var(--k)) forwards}
+.pcd.pcdrv .pcd-tri i{animation:pcdTi calc(.22s*var(--k)) ease-out calc(var(--d)*var(--k)) both,pcdTo calc(.32s*var(--k)) ease-in calc(var(--e)*var(--k)) forwards}
+.pcd.pcdst *{animation:none!important}
+.pcd.pcdst .pcd-cov,.pcd.pcdst .pcd-tri,.pcd.pcdst .pcd-sl{display:none}
+@keyframes pcdIn{from{opacity:0;transform:translate3d(0,70px,0) rotate(-14deg) scale(.85)}}
+@keyframes pcdGl{0%{opacity:.25;transform:translateX(3px)}25%{opacity:1;transform:translateX(-2px)}50%{opacity:.4;transform:none}75%{opacity:1;transform:translateX(2px)}100%{opacity:0;transform:none}}
+@keyframes pcdTy{to{opacity:1}}
+@keyframes pcdLn{to{transform:rotate(-24deg) scaleX(1)}}
+@keyframes pcdTi{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
+@keyframes pcdTo{from{opacity:1;transform:none}to{opacity:0;transform:scale(.2) rotate(40deg)}}
+@keyframes pcdSl{0%,85%{opacity:1}0%{transform:translateX(var(--sa)) skewX(-28deg)}100%{opacity:0;transform:translateX(var(--sb)) skewX(-28deg)}}
+@keyframes pcdOut{to{opacity:0}}
+@keyframes pcdUp{from{opacity:0;transform:translate3d(0,14px,0)}}
+/* the launch intro plays the card at .7 speed, then fades out */
+#pnboot{position:fixed;inset:0;z-index:10000;background:#000;display:grid;place-items:center;overflow:hidden;cursor:pointer}
+#pnboot.out{animation:pcdOut .3s ease-in forwards}
+#pnboot.out .pcd{animation:pbOutC .3s ease-in forwards}
+@keyframes pbOutC{to{transform:scale(1.1)}}
+/* the release-day invite */
+.pcdov{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);animation:ccIn .3s ease-out}
+.pcd-note{margin:0;max-width:340px;text-align:center;font-size:15px;line-height:1.4;color:var(--mute);animation:pcdUp .35s ease-out calc(2.35s*var(--k,1)) both}
+.pcd-acts{animation:pcdUp .35s ease-out calc(2.45s*var(--k,1)) both}
+.pcdov .pcd-acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+html.still .pcd-note,html.still .pcd-acts,html.still .pcdov{animation:none}
+/* the calling card plays it upright, then shows the picture */
+.ccov .pcd{--w:min(40vh,86vw);--ar:.5625}
+.ccov .pcd-sl{--sa:-340%;--sb:540%}
+.ccov .pcd img{max-height:none;max-width:none;border-radius:0;box-shadow:none;transform:none;animation:none}
 /* v144: calling card preview */
 .ccov{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);animation:ccIn .3s ease-out}
 .ccov img{max-height:72vh;max-width:100%;border-radius:6px;box-shadow:0 24px 70px rgba(0,0,0,.7);transform:rotate(-2deg);animation:ccCard .5s cubic-bezier(.2,1.3,.4,1)}
@@ -2932,7 +2973,34 @@ html.still .ccov,html.still .ccov img{animation:none}
 <div id="bgart"></div><div id="bgart2"></div><div id="bgtint"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<div id="pnboot" aria-hidden="true"><i></i><div class="pb-in"><span class="pb-logo"><svg viewBox="0 0 100 100"><defs><linearGradient id="pbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4DA3FF"/><stop offset="1" stop-color="#1B3FB8"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#pbg)"/><path d="M30 28 52 50 30 72M50 28 72 50 50 72" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg><img src="logo-192.png" alt="" onerror="this.remove()"></span><b>PLAY NEXT</b></div></div>
+<div id="pnboot" aria-hidden="true"></div>
+<script>
+/* v252: the card's markup, here so the launch intro can use it before the rest of the page loads.
+   o: k (speed), ar (width / height), word, rv (reveal what's on it), still (no animation),
+   art (picture url, already escaped for CSS) or img (picture src), alt, kick (small line), title. */
+function pcdHTML(o) {
+  o = o || {};
+  const e = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const port = o.ar && o.ar < 1, C = port ? 5 : 8, R = port ? 9 : 4, ch = ["[", ...String(o.word || "GREETINGS"), "]"];
+  let tri = "";
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const x = (c + .5) / C, fl = (r + c) % 2;
+    [fl ? "a" : "c", fl ? "b" : "d"].forEach(s => {
+      const q = Math.random(); if (q < .38) return;   /* black: the card shows through */
+      const f = q > .9 ? "var(--volt)" : q > .74 ? "rgba(255,255,255,.95)" : q > .56 ? "rgba(255,255,255,.62)" : "rgba(255,255,255,.3)";
+      tri += `<i class="${s}" style="--c:${c};--r:${r};--f:${f};--d:${(1.2 + x * .38 + Math.random() * .08).toFixed(3)}s;--e:${(1.9 + x * .3 + Math.random() * .12).toFixed(3)}s"></i>`;
+    });
+  }
+  const face = o.img ? `<img src="${e(o.img)}" alt="${e(o.alt)}">` : o.art ? `<span class="pcd-art" style="background-image:url('${o.art}')"></span>` : "";
+  const txt = o.title ? `<span class="pcd-txt">${o.kick ? `<small>${e(o.kick)}</small>` : ""}<b>${e(o.title)}</b></span>` : "";
+  return `<div class="pcd${o.rv ? " pcdrv" : ""}${o.still ? " pcdst" : ""}" style="--k:${o.k || 1}${o.ar ? ";--ar:" + o.ar : ""}"><div class="pcd-card">`
+    + (o.rv ? `<div class="pcd-face">${face}${txt}</div>` : "")
+    + `<div class="pcd-cov" aria-hidden="true"><span class="pcd-logo"><svg viewBox="0 0 100 100"><path d="M30 28 52 50 30 72M50 28 72 50 50 72" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`
+    + `<span class="pcd-gr">${ch.map((t, n) => `<span style="--d:${(.66 + n * .045).toFixed(3)}s">${e(t)}</span>`).join("")}</span><span class="pcd-ln"></span></div>`
+    + `<div class="pcd-tri" aria-hidden="true" style="--cw:${100 / C}%;--rh:${100 / R}%">${tri}</div><span class="pcd-sl" aria-hidden="true"></span></div></div>`;
+}
+{ const b = document.getElementById("pnboot"); if (b) b.innerHTML = pcdHTML({ k: .7 }); }
+</script>
 <div class="wrap">
   <nav>
     <button data-tab="home" aria-current="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path opacity=".35" d="M12 2.6 2.4 10.2a1.2 1.2 0 0 0 .75 2.14H4.5V20a1.6 1.6 0 0 0 1.6 1.6h11.8a1.6 1.6 0 0 0 1.6-1.6v-7.66h1.35a1.2 1.2 0 0 0 .75-2.14z"/><rect x="9.4" y="14" width="5.2" height="7.6" rx="1.2"/></svg><span>Home</span></button>
@@ -3997,7 +4065,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "251";
+const APP_V = "252";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6329,6 +6397,13 @@ function openSettings(scope) {
           `<button class="chip" data-v="${v}" aria-pressed="${(S.qcOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
         <button class="chip" data-v="look"><span>🧹 Look now</span></button>
       </div>
+      <label>Release-day cards</label>
+      <p class="note">When a game you're waiting for comes out, it hands you a card the next time you open the app, then shows you the game. Off brings back the old OUT NOW screen.</p>
+      <div class="chips" id="s-xpcd">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.pcdOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+        <button class="chip" data-v="demo"><span>🃏 Show me</span></button>
+      </div>
       <label>Then & now</label>
       <p class="note">A finished game's page shows how it went against what you expected: your hype, Nexi's guess, how long it took, your first and last notes.</p>
       <div class="chips" id="s-xcap">
@@ -7778,13 +7853,13 @@ const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") i.setAttri
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) i.setAttribute("data-ld", ""); });
 pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.tagName === "I" && n.parentElement && n.parentElement.closest(".cdb"))))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
-/* v144: launch intro, skipped by a tap, off when motion is off */
+/* v144: launch intro (v252: the card), skipped by a tap, off when motion is off */
 (function () {
   const b = document.getElementById("pnboot");
   if (!b) return;
   if (S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { b.remove(); return; }
-  const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; b.classList.add("out"); setTimeout(() => b.remove(), 420); };
-  b.onclick = go; setTimeout(go, 1050);
+  const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; b.classList.add("out"); setTimeout(() => b.remove(), 320); };
+  b.onclick = go; setTimeout(go, 1350);   /* v252: the card intro (pcdHTML at .7 speed) is patterned by ~1.3s */
 })();
 /* v144: Persona-style calling card for any game */
 async function callingCard(id, seed) {
@@ -7869,7 +7944,10 @@ async function callingCard(id, seed) {
     document.querySelectorAll(".ccov").forEach(e => e.remove());
     const url = URL.createObjectURL(b), file = new File([b], "calling-card-" + Date.now() + ".png", { type: "image/png" });
     const o = document.createElement("div"); o.className = "ccov";
-    o.innerHTML = `<img src="${url}" alt="Calling card for ${esc(g.title)}"><div class="ccov-acts">
+    /* v252: it arrives as the card (pcdHTML, first script); a reshuffle plays it quicker */
+    const fx = typeof pcdHTML === "function" && !calm(), k = seed ? .6 : 1;
+    o.innerHTML = (fx ? pcdHTML({ ar: .5625, rv: 1, img: url, alt: "Calling card for " + g.title, k }) : `<img src="${url}" alt="Calling card for ${esc(g.title)}">`)
+      + `<div class="ccov-acts${fx ? " pcd-acts" : ""}" style="--k:${k}">
       <button class="btn" data-cc="share"><span>Share</span></button>
       <button class="btn ghost" data-cc="again"><span>Reshuffle</span></button>
       <button class="btn ghost" data-cc="close"><span>Close</span></button></div>`;
@@ -13340,7 +13418,7 @@ lp.type='lowpass';lp.frequency.value=2600;m.gain.value=.3;m.connect(lp).connect(
 [[392,0],[523,.1],[659,.2],[784,.3],[1047,.42]].forEach(([f,d],i)=>[1,1.005].forEach(dt=>{const o=a.createOscillator(),g=a.createGain();o.type='sawtooth';
 o.frequency.value=f*dt;const st=t+d,len=i===4?.9:.14;g.gain.setValueAtTime(0,st);g.gain.linearRampToValueAtTime(.35,st+.02);
 g.gain.exponentialRampToValueAtTime(.001,st+len);o.connect(g).connect(m);o.start(st);o.stop(st+len+.05)}));setTimeout(boom,420)}catch(_){}}
-function outNow(){const q=S.games.filter(g=>typeof isFresh==='function'&&isFresh(g)&&!(S.fxSeen||[]).includes(g.id));if(!q.length)return;
+function outNow(){if(!S.pcdOff)return;/* v252: the release-day card (last script) does this now */const q=S.games.filter(g=>typeof isFresh==='function'&&isFresh(g)&&!(S.fxSeen||[]).includes(g.id));if(!q.length)return;
 const g=q[0];S.fxSeen=[...(S.fxSeen||[]),g.id];save();
 const d=document.createElement('div');d.className='fxout go';
 d.innerHTML='<div class="tz">NEW RELEASE<small>TAP</small></div><div class="rv"><img alt=""><div class="tx"><b>OUT NOW</b><h2></h2><small></small></div></div>';
@@ -14553,9 +14631,6 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
 /* card-flip shine slides across instead of repainting */
 .hflip>.plate::after { background-size: 100% 100% !important; }
 @keyframes flShine { 0% { opacity: 0; transform: translateX(70%); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateX(-70%); } }
-/* launch intro bar */
-#pnboot i { left: -30% !important; transform: translateX(140vw) skewX(-12deg); }
-@keyframes pbBar { from { transform: translateX(140vw) skewX(-12deg); } to { transform: translateX(0) skewX(-12deg); } }
 /* boss eyes blink by squashing */
 @keyframes fxbl { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.12); } }
 /* home ring glow: spun with a blur on it (a looping blur); now a plain disc with a painted soft edge */
@@ -23738,8 +23813,9 @@ function rlvFill() {
       es.forEach(e => { const h = e.borderBoxSize && e.borderBoxSize[0] ? e.borderBoxSize[0].blockSize : e.contentRect.height;
         if (e.target === RLV.el) { if (Math.abs(h - RLV.view) > 1) { RLV.view = h; ch = true; } }
         else if (e.target === RLV.el.querySelector(".rlv-k") && Math.abs(h - RLV.copy) > 1) { RLV.copy = h; ch = true; } });
-      if (ch) { const want = !RLV.dup || rlvCalm() || !RLV.copy ? 1 : Math.max(2, Math.ceil(RLV.view / RLV.copy) + 1);
-        if (want !== RLV.n) rlvFill(); else rlvRun(true); } }); }
+      /* v252: the redraw re-observes, so it waits for the next frame (Safari: "ResizeObserver loop completed with undelivered notifications") */
+      if (ch) requestAnimationFrame(() => { const want = !RLV.dup || rlvCalm() || !RLV.copy ? 1 : Math.max(2, Math.ceil(RLV.view / RLV.copy) + 1);
+        if (want !== RLV.n) rlvFill(); else rlvRun(true); }); }); }
   rlvFill.ro.disconnect(); rlvFill.ro.observe(v); rlvFill.ro.observe(t.firstElementChild);
   rlvRun(keep != null, keep);
 }
@@ -23780,5 +23856,78 @@ WHATS_NEW.push(
   { v: 251, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => (innerWidth >= 620 && $("#hrail .rlv")) || null,
     say: "The rail's game covers are now a <b>live strip</b> that never stops drifting: how far you are in what you're playing, countdowns to your next releases, price drops, what's up next and your backlog hours. And I sit inside the rail properly now.",
     tryIt: "Unfold the phone and look at the rail. Touch the strip to hold it, drag it to scrub, tap a tile to open that game." }
+);
+/* ===== v252 (the owner sent a clip of a card being handed over in a game: logo glitches into [GREETINGS], a slash,
+   a triangle pattern; "could we create something like this for our app?", then picked all three places for it):
+   the card (pcdHTML, a small script by #pnboot so the launch intro can use it) now plays (1) as the launch intro,
+   (2) on the calling card, and (3) by itself on release day: the first time you open the app after a game you're
+   waiting for comes out (not played, dropped or opened since), it's handed to
+   you, the triangles fly off and show its art. It replaces the old OUT NOW screen (outNow, which now only runs with
+   the card switched off) and shares its list of games already shown (S.fxSeen), so nothing is announced twice. Up to
+   14 days after release (like isFresh), one at a time, never over the intro, the daily calendar, a tour, a sheet or
+   another card. Settings → Extra features → Release-day cards (S.pcdOff). ===== */
+/* S.fxSeen is a list of game ids (the WebKit check seeds it with 1 to keep the old effects quiet: Safari threw on new Set(1)) */
+const pcdShown = () => Array.isArray(S.fxSeen) ? S.fxSeen : [];
+function pcdDue() {
+  if (S.pcdOff) return [];
+  const td = new Date().toLocaleDateString("en-CA"), seen = new Set(pcdShown()); let viewed = {};
+  try { viewed = JSON.parse(localStorage.getItem("gq:seenG") || "{}") || {}; } catch (e) {}
+  return S.games.filter(g => /^\d{4}-\d\d-\d\d$/.test(g.date || "") && g.date <= td && rlvDays(g.date) >= -14 && !seen.has(g.id)
+      && !isPlayed(g) && !isDropped(g) && !g.comp && g.status !== "tba" && (g.state || "") !== "playing"
+      && !(g.added && String(g.added).slice(0, 10) > g.date)
+      && !(viewed[g.id] && new Date(viewed[g.id]).toLocaleDateString("en-CA") >= g.date))
+    .sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (+b.hype || 0) - (+a.hype || 0));
+}
+function pcdInvite(g, more, demo) {
+  if (!demo) { S.fxSeen = [...pcdShown(), g.id]; save(); }
+  document.querySelectorAll(".pcdov").forEach(x => x.remove());
+  const d = /^\d{4}-\d\d-\d\d$/.test(g.date || "") ? rlvDays(g.date) : null, hype = num(g.hype, 0, 0, 10), src = bgSource(g) || cover(g);
+  const kick = d == null ? "Coming soon" : d > 1 ? "Out in " + d + " days" : d === 1 ? "Out tomorrow" : d === 0 ? "Out today" : d === -1 ? "Out since yesterday" : "Out " + -d + " days ago";
+  const say = d != null && d > 0 ? `This is how ${g.title} will greet you on release day.` : `The wait is over.${hype ? ` Your hype was ${hype}/10.` : ""} Time to play.`;
+  const o = document.createElement("div"); o.className = "pcdov"; o.setAttribute("role", "dialog"); o.setAttribute("aria-label", g.title + ": " + kick);
+  o.innerHTML = pcdHTML({ rv: 1, art: src ? esc(cssUrl(src)) : "", kick, title: g.title, still: calm() })
+    + `<p class="pcd-note">${esc(typeof nxVoice === "function" ? nxVoice(say) : say)}</p><div class="pcd-acts">`
+    + `<button class="btn" data-pcd="open"><span>Open it</span></button><button class="btn ghost" data-pcd="close"><span>${more ? "Next" : "Later"}</span></button></div>`;
+  o.addEventListener("click", e => {
+    const b = e.target.closest("[data-pcd]"); if (!b && e.target !== o) return;
+    beep("tap"); o.remove();
+    if (b && b.dataset.pcd === "open") { openFull(g.id); return; }
+    if (more && !demo) setTimeout(() => pcdTry(0), 450);
+  });
+  document.body.appendChild(o);
+}
+/* waits for the intro, a tour, an open sheet or another card to finish (checks every 3s, gives up after 3 minutes);
+   body > : Home's calendar tile has an <i class="ccov"> of its own */
+function pcdTry(n) {
+  clearTimeout(pcdTry.t);
+  if (document.hidden || n > 60 || S.pcdOff) return;
+  const H = document.documentElement;
+  if (document.getElementById("pnboot") || document.getElementById("fxcal") || H.classList.contains("nxtouring") || H.classList.contains("nxguide") || (S.tourFrom != null && S.tourFrom < +APP_V)
+    || document.querySelector("body > .pcdov, body > .ccov, body > .fxout, body > .updated, #sheet.on, #diary.on")) { pcdTry.t = setTimeout(() => pcdTry(n + 1), 3000); return; }
+  const q = pcdDue(); if (q.length) pcdInvite(q[0], q.length - 1);
+}
+setTimeout(() => pcdTry(0), 2600);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => pcdTry(0), 1200); });
+/* Settings → Extra features → Release-day cards; Show me plays it with your next release (or the first game you have) */
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#s-xpcd [data-v]"); if (!b) return;
+  e.stopPropagation(); beep("tap");
+  if (b.dataset.v === "demo") {
+    const td = new Date().toLocaleDateString("en-CA");
+    const g = S.games.filter(x => /^\d{4}-\d\d-\d\d$/.test(x.date || "") && x.date >= td && !isPlayed(x) && !isDropped(x)).sort((x, y) => x.date < y.date ? -1 : 1)[0] || S.games[0];
+    if (g) pcdInvite(g, 0, 1); else toast("Add a game first.");
+    return;
+  }
+  b.parentElement.querySelectorAll("[data-v=on], [data-v=off]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  S.pcdOff = b.dataset.v === "off"; save();
+}, true);
+if (GROUP_KEYS["Extra features"]) GROUP_KEYS["Extra features"].push("pcdOff");
+WHATS_NEW.push(
+  { v: 252, go: () => { closeFull(); dyClose(); nxShut(); nxOpenGame(); },
+    at: () => { const el = $("#full.on [data-card]"), x = el && el.closest(".gd-x[hidden]");   /* it lives in the ⋯ drawer: open it */
+      if (x) { x.hidden = false; const b = x.previousElementSibling && x.previousElementSibling.querySelector("[data-gdx]"); if (b) { b.setAttribute("aria-expanded", "true"); b.classList.add("on"); } }
+      return el || null; },
+    say: "Release day now <b>hands you a card</b>: when a game you're waiting for comes out, it greets you as you open the app, then shows you the game.",
+    tryIt: "Tap 🃏 Calling card: yours arrives the same way now. Settings → Extra features → Release-day cards → Show me plays one." }
 );
 </script>

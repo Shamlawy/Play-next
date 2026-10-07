@@ -83,6 +83,11 @@ async function walk(name, dev) {
     await step("close edit", `typeof closeEdit === "function" && closeEdit()`, 800);
     await step("chat", `typeof nxChat === "function" && nxChat()`, 1200); await shot("chat");
     await step("close chat", `typeof dyClose === "function" && dyClose()`, 600);
+    /* v252: the card (release-day card via Show me, then a calling card), shot once it has turned over */
+    await step("release card", `typeof pcdInvite === "function" && pcdInvite(S.games[9], 0, 1)`, 3200); await shot("card");
+    await step("close card", `document.querySelectorAll(".pcdov").forEach(e => e.remove())`, 300);
+    await step("calling card", `typeof callingCard === "function" && callingCard("g1")`, 3800); await shot("calling-card");
+    await step("close calling card", `document.querySelectorAll("body > .ccov").forEach(e => e.remove())`, 300);
     if (!pass) { await step("flush", `goTab("home"); typeof bugFlush === "function" && bugFlush()`, 4000); await step("flush again", `typeof bugFlush === "function" && bugFlush()`, 1500); reports.splice(0, 0, ...reports.splice(0).map(r => ({ ...r, kept: 1 }))); }
   }
   console.log(`\n===== ${name} (${dev.viewport.width}×${dev.viewport.height} @${dev.deviceScaleFactor}x) =====`);
