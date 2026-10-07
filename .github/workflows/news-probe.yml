@@ -1,0 +1,29 @@
+# By hand (Actions tab), or when the probe or the helper changes: game news from Steam and the release-day calendar,
+# through the helper's own code (real Steam) and the live helper. This container can't reach either. Read it with the job log.
+name: News probe
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "Steam app ids, | separated"
+        required: false
+  push:
+    paths:
+      - ".github/scripts/newsprobe.mjs"
+      - "worker/helper.js"
+      - ".github/workflows/news-probe.yml"
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe
+        env:
+          IDS: ${{ github.event.inputs.ids }}
+        run: node .github/scripts/newsprobe.mjs 2>&1
