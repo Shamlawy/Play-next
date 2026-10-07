@@ -23865,9 +23865,11 @@ WHATS_NEW.push(
    the card switched off) and shares its list of games already shown (S.fxSeen), so nothing is announced twice. Up to
    14 days after release (like isFresh), one at a time, never over the intro, the daily calendar, a tour, a sheet or
    another card. Settings → Extra features → Release-day cards (S.pcdOff). ===== */
+/* S.fxSeen is a list of game ids (the WebKit check seeds it with 1 to keep the old effects quiet: Safari threw on new Set(1)) */
+const pcdShown = () => Array.isArray(S.fxSeen) ? S.fxSeen : [];
 function pcdDue() {
   if (S.pcdOff) return [];
-  const td = new Date().toLocaleDateString("en-CA"), seen = new Set(S.fxSeen || []); let viewed = {};
+  const td = new Date().toLocaleDateString("en-CA"), seen = new Set(pcdShown()); let viewed = {};
   try { viewed = JSON.parse(localStorage.getItem("gq:seenG") || "{}") || {}; } catch (e) {}
   return S.games.filter(g => /^\d{4}-\d\d-\d\d$/.test(g.date || "") && g.date <= td && rlvDays(g.date) >= -14 && !seen.has(g.id)
       && !isPlayed(g) && !isDropped(g) && !g.comp && g.status !== "tba" && (g.state || "") !== "playing"
@@ -23876,7 +23878,7 @@ function pcdDue() {
     .sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (+b.hype || 0) - (+a.hype || 0));
 }
 function pcdInvite(g, more, demo) {
-  if (!demo) { S.fxSeen = [...(S.fxSeen || []), g.id]; save(); }
+  if (!demo) { S.fxSeen = [...pcdShown(), g.id]; save(); }
   document.querySelectorAll(".pcdov").forEach(x => x.remove());
   const d = /^\d{4}-\d\d-\d\d$/.test(g.date || "") ? rlvDays(g.date) : null, hype = num(g.hype, 0, 0, 10), src = bgSource(g) || cover(g);
   const kick = d == null ? "Coming soon" : d > 1 ? "Out in " + d + " days" : d === 1 ? "Out tomorrow" : d === 0 ? "Out today" : d === -1 ? "Out since yesterday" : "Out " + -d + " days ago";
