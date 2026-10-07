@@ -17092,6 +17092,8 @@ WHATS_NEW.push(
    - slow taps: a tap that takes 250ms+ to show a response (Chrome's event timing)
    - scroll stutter: while a finger is moving, frames are timed with requestAnimationFrame (works on iPhone too)
    All go in as kind "slow", once per screen/cause per day, and Nexi says so like any other report. */
+/* v249: 100ms, was 150 (the owner: "a lot of lags that even Nexi doesn't see"; at 120Hz a frame is 8ms) */
+const LAG_MIN = 100;
 const LAG = { boot: performance.now(), rz: -1e9, wk: /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Android/.test(navigator.userAgent) };
 /* v245 (#305): folding/unfolding the phone resizes the page and every screen is laid out again: frames in the 0.8s after a
    resize are that, not a stutter worth reporting */
@@ -17102,7 +17104,7 @@ try {
   new PerformanceObserver(list => {
     if (!lagOk()) return;
     for (const f of list.getEntries()) {
-      if (f.duration < 150 || bugModal(f.startTime, f.duration) || (f.startTime + f.duration > LAG.rz && f.startTime < LAG.rz + 800)) continue;
+      if (f.duration < LAG_MIN || bugModal(f.startTime, f.duration) || (f.startTime + f.duration > LAG.rz && f.startTime < LAG.rz + 800)) continue;
       const top = (f.scripts || []).slice().sort((a, b) => b.duration - a.duration)[0];
       const fn = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "";
       /* v206: a script that took a sliver of the frame isn't the cause (#59 blamed the stutter checker's own 7ms tick) */
@@ -17132,11 +17134,11 @@ try {
 (() => {
   let on = false, last = 0, lastMove = 0, hitches = 0, worst = 0;
   const tick = t => {
-    if (last) { const d = t - last; if (d > 60) { hitches++; worst = Math.max(worst, d); } }
+    if (last) { const d = t - last; if (d > 40) { hitches++; worst = Math.max(worst, d); } }   /* v249: 40ms, was 60 */
     last = t;
     if (performance.now() - lastMove < 400) return requestAnimationFrame(tick);
     on = false; last = 0;
-    if ((hitches >= 4 || worst >= 150) && lagOk()) bugReport("slow", "Scrolling stutters on " + lagWhere() + " (" + hitches + " hitches, worst " + Math.round(worst / 10) * 10 + "ms)", { screen: bugScreen() });
+    if ((hitches >= 3 || worst >= 90) && lagOk()) bugReport("slow", "Scrolling stutters on " + lagWhere() + " (" + hitches + " hitches, worst " + Math.round(worst / 10) * 10 + "ms)", { screen: bugScreen() });
     hitches = 0; worst = 0;
   };
   addEventListener("touchmove", () => { lastMove = performance.now(); if (!on) { on = true; last = 0; requestAnimationFrame(tick); } }, { passive: true, capture: true });
@@ -17182,9 +17184,14 @@ function lookText(root) {
   }
   return out;
 }
-const lookTilt = (el, root) => { for (let x = el; x && x !== root.parentElement && x !== document.body; x = x.parentElement) {
-  const t = getComputedStyle(x).transform; if (!t || t === "none") continue; const m = /^matrix\(([^)]+)\)/.exec(t); if (!m) return true;
-  const v = m[1].split(",").map(Number); if (Math.abs(v[1]) > .01 || Math.abs(v[2]) > .01) return true; } return false; };
+/* v249: each element's own tilt is remembered for one pass (every piece of text asked again for all its parents: 35% of a check) */
+let lookTiltM = new Map(), lookTiltT = 0;
+const lookTiltOwn = x => { let v = lookTiltM.get(x); if (v !== undefined) return v;
+  const t = getComputedStyle(x).transform; v = false;
+  if (t && t !== "none") { const m = /^matrix\(([^)]+)\)/.exec(t); if (!m) v = true; else { const n = m[1].split(",").map(Number); v = Math.abs(n[1]) > .01 || Math.abs(n[2]) > .01; } }
+  lookTiltM.set(x, v); return v; };
+const lookTilt = (el, root) => { const now = performance.now(); if (now - lookTiltT > 300) { lookTiltM = new Map(); lookTiltT = now; }
+  for (let x = el; x && x !== root.parentElement && x !== document.body; x = x.parentElement) if (lookTiltOwn(x)) return true; return false; };
 function bugLook(root, scr) {
   const T = lookText(root); let n = 0;
   /* cut-off text: wider (or taller) than its own box, clipped, and no "…" */
@@ -23527,5 +23534,71 @@ WHATS_NEW.push(
   { v: 249, go: () => { closeFull(); nxShut(); qcShow(); }, at: () => $("#diary.on .qcr") || $("#diary.on .note") || null,
     say: "<b>Queue clean-up</b>: once a month I look for games you'll probably never play (waiting for ages, a low guess, a lot like games you dropped) and tell you why. Let them go or keep them, your call.",
     tryIt: "Have a look at the list: Let go has an Undo." }
+);
+</script>
+<script>
+/* ===== v249, smoother everywhere (the owner: "all tabs and windows lag"; "a lot of lags that even Nexi doesn't see").
+   1. Nexi's own problem checks were the biggest job on every screen: bugLayout and its add-ons (cut text, overlaps, contrast,
+      tilt, design review) ran after every tab switch, sheet and game page, 100–350ms at 4x CPU (20ms+ at full speed), even on
+      a screen checked a minute before, and requestIdleCallback's 3s timeout made them run while you were moving. Now they
+      wait for a real idle moment (an idle callback that did not time out) and check each screen once until it
+      changes (key: screen, window size, element count; remembered for the day in localStorage gq:bugdone, as reports are once a day anyway), marked done only when the base check really ran (the inner
+      wrappers defer by setting BUG.lt; the base sets it to 0). Safari has no idle callback: there it's only the once-per-screen rule.
+   2. Nexi sees the smaller stutters: long frames from 100ms (was 150), scroll hitches from 40ms (was 60; reported at 3+ or one
+      of 90ms+), a new watcher for the 0.9s after a screen change (tab, game page open/close, Settings, sheets: frames over 45ms
+      after the first one, reported at 3+ with one of 60ms+, or one of 90ms+), and opening the app (frames over 300ms in the first 8s, which the
+      lag checks skipped). All kind "slow", one per screen per day like before. ===== */
+{ const _bl = bugLayout, ric = window.requestIdleCallback; let waits = 0, done = new Map();
+  try { const d = JSON.parse(localStorage.getItem("gq:bugdone") || "{}"); if (d.day === new Date().toLocaleDateString("en-CA")) done = new Map(d.k.map(k => [k, 0])); } catch (e) {}
+  const keep = () => { try { localStorage.setItem("gq:bugdone", JSON.stringify({ day: new Date().toLocaleDateString("en-CA"), k: [...done.keys()].slice(-80) })); } catch (e) {} };
+  bugLayout = function (dl) {
+    if (!bugOn() || document.hidden) return;
+    const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+    if (!root) return;
+    const key = bugScreen() + "|" + innerWidth + "x" + innerHeight + "|" + root.getElementsByTagName("*").length;
+    if (done.has(key)) return;
+    if (ric && !(dl && typeof dl.timeRemaining === "function" && !dl.didTimeout && dl.timeRemaining() >= 4)) {
+      if (waits++ < 40) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => ric(bugLayout), 250); } else waits = 0;
+      return; }
+    waits = 0; BUG.lt = -1;
+    const o = _bl.apply(this, arguments);
+    if (BUG.lt === 0) { done.set(key, 1); if (done.size > 80) done.delete(done.keys().next().value); keep(); }
+    return o; }; }
+/* the 0.9s after a screen change: dropped frames while it slides in */
+let lagTr = 0;
+function lagWatch(what) {
+  if (lagTr || !lagOk() || nxTouring()) return;
+  lagTr = 1; const t0 = performance.now(); let last = 0, n = 0, worst = 0, k = 0;
+  const tick = t => {
+    if (last && k++ > 0) { const d = t - last; if (d > 45) { n++; worst = Math.max(worst, d); } }   /* the first frame is the redraw itself: the long-frame and tap checks see that */
+    last = t;
+    if (t - t0 < 900 && !document.hidden) return requestAnimationFrame(tick);
+    lagTr = 0;
+    if (((n >= 3 && worst >= 60) || worst >= 90) && lagOk() && !nxTouring() && !(LAG.rz > t0 - 800))
+      bugReport("slow", `${typeof what === "function" ? what() : what} stuttered (${n} hitch${n === 1 ? "" : "es"}, worst ${Math.round(worst / 10) * 10}ms)`, { screen: bugScreen(), sigAt: "" });
+  };
+  requestAnimationFrame(tick);
+}
+{ const _gt = goTab; goTab = function () { const o = _gt.apply(this, arguments); lagWatch(() => "Switching to " + lagWhere()); return o; }; }
+{ const _of = openFull; openFull = function () { const o = _of.apply(this, arguments); lagWatch("Opening a game page"); return o; }; }
+{ const _cf = closeFull; closeFull = function () { const on = !!$("#full.on"); const o = _cf.apply(this, arguments); if (on) lagWatch("Closing a game page"); return o; }; }
+{ const _os = openSettings; openSettings = function () { const tpl = openSettings.tplOnly, o = _os.apply(this, arguments); if (!tpl) lagWatch("Opening Settings"); return o; }; openSettings.tplOnly = _os.tplOnly; }
+{ const _dy = dyShow; dyShow = function () { const o = _dy.apply(this, arguments); lagWatch(() => "Opening a sheet on " + lagWhere()); return o; }; }
+/* opening the app: the lag checks start 8s in, so a freeze while it starts up went unseen */
+try {
+  const boot = [], ob = new PerformanceObserver(l => { for (const f of l.getEntries()) if (f.startTime < 8000) boot.push(f); });
+  ob.observe({ type: "long-animation-frame", buffered: true });
+  setTimeout(() => { ob.disconnect(); if (!bugOn()) return;
+    const w = boot.sort((a, b) => b.duration - a.duration)[0]; if (!w || w.duration < 300) return;
+    const top = (w.scripts || []).slice().sort((a, b) => b.duration - a.duration)[0];
+    const fn = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "";
+    bugReport("slow", `Opening the app froze for ${Math.round(w.duration / 10) * 10}ms`, { screen: "start", sigAt: "",
+      at: top && top.duration >= w.duration * .3 ? fn : "rendering (style/layout/paint)" + (fn ? "; biggest script " + Math.round(top.duration) + "ms: " + fn : ""),
+      stack: boot.filter(f => f.duration >= 100).length + " long frames in the first 8s, " + Math.round(boot.reduce((a, f) => a + f.duration, 0)) + "ms in all" }); }, 10000);
+} catch (e) {}
+WHATS_NEW.push(
+  { v: 249, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Smoother everywhere: my own problem checks were the biggest job after every tab switch, and they ran even while you were moving. Now they wait until the phone is really idle and check each screen once. I also see much smaller stutters now, so I report the lag you actually feel.",
+    tryIt: "Switch tabs and open games: it should feel lighter. If anything still stutters, I'll report it myself." }
 );
 </script>
