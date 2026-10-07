@@ -1,0 +1,1 @@
+{ "name": "release-guard", "version": "0.1.0", "description": "Release gate (APP_V, WHATS_NEW, LOG, helper, files), house-rule checks on index.html edits, past-fix lookups from docs/LOG.md, a test-before-done check, and a notice when a merge is live on GitHub Pages." }
