@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "245";
+const APP_V = "246";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -17063,7 +17063,7 @@ WHATS_NEW.push(
    - slow taps: a tap that takes 250ms+ to show a response (Chrome's event timing)
    - scroll stutter: while a finger is moving, frames are timed with requestAnimationFrame (works on iPhone too)
    All go in as kind "slow", once per screen/cause per day, and Nexi says so like any other report. */
-const LAG = { boot: performance.now(), rz: -1e9 };
+const LAG = { boot: performance.now(), rz: -1e9, wk: /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Android/.test(navigator.userAgent) };
 /* v245 (#305): folding/unfolding the phone resizes the page and every screen is laid out again: frames in the 0.8s after a
    resize are that, not a stutter worth reporting */
 addEventListener("resize", () => { LAG.rz = performance.now(); }, { passive: true });
@@ -17087,8 +17087,15 @@ try {
   new PerformanceObserver(list => {
     if (!lagOk()) return;
     for (const ev of list.getEntries()) {
-      if (ev.duration < 250 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name) || bugModal(ev.startTime, ev.duration)) continue;
-      bugReport("slow", "A tap took " + Math.round(ev.duration / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen(), sigAt: "" });   /* v243: one per screen a day (an iPad session filed 24 issues for one game page, one per element touched) */
+      /* v246: Safari (iPad/iPhone) times a tap from the moment the finger lands, so holding a button or starting a scroll
+         read as 1–5s "slow taps" (#291–#303; none of those iPads ever reported a scroll stutter, which runs there too).
+         There only the part after the app got the tap counts: running the handler + drawing the answer. A touch that
+         became a scroll has no interactionId and isn't a tap at all. */
+      if (ev.interactionId === 0 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name)) continue;
+      const wait = Math.max(0, ev.processingStart - ev.startTime), took = LAG.wk ? ev.duration - wait : ev.duration;
+      if (took < 250 || bugModal(ev.startTime, ev.duration)) continue;
+      bugReport("slow", "A tap took " + Math.round(took / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen(), sigAt: "",
+        stack: ev.name + ": waited " + Math.round(wait) + "ms, ran " + Math.round(ev.processingEnd - ev.processingStart) + "ms, drew " + Math.round(ev.startTime + ev.duration - ev.processingEnd) + "ms" + (LAG.wk ? " (Safari: the wait includes the finger being down)" : "") });   /* v243: one per screen a day (an iPad session filed 24 issues for one game page, one per element touched) */
     }
   }).observe({ type: "event", durationThreshold: 104, buffered: false });
 } catch (e) {}
@@ -22913,5 +22920,28 @@ WHATS_NEW.push(
   { v: 245, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .tabbar") || null,
     say: "Fixed: a hitch on the Queue right after switching to it. The Finished shelf on another screen was being measured in the background and held up the screen you were on.",
     tryIt: "Switch to the Queue and scroll straight away." }
+);
+</script>
+<script>
+/* ===== v246 (#309): no press animation. The owner: "when I touch anything an animation happened, delete that". Every
+   :active rule loses its movement (transform / scale / translate / rotate / filter / opacity), wherever it was written, so
+   a button just answers; colour changes stay. Done on the parsed rules (at start and for style sheets added later) rather
+   than by editing ~55 rules spread over every script. Slow-tap reports on iPad/iPhone count only the app's own part
+   (see the v246 note in the lag observer). ===== */
+(() => {
+  const P = ["transform", "scale", "translate", "rotate", "filter", "opacity"];
+  const strip = rules => { for (const r of rules) {
+    if (r.selectorText && r.selectorText.includes(":active")) for (const k of P) r.style.removeProperty(k);
+    if (r.cssRules && r.cssRules.length) strip(r.cssRules);
+  } };
+  const run = sh => { try { if (sh) strip(sh.cssRules); } catch (e) {} };
+  for (const sh of document.styleSheets) run(sh);
+  new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeName === "STYLE") run(n.sheet); })
+    .observe(document.head, { childList: true });
+})();
+WHATS_NEW.push(
+  { v: 246, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .row") || $("#p-queue .tabbar") || null,
+    say: "No more press animation: buttons, rows and cards stay put when you touch them and simply do their thing.",
+    tryIt: "Press and hold a game in the Queue: nothing shrinks or jumps." }
 );
 </script>
