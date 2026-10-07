@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "244";
+const APP_V = "245";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -13420,16 +13420,21 @@ let pnShelfRaf = 0;
 function pnShelf() {
   pnShelfRaf = 0; pnEvo();
   const row = document.getElementById("shelf-row");
-  if (!row) return;
-  const r = row.getBoundingClientRect(), half = r.width * 0.6 || 1;
-  row.querySelectorAll(".sb").forEach(b => {
-    if (calm()) { b.style.removeProperty("--y"); b.style.removeProperty("--o"); return; }
-    const c = b.getBoundingClientRect(), d = Math.min(1, Math.abs(c.left - r.left - 18) / half);
+  /* v245 (#301): the Played screen is rebuilt in the background while you're on another screen (v206), and its 30ms
+     pnShelf then forced a full layout of the screen you were on (130ms at 4x, reported as a Queue stutter). A hidden
+     shelf has nothing to place: skip it (a DOM check, no layout). Positions are read first, then written. */
+  if (!row || row.closest(".panel:not(.on)")) return;
+  const bs = [...row.querySelectorAll(".sb")];
+  if (calm()) { bs.forEach(b => { b.style.removeProperty("--y"); b.style.removeProperty("--o"); }); return; }
+  const r = row.getBoundingClientRect(), half = r.width * 0.6 || 1, xs = bs.map(b => b.getBoundingClientRect().left);
+  bs.forEach((b, i) => { const d = Math.min(1, Math.abs(xs[i] - r.left - 18) / half);
     b.style.setProperty("--y", ((d - 1) * 12).toFixed(1) + "px");
     b.style.setProperty("--o", (1 - d * 0.45).toFixed(3));
-    b.style.zIndex = 20 - Math.round(d * 10);
-  });
+    b.style.zIndex = 20 - Math.round(d * 10); });
 }
+/* v245: the shelf was skipped while its screen was hidden, so place it when that screen opens */
+document.querySelectorAll(".panel").forEach(pnl => new MutationObserver(() => { if (pnl.classList.contains("on") && pnl.querySelector("#shelf-row") && !pnShelfRaf) pnShelfRaf = requestAnimationFrame(pnShelf); })
+  .observe(pnl, { attributes: true, attributeFilter: ["class"] }));
 document.addEventListener("scroll", e => {
   if (e.target && e.target.id === "shelf-row" && !pnShelfRaf) pnShelfRaf = requestAnimationFrame(pnShelf);
 }, { capture: true, passive: true });
@@ -17058,14 +17063,17 @@ WHATS_NEW.push(
    - slow taps: a tap that takes 250ms+ to show a response (Chrome's event timing)
    - scroll stutter: while a finger is moving, frames are timed with requestAnimationFrame (works on iPhone too)
    All go in as kind "slow", once per screen/cause per day, and Nexi says so like any other report. */
-const LAG = { boot: performance.now() };
+const LAG = { boot: performance.now(), rz: -1e9 };
+/* v245 (#305): folding/unfolding the phone resizes the page and every screen is laid out again: frames in the 0.8s after a
+   resize are that, not a stutter worth reporting */
+addEventListener("resize", () => { LAG.rz = performance.now(); }, { passive: true });
 const lagOk = () => bugOn() && !document.hidden && performance.now() - LAG.boot > 8000;
 const lagWhere = () => { const s = bugScreen(); return typeof bugPlace === "function" ? bugPlace(s) : s; };
 try {
   new PerformanceObserver(list => {
     if (!lagOk()) return;
     for (const f of list.getEntries()) {
-      if (f.duration < 150 || bugModal(f.startTime, f.duration)) continue;
+      if (f.duration < 150 || bugModal(f.startTime, f.duration) || (f.startTime + f.duration > LAG.rz && f.startTime < LAG.rz + 800)) continue;
       const top = (f.scripts || []).slice().sort((a, b) => b.duration - a.duration)[0];
       const fn = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "";
       /* v206: a script that took a sliver of the frame isn't the cause (#59 blamed the stutter checker's own 7ms tick) */
@@ -22896,5 +22904,14 @@ WHATS_NEW.push(
     at: () => $("#full.on .gd-desc") || $("#full.on .gd-head"),
     say: "Tap a game's description again to fold it back up. One tap opens it, the next one closes it.",
     tryIt: "Open a game with a long description and tap the text twice." }
+);
+</script>
+<script>
+/* ===== v245 (#301): pnShelf skips the Finished shelf while its screen is hidden (it forced a full layout of the screen you
+   were on, 130ms at 4x); #305: no stutter reports in the 0.8s after a resize (folding the phone). ===== */
+WHATS_NEW.push(
+  { v: 245, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .tabbar") || null,
+    say: "Fixed: a hitch on the Queue right after switching to it. The Finished shelf on another screen was being measured in the background and held up the screen you were on.",
+    tryIt: "Switch to the Queue and scroll straight away." }
 );
 </script>
