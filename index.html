@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "247";
+const APP_V = "248";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6275,6 +6275,15 @@ function openSettings(scope) {
       <div class="chips" id="s-xhb">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.hbOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Release days in your calendar</label>
+      <p class="note">The games you're waiting for show up in your phone's own calendar on the day they come out. Subscribe once: new games and moved dates follow by themselves.</p>
+      <div id="s-xcalw">${typeof calBlock === "function" ? calBlock() : ""}</div>
+      <label>Game news from Steam</label>
+      <p class="note">Every few hours Nexi reads the official Steam news of the games you're playing and waiting for, and tells you about patches, DLC, demos and launches.</p>
+      <div class="chips" id="s-xnw">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.newsOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <label>Still playing?</label>
       <p class="note">When a game in Playing now hasn't been touched for 2 weeks, Nexi asks if you're still on it, so Playing now and his picks stay honest.</p>
@@ -22959,5 +22968,148 @@ WHATS_NEW.push(
       return r && r.getBoundingClientRect().width ? r : n && n.getBoundingClientRect().width ? n : null; },
     say: "New menu icons: a house, a game case, a calendar with a release star, sparkles for your taste, and a cleaner Add and Settings.",
     tryIt: "Look at the menu, folded and unfolded." }
+);
+</script>
+<script>
+/* ===== v248: three things that run by themselves.
+   1. Release days in your calendar: Settings → Extra features → turn on makes a random id (S.calId), sends the dated games to
+      the helper (POST /cal/put) and offers the subscribe link (Google Calendar's "add by URL" on Android, webcal:// on iPhone).
+      After that the list is re-sent by itself whenever it changes (on open, coming back, and 5s after a save), compared by a hash
+      kept in localStorage (gq:calsig) so nothing is sent when nothing changed. TBA dates are left out, rumoured ones say so.
+   2. Game news from Steam: every 6h (gq:newsAt) the games with a known Steam id (stIdOf) that you're playing, waiting for or
+      haven't played (24 max) go to the helper's POST /news (official announcements only). The first look at a game only
+      remembers the newest post (g.nwSeen = its date); later posts within 10 days are new: kept on the game (g.nw, 3 max) and
+      Nexi says so; tapping him opens the news sheet (links to the Steam posts). S.newsOff switches it off.
+   3. Shortcuts on the app icon (manifest "shortcuts", Android): ?nudge=add / next / queue. "next" was already handled. ===== */
+const NW_KEY = "gq:newsAt", CAL_KEY = "gq:calsig";
+const NW_ICON = { patch: "🔧", dlc: "🧩", demo: "🎮", launch: "🚀", trailer: "🎬", news: "📰" };
+const NW_WORD = { patch: "patch", dlc: "DLC", demo: "demo", launch: "launch news", trailer: "trailer", news: "news" };
+const nwPick = () => S.games.filter(g => !isDropped(g) && stIdOf(g) > 0)
+  .sort((a, b) => ((a.state === "playing" ? 0 : isPlayed(a) ? 2 : 1) - (b.state === "playing" ? 0 : isPlayed(b) ? 2 : 1)))
+  .slice(0, 24);
+let nwBusy = false, nwFresh = [];
+async function nwRun(force) {
+  if (nwBusy || S.newsOff || !navigator.onLine) return;
+  let last = 0; try { last = +localStorage.getItem(NW_KEY) || 0; } catch (e) {}
+  if (!force && Date.now() - last < 6 * 36e5) return;
+  const todo = nwPick(); if (!todo.length) return;
+  nwBusy = true; const fresh = []; let changed = false;
+  try {
+    const j = await nxPost("/news", { items: todo.map(g => ({ k: g.id, st: stIdOf(g) })) });
+    try { localStorage.setItem(NW_KEY, String(Date.now())); } catch (e) {}
+    const now = Date.now() / 1000;
+    for (const g of todo) {
+      const r = (j.res || {})[g.id]; if (!r || !Array.isArray(r.n)) continue;
+      const items = r.n.filter(x => x && x.id && x.d > 0).sort((a, b) => b.d - a.d), top = items.length ? items[0].d : 1;
+      if (!g.nwSeen) { g.nwSeen = top; changed = true; continue; }   /* first look: old news isn't news */
+      const nu = items.filter(x => x.d > g.nwSeen && now - x.d < 10 * 86400);
+      if (top > g.nwSeen) { g.nwSeen = top; changed = true; }
+      if (nu.length) {
+        g.nw = nu.concat(g.nw || []).filter((x, i, a) => a.findIndex(y => y.id === x.id) === i).slice(0, 3)
+          .map(x => ({ id: x.id, t: String(x.t || "").slice(0, 140), u: x.u, d: x.d, k: NW_ICON[x.k] ? x.k : "news", x: String(x.x || "").slice(0, 160) }));
+        fresh.push([g, nu[0]]); changed = true;
+      }
+    }
+  } catch (e) {} finally { nwBusy = false; }
+  if (changed) save();
+  if (fresh.length) nwTell(fresh);
+}
+function nwTell(fresh) {
+  nwFresh = fresh;
+  if (document.documentElement.classList.contains("nxtouring") || typeof pnBubSay !== "function") return;
+  const [g, x] = fresh[0];
+  try { pnBubSay([fresh.length === 1 ? `${NW_ICON[x.k] || "📰"} New ${NW_WORD[x.k] || "news"} for ${g.title}: “${x.t}”. Tap me to read it.`
+    : `📰 ${fresh.length} of your games have news: ${fresh.slice(0, 3).map(([g, x]) => g.title + " (" + (NW_WORD[x.k] || "news") + ")").join(", ")}${fresh.length > 3 ? "…" : ""}. Tap me to see them.`, "news"]); } catch (e) {}
+}
+/* every game's recent news in one sheet, newest first */
+function nwSheet() {
+  const rows = S.games.filter(g => g.nw && g.nw.length).flatMap(g => g.nw.map(x => [g, x])).sort((a, b) => b[1].d - a[1].d).slice(0, 20);
+  const when = d => { const n = Math.floor((Date.now() / 1000 - d) / 86400); return n <= 0 ? "today" : n === 1 ? "yesterday" : n + " days ago"; };
+  dyShow(dyBox(), `<div class="dy-h"><b>📰 Game news</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="note">Official posts from Steam for the games you're playing and waiting for.</p>
+    ${rows.length ? `<div class="hl-rv">${rows.map(([g, x]) => `<div class="hl-r"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(x.t)}</b>
+      <small>${NW_ICON[x.k] || "📰"} ${esc(g.title)} · ${esc(NW_WORD[x.k] || "news")} · ${when(x.d)}</small></span>
+      <button type="button" data-nwu="${esc(x.u)}" aria-label="Read it on Steam">Read</button></div>`).join("")}</div>`
+      : `<p class="hl-ok">No news yet. I check every few hours by myself.</p>`}`,
+    e => { const b = e.target.closest("[data-nwu]"); if (b && /^https:\/\//.test(b.dataset.nwu)) window.open(b.dataset.nwu, "_blank", "noopener"); });
+}
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "news") return;
+  e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); nwSheet(); }, true);
+setTimeout(() => nwRun(false), 25000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(() => nwRun(false), 12000); });
+
+/* ---- release days in your calendar ---- */
+const calDay = s => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
+function calEv() {
+  const lo = Date.now() - 30 * 864e5, hi = Date.now() + 3 * 365 * 864e5;
+  return S.games.filter(g => !isDropped(g) && !isPlayed(g) && calDay(g.date) && g.status !== "tba" && +new Date(g.date) >= lo && +new Date(g.date) <= hi)
+    .map(g => ({ k: g.id, t: g.title, d: g.date, p: platList(g.platforms).join(", "), r: g.status === "rumoured" ? 1 : 0 }))
+    .sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
+}
+const calHash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return s.length + ":" + h.toString(36); };
+const calLink = () => HELPER + "/cal/" + S.calId + ".ics";
+let calBusy = false;
+async function calSync(force) {
+  if (!S.calId || calBusy || !navigator.onLine) return false;
+  const ev = calEv(), sig = calHash(S.calId + JSON.stringify(ev));
+  let old = ""; try { old = localStorage.getItem(CAL_KEY) || ""; } catch (e) {}
+  if (!force && sig === old) return true;
+  calBusy = true;
+  try { const j = await nxPost("/cal/put", { id: S.calId, ev }); try { localStorage.setItem(CAL_KEY, sig); localStorage.setItem(CAL_KEY + "n", String(j.n || 0)); } catch (e) {} return true; }
+  catch (e) { return false; } finally { calBusy = false; }
+}
+function calBlock() {
+  if (!S.calId) return `<div class="chips"><button class="chip" data-cal="on"><span>📅 Turn on</span></button></div>`;
+  let n = ""; try { n = localStorage.getItem(CAL_KEY + "n") || ""; } catch (e) {}
+  const ios = /iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  return `<p class="note">✓ On${n !== "" ? ` · ${n} release day${n === "1" ? "" : "s"} in it` : ""}. ${ios ? "Tap Add to my calendar, then Subscribe." : "Add to my calendar opens Google Calendar: tap Add. Samsung Calendar shows it too when it syncs your Google account."}</p>
+    <div class="chips"><button class="chip" data-cal="open"><span>📅 Add to my calendar</span></button><button class="chip" data-cal="copy"><span>Copy link</span></button><button class="chip" data-cal="off"><span>Stop</span></button></div>`;
+}
+const calPaint = () => { const w = $("#s-xcalw"); if (w) w.innerHTML = calBlock(); };
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest("#s-xcalw [data-cal], #s-xnw [data-v]"); if (!b) return;
+  e.stopPropagation();
+  if (b.closest("#s-xnw")) { S.newsOff = b.dataset.v === "off"; b.parentElement.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); save(); if (!S.newsOff) nwRun(true); return; }
+  const a = b.dataset.cal;
+  if (a === "on") {
+    const r = new Uint8Array(18); crypto.getRandomValues(r); S.calId = btoa(String.fromCharCode(...r)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    saveNow(); b.disabled = true; b.querySelector("span").textContent = "One moment…";
+    const ok = await calSync(true);
+    if (!ok) { delete S.calId; saveNow(); calPaint(); try { pnBubSay(["I couldn't reach my helper to set up your calendar. Try again in a minute?", ""]); } catch (x) {} return; }
+    calPaint(); return;
+  }
+  if (a === "open") {
+    const web = calLink().replace(/^https:/, "webcal:");
+    const ios = /iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    if (ios) location.href = web; else window.open("https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(web), "_blank", "noopener");
+    return;
+  }
+  if (a === "copy") { try { await navigator.clipboard.writeText(calLink()); b.querySelector("span").textContent = "Copied ✓"; } catch (x) { prompt("Calendar link", calLink()); } return; }
+  if (a === "off") { const id = S.calId; delete S.calId; saveNow(); try { localStorage.removeItem(CAL_KEY); localStorage.removeItem(CAL_KEY + "n"); } catch (x) {} calPaint();
+    try { await nxPost("/cal/put", { id, off: 1 }); } catch (x) {} }
+}, true);
+/* saves come often (bookkeeping too), so this waits at most 5s after the first one instead of restarting the wait (v202) */
+{ let t = 0; const _sv = save; save = function () { const out = _sv.apply(this, arguments); if (S.calId && !t) t = setTimeout(() => { t = 0; calSync(false); }, 5000); return out; }; }
+setTimeout(() => calSync(false), 6000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(() => calSync(false), 4000); });
+
+/* ---- shortcuts on the app icon ---- */
+{ const q = new URLSearchParams(location.search).get("nudge");
+  if (q === "add") setTimeout(() => goTab("add"), 1800);
+  if (q === "queue") setTimeout(() => { goTab("games"); goSub("games", "queue"); }, 1800); }
+
+const nwIOS = /iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+WHATS_NEW.push(
+  { v: 248, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Release days in your calendar" }); }, at: "#s-xcalw",
+    say: "Release days now land in your phone's own calendar by themselves: turn it on once, and new games and moved dates follow on their own.",
+    tryIt: "Tap Turn on, then Add to my calendar." },
+  { v: 248, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Game news from Steam" }); }, at: "#s-xnw",
+    say: "I now read the official Steam news of the games you're playing and waiting for, and tell you about <b>patches, DLC, demos and launches</b> by myself.",
+    tryIt: "Nothing to do: when a game you follow posts news, I'll say so. Tap me then to read it." }
+);
+if (!nwIOS) WHATS_NEW.push(
+  { v: 248, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Long-press the Play next icon on your home screen for shortcuts: <b>Add a game</b>, <b>What should I play?</b> and <b>Queue</b>.",
+    tryIt: "Go to your home screen and hold the app icon." }
 );
 </script>

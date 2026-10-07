@@ -13,6 +13,8 @@
    POST /reviews      → Steam's player-review summary (e.g. "Very Positive", 93% of 1,240) for a list of games (v11).
    POST /art          → game pictures straight from Steam, the Xbox store, the PlayStation Store and the Nintendo eShop, each with its size (v15).
    POST /hours        → time to beat (main / main + extras / everything) for a list of games, from HowLongToBeat (v17; the AI's guesses before).
+   POST /news         → the latest official announcements (patches, DLC, demos, launches) from Steam for a list of Steam ids (v18).
+   POST /cal/put, GET /cal/<id>.ics → release days as a calendar feed the phone's calendar subscribes to (v18).
    POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
@@ -22,7 +24,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 17;
+const HELPER_V = 18;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -117,7 +119,7 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
@@ -125,6 +127,9 @@ async function handle(req, env) {
     if (url.pathname === "/hours" && req.method === "POST") return hbRoute(req, env, h);
     if (url.pathname === "/art" && req.method === "POST") return artRoute(req, env, h);
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
+    if (url.pathname === "/news" && req.method === "POST") return nwRoute(req, env, h);
+    if (url.pathname === "/cal/put" && req.method === "POST") return calPut(req, env, h);
+    if (url.pathname.startsWith("/cal/") && req.method === "GET") return calGet(env, url);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
        ‹game›); the big model answers as a strict mobile UI designer with at most 3 concrete problems, each naming
        the element ids it means. The app keeps only confident ones and files them as "Design review" reports. */
@@ -1246,4 +1251,69 @@ async function bugAck(env, body) {
     await env.NUDGE.put(key, JSON.stringify(r), { expirationTtl: BUG_TTL }); n++;
   }
   return { ok: true, acked: n };
+}
+
+/* ===== v18: game news. Steam's own news API (no key) with feeds=steam_community_announcements keeps only what the developers
+   posted on the game's Steam page (patch notes, DLC, demos, launch posts), not the gaming-site articles Steam also lists.
+   {items: [{k, st}]} (st = Steam id) → {res: {k: {n: [{id, t, u, d (seconds), k (patch|dlc|demo|launch|trailer|news), x}]}}}. ===== */
+const NW_KINDS = [["dlc", /\b(dlc|expansion|season pass|add-?on)\b/i], ["demo", /\bdemo\b/i], ["patch", /\b(patch|hotfix)\b/i],
+  ["launch", /\b(out now|available now|now available|launch(es|ed)?|release date|early access)\b/i], ["trailer", /\btrailer\b/i],
+  ["news", /\b(community|dev(eloper)?) (update|diary|blog)\b/i], ["patch", /\b(update|v?\d+\.\d+(\.\d+)?)\b/i]];
+const nwKind = (t, tags) => (tags || []).includes("patchnotes") ? "patch" : (NW_KINDS.find(([, re]) => re.test(t)) || ["news"])[0];
+const nwText = s => String(s || "").replace(/\[\/?[a-z0-9*]+(=[^\]]*)?\]/gi, " ").replace(/<[^>]*>/g, " ").replace(/{STEAM_CLAN_IMAGE}\S*/g, " ").replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+async function nwSteam(st) {
+  const r = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${st}&count=5&maxlength=400&format=json&feeds=steam_community_announcements`, { headers: PX_UA });
+  const j = await r.json().catch(() => null), items = j && j.appnews && j.appnews.newsitems;
+  if (!Array.isArray(items)) throw new Error("Steam news " + r.status);
+  return items.map(it => ({ id: String(it.gid || ""), t: nwText(it.title).slice(0, 140), u: String(it.url || "").slice(0, 400), d: +it.date || 0,
+    k: nwKind(String(it.title || ""), it.tags), x: nwText(it.contents).slice(0, 160) })).filter(x => x.id && x.t && /^https:\/\//.test(x.u));
+}
+async function nwRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 24).map(x => ({ k: String(x.k || "").slice(0, 24), st: Math.trunc(+x.st || 0) })).filter(x => x.k && x.st > 0);
+  const res = {};
+  await Promise.all(items.map(async it => { try { res[it.k] = { n: await nwSteam(it.st) }; } catch (e) { res[it.k] = { err: String(e.message || e).slice(0, 60) }; } }));
+  return json({ ok: true, res }, 200, h);
+}
+/* ===== v18: release days as a calendar feed. The app keeps its list here under a random id (POST /cal/put {id, ev: [{k, t, d
+   (YYYY-MM-DD), p (platforms), r (1 = rumoured date)}]}) whenever a date changes; the phone's calendar subscribes once to
+   GET /cal/<id>.ics and refreshes it by itself (Google every few hours, iPhone as set). Kept 400 days after the last update. ===== */
+const CAL_ID = /^[A-Za-z0-9_-]{20,40}$/;
+async function calPut(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  if (!env.NUDGE) return json({ error: "no storage" }, 500, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const id = String(b && b.id || ""); if (!CAL_ID.test(id)) return json({ error: "bad id" }, 400, h);
+  if (b.off) { await env.NUDGE.delete("cal:" + id); return json({ ok: true, off: true }, 200, h); }
+  const ev = (Array.isArray(b.ev) ? b.ev : []).slice(0, 300).map(e => ({ k: String(e.k || "").slice(0, 24), t: String(e.t || "").slice(0, 120),
+    d: String(e.d || ""), p: String(e.p || "").slice(0, 80), r: e.r ? 1 : 0 })).filter(e => e.k && e.t && /^\d{4}-\d{2}-\d{2}$/.test(e.d));
+  await env.NUDGE.put("cal:" + id, JSON.stringify({ ev, t: Date.now() }), { expirationTtl: VAULT_TTL });
+  return json({ ok: true, n: ev.length }, 200, h);
+}
+const icsEsc = s => String(s).replace(/\\/g, "\\\\").replace(/([,;])/g, "\\$1").replace(/\r?\n/g, "\\n");
+/* lines longer than 75 bytes are folded (a new line starting with a space), never inside a character */
+function icsFold(line) {
+  const out = []; let cur = "", n = 0;
+  for (const ch of line) { const b = new TextEncoder().encode(ch).length; if (n + b > (out.length ? 74 : 75)) { out.push(cur); cur = ""; n = 0; } cur += ch; n += b; }
+  out.push(cur); return out.join("\r\n ");
+}
+function calIcs(ev, t) {
+  const stamp = new Date(t || Date.now()).toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const day = d => d.replace(/-/g, ""), next = d => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10).replace(/-/g, ""); };
+  const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Play next//Release days//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "X-WR-CALNAME:Play next · release days", "X-WR-CALDESC:Games you're waiting for, on the day they come out", "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H"];
+  for (const e of ev) L.push("BEGIN:VEVENT", "UID:" + icsEsc(e.k) + "@playnext", "DTSTAMP:" + stamp, "DTSTART;VALUE=DATE:" + day(e.d), "DTEND;VALUE=DATE:" + next(e.d),
+    "SUMMARY:" + icsEsc("🎮 " + e.t + (e.r ? " (date not confirmed)" : " comes out")), "DESCRIPTION:" + icsEsc((e.p ? e.p + "\n" : "") + "From Play next"),
+    "URL:" + APP_PAGE + "?nudge=game&g=" + encodeURIComponent(e.k), "TRANSP:TRANSPARENT", "BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:PT9H",
+    "DESCRIPTION:" + icsEsc(e.t + " is out today"), "END:VALARM", "END:VEVENT");
+  L.push("END:VCALENDAR");
+  return L.map(icsFold).join("\r\n") + "\r\n";
+}
+async function calGet(env, url) {
+  const id = url.pathname.slice(5).replace(/\.ics$/, "");
+  const rec = CAL_ID.test(id) && env.NUDGE ? await env.NUDGE.get("cal:" + id, "json") : null;
+  if (!rec) return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain" } });
+  return new Response(calIcs(rec.ev || [], rec.t), { status: 200, headers: { "Content-Type": "text/calendar; charset=utf-8", "Cache-Control": "max-age=1800",
+    "Content-Disposition": 'inline; filename="play-next.ics"', "Access-Control-Allow-Origin": "*" } });
 }
