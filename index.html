@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "248";
+const APP_V = "249";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6308,6 +6308,26 @@ function openSettings(scope) {
       <div class="chips" id="s-xeta">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.etaOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Buy advice</label>
+      <p class="note">Under a game's prices Nexi says when to buy it: he works out when you'll actually get to it at your pace and checks it against the big store sales. He speaks up by himself when a game turns "buy now".</p>
+      <div class="chips" id="s-xbt">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.btOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+        <button class="chip" data-v="plan"><span>🛒 Shopping plan</span></button>
+      </div>
+      <label>Drifting games</label>
+      <p class="note">When a game you're playing starts slipping (longer gaps, shorter sessions, the point where you usually drop games), Nexi offers something short in between or to park it, before you quietly give up on it.</p>
+      <div class="chips" id="s-xdw">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.dwOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <label>Queue clean-up</label>
+      <p class="note">Once a month Nexi looks for games you'll probably never play and tells you why. You decide: let go or keep.</p>
+      <div class="chips" id="s-xqc">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.qcOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+        <button class="chip" data-v="look"><span>🧹 Look now</span></button>
       </div>
       <label>Then & now</label>
       <p class="note">A finished game's page shows how it went against what you expected: your hype, Nexi's guess, how long it took, your first and last notes.</p>
@@ -23111,5 +23131,401 @@ if (!nwIOS) WHATS_NEW.push(
   { v: 248, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Long-press the Play next icon on your home screen for shortcuts: <b>Add a game</b>, <b>What should I play?</b> and <b>Queue</b>.",
     tryIt: "Go to your home screen and hold the app icon." }
+);
+</script>
+<style>
+/* v249: buy advice line under the prices, the drifting card on a game page, the shopping plan and queue clean-up sheets */
+.smv { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.1)); }
+.smv.k-buy, .smv.k-deal { border-color: rgba(var(--vrgb), .5); background: linear-gradient(160deg, rgba(var(--vrgb), .14), var(--u-card, #131a32) 70%); }
+.smv > button:first-child { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 0; border: 0; background: none; color: var(--ice); text-align: left; font: inherit; cursor: pointer; }
+.smv b { font-size: 13.5px; font-weight: 700; color: var(--ice); }
+.smv.k-buy b, .smv.k-deal b { color: var(--volt); }
+.smv small { font-size: 12.5px; line-height: 1.4; color: var(--mute); overflow-wrap: anywhere; }
+.smv .smv-own { flex: none; min-height: 32px; padding: 0 11px; border-radius: 99px; border: 1px solid var(--u-line2, rgba(234,242,255,.16)); background: none; color: var(--mute); font: 600 12px/1 inherit; cursor: pointer; white-space: nowrap; }
+.px .smv-o { justify-self: start; min-height: 30px; padding: 0 2px; border: 0; background: none; color: var(--mute); font: 600 12.5px/1.2 inherit; cursor: pointer; }
+.dwc { display: grid; gap: 8px; margin: 12px 0 2px; padding: 12px 14px; border-radius: 18px; background: var(--u-card, #131a32); border: 1px solid rgba(var(--vrgb), .35); }
+.dwc > b { font-size: 12.5px; font-weight: 600; color: var(--volt); }
+.gd-sec .dwc { margin: 12px 0 0; background: rgba(255,255,255,.045); }
+.px .smv-o b { font-weight: 700; color: var(--ice); }
+.dwc p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ice); }
+.dwc ul { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.45; color: var(--mute); }
+.dwc .dwc-b { display: flex; flex-wrap: wrap; gap: 8px; }
+.dwc .dwc-b button, .qcr .qcr-b button, .smp-top button { min-height: 34px; padding: 0 13px; border-radius: 99px; border: 1px solid var(--u-line2, rgba(234,242,255,.16)); background: none; color: var(--ice); font: 600 12.5px/1 inherit; cursor: pointer; }
+.dwc .dwc-b button.go, .qcr .qcr-b button.go { background: var(--volt); border-color: transparent; color: var(--void, #04060e); }
+.smp-l, .qc-l { display: grid; gap: 6px; margin-top: 10px; }
+.smp-g { margin: 16px 0 0; font-size: 12.5px; font-weight: 600; color: var(--mute); }
+.qcr { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 6px 10px; padding: 10px; border-radius: 14px; background: var(--u-card, #131a32); }
+.qcr > img { grid-row: span 2; width: 38px; aspect-ratio: 3/4; object-fit: cover; border-radius: 7px; }
+.qcr > span { min-width: 0; }
+.qcr > span b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ice); }
+.qcr > span small { display: block; font-size: 12.5px; line-height: 1.4; color: var(--mute); overflow-wrap: anywhere; }
+.qcr > span small em { font-style: normal; color: var(--volt); font-weight: 600; }
+.qcr .qcr-b { display: flex; flex-wrap: wrap; gap: 8px; }
+.qcr.gone { opacity: .55; }
+.smp-top { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+</style>
+<script>
+/* ===== v249: three smarter things that run by themselves (the owner picked them from a list: "1 2 4").
+   1. Buy advice (`sm*` / `smBuy`): price alerts said "it's cheaper"; now every priced game in your queue gets a verdict
+      that also knows WHEN you'll play it. smReach() walks the queue in On deck order (smQueue) at your real weekly hours
+      (smWeekly: timer sessions of the last 6 weeks, else the pace on the games you're playing, else your evening setting)
+      and gives each game a "you'll get to it in ~N days". That is checked against the store's big yearly sales (SM_SALES,
+      approximate windows: Steam Spring/Summer/Autumn/Winter, PlayStation Spring/Days of Play/Black Friday/Holiday, eShop
+      Spring/Black Friday/Holiday), the sale it's in now and the lowest price seen: Buy now / Great price / Wait for <sale> /
+      No rush / Skip the pre-order / Wait for the reviews. Shown under the prices on a game page (pxCard wrapper), in the
+      Shopping plan sheet (smPlan), and Nexi says so by himself when a game turns "buy now" (localStorage gq:bt = the last verdict per game)
+      or when a price drop isn't worth it yet. "I own it" (g.own) hides the advice and stops the price checks (pxItem).
+   2. Drifting games (`dw*`): before you quietly abandon a game you're playing. Play days come from timer sessions, logged
+      hours (each change is now kept in g.lgH, last 40) and Where-was-I notes. A game is drifting when the gap since you last
+      played is over 2.2x your usual gap for it (and 4+ days, under the 14 days where "Still playing?" takes over) AND one
+      more sign: sessions shrank to half, the gaps keep widening, you're at the point where you usually drop games (median
+      progress of your dropped games, kept from now on in g.dropP), or you dropped most games of its genre. Card on the game
+      page (dwCard) + one question (#fnask): Something short in between (a short, different queue game; when you finish it
+      Nexi brings you back: g.dwBack) / Park it (back to the queue, notes kept) / I'm into it. Once per game per 3 weeks.
+   3. Queue clean-up (`qc*`): once a month (S.qcAt) Nexi looks for games you'll probably never play: waiting 6+ months
+      unstarted, his guessed score a point under your average, a lot like games you dropped, losing its duels, or over
+      18 months away at your pace. 2+ reasons and enough weight = a candidate; the sheet says why for each one, Let go
+      (removed like a swipe-delete, with Undo while the sheet is open) or Keep (not suggested again for 6 months, g.qcK).
+   Switches: Settings → Extra features: S.btOff, S.dwOff, S.qcOff. ===== */
+const SM_DAY = 864e5;
+const smTd = () => new Date().toLocaleDateString("en-CA");
+const smMed = a => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const smWhen = d => d < 8 ? "within a week" : d < 45 ? `in about ${Math.max(2, Math.round(d / 7))} weeks` : d < 365 ? `in about ${Math.max(2, Math.round(d / 30.4))} months` : d < 540 ? "in about a year" : `in about ${Math.round(d / 365 * 2) / 2} years`;
+const smLong = d => d < 45 ? `${Math.max(1, Math.round(d / 7))} week${Math.round(d / 7) > 1 ? "s" : ""}` : d < 365 ? `${Math.round(d / 30.4)} months` : d < 540 ? "a year" : `${Math.round(d / 365 * 2) / 2} years`;
+const smAround = t => { const d = new Date(t), n = d.getDate(); return (n <= 10 ? "early " : n <= 20 ? "mid " : "late ") + d.toLocaleDateString(undefined, { month: "long" }); };
+const smBusy = () => document.documentElement.classList.contains("nxtouring") || !!$("#diary.on, #sheet.on, #wiask.on, #fnask.on, #shuf, #wrap, #nxtour");
+const smSay = (txt, act) => { if (typeof pnBubSay !== "function" || document.documentElement.classList.contains("nxtouring")) return; try { pnBubSay([txt, act]); } catch (e) {} };
+const smTags = g => new Set(platList(g.genres).map(x => x.toLowerCase()));
+const smJac = (a, b) => { if (!a.size || !b.size) return 0; let n = 0; a.forEach(x => { if (b.has(x)) n++; }); return n / new Set([...a, ...b]).size; };
+const smNames = L => L.length === 1 ? L[0].title : L.slice(0, -1).map(g => g.title).join(", ") + " and " + L[L.length - 1].title;
+
+/* ---- how many hours a week you really play ---- */
+function smWeekly() {
+  const from = Date.now() - 42 * SM_DAY, ses = (S.sessions || []).filter(s => s.s >= from && s.e > s.s);
+  if (ses.length >= 4) { const h = ses.reduce((a, s) => a + (s.e - s.s), 0) / 36e5 / 6; if (h >= 1) return { h: Math.min(60, Math.max(2, h)), src: "your timer, last 6 weeks" }; }
+  const p = playingNow().map(g => { try { return etaOf(g); } catch (e) { return null; } }).filter(e => e && /pace so far/.test(e.src)).reduce((a, e) => a + e.pace * 7, 0);
+  if (p >= 1) return { h: Math.min(60, Math.max(2, p)), src: "your pace on what you're playing" };
+  const ev = num(S.evening, 4, 1, 12); return { h: ev * 4, src: `about ${ev}h an evening, 4 evenings a week` };
+}
+/* the queue in the order Nexi expects you to play it (On deck's order: out-now games first) */
+function smQueue() { const s = onDeckScores();
+  return S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && (g.state || "") !== "playing" && s[g.id] != null).sort((a, b) => s[b.id] - s[a.id]); }
+let smReachMemo = null;
+function smReach() {
+  const sig = (Date.now() / 3000 | 0) + ":" + S.games.length + ":" + (S.played || []).length;
+  if (smReachMemo && smReachMemo.sig === sig) return smReachMemo;
+  const w = smWeekly(), rate = w.h / 7, q = smQueue(), typ = smMed(q.map(hrsOf).filter(h => h > 0)) || 20;
+  let ahead = playingNow().filter(g => !g.comp && !isPlayed(g)).reduce((a, g) => { let e = null; try { e = etaOf(g); } catch (x) {} return a + (e ? e.left : Math.max(0, (hrsOf(g) || typ) - loggedOf(g))); }, 0);
+  const at = {};
+  q.forEach(g => { const out = isOutNow(g); let d = ahead / rate;
+    if (!out && g.date) d = Math.max(d, (Date.parse(g.date + "T12:00:00") - Date.now()) / SM_DAY);
+    at[g.id] = Math.max(0, Math.round(d)); if (out) ahead += Math.min(150, hrsOf(g) || typ); });
+  return smReachMemo = { sig, at, rate, w, total: ahead, days: Math.round(ahead / rate), typ, q };
+}
+
+/* ---- 1. buy advice ---- */
+/* the big yearly sales, roughly when they usually start: [name, month, day, length in days] */
+const SM_SALES = {
+  st: [["Steam Spring Sale", 3, 19, 7], ["Steam Summer Sale", 6, 25, 14], ["Steam Autumn Sale", 11, 26, 7], ["Steam Winter Sale", 12, 18, 14]],
+  ps: [["PlayStation Spring Sale", 3, 12, 14], ["Days of Play", 5, 28, 14], ["PlayStation Black Friday", 11, 20, 11], ["PlayStation Holiday Sale", 12, 17, 18]],
+  ns: [["eShop spring sale", 3, 12, 12], ["eShop Black Friday", 11, 20, 11], ["eShop holiday sale", 12, 18, 14]]
+};
+function smNextSale(s, from) {
+  from = from || Date.now(); const y = new Date(from).getFullYear(); let best = null;
+  for (const yy of [y - 1, y, y + 1]) for (const [n, m, d, len] of SM_SALES[s] || []) {
+    const a = new Date(yy, m - 1, d, 12).getTime(), e = a + len * SM_DAY;
+    if (e > from && (!best || a < best.a)) best = { n, a, e, now: a <= from };
+  }
+  return best;
+}
+const SM_ICON = { buy: "🛒", deal: "💎", wait: "⏳", later: "🗓️", soon: "🔎" };
+function smBuy(g) {
+  if (S.btOff || !g || g.comp || g.own || isPlayed(g) || isDropped(g) || (g.state || "") === "playing" || !pxOn()) return null;
+  const P = g.px || {}, st = PX_S.filter(s => pxWant(g, s) && P[s]);
+  if (st.some(s => pxIncl(P[s]) || P[s].free)) return null;   /* nothing to buy */
+  const pr = st.filter(s => { const p = P[s]; return p.now != null && !p.nop && !p.none && !p.err && !p.nosale; });
+  if (!pr.length) return null;
+  const R = smReach(), reach = R.at[g.id]; if (reach == null) return null;
+  const conv = s => pxTo(s, P[s], pxEff(P[s])), pct = s => { const p = P[s], e = pxEff(p); return p.base && e != null && e < p.base ? Math.round((1 - e / p.base) * 100) : 0; };
+  const cs = new Set(pr.map(s => (conv(s) || {}).c));
+  const s = pr.slice().sort((a, b) => cs.size === 1 ? ((conv(a) || {}).a - (conv(b) || {}).a) || pct(b) - pct(a) : pct(b) - pct(a))[0];
+  const p = P[s], d = pct(s), price = pxM(s, p, pxEff(p), (pxEff(p) < p.now && p.plusNowF) || p.nowF);
+  const low = d > 0 && p.low != null && pxEff(p) <= p.low && p.t0 && Date.now() - p.t0 > 14 * SM_DAY;
+  const td = smTd(), out = isOutNow(g), age = g.date && g.date <= td ? (Date.now() - Date.parse(g.date + "T12:00:00")) / SM_DAY : null;
+  const sale = smNextSale(s), sd = sale ? Math.max(0, (sale.a - Date.now()) / SM_DAY) : 999, W = smWhen(reach), store = PX_NAME[s];
+  const ends = d > 0 && +p.end > Date.now() ? +p.end : 0;
+  let k, head, why;
+  if (!out) {
+    const rel = g.date ? Math.max(0, (Date.parse(g.date + "T12:00:00") - Date.now()) / SM_DAY) : 0;
+    if (reach - rel > 45) { k = "wait"; head = "Skip the pre-order"; why = `You'll probably get to it ${smWhen(reach)}, well after it comes out. By then it's patched, reviewed and often cheaper.`; }
+    else { k = "soon"; head = "Wait for the reviews"; why = `It's near the top of your queue, so you'll want it at launch. I fetch the reviews by myself on release day: buy then if they're good.`; }
+  } else if (d > 0) {
+    if (reach <= 30 || (ends && reach <= (ends - Date.now()) / SM_DAY + 14)) { k = "buy"; head = `Buy now: −${d}% on ${store}`; why = `You'll get to it ${reach <= 7 ? "next" : W}, and it's ${price}${low ? ", the lowest I've seen" : ""}${ends ? " until " + pxEnd(ends) : ""}.`; }
+    else if (d >= 60 || (low && d >= 40)) { k = "deal"; head = `Great price: −${d}% on ${store}`; why = `You won't get to it for ${smLong(reach)}, but ${low ? "this is the lowest I've seen" : "sales this deep don't come often"}. Safe to grab now; no rush if you'd rather wait.`; }
+    else { k = "wait"; head = "Wait for a better sale"; why = `−${d}% is fine, but you won't get to it for ${smLong(reach)}, and bigger sales come before then${sale && !sale.now ? ` (the ${sale.n}, ${smAround(sale.a)})` : ""}.`; }
+  } else if (sale && sale.now) {
+    k = reach <= 21 ? "buy" : "later"; head = reach <= 21 ? "Buy when you start it" : "No rush";
+    why = `It isn't in the ${sale.n}, so this is its price for now. You'll get to it ${W}${reach <= 21 ? "." : "; I'll tell you when it's time."}`;
+  } else if (sale && sd <= 30 && reach >= sd - 3) { k = "wait"; head = `Wait for the ${sale.n}`; why = `It usually starts ${smAround(sale.a)}, only ${Math.max(1, Math.round(sd))} day${Math.round(sd) === 1 ? "" : "s"} away${reach <= 21 ? ", about when you'll get to it" : ""}.`; }
+  else if (reach <= 21) { k = "buy"; head = "Buy when you start it"; why = `It's next in your queue and the next big sale${sale ? ` (the ${sale.n}) isn't until ${smAround(sale.a)}` : " is far off"}.${age != null && age < 90 ? " New games rarely drop much in their first months anyway." : ""}`; }
+  else if (sale && reach >= sd) { k = "wait"; head = `Wait for the ${sale.n}`;
+    why = reach <= (sale.e - Date.now()) / SM_DAY + 10 ? `You'll get to it ${smAround(Date.now() + reach * SM_DAY)} at your pace, about when the ${sale.n} is on (it usually starts ${smAround(sale.a)}).`
+      : `You won't get to it until ${smAround(Date.now() + reach * SM_DAY)} at your pace, and the ${sale.n} comes first (usually ${smAround(sale.a)}).`; }
+  else { k = "later"; head = "No rush"; why = `You'll get to it ${W}, before the next big sale. I'll tell you when it's time to buy, or if it drops.`; }
+  return { k, s, p, d, reach, head, why, price, low, sale, store };
+}
+function smLine(g) {
+  const v = smBuy(g); if (!v) return "";
+  return `<div class="smv k-${v.k}" data-g="${g.id}"><button type="button" data-smplan="${g.id}"><b>${SM_ICON[v.k]} ${esc(v.head)}</b><small>${esc(v.why)}</small></button>
+    <button type="button" class="smv-own" data-smown="${g.id}">I own it</button></div>`;
+}
+{ const _pc = pxCard; pxCard = function (g) {
+  if (g && g.own && !isPlayed(g) && !isDropped(g) && pxOn()) return `<div class="px" data-g="${g.id}"><button type="button" class="smv-o" data-smown="${g.id}">✓ <b>You own it</b> · no price checks. Tap if you don't.</button></div>`;
+  const o = _pc.apply(this, arguments); if (!o) return o;
+  const l = smLine(g); if (!l) return o;
+  const at = o.lastIndexOf("</div>"); return at < 0 ? o : o.slice(0, at) + l + o.slice(at); }; }
+/* a game you own isn't priced any more */
+{ const _pi = pxItem; pxItem = function (g) { const o = _pi.apply(this, arguments); return g && g.own ? Object.assign(o, { st: -1, ps: "-", ns: "-" }) : o; }; }
+function smPlan() {
+  const R = smReach(), L = smQueue().map(g => [g, smBuy(g)]).filter(x => x[1]);
+  const grp = [["Buy now", L.filter(x => x[1].k === "buy" || x[1].k === "deal")], ["Wait for a sale", L.filter(x => x[1].k === "wait")], ["No rush", L.filter(x => x[1].k === "later" || x[1].k === "soon")]];
+  const row = ([g, v]) => `<div class="qcr" data-g="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small><em>${SM_ICON[v.k]} ${esc(v.head)}</em> · ${esc(v.why)}</small></span>
+    <span class="qcr-b"><button type="button" class="go" data-smstore="${v.s}:${g.id}">${esc(v.store)}</button><button type="button" data-smown="${g.id}">I own it</button><button type="button" data-opgame="${g.id}">Open</button></span></div>`;
+  dyShow(dyBox(), `<div class="dy-h"><b>🛒 Shopping plan</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="note">When to buy each game in your queue. I go by when you'll actually get to it (${Math.round(R.w.h)}h a week, from ${esc(R.w.src)}), the big store sales and the lowest price I've seen. Your queue is about ${esc(smLong(R.days))} long at that pace.</p>
+    ${L.length ? grp.filter(x => x[1].length).map(([h, rows]) => `<p class="smp-g">${h} · ${rows.length}</p><div class="smp-l">${rows.map(row).join("")}</div>`).join("")
+      : `<p class="hl-ok">Nothing to plan yet: I need prices first (Settings → Price alerts), and games in your queue.</p>`}`,
+    e => {
+      const st = e.target.closest("[data-smstore]"); if (st) { const [s, id] = st.dataset.smstore.split(":"), g = S.games.find(x => x.id === id); if (g) window.open(pxUrl(g, s), "_blank", "noopener"); return; }
+      const op = e.target.closest("[data-opgame]"); if (op) { dyClose(); setTimeout(() => openFull(op.dataset.opgame), 320); }
+    });
+}
+/* own it / don't (anywhere: the game page line, the plan) */
+document.addEventListener("click", e => {
+  const o = e.target.closest && e.target.closest("[data-smown]"), pl = e.target.closest && e.target.closest("[data-smplan]");
+  if (pl) { e.stopPropagation(); beep("open"); smPlan(); return; }
+  if (!o) return; e.stopPropagation();
+  const g = S.games.find(x => x.id === o.dataset.smown); if (!g) return;
+  if (g.own) delete g.own; else g.own = 1;
+  save(); beep("tap"); pxPaint();
+  const r = o.closest(".qcr"); if (r && g.own) { r.classList.add("gone"); o.textContent = "✓ Owned"; }
+  toast(g.own ? `Got it, you own ${g.title}. No more price checks for it.` : `${g.title}: price checks are back on.`);
+  if (!g.own) pxRun(true, g);
+}, true);
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || !/^(buy|drift|tidy)$/.test(m.dataset.act || "")) return;
+  e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush();
+  const a = m.dataset.act; if (a === "buy") smPlan(); else if (a === "tidy") qcShow(); else if (a === "drift") { const g = S.games.find(x => x.id === dwSaid); if (g) openFull(g.id); } }, true);
+/* Nexi speaks up when a game turns "buy now", or when a price drop isn't worth it yet */
+function smWatch(drops) {
+  if (S.btOff || !pxOn()) return;
+  /* the last advice each game got, in its own key (it changes every few days; S would re-upload the cloud backup each time) */
+  let M = {}; try { M = JSON.parse(localStorage.getItem("gq:bt") || "{}") || {}; } catch (e) {}
+  const hot = []; let changed = false;
+  smQueue().forEach(g => { const v = smBuy(g); if (!v) return; const key = v.k === "buy" || v.k === "deal" ? v.k + ":" + v.s + ":" + v.d : v.k, m = M[g.id] || {};
+    if (m.k !== key) { if ((v.k === "buy" || v.k === "deal") && Date.now() - (+m.t || 0) > 14 * SM_DAY) { hot.push([g, v]); m.t = Date.now(); } m.k = key; M[g.id] = m; changed = true; } });
+  if (changed) { const ids = new Set(S.games.map(g => g.id)); Object.keys(M).forEach(id => { if (!ids.has(id)) delete M[id]; }); try { localStorage.setItem("gq:bt", JSON.stringify(M)); } catch (e) {} }
+  if (hot.length) {
+    const [g, v] = hot.sort((a, b) => a[1].reach - b[1].reach)[0];
+    smSay(hot.length === 1 ? `🛒 Time to buy ${g.title}: ${v.d ? "−" + v.d + "% on " + v.store + ", and " : ""}you'll get to it ${v.reach <= 7 ? "next" : smWhen(v.reach)}. Tap me for your shopping plan.`
+      : `🛒 ${hot.length} games are worth buying now: ${smNames(hot.slice(0, 3).map(x => x[0]))}. Tap me for your shopping plan.`, "buy");
+    return;
+  }
+  const d = (drops || []).map(x => [x.g, smBuy(x.g)]).find(x => x[1] && (x[1].k === "wait" || x[1].k === "later"));
+  if (d) smSay(`💸 ${d[0].title} dropped to ${d[1].price}, but you won't get to it for ${smLong(d[1].reach)}${d[1].sale && !d[1].sale.now ? ` and the ${d[1].sale.n} comes first` : ""}. I'd wait. Tap me for your shopping plan.`, "buy");
+}
+{ const _pr = pxRun; pxRun = async function (force, only) { const o = await _pr.apply(this, arguments); if (!only && o) setTimeout(() => smWatch(o.drops), 1800); return o; }; }
+setTimeout(() => { if (!smBusy()) smWatch([]); }, 32000);
+
+/* ---- 2. drifting games ---- */
+/* every change to the hours you logged is kept (the day it happened and how much), so the app sees your rhythm */
+{ const lg = new Map(S.games.map(g => [g.id, +g.logged || 0])), _sv = save;
+  save = function () { try { S.games.forEach(g => { const v = +g.logged || 0, was = lg.get(g.id);
+    if (was != null && was !== v) { const d = Math.round((v - was) * 100) / 100; if (d > 0) { (g.lgH ||= []).push([Date.now(), d]); if (g.lgH.length > 40) g.lgH.splice(0, g.lgH.length - 40); } }
+    lg.set(g.id, v); }); } catch (e) {} return _sv.apply(this, arguments); }; }
+/* how far in you were when you dropped a game (your usual drop point, from now on) */
+{ const _sp = syncPlayed; syncPlayed = function (g, state) {
+  try { if (g && state === "dropped" && !g.dropP) { g.dropAt = Date.now(); const h = hrsOf(g); if (h > 0 && loggedOf(g) > 0) g.dropP = Math.round(Math.min(1, loggedOf(g) / h) * 100) / 100; }
+    if (g && state === "played") { const back = S.games.find(x => x.dwBack === g.id && (x.state || "") === "playing" && x.id !== g.id);
+      if (back) { delete back.dwBack; setTimeout(() => { const n = wiLast(back); dwSaid = back.id;
+        smSay(`Nice palate cleanser 🌿 Back to ${back.title}?${n ? ` You were at: “${String(n.x).slice(0, 90)}”` : ""} Tap me to open it.`, "drift"); }, 2400); } } } catch (e) {}
+  return _sp.apply(this, arguments); }; }
+let dwSaid = "";
+function dwDays(g) {
+  const m = new Map(), add = (t, h, k) => { if (!(t > 0)) return; const d = new Date(t).toLocaleDateString("en-CA"), o = m.get(d) || { s: 0, l: 0 }; o[k] += h || 0; m.set(d, o); };
+  (S.sessions || []).forEach(s => { if (s.g === g.id) add(+s.s, Math.max(0, (s.e - s.s) / 36e5), "s"); });
+  (g.lgH || []).forEach(x => add(+x[0], Math.max(0, +x[1] || 0), "l"));
+  (g.wasI || []).forEach(n => add(+n.t, 0, "s"));
+  if (g.plAt) add(+g.plAt, 0, "s");
+  /* a timer session also adds to the logged hours: count the bigger of the two, not both */
+  return [...m.entries()].map(([d, o]) => ({ t: Date.parse(d + "T12:00:00"), h: Math.max(o.s, o.l) })).sort((a, b) => a.t - b.t);
+}
+function dwZone() { const P = S.games.filter(g => isDropped(g) && (g.dropP > 0 || (hrsOf(g) > 0 && loggedOf(g) > 0))).map(g => g.dropP > 0 ? g.dropP : Math.min(1, loggedOf(g) / hrsOf(g)));
+  return P.length >= 2 ? { p: smMed(P), n: P.length } : null; }
+function dwGenre(g) {
+  let worst = null;
+  platList(g.genres).forEach(n => { const k = n.toLowerCase(), all = S.games.filter(x => x.id !== g.id && (isPlayed(x) || isDropped(x)) && smTags(x).has(k)), dr = all.filter(isDropped).length;
+    if (dr >= 2 && dr / all.length >= .5 && (!worst || dr / all.length > worst.r)) worst = { name: n, n: dr, of: all.length, r: dr / all.length }; });
+  return worst;
+}
+const smH = h => h >= 1 ? (Math.round(h * 2) / 2) + "h" : Math.max(5, Math.round(h * 60 / 5) * 5) + " min";
+function dwRisk(g) {
+  if (S.dwOff || !g || g.comp || isPlayed(g) || (g.state || "") !== "playing") return null;
+  const D = dwDays(g); if (D.length < 3) return null;
+  const gapNow = (Date.now() - D[D.length - 1].t) / SM_DAY; if (gapNow >= 14) return null;   /* "Still playing?" asks from here */
+  const gaps = D.slice(1).map((x, i) => (x.t - D[i].t) / SM_DAY), early = gaps.length > 2 ? gaps.slice(0, -2) : gaps.slice(0, -1).length ? gaps.slice(0, -1) : gaps;
+  const typ = Math.max(1, smMed(early));
+  if (gapNow < Math.max(4, typ * 2.2)) return null;
+  const why = [`you haven't played it in ${Math.floor(gapNow)} days, and you usually come back ${typ < 1.6 ? "every day or two" : `every ${Math.round(typ)} days`}`];
+  const H = D.filter(x => x.h > 0).map(x => x.h);
+  if (H.length >= 4) { const a = H.slice(0, -2), ma = a.reduce((s, v) => s + v, 0) / a.length, mb = (H[H.length - 1] + H[H.length - 2]) / 2;
+    if (mb < ma * .5) why.push(`your sessions shrank from about ${smH(ma)} to ${smH(mb)}`); }
+  if (gaps.length >= 3 && gaps.slice(-2).every(x => x >= typ * 1.8)) why.push("the gaps between sessions keep getting longer");
+  const Z = dwZone(), need = hrsOf(g), prog = need > 0 && loggedOf(g) > 0 ? Math.min(1, loggedOf(g) / need) : null;
+  if (Z && prog != null && Math.abs(prog - Z.p) <= .15) why.push(`you're ${Math.round(prog * 100)}% in, about where you usually drop games (${Math.round(Z.p * 100)}%)`);
+  const gd = dwGenre(g); if (gd) why.push(`you dropped ${gd.n} of the ${gd.of} ${gd.name} games you started`);
+  if (why.length < 2) return null;
+  const tg = smTags(g), like = S.games.filter(x => isDropped(x) && smJac(smTags(x), tg) >= .34).slice(-2);
+  return { g, gapNow, typ, why, prog, like };
+}
+/* short, different games from your queue to play in between */
+function dwCleanse(g) {
+  const tg = smTags(g), cap = Math.max(4, Math.min(12, (hrsOf(g) || 30) * .4)), s = onDeckScores();
+  return S.games.filter(x => x.id !== g.id && !isPlayed(x) && !isDropped(x) && !x.comp && (x.state || "") !== "playing" && isOutNow(x) && hrsOf(x) > 0 && hrsOf(x) <= cap)
+    .map(x => ({ x, sh: smJac(smTags(x), tg) })).sort((a, b) => a.sh - b.sh || (s[b.x.id] || 0) - (s[a.x.id] || 0)).slice(0, 3).map(o => o.x);
+}
+function dwCard(g) {
+  const r = dwRisk(g); if (!r) return "";
+  return `<div class="dwc" data-g="${g.id}"><b>📉 You're drifting from this one</b>
+    <p>${r.like.length ? `It's going the way ${esc(smNames(r.like))} went before you dropped ${r.like.length === 1 ? "it" : "them"}.` : "It looks like the way games go before you drop them."}</p>
+    <ul>${r.why.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <div class="dwc-b"><button type="button" class="go" data-dw="short:${g.id}">Something short in between</button><button type="button" data-dw="park:${g.id}">Park it</button><button type="button" data-dw="ok:${g.id}">I'm into it</button></div></div>`;
+}
+/* on the game page: at the end of Your progress, under the finish forecast */
+{ const _gp = gdProgress; gdProgress = function (g) { const o = _gp.apply(this, arguments); let add = ""; try { add = dwCard(g); } catch (e) {} if (!add) return o;
+  const at = o.lastIndexOf("</section>"); return at < 0 ? o + add : o.slice(0, at) + add + o.slice(at); }; }
+function dwAct(a, g) {
+  if (!g) return;
+  if (a === "ok") { (S.dwAsked ||= {})[g.id] = Date.now(); g.sgOk = Date.now(); save(); beep("tap"); toast(`Good to hear. Enjoy ${g.title}!`); }
+  else if (a === "park") { g.state = "backlog"; syncPlayed(g, "backlog"); g.parked = Date.now(); save(); render(); beep("back");
+    toast(`Parked ${g.title}. Your notes stay, and the story so far will catch you up when you're back.`); }
+  else if (a === "short") { dwShort(g); return; }
+  const c = $(`#full .dwc[data-g="${CSS.escape(g.id)}"]`); if (c) c.remove();
+}
+function dwShort(g) {
+  const L = dwCleanse(g);
+  dyShow(dyBox(), `<div class="dy-h"><b>🌿 Something short in between</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="note">Short games from your queue that feel different from ${esc(g.title)}. Finish one and I'll bring you back to it, with where you left off.</p>
+    ${L.length ? `<div class="qc-l">${L.map(x => `<div class="qcr"><img decoding="async" src="${esc(cover(x))}" alt=""><span><b>${esc(x.title)}</b><small>about ${smH(hrsOf(x))} to beat${platList(x.genres).length ? " · " + esc(platList(x.genres).slice(0, 2).join(", ")) : ""}</small></span>
+      <span class="qcr-b"><button type="button" class="go" data-dwgo="${x.id}">Start it</button><button type="button" data-opgame="${x.id}">Open</button></span></div>`).join("")}</div>`
+      : `<p class="hl-ok">Your queue has no short games that are out yet (12 hours or less). Parking ${esc(g.title)} for a bit is fine too.</p>`}`,
+    e => {
+      const b = e.target.closest("[data-dwgo]"); if (b) { const x = S.games.find(y => y.id === b.dataset.dwgo); if (!x) return;
+        x.state = "playing"; syncPlayed(x, "playing"); g.dwBack = x.id; (S.dwAsked ||= {})[g.id] = Date.now(); save(); render(); dyClose(); beep("open");
+        toast(`${x.title} is in Playing now. Finish it and I'll bring you back to ${g.title}.`); return; }
+      const op = e.target.closest("[data-opgame]"); if (op) { dyClose(); setTimeout(() => openFull(op.dataset.opgame), 320); }
+    });
+}
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-dw]"); if (!b) return; e.stopPropagation();
+  const [a, id] = b.dataset.dw.split(":"); dwAct(a, S.games.find(x => x.id === id)); }, true);
+/* one question, once a game starts drifting (at most once a day, and per game every 3 weeks) */
+function dwCheck() {
+  if (S.dwOff || document.hidden) return;
+  let day = ""; try { day = localStorage.getItem("gq:dwDay") || ""; } catch (e) {} if (day === smTd()) return;
+  const r = playingNow().filter(g => Date.now() - ((S.dwAsked || {})[g.id] || 0) >= 21 * SM_DAY).map(dwRisk).filter(Boolean).sort((a, b) => b.why.length - a.why.length)[0];
+  if (!r) return;
+  let tries = 0;
+  const go = () => {
+    if (smBusy() || $("#full.on")) { if (++tries < 20) setTimeout(go, 3000); return; }
+    const g = r.g; if ((g.state || "") !== "playing") return;
+    (S.dwAsked ||= {})[g.id] = Date.now(); save(); try { localStorage.setItem("gq:dwDay", smTd()); } catch (e) {}
+    let el = $("#fnask"); if (!el) { el = document.createElement("div"); el.id = "fnask"; el.setAttribute("role", "dialog"); document.body.appendChild(el); }
+    el.innerHTML = `<i aria-hidden="true">📉</i><span><b>Drifting from ${esc(g.title)}?</b>${esc(r.why[0][0].toUpperCase() + r.why[0].slice(1))}${r.why[1] ? ", and " + esc(r.why[1]) : ""}. That's often how it goes before you drop one.</span>
+      <span class="wa-b"><button type="button" class="wa-go" data-dwa="short">Something short</button><button type="button" data-dwa="park">Park it</button><button type="button" data-dwa="ok">I'm into it</button></span>`;
+    requestAnimationFrame(() => el.classList.add("on"));
+    const hide = () => el.classList.remove("on");
+    el.onclick = e => { const b = e.target.closest("[data-dwa]"); if (!b) return; hide(); dwAct(b.dataset.dwa, g); };
+    clearTimeout(dwCheck.t); dwCheck.t = setTimeout(hide, 20000);
+  };
+  setTimeout(go, 4000);
+}
+setTimeout(dwCheck, 21000);
+{ let away = 0; addEventListener("visibilitychange", () => { if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 3 * 36e5) setTimeout(dwCheck, 19000); }); }
+
+/* ---- 3. queue clean-up ---- */
+function qcCands() {
+  const R = smReach(), td = smTd(), rows = playedRows(), avg = rows.length >= 3 ? rows.reduce((a, x) => a + x.real, 0) / rows.length : null;
+  const drops = S.games.filter(isDropped), elo = eloTable(), out = [];
+  R.q.forEach(g => {
+    if (!isOutNow(g) || num(g.hype, 0, 0, 10) >= 8 || Date.now() - (+g.qcK || 0) < 180 * SM_DAY) return;
+    const since = Math.max(g.added ? Date.parse(g.added + "T12:00:00") || 0 : 0, g.date && g.date <= td ? Date.parse(g.date + "T12:00:00") || 0 : 0);
+    const age = since ? (Date.now() - since) / SM_DAY : 0; if (since && age < 60) return;
+    const why = []; let sc = 0;
+    if (age >= 180) { sc += age >= 365 ? 2 : 1; why.push(`waiting ${smLong(age)}, never started`); }
+    let pr = null; try { const f = rvFor(g); pr = f ? f.v : expected(g); } catch (e) {}
+    if (avg != null && pr != null && pr <= avg - 1) { sc += 2; why.push(`I think you'd give it about ${pr.toFixed(1)}, under your usual ${avg.toFixed(1)}`); }
+    const tg = smTags(g), like = drops.filter(d => smJac(smTags(d), tg) >= .5);
+    if (like.length) { sc += like.length >= 2 ? 2 : 1; why.push(`you dropped ${smNames(like.slice(-2))}, a lot like it`); }
+    const n = (S.duels || []).filter(d => d.a === g.id || d.b === g.id).length, w = (S.duels || []).filter(d => d.w === g.id).length;
+    if (n >= 3 && w / n <= .34) { sc += 1; why.push(`it lost ${n - w} of its ${n} duels`); }
+    const r = R.at[g.id]; if (r > 540) { sc += 1; why.push(`at your pace you'd get to it ${smWhen(r)}`); }
+    if (sc >= 3 && why.length >= 2) out.push({ g, sc, why });
+  });
+  return out.sort((a, b) => b.sc - a.sc).slice(0, 6);
+}
+const qcGone = new Map();
+function qcShow(list) {
+  const L = list || qcCands(), R = smReach();
+  dyShow(dyBox(), `<div class="dy-h"><b>🧹 Queue clean-up</b><button class="dy-x" aria-label="Close">✕</button></div>
+    <p class="note">At your pace (${Math.round(R.w.h)}h a week) your queue is about ${esc(smLong(R.days))} long. ${L.length ? `These ${L.length === 1 ? "one looks" : L.length + " look"} like games you'll probably never play. Your call: let go or keep.` : "Nothing looks like dead weight right now. Nice queue."}</p>
+    ${L.length ? `<div class="qc-l">${L.map(({ g, why }) => `<div class="qcr" data-g="${g.id}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${esc(why.join(" · "))}</small></span>
+      <span class="qcr-b"><button type="button" class="go" data-qc="go:${g.id}">Let go</button><button type="button" data-qc="keep:${g.id}">Keep</button><button type="button" data-opgame="${g.id}">Open</button></span></div>`).join("")}</div>` : ""}`,
+    e => {
+      const op = e.target.closest("[data-opgame]"); if (op) { dyClose(); setTimeout(() => openFull(op.dataset.opgame), 320); return; }
+      const b = e.target.closest("[data-qc]"); if (!b) return;
+      const [a, id] = b.dataset.qc.split(":"), r = b.closest(".qcr");
+      if (a === "keep") { const g = S.games.find(x => x.id === id); if (g) { g.qcK = Date.now(); save(); } r.classList.add("gone"); b.parentElement.innerHTML = "<small>Kept. I won't ask about it for 6 months.</small>"; beep("tap"); return; }
+      if (a === "go") { const i = S.games.findIndex(x => x.id === id); if (i < 0) return; const g = S.games[i];
+        qcGone.set(id, { g, i, p: S.played.filter(p => p.id === id), d: (S.duels || []).filter(d => d.a === id || d.b === id) });
+        S.games.splice(i, 1); S.played = S.played.filter(p => p.id !== id); S.duels = (S.duels || []).filter(d => d.a !== id && d.b !== id);
+        save(); render(); beep("back"); r.classList.add("gone"); b.parentElement.innerHTML = `<small>Let go.</small><button type="button" data-qc="undo:${id}">Undo</button>`; return; }
+      if (a === "undo") { const x = qcGone.get(id); if (!x) return; qcGone.delete(id);
+        S.games.splice(Math.min(x.i, S.games.length), 0, x.g); S.played.push(...x.p); (S.duels ||= []).push(...x.d); save(); render(); beep("tap");
+        r.classList.remove("gone"); b.parentElement.innerHTML = `<button type="button" class="go" data-qc="go:${id}">Let go</button><button type="button" data-qc="keep:${id}">Keep</button><button type="button" data-opgame="${id}">Open</button>`; }
+    });
+}
+/* once a month, by himself */
+function qcCheck() {
+  if (S.qcOff || document.hidden || Date.now() - (S.qcAt || 0) < 30 * SM_DAY) return;
+  const L = qcCands(); if (L.length < 3) return;
+  let tries = 0;
+  const go = () => { if (smBusy() || $("#full.on")) { if (++tries < 20) setTimeout(go, 4000); return; }
+    S.qcAt = Date.now(); save();
+    smSay(`🧹 Your queue is about ${smLong(smReach().days)} long at your pace. I found ${L.length} games you'll probably never play. Tap me to see why.`, "tidy"); };
+  go();
+}
+setTimeout(qcCheck, 45000);
+
+/* ---- Settings → Extra features ---- */
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#s-xbt [data-v], #s-xdw [data-v], #s-xqc [data-v]"); if (!b) return;
+  e.stopPropagation(); const w = b.parentElement, v = b.dataset.v;
+  if (v === "plan") { smPlan(); return; } if (v === "look") { qcShow(); return; }
+  w.querySelectorAll("[data-v=on], [data-v=off]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (w.id === "s-xbt") { S.btOff = v === "off"; pxPaint(); } else if (w.id === "s-xdw") S.dwOff = v === "off"; else S.qcOff = v === "off";
+  save(); beep("tap");
+}, true);
+
+WHATS_NEW.push(
+  { v: 249, go: () => { closeFull(); dyClose(); nxShut(); const g = smQueue().find(x => smBuy(x)); if (g) openFull(g.id); else setJump({ scope: "app", group: "Extra features", text: "Buy advice" }); },
+    at: () => $("#full.on .smv") || $("#s-xbt") || null,
+    say: "I now tell you <b>when to buy</b> each game: I work out when you'll actually get to it at your pace, then check the big store sales. Buy now, wait for the sale, or skip the pre-order.",
+    tryIt: "Tap the advice under a game's prices for your whole shopping plan. Already own a game? Tap I own it." },
+  { v: 249, go: () => { closeFull(); dyClose(); nxShut(); const g = playingNow().find(x => dwRisk(x)); if (g) openFull(g.id); else setJump({ scope: "app", group: "Extra features", text: "Drifting games" }); },
+    at: () => $("#full.on .dwc") || $("#s-xdw") || null,
+    say: "I notice when you're <b>drifting</b> from a game you're playing: longer gaps, shorter sessions, the point where you usually drop games. Before you quietly give up on it, I offer something short in between, or to park it with your notes.",
+    tryIt: "Nothing to do: log your hours or use the timer and I'll learn your rhythm." },
+  { v: 249, go: () => { closeFull(); nxShut(); qcShow(); }, at: () => $("#diary.on .qcr") || $("#diary.on .note") || null,
+    say: "<b>Queue clean-up</b>: once a month I look for games you'll probably never play (waiting for ages, a low guess, a lot like games you dropped) and tell you why. Let them go or keep them, your call.",
+    tryIt: "Have a look at the list: Let go has an Undo." }
 );
 </script>
