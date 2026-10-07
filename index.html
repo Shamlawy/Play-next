@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "250";
+const APP_V = "251";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -23633,5 +23633,152 @@ WHATS_NEW.push(
   { v: 250, go: () => { closeFull(); dyClose(); nxShut(); goTab("add"); }, at: () => $("#p-add .dc-card") || $("#p-add input") || null,
     say: "Fixed: games picked for you no longer get stuck on “Getting screenshots and the full story…” when you flip to the next one quickly. And I've learned to spot a loading message that never finishes, so I'll report it myself next time.",
     tryIt: "Open a game picked for you and flip through with › quickly: each one fills in." }
+);
+</script>
+<style>
+/* ===== v251: the rail's live strip (replaces the queue covers) + Nexi sized to his seat ===== */
+#hrail .rlv { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; contain: layout paint; touch-action: none; }
+#hrail .rlv::before, #hrail .rlv::after { content: ""; position: absolute; left: 0; right: 0; height: 18px; z-index: 1; pointer-events: none; }
+#hrail .rlv::before { top: 0; background: linear-gradient(var(--ink), transparent); }
+#hrail .rlv::after { bottom: 0; background: linear-gradient(transparent, var(--ink)); }
+#hrail .rlv-t { display: flex; flex-direction: column; align-items: center; will-change: transform; }
+#hrail .rlv-k { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-bottom: 10px; }
+#hrail .rlv-i { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 58px; padding: 8px 0 7px; border: 0; border-radius: 18px;
+  background: var(--u-card); color: var(--ice); font: inherit; cursor: pointer; flex: none; }
+#hrail .rlv-c { position: relative; width: 38px; height: 38px; margin: 0 0 6px; border-radius: 50%; background: var(--tint, var(--steel)) center/cover; flex: none; }
+#hrail .rlv-c svg { position: absolute; inset: -4px; width: 46px; height: 46px; transform: rotate(-90deg); fill: none; stroke-width: 3; stroke-linecap: round; overflow: visible; }
+#hrail .rlv-c svg circle:first-child { stroke: rgba(var(--vrgb), .18); }
+#hrail .rlv-c svg circle + circle { stroke: var(--volt); }
+#hrail .k-sale .rlv-c svg circle + circle { stroke: var(--hot); }
+#hrail .rlv-c.ico { display: grid; place-items: center; background: rgba(var(--vrgb), .14); font-size: 18px; line-height: 1; }
+#hrail .rlv-c i { position: absolute; right: -6px; bottom: -5px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ink); font: normal 10px/1 system-ui, sans-serif; color: var(--volt); }
+#hrail .k-sale .rlv-c i { color: var(--hot); }
+#hrail .rlv-i b { font: 800 12.5px/1.15 "Poppins", system-ui, sans-serif; color: var(--ice); white-space: nowrap; }
+#hrail .k-sale b { color: var(--hot); }
+#hrail .k-rel.soon b { color: var(--volt); }
+#hrail .rlv-i small { display: block; max-width: 54px; font-size: 9px; line-height: 1.2; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hrail .rlv-none { width: 58px; padding: 10px 4px; font-size: 9.5px; line-height: 1.3; color: var(--mute); text-align: center; }
+html.still #hrail .rlv, html.rlvstill #hrail .rlv { overflow-y: auto; scrollbar-width: none; touch-action: pan-y; }
+#hrail .rh.rlv-h::before { content: ""; display: inline-block; width: 5px; height: 5px; margin-bottom: 5px; border-radius: 50%; background: var(--volt); animation: rlvDot 2.4s ease-in-out infinite; }
+@keyframes rlvDot { 50% { opacity: .25; } }
+html.still #hrail .rh.rlv-h::before { animation: none; }
+/* Nexi fits inside the rail when he sits in it: his aura was 78px (+ a 102px glow) in a 72px rail */
+html.nxseat #pnbub > * { scale: .72; }
+html.nxseat #pnbub .aura { inset: -7px !important; }
+html.nxseat #pnbub.img .core { inset: -6px; }
+html.nxseat #pnbub::before { inset: -4px; }
+@media (min-width: 620px) { html.nxseat #hrail { padding-bottom: 84px; } }
+</style>
+<script>
+/* ===== v251 (the owner, screenshot of the unfolded rail with the queue covers circled: "change them into something useful
+   with live animation that is smooth buttery and doesn't end", and "Nexi needs to get smaller to fit the border of the rail").
+   The rail's queue covers are now a live strip: one small tile per thing worth a glance — a game you're playing (ring =
+   how much of it you've played, "Nd left" from the finish forecast), the next releases (countdown, hours on the last day),
+   price drops on watched games, what's up next, then the rest of your queue and your backlog hours. It drifts upward
+   forever on one Web Animation of transform (compositor only, nothing is laid out while it moves): the strip is copied
+   enough times to fill the rail, and the loop moves exactly one copy, so it never jumps. Touch it to hold it still, drag
+   to scrub it, let go and it carries on 2s later. Paused while the rail is hidden; still (scrollable) when the app is
+   in battery-saver / reduced motion. Tiles refresh from renderHome (the rail's own redraw) and once a minute. ===== */
+const rlvDays = d => Math.round((new Date(d + "T00:00:00") - new Date(new Date().toLocaleDateString("en-CA") + "T00:00:00")) / 864e5);
+function rlvItems() {
+  const out = [], td = new Date().toLocaleDateString("en-CA"), used = new Set();
+  const add = (o) => { out.push(o); if (o.g) used.add(o.g.id); };
+  playingNow().slice(0, 3).forEach(g => {
+    const need = hrsOf(g), have = loggedOf(g), e = etaOf(g), p = need > 0 ? Math.min(1, have / need) : 0;
+    add({ g, k: "play", p, ic: "▶", v: need > 0 ? Math.round(p * 100) + "%" : have ? Math.round(have) + "h" : "Now",
+      s: e ? (e.left <= 0 ? "almost done" : e.days <= 1 ? "done soon" : e.days + "d left") : "playing" }); });
+  S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp && g.status !== "tba" && /^\d{4}-\d\d-\d\d$/.test(g.date || "") && g.date >= td)
+    .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0).slice(0, 3).forEach(g => {
+      const d = rlvDays(g.date), h = Math.max(1, Math.ceil((new Date(g.date + "T00:00:00") - Date.now()) / 36e5));
+      add({ g, k: "rel" + (d <= 7 ? " soon" : ""), p: Math.max(.04, 1 - Math.min(1, d / 60)), ic: "📅",
+        v: d <= 0 ? "Today" : d === 1 ? h + "h" : d < 100 ? d + "d" : Math.round(d / 30) + "mo", s: d <= 0 ? "out now" : "until out" }); });
+  pxWatched().map(g => { let best = 0;
+    PX_S.forEach(s => { const p = (g.px || {})[s], e = pxEff(p); if (p && !pxIncl(p) && e != null && p.base > e) best = Math.max(best, Math.round((1 - e / p.base) * 100)); });
+    return { g, best }; }).filter(x => x.best >= 5).sort((a, b) => b.best - a.best).slice(0, 3)
+    .forEach(({ g, best }) => add({ g, k: "sale", p: best / 100, ic: "🏷️", v: "−" + best + "%", s: "on sale" }));
+  try { const nx = onDeck(1)[0]; if (nx && !used.has(nx.id)) add({ g: nx, k: "next", p: 1, ic: "★", v: "Next", s: "up next" }); } catch (e) {}
+  (pnLastRanked || []).forEach((g, n) => { if (out.length < 9 && g && !used.has(g.id)) add({ g, k: "q", p: 0, ic: "", v: "#" + (n + 1), s: "in queue" }); });
+  const bl = S.games.filter(g => g.state === "backlog" && !isPlayed(g) && !isDropped(g)), blh = Math.round(bl.reduce((t, g) => t + (hrsOf(g) || 0), 0));
+  if (bl.length) out.push({ k: "bl", tab: "games", p: 0, glyph: "⏳", v: blh ? (blh >= 1000 ? (blh / 1000).toFixed(1) + "k" : blh) + "h" : bl.length + "", s: blh ? "backlog" : "in backlog" });
+  return out;
+}
+function rlvTile(o, dup) {
+  const g = o.g, src = g ? (bgSource(g) || cover(g)) : "", a = dup ? ' aria-hidden="true" tabindex="-1"' : "";
+  const ring = o.p > 0 ? `<svg viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="21"/><circle cx="23" cy="23" r="21" pathLength="100" stroke-dasharray="${Math.round(o.p * 100)} 100"/></svg>` : "";
+  const c = g ? `<span class="rlv-c" style="--tint:${esc(g.colour || PALETTE[0])}${src ? `;background-image:url('${esc(cssUrl(src))}')` : ""}">${ring}${o.ic ? `<i>${o.ic}</i>` : ""}</span>`
+    : `<span class="rlv-c ico">${o.glyph}</span>`;
+  return `<button class="rlv-i k-${o.k}" ${g ? `data-rg="${g.id}"` : `data-rlt="${o.tab}"`} title="${esc(g ? g.title + " · " + o.s : o.s)}"${a}>${c}<b>${esc(String(o.v))}</b><small>${esc(o.s)}</small></button>`;
+}
+const RLV = { el: null, anim: null, sig: "", copy: 0, view: 0, n: 0, html: "", hold: 0, drag: null, moved: false };
+const rlvCalm = () => calm() || document.documentElement.classList.contains("railhide");
+function rlvPaint() {
+  const r = document.getElementById("hrail"); if (!r) return;
+  let v = r.querySelector(".rlv");
+  const old = r.querySelector(".games");
+  if (old) { v = document.createElement("div"); v.className = "rlv"; v.innerHTML = '<div class="rlv-t"></div>'; old.replaceWith(v); RLV.sig = ""; rlvBind(v);
+    const h = r.querySelector(".rh"); if (h) { h.textContent = "LIVE"; h.classList.add("rlv-h"); } }
+  if (!v) return;
+  const items = rlvItems();
+  const sig = items.map(o => (o.g ? o.g.id + (bgSource(o.g) || cover(o.g)) : o.k) + o.k + o.v + o.s + Math.round(o.p * 100)).join("|");
+  if (sig === RLV.sig && RLV.el === v) return;
+  RLV.sig = sig; RLV.el = v;
+  RLV.html = items.length ? items.map(o => rlvTile(o)).join("") : '<div class="rlv-none">Add a game and I\'ll keep an eye on it here.</div>';
+  RLV.dup = items.length ? items.map(o => rlvTile(o, true)).join("") : "";
+  RLV.n = 0; rlvFill();
+}
+/* the strip holds enough copies to cover the rail plus one, so moving by exactly one copy loops without a seam */
+function rlvFill() {
+  const v = RLV.el; if (!v) return; const t = v.firstElementChild;
+  const n = !RLV.dup || rlvCalm() || !RLV.copy ? 1 : Math.max(2, Math.ceil(RLV.view / RLV.copy) + 1);
+  const keep = RLV.anim && RLV.n === n ? null : RLV.anim ? (RLV.anim.currentTime || 0) / (RLV.anim.effect.getTiming().duration || 1) : 0;
+  t.innerHTML = `<div class="rlv-k">${RLV.html}</div>` + `<div class="rlv-k" aria-hidden="true">${RLV.dup}</div>`.repeat(n - 1);
+  RLV.n = n;
+  if (!rlvFill.ro) { rlvFill.ro = new ResizeObserver(es => { let ch = false;
+      es.forEach(e => { const h = e.borderBoxSize && e.borderBoxSize[0] ? e.borderBoxSize[0].blockSize : e.contentRect.height;
+        if (e.target === RLV.el) { if (Math.abs(h - RLV.view) > 1) { RLV.view = h; ch = true; } }
+        else if (e.target === RLV.el.querySelector(".rlv-k") && Math.abs(h - RLV.copy) > 1) { RLV.copy = h; ch = true; } });
+      if (ch) { const want = !RLV.dup || rlvCalm() || !RLV.copy ? 1 : Math.max(2, Math.ceil(RLV.view / RLV.copy) + 1);
+        if (want !== RLV.n) rlvFill(); else rlvRun(true); } }); }
+  rlvFill.ro.disconnect(); rlvFill.ro.observe(v); rlvFill.ro.observe(t.firstElementChild);
+  rlvRun(keep != null, keep);
+}
+const RLV_SPEED = 15;                              /* px a second: slow enough to read, always moving */
+function rlvRun(restart, frac) {
+  const v = RLV.el; if (!v) return; const t = v.firstElementChild;
+  document.documentElement.classList.toggle("rlvstill", RLV.n < 2);
+  if (RLV.n < 2 || !RLV.copy) { if (RLV.anim) { RLV.anim.cancel(); RLV.anim = null; } return; }
+  const dur = RLV.copy / RLV_SPEED * 1000;
+  if (RLV.anim && !restart && Math.abs(RLV.anim.effect.getTiming().duration - dur) < 1) { if (!rlvCalm() && !RLV.hold && !RLV.drag) RLV.anim.play(); else RLV.anim.pause(); return; }
+  const f = frac != null ? frac : RLV.anim ? (RLV.anim.currentTime || 0) / (RLV.anim.effect.getTiming().duration || 1) : 0;
+  if (RLV.anim) RLV.anim.cancel();
+  RLV.anim = t.animate([{ transform: "translate3d(0,0,0)" }, { transform: `translate3d(0,${-RLV.copy}px,0)` }], { duration: dur, iterations: Infinity, easing: "linear" });
+  RLV.anim.currentTime = ((f % 1) + 1) % 1 * dur;
+  if (rlvCalm() || RLV.hold || RLV.drag) RLV.anim.pause();
+}
+/* touch: hold still; drag to scrub; a drag never counts as a tap */
+function rlvBind(v) {
+  const resume = () => { clearTimeout(RLV.hold); RLV.hold = setTimeout(() => { RLV.hold = 0; if (RLV.anim && !rlvCalm()) RLV.anim.play(); }, 2000); };
+  v.addEventListener("pointerdown", e => { if (!RLV.anim) return; clearTimeout(RLV.hold); RLV.hold = -1; RLV.anim.pause(); RLV.moved = false;
+    RLV.drag = { y: e.clientY, t: RLV.anim.currentTime || 0, id: e.pointerId }; }, { passive: true });
+  v.addEventListener("pointermove", e => { const d = RLV.drag; if (!d || !RLV.anim || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y; if (!RLV.moved && Math.abs(dy) < 8) return;
+    if (!RLV.moved) { RLV.moved = true; try { v.setPointerCapture(e.pointerId); } catch (x) {} }
+    const dur = RLV.anim.effect.getTiming().duration; RLV.anim.currentTime = (((d.t - dy / RLV_SPEED * 1000) % dur) + dur) % dur; }, { passive: true });
+  const up = () => { if (!RLV.drag) return; RLV.drag = null; resume(); };
+  v.addEventListener("pointerup", up); v.addEventListener("pointercancel", up);
+  v.addEventListener("click", e => { if (RLV.moved) { RLV.moved = false; e.stopPropagation(); e.preventDefault(); return; }
+    const b = e.target.closest("[data-rlt]"); if (b) { e.stopPropagation(); goTab(b.dataset.rlt); } }, true);
+}
+{ const _pr = pnRail; pnRail = function () { const o = _pr.apply(this, arguments); try { rlvPaint(); } catch (e) {} return o; }; }
+new MutationObserver(() => { const c = rlvCalm(); if (c !== RLV.calm) { RLV.calm = c; rlvFill(); } })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+setInterval(() => { if (!document.hidden && !rlvCalm()) try { rlvPaint(); } catch (e) {} }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) try { rlvPaint(); } catch (e) {} });
+try { rlvPaint(); } catch (e) {}
+WHATS_NEW.push(
+  { v: 251, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => (innerWidth >= 620 && $("#hrail .rlv")) || null,
+    say: "The rail's game covers are now a <b>live strip</b> that never stops drifting: how far you are in what you're playing, countdowns to your next releases, price drops, what's up next and your backlog hours. And I sit inside the rail properly now.",
+    tryIt: "Unfold the phone and look at the rail. Touch the strip to hold it, drag it to scrub, tap a tile to open that game." }
 );
 </script>
