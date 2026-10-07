@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "249";
+const APP_V = "250";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -21778,7 +21778,7 @@ function gpPaint() {
       ${it.why ? `<p class="gp-why"><b>${it.who === "steam" ? "Steam" : esc(pnName())}:</b> ${esc(it.why)}</p>` : ""}
       <div class="gp-facts gd-tags">${gpFacts(it)}</div>
       ${it.full && it.full.description_raw ? `<p class="gp-desc">${esc(it.full.description_raw)}</p><button class="gp-more" data-gpdesc>Read more</button>`
-        : it.desc ? `<p class="gp-desc">${esc(it.desc)}</p>` : `<p class="gp-wait">${it._fail ? "Couldn't load the details right now." : "Getting screenshots and the full story…"}</p>`}
+        : it.desc ? `<p class="gp-desc">${esc(it.desc)}</p>` : `<p class="gp-wait">${it._fail ? "Couldn't load the details right now." : it._done ? "No story turned up for this one." : "Getting screenshots and the full story…"}</p>`}
       <div class="gp-acts">${have ? `<button class="hot" data-opg="${have.id}">In your library ›</button>` : `<button class="hot" data-gpadd>＋ Add to queue</button>`}<button data-ytq="${esc(it.name)}">▶ Trailer</button>${have ? "" : `<button data-gpno>Not for me</button>`}</div>
       ${have ? "" : `<p class="gp-hint">Swipe → to add · ← not for me${n > 1 ? " · ‹ › just looks" : ""}</p>`}
     </div>`;
@@ -21805,11 +21805,13 @@ function gpFacts(it) {
 async function gpLoad(it, tok) {
   if (it._busy) return; it._busy = 1;
   try {
-    const h = await sgResolve(it).catch(() => null);
+    /* v250: every lookup gets a time limit: one that never answered left the card on "Getting…" for good */
+    const lim = (pr, ms) => Promise.race([Promise.resolve(pr).catch(() => null), new Promise(r => setTimeout(() => r(null), ms))]);
+    const h = await lim(sgResolve(it), 10000);
     const [full, art, rs] = await Promise.all([
-      h && h.id ? rawgApi("games/" + h.id).catch(() => null) : null,
-      typeof artStores === "function" ? artStores(it.name, it.st ? { st: it.st } : {}).catch(() => null) : null,
-      h && h.id ? rawgApi("games/" + h.id + "/screenshots?page_size=6").catch(() => null) : null]);
+      h && h.id ? lim(rawgApi("games/" + h.id), 12000) : null,
+      typeof artStores === "function" ? lim(artStores(it.name, it.st ? { st: it.st } : {}), 15000) : null,
+      h && h.id ? lim(rawgApi("games/" + h.id + "/screenshots?page_size=6"), 12000) : null]);
     if (full) it.full = full;
     const plats = ((full || h || {}).platforms || []).map(x => x.platform ? x.platform.name : "").filter(Boolean);
     const pick = gpPickShots(art && art.pics, plats);
@@ -21819,7 +21821,9 @@ async function gpLoad(it, tok) {
     if (shots.length) { it._shots = shots; it._src = src; }
     it._done = 1;
   } catch (e) { it._fail = 1; } finally { it._busy = 0; }
-  if (tok > 0 && tok === GP.tok && GP.list[GP.i] === it) { const sc = gpBox().firstChild.scrollTop; gpPaint(); gpBox().firstChild.scrollTop = sc; }
+  /* v250: redraw whenever this game is the one on screen. It used to need the load started by that same drawing, so a game
+     fetched ahead (while you looked at the one before) and opened with › before it finished stayed on "Getting…" */
+  const bx = gpBox(); if (tok !== 0 && bx.classList.contains("on") && bx.firstChild && GP.list[GP.i] === it) { const sc = bx.firstChild.scrollTop; gpPaint(); bx.firstChild.scrollTop = sc; }
 }
 async function gpDecide(dir) {
   const it = GP.list[GP.i]; if (!it || sgHave(it)) { if (dir) gpStep(1); return; }
@@ -23600,5 +23604,34 @@ WHATS_NEW.push(
   { v: 249, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Smoother everywhere: my own problem checks were the biggest job after every tab switch, and they ran even while you were moving. Now they wait until the phone is really idle and check each screen once. I also see much smaller stutters now, so I report the lag you actually feel.",
     tryIt: "Switch tabs and open games: it should feel lighter. If anything still stutters, I'll report it myself." }
+);
+</script>
+<script>
+/* ===== v250 (the owner, with a screenshot of a "picked for you" card: "not all games have screenshots inside here, fix"):
+   1. The preview (gpLoad) redraws whenever the game it loaded is the one on screen. The next game is fetched ahead while you
+      look at one; opening it with › before that finished left it on "Getting screenshots and the full story…" for good,
+      because only the load started by the drawing itself could redraw. Every lookup now has a time limit (10–15s), and a
+      game with nothing found says so instead of "Getting…".
+   2. Nexi learned it: a loading line ("Getting… / Loading… / Checking… / Asking… / Fetching… / Looking… / Finding… /
+      Searching… / … is thinking…") still on screen and unchanged after 25s, online, is reported as kind "stuck"
+      (one per screen per day). Checked every 5s, only those few elements. ===== */
+{ const seen = new Map(), RX = /^(getting|loading|checking|asking|fetching|looking|finding|searching)\b.*(…|\.\.\.)$|is thinking…$/i;
+  setInterval(() => {
+    if (document.hidden || !navigator.onLine || !bugOn() || nxTouring()) { seen.clear(); return; }
+    const now = performance.now(), live = new Set();
+    document.querySelectorAll(".gp-wait, .dy-empty, [class*=wait]").forEach(el => {
+      const t = (el.textContent || "").trim(); if (t.length > 120 || !RX.test(t) || !el.getClientRects().length) return;
+      live.add(el); const o = seen.get(el);
+      if (!o || o.t !== t) { seen.set(el, { t, at: now }); return; }
+      if (!o.done && now - o.at > 25000) { o.done = 1;
+        bugReport("stuck", `“${t.slice(0, 60)}” stayed on screen for ${Math.round((now - o.at) / 1000)}s`, { at: bugPath(el), screen: bugScreen(), sigAt: "" }); }
+    });
+    for (const k of [...seen.keys()]) if (!live.has(k)) seen.delete(k);
+  }, 5000);
+}
+WHATS_NEW.push(
+  { v: 250, go: () => { closeFull(); dyClose(); nxShut(); goTab("add"); }, at: () => $("#p-add .dc-card") || $("#p-add input") || null,
+    say: "Fixed: games picked for you no longer get stuck on “Getting screenshots and the full story…” when you flip to the next one quickly. And I've learned to spot a loading message that never finishes, so I'll report it myself next time.",
+    tryIt: "Open a game picked for you and flip through with › quickly: each one fills in." }
 );
 </script>
