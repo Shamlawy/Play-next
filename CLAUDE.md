@@ -21,6 +21,7 @@
 ## Look
 - Black / near-black theme.
 - When the owner shares a reference design: copy its layout and style, not its colours.
+- No press animation (#309, v246): nothing shrinks, lifts or fades when touched. The last script strips movement from every `:active` rule, so don't add press effects.
 
 ## Speed rule
 - Must feel smooth at high refresh rate.
@@ -52,7 +53,8 @@
 ## What the owner loves
 - Automatic things that work on their own (problem reports Nexi files himself, updates that just arrive, cloud backup, price pings). Fresh automatic features that other apps don't have are their favourite: when choosing what to build, prefer the version that runs by itself over one that needs a tap.
 
-## Future selling plan
+## Future selling plan (parked)
+- The owner decided (Oct 2026) Play next stays personal: just the owner and the friend, no app store. Don't steer work toward store readiness; the list below only matters if that changes.
 - Credit RAWG with a link.
 - Users bring their own Steam / SteamGridDB keys.
 - No PlayStation Store.
