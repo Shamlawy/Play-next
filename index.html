@@ -4065,7 +4065,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "252";
+const APP_V = "253";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10641,8 +10641,14 @@ document.addEventListener("touchend", e => {
   goTab(TABS[j]);
 }, { passive: true });
 
-/* the lit segment is one sliding block, not a background per button */
+/* the lit segment is one sliding block, not a background per button.
+   Measured in the next frame: read right after a tab's redraw, offsetWidth laid out the whole
+   new list inside the tap (250 queue rows: 100-150ms of a 4x-slowed tap, #338) */
 function slidePill(pill) {
+  cancelAnimationFrame(pill.__slRaf);
+  pill.__slRaf = requestAnimationFrame(() => slidePillNow(pill));
+}
+function slidePillNow(pill) {
   const on = pill.querySelector('[data-view][aria-pressed="true"]');
   const bar = pill.querySelector(".vslide");
   if (!bar) return;
@@ -10680,7 +10686,7 @@ function renderPill() {
   const bar0 = pill.querySelector(".vslide");
   if (bar0) bar0.style.transition = "none";
   requestAnimationFrame(() => {
-    slidePill(pill);
+    slidePillNow(pill);
     requestAnimationFrame(() => { if (bar0) bar0.style.transition = ""; });
   });
   pill.onscroll = () => slidePill(pill);
@@ -23929,5 +23935,13 @@ WHATS_NEW.push(
       return el || null; },
     say: "Release day now <b>hands you a card</b>: when a game you're waiting for comes out, it greets you as you open the app, then shows you the game.",
     tryIt: "Tap 🃏 Calling card: yours arrives the same way now. Settings → Extra features → Release-day cards → Show me plays one." }
+);
+</script>
+<script>
+/* v253 (#338): the view switcher's marker is measured in the next frame (slidePill), not inside the tap */
+WHATS_NEW.push(
+  { v: 253, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $('#vpill [data-view][aria-pressed="true"]') || $("#vpill") || null,
+    say: "Fixed: switching to the Queue from Replay or Library answers faster with a long list. The switcher was measuring itself before the list had settled.",
+    tryIt: "Tap Replay, then Queue, on this switcher." }
 );
 </script>
