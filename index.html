@@ -17053,7 +17053,8 @@ addEventListener("resize", () => bugLayoutSoon(), { passive: true });
 const BUG_MODAL = [];
 ["alert", "confirm", "prompt"].forEach(k => { const f = window[k]; if (typeof f !== "function") return;
   window[k] = function () { const s = performance.now(); try { return f.apply(this, arguments); } finally { BUG_MODAL.push([s, performance.now()]); if (BUG_MODAL.length > 8) BUG_MODAL.shift(); } }; });
-const bugModal = (t, d) => BUG_MODAL.some(([s, e]) => t < e + 50 && t + d > s - 50);
+/* after v255 (#355): a "frame" of 10s+ is the phone asleep with the app open (one read 40 minutes), not lag */
+const bugModal = (t, d) => d > 1e4 || BUG_MODAL.some(([s, e]) => t < e + 50 && t + d > s - 50);
 /* 3. freezes: a task over 400ms once the app has started (Chrome can tell; Safari can't) */
 try {
   new PerformanceObserver(list => {
@@ -18601,6 +18602,8 @@ async function cbFetch(op, k, q, opt) {
   return j;
 }
 let cbT = 0, cbBusy = false, cbSelf = false, cbDirty = true, cbFails = 0, cbSoon = false;
+let cbShownAt = 0;
+document.addEventListener("visibilitychange", () => { if (!document.hidden) cbShownAt = Date.now(); });
 function cbKick(now) {
   if (!cbOn() || cbBusy) return;
   clearTimeout(cbT);
@@ -18632,7 +18635,9 @@ async function cbRun(force) {
     const m = String(e && e.message || e);
     if (e && e.status === 429) cbSoon = true;   /* the helper takes one copy per 20 s: try again shortly */
     else {
-      CB.err = m; CB.errAt = Date.now(); cbFails++;
+      CB.err = m; CB.errAt = Date.now();
+      /* after v255 (#356): a try while the app is in the background, or just after the phone wakes, can fail before its network is back */
+      if (!document.hidden && Date.now() - cbShownAt > 15e3) cbFails++;
       if (cbFails === 3 && navigator.onLine && m !== "helper-old" && typeof bugReport === "function") bugReport("helper", "Cloud backup failed: " + m.slice(0, 120));
     }
   } finally {
@@ -24014,4 +24019,18 @@ WHATS_NEW.push(
     say: "Fixed: switching to the Queue from Replay or Library answers faster with a long list. The switcher was measuring itself before the list had settled.",
     tryIt: "Tap Replay, then Queue, on this switcher." }
 );
+</script>
+<script>
+/* after v255 (#354 #355 #358): the lag checks skip frames that overlap a resize (fold/unfold, 0.8s after) or the time the app was
+   hidden (asleep, in the background; until 1.5s after it's back): they share the confirm-box list (BUG_MODAL, bugModal).
+   v245's LAG.rz only remembered the latest resize, so a fold's second resize could hide the first one's frame from it,
+   and the 400ms freeze check never had the skip at all. Overlapping windows merge so a resize burst is one entry. */
+{ const quiet = (s, e) => { const l = BUG_MODAL[BUG_MODAL.length - 1];
+    if (l && l.q && s <= l[1] + 50) l[1] = Math.max(l[1], e); else { const w = [s, e]; w.q = 1; BUG_MODAL.push(w); if (BUG_MODAL.length > 16) BUG_MODAL.shift(); } };
+  addEventListener("resize", () => { const t = performance.now(); quiet(t, t + 800); }, { passive: true });
+  let hid = document.hidden ? 0 : -1;
+  const off = () => { if (hid < 0) hid = performance.now(); }, on = () => { if (hid >= 0) { quiet(hid, performance.now() + 1500); hid = -1; } };
+  document.addEventListener("visibilitychange", () => document.hidden ? off() : on());
+  document.addEventListener("freeze", off); document.addEventListener("resume", on);
+  addEventListener("pagehide", off); addEventListener("pageshow", e => { if (e.persisted) on(); }); }
 </script>
