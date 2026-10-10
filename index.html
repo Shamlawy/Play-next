@@ -4130,7 +4130,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "259";
+const APP_V = "260";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4409,7 +4409,7 @@ function paintTab(tab) {
   document.querySelectorAll(".panel").forEach(p => {
     p.classList.remove("on");
     if (p.id === want) {
-      if (S.tabFade) void p.offsetWidth;
+      /* v260: no forced reflow here: a panel coming back from display:none starts its fade by itself */
       p.classList.add("on");
     }
   });
@@ -5079,7 +5079,7 @@ const GROUP_KEYS = {
   "The web": ["webGrid"],
   "Conclusions": ["analysisAt"],
   "Sound and reactions": ["sound", "reactions"],
-  "Motion": ["motion", "vt", "rowAnim", "bgOff", "tabFade"],
+  "Motion": ["motion", "vt", "rowAnim", "bgOff", "tabFade", "restOff"],
   "Header cards": ["shxOff", "shxX"],
   "Look of the app": ["uiStyle", "addStyle", "picHQ", "paper", "paperCol", "paperStr", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
@@ -6586,6 +6586,12 @@ function openSettings(scope) {
       <div class="chips" id="s-motion">
         <button class="chip" data-v="on" aria-pressed="${S.motion !== false}"><span>On</span></button>
         <button class="chip" data-v="off" aria-pressed="${S.motion === false}"><span>Off</span></button>
+      </div>
+      <label>Rest when idle</label>
+      <p class="note">After 12 seconds without a touch, looping decorations hold still so the phone isn't redrawing anything (saves battery). They carry on as soon as you touch.</p>
+      <div class="chips" id="s-rest">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.restOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
       <label>Speed boost</label>
       <p class="note">Swaps see-through blur for solid glass and freezes decoration while you scroll. Much smoother on big screens.</p>
@@ -11358,10 +11364,10 @@ setInterval(() => {
     cd.querySelectorAll("b[data-u]").forEach(b => {
       const nv = String(v[b.dataset.u]).padStart(b.dataset.u === "d" ? 1 : 2, "0");
       const cn = b.querySelector(".cdn"), cur = cn ? cn.textContent : b.textContent;
-      if (cur !== nv) { b.innerHTML = `<i class="cdn">${nv}</i>`; if (calm() || cur === "–") return;
+      if (cur !== nv) { b.innerHTML = `<i class="cdn">${nv}</i>`; if (calm() || cur === "–" || window.pnRest) return;   /* v260: resting = no flip */
         const gh = document.createElement("i"); gh.className = "cdg"; gh.textContent = cur; b.appendChild(gh);
-        gh.animate([{ transform: "none", opacity: 1, filter: "blur(0)" }, { transform: "translateY(-110%)", opacity: 0, filter: "blur(2px)" }], { duration: 520, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => gh.remove();
-        b.firstChild.animate([{ transform: "translateY(110%)", filter: "blur(2px)" }, { transform: "translateY(-10%)", filter: "blur(0)", offset: .75 }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
+        gh.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-110%)", opacity: 0 }], { duration: 520, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => gh.remove();
+        b.firstChild.animate([{ transform: "translateY(110%)" }, { transform: "translateY(-10%)", offset: .75 }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
     });
   });
 }, 1000);
@@ -13496,7 +13502,7 @@ const k=document.createElement('div');k.className='fxcut';Object.assign(k.style,
 k.innerHTML='<i></i><i></i>';document.body.appendChild(k);setTimeout(()=>k.remove(),700);
 burst(cx,cy,24,11,'#4DA3FF');setTimeout(()=>burst(cx,cy,12,9,'#EAF2FF'),90)}
 burst(e.clientX,e.clientY,8,5,'#EAF2FF')}
-else burst(e.clientX,e.clientY,8,5,'#4DA3FF');
+/* v260: no sparks on ordinary taps (a full-screen canvas redrawn every frame right when the next screen draws; #309 no press effects) */
 },true);
 addEventListener('pointerdown',e=>{if(still())return;const c=e.target.closest('.libcard');if(c){tc=c;tr=c.getBoundingClientRect();c.classList.add('fxt');tilt(e)}},{passive:true});
 function tilt(e){if(!tc)return;const x=(e.clientX-tr.left)/tr.width-.5,y=(e.clientY-tr.top)/tr.height-.5;
@@ -20712,7 +20718,9 @@ bdgSync(false);
    for him) and glides between his seat and his free spot when the rail hides or comes back. Seated: a tap makes him
    talk, a double tap or long press opens his wheel (dragging him out isn't possible; » hides the rail as before).
    v224: a tap on him hides the rail, so the » button goes while he's seated (it stays when the seat is switched off). */
-const seatOn = () => { const H = document.documentElement; return !S.nxSeatOff && innerWidth >= 620 && H.classList.contains("pnrail") && !H.classList.contains("railhide") && !H.classList.contains("nxtouring") && !H.classList.contains("nxguide"); };
+/* v260: the width only changes on fold/unfold; reading innerWidth here forced a full layout on every class change (each tab switch) */
+let seatVW = innerWidth; addEventListener("resize", () => { seatVW = innerWidth; }, { passive: true });
+const seatOn = () => { const H = document.documentElement; return !S.nxSeatOff && seatVW >= 620 && H.classList.contains("pnrail") && !H.classList.contains("railhide") && !H.classList.contains("nxtouring") && !H.classList.contains("nxguide"); };
 /* the rail's resting place (offset*, not the rect: the rail slides in with a transform, and mid-slide it's off screen) */
 function seatPos() { const r = document.getElementById("hrail"); if (!r || !r.offsetWidth) return null; return { x: r.offsetLeft + (r.offsetWidth - 62) / 2, y: r.offsetTop + r.offsetHeight - 62 - 16 }; }
 function seatSync(anim) {
@@ -24140,7 +24148,7 @@ html.hlvon #hlv { display: block; }
 .hlv-art { left: -14%; top: -14%; width: 128%; height: 128%; opacity: calc(.38 * var(--hlvk, 1)); animation: hlvArt 48s ease-in-out infinite alternate; }
 .hlv-s.noart .hlv-art { display: none; }
 @keyframes hlvArt { from { transform: translate3d(-4%,-3%,0) scale(1); } to { transform: translate3d(4%,3%,0) scale(1.1); } }
-.hlv-l { width: 120vmax; height: 120vmax; left: calc(50% - 60vmax); top: calc(50% - 60vmax); opacity: calc(.45 * var(--hlvk, 1)); }
+.hlv-l { width: 76vmax; height: 76vmax; left: calc(50% - 38vmax); top: calc(50% - 38vmax); opacity: calc(.45 * var(--hlvk, 1)); }
 .hlv-l1 { animation: hlvL1 31s ease-in-out infinite; }
 .hlv-l2 { animation: hlvL2 41s ease-in-out infinite; }
 .hlv-l3 { animation: hlvL3 53s ease-in-out infinite; }
@@ -24554,5 +24562,55 @@ WHATS_NEW.push(
     at: () => $("#full.on .gd-body") || $("#full.on .hub") || null,
     say: "The light on a game's page is <b>easier to see</b> now, and it works in every page style (New, Showcase and Plain), not just New.",
     tryIt: "Open a few games and watch each page take on that game's colours." }
+);
+</script>
+<style>
+/* v260 smoothness + battery: fewer full-screen layers stacked on every frame */
+html.hlvon #pnorbs, html.hlvon::before { display: none; }   /* the live light already covers both */
+html:not(.bgon) #bgtint { display: none; }                  /* the tint is for the art backdrop only */
+</style>
+<script>
+/* v260: #bgtint only while an art backdrop is up */
+{ const _ab2 = applyBg; applyBg = function () { const o = _ab2.apply(this, arguments);
+  const on = !!(document.getElementById("bgart") || {}).dataset && [$("#bgart"), $("#bgart2")].some(l => l && l.dataset.src);
+  const H = document.documentElement; if (H.classList.contains("bgon") !== on) H.classList.toggle("bgon", on); return o; }; }
+applyBg();
+
+/* v260 rest: 12s without a touch, every looping animation holds still (no frames to draw, nothing for the GPU to do);
+   the first touch, key, scroll or coming back to the app sets them going again. S.restOff turns it off. */
+const REST = { t: 0, on: false, held: [] }, REST_KEEP = new Set(["pnSpin", "gDot", "ncDot", "pnShim"]);
+function restHold() {
+  if (!REST.on) return;
+  for (const a of document.getAnimations()) {
+    const tm = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+    /* "still working" signs keep going: a frozen spinner reads as a hung app */
+    if (a.playState === "running" && tm && tm.iterations === Infinity && !(REST_KEEP.has(a.animationName) && tm.duration < 2000)) { try { a.pause(); REST.held.push(a); } catch (e) {} }
+  }
+  REST.t = setTimeout(restHold, 5000);   /* loops started while resting (a redraw) hold still too */
+}
+function restGo() { if (S.restOff || document.hidden) return; REST.on = true; window.pnRest = true; restHold(); }
+function restWake() {
+  clearTimeout(REST.t);
+  window.pnRest = false;
+  if (REST.on) { REST.on = false; const h = REST.held; REST.held = []; h.forEach(a => { try { if (a.playState === "paused") a.play(); } catch (e) {} }); }
+  REST.t = setTimeout(restGo, 12000);
+}
+["pointerdown", "keydown", "wheel", "touchstart"].forEach(t => addEventListener(t, restWake, { capture: true, passive: true }));
+addEventListener("scroll", () => { if (REST.on) restWake(); else { clearTimeout(REST.t); REST.t = setTimeout(restGo, 12000); } }, { capture: true, passive: true });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) restWake(); });
+restWake();
+/* Nexi's power-up spawns a bolt and embers every 180ms (it ends itself after 6s): none start while resting */
+{ const _pu3 = pnPowerUp; pnPowerUp = function () { if (window.pnRest) return; return _pu3.apply(this, arguments); }; }
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#s-rest [data-v]"); if (!b) return;
+  e.stopPropagation(); b.parentElement.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  S.restOff = b.dataset.v === "off"; save(); beep("tap"); restWake();
+}, true);
+
+WHATS_NEW.push(
+  { v: 260, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); },
+    at: null,
+    say: "<b>Smoother and lighter on the battery</b>: switching screens does less work, taps no longer throw sparks, the app draws far fewer layers on every frame, and when you stop touching for a few seconds the moving decorations rest so the phone isn't redrawing anything.",
+    tryIt: "Switch between screens and feel the difference. Settings → Motion → Rest when idle turns the resting off." }
 );
 </script>
