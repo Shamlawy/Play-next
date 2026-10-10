@@ -3822,10 +3822,9 @@ function goSub(tab, v) {
   else if (tab === "plan") { renderCal(); renderPill(); }
   else if (tab === "taste") { renderTaste(); renderPill(); }
 }
-function playEnter() {
-  const h = document.documentElement; h.classList.remove("enter"); void h.offsetWidth; h.classList.add("enter");
-  clearTimeout(playEnter.t); playEnter.t = setTimeout(() => h.classList.remove("enter"), 1200);
-}
+/* v261: no rule uses html.enter any more, and toggling it (with a forced layout) made Chrome restyle the whole page
+   four times per tab switch (`.panel.enter > :nth-child()` turns a class change into a full-subtree invalidation) */
+function playEnter() {}
 function goTab(name) {
   playEnter();
   let tab = name, sub = "";
@@ -4130,7 +4129,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "260";
+const APP_V = "261";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11520,17 +11519,15 @@ let pnVT = false;
 { const _wt = withTransition; withTransition = function (fn) {
   const r = _wt(fn); if (r && r.finished) { pnVT = true; r.finished.finally(() => { pnVT = false; }); } return r; }; }
 
-/* tabs slide in from the side you're heading to */
-{ const ORDER = ["home", "games", "plan", "taste", "add"];
-  const _pt = paintTab; paintTab = function (tab) {
+/* tabs slide in from the side you're heading to.
+   v261: the slide itself is CSS now (slashin / cut / smR / smL on .panel.on): this second one on the same panel made both
+   run on the main thread (two transform animations on one element can't go to the GPU). The jump to the top waits for
+   the frame's own layout instead of forcing one inside the tap (scrollY did, ~90ms at 4x CPU). */
+{ const _pt = paintTab; paintTab = function (tab) {
     const cb = document.querySelector('nav button[aria-current="true"]'), from = cb && cb.dataset.tab;
     _pt.apply(this, arguments);
     if (calm() || pnVT || !from || from === tab) return;
-    const a = ORDER.indexOf(from), b = ORDER.indexOf(tab), dir = b > a ? 1 : -1;
-    const nw = document.querySelector(".panel.on");
-    if (nw) nw.animate([{ transform: `translateX(${dir * 48}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
-      { duration: 340, easing: PN_EASE });
-    if (scrollY > 0) scrollTo(0, 0);
+    requestAnimationFrame(() => { if (scrollY > 0) scrollTo(0, 0); });
   }; }
 
 /* a game's page grows out of whatever you tapped, and shrinks back when closed */
@@ -13705,12 +13702,17 @@ document.addEventListener("scroll", e => {
 addEventListener("resize", () => { if (!pnShelfRaf) pnShelfRaf = requestAnimationFrame(pnShelf); });
 
 /* v129: when a screen opens, mark it for 0.9s so its pieces cascade in */
-document.querySelectorAll(".panel").forEach(pnl => new MutationObserver(ms => ms.forEach(m => {
-  const was = /\bon\b/.test(m.oldValue || "");
-  if (was || !pnl.classList.contains("on") || calm()) return;
-  pnl.classList.add("enter"); clearTimeout(pnl._enterT);
-  pnl._enterT = setTimeout(() => pnl.classList.remove("enter"), 900);
-})).observe(pnl, { attributes: true, attributeFilter: ["class"], attributeOldValue: true }));
+/* v261: the same cascade (`.panel.enter > *`) set straight on the first pieces: adding and removing the class restyled the
+   whole screen twice, because its :nth-child delays make Chrome invalidate every element under it. Once per switch
+   (paintTab's remove + add arrive as two records), and an inline animation replaces a piece's own one like the class did
+   (a second transform animation on the same piece would push it off the GPU). */
+document.querySelectorAll(".panel").forEach(pnl => new MutationObserver(ms => {
+  if (/\bon\b/.test(ms[0].oldValue || "") || !pnl.classList.contains("on") || calm()) return;
+  const kids = [...pnl.children].slice(0, document.documentElement.classList.contains("fast") ? 4 : 11);
+  kids.forEach((k, i) => { k.style.animation = `pnCascade .55s cubic-bezier(.22,1,.36,1) ${Math.min(i, 10) * 45}ms backwards`; });
+  clearTimeout(pnl._enterT);
+  pnl._enterT = setTimeout(() => kids.forEach(k => { if (k.style.animationName === "pnCascade") k.style.removeProperty("animation"); }), 1100);
+}).observe(pnl, { attributes: true, attributeFilter: ["class"], attributeOldValue: true }));
 
 /* v131 Nexi evolves with your Finished shelf */
 const PN_EVO = [0, 5, 10, 20, 35];
@@ -18366,7 +18368,9 @@ function flickWatch(el, name, opening) {
        Only a real open call counts (`_flkOpen`), so a sheet that snaps back by itself is still caught. */
     if (!opening && el._flkOpen > t0) return done();
     s.push(eff());
-    if (performance.now() - t0 < 750) requestAnimationFrame(step); else done();
+    /* v261: sampled every 40ms on a timer, not every frame: a requestAnimationFrame loop reading styles kept the main
+       thread drawing (57ms of forced style at 4x CPU per game page) while the page grew in on the GPU */
+    if (performance.now() - t0 < 750) setTimeout(step, 40); else done();
   };
   const done = () => {
     /* a dip: down by .4 or more, then back up by .4 or more (and, opening, a peak that falls away again) */
@@ -23813,6 +23817,16 @@ let lagTr = 0;
 function lagWatch(what) {
   if (lagTr || !lagOk() || nxTouring()) return;
   lagTr = 1; const t0 = performance.now(); let last = 0, n = 0, worst = 0, k = 0;
+  /* v261: Chrome reports its long frames by itself (long-animation-frame, from 50ms): no requestAnimationFrame loop,
+     which made the main thread draw every frame of the 0.9s it watched. The loop stays for Safari (no such entries). */
+  if (PerformanceObserver.supportedEntryTypes && PerformanceObserver.supportedEntryTypes.includes("long-animation-frame")) {
+    const ob = new PerformanceObserver(l => { for (const f of l.getEntries()) if (f.startTime >= t0 && f.startTime - t0 < 900) { n++; worst = Math.max(worst, f.duration); } });
+    ob.observe({ type: "long-animation-frame" });
+    setTimeout(() => { ob.takeRecords().forEach(f => { if (f.startTime >= t0 && f.startTime - t0 < 900) { n++; worst = Math.max(worst, f.duration); } }); ob.disconnect(); lagTr = 0;
+      if (((n >= 3 && worst >= 60) || worst >= 90) && lagOk() && !nxTouring() && !(LAG.rz > t0 - 800))
+        bugReport("slow", `${typeof what === "function" ? what() : what} stuttered (${n} hitch${n === 1 ? "" : "es"}, worst ${Math.round(worst / 10) * 10}ms)`, { screen: bugScreen(), sigAt: "" }); }, 1000);
+    return;
+  }
   const tick = t => {
     if (last && k++ > 0) { const d = t - last; if (d > 45) { n++; worst = Math.max(worst, d); } }   /* the first frame is the redraw itself: the long-frame and tap checks see that */
     last = t;
@@ -24612,5 +24626,66 @@ WHATS_NEW.push(
     at: null,
     say: "<b>Smoother and lighter on the battery</b>: switching screens does less work, taps no longer throw sparks, the app draws far fewer layers on every frame, and when you stop touching for a few seconds the moving decorations rest so the phone isn't redrawing anything.",
     tryIt: "Switch between screens and feel the difference. Settings → Motion → Rest when idle turns the resting off." }
+);
+</script>
+
+<style>
+/* v261: the view pill's highlight slides on the GPU: it used to animate width (a layout every frame for .28s) */
+.vslide { transition: opacity .18s linear; transform-origin: 0 50%; will-change: transform; }
+</style>
+<script>
+/* v261: smooth at the screen's own refresh rate. The highlight takes its new width at once and a transform animation
+   (scaleX from the old width) makes it look like it stretches across, so nothing is laid out while it moves. */
+slidePillNow = function (pill) {
+  const on = pill.querySelector('[data-view][aria-pressed="true"]'), bar = pill.querySelector(".vslide");
+  if (!bar) return;
+  if (!on) { bar.style.opacity = "0"; return; }
+  bar.style.opacity = "1";
+  const w = on.offsetWidth, x = on.offsetLeft, pw = +pill.dataset.bw || 0, px = +pill.dataset.bx || 0;
+  pill.dataset.bw = w; pill.dataset.bx = x;
+  bar.style.width = w + "px"; bar.style.transform = `translateX(${x}px)`;
+  if (pw && w && (pw !== w || px !== x) && bar.style.transition !== "none" && !calm())
+    bar.animate([{ transform: `translateX(${px}px) scaleX(${(pw / w).toFixed(3)})` }, { transform: `translateX(${x}px)` }],
+      { duration: 280, easing: "cubic-bezier(.4,0,.2,1)" });
+};
+</script>
+
+<script>
+/* v261: Nexi learned (the owner: "still lags a lot, I want 120 fps"): an animation the phone can't hand to its GPU makes
+   the main thread draw every frame while it runs. 160ms after each screen change (tab, game page, Settings, sheets) he
+   looks at what's moving: two animations on one piece both moving it (transform/opacity: they can't share the GPU, so
+   both run on the main thread; v260's tab slide + the CSS slide-in was one) or a piece of at least 64×64 animating
+   its size or place the slow way (width/height/top/left/margin/padding: a layout every frame; the view pill's width
+   was one). Kind "slow", one per screen per day. Nexi's own face (small, a short mood change) is under the size limit. */
+const GPU_SLOW = /^(width|height|top|left|right|bottom|inset|margin|padding|fontSize|lineHeight|borderWidth|flexBasis|gap|gridTemplate)/;
+function gpuCheck(what) {
+  if (!lagOk() || nxTouring() || calm()) return;
+  const moving = new Map(); let slow = null;
+  for (const a of document.getAnimations()) {
+    if (a.playState !== "running" || !a.effect || a.effect.pseudoElement) continue;
+    const el = a.effect.target; if (!el || !el.isConnected) continue;
+    const props = new Set(); a.effect.getKeyframes().forEach(k => Object.keys(k).forEach(p => props.add(p)));
+    for (const p of ["transform", "opacity"]) if (props.has(p)) { const k = moving.get(el) || {}; (k[p] ||= []).push(a); moving.set(el, k); }
+    const t = a.effect.getTiming(), dur = +t.duration || 0;
+    if (!slow && (dur >= 200 || t.iterations === Infinity) && [...props].some(p => GPU_SLOW.test(p))) slow = { el, a, p: [...props].find(p => GPU_SLOW.test(p)) };
+  }
+  const big = el => { const r = el.getBoundingClientRect(); return r.width >= 64 && r.height >= 64 && r.bottom > 0 && r.top < innerHeight && r.width * r.height > 0; };
+  const name = a => a.animationName || a.transitionProperty || (a.id ? "#" + a.id : "script animation");
+  const where = typeof what === "function" ? what() : what;
+  for (const [el, k] of moving) for (const p in k) if (k[p].length > 1 && big(el)) {
+    bugReport("slow", `${where}: two animations move the same piece at once (${k[p].map(name).join(" + ")} on ${p}), so it can't run on the GPU`,
+      { at: bugPath(el), screen: bugScreen(), sigAt: "" });
+    return;
+  }
+  if (slow && big(slow.el))
+    bugReport("slow", `${where}: a piece animates its ${slow.p} (${name(slow.a)}), which redraws the page every frame instead of moving it on the GPU`,
+      { at: bugPath(slow.el), screen: bugScreen(), sigAt: "" });
+}
+{ const _lw = lagWatch; lagWatch = function (what) { const ok = !lagTr; const o = _lw.apply(this, arguments); if (ok) setTimeout(() => gpuCheck(what), 160); return o; }; }
+
+WHATS_NEW.push(
+  { v: 261, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>Much smoother screen switches</b>: every tab change was quietly restyling the whole app up to four times, and its slide-in ran on the main processor instead of the graphics chip. Now it's one pass and the movement is on the GPU, so it can keep up with your 120Hz screen. I also watch for this myself now.",
+    tryIt: "Flick between Home, Games, Plan and Taste, and open a few games." }
 );
 </script>
