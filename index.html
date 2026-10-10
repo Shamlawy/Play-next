@@ -24719,7 +24719,8 @@ function offHold(root) {
     /* one that has finished but holds its last frame (fill: both) keeps a ghost on Chrome's GPU side once its piece isn't
        drawn, and the main thread draws every frame until it goes (seen after leaving the Queue): its last frame is written
        onto the piece and the animation let go, so nothing on screen changes */
-    const done = () => { if (!/both|forwards/.test(t.fill) || a.effect.pseudoElement) return;
+    const done = () => { if (!/both|forwards/.test(t.fill)) { try { a.cancel(); } catch (e) {} return; }   /* holds nothing: just let go */
+      if (a.effect.pseudoElement) return;
       const ps = new Set(); a.effect.getKeyframes().forEach(k => Object.keys(k).forEach(x => /^(offset|easing|composite|computedOffset)$/.test(x) || ps.add(x)));
       const was = {}; ps.forEach(x => { was[x] = el.style[x]; });
       try { a.commitStyles(); a.cancel(); } catch (e) { return; }
@@ -24775,9 +24776,11 @@ function offFree(root) {
   });
   document.querySelectorAll(".panel").forEach(p => { if (!p.classList.contains("on")) offHold(p);
     mo.observe(p, { attributes: true, attributeFilter: ["class"], childList: true, subtree: true }); }); }
-/* a safety net for redraws the observer can't see coming (a screen warmed up off to the side, a late picture): every 2s
-   the hidden screens are looked at once more (a few dozen animations, well under a millisecond) */
-setInterval(() => { if (!document.hidden) document.querySelectorAll(".panel:not(.on)").forEach(offHold); }, 2000);
+/* a safety net for what the observer can't see coming (a screen warmed up off to the side, a late picture, Settings' chips
+   finishing in a section scrolled out of sight): every 2s the whole page is looked at once more, and whatever is drawn
+   again carries on (a few dozen animations: 1-7ms at 4x CPU) */
+setInterval(() => { if (document.hidden) return; offHold(document.body); offFree(null); }, 2000);
+document.addEventListener("toggle", e => { const d = e.target; if (d && d.open) requestAnimationFrame(() => offFree(d)); }, true);   /* a section opened */
 document.addEventListener("contentvisibilityautostatechange", e => { const el = e.target;
   if (e.skipped) offHold(el); else { offFree(el); requestAnimationFrame(() => offFree(el)); } }, true);
 
