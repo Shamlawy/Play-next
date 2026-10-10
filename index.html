@@ -4130,7 +4130,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "256";
+const APP_V = "257";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5066,6 +5066,7 @@ function demoFlow() {
 const GROUP_KEYS = {
   "Tiles on Home": ["homeHide"],
   "How tiles look": ["homeTint", "homeCount"],
+  "Live background": ["hlvOff"],
   "The standings tile": ["standN"],
   "Queue cards": ["platPos", "ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
@@ -5969,6 +5970,15 @@ function openSettings(scope) {
       <div class="chips" id="s-homecount">
         ${[["on", "Show"], ["off", "Hide"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.homeCount === false ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+    </div>
+
+    <div class="setgroup" data-scope="home"><h4 data-desc="Soft light from your next game's art, moving behind Home.">Live background</h4>
+      <label>Live background</label>
+      <p class="note">Light from your #1 game's art drifts behind Home and changes colour by itself when your #1 changes. It runs at your screen's full refresh rate.</p>
+      <div class="chips" id="s-hlv">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.hlvOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
     </div>
 
@@ -24050,5 +24060,146 @@ WHATS_NEW.push(
       return el || null; },
     say: "Fixed: making a calling card no longer freezes the screen for a moment. It's drawn in small steps now, and the card looks exactly the same.",
     tryIt: "Tap 🃏 Calling card, then Reshuffle." }
+);
+</script>
+<style>
+/* v257 live Home background (hlv*): your #1 game's art and three lights taken from it drift behind Home, plus
+   rising specks. Only transform/opacity move, on small canvases the compositor stretches, so it runs at the
+   screen's own refresh rate (120Hz on the Fold) without touching the main thread. */
+#hlv { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; contain: strict; }
+html.onhome.hlvon #hlv { display: block; }
+.hlv-s { position: absolute; inset: 0; opacity: 0; transition: opacity .9s cubic-bezier(.4,0,.2,1); }
+.hlv-s.in { opacity: 1; }
+.hlv-s canvas { position: absolute; display: block; will-change: transform; backface-visibility: hidden; }
+.hlv-art { left: -14%; top: -14%; width: 128%; height: 128%; opacity: .38; animation: hlvArt 48s ease-in-out infinite alternate; }
+@keyframes hlvArt { from { transform: translate3d(-4%,-3%,0) scale(1); } to { transform: translate3d(4%,3%,0) scale(1.1); } }
+.hlv-l { width: 120vmax; height: 120vmax; left: calc(50% - 60vmax); top: calc(50% - 60vmax); opacity: .45; }
+.hlv-l1 { animation: hlvL1 31s ease-in-out infinite; }
+.hlv-l2 { animation: hlvL2 41s ease-in-out infinite; }
+.hlv-l3 { animation: hlvL3 53s ease-in-out infinite; }
+@keyframes hlvL1 { 0%, 100% { transform: translate3d(-34%,-30%,0) scale(.7); } 33% { transform: translate3d(28%,-22%,0) scale(.95); }
+  66% { transform: translate3d(6%,18%,0) scale(.6); } }
+@keyframes hlvL2 { 0%, 100% { transform: translate3d(30%,26%,0) scale(.85); } 40% { transform: translate3d(-26%,30%,0) scale(.6); }
+  75% { transform: translate3d(-12%,-28%,0) scale(1); } }
+@keyframes hlvL3 { 0%, 100% { transform: translate3d(0,38%,0) scale(.55); } 30% { transform: translate3d(-30%,-6%,0) scale(.8); }
+  60% { transform: translate3d(32%,-36%,0) scale(.65); } }
+.hlv-d i { position: absolute; bottom: -10px; width: 3px; height: 3px; border-radius: 50%; background: rgba(234,242,255,.8);
+  box-shadow: 0 0 6px 1px rgba(var(--vrgb),.55); opacity: 0; will-change: transform, opacity; animation: hlvD1 linear infinite; }
+.hlv-d i:nth-child(3n+1) { animation-name: hlvD2; } .hlv-d i:nth-child(3n+2) { animation-name: hlvD3; }
+@keyframes hlvD1 { 0% { transform: translate3d(0,0,0); opacity: 0; } 12%, 80% { opacity: .75; } 100% { transform: translate3d(18px,-105vh,0); opacity: 0; } }
+@keyframes hlvD2 { 0% { transform: translate3d(0,0,0); opacity: 0; } 15%, 75% { opacity: .5; } 100% { transform: translate3d(-26px,-90vh,0); opacity: 0; } }
+@keyframes hlvD3 { 0% { transform: translate3d(0,0,0); opacity: 0; } 10%, 85% { opacity: .9; } 100% { transform: translate3d(8px,-110vh,0); opacity: 0; } }
+/* Home's panel lets the light through */
+html.hlvon .dxw { background: rgba(10,14,27,.72); }
+/* nothing moves where nobody can see it */
+html:has(#full.on) #hlv *, html.dragging-now #hlv *, #hlv.hold * { animation-play-state: paused !important; }
+</style>
+<script>
+/* v257 live Home background (S.hlvOff turns it off; Home → Customise → Live background) */
+const HLV = { src: "", tok: 0, raf: 0 };
+function hlvColours(c, g) {
+  /* three lights from the art: the strongest hues, brightened; the game's own colour and the accent fill in */
+  const out = [];
+  try {
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data, bins = {};
+    for (let i = 0; i < d.length; i += 16) {
+      const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0;
+      if (mx < 40 || sat < .25) continue;
+      let h = mx === mn ? 0 : mx === r ? (gg - b) / (mx - mn) : mx === gg ? 2 + (b - r) / (mx - mn) : 4 + (r - gg) / (mx - mn);
+      const k = Math.round(((h * 60 + 360) % 360) / 30) % 12, w = sat * mx, o = bins[k] || (bins[k] = { w: 0, r: 0, g: 0, b: 0 });
+      o.w += w; o.r += r * w; o.g += gg * w; o.b += b * w;
+    }
+    Object.values(bins).sort((x, y) => y.w - x.w).slice(0, 3).forEach(o => {
+      let r = o.r / o.w, gg = o.g / o.w, b = o.b / o.w; const k = 200 / Math.max(r, gg, b, 1);
+      out.push(`rgb(${Math.round(r * k)},${Math.round(gg * k)},${Math.round(b * k)})`);
+    });
+  } catch (e) { /* a picture from another site without permission: its colours can't be read */ }
+  const v = (getComputedStyle(document.documentElement).getPropertyValue("--vrgb") || "77,163,255").trim();
+  if (g && g.colour && out.length < 3) out.push(g.colour);
+  while (out.length < 3) out.push(`rgb(${v})`);
+  return out;
+}
+function hlvLight(col) {
+  const c = document.createElement("canvas"); c.width = c.height = 64; c.className = "hlv-l";
+  const x = c.getContext("2d"); if (!x) return c;
+  /* the colour, then cut to a soft round light */
+  x.fillStyle = col; x.fillRect(0, 0, 64, 64);
+  const m = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  [[0, 1], [.3, .62], [.55, .26], [.8, .06], [1, 0]].forEach(([s, a]) => m.addColorStop(s, `rgba(0,0,0,${a})`));
+  x.globalCompositeOperation = "destination-in"; x.fillStyle = m; x.fillRect(0, 0, 64, 64);
+  return c;
+}
+async function hlvBuild(g, src, tok) {
+  const url = liteFor(src, 1) || (bigData(src) ? blobRef(src) : src);
+  const get = cors => new Promise(res => { const im = new Image(); im.decoding = "async"; if (cors) im.crossOrigin = "anonymous";
+    im.onload = () => res(im); im.onerror = () => res(null); im.src = url; });
+  /* asked with CORS so its colours can be read; a site that refuses still gives the picture */
+  const im = (/^https?:/.test(url) && !url.startsWith(location.origin) && await get(1)) || await get(0);
+  if (!im) return;
+  try { await im.decode(); } catch (e) {}
+  if (HLV.tok !== tok) return;
+  /* tiny on purpose: the stretch does the blur, and drawing it costs well under a millisecond */
+  const W = innerWidth || 400, H = innerHeight || 800, cw = 72, ch = Math.max(24, Math.min(200, Math.round(cw * H / W)));
+  const c = document.createElement("canvas"); c.width = cw; c.height = ch; c.className = "hlv-art";
+  const x = c.getContext("2d"); if (!x) return;
+  if ("filter" in x) x.filter = "blur(2px) saturate(1.35)";
+  const r = Math.max(cw / im.naturalWidth, ch / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r;
+  x.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h);
+  await new Promise(res => requestAnimationFrame(res));
+  if (HLV.tok !== tok) return;
+  const cols = hlvColours(c, g), sc = document.createElement("div"); sc.className = "hlv-s";
+  sc.appendChild(c);
+  cols.forEach((col, n) => { const l = hlvLight(col); l.classList.add("hlv-l" + (n + 1));
+    l.style.animationDelay = -(Math.random() * 30).toFixed(1) + "s"; sc.appendChild(l); });
+  const box = hlvBox(); if (!box) return;
+  box.insertBefore(sc, box.querySelector(".hlv-d"));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    sc.classList.add("in");
+    box.querySelectorAll(".hlv-s").forEach(o => { if (o !== sc) { o.classList.remove("in"); setTimeout(() => o.remove(), 950); } });
+  }));
+}
+function hlvBox() {
+  let b = document.getElementById("hlv");
+  if (b) return b;
+  const t = document.getElementById("bgtint"); if (!t) return null;
+  b = document.createElement("div"); b.id = "hlv"; b.setAttribute("aria-hidden", "true");
+  /* 14 specks, each on its own path and speed */
+  let d = "";
+  for (let i = 0; i < 14; i++) d += `<i style="left:${(i * 7.3 + Math.random() * 5).toFixed(1)}%;animation-duration:${(14 + Math.random() * 16).toFixed(1)}s;animation-delay:-${(Math.random() * 30).toFixed(1)}s;${i % 4 ? "" : "width:2px;height:2px;"}"></i>`;
+  b.innerHTML = `<div class="hlv-d">${d}</div>`;
+  t.after(b);
+  return b;
+}
+function hlvSync() {
+  HLV.raf = 0;
+  const on = !S.hlvOff, hero = on && $("#p-home .dxhero[data-home-open]");
+  const g = hero && S.games.find(x => x.id === hero.dataset.homeOpen);
+  const src = g ? (bgSource(g) || cover(g)) : "";
+  const r = document.documentElement;
+  if (!src) { if (r.classList.contains("hlvon")) r.classList.remove("hlvon"); HLV.src = ""; HLV.tok++;
+    const b = document.getElementById("hlv"); if (b) b.querySelectorAll(".hlv-s").forEach(o => o.remove()); return; }
+  if (!r.classList.contains("hlvon")) r.classList.add("hlvon");
+  if (src === HLV.src) return;
+  HLV.src = src;
+  hlvBuild(g, src, ++HLV.tok);
+}
+function hlvKick() { if (!HLV.raf) HLV.raf = requestAnimationFrame(hlvSync); }
+{ const _rh7 = renderHome; renderHome = function () { const o = _rh7.apply(this, arguments); hlvKick(); return o; }; }
+/* the light is only drawn while the app is in front */
+document.addEventListener("visibilitychange", () => { const b = document.getElementById("hlv"); if (b) b.classList.toggle("hold", document.hidden); });
+hlvKick();
+
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#s-hlv [data-v]"); if (!b) return;
+  e.stopPropagation(); const w = b.parentElement;
+  w.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  S.hlvOff = b.dataset.v === "off"; save(); beep("tap"); hlvKick();
+}, true);
+
+WHATS_NEW.push(
+  { v: 257, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); },
+    at: () => $("#p-home .dxhero") || null,
+    say: "Home has a <b>live background</b> now: soft light from your next game's art drifts behind everything, smooth at your screen's full refresh rate, and changes colour by itself when your #1 changes.",
+    tryIt: "Settle a duel with ⚔ on the big card: when your #1 changes, the light follows it. Customise → Live background turns it off." }
 );
 </script>
