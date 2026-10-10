@@ -57,6 +57,15 @@ async function walk(name, dev) {
   page.on("pageerror", e => errors.push(String(e && e.message || e)));
   page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked/i.test(m.text())) errors.push(m.text()); });
   await page.goto(BASE); await page.waitForTimeout(2500);
+  /* a "too faint" report says only where: also note what made it faint (text colour, faded parents, what was animating) */
+  await page.evaluate(() => { window.__diag = []; const o = window.bugReport; if (typeof o !== "function") return;
+    window.bugReport = function (k, m, x) {
+      try { if (/faint/.test(m) && x && x.at) { const sel = String(x.at).replace(/ contrast.*$/, ""); const el = document.querySelector(sel);
+        if (el) { const ch = []; for (let a = el; a && a !== document.documentElement; a = a.parentElement) { const c = getComputedStyle(a);
+            const an = (a.getAnimations ? a.getAnimations() : []).map(z => (z.animationName || z.transitionProperty || "anim") + ":" + z.playState).join(",");
+            if (+c.opacity < 1 || an || (c.backgroundColor !== "rgba(0, 0, 0, 0)")) ch.push(`${a.id ? "#" + a.id : a.tagName.toLowerCase() + "." + String(a.className).split(" ")[0]} op=${c.opacity} bg=${c.backgroundColor}${an ? " anim=" + an : ""}`); }
+          window.__diag.push(`${m} | color=${getComputedStyle(el).color} | html=${document.documentElement.className.slice(0, 120)} | ${ch.slice(0, 8).join(" / ")}`); } } } catch (e) {}
+      return o.apply(this, arguments); }; });
   const tag = name.replace(/\s+/g, "-").toLowerCase();
   const step = async (label, fn, wait = 1200) => {
     try { await page.evaluate(fn); } catch (e) { errors.push(`${label}: ${String(e.message || e).split("\n")[0]}`); }
@@ -96,6 +105,8 @@ async function walk(name, dev) {
   const real = kept.filter(r => r.kind !== "slow"), slow = kept.filter(r => r.kind === "slow");
   console.log(real.length ? "The app reported:\n  " + real.map(line).join("\n  ") : "The app reported nothing (besides timing).");
   if (slow.length) console.log("Timing reports (a CI machine has no GPU, so these are only a hint):\n  " + slow.map(line).join("\n  "));
+  const diag = await page.evaluate(() => window.__diag || []).catch(() => []);
+  if (diag.length) console.log("What made text faint:\n  " + [...new Set(diag)].join("\n  "));
   if (errors.length) failed++;
   await ctx.close();
 }

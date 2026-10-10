@@ -4130,7 +4130,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "258";
+const APP_V = "259";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5067,6 +5067,9 @@ const GROUP_KEYS = {
   "Tiles on Home": ["homeHide"],
   "How tiles look": ["homeTint", "homeCount"],
   "Live background": ["hlvOff", "hlvX"],
+  "Playing now cards": ["dzX"],
+  "On deck cards": ["dzX"],
+  "Player type card": ["dzX"],
   "The standings tile": ["standN"],
   "Queue cards": ["platPos", "ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
@@ -5973,6 +5976,15 @@ function openSettings(scope) {
       </div>
     </div>
 
+    <div class="setgroup" data-scope="home"><h4 data-desc="Colour cards for the games you're playing.">Playing now cards</h4>
+      <label>Look</label>
+      <p class="note">Each game in its own colour, a big title and its character standing in the card.</p>
+      <div class="chips" id="s-dzx-play">
+        ${[["on", "New"], ["off", "Classic"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).play ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+    </div>
+
     <div class="setgroup" data-scope="home"><h4 data-desc="Soft light from your next game's art, moving behind Home.">Live background</h4>
       <label>Live background</label>
       <p class="note">Light from your #1 game's art drifts behind Home and changes colour by itself when your #1 changes. It runs at your screen's full refresh rate.</p>
@@ -5986,6 +5998,15 @@ function openSettings(scope) {
       <label for="s-standn">Places in the standings</label>
       <div class="rowline"><input id="s-standn" type="range" min="2" max="10" value="${num(S.standN, 4, 2, 10)}">
         <span class="v" id="s-standn-v">${num(S.standN, 4, 2, 10)}</span></div>
+    </div>
+
+    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Big photo cards for your top 3.">On deck cards</h4>
+      <label>Look</label>
+      <p class="note">Your #1 as a full picture with the details on a soft blur, #2 and #3 with the picture on top.</p>
+      <div class="chips" id="s-dzx-deck">
+        ${[["on", "New"], ["off", "Classic"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).deck ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="games"><h4 data-desc="Soft moving light behind Games and on each game's page.">Live background</h4>
@@ -6326,6 +6347,15 @@ function openSettings(scope) {
       <div class="chips" id="s-playstyle">${PLAY_STYLES.map(([v, l]) =>
         `<button class="chip" data-v="${v}" aria-pressed="${playStyle() === v}"><span>${l}</span></button>`).join("")}</div>
       <p class="note">Every "hours to beat", evening count and plan uses this. Games without their own extras or 100% hours get a typical estimate from the main story.</p>
+    </div>
+
+    <div class="setgroup" data-scope="taste" data-sub="insights"><h4 data-desc="Your player type as a playing card.">Player type card</h4>
+      <label>Look</label>
+      <p class="note">A court card with your type's mirrored letters, crowns and patterned card backs.</p>
+      <div class="chips" id="s-dzx-court">
+        ${[["on", "New"], ["off", "Classic"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).court ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="taste"><h4 data-desc="Soft moving light in the colours of your favourite genres.">Live background</h4>
@@ -24128,9 +24158,9 @@ html.hlvon #hlv { display: block; }
 @keyframes hlvD3 { 0% { transform: translate3d(0,0,0); opacity: 0; } 10%, 85% { opacity: .9; } 100% { transform: translate3d(8px,-110vh,0); opacity: 0; } }
 /* Home's panel and a game's page let the light through */
 html.hlvon .dxw { background: rgba(10,14,27,.72); }
-#full.hlvgon .hub.gpage { background: rgba(10,14,27,.72); }
+#full.hlvgon .hub.gpage { background: rgba(10,14,27,.5); }
 #full.hlvgon .gd-hero::after {
-  background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, rgba(10,14,27,.72) 100%),
+  background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, rgba(10,14,27,.5) 100%),
     radial-gradient(90% 70% at 85% 100%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); }
 /* v258: the calendar's cover dots (i.ccov) share a name with the calling card overlay and took its z-index 9000:
    opening a game from Plan showed them floating over the game page */
@@ -24302,7 +24332,7 @@ function hlvSync() {
 /* v258: a game's page gets its own light. #full is redrawn on every open, so the layer is put back each time */
 function hlvGame() {
   const f = $("#full"); if (!f) return;
-  const g = f.classList.contains("on") && !(S.hlvX || {}).game && f.querySelector(".hub.gpage") && S.games.find(x => x.id === hubAt);
+  const g = f.classList.contains("on") && !(S.hlvX || {}).game && f.querySelector(".hub") && S.games.find(x => x.id === hubAt);
   const src = g ? (bgSource(g) || cover(g)) : "";
   if (!src) { clearTimeout(HLV.gt); HLV.gk = ""; if (f.classList.contains("hlvgon")) f.classList.remove("hlvgon"); if (HLV.g) hlvHideAll(HLV.g); return; }
   if (!HLV.g) HLV.g = hlvMake("hlvg");
@@ -24314,7 +24344,7 @@ function hlvGame() {
   HLV.gt = setTimeout(() => {
     const go = () => { if (HLV.gk !== g.id || hubAt !== g.id || !f.classList.contains("on")) return;
       if (!f.classList.contains("hlvgon")) f.classList.add("hlvgon");
-      hlvScene(HLV.g, { g, src, k: .9 }); };
+      hlvScene(HLV.g, { g, src, k: 1.3 }); };
     window.requestIdleCallback ? requestIdleCallback(go, { timeout: 600 }) : go();
   }, 650);
 }
@@ -24354,5 +24384,175 @@ WHATS_NEW.push(
     at: () => $("#full.on .gd-body") || null,
     say: "Every game's page has its own <b>live light</b> now, made from that game's art and drifting behind the details.",
     tryIt: "Swipe to the next game and watch the light change with it. Games → Customise → Live background turns it off." }
+);
+</script>
+<style>
+/* v259 three new card looks, from the owner's references (layout and style copied, our colours):
+   dzp = Home "Playing now" colour cards, dzd = On deck photo cards, dzc = the player type as a court card.
+   Switches: S.dzX.play / .deck / .court (Customise on Home, Games → Queue, Taste → Insights). */
+.dxplay.dz .dzp-row { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 2px 0 6px; margin-top: 10px; }
+.dzp-row::-webkit-scrollbar, .dzd-row::-webkit-scrollbar { display: none; }
+.dzp { flex: 0 0 min(64%, 240px); height: 300px; scroll-snap-align: start; position: relative; overflow: hidden; border: 0; border-radius: 26px;
+  padding: 16px 16px 0; text-align: left; color: #fff; font: inherit; display: flex; flex-direction: column; align-items: flex-start;
+  background: color-mix(in srgb, var(--tint) 50%, rgb(14,16,28)); }
+@media (min-width: 700px) { .dzp { flex: 1 1 0; min-width: 0; } }
+.dzp-k { position: relative; z-index: 2; font-size: 11.5px; font-weight: 500; opacity: .8; }
+.dzp-t { position: relative; z-index: 2; margin-top: 6px; max-width: 82%; font-size: 24px; line-height: 1.06; font-weight: 500; letter-spacing: -.02em;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 12px rgba(0,0,0,.25); }
+.dzp-go { position: absolute; z-index: 2; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.2);
+  display: grid; place-items: center; }
+.dzp-go svg { width: 14px; height: 14px; }
+.dzp-fig { position: absolute; z-index: 1; right: -4%; bottom: 0; height: 64%; max-width: 104%; width: auto; object-fit: contain; object-position: bottom right; }
+.dzp-pic { position: absolute; z-index: 1; left: 0; bottom: 0; width: 100%; height: 60%; object-fit: cover;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 42%); mask-image: linear-gradient(to bottom, transparent 0%, black 42%); }
+.dzp-bar { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 14px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
+.dzp-bar i { display: block; height: 100%; width: 100%; background: #fff; border-radius: 2px; transform-origin: left; transform: scaleX(var(--p, 0)); }
+
+.deck.dzd { display: block; }
+.dzd-row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 8px 2px 12px; }
+.dzd-a, .dzd-s { flex: 0 0 min(76%, 300px); height: 410px; scroll-snap-align: start; position: relative; overflow: hidden; border: 0; border-radius: 30px;
+  padding: 0; text-align: left; color: #fff; font: inherit; box-shadow: 0 18px 40px -20px rgba(0,0,0,.85); }
+@media (min-width: 700px) { .dzd-a, .dzd-s { flex: 1 1 0; min-width: 0; } }
+.dzd-a { background: rgb(14,18,32); }
+.dzd-a .dzd-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* the soft blur under the words: a blurred copy of the same picture, masked to the bottom (drawn once, never animated) */
+.dzd-a .dzd-blur { position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; filter: blur(14px) saturate(1.15);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 46%, black 70%); mask-image: linear-gradient(to bottom, transparent 46%, black 70%); }
+.dzd-a::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0) 45%, rgba(0,0,0,.45) 100%); }
+.dzd-n { position: absolute; z-index: 2; top: 12px; right: 12px; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 20px; display: grid; place-items: center;
+  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35); font-weight: 700; font-size: 14px; }
+.dzd-b { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
+.dzd-a b, .dzd-s b { font-size: 26px; line-height: 1.05; font-weight: 600; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dzd-a small, .dzd-s small { font-size: 13px; opacity: .72; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.dzd-m { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; font-weight: 500; }
+.dzd-m i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.dzd-m i em { font-style: normal; opacity: .65; font-weight: 400; }
+.dzd-btn { margin-top: 12px; height: 46px; border-radius: 23px; display: grid; place-items: center; background: rgba(255,255,255,.94); color: rgb(12,14,22); font-weight: 600; font-size: 14px; }
+.dzd-s { background: var(--u-pan, rgb(14,18,32)); border: 1px solid rgba(255,255,255,.06); padding: 8px; display: flex; flex-direction: column; }
+.dzd-ph { position: relative; height: 50%; flex: none; border-radius: 24px; overflow: hidden; background: rgb(20,26,46); }
+.dzd-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dzd-s .dzd-t { padding: 14px 8px 0; display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; }
+.dzd-s .dzd-row2 { display: flex; gap: 8px; align-items: center; padding: 0 2px 2px; }
+.dzd-s .dzd-btn2 { flex: 1; height: 46px; border-radius: 23px; display: grid; place-items: center; background: var(--volt); color: rgb(6,10,22); font-weight: 600; font-size: 14px; }
+.dzd-s .dzd-n2 { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.18); font-weight: 700; font-size: 14px; }
+
+.ix-hero.dzc { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 18px; }
+.ix-hero.dzc > * { max-width: 100%; }
+.dzc-table { position: relative; display: flex; justify-content: center; align-items: center; gap: 14px; width: calc(100% + 36px); max-width: none; margin: 0 -18px 16px; }
+.dzc-card, .dzc-back { flex: none; width: min(56vw, 230px); aspect-ratio: 5 / 7; border-radius: 22px; position: relative; }
+.dzc-card { background: rgb(15,18,32); box-shadow: 0 0 0 2px rgba(var(--vrgb),.55), 0 24px 50px -20px rgba(0,0,0,.9); color: var(--ice); }
+.dzc-card::before { content: ""; position: absolute; inset: 10px; border-radius: 14px; border: 2px solid rgba(234,242,255,.7); pointer-events: none; }
+.dzc-back { width: min(40vw, 170px); border-radius: 18px; overflow: hidden; background-color: rgb(15,18,32); box-shadow: 0 0 0 2px rgba(234,242,255,.12);
+  background-image: radial-gradient(circle at 50% 50%, transparent 5px, rgba(var(--vrgb),.8) 5.5px, rgba(var(--vrgb),.8) 7px, transparent 7.5px),
+    repeating-linear-gradient(115deg, rgba(var(--vrgb),.55) 0 3px, transparent 3px 7px);
+  background-size: 34px 34px, auto; }
+.dzc-back::after { content: ""; position: absolute; inset: 8px; border-radius: 12px; border: 2px solid rgb(15,18,32); box-shadow: 0 0 0 6px rgb(15,18,32) inset; opacity: .9; }
+.dzc-face { position: absolute; inset: 22px 16px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+.dzc-crown { width: 66%; height: auto; color: var(--volt); }
+.dzc-crown.dn { transform: rotate(180deg); }
+.dzc-mono { position: relative; flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: .78; }
+.dzc-mono b { font-family: "Poppins", system-ui, sans-serif; font-weight: 800; font-size: clamp(56px, 19vw, 92px); letter-spacing: -.04em;
+  background: repeating-linear-gradient(100deg, var(--ice) 0 3px, transparent 3px 6px); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1.5px var(--ice); }
+.dzc-mono b.r { transform: rotate(180deg); }
+.dzc-mono em { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-style: normal; font-size: 26px; padding: 4px; border-radius: 50%;
+  background: rgb(15,18,32); box-shadow: 0 0 0 2px rgba(var(--vrgb),.7); }
+.dzc-ix { position: absolute; top: 18px; left: 16px; writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 800; font-size: 17px; letter-spacing: .02em; color: var(--ice); }
+.dzc-ix.b { top: auto; left: auto; bottom: 18px; right: 16px; transform: none; }
+@media (min-width: 700px) { .dzc-card { width: 230px; } .dzc-back { width: 170px; } }
+</style>
+<script>
+/* v259 three new card looks (switch: S.dzX) */
+const dzOn = k => !(S.dzX || {})[k];
+const DZ_ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11 11 5M6 5h5v5"/></svg>';
+const dzMeta = g => {
+  const h = hrsOf(g), pl = platList(g.platforms)[0], when = g.date ? (days(g.date).startsWith("Out") ? "Out now" : shortDate(g.date)) : "";
+  return [h ? `<i><em>≈</em> ${esc(String(num(h, 0, 0, 1000)))}h</i>` : "", pl ? `<i><em>on</em> ${esc(pl)}</i>` : "", when ? `<i><em>${when === "Out now" ? "" : "out"}</em> ${esc(when)}</i>` : ""].join("");
+};
+/* 1. Home "Playing now": colour cards */
+function dzPlay() {
+  if (!dzOn("play")) return;
+  const box = $("#p-home .dxplay"), row = box && box.querySelector(".row3"); if (!row) return;
+  const gs = [...row.querySelectorAll("[data-home-open]")].map(b => S.games.find(g => g.id === b.dataset.homeOpen)).filter(Boolean);
+  if (!gs.length) return;
+  box.classList.add("dz");
+  row.outerHTML = `<div class="dzp-row">${gs.map(g => {
+    const done = loggedOf(g), total = num(hrsOf(g), 0, 0, 1000), pct = total ? Math.min(1, done / total) : 0;
+    const k = (g.state || "") === "playing" ? (g.comp ? "Competitive" : total ? "Playing · " + Math.round(pct * 100) + "%" : "Playing now")
+      : (platList(g.genres)[0] || (isFresh(g) ? "Out now" : "Up next"));
+    const pic = g.key ? `<img class="dzp-fig" decoding="async" src="${esc(g.key)}" alt="">`
+      : `<img class="dzp-pic" decoding="async" src="${esc(bgSource(g) || cover(g))}" alt="">`;
+    return `<button type="button" class="dzp" data-home-open="${g.id}" style="--tint:${esc(g.colour || PALETTE[0])}">
+      <span class="dzp-k">${esc(k)}</span><b class="dzp-t">${esc(g.title)}</b><span class="dzp-go" aria-hidden="true">${DZ_ARROW}</span>${pic}
+      ${(g.state || "") === "playing" && total && !g.comp ? `<span class="dzp-bar"><i style="--p:${pct.toFixed(3)}"></i></span>` : ""}</button>`; }).join("")}</div>`;
+}
+{ const _rh8 = renderHome; renderHome = function () { const o = _rh8.apply(this, arguments); dzPlay(); return o; }; }
+
+/* 2. On deck: photo cards (#1 full picture, #2 and #3 picture on top) */
+{ const _ods = onDeckStrip; onDeckStrip = function () {
+  if (!dzOn("deck") || S.deckOff) return _ods.apply(this, arguments);
+  const d = onDeck(3); if (!d.length) return "";
+  const art = g => esc(bgSource(g) || cover(g)), why = g => esc(deckWhy(g) || platList(g.genres).slice(0, 2).join(" · "));
+  return `<div class="deck dzd"><span class="deck-h">On deck</span><div class="dzd-row">${d.map((g, i) => i === 0
+    ? `<button type="button" class="dzd-a" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
+        <img class="dzd-img" decoding="async" src="${art(g)}" alt=""><img class="dzd-blur" decoding="async" src="${esc(liteFor(bgSource(g) || cover(g), 1) || bgSource(g) || cover(g))}" alt="" aria-hidden="true">
+        <span class="dzd-n">#1</span>
+        <span class="dzd-b"><b>${esc(g.title)}</b><small>${why(g)}</small><span class="dzd-m">${dzMeta(g)}</span><span class="dzd-btn">Play this next</span></span></button>`
+    : `<button type="button" class="dzd-s" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
+        <span class="dzd-ph"><img decoding="async" src="${art(g)}" alt=""></span>
+        <span class="dzd-t"><b>${esc(g.title)}</b><small>${why(g)}</small><span class="dzd-m">${dzMeta(g)}</span></span>
+        <span class="dzd-row2"><span class="dzd-btn2">Open</span><span class="dzd-n2">#${i + 1}</span></span></button>`).join("")}</div></div>`;
+}; }
+
+/* 3. Taste → Insights: the player type as a court card, with patterned card backs either side */
+const DZ_CROWN = '<svg class="dzc-crown" viewBox="0 0 120 52" fill="currentColor" aria-hidden="true"><path d="M8 40 Q60 26 112 40 L112 50 Q60 37 8 50 Z"/>'
+  + [24, 60, 96].map(x => `<circle cx="${x}" cy="14" r="6"/><circle cx="${x - 6}" cy="22" r="6"/><circle cx="${x + 6}" cy="22" r="6"/><rect x="${x - 2}" y="22" width="4" height="12"/>`).join("") + "</svg>";
+{ const _tip = tasteInsightsPage; tasteInsightsPage = function () {
+  const o = _tip.apply(this, arguments);
+  if (!dzOn("court") || typeof o !== "string") return o;
+  const main = ixType()[0]; if (!main) return o;
+  const word = String(main.c || main.t).replace(/^The\s+/i, "").trim(), L = (word[0] || "?").toUpperCase(), ix = word.slice(0, 3).toLowerCase() + ".";
+  const card = `<div class="dzc-table" aria-hidden="true"><span class="dzc-back"></span>
+    <div class="dzc-card"><span class="dzc-ix">${esc(ix)}</span><span class="dzc-ix b">${esc(ix)}</span>
+      <div class="dzc-face">${DZ_CROWN}<span class="dzc-mono"><b>${esc(L)}</b><b class="r">${esc(L)}</b><em>${main.e}</em></span>${DZ_CROWN.replace('class="dzc-crown"', 'class="dzc-crown dn"')}</div></div>
+    <span class="dzc-back"></span></div>`;
+  /* the old medal and shine make way for the card; the words stay */
+  return o.replace(/<section class="ix-hero ([^"]*)"([^>]*)>([\s\S]*?)<\/section>/, (m, cls, rest, inner) =>
+    `<section class="ix-hero dzc ${cls}"${rest}>${card}${inner.replace(/<i class="ix-shine"><\/i>/, "").replace(/<div class="ix-medal">[\s\S]*?<\/div>/, "")}</section>`);
+}; }
+
+/* the first screens were drawn before this script existed: put the new looks in once */
+dzPlay();
+/* the queue keeps its last header (qPatch) and skips a redraw that matches it: redraw through it, never behind its back */
+(window.requestIdleCallback || setTimeout)(() => {
+  if (dzOn("deck") && $("#p-queue .deck:not(.dzd)")) renderQueue();
+  if (dzOn("court") && $("#p-taste .ix-hero:not(.dzc)")) renderTaste(); }, { timeout: 400 });
+
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[id^=s-dzx-] [data-v]"); if (!b) return;
+  e.stopPropagation(); const w = b.parentElement, k = w.id.slice(6), X = Object.assign({}, S.dzX);
+  w.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (b.dataset.v === "off") X[k] = 1; else delete X[k]; S.dzX = X;
+  save(); beep("tap");
+  if (k === "play") renderHome(); else if (typeof render === "function") render();
+}, true);
+
+WHATS_NEW.push(
+  { v: 259, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); },
+    at: () => $("#p-home .dzp-row") || null,
+    say: "Three new looks! On Home, the games you're playing are <b>colour cards</b> now: each one in its game's colour, a big title, and its picture or character standing in the card.",
+    tryIt: "Swipe the row and tap a card to open the game. Home → Customise → Playing now cards switches back." },
+  { v: 259, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); if (typeof setSub === "function") setSub("games", "queue"); },
+    at: () => $(".dzd-row") || null,
+    say: "<b>On deck</b> is big photo cards now: your #1 as a full picture with its details on a soft blur, then #2 and #3 with the picture on top.",
+    tryIt: "Swipe through your top 3 and tap Play this next." },
+  { v: 259, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); if (typeof setSub === "function") setSub("taste", "insights"); },
+    at: () => $(".dzc-card") || null,
+    say: "Your <b>player type</b> is a playing card now: a court card with your type's mirrored letters, crowns, and patterned card backs either side.",
+    tryIt: "Your type changes as you finish and score games, and the card changes with it." },
+  { v: 259, go: () => { closeFull(); dyClose(); nxShut(); nxOpenGame(); },
+    at: () => $("#full.on .gd-body") || $("#full.on .hub") || null,
+    say: "The light on a game's page is <b>easier to see</b> now, and it works in every page style (New, Showcase and Plain), not just New.",
+    tryIt: "Open a few games and watch each page take on that game's colours." }
 );
 </script>
