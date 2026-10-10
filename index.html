@@ -24101,7 +24101,7 @@ WHATS_NEW.push(
    refresh rate (120Hz on the Fold) without touching the main thread. v258: on Games, Plan, Taste and a game's page too. */
 #hlv, #hlvg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; contain: strict; }
 html.hlvon #hlv { display: block; }
-#hlvg { position: absolute; }
+#hlvg { position: absolute; z-index: -1; }
 #full.hlvgon #hlvg { display: block; }
 .hlv-s { position: absolute; inset: 0; opacity: 0; transition: opacity .9s cubic-bezier(.4,0,.2,1); display: none; }
 .hlv-s.live { display: block; }
@@ -24306,7 +24306,8 @@ function hlvGame() {
   const src = g ? (bgSource(g) || cover(g)) : "";
   if (!src) { clearTimeout(HLV.gt); HLV.gk = ""; if (f.classList.contains("hlvgon")) f.classList.remove("hlvgon"); if (HLV.g) hlvHideAll(HLV.g); return; }
   if (!HLV.g) HLV.g = hlvMake("hlvg");
-  if (f.firstElementChild !== HLV.g) f.prepend(HLV.g);
+  /* last, drawn underneath by z-index -1: the flicker check reads #full's first child, which must stay the page */
+  if (f.lastElementChild !== HLV.g) f.appendChild(HLV.g);
   /* the page flies open first; the light joins once it has landed (building it mid-flight made the opening stutter) */
   if (HLV.gk === g.id) return;
   HLV.gk = g.id; clearTimeout(HLV.gt);
