@@ -1,0 +1,1 @@
+{ "name": "auto-handoff", "version": "0.2.0", "description": "Starts a fresh chat by itself (with a handoff note) once this one passes 300k tokens; \"handoff\" does it any time.", "types": "./types/index.d.ts" }
