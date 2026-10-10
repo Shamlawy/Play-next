@@ -4130,7 +4130,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "258";
+const APP_V = "259";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -24128,9 +24128,9 @@ html.hlvon #hlv { display: block; }
 @keyframes hlvD3 { 0% { transform: translate3d(0,0,0); opacity: 0; } 10%, 85% { opacity: .9; } 100% { transform: translate3d(8px,-110vh,0); opacity: 0; } }
 /* Home's panel and a game's page let the light through */
 html.hlvon .dxw { background: rgba(10,14,27,.72); }
-#full.hlvgon .hub.gpage { background: rgba(10,14,27,.72); }
+#full.hlvgon .hub.gpage { background: rgba(10,14,27,.5); }
 #full.hlvgon .gd-hero::after {
-  background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, rgba(10,14,27,.72) 100%),
+  background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, rgba(10,14,27,.5) 100%),
     radial-gradient(90% 70% at 85% 100%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); }
 /* v258: the calendar's cover dots (i.ccov) share a name with the calling card overlay and took its z-index 9000:
    opening a game from Plan showed them floating over the game page */
@@ -24302,7 +24302,7 @@ function hlvSync() {
 /* v258: a game's page gets its own light. #full is redrawn on every open, so the layer is put back each time */
 function hlvGame() {
   const f = $("#full"); if (!f) return;
-  const g = f.classList.contains("on") && !(S.hlvX || {}).game && f.querySelector(".hub.gpage") && S.games.find(x => x.id === hubAt);
+  const g = f.classList.contains("on") && !(S.hlvX || {}).game && f.querySelector(".hub") && S.games.find(x => x.id === hubAt);
   const src = g ? (bgSource(g) || cover(g)) : "";
   if (!src) { clearTimeout(HLV.gt); HLV.gk = ""; if (f.classList.contains("hlvgon")) f.classList.remove("hlvgon"); if (HLV.g) hlvHideAll(HLV.g); return; }
   if (!HLV.g) HLV.g = hlvMake("hlvg");
@@ -24314,7 +24314,7 @@ function hlvGame() {
   HLV.gt = setTimeout(() => {
     const go = () => { if (HLV.gk !== g.id || hubAt !== g.id || !f.classList.contains("on")) return;
       if (!f.classList.contains("hlvgon")) f.classList.add("hlvgon");
-      hlvScene(HLV.g, { g, src, k: .9 }); };
+      hlvScene(HLV.g, { g, src, k: 1.3 }); };
     window.requestIdleCallback ? requestIdleCallback(go, { timeout: 600 }) : go();
   }, 650);
 }
@@ -24354,5 +24354,11 @@ WHATS_NEW.push(
     at: () => $("#full.on .gd-body") || null,
     say: "Every game's page has its own <b>live light</b> now, made from that game's art and drifting behind the details.",
     tryIt: "Swipe to the next game and watch the light change with it. Games → Customise → Live background turns it off." }
+);
+WHATS_NEW.push(
+  { v: 259, go: () => { closeFull(); dyClose(); nxShut(); nxOpenGame(); },
+    at: () => $("#full.on .gd-body") || $("#full.on .hub") || null,
+    say: "The light on a game's page is <b>easier to see</b> now, and it works in every page style (New, Showcase and Plain), not just New.",
+    tryIt: "Open a few games and watch each page take on that game's colours." }
 );
 </script>
