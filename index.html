@@ -4129,7 +4129,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "261";
+const APP_V = "262";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -7992,9 +7992,11 @@ async function frPull(force) {
 }
 setTimeout(() => { frPublish(); frPull(); }, 4000);
 /* v143: shimmer stops the moment an image loads or fails */
-const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") i.setAttribute("data-ld", ""); };
+const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") { i.setAttribute("data-ld", "");
+  /* v262: and the shimmer really stops, even on a hidden screen the browser doesn't restyle */
+  if (i.getAnimations) i.getAnimations().forEach(a => { if (a.animationName === "pnShim") a.cancel(); }); } };
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
-const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) i.setAttribute("data-ld", ""); });
+const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) pnLd({ target: i }); });
 pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.tagName === "I" && n.parentElement && n.parentElement.closest(".cdb"))))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
 /* v144: launch intro (v252: the card), skipped by a tap, off when motion is off */
 (function () {
@@ -11360,10 +11362,13 @@ setInterval(() => {
   document.querySelectorAll("[data-cd-to]").forEach(cd => {
     let ms = new Date(cd.dataset.cdTo + "T00:00:00") - new Date(); if (ms < 0) ms = 0;
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
+    /* v262: a countdown on a hidden screen (Home's, while you're on Games) only changes its digits: a flip there can't go to
+       the GPU, so it ran on the main thread for half of every second and held the Fold's screen at 60Hz everywhere */
+    const hid = cd.checkVisibility ? !cd.checkVisibility({ contentVisibilityAuto: true }) : !!cd.closest(".panel:not(.on)");
     cd.querySelectorAll("b[data-u]").forEach(b => {
       const nv = String(v[b.dataset.u]).padStart(b.dataset.u === "d" ? 1 : 2, "0");
       const cn = b.querySelector(".cdn"), cur = cn ? cn.textContent : b.textContent;
-      if (cur !== nv) { b.innerHTML = `<i class="cdn">${nv}</i>`; if (calm() || cur === "–" || window.pnRest) return;   /* v260: resting = no flip */
+      if (cur !== nv) { b.innerHTML = `<i class="cdn">${nv}</i>`; if (calm() || cur === "–" || window.pnRest || hid) return;   /* v260: resting = no flip */
         const gh = document.createElement("i"); gh.className = "cdg"; gh.textContent = cur; b.appendChild(gh);
         gh.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-110%)", opacity: 0 }], { duration: 520, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => gh.remove();
         b.firstChild.animate([{ transform: "translateY(110%)" }, { transform: "translateY(-10%)", offset: .75 }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
@@ -24687,5 +24692,154 @@ WHATS_NEW.push(
   { v: 261, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "<b>Much smoother screen switches</b>: every tab change was quietly restyling the whole app up to four times, and its slide-in ran on the main processor instead of the graphics chip. Now it's one pass and the movement is on the GPU, so it can keep up with your 120Hz screen. I also watch for this myself now.",
     tryIt: "Flick between Home, Games, Plan and Taste, and open a few games." }
+);
+</script>
+
+<style>
+/* v262 (120 fps): Nexi's face: a mood used to morph his eyes and mouth (height, top, width, borders: main-thread transitions),
+   and a blink restarted next to one of those got stuck on the main thread for its whole 4.6s loop. Shapes now change at
+   once; the look-around still glides (translate, on the GPU). */
+#pnbub .eye { transition: none; }
+#pnbub .mouth, #pnbub .face::before, #pnbub .face::after { transition: translate .18s ease-out; }
+</style>
+<script>
+/* v262 (120 fps): a looping animation on something that isn't drawn (a hidden screen; a list row scrolled far enough that the
+   browser skips drawing it) can't go to the GPU, so Chrome ticks it on the main thread every frame, and on the Fold that
+   holds the whole screen at 60Hz. Hidden screens kept Home's loops going forever. Now those loops hold still while their
+   screen is hidden or their row is skipped, and carry on from the same spot when it's back. CSS can't do this: the browser
+   doesn't restyle what it skips. */
+const OFFHOLD = new Set(), OFFCOMMIT = new Map();
+const offSeen = el => el.checkVisibility ? el.checkVisibility({ contentVisibilityAuto: true }) : !el.closest(".panel:not(.on)");
+/* pause the loops under root that aren't drawn (its own and ones the rest mode is holding) */
+function offHold(root) {
+  if (!root || !root.isConnected) return;
+  for (const a of root.getAnimations({ subtree: true })) {
+    const t = a.effect && a.effect.getTiming ? a.effect.getTiming() : null, el = a.effect && a.effect.target;
+    if (!t || !el || OFFHOLD.has(a) || (a.timeline && a.timeline !== document.timeline) || offSeen(el)) continue;
+    /* one that has finished but holds its last frame (fill: both) keeps a ghost on Chrome's GPU side once its piece isn't
+       drawn, and the main thread draws every frame until it goes (seen after leaving the Queue): its last frame is written
+       onto the piece and the animation let go, so nothing on screen changes */
+    const done = () => { if (!/both|forwards/.test(t.fill) || a.effect.pseudoElement) return;
+      const ps = new Set(); a.effect.getKeyframes().forEach(k => Object.keys(k).forEach(x => /^(offset|easing|composite|computedOffset)$/.test(x) || ps.add(x)));
+      const was = {}; ps.forEach(x => { was[x] = el.style[x]; });
+      try { a.commitStyles(); a.cancel(); } catch (e) { return; }
+      const c = OFFCOMMIT.get(el) || {}; ps.forEach(x => { if (!(x in c)) c[x] = was[x]; }); OFFCOMMIT.set(el, c); };
+    if (a.playState === "finished") { done(); continue; }
+    if (a.playState !== "running") continue;
+    /* a one-off (a screen's slide-in, a card dealing in) cut off by the hide jumps to its end now: one that finishes later,
+       out of sight, leaves Chrome's GPU side waiting for it and the main thread drawing every frame (switching screens fast) */
+    if (t.iterations !== Infinity) { try { a.finish(); done(); } catch (e) {} continue; }
+    try { a.pause(); OFFHOLD.add(a); } catch (e) {}
+  }
+  if (REST.held.length) REST.held = REST.held.filter(a => { const el = a.effect && a.effect.target;
+    if (el && root.contains(el) && !offSeen(el)) { OFFHOLD.add(a); return false; } return true; });
+}
+/* ...and set going again the ones under root that are drawn again */
+function offFree(root) {
+  /* last frames written onto pieces come off again where that changes nothing (it can't, for a slide-in: its last frame is
+     the piece's own look), so later CSS changes to the piece still apply */
+  for (const [el, c] of OFFCOMMIT) {
+    if (!el.isConnected) { OFFCOMMIT.delete(el); continue; }
+    if ((root && !root.contains(el)) || !offSeen(el)) continue;
+    OFFCOMMIT.delete(el);
+    for (const x in c) { const now = el.style[x]; el.style[x] = c[x]; const nat = getComputedStyle(el)[x];
+      el.style[x] = now; if (getComputedStyle(el)[x] === nat) el.style[x] = c[x]; }
+  }
+  if (!OFFHOLD.size) return;
+  for (const a of [...OFFHOLD]) {
+    const el = a.effect && a.effect.target;
+    if (!el || !el.isConnected) { OFFHOLD.delete(a); continue; }
+    if (root && !root.contains(el)) continue;
+    if (!offSeen(el)) continue;
+    OFFHOLD.delete(a);
+    /* its CSS may have moved on while it was out of sight (a picture's loading shimmer once the picture is in) */
+    if (a.animationName && !getComputedStyle(el, a.effect.pseudoElement || null).animationName.split(", ").includes(a.animationName)) { try { a.cancel(); } catch (e) {} continue; }
+    if (window.pnRest) { REST.held.push(a); continue; }   /* resting: they wake with everything else */
+    try { if (a.playState === "paused") a.play(); } catch (e) {}
+  }
+}
+{ /* a hidden screen also gets redrawn now and then (the queue after a change): look again after it settles */
+  const later = new Map();
+  const soon = p => { if (later.has(p)) return; later.set(p, setTimeout(() => { later.delete(p); if (!p.classList.contains("on")) offHold(p); }, 300)); };
+  /* and every hidden screen once more after a switch settles (a redraw can land after the first look) */
+  let sw = 0; const sweep = () => { clearTimeout(sw); sw = setTimeout(() => document.querySelectorAll(".panel:not(.on)").forEach(offHold), 1500); };
+  const mo = new MutationObserver(ms => {
+    const seen = new Set();
+    for (const m of ms) {
+      const self = m.type === "attributes" && m.target.classList.contains("panel");   /* the screen itself shown or hidden */
+      const p = self ? m.target : m.target.closest && m.target.closest(".panel"), k = p && (self ? "s" : "c") + (p.id || "");
+      if (!p || seen.has(k)) continue; seen.add(k);
+      if (self) { if (p.classList.contains("on")) { requestAnimationFrame(() => offFree(p)); setTimeout(() => offFree(p), 400); } else offHold(p); sweep(); }
+      else if (!p.classList.contains("on")) { soon(p); sweep(); }
+    }
+  });
+  document.querySelectorAll(".panel").forEach(p => { if (!p.classList.contains("on")) offHold(p);
+    mo.observe(p, { attributes: true, attributeFilter: ["class"], childList: true, subtree: true }); }); }
+/* a safety net for redraws the observer can't see coming (a screen warmed up off to the side, a late picture): every 2s
+   the hidden screens are looked at once more (a few dozen animations, well under a millisecond) */
+setInterval(() => { if (!document.hidden) document.querySelectorAll(".panel:not(.on)").forEach(offHold); }, 2000);
+document.addEventListener("contentvisibilityautostatechange", e => { const el = e.target;
+  if (e.skipped) offHold(el); else { offFree(el); requestAnimationFrame(() => offFree(el)); } }, true);
+
+
+/* v262: Nexi learned (the owner: "the fps counter only shows 60 or 70"). Chrome on Android draws the main thread at most 60
+   times a second, and the screen follows the content: one animation the GPU can't take, running all the time, holds the
+   whole screen at 60Hz. When you leave the app alone for a few seconds he looks at what's moving, twice, 3s apart (before
+   the rest mode stills everything at 12s), and
+   reports what was still moving the slow way both times: something that isn't drawn (a hidden screen, a skipped row) that
+   keeps animating (Home's countdown flipping every second on a hidden Home was one), or a visible piece animating a property
+   only the main thread can draw (sizes, colours, backgrounds, shadows; transform, opacity and filter are fine). */
+const DRAW_OK = /^(transform|translate|rotate|scale|opacity|filter|offset|easing|composite|computedOffset)$/;
+const DRAW = { t: 0, n: 0 };
+function drawSlow(a) {
+  const el = a.effect && a.effect.target;
+  if (a.playState !== "running" || !el || !el.isConnected || (a.timeline && a.timeline !== document.timeline)) return null;
+  const tm = a.effect.getTiming(), name = a.animationName || a.transitionProperty || (a.id ? "#" + a.id : "a script animation on " + el.tagName.toLowerCase() + (el.classList[0] ? "." + el.classList[0] : ""));
+  if (!offSeen(el)) return { el, why: "hidden", name };
+  if (tm.iterations !== Infinity && (+tm.duration || 0) * (tm.iterations || 1) < 400) return null;   /* a quick change of shape */
+  const p = new Set(); a.effect.getKeyframes().forEach(k => Object.keys(k).forEach(x => DRAW_OK.test(x) || p.add(x)));
+  return p.size ? { el, why: "prop", name, prop: [...p][0] } : null;
+}
+async function drawLook() {
+  const hits = new Map();
+  for (let i = 0; i < 8; i++) {
+    if (i) await new Promise(r => setTimeout(r, 250));
+    for (const a of document.getAnimations()) { const h = drawSlow(a); if (!h) continue;
+      const k = h.why + "|" + h.name + "|" + bugPath(h.el); const o = hits.get(k) || Object.assign(h, { n: 0, last: -1 });
+      if (o.last !== i) { o.n++; o.last = i; } hits.set(k, o); }
+  }
+  for (const [k, o] of hits) if (o.n < 3) hits.delete(k);
+  return hits;
+}
+function drawArm(ms) { clearTimeout(DRAW.t); DRAW.t = setTimeout(drawCheck, ms); }
+async function drawCheck() {
+  clearTimeout(DRAW.t);
+  if (!lagOk() || nxTouring() || calm() || window.pnRest || DRAW.n >= 6 ||
+      document.documentElement.classList.contains("dragging-now")) { if (DRAW.n < 6) drawArm(20000); return; }
+  const go = DRAW.go = Symbol(), scr = bugScreen();
+  const one = await drawLook(); if (DRAW.go !== go || !one.size) { if (DRAW.go === go) drawArm(60000); return; }
+  await new Promise(r => setTimeout(r, 3000)); if (DRAW.go !== go || bugScreen() !== scr || window.pnRest) return;
+  const two = await drawLook(); if (DRAW.go !== go || window.pnRest) return;
+  DRAW.n++;
+  for (const [k, o] of two) if (one.has(k)) {
+    const msg = o.why === "hidden"
+      ? `Something hidden keeps animating on ${lagWhere()} (${o.name}): it can't run on the GPU, so the screen is held at 60Hz`
+      : `A piece on ${lagWhere()} animates its ${o.prop} (${o.name}), which only the main processor can draw, so the screen is held at 60Hz`;
+    bugReport("slow", msg, { at: bugPath(o.el), screen: scr, sigAt: "" });
+    break;
+  }
+  drawArm(60000);
+}
+["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => { DRAW.go = null; drawArm(3000); }, { capture: true, passive: true }));
+addEventListener("scroll", () => { DRAW.go = null; drawArm(3000); }, { capture: true, passive: true });
+drawArm(15000);
+
+WHATS_NEW.push(
+  { v: 262, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>Your screen can finally run at 120Hz</b>: something was always quietly moving where you couldn't see it (Home's countdown on a hidden screen, loading shimmers, my own face), and that kept your phone's screen stuck at 60. Now nothing out of sight moves.",
+    tryIt: "Watch your refresh-rate counter while you scroll and switch screens: it should reach 120. When nothing moves it drops lower to save battery, which is normal." },
+  { v: 262, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: when you leave the app alone for a few seconds I check for anything still moving the slow way, and report it before it can hold the screen at 60 again.",
+    tryIt: "Nothing to do: if it ever happens, I file it on my own." }
 );
 </script>
