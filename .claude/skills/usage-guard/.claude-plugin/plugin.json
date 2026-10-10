@@ -1,1 +1,0 @@
-{ "name": "usage-guard", "version": "0.1.0", "description": "Usage meter (5-hour + weekly limits, chat size), warnings at 200k/300k tokens, and a handoff to a fresh chat." }

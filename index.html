@@ -3618,10 +3618,24 @@ function applyBg() {
   shown.style.opacity = "0";
 }
 const bgBaked = () => document.documentElement.classList.contains("fast");
+/* v261: a small copy of a picture decoded off the main thread (fetch, then createImageBitmap from the file, resized).
+   Drawing an <img> into a canvas makes Chrome decode the whole picture on the main thread when the canvas is shown
+   (134ms for a 1920px hero at 4x CPU, more for the 4K ones: the 360–520ms stutters when picking a game on the queue).
+   null when it can't (a site without CORS, an old Safari): callers keep their old way then. */
+const pnBmMemo = new Map();
+function pnSmallBitmap(url, w) {
+  if (!url || typeof createImageBitmap !== "function" || typeof fetch !== "function") return Promise.resolve(null);
+  const k = url + "|" + w; if (pnBmMemo.has(k)) return pnBmMemo.get(k);
+  const pr = fetch(url, { credentials: "omit" }).then(r => r.ok ? r.blob() : null)
+    .then(b => b && /^image\//.test(b.type || "image/") ? createImageBitmap(b, { resizeWidth: w, resizeQuality: "medium" }) : null).catch(() => null);
+  pnBmMemo.set(k, pr); if (pnBmMemo.size > 24) pnBmMemo.delete(pnBmMemo.keys().next().value);
+  return pr;
+}
 function bgBake(layer, src, done) {
-  const im = new Image(), tok = layer._bgTok = (layer._bgTok || 0) + 1;
-  im.decoding = "async";
-  im.onload = () => {
+  const tok = layer._bgTok = (layer._bgTok || 0) + 1;
+  /* v183: it gets blurred to a quarter size anyway, so the light copy is plenty */
+  const url = liteFor(src, 1) || (bigData(src) ? blobRef(src) : src);
+  const draw = (im, iw, ih) => {
     if (layer._bgTok !== tok) return;
     let c = layer.querySelector("canvas");
     if (!c) { c = document.createElement("canvas"); layer.appendChild(c); }
@@ -3631,16 +3645,21 @@ function bgBake(layer, src, done) {
     const k = live ? 0.25 : 1 / Math.max(3, blur + 1);
     c.width = Math.max(8, Math.round(W * k)); c.height = Math.max(8, Math.round(H * k));
     if (!x) return done();
-    const r = Math.max(c.width / im.naturalWidth, c.height / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r;
+    const r = Math.max(c.width / iw, c.height / ih), w = iw * r, h = ih * r;
     if (live) x.filter = `blur(${(blur * k).toFixed(2)}px) saturate(1.3)`;
     x.clearRect(0, 0, c.width, c.height);
     x.drawImage(im, (c.width - w) / 2, (c.height - h) / 2, w, h);
     layer.style.backgroundImage = "none"; layer._bgW = W; layer._bgH = H;
     done();
   };
-  im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
-  /* v183: it gets blurred to a quarter size anyway, so the light copy is plenty */
-  im.src = liteFor(src, 1) || (bigData(src) ? blobRef(src) : src);
+  pnSmallBitmap(url, 512).then(bm => {
+    if (layer._bgTok !== tok) return;
+    if (bm) return draw(bm, bm.width, bm.height);
+    const im = new Image(); im.decoding = "async";
+    im.onload = () => draw(im, im.naturalWidth, im.naturalHeight);
+    im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
+    im.src = url;
+  });
 }
 /* folding or unfolding changes the screen shape: redraw the shown background to fit */
 addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout(() => {
@@ -4129,7 +4148,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "262";
+const APP_V = "263";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6587,7 +6606,7 @@ function openSettings(scope) {
         <button class="chip" data-v="off" aria-pressed="${S.motion === false}"><span>Off</span></button>
       </div>
       <label>Rest when idle</label>
-      <p class="note">After 12 seconds without a touch, looping decorations hold still so the phone isn't redrawing anything (saves battery). They carry on as soon as you touch.</p>
+      <p class="note">After a minute without a touch, looping decorations hold still so the phone isn't redrawing anything (saves battery). They carry on as soon as you touch.</p>
       <div class="chips" id="s-rest">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.restOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
@@ -7993,7 +8012,7 @@ async function frPull(force) {
 setTimeout(() => { frPublish(); frPull(); }, 4000);
 /* v143: shimmer stops the moment an image loads or fails */
 const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") { i.setAttribute("data-ld", "");
-  /* v262: and the shimmer really stops, even on a hidden screen the browser doesn't restyle */
+  /* v263: and the shimmer really stops, even on a hidden screen the browser doesn't restyle */
   if (i.getAnimations) i.getAnimations().forEach(a => { if (a.animationName === "pnShim") a.cancel(); }); } };
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) pnLd({ target: i }); });
@@ -11362,7 +11381,7 @@ setInterval(() => {
   document.querySelectorAll("[data-cd-to]").forEach(cd => {
     let ms = new Date(cd.dataset.cdTo + "T00:00:00") - new Date(); if (ms < 0) ms = 0;
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
-    /* v262: a countdown on a hidden screen (Home's, while you're on Games) only changes its digits: a flip there can't go to
+    /* v263: a countdown on a hidden screen (Home's, while you're on Games) only changes its digits: a flip there can't go to
        the GPU, so it ran on the main thread for half of every second and held the Fold's screen at 60Hz everywhere */
     const hid = cd.checkVisibility ? !cd.checkVisibility({ contentVisibilityAuto: true }) : !!cd.closest(".panel:not(.on)");
     cd.querySelectorAll("b[data-u]").forEach(b => {
@@ -24285,18 +24304,22 @@ async function hlvScene(box, o) {
   box._busy = sig;
   try {
     const url = liteFor(o.src, 1) || (bigData(o.src) ? blobRef(o.src) : o.src);
+    /* v261: decoded off the main thread when the site allows it (pnSmallBitmap) */
+    const bm = await pnSmallBitmap(url, 256);
+    if (box._want !== sig) return;
     const get = cors => new Promise(res => { const im = new Image(); im.decoding = "async"; if (cors) im.crossOrigin = "anonymous";
       im.onload = () => res(im); im.onerror = () => res(null); im.src = url; });
     /* asked with CORS so its colours can be read; a site that refuses still gives the picture */
-    const im = (/^https?:/.test(url) && !url.startsWith(location.origin) && await get(1)) || await get(0);
+    const im = bm || (/^https?:/.test(url) && !url.startsWith(location.origin) && await get(1)) || await get(0);
     if (!im || box._want !== sig) return;
-    try { await im.decode(); } catch (e) {}
+    if (!bm) try { await im.decode(); } catch (e) {}
+    const iw = bm ? bm.width : im.naturalWidth, ih = bm ? bm.height : im.naturalHeight;
     /* tiny on purpose: the stretch does the blur, and drawing it costs well under a millisecond */
     const W = innerWidth || 400, H = innerHeight || 800, cw = 72, ch = Math.max(24, Math.min(200, Math.round(cw * H / W)));
     const c = document.createElement("canvas"); c.width = cw; c.height = ch; c.className = "hlv-art";
     const x = c.getContext("2d"); if (!x) return;
     if ("filter" in x) x.filter = "blur(2px) saturate(1.35)";
-    const r = Math.max(cw / im.naturalWidth, ch / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r;
+    const r = Math.max(cw / iw, ch / ih), w = iw * r, h = ih * r;
     x.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h);
     await new Promise(res => requestAnimationFrame(res));
     if (box._want !== sig) return;
@@ -24597,6 +24620,8 @@ applyBg();
 
 /* v260 rest: 12s without a touch, every looping animation holds still (no frames to draw, nothing for the GPU to do);
    the first touch, key, scroll or coming back to the app sets them going again. S.restOff turns it off. */
+/* v261: after 60s, not 12s (the owner: "all the animations have frozen" just looking at the queue) */
+const REST_AFTER = 60000;
 const REST = { t: 0, on: false, held: [] }, REST_KEEP = new Set(["pnSpin", "gDot", "ncDot", "pnShim"]);
 function restHold() {
   if (!REST.on) return;
@@ -24612,10 +24637,10 @@ function restWake() {
   clearTimeout(REST.t);
   window.pnRest = false;
   if (REST.on) { REST.on = false; const h = REST.held; REST.held = []; h.forEach(a => { try { if (a.playState === "paused") a.play(); } catch (e) {} }); }
-  REST.t = setTimeout(restGo, 12000);
+  REST.t = setTimeout(restGo, REST_AFTER);
 }
 ["pointerdown", "keydown", "wheel", "touchstart"].forEach(t => addEventListener(t, restWake, { capture: true, passive: true }));
-addEventListener("scroll", () => { if (REST.on) restWake(); else { clearTimeout(REST.t); REST.t = setTimeout(restGo, 12000); } }, { capture: true, passive: true });
+addEventListener("scroll", () => { if (REST.on) restWake(); else { clearTimeout(REST.t); REST.t = setTimeout(restGo, REST_AFTER); } }, { capture: true, passive: true });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) restWake(); });
 restWake();
 /* Nexi's power-up spawns a bolt and embers every 180ms (it ends itself after 6s): none start while resting */
@@ -24694,16 +24719,23 @@ WHATS_NEW.push(
     tryIt: "Flick between Home, Games, Plan and Taste, and open a few games." }
 );
 </script>
+<script>
+WHATS_NEW.push(
+  { v: 262, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: null,
+    say: "<b>Picking a game on the queue no longer stutters</b>: its picture used to be unpacked on the main processor (up to half a second on the big 4K art); now it's done in the background. And the animations keep going for a full minute without a touch before they rest (it was 12 seconds).",
+    tryIt: "Tap different games on your queue and watch the background and lights change." }
+);
+</script>
 
 <style>
-/* v262 (120 fps): Nexi's face: a mood used to morph his eyes and mouth (height, top, width, borders: main-thread transitions),
+/* v263 (120 fps): Nexi's face: a mood used to morph his eyes and mouth (height, top, width, borders: main-thread transitions),
    and a blink restarted next to one of those got stuck on the main thread for its whole 4.6s loop. Shapes now change at
    once; the look-around still glides (translate, on the GPU). */
 #pnbub .eye { transition: none; }
 #pnbub .mouth, #pnbub .face::before, #pnbub .face::after { transition: translate .18s ease-out; }
 </style>
 <script>
-/* v262 (120 fps): a looping animation on something that isn't drawn (a hidden screen; a list row scrolled far enough that the
+/* v263 (120 fps): a looping animation on something that isn't drawn (a hidden screen; a list row scrolled far enough that the
    browser skips drawing it) can't go to the GPU, so Chrome ticks it on the main thread every frame, and on the Fold that
    holds the whole screen at 60Hz. Hidden screens kept Home's loops going forever. Now those loops hold still while their
    screen is hidden or their row is skipped, and carry on from the same spot when it's back. CSS can't do this: the browser
@@ -24785,10 +24817,10 @@ document.addEventListener("contentvisibilityautostatechange", e => { const el = 
   if (e.skipped) offHold(el); else { offFree(el); requestAnimationFrame(() => offFree(el)); } }, true);
 
 
-/* v262: Nexi learned (the owner: "the fps counter only shows 60 or 70"). Chrome on Android draws the main thread at most 60
+/* v263: Nexi learned (the owner: "the fps counter only shows 60 or 70"). Chrome on Android draws the main thread at most 60
    times a second, and the screen follows the content: one animation the GPU can't take, running all the time, holds the
-   whole screen at 60Hz. When you leave the app alone for a few seconds he looks at what's moving, twice, 3s apart (before
-   the rest mode stills everything at 12s), and
+   whole screen at 60Hz. When you leave the app alone for a few seconds he looks at what's moving, twice, 3s apart (well before
+   the rest mode stills everything), and
    reports what was still moving the slow way both times: something that isn't drawn (a hidden screen, a skipped row) that
    keeps animating (Home's countdown flipping every second on a hidden Home was one), or a visible piece animating a property
    only the main thread can draw (sizes, colours, backgrounds, shadows; transform, opacity and filter are fine). */
@@ -24838,10 +24870,10 @@ addEventListener("scroll", () => { DRAW.go = null; drawArm(3000); }, { capture: 
 drawArm(15000);
 
 WHATS_NEW.push(
-  { v: 262, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+  { v: 263, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "<b>Your screen can finally run at 120Hz</b>: something was always quietly moving where you couldn't see it (Home's countdown on a hidden screen, loading shimmers, my own face), and that kept your phone's screen stuck at 60. Now nothing out of sight moves.",
     tryIt: "Watch your refresh-rate counter while you scroll and switch screens: it should reach 120. When nothing moves it drops lower to save battery, which is normal." },
-  { v: 262, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+  { v: 263, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: when you leave the app alone for a few seconds I check for anything still moving the slow way, and report it before it can hold the screen at 60 again.",
     tryIt: "Nothing to do: if it ever happens, I file it on my own." }
 );
