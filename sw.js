@@ -6,8 +6,17 @@ const SHELL = "play-next-shell-2";
    not the network. Kept apart from SHELL so a shell wipe doesn't throw the pictures away. */
 /* v189: img-1 could hold failed downloads (a no-cors reply hides its status, so a 404 was saved and shown forever).
    Renaming drops it; the activate step below deletes every cache it doesn't know. */
-const IMG = "play-next-img-2", IMG_MAX = 1200;   /* v238: screenshots are kept too (5 small copies a game) */
+const IMG = "play-next-img-3", IMG_MAX = 1200;   /* v238: screenshots are kept too (5 small copies a game) */
 const IMG_HOST = /(^|\.)(steamstatic\.com|steamgriddb\.com|rawg\.io|steampowered\.com|s-microsoft\.com|playstation\.com|nintendo\.com)$/;
+/* v267: no picture bigger than the screen. The phone's self-test (v266) found the Queue holding 372 megapixels of
+   pictures (1.5 GB once unpacked; one picture alone was 70 MP, 14 were 4K) to show 14 MP: rows went blank on a fast
+   swipe and game pages got slower one after another. Every picture from another site is now fetched through the
+   resize service (wsrv.nl, already the app's fallback) at most CAP pixels on its long side, without enlarging,
+   and kept here under its own address, so every way the app loads a picture (markup, CSS, new Image(), decode())
+   gets the screen-sized copy. A Fold unfolded is 2260 device pixels wide: 2560 still fills it sharply. Already small
+   files skip the trip; if the service fails or is slow the original loads as before. img-2 (full-size copies) goes. */
+const CAP = 2560, FIT_HOST = "wsrv.nl";
+const FIT_SKIP = /(\/header\.jpg|\/capsule_[\w]+\.jpg|\/library_600x900\.jpg|\/logo\.png|\.svg|\.gif)(\?|$)/i;
 const FILES = ["./", "./index.html", "./manifest.webmanifest",
   "./logo-192.png", "./logo-512.png", "./logo-mask.png", "./badge-96.png"];
 
@@ -29,6 +38,8 @@ self.addEventListener("fetch", e => {
   if (url.origin !== self.location.origin) {
     /* pictures: from the cache if we have them, otherwise fetch and keep a copy. API calls stay live. */
     if (r.destination === "image" && r.mode === "no-cors" && IMG_HOST.test(url.hostname)) e.respondWith(imgFirst(r));
+    /* v267: pictures from any other site (and CORS-mode loads) get the same screen-sized copy */
+    else if (r.destination === "image" && (r.mode === "no-cors" || r.mode === "cors") && url.protocol === "https:") e.respondWith(imgFirst(r));
     return;
   }
 
@@ -49,6 +60,11 @@ async function imgFirst(r) {
   const c = await caches.open(IMG);
   const hit = await c.match(r.url);
   if (hit) return hit;
+  const u = new URL(r.url);
+  if (u.hostname !== FIT_HOST && !FIT_SKIP.test(u.pathname)) {
+    const fit = await fitFetch(r.url);
+    if (fit) { c.put(r.url, fit.clone()).then(() => trim(c)).catch(() => {}); return fit; }
+  }
   /* ask with CORS first: then the status is readable and only a good picture is kept.
      Hosts that don't allow CORS still load (no-cors), they just aren't kept. */
   let res = null;
@@ -56,6 +72,14 @@ async function imgFirst(r) {
   if (res && res.ok) { c.put(r.url, res.clone()).then(() => trim(c)).catch(() => {}); return res; }
   if (res && res.status) return res;
   return fetch(r);
+}
+async function fitFetch(src) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const res = await fetch("https://" + FIT_HOST + "/?url=" + encodeURIComponent(src) + "&w=" + CAP + "&h=" + CAP + "&fit=inside&we&output=webp&q=86",
+      { mode: "cors", credentials: "omit", signal: ctl.signal });
+    return res.ok && /^image\//.test(res.headers.get("content-type") || "") ? res : null;
+  } catch (e) { return null; } finally { clearTimeout(t); }
 }
 let trimming = 0;
 async function trim(c) {
