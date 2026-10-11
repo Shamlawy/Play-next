@@ -4148,7 +4148,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "265";
+const APP_V = "266";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6750,6 +6750,7 @@ function openSettings(scope) {
       <div class="chips" id="s-cine"><button class="chip" data-v="on" aria-pressed="${!S.cineOff}"><span>Play every time</span></button><button class="chip" data-v="off" aria-pressed="${!!S.cineOff}"><span>Off</span></button></div>
       <button class="btn ghost" id="s-cine-now"><span>Play it now</span></button>
       <button class="btn ghost" id="s-whatsnew"><span>✨ Show me what's new</span></button>
+      <button class="btn ghost" id="s-stest"><span>⏱ Run the smoothness self-test</span></button>
       <label>Problem reports</label>
       <div class="chips" id="s-bugs">
         ${[["on", "Automatic"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.bugOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
@@ -25161,7 +25162,7 @@ function prbApply() {
   const r = document.documentElement, a = prbArm();
   for (const k of Object.keys(PRB_NAME)) { const on = a === k; if (r.classList.contains("prb-" + k) !== on) r.classList.toggle("prb-" + k, on); }
 }
-function prbOk() { return !!PRB.st && !PRB.st.done && bugOn() && !document.hidden && !nxTouring() && performance.now() - LAG.boot > 15000; }
+function prbOk() { return !window.pnSelfTest && !!PRB.st && !PRB.st.done && bugOn() && !document.hidden && !nxTouring() && performance.now() - LAG.boot > 15000; }
 /* one moment: frames until it's been quiet for `hold` ms. A switch outranks a scroll that runs into it. */
 function prbStart(kind, hold) {
   if (!prbOk()) return;
@@ -25330,5 +25331,163 @@ WHATS_NEW.push(
   { v: 265, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: if anything ever makes your swipes wait for the app again, I report it on my own.",
     tryIt: "Nothing to do: if it happens, I file it myself." }
+);
+</script>
+<script>
+/* v266: the self-test (step 1 of the plan the owner agreed: "measure first, on the phone, before changing anything").
+   Settings → This build → "Run the smoothness self-test": hands off for ~30s while it
+   (1) adds up the pictures the Queue holds: each one's real size (loaded through new Image(), which reads the size
+       without decoding) against the size it's shown at on this screen (its box × devicePixelRatio), and how many are 4K;
+   (2) flings the Queue to the bottom, the top and the bottom again (scrollTo smooth: the compositor scrolls, as with
+       a finger) and times every frame;
+   (3) opens the first game and swipes to the next game 10 times exactly the way a finger does (hubDragStart, hubPaint
+       over 240ms, hubDragEnd), timing every frame and counting after each swipe what #full holds (elements, game pages,
+       light scenes, picture megapixels), so "game 10 slower than game 1" shows up as numbers.
+   A touch stops it. Lag checks are quiet meanwhile (a BUG_MODAL window), the smoothness check (prb) ignores it. Then
+   it puts the app back where it was, shows the numbers in a card and files them (kind "slow", sigAt
+   "selftest vN #k": every run its own issue). Nothing about how the app looks or works changes. */
+const ST = { on: false, stop: false, n: 0 };
+try { ST.n = +localStorage.getItem("gq:stest") || 0; } catch (e) {}
+const stWait = ms => new Promise(r => setTimeout(r, ms));
+function stRec() {
+  const o = { gaps: [], loaf: 0, last: 0, on: true, t0: performance.now() };
+  const f = t => { if (!o.on) return; if (o.last) o.gaps.push(t - o.last); o.last = t; requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+  let po = null;
+  if (window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("long-animation-frame")) {
+    po = new PerformanceObserver(l => { for (const x of l.getEntries()) if (x.startTime + x.duration > o.t0) o.loaf += x.duration; });
+    po.observe({ type: "long-animation-frame" });
+  }
+  o.end = () => { o.on = false; if (po) po.disconnect(); return o; };
+  return o;
+}
+function stDrop(gaps, iv) {
+  let frames = 0, drop = 0, worst = 0;
+  for (const g of gaps) { const k = Math.max(1, Math.round(g / iv)); frames += k; drop += k - 1; if (g > worst) worst = g; }
+  return { rate: frames ? drop / frames : 0, worst: Math.round(worst), frames };
+}
+/* every picture under root: its real size against what this screen needs to show it */
+async function stPics(root) {
+  const dpr = devicePixelRatio || 1, seen = new Map();
+  const add = (u, el) => {
+    if (!u || (u.startsWith("data:") && u.length < 400)) return;
+    const r = el.getBoundingClientRect(), need = Math.max(1, r.width * dpr) * Math.max(1, r.height * dpr);
+    const o = seen.get(u); if (o) o.need = Math.max(o.need, need); else seen.set(u, { need });
+  };
+  if (!root) return { n: 0, mp: 0, need: 0, k4: 0, big: 0 };
+  root.querySelectorAll("img").forEach(im => add(im.currentSrc || im.src, im));
+  root.querySelectorAll("[style*='url(']").forEach(el => { for (const m of (el.getAttribute("style") || "").matchAll(/url\((['"]?)(.*?)\1\)/g)) add(m[2], el); });
+  let n = 0, mp = 0, need = 0, k4 = 0, big = 0;
+  await Promise.all([...seen].map(([u, o]) => new Promise(res => {
+    const im = new Image(); let done = false;
+    const fin = () => { if (done) return; done = true; clearTimeout(t);
+      const w = im.naturalWidth, h = im.naturalHeight;
+      if (w && h) { n++; const m = w * h; mp += m; need += Math.min(m, o.need); if (w >= 3000 || h >= 3000) k4++; if (m > big) big = m; }
+      res(); };
+    const t = setTimeout(fin, 5000); im.onload = fin; im.onerror = fin; im.src = u;
+  })));
+  return { n, mp: mp / 1e6, need: need / 1e6, k4, big: big / 1e6 };
+}
+function stHold() {
+  const fu = document.getElementById("full");
+  return { els: fu ? fu.getElementsByTagName("*").length : 0, hubs: fu ? fu.querySelectorAll(".hub").length : 0,
+    scenes: document.querySelectorAll(".hlv-s").length, anims: document.getAnimations().length };
+}
+async function stFling(to) {
+  scrollTo({ top: to, behavior: "smooth" });
+  let last = -1, same = 0; const t0 = performance.now();
+  while (performance.now() - t0 < 6000 && !ST.stop) { await new Promise(r => requestAnimationFrame(r)); const y = scrollY; if (Math.abs(y - last) < 1) { if (++same > 12) break; } else same = 0; last = y; }
+}
+async function stSwipe() {
+  const b = hubBox(); if (!b) return false;
+  if (!hubLive()) { hubStep(1); return true; }
+  hubDragStart(b); if (!hd) return false;
+  const W = hd.W, t0 = performance.now();
+  await new Promise(res => { const f = t => { if (!hd) return res(); const p = Math.min(1, (t - t0) / 240); hd.dx = -W * .6 * p; hubPaint(); if (p < 1) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
+  if (hd) hubDragEnd(1.2);
+  return true;
+}
+async function stRun() {
+  if (ST.on || nxTouring()) return;
+  ST.on = true; ST.stop = false; window.pnSelfTest = true;
+  const quiet = [performance.now(), performance.now() + 120000]; quiet.q = 1; BUG_MODAL.push(quiet);
+  const was = { tab: curTab(), y: scrollY, game: hubBox() ? hubAt : null };
+  const stopper = () => { ST.stop = true; };
+  try { closeEdit(); } catch (e) {} try { dyClose(); } catch (e) {} try { closeFull(); } catch (e) {}
+  toast("Self-test: hands off the screen for about 30 seconds. A touch stops it.");
+  await stWait(1800);
+  ["pointerdown", "touchstart", "keydown", "wheel"].forEach(t => addEventListener(t, stopper, { capture: true, passive: true }));
+  const out = { fling: [], swipes: [], hold: [], pics: null, game: null };
+  try {
+    goTab("games"); goSub("games", "queue"); scrollTo(0, 0); await stWait(1500);
+    out.pics = await stPics(document.getElementById("p-queue"));
+    const bottom = () => Math.max(0, document.scrollingElement.scrollHeight - innerHeight);
+    for (const to of [bottom(), 0, bottom()]) { if (ST.stop) break; const r = stRec(); await stFling(to); out.fling.push(r.end()); await stWait(500); }
+    scrollTo(0, 0); await stWait(400);
+    const first = sortGames(allGames())[0];
+    if (first && !ST.stop) {
+      openFull(first.id); await stWait(1600);
+      out.game = await stPics(document.getElementById("full"));
+      for (let i = 0; i < 10 && !ST.stop; i++) {
+        const r = stRec(); if (!(await stSwipe())) { r.end(); break; }
+        await stWait(900); out.swipes.push(r.end()); out.hold.push(stHold());
+      }
+    }
+  } catch (e) { out.err = String(e && e.message || e).slice(0, 120); }
+  ["pointerdown", "touchstart", "keydown", "wheel"].forEach(t => removeEventListener(t, stopper, true));
+  try { closeFull(); goTab(was.tab); scrollTo(0, was.y); if (was.game) openFull(was.game); } catch (e) {}
+  quiet[1] = performance.now() + 1500;
+  ST.on = false; setTimeout(() => { if (!ST.on) window.pnSelfTest = false; }, 1500);
+  stReport(out);
+}
+function stReport(o) {
+  const all = o.fling.concat(o.swipes).flatMap(r => r.gaps), iv = prbRefresh(all), hz = Math.round(1000 / iv);
+  const pc = x => Math.round(x * 100) + "%", f1 = x => Math.round(x * 10) / 10;
+  const fl = stDrop(o.fling.flatMap(r => r.gaps), iv);
+  const sw = o.swipes.map(r => stDrop(r.gaps, iv));
+  const early = stDrop(o.swipes.slice(0, 3).flatMap(r => r.gaps), iv), late = stDrop(o.swipes.slice(-3).flatMap(r => r.gaps), iv);
+  const p = o.pics || { n: 0, mp: 0, need: 0, k4: 0, big: 0 }, g = o.game || { n: 0, mp: 0, need: 0, k4: 0, big: 0 };
+  const h0 = o.hold[0] || {}, h9 = o.hold[o.hold.length - 1] || {};
+  ST.n++; try { localStorage.setItem("gq:stest", String(ST.n)); } catch (e) {}
+  const stopped = ST.stop ? " (stopped early by a touch)" : "";
+  const msg = `Self-test${stopped} (v${APP_V}, ${hz}Hz): Queue fling dropped ${pc(fl.rate)} of frames (worst ${fl.worst}ms); swiping game pages: first 3 ${pc(early.rate)}, last 3 ${pc(late.rate)}. Queue pictures: ${Math.round(p.mp)} MP held for ${Math.round(p.need)} MP shown (${p.k4} at 4K)`;
+  const lines = [
+    `fling legs: ${o.fling.map(r => { const d = stDrop(r.gaps, iv); return `${pc(d.rate)} worst ${d.worst}ms long ${Math.round(r.loaf)}ms`; }).join(" | ")}`,
+    `swipes 1-10 dropped: ${sw.map(d => pc(d.rate)).join(" ")}`,
+    `swipes 1-10 worst ms: ${sw.map(d => d.worst).join(" ")}; long-frame ms: ${o.swipes.map(r => Math.round(r.loaf)).join(" ")}`,
+    `queue pictures: ${p.n}, ${f1(p.mp)} MP (${Math.round(p.mp * 4)} MB decoded) for ${f1(p.need)} MP on screen, ${p.k4} at 4K, largest ${f1(p.big)} MP`,
+    `first game page: ${g.n} pictures, ${f1(g.mp)} MP for ${f1(g.need)} MP shown, ${g.k4} at 4K`,
+    `game page after swipe 1 → ${o.hold.length}: elements ${h0.els}→${h9.els}, pages ${h0.hubs}→${h9.hubs}, light scenes ${h0.scenes}→${h9.scenes}, animations ${h0.anims}→${h9.anims}`,
+    `screen ${innerWidth}×${innerHeight} @${f1(devicePixelRatio || 1)}, cores ${navigator.hardwareConcurrency || "?"}, memory ${navigator.deviceMemory || "?"}GB${o.err ? ", error: " + o.err : ""}`
+  ];
+  bugReport("slow", msg, { stack: lines.join("\n"), at: "selftest v" + APP_V + " #" + ST.n, sigAt: "selftest v" + APP_V + " #" + ST.n, screen: "self-test" });
+  const row = (k, v) => `<p class="st-r"><span>${k}</span><b>${v}</b></p>`;
+  dyShow(dyBox(), `<div class="dy-h"><b>Smoothness self-test${stopped}</b><button class="dy-x" aria-label="Close">✕</button></div>
+    ${row("Queue fling, frames dropped", `${pc(fl.rate)} · worst ${fl.worst}ms`)}
+    ${row("Game page swipes 1–3", pc(early.rate))}
+    ${row(`Game page swipes ${Math.max(1, o.swipes.length - 2)}–${o.swipes.length}`, pc(late.rate))}
+    ${row("Queue pictures in memory", `${Math.round(p.mp * 4)} MB`)}
+    ${row("…of which the screen needs", `${Math.round(p.need * 4)} MB`)}
+    ${row("4K pictures on the Queue", String(p.k4))}
+    <p class="st-n">Sent to Claude with the details. This was the "before": run it again after the fix to compare.</p>`, () => {});
+}
+/* the test's own flings, swipes and page closes aren't lag to report (lagWatch doesn't look at BUG_MODAL) */
+{ const _br = bugReport; bugReport = function (kind, msg, x) {
+  if (window.pnSelfTest && kind === "slow" && !(x && /^selftest/.test(x.at || ""))) return;
+  return _br.apply(this, arguments); }; }
+document.addEventListener("click", e => { if (!e.target.closest("#s-stest")) return; e.stopPropagation(); beep("tap"); setTimeout(stRun, 200); }, true);
+</script>
+<style>
+/* v266 self-test result card (inside the diary sheet's box) */
+.st-r { display: flex; justify-content: space-between; gap: 12px; margin: 0; padding: 10px 2px; border-bottom: 1px solid var(--u-line, rgba(234,242,255,.08)); }
+.st-r span { color: var(--mute); }
+.st-r b { color: var(--ice); font-variant-numeric: tabular-nums; text-align: right; }
+.st-n { color: var(--mute); font-size: 13px; margin: 12px 2px 4px; }
+</style>
+<script>
+WHATS_NEW.push(
+  { v: 266, go: () => nxOpenSettings("#s-stest"), at: "#s-stest",
+    say: "<b>A smoothness self-test, before anything else changes</b>: tap it and keep your hands off for about 30 seconds. It flings the Queue, swipes through 10 game pages, and measures how much memory your pictures take, then sends me the numbers. This is the \"before\" for the picture fix.",
+    tryIt: "Tap Run the smoothness self-test now, and don't touch the screen until the results card shows up." }
 );
 </script>
