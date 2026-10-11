@@ -25508,28 +25508,39 @@ const fitRemote = u => /^https:\/\//.test(u) && !fitSame(u) && !/^https:\/\/wsrv
 const fitLocalOk = u => !FIT.bad.has(u) && ((/^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 120000) || (/^blob:/.test(u) && !FIT.made.has(u)) || (fitSame(u) && /\.(jpe?g|png|webp)(\?|$)/i.test(u)));
 FIT.made = new Set();
 const fitSized = (u, w, h) => "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=" + w + "&h=" + h + "&fit=outside&we&output=webp&q=86";
-/* one at a time (two 12 MP unpacks at once ran Safari out of memory on the iPad check), one retry before giving up */
-FIT.chain = Promise.resolve(); FIT.fails = new Map();
+/* your own pictures: each big one is unpacked ONCE into a medium copy (≤1536 px, kept as a small webp file), and every
+   size it's shown at is cut from that copy. One at a time (two 12 MP unpacks at once ran Safari's memory out on the iPad
+   check), and one retry before giving up. */
+FIT.chain = Promise.resolve(); FIT.fails = new Map(); FIT.base = new Map();
+const fitQueue = job => { const p = FIT.chain.then(job); FIT.chain = p.then(() => {}, () => {}); return p; };
+async function fitDraw(src, W, H) {
+  let bm; try { bm = await createImageBitmap(src, { resizeWidth: W, resizeHeight: H, resizeQuality: "high" }); } catch (e) { bm = await createImageBitmap(src); }   /* Safari before 17 has no resize options */
+  const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();
+  const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) throw new Error("no blob");
+  return out;
+}
+function fitBase(u) {
+  if (FIT.base.has(u)) return FIT.base.get(u);
+  const p = fitQueue(async () => {
+    /* the size comes from the file's header (new Image() without decode) */
+    const [nw, nh] = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = no; im.src = u; });
+    const blob = await (await fetch(u)).blob();
+    const s = Math.min(1, 1536 / Math.max(nw, nh));
+    return { blob: s < 1 ? await fitDraw(blob, Math.round(nw * s), Math.round(nh * s)) : blob, w: Math.round(nw * s), h: Math.round(nh * s), nw, nh };
+  }).catch(e => { FIT.base.delete(u); throw e; });
+  FIT.base.set(u, p); return p;
+}
 function fitLocal(u, w, h) {
   const k = u + "|" + w + "|" + h; if (FIT.local.has(k)) return FIT.local.get(k);
-  const job = async () => {
-    /* the size comes from the file's header (new Image() without decode), so the big one is unpacked once, already shrunk */
-    const [nw, nh] = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = no; im.src = u; });
-    const s = Math.max(w / nw, h / nh); if (!nw || s >= .8) return null;   /* "outside": at least w×h; not worth it if barely smaller */
-    const W = Math.round(nw * s), H = Math.round(nh * s);
-    const blob = await (await fetch(u)).blob();
-    /* Safari before 17 doesn't take the resize options (it throws): unpack it whole off the page's thread, then draw it small */
-    let bm; try { bm = await createImageBitmap(blob, { resizeWidth: W, resizeHeight: H, resizeQuality: "high" }); } catch (e) { bm = await createImageBitmap(blob); }
-    const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();   /* (a Safari that ignores resizeWidth still gets W×H) */
-    const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) return null;
-    const url = URL.createObjectURL(out); FIT.made.add(url); return url;
-  };
-  const p = FIT.chain.then(job).catch(() => {
+  const p = fitBase(u).then(b => {
+    const s = Math.max(w / b.nw, h / b.nh); if (s >= .8) return null;   /* "outside": at least w×h; not worth it if barely smaller */
+    const W = Math.max(1, Math.round(b.nw * s)), H = Math.max(1, Math.round(b.nh * s));
+    return fitQueue(() => (W >= b.w && H >= b.h ? b.blob : fitDraw(b.blob, W, H))).then(out => { const url = URL.createObjectURL(out); FIT.made.add(url); return url; });
+  }).catch(() => {
     const n = (FIT.fails.get(u) || 0) + 1; FIT.fails.set(u, n);
     FIT.local.delete(k); if (n >= 2) FIT.bad.add(u);   /* the next look tries once more */
     return null;
   });
-  FIT.chain = p.then(() => {}, () => {});
   FIT.local.set(k, p); return p;
 }
 /* what this piece needs, in device pixels, rounded up; 0 = big enough to leave to the screen cap */
