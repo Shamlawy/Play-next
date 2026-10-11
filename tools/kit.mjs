@@ -9,9 +9,13 @@
      node tools/kit.mjs perf            main-thread time for a fixed walk (4x slower CPU), to compare before/after a change
      node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
      node tools/kit.mjs all             syntax + sw + sweep + tour
+     node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
+                                        with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
 
    Options: --file other.html (test another copy, e.g. the old build), --widths 412,859, --cpu 4,
-   --set '{"bugOff":true}' (extra saved settings), --shots dir (tour: a screenshot of every step).
+   --set '{"bugOff":true}' (extra saved settings), --shots dir (tour: a screenshot of every step),
+   --plant x.js (sweep: run this in every phone once it has loaded) with --expect (sweep fails unless the plant is reported:
+   the proof a new detector catches its problem).
    Exit code 1 when something failed (script errors, a broken block, a real report, a tour step without its target).
    Timing reports ("slow") are printed but never fail: a headless machine has no GPU. */
 import http from "http";
@@ -26,7 +30,8 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const args = process.argv.slice(2), mode = args.find(a => !a.startsWith("--")) || "all";
 const opt = (k, d) => { const i = args.indexOf("--" + k); return i >= 0 ? args[i + 1] : d; };
 const FILE = opt("file", "index.html");
-const SET = JSON.parse(opt("set", "{}"));   /* --set '{"bugOff":true}': extra saved settings for every phone */
+const SET = JSON.parse(opt("set", "{}"));
+const PLANT = opt("plant") ? fs.readFileSync(opt("plant"), "utf8") : "", EXPECT = args.includes("--expect");   /* --set '{"bugOff":true}': extra saved settings for every phone */
 const WIDTHS = opt("widths", "412,859,360").split(",").map(Number);
 const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2] };
 const html = fs.readFileSync(path.join(ROOT, FILE), "utf8");
@@ -82,7 +87,10 @@ function serve() {
 async function launch() {
   const { chromium } = await pw();
   const exe = ["/opt/pw-browsers/chromium/chrome-linux/chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(f => fs.existsSync(f));
-  return chromium.launch(exe && !process.env.CI ? { executablePath: exe } : {});
+  /* no browser swipe-back: a real finger swiping right on a game page otherwise "goes back" to about:blank (the installed
+     app has no browser history gesture) */
+  const args = ["--overscroll-history-navigation=0", "--disable-features=OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation"];
+  return chromium.launch(exe && !process.env.CI ? { executablePath: exe, args } : { args });
 }
 /* a fresh phone: seeded data, the helper's /bug caught here, every other site blocked (pictures, APIs) */
 async function phone(browser, base, w, data) {
@@ -104,6 +112,7 @@ async function phone(browser, base, w, data) {
   page.on("pageerror", e => errors.push(String(e && e.message || e).split("\n")[0]));
   page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked|ERR_/i.test(m.text())) errors.push(m.text().split("\n")[0]); });
   await page.goto(base); await page.waitForTimeout(2500);
+  if (PLANT) await page.evaluate(PLANT).catch(e => errors.push("plant: " + String(e.message || e).split("\n")[0]));
   const step = async (label, fn, wait = 1200) => {
     try { await page.evaluate(fn); } catch (e) { errors.push(`${label}: ${String(e.message || e).split("\n")[0]}`); }
     await page.waitForTimeout(wait);
@@ -114,7 +123,17 @@ async function phone(browser, base, w, data) {
     (els[0] || document.scrollingElement).scrollBy(0, dy);
   }, dy).catch(() => {});
   const flush = () => step("flush", `typeof bugFlush === "function" && bugFlush()`, 1500);
-  return { ctx, page, reports, errors, step, scroll, flush };
+  /* real touch (v207: mouse clicks skip the app's touch paths) */
+  const cdp = await ctx.newCDPSession(page);
+  const pt = (x, y) => [{ x: Math.round(x), y: Math.round(y), radiusX: 4, radiusY: 4, force: 1, id: 1 }];
+  const tap = async (x, y) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x, y) }); await page.waitForTimeout(40);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); };
+  const swipe = async (x1, y1, x2, y2, ms = 220, n = 12) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x1, y1) });
+    for (let i = 1; i <= n; i++) { await page.waitForTimeout(ms / n); await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n) }); }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  return { ctx, page, cdp, reports, errors, step, scroll, flush, tap, swipe, w: vw, h: vh };
 }
 const SCREENS = ["home", "queue", "lib", "played", "replay", "month", "flow", "plan", "psych", "duels", "friend", "add"];
 const line = r => `[${r.kind}] ${r.screen}: ${r.msg}${r.at ? " @ " + String(r.at).slice(0, 140) : ""}`;
@@ -134,7 +153,9 @@ async function sweep(browser, base) {
   for (const w of WIDTHS) {
     const p = await phone(browser, base, w, seed(APP_V));
     for (const s of SCREENS) {
-      await p.step("goTab " + s, `goTab(${JSON.stringify(s)})`, 1400);
+      /* the layout check runs 1.6s after a screen change, when idle: leave sooner and most of it is missed
+         (a planted cut-off button was reported on 3 screens with 1.4s here, on 11 with 2.6s) */
+      await p.step("goTab " + s, `goTab(${JSON.stringify(s)})`, 2600);
       await p.scroll(900); await p.page.waitForTimeout(700);
       await p.scroll(-900); await p.page.waitForTimeout(400);
     }
@@ -151,7 +172,11 @@ async function sweep(browser, base) {
     await p.step("close chat", `typeof dyClose === "function" && dyClose()`, 600);
     await p.step("home", `goTab("home")`, 1500);
     await p.flush(); await p.flush();
-    verdict(`${w}px`, p);
+    if (EXPECT) {
+      const real = p.reports.filter(r => r.kind !== "slow");
+      if (real.length) console.log(`  ✓ ${w}px: the plant was reported (${real.length}):\n      ` + real.map(line).join("\n      "));
+      else fail(`${w}px: the plant was NOT reported`);
+    } else verdict(`${w}px`, p);
     await p.ctx.close();
   }
 }
@@ -222,12 +247,26 @@ function sw() {
 
 if (mode === "syntax" || mode === "all") syntax();
 if (mode === "sw" || mode === "all") sw();
-if (["sweep", "tour", "perf", "all"].includes(mode)) {
+/* ---------- a saved scenario ---------- */
+async function scenario(browser, base) {
+  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set");
+  if (!file) return fail("usage: node tools/kit.mjs run tools/scenarios/x.mjs [--widths 412]");
+  const fn = (await import(path.resolve(file))).default;
+  for (const w of opt("widths") ? WIDTHS : [412]) {
+    const p = await phone(browser, base, w, seed(APP_V));
+    console.log(`\n== ${path.basename(file)} at ${w}px ==`);
+    if ((await fn({ p, w, fail, seed })) === false) fail(`${path.basename(file)} at ${w}px`);
+    await p.ctx.close();
+  }
+}
+
+if (["sweep", "tour", "perf", "all", "run"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
     if (mode === "tour" || mode === "all") await tour(browser, base);
     if (mode === "perf") await perf(browser, base);
+    if (mode === "run") await scenario(browser, base);
   } finally { await browser.close(); srv.close(); }
 }
 console.log(failed ? `\n${failed} problem(s).` : "\nAll clear.");

@@ -30,7 +30,7 @@ const TO_MAIN = /\bgit\s+(?:-C\s+\S+\s+)?push\b[^&;|]*(?:\s(?:\S+:)?(?:refs\/hea
 const HTML_WRITE = /index\.html/
 // Shell commands that change index.html (a script only when it writes files).
 const WRITER = /\bsed\s+-[a-zA-Z]*i|\bperl\s+-[a-zA-Z]*i|>\s*\S*index\.html|\btee\b|\bpatch\b|\bgit\s+apply\b|\b(?:python3?|node)\b[\s\S]*(?:writeFileSync|\.write\(|open\([^)]*["'][wa]\+?["'])/
-const TESTED = /playwright|chromium|pw-browsers|webkit|scratchpad\/\S+\.(?:m?js|py)\b/i
+const TESTED = /playwright|chromium|pw-browsers|webkit|tools\/kit\.mjs\s+(?:sweep|tour|perf|all|run)\b|scratchpad\/\S+\.(?:m?js|py)\b/i
 
 const bullet = (xs: readonly string[]) => xs.map(x => `- ${x}`).join('\n')
 
@@ -308,7 +308,7 @@ export const register: Register = on => {
     if (r.block || e.stop_hook_active || !lastEdit || lastTest > lastEdit) return r
     return {
       ...r,
-      block: '[release-guard] index.html changed this turn but no browser test ran after the last change. CLAUDE.md: test in Playwright + Chromium (412 and 900 widths; the tour too if WHATS_NEW changed; the 412/859/360 detector sweep for problem-report fixes) before saying it is done. If this turn did not finish the change, say so plainly instead.',
+      block: '[release-guard] index.html changed this turn but no browser test ran after the last change. CLAUDE.md: test in Playwright + Chromium before saying it is done: `node tools/kit.mjs sweep` (412/859/360 detector sweep), `node tools/kit.mjs tour` if WHATS_NEW changed, `node tools/kit.mjs run tools/scenarios/<x>.mjs` for the change itself. If this turn did not finish the change, say so plainly instead.',
     }
   }).catch(($, e, next) => next(e))
 }
