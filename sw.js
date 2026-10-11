@@ -56,15 +56,24 @@ self.addEventListener("fetch", e => {
   );
 });
 
+/* v268: the owner after v267: "pictures and art take longer to load, sometimes I wait 3 seconds". Every new picture
+   waited for the resize service (it downloads the original itself, then shrinks it), and each size a list asked for
+   (layer 2 in index.html: a cover at 128, the same cover at 384 on a game page…) was another full trip. Now the phone
+   does it: the original comes straight from its own site as before v267, is shrunk here (off the page's thread) only
+   when it's bigger than CAP, and is kept; every sized copy layer 2 asks for (its wsrv.nl address) is cut from that kept
+   copy in a few milliseconds, with no network at all. Two requests for the same picture share one download. The
+   resize service is only the fallback: sites that don't allow reading their pictures, phones without OffscreenCanvas,
+   or a picture the phone can't unpack. */
 async function imgFirst(r) {
   const c = await caches.open(IMG);
   const hit = await c.match(r.url);
   if (hit) return hit;
   const u = new URL(r.url);
-  if (u.hostname !== FIT_HOST && !FIT_SKIP.test(u.pathname)) {
-    const fit = await fitFetch(r.url);
-    if (fit) { c.put(r.url, fit.clone()).then(() => trim(c)).catch(() => {}); return fit; }
-  }
+  try {
+    const made = u.hostname === FIT_HOST ? await once("s|" + r.url, () => sizedCopy(u, c))
+      : !FIT_SKIP.test(u.pathname) ? await once("b|" + r.url, () => baseCopy(r.url, c)) : null;
+    if (made) return new Response(made, { headers: { "content-type": made.type || "image/jpeg" } });
+  } catch (e) {}
   /* ask with CORS first: then the status is readable and only a good picture is kept.
      Hosts that don't allow CORS still load (no-cors), they just aren't kept. */
   let res = null;
@@ -72,6 +81,94 @@ async function imgFirst(r) {
   if (res && res.ok) { c.put(r.url, res.clone()).then(() => trim(c)).catch(() => {}); return res; }
   if (res && res.status) return res;
   return fetch(r);
+}
+/* one job per address at a time: the page asking for the original and its sized copy at once downloads it once */
+const FITS = new Map();
+function once(k, job) {
+  if (FITS.has(k)) return FITS.get(k);
+  const p = job().catch(() => null).finally(() => FITS.delete(k));
+  FITS.set(k, p); return p;
+}
+/* at most two pictures unpacked at a time (memory) */
+let fitBusy = 0; const fitQ = [];
+async function fitSlot(job) {
+  while (fitBusy >= 2) await new Promise(r => fitQ.push(r));
+  fitBusy++;
+  try { return await job(); } finally { fitBusy--; const n = fitQ.shift(); if (n) n(); }
+}
+const keep = (c, k, blob) => c.put(k, new Response(blob, { headers: { "content-type": blob.type || "image/jpeg" } })).then(() => trim(c)).catch(() => {});
+/* the kept copy of a picture: its original if it's no bigger than CAP, else shrunk to CAP; null = let the old path try */
+async function baseCopy(src, c) {
+  let res = null;
+  try { res = await fetch(src, { mode: "cors", credentials: "omit" }); } catch (e) {}
+  if (!res || !res.ok || !/^image\//.test(res.headers.get("content-type") || "image/")) return viaService(src, c);
+  const blob = await res.blob(), d = picSize(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()));
+  let out = blob;
+  if (!d || Math.max(d[0], d[1]) > CAP) {
+    out = await fitSlot(() => shrink(blob, CAP, CAP, false));
+    if (!out && d) return (await viaService(src, c)) || blob;   /* kept from the service next time */
+    if (!out) out = blob;
+  }
+  keep(c, src, out);
+  return out;
+}
+/* the resize service, given 1.5s: slower than that, the original shows now and the service's copy is kept for next time */
+function viaService(src, c) {
+  const job = fitFetch(src).then(f => f && f.blob()).then(b => { if (b) keep(c, src, b); return b || null; }, () => null);
+  return Promise.race([job, new Promise(r => setTimeout(() => r(null), 1500))]);
+}
+/* layer 2's sized copy (wsrv.nl/?url=…&w=…&h=…&fit=outside), cut from the kept copy */
+async function sizedCopy(u, c) {
+  const p = u.searchParams, src = p.get("url"), w = +p.get("w"), h = +p.get("h");
+  if (!src || !/^https:\/\//.test(src) || p.get("fit") !== "outside" || !(w > 0 && h > 0)) return null;
+  const k = await c.match(src);
+  const base = k ? await k.blob() : await once("b|" + src, () => baseCopy(src, c));
+  if (!base) return null;
+  const out = await fitSlot(() => shrink(base, w, h, true));
+  if (!out) return null;
+  keep(c, u.href, out);
+  return out;
+}
+/* outside = covers w×h (a box's copy), else fits inside it; never enlarges; null when this phone can't */
+async function shrink(blob, w, h, outside) {
+  if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function") return null;
+  let bm = null;
+  try {
+    bm = await createImageBitmap(blob);
+    const s = outside ? Math.max(w / bm.width, h / bm.height) : Math.min(w / bm.width, h / bm.height);
+    if (s >= (outside ? .8 : 1)) return blob;   /* barely smaller isn't worth a new copy */
+    const W = Math.max(1, Math.round(bm.width * s)), H = Math.max(1, Math.round(bm.height * s));
+    const cv = new OffscreenCanvas(W, H), x = cv.getContext("2d");
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+    x.drawImage(bm, 0, 0, W, H);
+    bm.close(); bm = null;
+    let out = await cv.convertToBlob({ type: "image/webp", quality: .86 });
+    /* Safari can't write webp: JPEG, or PNG when the picture may be see-through */
+    if (out.type !== "image/webp") out = await cv.convertToBlob(/png|webp|gif/.test(blob.type) ? { type: "image/png" } : { type: "image/jpeg", quality: .88 });
+    return out;
+  } catch (e) { return null; } finally { if (bm && bm.close) bm.close(); }
+}
+/* width × height from the file's first bytes (PNG, JPEG, WebP), so small pictures are kept without unpacking them */
+function picSize(b) {
+  const u16 = i => (b[i] << 8) | b[i + 1], le = (i, n) => { let v = 0; for (let k = n - 1; k >= 0; k--) v = v * 256 + b[i + k]; return v; };
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return [u16(16) * 65536 + u16(18), u16(20) * 65536 + u16(22)];
+  if (b[0] === 0xFF && b[1] === 0xD8) {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xFF) { i++; continue; }
+      const m = b[i + 1];
+      if (m === 0xFF) { i++; continue; }
+      if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) return [u16(i + 7), u16(i + 5)];
+      if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+      i += 2 + u16(i + 2);
+    }
+    return null;
+  }
+  const tag = String.fromCharCode(b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]);
+  if (b.length > 30 && tag === "WEBPVP8 ") return [le(26, 2) & 0x3fff, le(28, 2) & 0x3fff];
+  if (b.length > 30 && tag === "WEBPVP8L") return [1 + (((b[22] & 0x3f) << 8) | b[21]), 1 + (((b[24] & 0xf) << 10) | (b[23] << 2) | ((b[22] & 0xc0) >> 6))];
+  if (b.length > 30 && tag === "WEBPVP8X") return [1 + le(24, 3), 1 + le(27, 3)];
+  return null;
 }
 async function fitFetch(src) {
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
