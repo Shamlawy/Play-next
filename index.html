@@ -4148,7 +4148,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "263";
+const APP_V = "264";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -24875,6 +24875,253 @@ WHATS_NEW.push(
     tryIt: "Watch your refresh-rate counter while you scroll and switch screens: it should reach 120. When nothing moves it drops lower to save battery, which is normal." },
   { v: 263, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: when you leave the app alone for a few seconds I check for anything still moving the slow way, and report it before it can hold the screen at 60 again.",
+    tryIt: "Nothing to do: if it ever happens, I file it on my own." }
+);
+</script>
+<style>
+/* v264: the whole background in one layer (hlvf*, last script). The flat canvas keeps v257's own canvas rule (its own
+   layer, will-change: transform) and fills the scene. While it also carries the queue backdrop and the tint, those two
+   step aside; the classes they need are in the selector, so losing any of them shows them again at once. */
+.hlv-s canvas.hlv-f { left: 0; top: 0; width: 100%; height: 100%; }
+html.hlvflat.hlvon.bgon #bgart, html.hlvflat.hlvon.bgon #bgart2, html.hlvflat.hlvon.bgon #bgtint { visibility: hidden; }
+</style>
+<script>
+/* v264 (the owner, the fifth time: "still lags"). v263 made the main thread quiet; what was left is the GPU. A trace of what
+   it draws per frame (the viz.quads trace: every layer, its area and its blending) on Games/Plan at 859×847 @2.63 found
+   about 7 screens' worth of see-through layers blended on every frame: the queue backdrop (#bgart, a canvas at .58), the
+   tint over it (#bgtint), the live light's picture (.hlv-art, 128% of the screen) and its three lights (76vmax each),
+   on top of the page's own background and the page. Something on screen always moves (the lights, the specks, Nexi), so
+   the phone re-blends all of it at 120Hz on a 5-megapixel panel: the "60 or 70" on the FPS counter with an idle main
+   thread. A normal screen is 1.5 to 2 screens.
+   Now each live-light scene is ONE canvas at a quarter of the screen's size that the GPU stretches (all of it is soft):
+   the picture and the three lights are drawn into it with v257's exact paths (same keyframes, ease-in-out, 48s alternate
+   for the picture, 31/41/53s with their random starts for the lights), so it looks the same. When a scene has settled
+   on a screen with the queue backdrop, the backdrop and the tint are drawn into its bottom too and step aside ("over" is
+   associative, so the result is the same pixels). Any change to them (a new game's backdrop, a crossfade, a tab without
+   the backdrop, the game page opening) puts them back in the same task, before the next frame.
+   It's redrawn 30 times a second from a timer (the lights move about a pixel per step, too slow and soft to see steps);
+   a quarter-size canvas costs well under a millisecond. Holds still with the rest mode, while dragging, when the app is
+   hidden and with Motion off, like the CSS did. Result: about 7 → 2 screens of drawing per frame. */
+const HLVF = { t: 0, n: 0, W: innerWidth || 400, H: innerHeight || 800, recheck: true, mo: null };
+const hlvfEase = (() => {   /* ease-in-out = cubic-bezier(.42, 0, .58, 1) */
+  const cx = 1.26, bx = 3 * (.58 - .42) - cx, ax = 1 - cx - bx, by = 3, ay = -2;
+  const X = t => ((ax * t + bx) * t + cx) * t, dX = t => (3 * ax * t + 2 * bx) * t + cx;
+  return p => { if (p <= 0) return 0; if (p >= 1) return 1; let t = p;
+    for (let i = 0; i < 8; i++) { const d = dX(t); if (Math.abs(d) < 1e-6) break; t = Math.min(1, Math.max(0, t - (X(t) - p) / d)); }
+    return (ay * t + by) * t * t; };
+})();
+/* v257's keyframes (hlvArt, hlvL1–3): [offset, translate x %, translate y %, scale] */
+const HLVF_KF = {
+  art: [[0, -4, -3, 1], [1, 4, 3, 1.1]],
+  1: [[0, -34, -30, .7], [.33, 28, -22, .95], [.66, 6, 18, .6], [1, -34, -30, .7]],
+  2: [[0, 30, 26, .85], [.4, -26, 30, .6], [.75, -12, -28, 1], [1, 30, 26, .85]],
+  3: [[0, 0, 38, .55], [.3, -30, -6, .8], [.6, 32, -36, .65], [1, 0, 38, .55]]
+};
+function hlvfAt(kf, p) {
+  let i = 0; while (i < kf.length - 2 && p > kf[i + 1][0]) i++;
+  const a = kf[i], b = kf[i + 1], q = hlvfEase((p - a[0]) / ((b[0] - a[0]) || 1));
+  return [a[1] + (b[1] - a[1]) * q, a[2] + (b[2] - a[2]) * q, a[3] + (b[3] - a[3]) * q];
+}
+/* the tint's gradient, read from its computed style: only a plain top-to-bottom linear gradient of colours with % stops */
+function hlvfStops(bg) {
+  bg = bg || ""; if (bg.indexOf("gradient(") !== bg.lastIndexOf("gradient(")) return null;
+  const m = /^linear-gradient\((.*)\)$/.exec(bg); if (!m) return null;
+  let body = m[1]; const dir = /^(180deg|to bottom)\s*,\s*/.exec(body);
+  if (dir) body = body.slice(dir[0].length); else if (!/^rgba?\(/.test(body)) return null;
+  const out = [], re = /(rgba?\([^)]*\))\s+([\d.]+)%/g; let x;
+  while ((x = re.exec(body))) out.push([Math.min(1, +x[2] / 100), x[1]]);
+  return out.length >= 2 && out.length === (body.match(/rgba?\(/g) || []).length ? out : null;
+}
+/* can the backdrop and tint go into this scene? Only when everything is still: one settled scene on #hlv, one backdrop
+   shown with nothing fading, Speed boost's baked canvas (no live filter), a plain tint. */
+const HLVF_ID = /^(none|matrix\(1, 0, 0, 1, 0, 0\)|matrix3d\(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1\))$/;
+function hlvfBaseFor(sc) {
+  const r = document.documentElement, box = sc.parentElement, fu = document.getElementById("full");
+  if (!box || box.id !== "hlv" || !["bgon", "hlvon", "fast"].every(c => r.classList.contains(c)) || r.classList.contains("still")) return null;
+  if (fu && fu.classList.contains("on")) return null;
+  if (!sc.classList.contains("in") || box.querySelectorAll(".hlv-s.live").length !== 1 || sc.getAnimations().length) return null;
+  const t = document.getElementById("bgtint"); let shown = null;
+  for (const l of [document.getElementById("bgart"), document.getElementById("bgart2")]) {
+    if (!l || l.getAnimations().length) return null;
+    const cs = getComputedStyle(l), op = +cs.opacity;
+    if (cs.display === "none" || op <= .001) continue;
+    if (shown || cs.filter !== "none" || !HLVF_ID.test(cs.transform) || cs.mixBlendMode !== "normal" || l.style.backgroundImage !== "none") return null;
+    const cv = l.querySelector("canvas"); if (!cv || !cv.width) return null;
+    shown = { cv, op };
+  }
+  if (!shown || !t) return null;
+  const ts = getComputedStyle(t), stops = ts.display !== "none" && ts.filter === "none" && ts.mixBlendMode === "normal" &&
+    /rgba\(0, 0, 0, 0\)|transparent/.test(ts.backgroundColor) && hlvfStops(ts.backgroundImage);
+  return stops ? { cv: shown.cv, op: shown.op, top: +ts.opacity, stops } : null;
+}
+function hlvfShown(sc) {
+  const box = sc.parentElement, r = document.documentElement, fu = document.getElementById("full");
+  if (!box || box.classList.contains("hold")) return false;
+  if (box.id === "hlv") return r.classList.contains("hlvon") && !(fu && fu.classList.contains("on"));
+  if (box.id === "hlvg") return !!fu && fu.classList.contains("on") && fu.classList.contains("hlvgon") && fu.contains(box);
+  return false;
+}
+function hlvfDraw(sc) {
+  const f = sc._f, cv = f.cv, W = HLVF.W, H = HLVF.H, still = document.documentElement.classList.contains("still");
+  const cw = Math.max(8, Math.ceil(W / 4)), ch = Math.max(8, Math.ceil(H / 4));
+  if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+  const x = cv.getContext("2d"); if (!x) return;
+  x.setTransform(cw / W, 0, 0, ch / H, 0, 0); x.globalAlpha = 1; x.clearRect(0, 0, W, H);
+  const b = f.base;
+  if (b) {
+    x.globalAlpha = Math.min(1, b.op); x.drawImage(b.cv, 0, 0, W, H);
+    const g = x.createLinearGradient(0, 0, 0, H); b.stops.forEach(([o, c]) => g.addColorStop(o, c));
+    x.globalAlpha = Math.min(1, b.top); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  }
+  const t = f.clock / 1000;
+  if (f.art && !sc.classList.contains("noart")) {
+    let p = (t / 48) % 2; if (p > 1) p = 2 - p;   /* alternate */
+    const [tx, ty, s] = still ? [0, 0, 1] : hlvfAt(HLVF_KF.art, p), aw = W * 1.28, ah = H * 1.28, w = aw * s, h = ah * s;
+    x.globalAlpha = Math.min(1, .38 * f.k);
+    x.drawImage(f.art, W / 2 + tx / 100 * aw - w / 2, H / 2 + ty / 100 * ah - h / 2, w, h);
+  }
+  const L = .76 * Math.max(innerWidth || W, innerHeight || H);   /* 76vmax */
+  x.globalAlpha = Math.min(1, .45 * f.k);
+  f.ls.forEach(l => {
+    const [tx, ty, s] = still ? [0, 0, 1] : hlvfAt(l.kf, ((t + l.off) / l.dur) % 1), d = L * s;
+    x.drawImage(l.c, W / 2 + tx / 100 * L - d / 2, H / 2 + ty / 100 * L - d / 2, d, d);
+  });
+  x.globalAlpha = 1; f.drawn = true;
+}
+const hlvfLive = () => [...document.querySelectorAll(".hlv-s.live")].filter(sc => sc._f);
+function hlvfFlatClass() {
+  const r = document.documentElement, on = hlvfLive().some(sc => sc._f.base && hlvfShown(sc));
+  if (r.classList.contains("hlvflat") !== on) r.classList.toggle("hlvflat", on);
+}
+/* the backdrop or tint may be about to change: they come back at once, the scene redrawn without them, same task */
+function hlvfExit() {
+  HLVF.recheck = true;
+  hlvfLive().forEach(sc => { if (!sc._f.base) return; sc._f.base = null; hlvfDraw(sc); });   /* hidden ones too: never shown stale */
+  hlvfFlatClass(); hlvfKick();
+}
+function hlvfTick() {
+  HLVF.t = 0;
+  const r = document.documentElement, now = performance.now(), live = hlvfLive();
+  if (!live.length) { hlvfFlatClass(); return; }
+  const frozen = document.hidden || !!window.pnRest || r.classList.contains("dragging-now"), still = r.classList.contains("still");
+  const chk = HLVF.recheck || HLVF.n++ % 8 === 0; HLVF.recheck = false;
+  let moving = false;
+  for (const sc of live) {
+    const f = sc._f, dt = Math.min(250, now - (f.last || now)); f.last = now;
+    if (!hlvfShown(sc)) { if (f.base) { f.base = null; hlvfDraw(sc); } continue; }
+    let redraw = !f.drawn;
+    if (!frozen && !still) { f.clock += dt; redraw = moving = true; }
+    if (chk) { const b = hlvfBaseFor(sc); if (b || f.base) redraw = true; f.base = b; }
+    if (redraw) hlvfDraw(sc);
+  }
+  hlvfFlatClass();
+  HLVF.t = setTimeout(hlvfTick, moving ? 33 : 400);
+}
+function hlvfKick() { if (!HLVF.t) HLVF.t = setTimeout(hlvfTick, 0); }
+/* a new scene from v257's hlvScene: its picture and lights move into one canvas (same task: never drawn apart) */
+function hlvfAdopt(box) {
+  if (!box) return;
+  box.querySelectorAll(".hlv-s").forEach(sc => {
+    if (sc._f) return;
+    const art = sc.querySelector("canvas.hlv-art"), ls = [...sc.querySelectorAll("canvas.hlv-l")];
+    if (!art && !ls.length) return;
+    const f = sc._f = { k: parseFloat(sc.style.getPropertyValue("--hlvk")) || 1, art, clock: 0, last: 0, drawn: false, base: null,
+      ls: ls.map((c, n) => { const m = /hlv-l([123])/.exec(c.className), i = m ? +m[1] : n % 3 + 1;
+        return { c, kf: HLVF_KF[i], dur: parseFloat(c.style.animationDuration) || [31, 41, 53][i - 1], off: -(parseFloat(c.style.animationDelay) || 0) }; }) };
+    if (art) art.remove(); ls.forEach(c => c.remove());
+    f.cv = document.createElement("canvas"); f.cv.className = "hlv-f"; sc.insertBefore(f.cv, sc.firstChild);
+    hlvfDraw(sc);
+  });
+  hlvfKick();
+}
+{ const _hs = hlvScene; hlvScene = async function (box) { try { return await _hs.apply(this, arguments); } finally { hlvfAdopt(box); } }; }
+/* every new scene is shown through here, including one v257 started before this script loaded (the parser lets frames run) */
+{ const _sh = hlvShow; hlvShow = function (box) { const o = _sh.apply(this, arguments); hlvfAdopt(box); hlvfExit(); return o; }; }
+{ const _ha = hlvHideAll; hlvHideAll = function () { const o = _ha.apply(this, arguments); hlvfExit(); return o; }; }
+{ const _hy = hlvSync; hlvSync = function () { const o = _hy.apply(this, arguments); if (document.documentElement.classList.contains("hlvflat")) hlvfExit(); else hlvfKick(); return o; }; }
+/* anything that could change what's under the light: the backdrop layers (opacity, picture, canvas), <html>'s classes and
+   style (bgon, hlvon, fast, still, --bgo), #full opening. A MutationObserver runs before the frame is drawn. */
+if (window.MutationObserver) {
+  const sig = () => ["bgon", "hlvon", "fast", "still"].map(c => +document.documentElement.classList.contains(c)).join("") + document.documentElement.getAttribute("style");
+  let last = sig();
+  HLVF.mo = new MutationObserver(recs => {
+    if (!document.documentElement.classList.contains("hlvflat")) { last = sig(); return; }
+    const s = sig(), rootOnly = recs.every(m => m.target === document.documentElement);
+    if (rootOnly && s === last) return;
+    last = s; hlvfExit();
+  });
+  HLVF.mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+  ["bgart", "bgart2", "bgtint", "full"].forEach(id => { const el = document.getElementById(id);
+    if (el) HLVF.mo.observe(el, { attributes: true, attributeFilter: ["class", "style"], childList: id !== "full" }); });
+}
+addEventListener("resize", () => { HLVF.W = innerWidth || 400; HLVF.H = innerHeight || 800; hlvfExit(); });
+["pointerdown", "keydown", "wheel", "touchstart"].forEach(t => addEventListener(t, hlvfKick, { capture: true, passive: true }));
+document.addEventListener("visibilitychange", hlvfKick);
+/* scenes made before this script ran */
+[document.getElementById("hlv"), HLV.g].forEach(hlvfAdopt);
+/* v264: Nexi learned (the owner's fifth "still lags", with nothing in his own reports since v263): the lag he couldn't see
+   was the GPU blending a pile of see-through, screen-sized layers on every frame. His lag checks only watch the main
+   thread, so it never showed up. Now, a few seconds after you stop touching a screen (once per screen and size, at most 6
+   a session), he adds up how much of the screen is covered by see-through pieces that get their own layer (fixed,
+   canvas or video, or will-change), counting backdrop blurs three times, and only what's in front of the last solid
+   full-screen piece (a game's page hides what's behind it). Looked at twice, 3s apart (a crossfade between two lights is
+   fine); 3 screens or more both times → kind "slow". Before v264, Plan, Taste and the Queue were at 3.4–4.4; now about 1. */
+const STACK = { t: 0, n: 0, seen: new Set() };
+function stackLook() {
+  /* only where a screen-sized layer can be: everything outside the page's .wrap (backgrounds, overlays, a game's page),
+     plus .wrap's own screens, never deep inside a list (walking every row forced layout of off-screen rows: 130ms) */
+  const W = innerWidth, H = innerHeight, A = W * H || 1, list = [];
+  const shown = el => !el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true });
+  const look = el => {
+    if (!(el.offsetWidth >= W * .45 && el.offsetHeight >= H * .3)) return;   /* (SVG has no offsetWidth) */
+    const cs = getComputedStyle(el), tag = el.tagName;
+    if (!(tag === "CANVAS" || tag === "VIDEO" || cs.position === "fixed" || /transform|opacity/.test(cs.willChange))) return;
+    const r = el.getBoundingClientRect(), w = Math.min(W, r.right) - Math.max(0, r.left), h = Math.min(H, r.bottom) - Math.max(0, r.top);
+    const c = w > 0 && h > 0 ? w * h / A : 0; if (c < .25) return;
+    const bg = cs.backgroundColor, clear = /rgba\(\d+, \d+, \d+, 0\)|transparent/.test(bg), img = cs.backgroundImage !== "none";
+    if (tag !== "CANVAS" && tag !== "VIDEO" && !clear && !/rgba\(/.test(bg) && !img && +cs.opacity === 1 && c > .95) { list.length = 0; return; }   /* hides all before it */
+    const bf = cs.backdropFilter || cs.webkitBackdropFilter || "none";
+    if (!(tag === "CANVAS" || tag === "VIDEO" || img || !clear || bf !== "none")) return;   /* draws nothing itself */
+    list.push({ el, w: c * (bf !== "none" ? 3 : 1) });
+  };
+  const walk = (el, d) => { for (const k of el.children) {
+    if (!shown(k)) continue;
+    look(k);
+    if (k.classList.contains("wrap")) { for (const p of k.children) if (shown(p)) { look(p);
+      if (getComputedStyle(p).position === "fixed") walk(p, d + 2);   /* an overlay kept in .wrap: a game's page (#full) */
+      else for (const q of p.children) if (shown(q)) look(q); } continue; }
+    if (d < 5) walk(k, d + 1);
+  } };
+  walk(document.body, 0);
+  const sum = list.reduce((a, x) => a + x.w, 0);
+  return { sum, who: list.sort((a, b) => b.w - a.w).slice(0, 4).map(x => bugPath(x.el).split(" > ").pop()) };
+}
+function stackArm(ms) { clearTimeout(STACK.t); STACK.t = setTimeout(stackCheck, ms); }
+async function stackCheck() {
+  clearTimeout(STACK.t);
+  if (STACK.n >= 6) return;
+  const r = document.documentElement, sh = document.getElementById("sheet");
+  /* a sheet (Settings, Add…) is a passing overlay over the screen, not the screen */
+  if (!lagOk() || nxTouring() || r.classList.contains("dragging-now") || (sh && sh.checkVisibility && sh.checkVisibility({ opacityProperty: true, visibilityProperty: true }))) { stackArm(20000); return; }
+  const scr = bugScreen(), key = scr + "|" + innerWidth + "x" + innerHeight; if (STACK.seen.has(key)) return;
+  const go = STACK.go = Symbol(), one = stackLook();
+  if (one.sum < 3) { STACK.seen.add(key); return; }
+  await new Promise(res => setTimeout(res, 3000)); if (STACK.go !== go || bugScreen() !== scr) return;
+  const two = stackLook(); STACK.seen.add(key); if (two.sum < 3) return;
+  STACK.n++;
+  bugReport("slow", `${two.sum.toFixed(1)} screens of see-through layers are stacked on ${lagWhere()} (${two.who.join(", ")}): the GPU blends every one of them on every frame, so the screen can't keep up at 120Hz`,
+    { at: two.who.join(", "), screen: scr, sigAt: "" });
+}
+["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => { STACK.go = null; stackArm(3500); }, { capture: true, passive: true }));
+addEventListener("scroll", () => { STACK.go = null; stackArm(3500); }, { capture: true, passive: true });
+{ const _gt2 = goTab; goTab = function () { const o = _gt2.apply(this, arguments); STACK.go = null; stackArm(3500); return o; }; }
+stackArm(16000);
+WHATS_NEW.push(
+  { v: 264, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); }, at: null,
+    say: "<b>Much lighter to draw</b>: the moving light behind your screens was six see-through layers stacked up, and your phone had to blend every one of them on every frame. It's one layer now and looks exactly the same.",
+    tryIt: "Switch between Plan, Taste and the Queue and scroll around: there's far less for the phone to draw now." },
+  { v: 264, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: when too many see-through layers pile up on a screen, I notice it a few seconds after you stop touching and report it on my own, even though nothing looks wrong.",
     tryIt: "Nothing to do: if it ever happens, I file it on my own." }
 );
 </script>
