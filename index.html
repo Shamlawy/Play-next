@@ -4148,7 +4148,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "264";
+const APP_V = "265";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -7369,11 +7369,12 @@ function endDrag() {
   save(); renderQueue(); applyBg(); pnSkipFlip = 0;
   requestAnimationFrame(() => requestAnimationFrame(() => H.classList.remove("noenter")));
 }
+/* v265: passive. A blocking touchmove here made every swipe on every screen wait for the main thread before it could
+   scroll; the list is held still during a drag by a blocking listener that exists only while dragging (last script) */
 document.querySelectorAll(".panel:not(#p-home)").forEach(pn => pn.addEventListener("touchmove", e => {
   if (!drag) return;
-  e.preventDefault();                        /* the list must not scroll under it */
   overDrag(e.touches[0].clientY);
-}, { passive: false }));
+}, { passive: true }));
 document.addEventListener("touchend", endDrag, { passive: true });
 document.addEventListener("touchcancel", endDrag, { passive: true });
 document.addEventListener("touchcancel", endDrag, { passive: true });
@@ -8753,7 +8754,7 @@ function renderQueue() {
       }, 380);
     };
     r.addEventListener("touchstart", e => arm(e.touches[0].clientY), { passive: true });
-    r.addEventListener("touchmove", e => { if (drag && drag.el === r) { if (e.cancelable) e.preventDefault(); overDrag(e.touches[0].clientY); } }, { passive: false });
+    r.addEventListener("touchmove", e => { if (drag && drag.el === r) overDrag(e.touches[0].clientY); }, { passive: true });   /* v265: passive (see the panel one) */
     r.addEventListener("touchcancel", () => { stop(); endDrag(); }, { passive: true });
     r.addEventListener("touchend", stop, { passive: true });
     r.addEventListener("touchmove", e => {
@@ -24980,7 +24981,7 @@ function hlvfDraw(sc) {
     x.globalAlpha = Math.min(1, .38 * f.k);
     x.drawImage(f.art, W / 2 + tx / 100 * aw - w / 2, H / 2 + ty / 100 * ah - h / 2, w, h);
   }
-  const L = .76 * Math.max(innerWidth || W, innerHeight || H);   /* 76vmax */
+  const L = .76 * Math.max(W, H);   /* 76vmax. v265: never innerWidth here: it forces a full layout when the page has changes (80ms over one swipe) */
   x.globalAlpha = Math.min(1, .45 * f.k);
   f.ls.forEach(l => {
     const [tx, ty, s] = still ? [0, 0, 1] : hlvfAt(l.kf, ((t + l.off) / l.dur) % 1), d = L * s;
@@ -25003,8 +25004,8 @@ function hlvfTick() {
   HLVF.t = 0;
   const r = document.documentElement, now = performance.now(), live = hlvfLive();
   if (!live.length) { hlvfFlatClass(); return; }
-  const frozen = document.hidden || !!window.pnRest || r.classList.contains("dragging-now"), still = r.classList.contains("still");
-  const chk = HLVF.recheck || HLVF.n++ % 8 === 0; HLVF.recheck = false;
+  const frozen = document.hidden || !!window.pnRest || r.classList.contains("dragging-now") || r.classList.contains("prb-noanim") || now < HLVF.busy, still = r.classList.contains("still");
+  const chk = !(now < HLVF.busy) && (HLVF.recheck || HLVF.n++ % 8 === 0); if (chk) HLVF.recheck = false;   /* v265: no style reads while you're touching */
   let moving = false;
   for (const sc of live) {
     const f = sc._f, dt = Math.min(250, now - (f.last || now)); f.last = now;
@@ -25015,7 +25016,7 @@ function hlvfTick() {
     if (redraw) hlvfDraw(sc);
   }
   hlvfFlatClass();
-  HLVF.t = setTimeout(hlvfTick, moving ? 33 : 400);
+  HLVF.t = setTimeout(hlvfTick, moving ? 33 : now < HLVF.busy ? 120 : 400);
 }
 function hlvfKick() { if (!HLVF.t) HLVF.t = setTimeout(hlvfTick, 0); }
 /* a new scene from v257's hlvScene: its picture and lights move into one canvas (same task: never drawn apart) */
@@ -25123,5 +25124,211 @@ WHATS_NEW.push(
   { v: 264, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: when too many see-through layers pile up on a screen, I notice it a few seconds after you stop touching and report it on my own, even though nothing looks wrong.",
     tryIt: "Nothing to do: if it ever happens, I file it on my own." }
+);
+</script>
+<style>
+/* v265 smoothness check (prb*, last script): while it tests a suspect, that suspect is switched off for a little while */
+html.prb-nobg #hlv, html.prb-nobg #hlvg, html.prb-nobg #bgart, html.prb-nobg #bgart2, html.prb-nobg #bgtint, html.prb-nobg #pnorbs { visibility: hidden !important; }
+html.prb-nobg::before { display: none !important; }
+html.prb-noshadow *, html.prb-noshadow *::before, html.prb-noshadow *::after { box-shadow: none !important; text-shadow: none !important; }
+html.prb-noblur *, html.prb-noblur *::before, html.prb-noblur *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; filter: none !important; }
+html.prb-noanim *, html.prb-noanim *::before, html.prb-noanim *::after { animation-play-state: paused !important; }
+</style>
+<script>
+/* v265: the smoothness check (the owner, after five rounds: "it lags everywhere, as if it's too much: a fast scroll up or
+   down on the Queue, sideways on a game's page, switching tabs a lot"). Every earlier round measured on Claude's Chromium,
+   which has no phone GPU; this one measures on the phone itself, by itself, once per version, and sends the numbers.
+   While you use the app normally it times every frame (requestAnimationFrame) during four kinds of moment: a vertical
+   scroll, a sideways scroll, a tab/view switch and opening a game's page. Dropped frames = each gap's length in refresh
+   intervals minus one (the refresh interval is read from the frames themselves: 120, 90 or 60Hz). Long animation frames
+   (Chrome) during the moment say whether the main thread was busy; drops with no long frames = the GPU/compositor.
+   It runs in turns: normal, then one suspect switched off (the moving background, shadows, blurs/filters, animations),
+   normal again, the next suspect… Normal turns between them cancel out drift (heat, battery saver). A turn ends after 4+
+   moments and 12s, or 9 moments. Progress is kept in its own localStorage key (gq:probe; not S, v211), so closing the app
+   carries on next time. At the end: one "slow" report per version (sigAt = "probe vN", so every version gets its own
+   issue) with a line per turn and how much each suspect changes the drops. */
+const PRB_KEY = "gq:probe", PRB_ARMS = ["base", "nobg", "base", "noshadow", "base", "noblur", "base", "noanim", "base"];
+const PRB_NAME = { nobg: "the moving background", noshadow: "shadows", noblur: "blurs and filters", noanim: "animations" };
+const PRB = { ep: null, raf: 0, st: null, lo: null };
+function prbLoad() {
+  let st = null; try { st = JSON.parse(localStorage.getItem(PRB_KEY) || "null"); } catch (e) {}
+  if (!st || st.v !== APP_V) st = { v: APP_V, i: 0, data: {}, armAt: 0, done: false, said: false };
+  return st;
+}
+function prbSave() { try { localStorage.setItem(PRB_KEY, JSON.stringify(PRB.st)); } catch (e) {} }
+function prbArm() { return PRB.st && !PRB.st.done ? PRB_ARMS[PRB.st.i] : null; }
+function prbApply() {
+  const r = document.documentElement, a = prbArm();
+  for (const k of Object.keys(PRB_NAME)) { const on = a === k; if (r.classList.contains("prb-" + k) !== on) r.classList.toggle("prb-" + k, on); }
+}
+function prbOk() { return !!PRB.st && !PRB.st.done && bugOn() && !document.hidden && !nxTouring() && performance.now() - LAG.boot > 15000; }
+/* one moment: frames until it's been quiet for `hold` ms. A switch outranks a scroll that runs into it. */
+function prbStart(kind, hold) {
+  if (!prbOk()) return;
+  const now = performance.now(), e0 = PRB.ep;
+  if (e0) {
+    if (e0.kind === kind || (e0.kind === "switch" || e0.kind === "open") && (kind === "v" || kind === "h")) { e0.until = Math.max(e0.until, now + hold); return; }
+    prbEnd();
+  }
+  PRB.ep = { kind, arm: prbArm(), t0: now, until: now + hold, gaps: [], last: 0, loaf: 0 };
+  const tick = t => {
+    const e = PRB.ep; if (!e) return;
+    if (e.last) e.gaps.push(t - e.last); e.last = t;
+    if (performance.now() > e.until) { prbEnd(); return; }
+    PRB.raf = requestAnimationFrame(tick);
+  };
+  PRB.raf = requestAnimationFrame(tick);
+}
+function prbEnd() {
+  const e = PRB.ep; PRB.ep = null; cancelAnimationFrame(PRB.raf);
+  if (!e || e.gaps.length < 6 || !PRB.st || PRB.st.done || e.arm !== prbArm()) return;
+  const d = PRB.st.data, k = PRB.st.i + ":" + e.kind, o = d[k] || (d[k] = { n: 0, ms: 0, gaps: [], loaf: 0, worst: 0 });
+  o.n++; o.loaf += Math.round(e.loaf);
+  for (const g of e.gaps) { o.ms += g; if (g > o.worst) o.worst = Math.round(g); }
+  o.gaps = o.gaps.concat(e.gaps.map(g => Math.round(g * 10) / 10)).slice(-600);
+  const all = Object.keys(d).filter(x => +x.split(":")[0] === PRB.st.i).reduce((a, x) => a + d[x].n, 0);
+  if (!PRB.st.armAt) PRB.st.armAt = Date.now();
+  if ((all >= 4 && Date.now() - PRB.st.armAt > 12000) || all >= 9) prbNext(); else prbSave();
+}
+function prbNext() {
+  PRB.st.i++; PRB.st.armAt = 0;
+  if (PRB.st.i >= PRB_ARMS.length) { PRB.st.done = true; prbApply(); prbSave(); prbSend(); return; }
+  prbApply(); prbSave();
+}
+/* the screen's refresh interval, from the shortest steady gaps */
+function prbRefresh(gaps) {
+  const s = gaps.filter(g => g > 4).sort((a, b) => a - b); if (s.length < 20) return 1000 / 60;
+  const p = s[Math.floor(s.length * .15)];
+  return [1000 / 120, 1000 / 90, 1000 / 60].reduce((b, x) => Math.abs(x - p) < Math.abs(b - p) ? x : b);
+}
+function prbStats(list, iv) {
+  let frames = 0, drop = 0, n = 0, loaf = 0, worst = 0;
+  for (const o of list) { n += o.n; loaf += o.loaf; worst = Math.max(worst, o.worst);
+    for (const g of o.gaps) { const k = Math.max(1, Math.round(g / iv)); frames += k; drop += k - 1; } }
+  return { n, frames, drop, rate: frames ? drop / frames : 0, worst, loaf };
+}
+function prbSend() {
+  const d = PRB.st.data, KINDS = ["v", "h", "switch", "open"], LBL = { v: "scroll", h: "sideways", switch: "switching", open: "game page" };
+  const iv = prbRefresh(Object.values(d).flatMap(o => o.gaps)), hz = Math.round(1000 / iv);
+  const pick = (arm, kind) => Object.keys(d).filter(x => PRB_ARMS[+x.split(":")[0]] === arm && x.split(":")[1] === kind).map(x => d[x]);
+  const base = {}; KINDS.forEach(k => base[k] = prbStats(pick("base", k), iv));
+  const pct = x => Math.round(x * 100) + "%";
+  const lines = [`${hz}Hz. Dropped frames (moments, worst gap, long-frame ms): scroll | sideways | switching | game page`];
+  ["base", ...Object.keys(PRB_NAME)].forEach(arm => {
+    lines.push((arm === "base" ? "normal" : "no " + arm.slice(2)).padEnd(10) + KINDS.map(k => { const s = arm === "base" ? base[k] : prbStats(pick(arm, k), iv);
+      return s.n ? `${pct(s.rate)} (${s.n}, ${s.worst}ms, ${s.loaf})` : "–"; }).join(" | "));
+  });
+  const eff = Object.keys(PRB_NAME).map(arm => {
+    let bf = 0, bd = 0, af = 0, ad = 0;
+    KINDS.forEach(k => { const b = base[k], a = prbStats(pick(arm, k), iv); if (!a.n || !b.n) return; bf += b.frames; bd += b.drop; af += a.frames; ad += a.drop; });
+    if (!af || !bf) return null;
+    const ch = ad / af - bd / bf;
+    return { ch, txt: `${PRB_NAME[arm]} ${ch <= 0 ? "−" : "+"}${Math.abs(Math.round(ch * 100))} pts` };
+  }).filter(Boolean).sort((a, b) => a.ch - b.ch);
+  const head = KINDS.filter(k => base[k].n).map(k => `${LBL[k]} ${pct(base[k].rate)}`).join(", ");
+  const msg = `Smoothness check on this phone (v${APP_V}, ${hz}Hz): frames dropped normally: ${head || "not enough moments"}. With each one switched off: ${eff.map(x => x.txt).join(", ") || "not enough moments"}`;
+  let px = 0, big = 0, n = 0;
+  for (const im of document.images) { if (!im.complete || !im.naturalWidth) continue; n++; const m = im.naturalWidth * im.naturalHeight; px += m; if (m > big) big = m; }
+  lines.push(`pictures loaded ${n} = ${Math.round(px / 1e6)}MP (largest ${Math.round(big / 1e5) / 10}MP), elements ${document.getElementsByTagName("*").length}, animations ${document.getAnimations().length}, cores ${navigator.hardwareConcurrency || "?"}, memory ${navigator.deviceMemory || "?"}GB`);
+  bugReport("slow", msg, { stack: lines.join("\n"), at: "probe v" + APP_V, sigAt: "probe v" + APP_V, screen: "smoothness check" });
+  if (typeof toast === "function") toast("Smoothness check done: I sent the numbers from your phone, so the next fix is based on them.");
+}
+/* the moments */
+{ const pos = new WeakMap();
+  addEventListener("scroll", e => {
+    if (!PRB.st || PRB.st.done) return;
+    const t = e.target === document ? document.scrollingElement : e.target; if (!t || t.nodeType !== 1) return;
+    const was = pos.get(t), now = [t.scrollLeft, t.scrollTop]; pos.set(t, now);
+    if (!was) return;
+    prbStart(Math.abs(now[0] - was[0]) > Math.abs(now[1] - was[1]) ? "h" : "v", 250);
+  }, { capture: true, passive: true });
+}
+{ const _gt3 = goTab; goTab = function () { prbStart("switch", 1000); return _gt3.apply(this, arguments); }; }
+{ const _gs3 = goSub; goSub = function () { prbStart("switch", 1000); return _gs3.apply(this, arguments); }; }
+{ const _of3 = openFull; openFull = function () { prbStart("open", 1000); return _of3.apply(this, arguments); }; }
+if (window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("long-animation-frame")) {
+  PRB.lo = new PerformanceObserver(l => { const e = PRB.ep; if (!e) return;
+    for (const x of l.getEntries()) if (x.startTime + x.duration > e.t0) e.loaf += x.duration; });
+  PRB.lo.observe({ type: "long-animation-frame" });
+}
+PRB.st = prbLoad(); if (!PRB.st.done) prbSave();
+prbApply();
+/* told once, when the first turn starts */
+setTimeout(() => { if (!PRB.st || PRB.st.done || PRB.st.said || !bugOn()) return;
+  const go = () => { if (nxTouring() || document.hidden) return setTimeout(go, 5000); PRB.st.said = true; prbSave();
+    if (typeof toast === "function") toast("For the next few minutes I'm timing how smooth scrolling and switching are on your phone. Some decorations will switch off for a little while as I test them."); };
+  go(); }, 20000);
+document.addEventListener("visibilitychange", () => { if (document.hidden && PRB.ep) { PRB.ep = null; cancelAnimationFrame(PRB.raf); } });
+</script>
+<script>
+/* v265 (the owner: "if I scroll fast it lags, up or down on the Queue"): touch scrolling no longer waits for the app.
+   Every screen but Home and every Queue row had a touchmove listener with passive: false (for drag-to-reorder), so at the
+   start of every swipe Chrome had to send the touch to the main thread and wait for the answer before scrolling: whenever
+   the app was busy (a redraw, a picture, a check) the swipe stood still. Those are passive now; a held row that lifts off
+   holds the list still with this blocking listener, which only exists from the lift until the finger leaves. */
+function dragBlock(e) {
+  if (!drag) { removeEventListener("touchmove", dragBlock, true); return; }
+  if (e.cancelable) e.preventDefault();
+}
+{ const _sd2 = startDrag; startDrag = function () { const o = _sd2.apply(this, arguments);
+  if (drag) addEventListener("touchmove", dragBlock, { capture: true, passive: false }); return o; }; }
+["touchend", "touchcancel"].forEach(t => addEventListener(t, () => setTimeout(() => { if (!drag) removeEventListener("touchmove", dragBlock, true); }, 0), { capture: true, passive: true }));
+</script>
+<script>
+/* v265: the light behind the screen holds still while you're touching, scrolling or switching (it moves about a pixel per
+   step, so a pause can't be seen): during a swipe its 30 redraws a second were ~3ms each at 4x CPU, on the same main
+   thread the swipe needs. It carries on from the same spot. */
+HLVF.busy = 0;
+{ let down = false;
+  const hold = ms => { HLVF.busy = Math.max(HLVF.busy, performance.now() + ms); };
+  addEventListener("touchstart", () => { down = true; HLVF.busy = Infinity; }, { capture: true, passive: true });
+  ["touchend", "touchcancel"].forEach(t => addEventListener(t, e => { if (!e.touches || !e.touches.length) { down = false; HLVF.busy = 0; hold(400); } }, { capture: true, passive: true }));
+  addEventListener("scroll", () => { if (!down) hold(300); }, { capture: true, passive: true });
+  { const _gt4 = goTab; goTab = function () { hold(900); return _gt4.apply(this, arguments); }; }
+  { const _gs4 = goSub; goSub = function () { hold(900); return _gs4.apply(this, arguments); }; }
+  { const _of4 = openFull; openFull = function () { hold(900); return _of4.apply(this, arguments); }; }
+}
+/* the smoothness check counts swiping a game's page to the next game as a sideways moment (it's not a scroll) */
+{ const _hp = hubPaint; hubPaint = function () { prbStart("h", 300); return _hp.apply(this, arguments); }; }
+</script>
+<script>
+/* v265: Nexi learned (the blocking touchmove above sat on every screen for months and nothing noticed: it doesn't throw,
+   doesn't look wrong, and the lag checks blamed whatever happened to be busy). From now on, any touchstart/touchmove
+   listener added that can make a swipe wait (passive: false, or no passive on an element, where the default is blocking)
+   is looked at 1.5s later: still on the page, on something that can be swiped (its touch-action isn't none) and at least
+   a quarter of the screen or inside a scroller → kind "slow", once per place a session. The drag-only listener is fine. */
+const TB_OK = new WeakSet([dragBlock]), TB_SEEN = new Set();
+function tbCheck(el, type) {
+  if (!el || !el.isConnected || !bugOn()) return;
+  const node = el === window || el === document ? document.documentElement : el;
+  const cs = getComputedStyle(node); if (cs.touchAction === "none") return;
+  const r = node.getBoundingClientRect(), big = r.width * r.height >= innerWidth * innerHeight * .25;
+  let scroller = false; for (let x = node; x && x.nodeType === 1; x = x.parentElement) { const o = getComputedStyle(x); if (/(auto|scroll)/.test(o.overflowY + o.overflowX) && (x.scrollHeight > x.clientHeight + 4 || x.scrollWidth > x.clientWidth + 4)) { scroller = true; break; } }
+  if (!scroller) { const se = document.scrollingElement; scroller = !!se && se.scrollHeight > innerHeight + 4; }   /* the page itself scrolls */
+  if (!big && !scroller && el !== window && el !== document) return;
+  const at = el === window ? "window" : el === document ? "document" : bugPath(el), key = type + "|" + at.replace(/:nth-[^ >]*/g, "");
+  if (TB_SEEN.has(key)) return; TB_SEEN.add(key);
+  bugReport("slow", `A ${type} listener that isn't passive sits on ${lagWhere()} (${at.split(" > ").pop()}): every swipe there has to wait for the app before the screen can scroll`, { at, screen: bugScreen(), sigAt: key });
+}
+{ const ae = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (type, fn, o) {
+    if ((type === "touchmove" || type === "touchstart") && !TB_OK.has(fn)) {
+      const explicit = o && typeof o === "object" && "passive" in o, pass = explicit ? !!o.passive : (this === window || this === document || this === document.documentElement || this === document.body);
+      if (!pass) { const el = this; setTimeout(() => { try { tbCheck(el, type); } catch (e) {} }, 1500); }
+    }
+    return ae.call(this, type, fn, o);
+  };
+}
+
+WHATS_NEW.push(
+  { v: 265, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .row") || $("#p-queue .tabbar") || null,
+    say: "<b>Swiping no longer waits for the app</b>: every screen but Home made your phone check with the app before it could scroll, so whenever the app was busy, a fast swipe stood still. Now the list moves the moment your finger does.",
+    tryIt: "Flick the Queue up and down fast. Holding a game and dragging it to a new spot still works." },
+  { v: 265, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>I'm measuring the lag on your own phone now</b>: for a few minutes I time your scrolls, swipes and tab switches while I switch the moving light, shadows, blurs and animations off one at a time, then send the numbers myself. The next fix will be based on your phone, not a guess.",
+    tryIt: "Just use the app as usual, scroll fast and switch tabs a lot. I'll tell you when I'm done." },
+  { v: 265, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: if anything ever makes your swipes wait for the app again, I report it on my own.",
+    tryIt: "Nothing to do: if it happens, I file it myself." }
 );
 </script>
