@@ -25514,9 +25514,19 @@ const fitSized = (u, w, h) => "https://wsrv.nl/?url=" + encodeURIComponent(u) + 
 FIT.chain = Promise.resolve(); FIT.fails = new Map(); FIT.base = new Map();
 const fitQueue = job => { const p = FIT.chain.then(job); FIT.chain = p.then(() => {}, () => {}); return p; };
 async function fitDraw(src, W, H) {
-  let bm; try { bm = await createImageBitmap(src, { resizeWidth: W, resizeHeight: H, resizeQuality: "high" }); } catch (e) { bm = await createImageBitmap(src); }   /* Safari before 17 has no resize options */
-  const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();
-  const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) throw new Error("no blob");
+  /* three ways to unpack, best first: shrunk while unpacking, whole off the page's thread (Safari before 17 has no resize
+     options), or through an ordinary <img> (what every Safari can do) */
+  let pic = null, done = () => {};
+  try { pic = await createImageBitmap(src, { resizeWidth: W, resizeHeight: H, resizeQuality: "high" }); done = () => pic.close && pic.close(); } catch (e) {
+    try { pic = await createImageBitmap(src); done = () => pic.close && pic.close(); } catch (e2) {
+      const u = URL.createObjectURL(src), im = new Image(); im.src = u;
+      await (im.decode ? im.decode() : new Promise((ok, no) => { im.onload = ok; im.onerror = no; }));
+      pic = im; done = () => URL.revokeObjectURL(u);
+    }
+  }
+  const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(pic, 0, 0, W, H); done();
+  const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)) || await new Promise(ok => c.toBlob(ok));   /* PNG if webp can't be made */
+  if (!out) throw new Error("no blob");
   return out;
 }
 function fitBase(u) {
@@ -25536,9 +25546,10 @@ function fitLocal(u, w, h) {
     const s = Math.max(w / b.nw, h / b.nh); if (s >= .8) return null;   /* "outside": at least w×h; not worth it if barely smaller */
     const W = Math.max(1, Math.round(b.nw * s)), H = Math.max(1, Math.round(b.nh * s));
     return fitQueue(() => (W >= b.w && H >= b.h ? b.blob : fitDraw(b.blob, W, H))).then(out => { const url = URL.createObjectURL(out); FIT.made.add(url); return url; });
-  }).catch(() => {
-    const n = (FIT.fails.get(u) || 0) + 1; FIT.fails.set(u, n);
-    FIT.local.delete(k); if (n >= 2) FIT.bad.add(u);   /* the next look tries once more */
+  }).catch(e => {
+    FIT.err = String(e && (e.message || e.name) || e).slice(0, 80);
+    const n = (FIT.fails.get(k) || 0) + 1; FIT.fails.set(k, n);
+    FIT.local.delete(k); if (n >= 3) FIT.bad.add(u);   /* counted per size: the piece is looked at again (fitImg/fitBg re-queue it) */
     return null;
   });
   FIT.local.set(k, p); return p;
@@ -25559,7 +25570,9 @@ function fitImg(im, n) {
   if (im._fitTo === s) { if (im._fitN && im._fitN[0] >= n[0] && im._fitN[1] >= n[1]) return; s = im._fitFrom; }
   else if (im.complete && im.naturalWidth && im.naturalWidth * im.naturalHeight <= n[0] * n[1] * 1.5) return;   /* small already */
   if (fitRemote(s)) { const t = fitSized(s, n[0], n[1]); im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); return; }
-  if (fitLocalOk(s)) { im._fitBusy = 1; fitLocal(s, n[0], n[1]).then(t => { im._fitBusy = 0; if (t && (im.getAttribute("src") === s || im.getAttribute("src") === im._fitTo)) { im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); } }); }
+  if (fitLocalOk(s)) { im._fitBusy = 1; fitLocal(s, n[0], n[1]).then(t => { im._fitBusy = 0;
+    if (!t) { if (!FIT.bad.has(s) && FIT.fails.get(s + "|" + n[0] + "|" + n[1])) { im._fitSig = null; FIT.wait.add(im); setTimeout(fitRetry, 1500); } return; }
+    if (im.getAttribute("src") === s || im.getAttribute("src") === im._fitTo) { im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); } }); }
 }
 function fitBg(el, n) {
   let st = el.getAttribute("style") || "";
@@ -25643,7 +25656,7 @@ function picLook() {
 function picWhy(im) {
   const s = im.getAttribute("src") || "", from = im._fitFrom || s;
   const kind = /^data:/.test(from) ? "upload" : /^blob:/.test(from) ? "blob" : fitSame(from) ? "own file" : /^https:/.test(from) ? "other site" : "other";
-  const st = im._fitTo === s ? "fitted " + (im._fitN || []).join("x") : im._fitBusy ? "being resized" : FIT.wait.has(im) ? "waiting to be drawn" : FIT.bad.has(from) ? "resize failed" : im._fitSig != null ? "looked at, left as is" : "never looked at";
+  const st = im._fitTo === s ? "fitted " + (im._fitN || []).join("x") : im._fitBusy ? "being resized" : FIT.wait.has(im) ? "waiting to be drawn" : FIT.bad.has(from) ? "resize failed" + (FIT.err ? " (" + FIT.err + ")" : "") : im._fitSig != null ? "looked at, left as is" : "never looked at";
   return kind + ", " + st + ", box " + im.offsetWidth + "×" + im.offsetHeight;
 }
 function picArm(ms) { clearTimeout(PIC.t); PIC.t = setTimeout(picCheck, ms); }
