@@ -1,7 +1,8 @@
 /* Play next test kit. Lives in the repo so every chat (and GitHub) runs the same checks; before this, each chat
    rebuilt its harness in a scratchpad that was lost at the end.
 
-     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation in the CSS
+     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation in the CSS;
+                                        no new wrap of goTab/goSub/openFull/openSettings (use onNav/onSettings)
      node tools/kit.mjs sweep           every screen, a game page, Settings, Edit, chat at 412 / 859 / 360 wide in Chromium:
                                         script errors + every problem the app reports about itself (its own detectors)
      node tools/kit.mjs tour            the what's-new tour from the previous version: every step opens and finds its target
@@ -53,6 +54,9 @@ function syntax() {
       if (bad.length) fail(`press animation (${bad.join(", ")}) in "${r[1].trim().slice(0, 80)}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + r.index).split("\n").length}`);
     }
   }
+  /* house rule (v270): screen changes go through onNav / onSettings hooks, never a new wrap of these four */
+  for (const m of html.matchAll(/const\s+[\w$]+\s*=\s*(goTab|goSub|openFull|openSettings)\s*;\s*\1\s*=/g))
+    fail(`${m[1]} is wrapped at line ${html.slice(0, m.index).split("\n").length}: register onNav(...) / onSettings(...) instead`);
   for (const f of ["sw.js"]) try { new vm.Script(fs.readFileSync(path.join(ROOT, f), "utf8")); } catch (e) { fail(`${f}: ${e.message}`); }
   console.log(`  ${n} script blocks checked`);
 }

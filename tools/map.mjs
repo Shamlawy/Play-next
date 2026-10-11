@@ -73,10 +73,11 @@ for (const [fn, ls] of [...wraps].sort((a, b) => b[1].length - a[1].length)) {
   const tag = l => { const b = blockOf(l); const v = b && (b.core ? "core" : (b.what.match(/\bv\d{3}\b/) || [])[0]); return `${l}${v ? " " + v : ""}`; };
   out.push(`| \`${fn}\` | ${defs.get(fn) || "?"} | ${ls.length}: ${ls.map(tag).join(", ")} |`);
 }
-out.push(``, `## Screen-change hooks (onNav, since v269)`, ``,
-  `goTab / goSub / openFull also run every \`onNav("before"|"after", fn)\` hook (one wrap, defined at line ${lineAt(html.indexOf("function onNav("))}). ` +
-  `New code that wants to know about a screen change registers here instead of wrapping those three.`, ``);
-for (const m of html.matchAll(/^\s*onNav\("(before|after)", *(?:\(|\w+ *=>).*$/gm)) { const l = lineAt(m.index + m[0].indexOf("onNav")); const b = blockOf(l); out.push(`- ${l}${b && !b.core ? " " + ((b.what.match(/\bv\d{3}\b/) || [""])[0]) : ""}: \`${m[0].trim().slice(0, 110)}\``); }
+out.push(``, `## Screen-change hooks (onNav / onSettings, since v269)`, ``,
+  `goTab / goSub / openFull run every \`onNav("before"|"after", fn)\` hook and openSettings every \`onSettings(...)\` hook ` +
+  `(one wrap each, defined at line ${lineAt(html.indexOf("function onNav("))}, in registration order below). New code registers here; ` +
+  `\`kit.mjs syntax\` fails on a new wrap of those four.`, ``);
+for (const m of html.matchAll(/^\s*on(?:Nav|Settings)\("(before|after)", *(?:\(|\w+ *=>).*$/gm)) { const l = lineAt(m.index + m[0].search(/on(?:Nav|Settings)\(/)); const b = blockOf(l); out.push(`- ${l}${b && !b.core ? " " + ((b.what.match(/\bv\d{3}\b/) || [""])[0]) : ""}: \`${m[0].trim().slice(0, 110)}\``); }
 out.push(``, `## Blocks`, ``, `| lines | kind | KB | what |`, `|---|---|---|---|`);
 for (const b of blocks) out.push(`| ${b.start}–${b.end} | ${b.kind} | ${b.kb} | ${b.core ? "**CORE** — " : ""}${short(b.what, 150).replace(/\|/g, "/") || "—"} |`);
 fs.writeFileSync(path.join(ROOT, "docs/MAP.md"), out.join("\n") + "\n");
