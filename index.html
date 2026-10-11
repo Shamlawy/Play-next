@@ -25515,7 +25515,9 @@ function fitLocal(u, w, h) {
   const p = size.then(async ([nw, nh]) => {
     const s = Math.max(w / nw, h / nh); if (!nw || s >= .8) return null;   /* "outside": at least w×h; not worth it if barely smaller */
     const W = Math.round(nw * s), H = Math.round(nh * s);
-    const bm = await createImageBitmap(await (await fetch(u)).blob(), { resizeWidth: W, resizeHeight: H, resizeQuality: "high" });
+    const blob = await (await fetch(u)).blob();
+    /* Safari before 17 doesn't take the resize options (it throws): unpack it whole off the page's thread, then draw it small */
+    let bm; try { bm = await createImageBitmap(blob, { resizeWidth: W, resizeHeight: H, resizeQuality: "high" }); } catch (e) { bm = await createImageBitmap(blob); }
     const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();   /* (a Safari that ignores resizeWidth still gets W×H) */
     const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) return null;
     const url = URL.createObjectURL(out); FIT.made.add(url); return url;
@@ -25536,7 +25538,7 @@ function fitImg(im, n) {
   if (im._fitTo === s) { if (im._fitN && im._fitN[0] >= n[0] && im._fitN[1] >= n[1]) return; s = im._fitFrom; }
   else if (im.complete && im.naturalWidth && im.naturalWidth * im.naturalHeight <= n[0] * n[1] * 1.5) return;   /* small already */
   if (fitRemote(s)) { const t = fitSized(s, n[0], n[1]); im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); return; }
-  if (fitLocalOk(s)) fitLocal(s, n[0], n[1]).then(t => { if (t && (im.getAttribute("src") === s || im.getAttribute("src") === im._fitTo)) { im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); } });
+  if (fitLocalOk(s)) { im._fitBusy = 1; fitLocal(s, n[0], n[1]).then(t => { im._fitBusy = 0; if (t && (im.getAttribute("src") === s || im.getAttribute("src") === im._fitTo)) { im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); } }); }
 }
 function fitBg(el, n) {
   let st = el.getAttribute("style") || "";
@@ -25604,7 +25606,7 @@ function picLook() {
   const d = Math.min(3, devicePixelRatio || 1), H = innerHeight, W = innerWidth;
   let held = 0, need = 0, worst = null;
   for (const im of document.images) {
-    if (!im.complete || !im.naturalWidth) continue;
+    if (!im.complete || !im.naturalWidth || im._fitBusy) continue;   /* its small copy is still being made */
     const r = im.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
     if (im.checkVisibility && !im.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
     const m = im.naturalWidth * im.naturalHeight, n = Math.max(1, r.width * d * r.height * d);
