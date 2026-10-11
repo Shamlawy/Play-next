@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /* Claude's lessons on this repo: docs/LESSONS.md, the one file this script owns. The learn mod (.claude/skills/learn)
    asks for lessons at the right moments and shows them again when the code they're about is touched.
-     node tools/learn.mjs add --kind=mistake|missed|idea --anchors=openFull,tools/lib.mjs "what happened → what to do instead"
+     node tools/learn.mjs add --kind=mistake|missed|idea --anchors=openFull,tools/kit.mjs "what happened → what to do instead"
      node tools/learn.mjs done M3 [--note="shipped in v270"]   an idea / missed opportunity was acted on
-     node tools/learn.mjs promote L4 --to="tools/map.mjs --check"   a lesson became an automatic check (the best outcome)
-     node tools/learn.mjs match --file=index.html --names=openFull,save --cmd="node tools/pn.mjs sweep"   (JSON) lessons for this spot
+     node tools/learn.mjs promote L4 --to="tools/where.mjs --check"   a lesson became an automatic check (the best outcome)
+     node tools/learn.mjs match --file=index.html --names=openFull,save --cmd="node tools/kit.mjs sweep"   (JSON) lessons for this spot
      node tools/learn.mjs brief       (JSON) what the first message of a chat should know
      node tools/learn.mjs list [--open]
    A lesson says what to DO, names its anchors (functions, files, commands, selectors: how it's found again), and never holds
    game titles, scores or personal data (the repo is public). The same lesson again bumps its ×count instead of adding a copy;
-   at ×3 it should become a check (release-guard rule, map --check, a pn.mjs sweep plant) instead of a reminder. */
+   at ×3 it should become a check (release-guard rule, where.mjs --check, a kit.mjs sweep --plant) instead of a reminder. */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -26,10 +26,10 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 const SECTIONS = { mistake: "## Mistakes", missed: "## Missed opportunities", idea: "## Missed opportunities", promoted: "## Promoted to checks" };
 
 /* ---------- format: one line per entry ----------
-   - **L3** ×2 · 2026-10-11 · v267 · `openFull`, `tools/lib.mjs` — text
+   - **L3** ×2 · 2026-10-11 · v267 · `openFull`, `tools/kit.mjs` — text
    - [ ] **M2** · 2026-10-11 · v267 · `anchors` — text            (open idea / missed opportunity)
    - [x] **M1** · 2026-10-11 · v267 · `anchors` — text (done: note)
-   - **L5** → `tools/map.mjs --check` · 2026-10-11 · v267 · `anchors` — text   (promoted) */
+   - **L5** → `tools/where.mjs --check` · 2026-10-11 · v267 · `anchors` — text   (promoted) */
 const LINE = /^- (?:\[( |x)\] )?\*\*([LM]\d+)\*\*(?: ×(\d+))?(?: → `([^`]+)`)? · (\d{4}-\d\d-\d\d) · (v?\d*) · ((?:`[^`]*`(?:, )?)*) — (.*)$/;
 export function parse(text) {
   const out = [];
@@ -124,7 +124,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     } else if (cmd === "done" || cmd === "promote") {
       const it = items.find(x => x.id === args[0]);
       if (!it) throw new Error(`no ${args[0]} in docs/LESSONS.md`);
-      if (cmd === "done") { it.open = false; it.done = String(opt.note || today()); }
+      if (cmd === "done") { it.open = false; it.done = String(opt.note || today()).replace(/[()]/g, ""); }   /* the line format ends at ")" */
       else { if (!opt.to) throw new Error('--to="<the check that now catches it>"'); it.kind = "promoted"; it.to = String(opt.to); }
       write(items);
       console.log(cmd === "done" ? `${it.id} done.` : `${it.id} promoted: ${it.to} catches it now.`);

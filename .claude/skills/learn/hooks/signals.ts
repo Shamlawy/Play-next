@@ -60,9 +60,9 @@ function excerpt(t: string, r: RegExp): string {
 // Checks Claude runs, by family, so "failed, then passed" can be told apart from two different checks.
 export function checkFamily(cmd: string): string | undefined {
   const c = String(cmd ?? '')
-  const pn = c.match(/tools\/pn\.mjs\s+(\w+)/)
-  if (pn) return `pn ${pn[1]}`
-  if (/tools\/map\.mjs[^\n]*--check/.test(c)) return 'map --check'
+  const kit = c.match(/tools\/kit\.mjs\s+(\w+)/)
+  if (kit) return `kit ${kit[1]}`
+  if (/tools\/where\.mjs[^\n]*--check/.test(c)) return 'where --check'
   const pl = c.match(/claude plugin (test|validate)\s+(\S+)/)
   if (pl) return `plugin ${pl[1]} ${(pl[2] ?? '').split('/').filter(Boolean).pop() ?? ''}`
   if (/node\s+--check/.test(c)) return 'node --check'
@@ -140,7 +140,7 @@ export function reflection(sig: readonly Signal[]): string {
     '  node tools/learn.mjs add --kind=idea --anchors=<…> "<the idea>"',
     ...(deferred.length ? ['  Anything you put off goes in as an idea so it is not lost.'] : []),
     ...(fixed.length ? ["  CLAUDE.md: say in the fix's comment whether Nexi learned to spot it himself, or why it can't be detected."] : []),
-    "If tools/learn.mjs answers ×3 or more, the reminder isn't working: turn it into a check (release-guard rule, map --check, a pn.mjs plant) and `node tools/learn.mjs promote <id> --to=\"<check>\"`.",
+    "If tools/learn.mjs answers ×3 or more, the reminder isn't working: turn it into a check (release-guard rule, where.mjs --check, a kit.mjs sweep --plant) and `node tools/learn.mjs promote <id> --to=\"<check>\"`.",
     'Skip anything trivial or one-off; if nothing is worth keeping, just finish. No game titles, scores or personal data (public repo).',
     'Lessons reach the next chat only through git: commit docs/LESSONS.md (with your next commit, or on its own) and push. Then end with your normal answer; mention it in one line at most ("Noted 1 lesson").',
   ].join('\n')
@@ -170,7 +170,7 @@ export function wrapNote(at: readonly At[], told: Set<string>): string {
   for (const a of at) for (const f of a.fns) {
     if (!f.wrappedAfter.length || told.has(f.name)) continue
     told.add(f.name)
-    out.push(`- ${f.name} (lines ${f.from}-${f.to}) is wrapped by ${f.wrappedAfter.length} later script${f.wrappedAfter.length > 1 ? 's' : ''} (lines ${f.wrappedAfter.slice(0, 8).join(', ')}${f.wrappedAfter.length > 8 ? ', …' : ''}): they run around this code; \`node tools/map.mjs ${f.name}\` shows each.`)
+    out.push(`- ${f.name} (lines ${f.from}-${f.to}) is wrapped by ${f.wrappedAfter.length} later script${f.wrappedAfter.length > 1 ? 's' : ''} (lines ${f.wrappedAfter.slice(0, 8).join(', ')}${f.wrappedAfter.length > 8 ? ', …' : ''}): they run around this code; \`node tools/where.mjs ${f.name}\` shows each.`)
   }
   return out.length ? `[learn] Code map (docs/MAP.md):\n${out.join('\n')}` : ''
 }

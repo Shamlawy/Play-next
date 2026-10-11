@@ -46,7 +46,7 @@
 - Settings → This build → "Show me what's new" replays every entry.
 
 ## Problem reports: Nexi learns from every manual report (required)
-- When fixing a "Reported" (🐞) issue, also ask: could the app have caught this by itself? If yes, teach it: add or extend a check in the problem-report code (bugLayout / bugLook / the lag observers, last scripts in `index.html`) so the same kind of problem is reported automatically next time. Prove it with a planted copy of the problem (reported) and a full sweep of every screen at 412/859/360 (0 false reports). Say so in the fix's WHATS_NEW line and the issue comment ("I've learned to spot this myself now").
+- When fixing a "Reported" (🐞) issue, also ask: could the app have caught this by itself? If yes, teach it: add or extend a check in the problem-report code (bugLayout / bugLook / the lag observers, last scripts in `index.html`) so the same kind of problem is reported automatically next time. Prove it with a planted copy of the problem (reported) and a full sweep of every screen at 412/859/360 (0 false reports): `node tools/kit.mjs sweep --plant x.js --expect`, then `node tools/kit.mjs sweep`. Say so in the fix's WHATS_NEW line and the issue comment ("I've learned to spot this myself now").
 - Use the report's "What was at the spot" block (from 📍 Show me where: element path, size, scroll vs client size, styles, what clips it, picture load state) to reproduce it exactly.
 - If it can't be detected (a matter of taste: colours, spacing, a wrong picture), say so in the issue comment.
 
@@ -64,6 +64,7 @@
 ## Test kit and code map (start here, v269)
 - `node tools/kit.mjs all` = every script block compiles + no press animation, then a Chromium sweep of every screen, game pages, Settings, Edit and chat at 412/859/360 with the app's own problem checks listening, then the what's-new tour from the previous version (`all` also runs `sw`: sw.js picture shrinking). Exit 1 on a script error, a real report or a broken tour step; timing notes are hints only. Also `syntax`, `sweep`, `tour`, `perf`; options `--file`, `--widths`, `--set '{"bugOff":true}'`. Made-up seed data in `tools/seed.mjs`; every command is in `tools/README.md`. Run it before every push; GitHub runs it on every PR (`app-check.yml`).
 - `docs/MAP.md` (made by `node tools/map.mjs`, rerun after a release): every block with what it is for, every wrapped function with all its layers, the onNav hooks. Read it before changing a function. `node tools/map.mjs --dead` lists unused functions/consts/CSS (check each by hand: some class names are built from strings, e.g. `k-${…}`, `n${…}`).
+- `node tools/kit.mjs sweep --plant x.js --expect` proves a new detector catches a planted copy of its problem; `node tools/kit.mjs run tools/scenarios/x.mjs` runs a saved scenario with real CDP touch (`p.tap`, `p.swipe`); keep useful ones in `tools/scenarios/`. `node tools/where.mjs <name>` / `--at=<line>` answers "where is it, what wraps it", and `--check --base=HEAD` lists new v198/v216/v237/v269 hazards.
 - Screen changes: goTab / goSub / openFull run `onNav("before"|"after", (kind, args) => …)` hooks (kind "tab" / "sub" / "game"). Register a hook; don't wrap those three again. A throwing hook can't block the screen change.
 
 ## Hard-won rules (details and the story behind each are in docs/LOG.md)
@@ -78,7 +79,7 @@
 - Copying CSS: never filter lines (multi-line rules break); share a selector with `:is()` (v218).
 - `worker/helper.js`: before pushing, copy it to a `.mjs`, run `node --check` AND import it in Node, and exercise changed routes with a fake `env` (v208 fix, helper v16).
 - This container can't reach Steam / PS Store / eShop / HowLongToBeat / Cloudflare: use `price-probe.yml`, `hltb-probe.yml`, `news-probe.yml` (and their inputs) and read the output with get_job_logs.
-- Testing: real touch via CDP `Input.dispatchTouchEvent`, not mouse (v207); detector sweeps without screenshots, one at a time, with `S.lastV` = current so no tour runs (checks are off while touring, v219). Reports from the friend (iPhone 11 / iPad Safari) → reproduce with `webkit-check.yml`, not Chromium (v229). The standard harness is `tools/kit.mjs`; special one-off harnesses still live in the scratchpad (docs/LOG.md says how each was built).
+- Testing: real touch via CDP `Input.dispatchTouchEvent`, not mouse (v207); detector sweeps without screenshots, one at a time, with `S.lastV` = current so no tour runs (checks are off while touring, v219). Reports from the friend (iPhone 11 / iPad Safari) → reproduce with `webkit-check.yml`, not Chromium (v229). The standard harness is `tools/kit.mjs`; one-off harnesses go in `tools/scenarios/` (`kit.mjs run`), not the scratchpad.
 - Each release's first `WHATS_NEW` `say` line becomes the update notification: make it a good one-line pitch (v191). Detector-only fixes ship without an APP_V bump.
 - Closing an issue: write "Fixed in vN" in the comment, or bugsync reopens it on a later sighting (v231). Never put game titles, scores or personal data in commits/issues (the repo is public).
 

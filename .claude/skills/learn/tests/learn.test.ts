@@ -7,20 +7,20 @@ const LESSONS = `# Lessons
 
 ## Mistakes
 
-- **L1** · 2026-10-11 · v267 · \`bugLayoutSoon\`, \`tools/lib.mjs\` — Wait 2.6s per screen in sweeps: the layout check runs 1.6s after a change
+- **L1** · 2026-10-11 · v267 · \`bugLayoutSoon\`, \`tools/kit.mjs\` — Wait 2.6s per screen in sweeps: the layout check runs 1.6s after a change
 - **L2** ×3 · 2026-10-11 · v267 · \`openFull\` — Wrappers run around openFull: read docs/MAP.md first
 
 ## Missed opportunities
 
-- [ ] **M1** · 2026-10-11 · v267 · \`.github/scripts/webkitcheck.mjs\` — The WebKit check could import tools/lib.mjs
-- [x] **M2** · 2026-10-11 · v267 · \`tools/pn.mjs\` — Keep harnesses in tools/ (done: v268)
+- [ ] **M1** · 2026-10-11 · v267 · \`.github/scripts/webkitcheck.mjs\` — The WebKit check could import tools/kit.mjs
+- [x] **M2** · 2026-10-11 · v267 · \`tools/kit.mjs\` — Keep harnesses in tools/ (done: v268)
 
 ## Promoted to checks
 
-- **L3** → \`tools/map.mjs --check\` · 2026-10-11 · v267 · \`APP_V\` — Never assign to a top-level const
+- **L3** → \`tools/where.mjs --check\` · 2026-10-11 · v267 · \`APP_V\` — Never assign to a top-level const
 `
 
-const BRIEF = { lessons: 2, promoted: 1, open: [{ id: 'M1', text: 'The WebKit check could import tools/lib.mjs' }], openCount: 1, promote: [{ id: 'L2', n: 3, text: 'Wrappers run around openFull' }], stale: [], big: false }
+const BRIEF = { lessons: 2, promoted: 1, open: [{ id: 'M1', text: 'The WebKit check could import tools/kit.mjs' }], openCount: 1, promote: [{ id: 'L2', n: 3, text: 'Wrappers run around openFull' }], stale: [], big: false }
 const AT = [{ line: 9540, script: 2, fns: [{ name: 'openFull', from: 9537, to: 9766, wrappedAfter: [11564, 12709] }] }]
 
 type W = { lessonsDirty?: boolean; commitDiff?: string; mapCheck?: { code: number; out: string }; reopened?: unknown[] }
@@ -38,13 +38,14 @@ function world(on: any, w: W = {}) {
     if (a === 'git rev-parse --show-toplevel') return ok('/repo\n')
     if (a === 'git remote get-url origin') return ok('https://github.com/shamlawy/Play-next.git\n')
     if (a === 'git rev-parse HEAD') return ok(`h${head}\n`)
+    if (a.startsWith('git status --porcelain -- docs/MAP.md')) return ok(' M docs/MAP.md\n')
     if (a.startsWith('git status --porcelain')) return ok(w.lessonsDirty ? ' M docs/LESSONS.md\n' : '')
     if (a.startsWith('git show -U0')) return ok(w.commitDiff ?? '')
     if (a.startsWith('git diff --cached --name-only')) return ok('index.html\n')
     if (a === 'node tools/learn.mjs brief') return ok(JSON.stringify(BRIEF))
-    if (a.startsWith('node tools/map.mjs --at=')) return ok(JSON.stringify(AT))
-    if (a.startsWith('node tools/map.mjs --md')) return ok('docs/MAP.md updated\n')
-    if (a.startsWith('node tools/map.mjs --check')) return ok(w.mapCheck?.out ?? 'No new hazards', w.mapCheck?.code ?? 0)
+    if (a.startsWith('node tools/where.mjs --at=')) return ok(JSON.stringify(AT))
+    if (a === 'node tools/map.mjs') return ok('docs/MAP.md: 154 blocks\n')
+    if (a.startsWith('node tools/where.mjs --check')) return ok(w.mapCheck?.out ?? 'No new hazards', w.mapCheck?.code ?? 0)
     return ok('')
   })
   on('fs.read', ($: unknown, e: any) => ({ value: String(e.path).endsWith('LESSONS.md') ? LESSONS : 'line1\nline2\n' + 'function openFull(id) {\n' }))
@@ -106,10 +107,10 @@ describe('learn', () => {
     const w = world(on, { lessonsDirty: true })
     await start($)
     await $.prompt.submit({ text: 'fix the sweep' } as any)
-    await $.tool.call({ tool: 'Bash', command: 'node tools/pn.mjs sweep --w=412 # FAILING' } as any)
-    await $.tool.call({ tool: 'Bash', command: 'node tools/pn.mjs sweep --w=412' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'node tools/kit.mjs sweep --widths 412 # FAILING' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'node tools/kit.mjs sweep --widths 412' } as any)
     const r1: any = await stop($)
-    expect(r1.block).toContain('a check failed, then passed after a change: “pn sweep”')
+    expect(r1.block).toContain('a check failed, then passed after a change: “kit sweep”')
     await $.tool.call({ tool: 'Bash', command: 'node tools/learn.mjs add --kind=mistake --anchors=x "a real lesson here"' } as any)
     expect(w.toasts.some(t => t.includes('Learned L4'))).toBe(true)
     const r2: any = await stop($)
@@ -136,7 +137,7 @@ describe('learn', () => {
     const w = world(on, { commitDiff: '+foo()\n', mapCheck: { code: 1, out: '[v216] line 9: APP_V is a const (line 4) and this assigns to it' } })
     await start($)
     const r: any = await $.tool.call({ tool: 'Bash', command: 'git commit -am "x"' } as any)
-    expect(w.runs.indexOf('node tools/map.mjs --md')).toBeLessThan(w.runs.indexOf('git add docs/MAP.md'))
+    expect(w.runs.indexOf('node tools/map.mjs')).toBeLessThan(w.runs.indexOf('git add docs/MAP.md'))
     expect(w.runs).toContain('git add docs/MAP.md')
     expect((r.context ?? []).join('\n')).toContain('[v216] line 9')
   })
@@ -206,6 +207,6 @@ describe('signals', () => {
     expect(ls.map(l => `${l.id}:${l.kind}:${l.n}:${l.open}`)).toEqual(['L1:mistake:1:false', 'L2:mistake:3:false', 'M1:missed:1:true', 'M2:missed:1:false', 'L3:promoted:1:false'])
     expect(relevant(ls, { file: '/repo/.github/scripts/webkitcheck.mjs' }).map(l => l.id)).toEqual(['M1'])
     expect(relevant(ls, { names: ['openFull'] }).map(l => l.id)).toEqual(['L2'])
-    expect(relevant(ls, { cmd: 'node tools/pn.mjs sweep' }).map(l => l.id)).toEqual([])
+    expect(relevant(ls, { cmd: 'node tools/kit.mjs sweep' }).map(l => l.id)).toEqual(['L1'])
   })
 })

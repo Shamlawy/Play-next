@@ -6,6 +6,5 @@ webkit-report.txt
 !.claude/skills/*/.claude-plugin/plugin.json
 !.claude/skills/*/hooks/hooks.json
 
-# test kit output (tools/pn.mjs): generated pictures, screenshots, code-map cache
+# where.mjs cache
 tools/.cache/
-tools/.out/

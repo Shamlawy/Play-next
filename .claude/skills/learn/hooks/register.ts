@@ -130,7 +130,7 @@ export const register: Register = on => {
     }
     const notes = [await recall($, { file: e.file_path, names: identifiers(e.old_string + '\n' + e.new_string) })]
     if (lines.length) {
-      const r = await run($, ['node', 'tools/map.mjs', `--at=${lines.join(',')}`, '--json'], 30_000).catch(() => undefined)
+      const r = await run($, ['node', 'tools/where.mjs', `--at=${lines.join(',')}`, '--json'], 30_000).catch(() => undefined)
       if (r?.exitCode === 0) { try { notes.push(wrapNote(JSON.parse(r.stdout) as At[], toldWraps)) } catch { /* map unavailable */ } }
     }
     return withContext(ran, notes)
@@ -143,7 +143,7 @@ export const register: Register = on => {
     // A browser harness written to the scratchpad dies with the chat: the test kit is the place for it.
     if (!toldScratch && /\/scratchpad\/.*\.(c|m)?js$/.test(e.file_path) && /playwright|chromium|newContext|dispatchTouchEvent/i.test(e.content)) {
       toldScratch = true
-      notes.push('[learn] A browser harness in the scratchpad is lost when this chat ends (docs/LOG.md lists dozens rebuilt that way). tools/lib.mjs already has open/seed/pictures/tap/swipe/scroll/walk/flush/measure: write it as tools/scenarios/<name>.mjs (export default async ({ t, lib }) => …) and run `node tools/pn.mjs run tools/scenarios/<name>.mjs`, so the next chat has it.')
+      notes.push('[learn] A browser harness in the scratchpad is lost when this chat ends (docs/LOG.md lists dozens rebuilt that way). tools/kit.mjs already gives a seeded phone with every /bug report caught, step / scroll / flush and real touch (p.tap, p.swipe): write it as tools/scenarios/<name>.mjs (export default async ({ p, w, fail }) => …) and run `node tools/kit.mjs run tools/scenarios/<name>.mjs`, so the next chat has it.')
     }
     return withContext(ran, notes)
   }).catch(($, e, next) => next(e))
@@ -155,8 +155,9 @@ export const register: Register = on => {
     if (COMMIT.test(cmd) && !/RG_SKIP=1/.test(cmd)) {
       const staged = (await run($, ['git', 'diff', '--cached', '--name-only']).catch(() => undefined))?.stdout ?? ''
       if (/(^|\n)index\.html$/m.test(staged) || /\bindex\.html\b|\s-a\b|\s-am\b|--all\b|\badd\s+(-A|\.)/.test(cmd)) {
-        const md = await run($, ['node', 'tools/map.mjs', '--md'], 60_000).catch(() => undefined)
-        if (md?.exitCode === 0 && /updated/.test(md.stdout)) await run($, ['git', 'add', 'docs/MAP.md']).catch(() => undefined)
+        const md = await run($, ['node', 'tools/map.mjs'], 60_000).catch(() => undefined)
+        const changed = md?.exitCode === 0 ? (await run($, ['git', 'status', '--porcelain', '--', 'docs/MAP.md']).catch(() => undefined))?.stdout.trim() : ''
+        if (changed) await run($, ['git', 'add', 'docs/MAP.md']).catch(() => undefined)
       }
     }
     const headBefore = COMMIT.test(cmd) ? (await run($, ['git', 'rev-parse', 'HEAD']).catch(() => undefined))?.stdout.trim() : ''
@@ -191,8 +192,8 @@ export const register: Register = on => {
         if (/^\+const APP_V = "\d+"/m.test(d?.stdout ?? '')) signal({ kind: 'release', text: `APP_V ${(d?.stdout.match(/^\+const APP_V = "(\d+)"/m) ?? [])[1] ?? ''}` })
         // Hazards from the hard-won rules (v198/v216/v237) that this commit adds.
         if (d?.stdout) {
-          const hz = await run($, ['node', 'tools/map.mjs', '--check', '--base=HEAD~1'], 90_000).catch(() => undefined)
-          if (hz && hz.exitCode !== 0 && /^\[v\d+\]/m.test(hz.stdout)) notes.push(`[learn] tools/map.mjs --check on this commit:\n${hz.stdout.trim().split('\n').slice(0, 8).join('\n')}\nFix it in the next commit unless it is deliberate.`)
+          const hz = await run($, ['node', 'tools/where.mjs', '--check', '--base=HEAD~1'], 90_000).catch(() => undefined)
+          if (hz && hz.exitCode !== 0 && /^\[v\d+\]/m.test(hz.stdout)) notes.push(`[learn] tools/where.mjs --check on this commit:\n${hz.stdout.trim().split('\n').slice(0, 8).join('\n')}\nFix it in the next commit unless it is deliberate.`)
         }
       }
     }

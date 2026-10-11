@@ -10,7 +10,12 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/kit.mjs tour` | Runs the what's-new tour from the previous version to `APP_V` at 412 and 859, and checks that every step opens and finds its target | 40 s |
 | `node tools/kit.mjs perf` | Measures main-thread ms per step (script / layout / style) with a 4x slower CPU. Use it to compare before and after a change | 30 s |
 | `node tools/kit.mjs all` | Runs syntax + sw + sweep + tour. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
+| `node tools/kit.mjs sweep --plant x.js --expect` | Runs `x.js` in every test phone, then sweeps. Fails unless the app reports it: the proof that a new detector catches its problem | 1 min per width |
+| `node tools/kit.mjs run tools/scenarios/x.mjs` | Runs a saved scenario: `export default async ({ p, w, fail }) => …` with `p.step`, `p.scroll`, `p.flush` and real touch (`p.tap`, `p.swipe` through CDP). Returning `false` fails it | — |
 | `node tools/map.mjs` | Rewrites `docs/MAP.md`: every block, every wrapped function with its layers, and the onNav hooks | 1 s |
+| `node tools/where.mjs <name>` | Where a function is defined and every later script that wraps it (acorn parse, scope-aware). `--at=<line>` says which function and script a line is in | 1 s |
+| `node tools/where.mjs --check --base=HEAD` | New hazards from the hard-won rules: state on a wrapped function (v198), assigning a top-level const (v216), calling a function hidden in another script's scope (v237), wrapping goTab/goSub/openFull instead of `onNav` (v269) | 2 s |
+| `node tools/learn.mjs list` | Claude's lessons (`docs/LESSONS.md`): mistakes, open ideas, lessons turned into checks. `add` / `done` / `promote` write it (see its header) | — |
 | `node tools/map.mjs --dead` | Lists functions, consts, CSS classes and ids that look unused. These are candidates only: some names are built from strings | 1 s |
 
 Options for kit.mjs:
@@ -19,6 +24,8 @@ Options for kit.mjs:
 - `--cpu 4` sets how much `perf` slows the CPU.
 - `--set '{"bugOff":true}'` adds saved settings to every test phone.
 - `--shots dir` makes `tour` save a screenshot of each step.
+
+Saved scenarios live in `tools/scenarios/` (the scratchpad is lost with the chat). The sweep waits 2.6s on each screen because the app's layout check runs 1.6s after a screen change, when idle: with 1.4s, a planted cut-off button was reported on 3 screens instead of 10. The test browser has swipe-back turned off, because a right swipe on a game page otherwise "goes back" to about:blank.
 
 The test phones use made-up games from `tools/seed.mjs`. Their pictures are files already in the repo, and every other site is blocked. Problem reports (`/bug`) are caught by the kit and never sent.
 
