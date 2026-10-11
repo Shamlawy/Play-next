@@ -21,12 +21,12 @@
 ## Look
 - Black / near-black theme.
 - When the owner shares a reference design: copy its layout and style, not its colours.
-- No press animation (#309, v246): nothing shrinks, lifts or fades when touched. The last script strips movement from every `:active` rule, so don't add press effects.
+- No press animation (#309, v246): nothing shrinks, lifts or fades when touched. Since v268 no `:active` rule has movement in the CSS itself, and `node tools/kit.mjs syntax` fails if one is added.
 
 ## Speed rule
 - Must feel smooth at high refresh rate.
 - Animate only `transform` and `opacity`. No looping blur. No stacked effects.
-- Test performance in a browser (Playwright + Chromium at /opt/pw-browsers) before saying it's done.
+- Test performance in a browser before saying it's done: `node tools/kit.mjs perf` (main-thread ms per step, 4x slower CPU; `--file old.html` for the before).
 
 ## Settings
 - Grumble is hidden by default (Settings toggle).
@@ -61,6 +61,11 @@
 - No logos or brand names in store listings.
 - Nexi's "beta" lines must change.
 
+## Test kit and code map (start here, v268)
+- `node tools/kit.mjs all` = every script block compiles + no press animation, then a Chromium sweep of every screen, game pages, Settings, Edit and chat at 412/859/360 with the app's own problem checks listening, then the what's-new tour from the previous version. Exit 1 on a script error, a real report or a broken tour step; timing notes are hints only. Also `syntax`, `sweep`, `tour`, `perf`; options `--file`, `--widths`, `--set '{"bugOff":true}'`. Made-up seed data in `tools/seed.mjs`. Run it before every push; GitHub runs it on every PR (`app-check.yml`).
+- `docs/MAP.md` (made by `node tools/map.mjs`, rerun after a release): every block with what it is for, every wrapped function with all its layers, the onNav hooks. Read it before changing a function. `node tools/map.mjs --dead` lists unused functions/consts/CSS (check each by hand: some class names are built from strings, e.g. `k-${…}`, `n${…}`).
+- Screen changes: goTab / goSub / openFull run `onNav("before"|"after", (kind, args) => …)` hooks (kind "tab" / "sub" / "game"). Register a hook; don't wrap those three again. A throwing hook can't block the screen change.
+
 ## Hard-won rules (details and the story behind each are in docs/LOG.md)
 - Many functions are wrapped by later scripts (`renderHome`, `openFull`, `save`, `gdMarkup`…): never read state off a function (`fn.x`, v198), extend a `const` instead of reassigning it (v216), and don't call a function that lives inside another script's scope (v237). New code goes in the last `<script>`/`<style>`.
 - Never read layout (rects, scrollTop, computed style) right after an innerHTML redraw: do it in requestAnimationFrame or let an observer report it (v206).
@@ -73,13 +78,13 @@
 - Copying CSS: never filter lines (multi-line rules break); share a selector with `:is()` (v218).
 - `worker/helper.js`: before pushing, copy it to a `.mjs`, run `node --check` AND import it in Node, and exercise changed routes with a fake `env` (v208 fix, helper v16).
 - This container can't reach Steam / PS Store / eShop / HowLongToBeat / Cloudflare: use `price-probe.yml`, `hltb-probe.yml`, `news-probe.yml` (and their inputs) and read the output with get_job_logs.
-- Testing: real touch via CDP `Input.dispatchTouchEvent`, not mouse (v207); detector sweeps without screenshots, one at a time, with `S.lastV` = current so no tour runs (checks are off while touring, v219). Reports from the friend (iPhone 11 / iPad Safari) → reproduce with `webkit-check.yml`, not Chromium (v229). Test harnesses live in the scratchpad and are lost between chats; docs/LOG.md describes how each was built.
+- Testing: real touch via CDP `Input.dispatchTouchEvent`, not mouse (v207); detector sweeps without screenshots, one at a time, with `S.lastV` = current so no tour runs (checks are off while touring, v219). Reports from the friend (iPhone 11 / iPad Safari) → reproduce with `webkit-check.yml`, not Chromium (v229). The standard harness is `tools/kit.mjs`; special one-off harnesses still live in the scratchpad (docs/LOG.md says how each was built).
 - Each release's first `WHATS_NEW` `say` line becomes the update notification: make it a good one-line pitch (v191). Detector-only fixes ship without an APP_V bump.
 - Closing an issue: write "Fixed in vN" in the comment, or bugsync reopens it on a later sighting (v231). Never put game titles, scores or personal data in commits/issues (the repo is public).
 
 ## Automation
 - Daily bug fixer: Routine "Play next: daily bug fixes" (`trig_01RcRcYQJqZPDuBGMhvJmZZG`, 03:46 UTC) wakes session `session_01UrvHBmr3w5i37FFfMfe9a8`; it runs bugs.yml, fixes open `auto-bug` issues, ships one release. If that session is archived, make a new one with create_session and point the trigger at it.
-- Workflows: deploy-helper.yml (worker/** on main), announce.yml (update pings), bugs.yml (problem reports → issues, `.github/scripts/bugsync.mjs`), price-probe.yml, hltb-probe.yml, news-probe.yml (Steam news + calendar, helper code and live helper), webkit-check.yml.
+- Workflows: app-check.yml (tools/kit.mjs on every PR), deploy-helper.yml (worker/** on main), announce.yml (update pings), bugs.yml (problem reports → issues, `.github/scripts/bugsync.mjs`), price-probe.yml, hltb-probe.yml, news-probe.yml (Steam news + calendar, helper code and live helper), webkit-check.yml.
 
 ## Claude mod: auto-handoff
 - `.claude/skills/auto-handoff/` loads by itself in every chat on this repo (replaced usage-guard: the app's own context/limits popup already shows usage, so no meter). Once a chat passes 300k tokens, the next message gets a hidden note: Claude answers it, then without asking commits + pushes, writes a handoff note and starts a new cloud session with it (create_session). Once per chat (kept in `$.state`). Typing "handoff" (or `/handoff`) does the same at any size.
