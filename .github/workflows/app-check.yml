@@ -1,4 +1,4 @@
-# Runs the test kit (tools/kit.mjs) on every pull request that changes the app: every script block compiles, every screen
+# Runs the test kit (tools/kit.mjs, see tools/README.md) on every pull request that changes the app: every script block compiles, sw.js shrinks pictures right, every screen
 # at 412 / 859 / 360 in Chromium with the app's own problem checks listening, and the what's-new tour. Fails on a script
 # error, a real problem report or a broken tour step (timing notes are printed only: GitHub's machines have no GPU).
 name: App check
@@ -9,6 +9,7 @@ on:
       - "index.html"
       - "sw.js"
       - "tools/**"
+      - ".github/scripts/swcheck.mjs"
       - ".github/workflows/app-check.yml"
 permissions:
   contents: read

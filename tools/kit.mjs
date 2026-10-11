@@ -6,7 +6,8 @@
                                         script errors + every problem the app reports about itself (its own detectors)
      node tools/kit.mjs tour            the what's-new tour from the previous version: every step opens and finds its target
      node tools/kit.mjs perf            main-thread time for a fixed walk (4x slower CPU), to compare before/after a change
-     node tools/kit.mjs all             syntax + sweep + tour
+     node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
+     node tools/kit.mjs all             syntax + sw + sweep + tour
 
    Options: --file other.html (test another copy, e.g. the old build), --widths 412,859, --cpu 4,
    --set '{"bugOff":true}' (extra saved settings), --shots dir (tour: a screenshot of every step).
@@ -17,6 +18,7 @@ import fs from "fs";
 import path from "path";
 import vm from "vm";
 import { createRequire } from "module";
+import { spawnSync } from "child_process";
 import { seed, TITLES } from "./seed.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -203,7 +205,19 @@ async function perf(browser, base) {
   await p.ctx.close();
 }
 
+/* ---------- sw.js picture shrinking ---------- */
+function sw() {
+  console.log("\n== sw.js picture shrink (Chromium) ==");
+  const pwDir = [process.env.PW_PATH, "/opt/node22/lib/node_modules/playwright/index.mjs"].find(p => p && fs.existsSync(p));
+  const r = spawnSync(process.execPath, [path.join(ROOT, ".github/scripts/swcheck.mjs")], { cwd: ROOT, encoding: "utf8",
+    env: { ...process.env, BROWSER: "chromium", ...(pwDir ? { PW_PATH: pwDir } : {}) } });
+  const out = (r.stdout + r.stderr).trim().split("\n").map(l => "  " + l).join("\n");
+  console.log(out);
+  if (r.status !== 0) fail("swcheck failed");
+}
+
 if (mode === "syntax" || mode === "all") syntax();
+if (mode === "sw" || mode === "all") sw();
 if (["sweep", "tour", "perf", "all"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {

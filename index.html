@@ -4115,7 +4115,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "268";
+const APP_V = "269";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -23136,7 +23136,7 @@ WHATS_NEW.push(
 <script>
 /* ===== v246 (#309): no press animation. The owner: "when I touch anything an animation happened, delete that". Until v268
    this script stripped movement (transform / scale / translate / rotate / filter / opacity) from every :active rule on each
-   start; v268 removed those declarations from the CSS itself, and tools/kit.mjs syntax fails if one comes back. ===== */
+   start; v269 removed those declarations from the CSS itself, and tools/kit.mjs syntax fails if one comes back. ===== */
 WHATS_NEW.push(
   { v: 246, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .row") || $("#p-queue .tabbar") || null,
     say: "No more press animation: buttons, rows and cards stay put when you touch them and simply do their thing.",
@@ -23699,7 +23699,7 @@ WHATS_NEW.push(
 );
 </script>
 <script>
-/* Screen changes in one place (the v268 tidy-up). goTab, goSub and openFull used to be wrapped once per feature that
+/* Screen changes in one place (the v269 tidy-up). goTab, goSub and openFull used to be wrapped once per feature that
    wanted to know about a screen change (openFull went through 16 layers). Code from here on registers instead:
      onNav("after", fn)   runs after any of them, in the order registered
      onNav("before", fn)  runs before, newest first (the order the old wraps had)
@@ -25343,6 +25343,7 @@ async function stRun() {
   ST.on = false; setTimeout(() => { if (!ST.on) window.pnSelfTest = false; }, 1500);
   stReport(out);
 }
+const ST_BASE = { v: "266", fl: .53, flw: 600, e: .06, l: .14, mb: 1488, need: 56, k4: 14 };
 function stReport(o) {
   const all = o.fling.concat(o.swipes).flatMap(r => r.gaps), iv = prbRefresh(all), hz = Math.round(1000 / iv);
   const pc = x => Math.round(x * 100) + "%", f1 = x => Math.round(x * 10) / 10;
@@ -25353,6 +25354,12 @@ function stReport(o) {
   const h0 = o.hold[0] || {}, h9 = o.hold[o.hold.length - 1] || {};
   ST.n++; try { localStorage.setItem("gq:stest", String(ST.n)); } catch (e) {}
   const stopped = ST.stop ? " (stopped early by a touch)" : "";
+  /* v268: the card compares itself with the last full run on this phone (own localStorage key, not S);
+     before any stored run, the owner's phone (Android) compares with its v266 run (#413) */
+  const now = { v: APP_V, fl: fl.rate, flw: fl.worst, e: early.rate, l: late.rate, mb: Math.round(p.mp * 4), need: Math.round(p.need * 4), k4: p.k4 };
+  let was = null; try { was = JSON.parse(localStorage.getItem("gq:stestlast") || "null"); } catch (e) {}
+  if (!was && /Android/.test(navigator.userAgent)) was = ST_BASE;
+  if (!ST.stop && o.swipes.length >= 3) try { localStorage.setItem("gq:stestlast", JSON.stringify(now)); } catch (e) {}
   const msg = `Self-test${stopped} (v${APP_V}, ${hz}Hz): Queue fling dropped ${pc(fl.rate)} of frames (worst ${fl.worst}ms); swiping game pages: first 3 ${pc(early.rate)}, last 3 ${pc(late.rate)}. Queue pictures: ${Math.round(p.mp)} MP held for ${Math.round(p.need)} MP shown (${p.k4} at 4K)`;
   const lines = [
     `fling legs: ${o.fling.map(r => { const d = stDrop(r.gaps, iv); return `${pc(d.rate)} worst ${d.worst}ms long ${Math.round(r.loaf)}ms`; }).join(" | ")}`,
@@ -25361,18 +25368,27 @@ function stReport(o) {
     `queue pictures: ${p.n}, ${f1(p.mp)} MP (${Math.round(p.mp * 4)} MB decoded) for ${f1(p.need)} MP on screen, ${p.k4} at 4K, largest ${f1(p.big)} MP`,
     `first game page: ${g.n} pictures, ${f1(g.mp)} MP for ${f1(g.need)} MP shown, ${g.k4} at 4K`,
     `game page after swipe 1 → ${o.hold.length}: elements ${h0.els}→${h9.els}, pages ${h0.hubs}→${h9.hubs}, light scenes ${h0.scenes}→${h9.scenes}, animations ${h0.anims}→${h9.anims}`,
+    ...(was ? [`last run (v${was.v}): fling ${pc(was.fl)} worst ${was.flw}ms, swipes 1-3 ${pc(was.e)}, last 3 ${pc(was.l)}, pictures ${was.mb} MB for ${was.need} MB, ${was.k4} at 4K`] : []),
     `screen ${innerWidth}×${innerHeight} @${f1(devicePixelRatio || 1)}, cores ${navigator.hardwareConcurrency || "?"}, memory ${navigator.deviceMemory || "?"}GB${o.err ? ", error: " + o.err : ""}`
   ];
   bugReport("slow", msg, { stack: lines.join("\n"), at: "selftest v" + APP_V + " #" + ST.n, sigAt: "selftest v" + APP_V + " #" + ST.n, screen: "self-test" });
-  const row = (k, v) => `<p class="st-r"><span>${k}</span><b>${v}</b></p>`;
+  const row = (k, v, w) => `<p class="st-r"><span>${k}</span><b>${v}${was && w != null ? `<small class="st-was">was ${w}</small>` : ""}</b></p>`;
+  /* the verdict: frames dropped on the fling + the worse end of the swipes, against the last run */
+  const score = x => x.fl + Math.max(x.e, x.l), d = was ? score(was) - score(now) : 0;
+  const how = was ? `fling ${pc(was.fl)} → ${pc(now.fl)} frames dropped, swipes ${pc(Math.max(was.e, was.l))} → ${pc(Math.max(now.e, now.l))}` : "";
+  const verdict = !was ? `First run on this phone: run it again after the next update and this card compares the two by itself.`
+    : d > .03 ? `Smoother than v${was.v}: ${how}.`
+    : d < -.03 ? `Rougher than v${was.v}: ${how}. I'll look at why.`
+    : `About the same as v${was.v}.`;
   dyShow(dyBox(), `<div class="dy-h"><b>Smoothness self-test${stopped}</b><button class="dy-x" aria-label="Close">✕</button></div>
-    ${row("Queue fling, frames dropped", `${pc(fl.rate)} · worst ${fl.worst}ms`)}
-    ${row("Game page swipes 1–3", pc(early.rate))}
-    ${row(`Game page swipes ${Math.max(1, o.swipes.length - 2)}–${o.swipes.length}`, pc(late.rate))}
-    ${row("Queue pictures in memory", `${Math.round(p.mp * 4)} MB`)}
-    ${row("…of which the screen needs", `${Math.round(p.need * 4)} MB`)}
-    ${row("4K pictures on the Queue", String(p.k4))}
-    <p class="st-n">Sent to Claude with the details. This was the "before": run it again after the fix to compare.</p>`, () => {});
+    ${row("Queue fling, frames dropped", `${pc(fl.rate)} · worst ${fl.worst}ms`, was && `${pc(was.fl)} · ${was.flw}ms`)}
+    ${row("Game page swipes 1–3", pc(early.rate), was && pc(was.e))}
+    ${row(`Game page swipes ${Math.max(1, o.swipes.length - 2)}–${o.swipes.length}`, pc(late.rate), was && pc(was.l))}
+    ${row("Queue pictures in memory", `${now.mb} MB`, was && `${was.mb} MB`)}
+    ${row("…of which the screen needs", `${now.need} MB`, was && `${was.need} MB`)}
+    ${row("4K pictures on the Queue", String(p.k4), was && String(was.k4))}
+    <p class="st-n st-v">${verdict}</p>
+    <p class="st-n">Sent to Claude with the details.</p>`, () => {});
 }
 /* the test's own flings, swipes and page closes aren't lag to report (lagWatch doesn't look at BUG_MODAL) */
 { const _br = bugReport; bugReport = function (kind, msg, x) {
@@ -25386,6 +25402,8 @@ document.addEventListener("click", e => { if (!e.target.closest("#s-stest")) ret
 .st-r span { color: var(--mute); }
 .st-r b { color: var(--ice); font-variant-numeric: tabular-nums; text-align: right; }
 .st-n { color: var(--mute); font-size: 13px; margin: 12px 2px 4px; }
+.st-was { display: block; color: var(--mute); font-size: 12px; font-weight: 500; }
+.st-v { color: var(--ice); }
 </style>
 <script>
 WHATS_NEW.push(
@@ -25585,12 +25603,53 @@ WHATS_NEW.push(
     say: "I've learned to spot this myself now: if a picture on screen is ever far bigger than its spot, I report it on my own.",
     tryIt: "Nothing to do: if it happens, I file it myself." }
 );
+/* v268: Nexi learned (the owner after v267: "pictures and art take longer to load, sometimes I wait 3 seconds"; every
+   new picture was waiting for the resize service). When a game page opens or a screen switches, the pictures on screen
+   that aren't there yet (<img>s and url() backgrounds in view) are timed from that moment; one taking over 2.5s → kind
+   "slow", once per screen a session, at most 4, not while touring, self-testing or offline. */
+const PICW = { n: 0, seen: new Set() };
+function picWait() {
+  if (PICW.n >= 4 || !bugOn() || !navigator.onLine || nxTouring() || window.pnSelfTest) return;
+  const t0 = performance.now();
+  requestAnimationFrame(() => setTimeout(() => {
+    const H = innerHeight, W = innerWidth, scr = bugScreen(), urls = new Map();
+    const seen = el => { const r = el.getBoundingClientRect(); return r.width >= 24 && r.height >= 24 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W; };
+    for (const im of document.images) if (!im.complete && seen(im)) urls.set(im.currentSrc || im.src, im);
+    document.querySelectorAll("[style*='url(']").forEach(el => { if (urls.size > 30 || !seen(el)) return;
+      const m = (el.getAttribute("style") || "").match(/url\((['"]?)(.*?)\1\)/); if (m && !/^data:/.test(m[2])) urls.set(m[2].replace(/\\(.)/g, "$1"), el); });
+    urls.forEach((el, u) => {
+      if (!u || PICW.seen.has(scr)) return;
+      const im = new Image(); im.src = u;   /* shares the page's own download: done when it is */
+      if (im.complete) return;
+      im.onload = () => {
+        const dt = performance.now() - t0;
+        if (dt < 2500 || PICW.seen.has(scr) || PICW.n >= 4 || window.pnSelfTest) return;
+        PICW.seen.add(scr); PICW.n++;
+        bugReport("slow", `A picture took ${(dt / 1000).toFixed(1)}s to show on ${typeof bugPlace === "function" ? bugPlace(scr) : scr}`, { at: bugPath(el) + " [" + (/wsrv\.nl/.test(u) ? "sized copy" : "original") + "]", screen: scr, sigAt: "picwait" });
+      };
+    });
+  }, 0));
+}
+onNav("after", k => { if (k !== "sub") picWait(); });
+
+WHATS_NEW.push(
+  { v: 268, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); },
+    at: () => $("#p-queue .dzd-row") || $("#p-queue .deck") || $("#p-queue .row") || $("#p-queue .tabbar") || null,
+    say: "<b>Game art shows straight away again</b>: since the last update every new picture waited for a resizing website, sometimes 3 seconds. Now your phone shrinks each picture itself, once, and keeps it; every size a screen needs is cut from that copy in a few milliseconds.",
+    tryIt: "Open a few games you haven't opened today: the art and info arrive together." },
+  { v: 268, go: () => nxOpenSettings("#s-stest"), at: "#s-stest",
+    say: "Your phone measured the last fix: the Queue fling went from 53% dropped frames to 4%, the worst stall from 600ms to 33ms, pictures in memory from 1.5 GB to 113 MB. The self-test card now shows last run's number under each one and says if it got smoother or rougher.",
+    tryIt: "Run the smoothness self-test: each number shows what it was last time." },
+  { v: 268, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: if a picture takes more than 2.5 seconds to show after you open a screen or a game, I report it on my own.",
+    tryIt: "Nothing to do: if it happens, I file it myself." }
+);
 </script>
 <script>
-/* v268: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change
+/* v269: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change
    hooks in one place), dead code and the press-animation stripper gone, tools/kit.mjs + tools/map.mjs + the App check. */
 WHATS_NEW.push(
-  { v: 268, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+  { v: 269, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "I had a big tidy-up inside: leftovers are gone, every screen change goes through one door, and a broken piece can no longer stop a screen from opening.",
     tryIt: "Nothing to tap: just use the app as usual. Every change is now tested on every screen before it reaches your phone." }
 );

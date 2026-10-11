@@ -73,7 +73,7 @@ for (const [fn, ls] of [...wraps].sort((a, b) => b[1].length - a[1].length)) {
   const tag = l => { const b = blockOf(l); const v = b && (b.core ? "core" : (b.what.match(/\bv\d{3}\b/) || [])[0]); return `${l}${v ? " " + v : ""}`; };
   out.push(`| \`${fn}\` | ${defs.get(fn) || "?"} | ${ls.length}: ${ls.map(tag).join(", ")} |`);
 }
-out.push(``, `## Screen-change hooks (onNav, since v268)`, ``,
+out.push(``, `## Screen-change hooks (onNav, since v269)`, ``,
   `goTab / goSub / openFull also run every \`onNav("before"|"after", fn)\` hook (one wrap, defined at line ${lineAt(html.indexOf("function onNav("))}). ` +
   `New code that wants to know about a screen change registers here instead of wrapping those three.`, ``);
 for (const m of html.matchAll(/^\s*onNav\("(before|after)", *(?:\(|\w+ *=>).*$/gm)) { const l = lineAt(m.index + m[0].indexOf("onNav")); const b = blockOf(l); out.push(`- ${l}${b && !b.core ? " " + ((b.what.match(/\bv\d{3}\b/) || [""])[0]) : ""}: \`${m[0].trim().slice(0, 110)}\``); }

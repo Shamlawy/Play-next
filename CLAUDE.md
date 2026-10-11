@@ -21,7 +21,7 @@
 ## Look
 - Black / near-black theme.
 - When the owner shares a reference design: copy its layout and style, not its colours.
-- No press animation (#309, v246): nothing shrinks, lifts or fades when touched. Since v268 no `:active` rule has movement in the CSS itself, and `node tools/kit.mjs syntax` fails if one is added.
+- No press animation (#309, v246): nothing shrinks, lifts or fades when touched. Since v269 no `:active` rule has movement in the CSS itself, and `node tools/kit.mjs syntax` fails if one is added.
 
 ## Speed rule
 - Must feel smooth at high refresh rate.
@@ -61,8 +61,8 @@
 - No logos or brand names in store listings.
 - Nexi's "beta" lines must change.
 
-## Test kit and code map (start here, v268)
-- `node tools/kit.mjs all` = every script block compiles + no press animation, then a Chromium sweep of every screen, game pages, Settings, Edit and chat at 412/859/360 with the app's own problem checks listening, then the what's-new tour from the previous version. Exit 1 on a script error, a real report or a broken tour step; timing notes are hints only. Also `syntax`, `sweep`, `tour`, `perf`; options `--file`, `--widths`, `--set '{"bugOff":true}'`. Made-up seed data in `tools/seed.mjs`. Run it before every push; GitHub runs it on every PR (`app-check.yml`).
+## Test kit and code map (start here, v269)
+- `node tools/kit.mjs all` = every script block compiles + no press animation, then a Chromium sweep of every screen, game pages, Settings, Edit and chat at 412/859/360 with the app's own problem checks listening, then the what's-new tour from the previous version (`all` also runs `sw`: sw.js picture shrinking). Exit 1 on a script error, a real report or a broken tour step; timing notes are hints only. Also `syntax`, `sweep`, `tour`, `perf`; options `--file`, `--widths`, `--set '{"bugOff":true}'`. Made-up seed data in `tools/seed.mjs`; every command is in `tools/README.md`. Run it before every push; GitHub runs it on every PR (`app-check.yml`).
 - `docs/MAP.md` (made by `node tools/map.mjs`, rerun after a release): every block with what it is for, every wrapped function with all its layers, the onNav hooks. Read it before changing a function. `node tools/map.mjs --dead` lists unused functions/consts/CSS (check each by hand: some class names are built from strings, e.g. `k-${…}`, `n${…}`).
 - Screen changes: goTab / goSub / openFull run `onNav("before"|"after", (kind, args) => …)` hooks (kind "tab" / "sub" / "game"). Register a hook; don't wrap those three again. A throwing hook can't block the screen change.
 

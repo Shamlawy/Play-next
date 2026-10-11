@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25598 lines, 1901 KB, 95 scripts, 59 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25657 lines, 1906 KB, 95 scripts, 59 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -44,7 +44,7 @@ How the file is built: one core style (line 15) and one core script (the biggest
 | `sgdbFillOne` | 4501 | 2: 22356 v238, 22988 v241 |
 | `applyBg` | 3550 | 2: 24313 v257, 24525 v260 |
 
-## Screen-change hooks (onNav, since v268)
+## Screen-change hooks (onNav, since v269)
 
 goTab / goSub / openFull also run every `onNav("before"|"after", fn)` hook (one wrap, defined at line 23709). New code that wants to know about a screen change registers here instead of wrapping those three.
 
@@ -53,8 +53,9 @@ goTab / goSub / openFull also run every `onNav("before"|"after", fn)` hook (one 
 - 25026 v264: `onNav("after", k => { if (k === "tab") { STACK.go = null; stackArm(3500); } });`
 - 25154 v265: `onNav("before", k => prbStart(k === "game" ? "open" : "switch", 1000));`
 - 25193 v265: `onNav("before", () => hold(900));`
-- 25531 v267: `onNav("after", () => requestAnimationFrame(fitRetry));`
-- 25574 v267: `onNav("after", k => { if (k !== "sub") picArm(4000); });`
+- 25549 v267: `onNav("after", () => requestAnimationFrame(fitRetry));`
+- 25592 v267: `onNav("after", k => { if (k !== "sub") picArm(4000); });`
+- 25633 v267: `onNav("after", k => { if (k !== "sub") picWait(); });`
 
 ## Blocks
 
@@ -181,7 +182,7 @@ goTab / goSub / openFull also run every `onNav("before"|"after", fn)` hook (one 
 | 23162–23305 | script | 11 | ===== v248: three things that run by themselves. 1. Release days in your calendar: Settings → Extra features → turn on makes a random id (S.calId),… |
 | 23305–23336 | style | 3 | v249: buy advice line under the prices, the drifting card on a game page, the shopping plan and queue clean-up sheets |
 | 23336–23701 | script | 34 | ===== v249: three smarter things that run by themselves (the owner picked them from a list: "1 2 4"). 1. Buy advice (`sm*` / `smBuy`): price alerts… |
-| 23701–23721 | script | 1 | Screen changes in one place (the v268 tidy-up). goTab, goSub and openFull used to be wrapped once per feature that wanted to know about a screen… |
+| 23701–23721 | script | 1 | Screen changes in one place (the v269 tidy-up). goTab, goSub and openFull used to be wrapped once per feature that wanted to know about a screen… |
 | 23721–23796 | script | 7 | ===== v249, smoother everywhere (the owner: "all tabs and windows lag"; "a lot of lags that even Nexi doesn't see"). 1. Nexi's own problem checks… |
 | 23796–23825 | script | 2 | ===== v250 (the owner, with a screenshot of a "picked for you" card: "not all games have screenshots inside here, fix"): 1. The preview (gpLoad)… |
 | 23825–23860 | style | 3 | ===== v251: the rail's live strip (replaces the queue covers) + Nexi sized to his seat ===== |
@@ -208,9 +209,9 @@ goTab / goSub / openFull also run every `onNav("before"|"after", fn)` hook (one 
 | 25169–25183 | script | 1 | v265 (the owner: "if I scroll fast it lags, up or down on the Queue"): touch scrolling no longer waits for the app. Every screen but Home and every… |
 | 25183–25198 | script | 1 | v265: the light behind the screen holds still while you're touching, scrolling or switching (it moves about a pixel per step, so a pause can't be… |
 | 25198–25239 | script | 4 | v265: Nexi learned (the blocking touchmove above sat on every screen for months and nothing noticed: it doesn't throw, doesn't look wrong, and the… |
-| 25239–25383 | script | 10 | v266: the self-test (step 1 of the plan the owner agreed: "measure first, on the phone, before changing anything"). Settings → This build → "Run the… |
-| 25383–25390 | style | 0 | v266 self-test result card (inside the diary sheet's box) |
-| 25390–25397 | script | 0 | — |
-| 25397–25536 | script | 10 | v267 picture fit, layer 2 (layer 1 is sw.js: nothing bigger than the screen). Lists show pictures far smaller than the screen: a Queue row's faded… |
-| 25536–25589 | script | 5 | v267: Nexi learned (the phone's self-test: 372 MP of pictures on the Queue for 14 MP on screen, one picture 70 MP; none of his checks looked at… |
-| 25589–25598 | script | 1 | v268: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change hooks in one place), dead… |
+| 25239–25399 | script | 12 | v266: the self-test (step 1 of the plan the owner agreed: "measure first, on the phone, before changing anything"). Settings → This build → "Run the… |
+| 25399–25408 | style | 1 | v266 self-test result card (inside the diary sheet's box) |
+| 25408–25415 | script | 0 | — |
+| 25415–25554 | script | 10 | v267 picture fit, layer 2 (layer 1 is sw.js: nothing bigger than the screen). Lists show pictures far smaller than the screen: a Queue row's faded… |
+| 25554–25648 | script | 8 | v267: Nexi learned (the phone's self-test: 372 MP of pictures on the Queue for 14 MP on screen, one picture 70 MP; none of his checks looked at… |
+| 25648–25657 | script | 1 | v269: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change hooks in one place), dead… |
