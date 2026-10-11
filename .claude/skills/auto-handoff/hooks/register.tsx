@@ -10,7 +10,7 @@ const HANDOFF_ASK = /^\s*\/?(hand\s*off|new\s+chat|fresh\s+chat|move\s+to\s+a\s+
 const done = atom({ plugin: 'auto-handoff', key: 'done' } as const, false)
 
 const STEPS = [
-  '1. Make sure every change is committed and pushed (say so plainly if something can\'t be).',
+  '1. Record what this chat learned that the next one should know (node tools/learn.mjs add --kind=mistake|idea --anchors=… "…"), then make sure every change, docs/LESSONS.md included, is committed and pushed (say so plainly if something can\'t be).',
   '2. Write a handoff note (under 300 words) for the new chat: the goal, what is done (commits, APP_V), what is left next, open questions, the branch, and gotchas learned in this chat. Don\'t repeat what CLAUDE.md already says.',
   '3. Start the new cloud session with the claude-code-remote create_session tool: source_url = this repo\'s GitHub URL, title starting "Play next · ", prompt = the handoff note.',
   '4. End with the new chat\'s title and a 2-line summary, and say this chat can be left now.',

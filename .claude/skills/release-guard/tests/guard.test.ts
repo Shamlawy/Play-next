@@ -53,7 +53,9 @@ function world(on: any, w: World) {
     if (e.tool === 'Bash' && /git commit/.test(e.command)) head++
     return { result: 'done', text: 'done' }
   })
-  on('session.append', () => ({ value: { uuid: 'u' } }))
+  on('session.append', ($: unknown, e: any, next: any) => next(e))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.toast', () => ({ value: undefined }))
   on('prompt.submit', ($: unknown, e: any) => {
     contexts.push((e.context ?? []).join('\n'))
     return { text: e.text, context: e.context }
@@ -143,6 +145,18 @@ describe('release-guard', () => {
     const r1: any = await $.classic.Stop({ stop_hook_active: false } as any)
     expect(r1.block).toContain('no browser test ran')
     await $.tool.call({ tool: 'Bash', command: 'node /tmp/x/scratchpad/sweep.mjs # playwright' } as any)
+    const r2: any = await $.classic.Stop({ stop_hook_active: false } as any)
+    expect(r2.block).toBeUndefined()
+  })
+
+  test('the committed test kit counts as a browser test', async ($, on) => {
+    world(on, {})
+    await start($)
+    await $.turn.start({ text: 'fix it', turnId: 't3' })
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/index.html', old_string: 'a', new_string: 'b' } as any)
+    const r1: any = await $.classic.Stop({ stop_hook_active: false } as any)
+    expect(r1.block).toContain('node tools/pn.mjs sweep')
+    await $.tool.call({ tool: 'Bash', command: 'node tools/pn.mjs sweep --w=412,859,360' } as any)
     const r2: any = await $.classic.Stop({ stop_hook_active: false } as any)
     expect(r2.block).toBeUndefined()
   })
