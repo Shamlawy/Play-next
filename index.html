@@ -25502,21 +25502,24 @@ WHATS_NEW.push(
    content-visibility) are sized when they show. A copy that fails puts the original back. */
 const FIT = { q: new Set(), raf: 0, wait: new Set(), local: new Map(), bad: new Set(), STEPS: [128, 192, 256, 384, 512, 768, 1024, 1536] };
 const fitStep = px => { for (const b of FIT.STEPS) if (px <= b) return b; return 0; };
-const fitRemote = u => /^https:\/\//.test(u) && !/^https:\/\/wsrv\.nl\//.test(u) && !/\.(svg|gif)(\?|#|$)/i.test(u) && !FIT.bad.has(u);
-const fitLocalOk = u => (/^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 120000) || (/^blob:/.test(u) && !FIT.made.has(u));
+/* the app's own files (pictures kept in the repo, e.g. a key art an old save links to) are resized on the phone too */
+const fitSame = u => u.indexOf(location.origin + "/") === 0 || (u.length < 300 && /^[\w\-./%]+\.(jpe?g|png|webp)$/i.test(u));
+const fitRemote = u => /^https:\/\//.test(u) && !fitSame(u) && !/^https:\/\/wsrv\.nl\//.test(u) && !/\.(svg|gif)(\?|#|$)/i.test(u) && !FIT.bad.has(u);
+const fitLocalOk = u => !FIT.bad.has(u) && ((/^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 120000) || (/^blob:/.test(u) && !FIT.made.has(u)) || (fitSame(u) && /\.(jpe?g|png|webp)(\?|$)/i.test(u)));
 FIT.made = new Set();
 const fitSized = (u, w, h) => "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=" + w + "&h=" + h + "&fit=outside&we&output=webp&q=86";
 function fitLocal(u, w, h) {
   const k = u + "|" + w + "|" + h; if (FIT.local.has(k)) return FIT.local.get(k);
-  const p = fetch(u).then(r => r.blob()).then(b => createImageBitmap(b)).then(async full => {
-    /* "outside": at least w×h, keeping the shape; never bigger than it was */
-    const s = Math.max(w / full.width, h / full.height); if (s >= .8) { full.close && full.close(); return null; }
-    const W = Math.round(full.width * s), H = Math.round(full.height * s); full.close && full.close();
+  /* the size comes from the file's header (new Image() without decode), so the big one is unpacked once, already shrunk */
+  const size = new Promise((ok, no) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = no; im.src = u; });
+  const p = size.then(async ([nw, nh]) => {
+    const s = Math.max(w / nw, h / nh); if (!nw || s >= .8) return null;   /* "outside": at least w×h; not worth it if barely smaller */
+    const W = Math.round(nw * s), H = Math.round(nh * s);
     const bm = await createImageBitmap(await (await fetch(u)).blob(), { resizeWidth: W, resizeHeight: H, resizeQuality: "high" });
     const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();   /* (a Safari that ignores resizeWidth still gets W×H) */
     const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) return null;
     const url = URL.createObjectURL(out); FIT.made.add(url); return url;
-  }).catch(() => null);
+  }).catch(() => { FIT.bad.add(u); return null; });
   FIT.local.set(k, p); return p;
 }
 /* what this piece needs, in device pixels, rounded up; 0 = big enough to leave to the screen cap */
