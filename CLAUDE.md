@@ -34,6 +34,7 @@
 
 ## Updates
 - Never give the owner install or upload steps; handle updates yourself (commit + push).
+- Always merge by yourself (the owner, Oct 2026: "Always merge auto"): when the work is done and checked (`node tools/kit.mjs all` for app changes, the mods' `claude plugin test` for .claude/skills), merge main into the branch, open the PR and merge it without asking. If GitHub's app-check fails, fix it first; tell the owner only if something can't be fixed.
 - How updates reach the phone: `sw.js` loads the page network-first (bypassing HTTP cache), so a push shows on the next open. The app also re-checks when you come back to it after 10+ min and reloads if `APP_V` changed.
 - Bump `APP_V` in `index.html` on every release (this shows the "updated" popup and triggers the auto-reload).
 - Bump `SHELL` in `sw.js` only if the cache must be wiped.
