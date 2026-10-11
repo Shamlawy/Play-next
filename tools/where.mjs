@@ -5,8 +5,8 @@
      node tools/where.mjs --at=17160      which script / function a line is in, and what wraps that function later
      node tools/where.mjs --check         hazards from the hard-won rules (exit 1): a call to a function that only exists
                                           inside another script's scope (v237), state read off a wrapped function (v198),
-                                          assigning a top-level const (v216), wrapping goTab / goSub / openFull again
-                                          instead of onNav (v269); --base=<git ref> = only the ones new since that build
+                                          assigning a top-level const (v216), wrapping goTab / goSub / openFull /
+                                          openSettings again instead of onNav / onSettings (v269); --base=<git ref> = only the ones new since that build
      node tools/where.mjs --json [--at=N] the whole map, or the functions around line N (the learn mod reads this)
    Cached in tools/.cache/ by index.html's size + mtime. */
 import fs from "fs";
@@ -156,10 +156,10 @@ function build() {
   for (const [k, ln] of Object.entries(constTop)) for (const w of wraps[k] || [])
     hazards.push({ rule: "v216", line: w.line, s: w.s, name: k, msg: `${k} is a const (line ${ln}) and this assigns to it: TypeError when it runs; extend it instead` });
   /* v269: screen changes have one door (onNav hooks); goTab / goSub / openFull aren't wrapped any more */
-  const NAV = new Set(["goTab", "goSub", "openFull"]);
+  const NAV = new Set(["goTab", "goSub", "openFull", "openSettings"]);
   const door = (defs.onNav || []).find(d => !d.scoped);   /* the door itself wraps them once, in its own script */
   if (door) for (const k of NAV) for (const w of wraps[k] || []) if (w.fn && w.line > door.line && w.s !== door.s)
-    hazards.push({ rule: "v269", line: w.line, s: w.s, name: k, msg: `${k} is wrapped here: register onNav("before"|"after", (kind, args) => …) instead (CLAUDE.md, v269)` });
+    hazards.push({ rule: "v269", line: w.line, s: w.s, name: k, msg: `${k} is wrapped here: register ${k === "openSettings" ? "onSettings" : "onNav"}("before"|"after", …) instead (CLAUDE.md, v269)` });
   const seenH = new Set();
   hazards.splice(0, hazards.length, ...hazards.filter(h => { const k = h.line + h.msg; if (seenH.has(k)) return false; seenH.add(k); return true; }));
   const st = fs.statSync(FILE);

@@ -12624,10 +12624,35 @@ let uLast = "";
 const uScreen = tab => tab + (SUBS[tab] ? "/" + subOf(tab) : "");
 function uVisit(tab) { const k = uScreen(tab); if (k !== uLast) { uLast = k; uCount("v", k); } }
 { const _pt = paintTab; paintTab = function (tab) { const out = _pt.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
-{ const _gs = goSub; goSub = function (tab) { const out = _gs.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
-{ const _of = openFull; openFull = function (id) { if (hubAt !== id || !$("#full.on")) uCount("o", "game"); return _of.apply(this, arguments); }; }
+/* Screen changes in one place (v269, all of them since v270). goTab, goSub and openFull used to be wrapped once per feature
+   that wanted to know about a screen change (openFull went through 16 layers). Every feature registers a hook instead:
+     onNav("after", fn)   runs after the screen change, in the order registered
+     onNav("before", fn)  runs before it, newest first (the order the old wraps had); if it returns a function, that
+                          runs after the change, in this hook's place among the "after" ones (a wrap that did both)
+   fn gets (kind, args): kind is "tab" (goTab), "sub" (goSub) or "game" (openFull); args[0] is the tab or the game id.
+   A hook that throws no longer breaks the screen change: the error is re-thrown on its own, so the problem reports see it.
+   onSettings(when, fn) is the same for openSettings (9 wraps until v270); its hooks don't run while openSettings only builds
+   the page's text (openSettings.tplOnly, the search index). */
+const NAV = [], SET_HOOKS = [];
+function onNav(when, fn) { NAV.push({ when, fn }); }
+function onSettings(when, fn) { SET_HOOKS.push({ when, fn }); }
+{
+  const safe = (f, kind, a) => { try { return f(kind, a); } catch (e) { setTimeout(() => { throw e; }); } };
+  const hub = (fn, kind, L, skip) => function () {
+    if (skip && skip()) return fn.apply(this, arguments);
+    const a = arguments, n = L.length, then = [];
+    for (let i = n - 1; i >= 0; i--) if (L[i].when === "before") { const r = safe(L[i].fn, kind, a); if (typeof r === "function") then[i] = r; }
+    const o = fn.apply(this, a);
+    for (let i = 0; i < n; i++) { if (L[i].when === "after") safe(L[i].fn, kind, a); else if (then[i]) safe(then[i], kind, a); }
+    return o;
+  };
+  goTab = hub(goTab, "tab", NAV); goSub = hub(goSub, "sub", NAV); openFull = hub(openFull, "game", NAV);
+  openSettings = hub(openSettings, "settings", SET_HOOKS, () => openSettings.tplOnly); openSettings.tplOnly = false;
+}
+onNav("after", (k, a) => { if (k === "sub") try { uVisit(a[0]); } catch (e) {} });
+onNav("before", (k, a) => { if (k === "game" && (hubAt !== a[0] || !$("#full.on"))) uCount("o", "game"); });
 { const _oe = openEdit; openEdit = function () { uCount("o", "edit"); return _oe.apply(this, arguments); }; }
-{ const _os = openSettings; openSettings = function (sc) { if (!openSettings.tplOnly) uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : "")); return _os.apply(this, arguments); }; openSettings.tplOnly = false; }
+onSettings("before", (k, a) => { const sc = a[0]; uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : "")); });
 setTimeout(() => { uCount("o", "app"); uVisit(curTab()); }, 0);
 { let away = 0; document.addEventListener("visibilitychange", () => {
   if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 30 * 60000) uCount("o", "app"); }); }
@@ -15504,8 +15529,7 @@ document.addEventListener("toggle", e => {
     if (sh) requestAnimationFrame(() => { sh.scrollTop = setListY; });
   }
 }, true);
-{ const _o = openSettings; openSettings = function () { const out = _o.apply(this, arguments); if (!openSettings.tplOnly) { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); } return out; };
-  openSettings.tplOnly = false; }
+onSettings("after", () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); });
 { const _e = openEdit; openEdit = function () { const out = _e.apply(this, arguments); $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(false); return out; }; }
 /* the tour and search can point into a folded "More options" */
 { const _n = nxOpenSettings; nxOpenSettings = function (sel) { _n.apply(this, arguments); setMoreOpen($(sel)); }; }
@@ -16108,7 +16132,7 @@ function helperCheck() {
       : "⚠️ The helper on Cloudflare still runs old code, so chat, smart similar games and notifications are off until it's updated.";
   }).catch(() => { if ($("#s-helperv")) el.textContent = "Can't reach Nexi's helper right now (offline?)."; });
 }
-{ const _os3 = openSettings; openSettings = function () { const o = _os3.apply(this, arguments); if (!openSettings.tplOnly) setTimeout(helperCheck, 50); return o; }; openSettings.tplOnly = false; }
+onSettings("after", () => setTimeout(helperCheck, 50));
 WHATS_NEW.push(
   { v: 187, go: () => { const g = rankedGames()[0] || S.games[0]; if (g) { nxShut(); openFull(g.id); } }, at: "#full [data-sim]",
     say: "New way to find <b>similar games</b>: I pick them myself now (I know which games fans of this one play next), then I check each one on RAWG so only real games show up, each with a line on why it's similar.",
@@ -16667,7 +16691,7 @@ function shxSetWire() {
     S.shxX = SHX_FULL.filter(y => x.includes(y)); S.shxOff = false;
     done(); };
 }
-{ const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) shxSetWire(); return o; }; openSettings.tplOnly = false; }
+onSettings("after", () => shxSetWire());
 const SHX_SEEN = {};
 function shxDress(el, kind) {
   const bar = el && el.querySelector(".tabbar");
@@ -17060,10 +17084,8 @@ function bugLayoutSoon() {
 }
 /* screen changes: breadcrumb + a layout look once it settles */
 const bugSeen = () => { const s = bugScreen(); if (s !== "settings/edit") BUG.lastScreen = s; bugCrumb("screen " + s); bugLayoutSoon(); };
-{ const _g = goTab; goTab = function () { const o = _g.apply(this, arguments); bugSeen(); return o; }; }
-{ const _s = goSub; goSub = function () { const o = _s.apply(this, arguments); bugSeen(); return o; }; }
-{ const _f = openFull; openFull = function () { const o = _f.apply(this, arguments); bugSeen(); return o; }; }
-{ const _o = openSettings; openSettings = function () { const o = _o.apply(this, arguments); if (!openSettings.tplOnly) { bugCrumb("screen settings"); bugLayoutSoon(); } return o; }; openSettings.tplOnly = false; }
+onNav("after", () => bugSeen());
+onSettings("after", () => { bugCrumb("screen settings"); bugLayoutSoon(); });
 addEventListener("resize", () => bugLayoutSoon(), { passive: true });
 
 /* v206: time spent in a native confirm/alert/prompt box isn't lag (the page waits for you on purpose): #55/#56 were
@@ -17519,7 +17541,7 @@ WHATS_NEW.push(
    (the page draws it straight away), LITE_DEC lets liteUp swap it without another decode, and a liteUp pass runs
    the moment the opening grow is over. ===== */
 { let openAt = 0;
-  const _of3 = openFull; openFull = function () { openAt = performance.now(); return _of3.apply(this, arguments); };
+  onNav("before", k => { if (k === "game") openAt = performance.now(); });
   /* one liteUp pass: it only swaps what's on screen and drawn bigger than the light copy (not the neighbour pages
      kept off to the side for the swipe, which cost a 170ms frame when they were swapped too) */
   let lt = 0; const liteNow = () => {
@@ -18203,7 +18225,7 @@ function ixWire(el) {
   const el = $("#p-taste"); if (el) { el.querySelectorAll(".tins").forEach(x => x.remove()); ixWire(el); }
   return out; }; }
 /* leaving the tab lets the reveal play again next time you come back */
-{ const _gt5 = goTab; goTab = function (name) { const o = _gt5.apply(this, arguments); if (curTab() !== "taste") ixShown.clear(); return o; }; }
+onNav("after", k => { if (k === "tab" && curTab() !== "taste") ixShown.clear(); });
 try { renderTaste(); if (typeof renderPill === "function") renderPill(); } catch (e) {}
 WHATS_NEW.push(
   { v: 205, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-hero"),
@@ -18738,7 +18760,7 @@ function cbSetWire() {
     catch (e) { toast("Couldn't delete it: " + (e.message === "helper-old" ? "the helper needs updating" : e.message)); }
   };
 }
-{ const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) cbSetWire(); return o; }; openSettings.tplOnly = false; }
+onSettings("after", () => cbSetWire());
 
 const CB_DAY = { latest: "Newest copy", k: "Before a big change" };
 function cbRestoreSheet() {
@@ -19299,16 +19321,16 @@ function pxSetWire() {
   $("#s-psplus").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.psPlus = +c.dataset.v; S.pxWatching = false; done(true); };
   $("#s-pxmin").onclick = e => { const c = e.target.closest(".chip"); if (!c) return; S.pxMin = +c.dataset.v; S.pxWatching = false; done(true); };
 }
-{ const _os = openSettings; openSettings = function () { const o = _os.apply(this, arguments); if (!openSettings.tplOnly) pxSetWire(); return o; }; openSettings.tplOnly = false; }
+onSettings("after", () => pxSetWire());
 /* a game with no price yet (added since the last check): check just that one when its page opens */
-{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
-  const g = S.games.find(x => x.id === id);
+onNav("after", (k, a) => { if (k !== "game") return;
+  const g = S.games.find(x => x.id === a[0]);
   /* v221 (#118): any store this game is watched on without an answer yet (not only games with no prices at all, and the eShop too);
      if a check is already running, try again when it's done */
   const miss = g && PX_S.some(s => pxWant(g, s) && !(g.px || {})[s]);
   if (g && pxOn() && miss && !isPlayed(g) && !isDropped(g) && !g.comp && Date.now() - (g.pxTry || 0) > 36e5) {
     g.pxTry = Date.now(); const go = (n) => { if (pxBusy) { if (n < 20) setTimeout(() => go(n + 1), 1500); return; } pxRun(true, g); }; setTimeout(() => go(0), 700); }
-  return o; }; }
+});
 /* tapping Nexi's price-drop line opens the deals */
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "deals") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); pxDeals(); }, true);
 /* people who picked their notification kinds before this get 💸 Price drops switched on once */
@@ -19587,8 +19609,8 @@ async function wiStoryGet(g) {
 { const _wc = wiCard; wiCard = function (g, force) { const c = _wc.apply(this, arguments); return force || !c ? c : c + wiStoryHtml(g); }; }
 { const _wr = wiRefresh; wiRefresh = function (g) { const o = _wr.apply(this, arguments); wiStoryPaint(g); return o; }; }
 { const _wa = wiAdd; wiAdd = function (g) { const o = _wa.apply(this, arguments); if (g) setTimeout(() => wiStoryGet(g), 300); return o; }; }
-{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments); const g = S.games.find(x => x.id === id);
-  if (g && wiLast(g)) { wiStoryFit(); setTimeout(() => wiStoryGet(g), 600); } return o; }; }
+onNav("after", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]);
+  if (g && wiLast(g)) { wiStoryFit(); setTimeout(() => wiStoryGet(g), 600); } });
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-wismore]"); if (!b) return; e.stopPropagation();
   const w = b.closest(".wis"), t = w && w.querySelector(".wis-t"); if (!t) return;
   const h0 = t.getBoundingClientRect().height, open = w.classList.toggle("open"); b.textContent = open ? "Read less" : "Read more"; beep("tap");
@@ -20085,10 +20107,10 @@ function rvPaint() { document.querySelectorAll(".rv[data-g]").forEach(el => { co
   const at = o.indexOf('<p class="gd-desc">') >= 0 ? o.indexOf('<p class="gd-desc">') : o.indexOf('<div class="hub-data">');
   return at < 0 ? o : o.slice(0, at) + c + "\n        " + o.slice(at); }; }
 /* opening a fresh game's page checks it if it's due (no waiting for the next sweep) */
-{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
-  try { const g = S.games.find(x => x.id === id); if (g) { const m = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); m[g.id] = Date.now(); localStorage.setItem("gq:seenG", JSON.stringify(m)); sgSeenMemo = null; }
+onNav("after", (k, a) => { if (k !== "game") return;
+  try { const g = S.games.find(x => x.id === a[0]); if (g) { const m = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); m[g.id] = Date.now(); localStorage.setItem("gq:seenG", JSON.stringify(m)); sgSeenMemo = null; }
     if (g && rvWant(g) && rvDue(g) && rvAge(g) >= 0) setTimeout(() => rvWatch(false, g), 900); } catch (e) {}
-  return o; }; }
+});
 setTimeout(() => rvWatch(false), 30000);
 addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => rvWatch(false), 10000); });
 /* notification: the evening after a release, "⭐ Reviews for X" (with the Release days kind) */
@@ -20313,7 +20335,7 @@ setTimeout(() => awCheck(window.PN_SEEN0), 0);
 addEventListener("visibilitychange", () => { if (!document.hidden) awCheck(window.PN_SEEN0); });
 
 /* the flicker check's "opened again" mark (v220) for the two openers flickWatch doesn't wrap */
-{ const _os = openSettings; openSettings = function () { if (!openSettings.tplOnly) { const el = document.getElementById("sheet"); if (el) el._flkOpen = performance.now(); } return _os.apply(this, arguments); }; openSettings.tplOnly = false; }
+onSettings("before", () => { const el = document.getElementById("sheet"); if (el) el._flkOpen = performance.now(); });
 { const _ds = dyShow; dyShow = function (box) { if (box) box._flkOpen = performance.now(); return _ds.apply(this, arguments); }; }
 
 /* ---- 2. finish forecast + clash radar ---- */
@@ -20617,14 +20639,13 @@ function dustPuff(x, y) {
 /* the queue is first drawn by load(), before this script exists, and isn't redrawn until something changes: apply both
    now, and measure the tile when the queue comes on screen (it can't be measured while its tab is hidden) */
 setTimeout(() => { try { dustApply(); lfApply(); } catch (e) {} }, 0);
-{ const _gt = goTab; goTab = function () { const o = _gt.apply(this, arguments); if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); return o; }; }
+onNav("after", k => { if (k === "tab" && !lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); });
 { const _ss = setSub; setSub = function () { const o = _ss.apply(this, arguments); if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); return o; }; }
 /* opening a dusty game blows the dust off */
-{ const _of = openFull; openFull = function (id) { const g = S.games.find(x => x.id === id), d = g ? dustDays(g) : 0, l = g ? dustLvl(g) : 0;
-  const o = _of.apply(this, arguments);
-  if (g && l) { g.dustOff = Date.now(); save(); dustApply(); setTimeout(() => { dustPuff(innerWidth / 2, innerHeight * .3);
-    if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([`*cough* ${g.title} had ${d >= 60 ? Math.round(d / 30) + " months" : d + " days"} of dust on it. Blown off ✨`, ""]); } catch (e) {} }, 380); }
-  return o; }; }
+onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]), d = g ? dustDays(g) : 0, l = g ? dustLvl(g) : 0;
+  if (g && l) return () => { g.dustOff = Date.now(); save(); dustApply(); setTimeout(() => { dustPuff(innerWidth / 2, innerHeight * .3);
+    if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([`*cough* ${g.title} had ${d >= 60 ? Math.round(d / 30) + " months" : d + " days"} of dust on it. Blown off ✨`, ""]); } catch (e) {} }, 380); };
+});
 /* Nexi points at the dustiest one now and then */
 { const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments);
   try { const g = S.games.filter(x => dustLvl(x) >= 2).sort((a, b) => dustDays(b) - dustDays(a))[0];
@@ -20818,12 +20839,11 @@ function cvLaunch(src, box, cov) {
     { duration: 380, easing: "cubic-bezier(.3,.9,.35,1)" });
   a.onfinish = a.oncancel = done; setTimeout(done, 900);
 }
-{ const _of = openFull; openFull = function (id) {
+onNav("before", k => { if (k !== "game") return;
   const box = $("#full"), wasOn = !!(box && box.classList.contains("on"));
   const src = !wasOn && !calm() && S.hubAnim !== false && !document.documentElement.classList.contains("nxtouring") ? cvSource() : null;
-  const o = _of.apply(this, arguments);
-  if (src) try { cvFly(src); } catch (e) {}
-  return o; }; }
+  if (src) return () => { try { cvFly(src); } catch (e) {} };
+});
 /* closing mid-flight: no copy left floating over the screen */
 { const _cf = closeFull; closeFull = function () { document.querySelectorAll(".cvfly").forEach(x => x.remove()); return _cf.apply(this, arguments); }; }
 WHATS_NEW.push(
@@ -22177,9 +22197,9 @@ async function shotsFetch(g, force) {
     document.querySelectorAll(`.gd-s-shots[data-g="${g.id}"]`).forEach(el => { el.outerHTML = gdShots(g); });
   } catch (e) {} finally { SHOT_BUSY.delete(g.id); }
 }
-{ const _of = openFull; openFull = function (id) { const o = _of.apply(this, arguments);
-  try { const g = S.games.find(x => x.id === id); if (g && fullStyleOf() === "dash") setTimeout(() => shotsFetch(g), 700); } catch (e) {}
-  return o; }; }
+onNav("after", (k, a) => { if (k !== "game") return;
+  try { const g = S.games.find(x => x.id === a[0]); if (g && fullStyleOf() === "dash") setTimeout(() => shotsFetch(g), 700); } catch (e) {}
+});
 /* a few a day by themselves: playing, then On deck, then the rest */
 setTimeout(() => { if (document.hidden || Date.now() - (S.shotsRun || 0) < 20 * 36e5) return; S.shotsRun = Date.now();
   const l = [...playingNow(), ...(typeof onDeck === "function" ? onDeck(6) : []), ...S.games].filter((g, i, a) => a.indexOf(g) === i && !g.shots && !g.shotsNo).slice(0, 6);
@@ -23699,26 +23719,6 @@ WHATS_NEW.push(
 );
 </script>
 <script>
-/* Screen changes in one place (the v269 tidy-up). goTab, goSub and openFull used to be wrapped once per feature that
-   wanted to know about a screen change (openFull went through 16 layers). Code from here on registers instead:
-     onNav("after", fn)   runs after any of them, in the order registered
-     onNav("before", fn)  runs before, newest first (the order the old wraps had)
-   fn gets (kind, args): kind is "tab" (goTab), "sub" (goSub) or "game" (openFull). A hook that throws no longer breaks the
-   screen change: the error is re-thrown on its own, so the problem reports still see it. */
-const NAV = { before: [], after: [] };
-function onNav(when, fn) { NAV[when].push(fn); }
-{
-  const run = (fns, kind, a) => { for (const fn of fns) { try { fn(kind, a); } catch (e) { setTimeout(() => { throw e; }); } } };
-  const hub = (fn, kind) => function () {
-    run(NAV.before.slice().reverse(), kind, arguments);
-    const o = fn.apply(this, arguments);
-    run(NAV.after, kind, arguments);
-    return o;
-  };
-  goTab = hub(goTab, "tab"); goSub = hub(goSub, "sub"); openFull = hub(openFull, "game");
-}
-</script>
-<script>
 /* ===== v249, smoother everywhere (the owner: "all tabs and windows lag"; "a lot of lags that even Nexi doesn't see").
    1. Nexi's own problem checks were the biggest job on every screen: bugLayout and its add-ons (cut text, overlaps, contrast,
       tilt, design review) ran after every tab switch, sheet and game page, 100–350ms at 4x CPU (20ms+ at full speed), even on
@@ -23773,7 +23773,7 @@ function lagWatch(what) {
 }
 onNav("after", k => { if (k === "tab") lagWatch(() => "Switching to " + lagWhere()); else if (k === "game") lagWatch("Opening a game page"); });
 { const _cf = closeFull; closeFull = function () { const on = !!$("#full.on"); const o = _cf.apply(this, arguments); if (on) lagWatch("Closing a game page"); return o; }; }
-{ const _os = openSettings; openSettings = function () { const tpl = openSettings.tplOnly, o = _os.apply(this, arguments); if (!tpl) lagWatch("Opening Settings"); return o; }; openSettings.tplOnly = _os.tplOnly; }
+onSettings("after", () => lagWatch("Opening Settings"));
 { const _dy = dyShow; dyShow = function () { const o = _dy.apply(this, arguments); lagWatch(() => "Opening a sheet on " + lagWhere()); return o; }; }
 /* opening the app: the lag checks start 8s in, so a freeze while it starts up went unseen */
 try {

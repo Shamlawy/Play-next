@@ -14,7 +14,7 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/kit.mjs run tools/scenarios/x.mjs` | Runs a saved scenario: `export default async ({ p, w, fail }) => …` with `p.step`, `p.scroll`, `p.flush` and real touch (`p.tap`, `p.swipe` through CDP). Returning `false` fails it | — |
 | `node tools/map.mjs` | Rewrites `docs/MAP.md`: every block, every wrapped function with its layers, and the onNav hooks | 1 s |
 | `node tools/where.mjs <name>` | Where a function is defined and every later script that wraps it (acorn parse, scope-aware). `--at=<line>` says which function and script a line is in | 1 s |
-| `node tools/where.mjs --check --base=HEAD` | New hazards from the hard-won rules: state on a wrapped function (v198), assigning a top-level const (v216), calling a function hidden in another script's scope (v237), wrapping goTab/goSub/openFull instead of `onNav` (v269) | 2 s |
+| `node tools/where.mjs --check --base=HEAD` | New hazards from the hard-won rules: state on a wrapped function (v198), assigning a top-level const (v216), calling a function hidden in another script's scope (v237), wrapping goTab/goSub/openFull/openSettings instead of `onNav` / `onSettings` (v269) | 2 s |
 | `node tools/learn.mjs list` | Claude's lessons (`docs/LESSONS.md`): mistakes, open ideas, lessons turned into checks. `add` / `done` / `promote` write it (see its header) | — |
 | `node tools/map.mjs --dead` | Lists functions, consts, CSS classes and ids that look unused. These are candidates only: some names are built from strings | 1 s |
 
