@@ -25508,11 +25508,13 @@ const fitRemote = u => /^https:\/\//.test(u) && !fitSame(u) && !/^https:\/\/wsrv
 const fitLocalOk = u => !FIT.bad.has(u) && ((/^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 120000) || (/^blob:/.test(u) && !FIT.made.has(u)) || (fitSame(u) && /\.(jpe?g|png|webp)(\?|$)/i.test(u)));
 FIT.made = new Set();
 const fitSized = (u, w, h) => "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=" + w + "&h=" + h + "&fit=outside&we&output=webp&q=86";
+/* one at a time (two 12 MP unpacks at once ran Safari out of memory on the iPad check), one retry before giving up */
+FIT.chain = Promise.resolve(); FIT.fails = new Map();
 function fitLocal(u, w, h) {
   const k = u + "|" + w + "|" + h; if (FIT.local.has(k)) return FIT.local.get(k);
-  /* the size comes from the file's header (new Image() without decode), so the big one is unpacked once, already shrunk */
-  const size = new Promise((ok, no) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = no; im.src = u; });
-  const p = size.then(async ([nw, nh]) => {
+  const job = async () => {
+    /* the size comes from the file's header (new Image() without decode), so the big one is unpacked once, already shrunk */
+    const [nw, nh] = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = no; im.src = u; });
     const s = Math.max(w / nw, h / nh); if (!nw || s >= .8) return null;   /* "outside": at least w×h; not worth it if barely smaller */
     const W = Math.round(nw * s), H = Math.round(nh * s);
     const blob = await (await fetch(u)).blob();
@@ -25521,7 +25523,13 @@ function fitLocal(u, w, h) {
     const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();   /* (a Safari that ignores resizeWidth still gets W×H) */
     const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) return null;
     const url = URL.createObjectURL(out); FIT.made.add(url); return url;
-  }).catch(() => { FIT.bad.add(u); return null; });
+  };
+  const p = FIT.chain.then(job).catch(() => {
+    const n = (FIT.fails.get(u) || 0) + 1; FIT.fails.set(u, n);
+    FIT.local.delete(k); if (n >= 2) FIT.bad.add(u);   /* the next look tries once more */
+    return null;
+  });
+  FIT.chain = p.then(() => {}, () => {});
   FIT.local.set(k, p); return p;
 }
 /* what this piece needs, in device pixels, rounded up; 0 = big enough to leave to the screen cap */
@@ -25611,6 +25619,7 @@ function picLook() {
   let held = 0, need = 0, worst = null;
   for (const im of document.images) {
     if (!im.complete || !im.naturalWidth || im._fitBusy) continue;   /* its small copy is still being made */
+    if (im._fitTo && im.getAttribute("src") === im._fitTo) continue;   /* our sized copy (Safari can still report the old size while swapping) */
     const r = im.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
     if (im.checkVisibility && !im.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
     const m = im.naturalWidth * im.naturalHeight, n = Math.max(1, r.width * d * r.height * d);
