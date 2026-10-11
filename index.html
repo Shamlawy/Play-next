@@ -4148,7 +4148,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "266";
+const APP_V = "267";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -25489,5 +25489,151 @@ WHATS_NEW.push(
   { v: 266, go: () => nxOpenSettings("#s-stest"), at: "#s-stest",
     say: "<b>A smoothness self-test, before anything else changes</b>: tap it and keep your hands off for about 30 seconds. It flings the Queue, swipes through 10 game pages, and measures how much memory your pictures take, then sends me the numbers. This is the \"before\" for the picture fix.",
     tryIt: "Tap Run the smoothness self-test now, and don't touch the screen until the results card shows up." }
+);
+</script>
+<script>
+/* v267 picture fit, layer 2 (layer 1 is sw.js: nothing bigger than the screen). Lists show pictures far smaller than
+   the screen: a Queue row's faded art is a ~860×62 strip, a cover ~60×90, a logo a corner. Each picture that's drawn
+   smaller than 1536 device pixels on both sides gets a copy at its own box size × devicePixelRatio, rounded up to a
+   few fixed steps (so copies are shared and cached): from the resize service for pictures from other sites, made on
+   the phone (createImageBitmap with resize, off the main thread) for your own uploads (data:/blob:). It happens in
+   the frame the piece is first drawn, before it's painted (MutationObserver collects, one rAF measures them all at
+   once), so the big one is never unpacked; pieces that aren't drawn yet (a hidden screen, a row skipped by
+   content-visibility) are sized when they show. A copy that fails puts the original back. */
+const FIT = { q: new Set(), raf: 0, wait: new Set(), local: new Map(), bad: new Set(), STEPS: [128, 192, 256, 384, 512, 768, 1024, 1536] };
+const fitStep = px => { for (const b of FIT.STEPS) if (px <= b) return b; return 0; };
+const fitRemote = u => /^https:\/\//.test(u) && !/^https:\/\/wsrv\.nl\//.test(u) && !/\.(svg|gif)(\?|#|$)/i.test(u) && !FIT.bad.has(u);
+const fitLocalOk = u => (/^data:image\/(png|jpe?g|webp)/.test(u) && u.length > 120000) || (/^blob:/.test(u) && !FIT.made.has(u));
+FIT.made = new Set();
+const fitSized = (u, w, h) => "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=" + w + "&h=" + h + "&fit=outside&we&output=webp&q=86";
+function fitLocal(u, w, h) {
+  const k = u + "|" + w + "|" + h; if (FIT.local.has(k)) return FIT.local.get(k);
+  const p = fetch(u).then(r => r.blob()).then(b => createImageBitmap(b)).then(async full => {
+    /* "outside": at least w×h, keeping the shape; never bigger than it was */
+    const s = Math.max(w / full.width, h / full.height); if (s >= .8) { full.close && full.close(); return null; }
+    const W = Math.round(full.width * s), H = Math.round(full.height * s); full.close && full.close();
+    const bm = await createImageBitmap(await (await fetch(u)).blob(), { resizeWidth: W, resizeHeight: H, resizeQuality: "high" });
+    const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(bm, 0, 0, W, H); bm.close && bm.close();   /* (a Safari that ignores resizeWidth still gets W×H) */
+    const out = await new Promise(ok => c.toBlob(ok, "image/webp", .88)); if (!out) return null;
+    const url = URL.createObjectURL(out); FIT.made.add(url); return url;
+  }).catch(() => null);
+  FIT.local.set(k, p); return p;
+}
+/* what this piece needs, in device pixels, rounded up; 0 = big enough to leave to the screen cap */
+function fitNeed(el) {
+  const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return null;
+  const d = Math.min(3, devicePixelRatio || 1), w = fitStep(r.width * d), h = fitStep(r.height * d);
+  return w && h ? [w, h] : [0, 0];
+}
+/* the picture addresses a piece uses right now (its src, or every url() in its style) */
+const fitUrls = el => el.tagName === "IMG" ? (el.getAttribute("src") || "") : ((el.getAttribute("style") || "").match(/url\([^)]*\)/g) || []).join(" ");
+/* what it would be without our copies: fitted pieces remember their original, so a bigger box (unfolding) refits from it */
+function fitImg(im, n) {
+  let s = im.getAttribute("src") || ""; if (!s) return;
+  if (im._fitTo === s) { if (im._fitN && im._fitN[0] >= n[0] && im._fitN[1] >= n[1]) return; s = im._fitFrom; }
+  else if (im.complete && im.naturalWidth && im.naturalWidth * im.naturalHeight <= n[0] * n[1] * 1.5) return;   /* small already */
+  if (fitRemote(s)) { const t = fitSized(s, n[0], n[1]); im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); return; }
+  if (fitLocalOk(s)) fitLocal(s, n[0], n[1]).then(t => { if (t && (im.getAttribute("src") === s || im.getAttribute("src") === im._fitTo)) { im._fitFrom = s; im._fitTo = t; im._fitN = n; im.setAttribute("src", t); } });
+}
+function fitBg(el, n) {
+  let st = el.getAttribute("style") || "";
+  if (el._fitTo === st) { if (el._fitN && el._fitN[0] >= n[0] && el._fitN[1] >= n[1]) return; st = el._fitFrom; }
+  const later = [];
+  const out = st.replace(/url\((['"]?)(.*?)\1\)/g, (m, q, raw) => {
+    const u = raw.replace(/\\(.)/g, "$1");
+    if (fitRemote(u)) return "url('" + fitSized(u, n[0], n[1]) + "')";
+    if (fitLocalOk(u)) later.push(u);
+    return m;
+  });
+  if (out !== st || el._fitTo) { el._fitFrom = st; el._fitTo = out; el._fitN = n; if (el.getAttribute("style") !== out) el.setAttribute("style", out); }
+  later.forEach(u => fitLocal(u, n[0], n[1]).then(t => { const now = el.getAttribute("style") || ""; if (!t || now.indexOf(u) < 0) return;
+    const v = now.split(u).join(t); el._fitTo = v; el._fitN = n; el.setAttribute("style", v); }));
+}
+function fitRun() {
+  FIT.raf = 0;
+  const list = [...FIT.q]; FIT.q.clear();
+  /* read every box first (one layout), then write */
+  const jobs = [];
+  for (const el of list) {
+    if (!el.isConnected) continue;
+    if (el.checkVisibility && !el.checkVisibility({ contentVisibilityAuto: true })) { FIT.wait.add(el); continue; }
+    const n = fitNeed(el); if (!n) { FIT.wait.add(el); continue; }
+    el._fitSig = fitUrls(el);
+    if (n[0]) jobs.push([el, n]);
+  }
+  for (const [el, n] of jobs) { try { if (el.tagName === "IMG") fitImg(el, n); else fitBg(el, n); } catch (e) {} el._fitSig = fitUrls(el); }
+}
+function fitAdd(el) { FIT.q.add(el); if (!FIT.raf) FIT.raf = requestAnimationFrame(fitRun); }
+function fitScan(root) {
+  if (!root || root.nodeType !== 1) return;
+  if (root.tagName === "IMG" || (root.getAttribute("style") || "").indexOf("url(") >= 0) fitAdd(root);
+  root.querySelectorAll("img, [style*='url(']").forEach(fitAdd);
+}
+/* pieces that weren't drawn yet: look again when a screen or a page shows, a skipped row comes back, or after a scroll */
+function fitRetry() { if (!FIT.wait.size) return; const w = [...FIT.wait]; FIT.wait.clear(); w.forEach(el => { if (el.isConnected) fitAdd(el); }); }
+if (window.MutationObserver) new MutationObserver(ms => {
+  for (const m of ms) {
+    if (m.type === "childList") { m.addedNodes.forEach(fitScan); continue; }
+    const el = m.target;
+    if (m.attributeName === "src" ? el.tagName !== "IMG" : (el.getAttribute("style") || "").indexOf("url(") < 0) continue;
+    if (el._fitSig != null && fitUrls(el) === el._fitSig) continue;   /* our own change, or a style change that isn't a picture (a transform every frame) */
+    fitAdd(el);
+  }
+}).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["src", "style"] });
+/* a copy that fails to load: the original comes back (and that address isn't fitted again this session) */
+document.addEventListener("error", e => { const im = e.target; if (!im || im.tagName !== "IMG" || !im._fitFrom || im.getAttribute("src") !== im._fitTo) return;
+  FIT.bad.add(im._fitFrom); const s = im._fitFrom; im._fitTo = s; im.setAttribute("src", s); }, true);
+document.addEventListener("contentvisibilityautostatechange", e => { if (!e.skipped) fitRetry(); }, true);
+{ const _gt5 = goTab; goTab = function () { const o = _gt5.apply(this, arguments); requestAnimationFrame(fitRetry); return o; }; }
+{ const _gs5 = goSub; goSub = function () { const o = _gs5.apply(this, arguments); requestAnimationFrame(fitRetry); return o; }; }
+{ const _of5 = openFull; openFull = function () { const o = _of5.apply(this, arguments); requestAnimationFrame(fitRetry); return o; }; }
+{ let t = 0; addEventListener("scroll", () => { clearTimeout(t); t = setTimeout(fitRetry, 150); }, { capture: true, passive: true }); }
+addEventListener("resize", () => { clearTimeout(FIT.rt); FIT.rt = setTimeout(() => fitScan(document.body), 400); });   /* fitImg/fitBg refit only where a box grew */
+fitScan(document.body);
+</script>
+<script>
+/* v267: Nexi learned (the phone's self-test: 372 MP of pictures on the Queue for 14 MP on screen, one picture 70 MP; none
+   of his checks looked at pictures). A few seconds after a screen settles (once per screen and size a session, at most
+   6), he adds up the pictures actually drawn on screen: each loaded <img>'s real size against its box × devicePixelRatio.
+   Kind "slow" when one picture is over 8 MP and 4× its spot, or the screen holds over 60 MP and 4× what it shows. */
+const PIC = { t: 0, n: 0, seen: new Set() };
+function picLook() {
+  const d = Math.min(3, devicePixelRatio || 1), H = innerHeight, W = innerWidth;
+  let held = 0, need = 0, worst = null;
+  for (const im of document.images) {
+    if (!im.complete || !im.naturalWidth) continue;
+    const r = im.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
+    if (im.checkVisibility && !im.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+    const m = im.naturalWidth * im.naturalHeight, n = Math.max(1, r.width * d * r.height * d);
+    held += m; need += Math.min(m, n);
+    if (m > 8e6 && m > 4 * n && (!worst || m / n > worst.k)) worst = { im, m, n, k: m / n };
+  }
+  return { held, need, worst };
+}
+function picArm(ms) { clearTimeout(PIC.t); PIC.t = setTimeout(picCheck, ms); }
+function picCheck() {
+  if (PIC.n >= 6 || !bugOn()) return;
+  if (!lagOk() || nxTouring() || window.pnSelfTest) { picArm(20000); return; }
+  const scr = bugScreen(), key = scr + "|" + innerWidth + "x" + innerHeight; if (PIC.seen.has(key)) return; PIC.seen.add(key);
+  const o = picLook(), mp = x => Math.round(x / 1e5) / 10;
+  if (o.worst) { PIC.n++; bugReport("slow", `A ${mp(o.worst.m)} MP picture fills a ${mp(o.worst.n)} MP spot on ${lagWhere()}: the phone unpacks all of it, which makes scrolling skip and empties the screen on a fast swipe`, { at: bugPath(o.worst.im), screen: scr, sigAt: "" }); return; }
+  if (o.held > 6e7 && o.held > 4 * o.need) { PIC.n++; bugReport("slow", `The pictures on ${lagWhere()} hold ${mp(o.held)} MP to show ${mp(o.need)} MP: the phone unpacks all of it`, { screen: scr, sigAt: "" }); }
+}
+["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => picArm(4000), { capture: true, passive: true }));
+addEventListener("scroll", () => picArm(4000), { capture: true, passive: true });
+{ const _gt6 = goTab; goTab = function () { const o = _gt6.apply(this, arguments); picArm(4000); return o; }; }
+{ const _of6 = openFull; openFull = function () { const o = _of6.apply(this, arguments); picArm(4000); return o; }; }
+picArm(16000);
+
+WHATS_NEW.push(
+  { v: 267, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .row") || null,
+    say: "<b>Fast swipes don't empty the Queue any more</b>: your phone was unpacking 1.5 GB of pictures to show 56 MB of them (one was 70 megapixels). Every picture now loads at the size it's shown on your screen, so it looks the same and the phone has a fraction to carry.",
+    tryIt: "Fling the Queue up and down fast, then swipe through ten game pages. The first time each picture loads it may take a moment; after that it's kept on your phone." },
+  { v: 267, go: () => nxOpenSettings("#s-stest"), at: "#s-stest",
+    say: "Run the self-test again now: this is the \"after\". Compare it with the first one: pictures in memory, dropped frames on the fling, and swipes 8–10 against 1–3.",
+    tryIt: "Tap Run the smoothness self-test and keep your hands off for about 30 seconds." },
+  { v: 267, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: if a picture on screen is ever far bigger than its spot, I report it on my own.",
+    tryIt: "Nothing to do: if it happens, I file it myself." }
 );
 </script>
