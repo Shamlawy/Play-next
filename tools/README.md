@@ -1,33 +1,25 @@
-# Test kit
+# tools/
 
-Every release used to rebuild these harnesses in the scratchpad. The scratchpad is lost with each chat (docs/LOG.md names dozens of rebuilt `h.cjs` / `sweep.cjs` / `tour.cjs` copies). They live here now. Chromium comes from `/opt/pw-browsers`; never run `playwright install`.
+Shared checks for Play next, used by every chat and by GitHub. Run the commands from the repo root. Each one exits 1 when something fails.
 
-| Command | What it checks | Fails when |
-| --- | --- | --- |
-| `node tools/pn.mjs sweep` | Walks every screen, a game page (top/middle/bottom), Settings, Edit and chat at 412/859/360, one width at a time with no screenshots. Prints the problem reports the app files about itself, caught at its `/bug` call. | Any script error or problem report |
-| `node tools/pn.mjs sweep --plant=x.js --expect` | Proves a new check catches a planted copy of the problem. | The plant is **not** reported |
-| `node tools/pn.mjs tour` | Runs the update tour from the previous APP_V at 412/900 with real taps on Next. Every step must light its target, keep the card and Nexi on screen, and file no `tour` report. Every entry needs `go` and `tryIt`. | Any step fails |
-| `node tools/pn.mjs tour --all` | Replays every WHATS_NEW entry ("Show me what's new"). | Same |
-| `node tools/pn.mjs bench --ab=origin/main` | Times screen changes at 4x CPU: main-thread ms, worst frame, frames over 33ms. Old build vs this one, median of `--runs`. | Never: read the table |
-| `node tools/pn.mjs shots --w=412` | Screenshots of every screen, written to `tools/.out/`. | Never |
-| `node tools/pn.mjs run tools/scenarios/x.mjs` | A one-off scenario built from `tools/lib.mjs`. | The scenario returns `false` |
+| command | what it does | time |
+|---|---|---|
+| `node tools/kit.mjs syntax` | Checks that every `<script>` block in index.html (and sw.js) compiles, and that no `:active` rule has a press animation | 1 s |
+| `node tools/kit.mjs sw` | Checks that sw.js shrinks pictures to the right sizes (`.github/scripts/swcheck.mjs`, run in Chromium) | 5 s |
+| `node tools/kit.mjs sweep` | Walks every screen, 3 game pages, Settings, Edit and chat at 412 / 859 / 360 in Chromium, with the app's own problem checks listening. Fails on a script error or a real report. Timing notes are printed only, because headless has no GPU | 3 min |
+| `node tools/kit.mjs tour` | Runs the what's-new tour from the previous version to `APP_V` at 412 and 859, and checks that every step opens and finds its target | 40 s |
+| `node tools/kit.mjs perf` | Measures main-thread ms per step (script / layout / style) with a 4x slower CPU. Use it to compare before and after a change | 30 s |
+| `node tools/kit.mjs all` | Runs syntax + sw + sweep + tour. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
+| `node tools/map.mjs` | Rewrites `docs/MAP.md`: every block, every wrapped function with its layers, and the onNav hooks | 1 s |
+| `node tools/map.mjs --dead` | Lists functions, consts, CSS classes and ids that look unused. These are candidates only: some names are built from strings | 1 s |
 
-Shared options: `--w=412,859` picks the widths. `--big` uses 3840×1240 heroes.
+Options for kit.mjs:
+- `--file old.html` tests another copy, for example `git show origin/main:index.html > old.html` to get the "before". Delete the copy afterwards and never commit it.
+- `--widths 412,900` sets the screen widths.
+- `--cpu 4` sets how much `perf` slows the CPU.
+- `--set '{"bugOff":true}'` adds saved settings to every test phone.
+- `--shots dir` makes `tour` save a screenshot of each step.
 
-`tools/lib.mjs` holds the reusable pieces:
-- `open()`: seeded storage written once per tab, every outside host blocked, `/bug` caught. `fake: { "/reviews": req => ({...}) }` mocks a helper route.
-- `seed()`: games in every state, five scored Played games, and one game with scores on its back.
-- `pictures()`: canvas-drawn covers, heroes, key art, character art and logos, cached in `tools/.cache/`.
-- Touch input through CDP: `tap`, `tapEl`, `swipe`, `scroll`.
-- `walk()` and `flush()`.
-- Timing: `frames()` + `measure()`.
+The test phones use made-up games from `tools/seed.mjs`. Their pictures are files already in the repo, and every other site is blocked. Problem reports (`/bug`) are caught by the kit and never sent.
 
-When a one-off check could be useful again, save it in `tools/scenarios/` instead of the scratchpad.
-
-Things that took a release to learn (from docs/LOG.md):
-- Screenshots force a full repaint that the lag check reports as a stutter, so sweeps take none.
-- Parallel runs starve the CPU, so run one at a time.
-- Problem checks are off while the tour runs, so sweeps seed `lastV` = APP_V.
-- The layout check runs 1.6s after a screen change. A walk that moves on sooner misses most of it: with a 1.5s wait, a planted cut-off button was reported on 1 screen, and with 2.6s on 11.
-- Headless Chromium has no GPU. Treat "slow" reports and frame times as hints: compare A/B, never against a number. For a real-phone check use the in-app smoothness self-test.
-- Friend reports (iPhone/iPad Safari) need WebKit, which this container lacks. Use `webkit-check.yml`.
+Friend's devices (iPhone 11 / iPad Safari): `.github/workflows/webkit-check.yml` runs `.github/scripts/webkitcheck.mjs` and `swcheck.mjs` in WebKit on GitHub, because this container only has Chromium.

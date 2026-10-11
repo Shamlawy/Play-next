@@ -1,0 +1,30 @@
+# Runs the test kit (tools/kit.mjs, see tools/README.md) on every pull request that changes the app: every script block compiles, sw.js shrinks pictures right, every screen
+# at 412 / 859 / 360 in Chromium with the app's own problem checks listening, and the what's-new tour. Fails on a script
+# error, a real problem report or a broken tour step (timing notes are printed only: GitHub's machines have no GPU).
+name: App check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "index.html"
+      - "sw.js"
+      - "tools/**"
+      - ".github/scripts/swcheck.mjs"
+      - ".github/workflows/app-check.yml"
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Chromium
+        run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Check the app
+        env:
+          CI: "1"
+        run: node tools/kit.mjs all
