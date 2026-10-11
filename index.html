@@ -25526,8 +25526,10 @@ function fitLocal(u, w, h) {
 }
 /* what this piece needs, in device pixels, rounded up; 0 = big enough to leave to the screen cap */
 function fitNeed(el) {
-  const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return null;
-  const d = Math.min(3, devicePixelRatio || 1), w = fitStep(r.width * d), h = fitStep(r.height * d);
+  /* its laid-out size (offsetWidth ignores a deal-in scale animation that starts at 0), or its drawn size if bigger */
+  const r = el.getBoundingClientRect(), bw = Math.max(el.offsetWidth || 0, r.width), bh = Math.max(el.offsetHeight || 0, r.height);
+  if (bw < 2 || bh < 2) return null;
+  const d = Math.min(3, devicePixelRatio || 1), w = fitStep(bw * d), h = fitStep(bh * d);
   return w && h ? [w, h] : [0, 0];
 }
 /* the picture addresses a piece uses right now (its src, or every url() in its style) */
@@ -25567,6 +25569,8 @@ function fitRun() {
     if (n[0]) jobs.push([el, n]);
   }
   for (const [el, n] of jobs) { try { if (el.tagName === "IMG") fitImg(el, n); else fitBg(el, n); } catch (e) {} el._fitSig = fitUrls(el); }
+  /* not drawn yet: also look again shortly, a screen can finish showing without a tab switch (an animation, a late layout) */
+  if (FIT.wait.size) { clearTimeout(FIT.wt); FIT.wt = setTimeout(fitRetry, 700); clearTimeout(FIT.wt2); FIT.wt2 = setTimeout(fitRetry, 2500); }
 }
 function fitAdd(el) { FIT.q.add(el); if (!FIT.raf) FIT.raf = requestAnimationFrame(fitRun); }
 function fitScan(root) {
@@ -25615,13 +25619,20 @@ function picLook() {
   }
   return { held, need, worst };
 }
+/* why a big picture is still big: where it's from and what the fitting did with it */
+function picWhy(im) {
+  const s = im.getAttribute("src") || "", from = im._fitFrom || s;
+  const kind = /^data:/.test(from) ? "upload" : /^blob:/.test(from) ? "blob" : fitSame(from) ? "own file" : /^https:/.test(from) ? "other site" : "other";
+  const st = im._fitTo === s ? "fitted " + (im._fitN || []).join("x") : im._fitBusy ? "being resized" : FIT.wait.has(im) ? "waiting to be drawn" : FIT.bad.has(from) ? "resize failed" : im._fitSig != null ? "looked at, left as is" : "never looked at";
+  return kind + ", " + st + ", box " + im.offsetWidth + "×" + im.offsetHeight;
+}
 function picArm(ms) { clearTimeout(PIC.t); PIC.t = setTimeout(picCheck, ms); }
 function picCheck() {
   if (PIC.n >= 6 || !bugOn()) return;
   if (!lagOk() || nxTouring() || window.pnSelfTest) { picArm(20000); return; }
   const scr = bugScreen(), key = scr + "|" + innerWidth + "x" + innerHeight; if (PIC.seen.has(key)) return; PIC.seen.add(key);
   const o = picLook(), mp = x => Math.round(x / 1e5) / 10;
-  if (o.worst) { PIC.n++; bugReport("slow", `A ${mp(o.worst.m)} MP picture fills a ${mp(o.worst.n)} MP spot on ${lagWhere()}: the phone unpacks all of it, which makes scrolling skip and empties the screen on a fast swipe`, { at: bugPath(o.worst.im), screen: scr, sigAt: "" }); return; }
+  if (o.worst) { PIC.n++; bugReport("slow", `A ${mp(o.worst.m)} MP picture fills a ${mp(o.worst.n)} MP spot on ${lagWhere()}: the phone unpacks all of it, which makes scrolling skip and empties the screen on a fast swipe`, { at: bugPath(o.worst.im) + " [" + picWhy(o.worst.im) + "]", screen: scr, sigAt: bugPath(o.worst.im) }); return; }
   if (o.held > 6e7 && o.held > 4 * o.need) { PIC.n++; bugReport("slow", `The pictures on ${lagWhere()} hold ${mp(o.held)} MP to show ${mp(o.need)} MP: the phone unpacks all of it`, { screen: scr, sigAt: "" }); }
 }
 ["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => picArm(4000), { capture: true, passive: true }));
