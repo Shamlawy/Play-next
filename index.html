@@ -427,18 +427,6 @@
   .calarrow:hover, .calarrow:active { color: var(--volt); }
   .calarrow span { display: block; transform: none; }
 
-  /* Home's own masthead — the old permanent banner lives here now */
-  .homehead { margin: 0 0 14px; }
-  .hh-top { display: flex; align-items: flex-start; gap: 10px; }
-  .hh-top h1 { flex: 1 1 auto; min-width: 0; }
-  .hh-top .chip { flex: none; margin-top: 6px; }
-  .homehead h1 {
-    margin: 0; font-size: 40px; line-height: .92; font-weight: 900; font-style: italic;
-    font-variation-settings: "wdth" 70; text-transform: uppercase; color: var(--ice);
-    letter-spacing: -.01em;
-  }
-  .homehead .sub { margin: 6px 0 0; color: var(--mute); font-size: 12.5px; }
-  @media (min-width: 620px) { .homehead h1 { font-size: 54px; } }
 
   .covrow { display: flex; gap: 12px; align-items: flex-start; margin-top: 6px; }
   .sgrow { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; }
@@ -447,7 +435,7 @@
   .sgpick img { width: 100%; height: 100%; object-fit: contain; display: block; }
   /* checkerboard so you can tell which pictures are truly see-through */
   .sgpick { background: repeating-conic-gradient(#1a2a55 0 25%, #101c40 0 50%) 0 0 / 14px 14px; }
-  .sgpick:active { transform: translateY(1px); }
+  
   /* each picture's real size, so you can pick the sharp ones */
   .sgpick { position: relative; }
   .pq { display: inline-flex; align-items: center; gap: 4px; justify-self: start; font: 800 9.5px/1 Poppins, system-ui, sans-serif;
@@ -496,7 +484,7 @@
   .sb img { width:100%; height:100%; object-fit:cover; display:block; clip-path: polygon(28% 0, 100% 0, 72% 100%, 0 100%); transform: translateY(var(--y,0px)); opacity: var(--o,1); will-change: transform, opacity; }
   .sb b { position:absolute; bottom:-12px; left:14px; padding:3px 12px; font-size:16px; opacity: var(--o,1); transform: translateY(var(--y,0px)) skewX(-20deg); background:var(--void); color:var(--ice);
           border:1px solid var(--accent,var(--volt)); }
-  .sb:active { transform: translateY(-8px) scale(1.06); z-index:5; filter: drop-shadow(0 0 16px var(--accent,var(--volt))); }
+  .sb:active { z-index:5; }
   @keyframes sbUp { from { opacity:0; transform: translate(-18px, 30px); } }
   .still .sb { animation:none; transition:none; }
   @media (prefers-reduced-motion: reduce) { .sb { animation:none; transition:none; } }
@@ -536,13 +524,6 @@
   /* a tile you can press */
   .tile.go2 { cursor: pointer; text-align: left; font: inherit; }
   .tile.go2:active { border-color: var(--volt); }
-  /* tinted by the game it is about, so Home reflects the library */
-  .tile.tinted {
-    background:
-      linear-gradient(160deg, color-mix(in srgb, var(--tint) 26%, var(--steel)) 0%, var(--ink) 84%);
-    border-color: color-mix(in srgb, var(--tint) 45%, var(--edge));
-  }
-  .tile.tinted::after { color: var(--tint); }
   .tile.go2::after {
     content: "→"; position: absolute; right: 11px; top: 9px;
     color: var(--volt); font-size: 13px; font-weight: 800;
@@ -557,7 +538,7 @@
     background: none; border: 0; padding: 0; color: inherit; font: inherit;
     cursor: pointer; text-align: left;
   }
-  .swing .s:active { opacity: .7; }
+  
   .swing .s b { font-size: 21px; font-weight: 900; line-height: 1; }
   .swing .s.up b { color: var(--volt); }
   .swing .s.dn b { color: var(--hot); }
@@ -665,7 +646,7 @@
     padding: 9px 16px 9px 11px; border: 0; border-radius: 999px; background: rgba(18,41,106,.9);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #EAF2FF; font: 900 italic 13px Archivo, sans-serif;
     letter-spacing: .1em; text-transform: uppercase; box-shadow: 0 0 0 1.5px rgba(var(--vrgb),.45), 0 4px 14px rgba(0,0,0,.4); cursor: pointer; }
-  #full .hub .fullx:active { transform: scale(.95); }
+  
   #full.dragging .hub { transition: none; }
   #full .hub.snap { transition: transform .34s cubic-bezier(.22,1,.36,1), opacity .34s ease; }
   #full .hub { position: absolute; inset: 0; backface-visibility: hidden; transform: translateZ(0); will-change: transform; }
@@ -787,8 +768,8 @@
 
   /* things should answer the moment you touch them */
   .row, .chip, .btn, .libcard, nav button, .duelpick, .icon { transition: transform .12s cubic-bezier(.2,.9,.25,1); }
-  .row:active, .libcard:active, .duelpick:active { transform: skewX(var(--skew, 0deg)) scale(.985); }
-  .chip:active, .btn:active, nav button:active, .icon:active { transform: translateY(1px); }
+  
+  
   html.still .row, html.still .chip, html.still .btn,
   html.still .libcard, html.still nav button, html.still .icon { transition: none; }
 
@@ -960,19 +941,19 @@
   html.round .slab > * { transform: none; }
   html.round nav button span, html.round .chip span, html.round .btn span { transform: none; }
   html.round .hub-wedge { border-radius: var(--r, 18px); }
-  html.round .rleg i, html.round .fpin { border-radius: 2px; }
+  html.round .rleg i { border-radius: 2px; }
   html.round .hub-kick, html.round .hub-chips span, html.round .hub .plat,
-  html.round .hub-dots i, html.round .vtog, html.round .vsep,
+  html.round .hub-dots i,
   html.round .tag, html.round .tags span, html.round .kicker, html.round .pip {
     border-radius: calc(var(--r, 18px) * .5);
   }
   html.round .hub-dots i { border-radius: 999px; }
-  html.round .vtog, html.round .vpill button, html.round .vslide { border-radius: 999px; }
+  html.round .vpill button, html.round .vslide { border-radius: 999px; }
   html.round .cov::after { clip-path: none; border-radius: var(--r, 18px); inset: 12px -8px -8px 12px; }
   html.round .duelpick img, html.round .peektop img, html.round .libcard img,
-  html.round .hub-fig.cover, html.round .dart, html.round .z-cov, html.round .z-art,
+  html.round .hub-fig.cover, html.round .dart,
   html.round .dbg, html.round .dcard, html.round .dlib, html.round .dflow,
-  html.round .bar2 .bt2, html.round .bt2 i, html.round .dcn, html.round .dtag,
+  html.round .bar2 .bt2, html.round .bt2 i, html.round .dtag,
   html.round .steamtile img, html.round .fullx, html.round .hub-paper {
     border-radius: calc(var(--r, 18px) * .6); overflow: hidden;
   }
@@ -1072,7 +1053,7 @@
   }
   .cwrap.today .cday { color: var(--ice); }
   .cwrap[data-day] { cursor: pointer; }
-  .cwrap[data-day]:active { transform: scale(.93); }
+  
   .clist { display: grid; gap: 7px; margin-top: 14px; }
   .crow {
     display: flex; align-items: center; gap: 13px; width: 100%; padding: 12px 14px;
@@ -1520,7 +1501,7 @@
   }
   /* fill the row's height and let wide logos run off the right edge, GTA-style */
   .row .rowart img { object-position: left center; }
-  .row:hover .rowart, .row:active .rowart { opacity: .8; transform: translateY(-2px); }
+  
   html.still .rowart { transition: none; }
   /* v200: the blurred glow is opt-in (Customise → Queue cards), it made scrolling redraw heavy */
   html.rowglow .rowart img { filter: brightness(var(--apun, 1)) contrast(var(--acon, 1)) drop-shadow(0 0 1.5px rgba(226,238,255,.8)) drop-shadow(0 0 var(--rag, 7px) rgba(150,190,255,.45)); }
@@ -1562,11 +1543,11 @@
       transition: transform .16s cubic-bezier(.16,1,.3,1), filter .22s ease, background .22s ease,
                   border-color .22s ease, color .18s ease;
     }
-    .row:active { transform: skewX(var(--skew)) translateY(3px) scale(.988); filter: drop-shadow(0 3px 6px rgba(0,0,0,.6)); }
-    .chip:active, .btn:active, nav button:active { transform: skewX(var(--skew)) translateY(3px) scale(.96); }
-    .hit:active { transform: translateY(3px) scale(.985); }
-    .sw:active { transform: scale(.86); }
-    .icon:active { transform: scale(.82); }
+    
+    
+    
+    
+    
     .hero { animation: pop .38s cubic-bezier(.16,1,.3,1) both; }
     @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(.97); } }
     html.rowanim .row { animation: rowin .3s cubic-bezier(.16,1,.3,1) both; }
@@ -1945,7 +1926,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .lx-go { width: 100%; padding: 15px; border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 800;
     color: #fff; background: linear-gradient(90deg, #1B4FD8, var(--volt)); box-shadow: 0 10px 28px rgba(var(--vrgb),.4);
     transition: transform .2s ease, box-shadow .2s ease; }
-  .lx-go:active { transform: scale(.97); }
+  
   .lx-edit { background: none; border: 0; color: var(--mute); font: inherit; cursor: pointer; text-align: center; }
   .lx-art { position: relative; overflow: hidden; }
   .lx-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -2121,17 +2102,12 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .pills { display: flex; gap: 6px; flex-wrap: wrap; }
   .pill { border-radius: 999px; padding: 4px 11px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,.1); color: #EAF2FF; }
   .pill.hot { background: #EAF2FF; color: #0C1733; }
-  .upnext { border-radius: 22px; gap: 8px; border: 0; background: transparent; padding: 4px 0; }
-  .upnext h5 { padding-left: 4px; }
   .un { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; font: inherit; color: var(--ice);
     background: var(--ink); border-radius: 20px; padding: 9px 14px 9px 9px; cursor: pointer; }
   .un .th { width: 52px; height: 52px; flex: none; border-radius: 14px; background: var(--tint) center/cover; }
   .un .t { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .un .t small { display: block; color: var(--volt); font-weight: 500; font-size: 12px; }
   .un .ar { font-size: 24px; color: var(--mute); }
-  .ringtile { border-radius: 26px; align-items: center; padding: 16px; border: 0;
-    background: var(--ink); font: inherit; color: var(--ice); cursor: pointer; }
-  .ringtile h5 { align-self: flex-start; }
   .ring { position: relative; width: 200px; height: 200px; display: grid; place-items: center; margin: 6px 0 12px; }
   .ring .blob { position: absolute; inset: 0; border-radius: 46% 54% 42% 58% / 55% 45% 55% 45%;
     background: conic-gradient(from 200deg, var(--volt2), #8FD0FF, #EAF2FF, #7B6CFF, var(--volt2));
@@ -2161,9 +2137,9 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   @keyframes pnGrow { from { transform: scaleY(0); } }
   .tile, .un, .chip, .btn, nav button, .trio .dot {
     transition: transform .35s var(--ease), box-shadow .35s var(--ease), background-color .3s, color .3s, border-color .3s; }
-  .tile.go2:active, .ringtile:active, .pick:active, .un:active, .chip:active, .btn:active, nav button:active { transform: scale(.965); transition-duration: .12s; }
+  .tile.go2:active, .pick:active, .un:active, .chip:active, .btn:active, nav button:active { transition-duration: .12s; }
   @keyframes pnDrift { from { transform: scale(1); } to { transform: scale(1.07) translateX(-1.5%); } }
-  .un .ar { transition: transform .35s var(--ease); } .un:active .ar { transform: translateX(4px); }
+  .un .ar { transition: transform .35s var(--ease); } 
   .trio .dot { animation: pnFloat 4s ease-in-out infinite; }
   .trio .one:nth-child(2) .dot { animation-delay: -1.3s } .trio .one:nth-child(3) .dot { animation-delay: -2.6s }
   @keyframes pnFloat { 50% { transform: translateY(-5px); } }
@@ -2188,8 +2164,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .trio .one:nth-child(2) { animation-delay: .12s } .trio .one:nth-child(3) { animation-delay: .24s }
 
   /* ===== v67 countdown, slot machine, celebration ===== */
-  .cdtile { font: inherit; color: var(--ice); text-align: left; cursor: pointer;
-    background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 22%, var(--ink)), var(--ink) 70%); }
   .cd { display: flex; gap: 8px; margin-top: 4px; }
   .cdb { flex: 1; text-align: center; background: rgba(0,0,0,.28); border-radius: 14px; padding: 10px 4px 8px; overflow: hidden; }
   .cdb b { display: block; font-size: 28px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -2211,7 +2185,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     width: var(--d); height: var(--d); transform: translate(-50%,-50%) scale(0); animation: pnRip .7s var(--ease) forwards; }
   @keyframes pnRip { 60% { opacity: 1; } to { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
   html:not(.dragging-now) .row { transition: scale .3s var(--ease); }
-  html:not(.dragging-now) .row:active { scale: .985; transition-duration: .1s; }
+  html:not(.dragging-now) .row:active { transition-duration: .1s; }
   #pnorbs { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
   #pnorbs i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; opacity: .16;
     background: radial-gradient(circle, var(--volt2), transparent 65%); will-change: transform; }
@@ -2295,7 +2269,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #hrail .g { position: relative; width: 48px; height: 48px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; flex: none;
     background: var(--tint) center/cover; box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px color-mix(in srgb, var(--tint) 70%, transparent);
     transition: transform .35s var(--ease); }
-  #hrail .g:active { transform: scale(.9); }
+  
   #hrail .g i { position: absolute; right: -1px; top: -1px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--ink); background: #6b7896; }
   #hrail .g i.out { background: #3ddc84; }
   #hrail .g b { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); background: var(--volt); color: var(--void);
@@ -2303,7 +2277,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #hrail .sep { width: 36px; height: 1px; background: var(--edge); flex: none; }
   #hrail .act { width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer; flex: none; font-size: 18px;
     background: var(--steel); color: var(--ice); display: grid; place-items: center; transition: transform .35s var(--ease), background-color .3s; }
-  #hrail .act:active { transform: scale(.88); }
+  
   #hrail .act.hot { background: var(--volt); color: var(--void); }
   #hrail.first .g, #hrail.first .act { animation: pnRail .55s var(--ease) both; }
   #hrail.first .g:nth-child(2) { animation-delay: .05s } #hrail.first .g:nth-child(3) { animation-delay: .1s }
@@ -2335,8 +2309,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .dash.pnfit .ring .core { width: 76%; height: 76%; }
   .dash.pnfit .ring .core b { font-size: clamp(26px, 4.2vw, 40px); }
   .dash.pnfit .trio .dot { width: 52px; height: 52px; }
-  .stk > .upnext .un { padding: 7px 12px 7px 7px; } .stk > .upnext .un .th { width: 44px; height: 44px; }
-  .stk > .upnext { gap: 6px; }
   .stk > * { justify-content: flex-start !important; }
   .stk .radarwrap { align-items: flex-start; }
   .dash.pnfit > * { grid-column: auto; grid-row: auto; min-height: 0; min-width: 0; }
@@ -2350,7 +2322,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .stk::-webkit-scrollbar { display: none; }
   .stk > * { flex: 0 0 100%; min-width: 0; min-height: 0; margin: 0 !important; scroll-snap-align: center;
     overflow-y: auto; scrollbar-width: none; }
-  .stk > .upnext { background: var(--ink); padding: 11px 12px; }
   .stkw.v .stk { flex-direction: column; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y mandatory; }
   .stkd { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%); display: flex; gap: 5px; z-index: 3; pointer-events: auto; }
   .stkw.v .stkd { left: auto; right: 8px; bottom: auto; top: 50%; transform: translateY(-50%); flex-direction: column; }
@@ -2363,9 +2334,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .stk { -webkit-overflow-scrolling: touch; }
   .stkw.v .stk > * { padding-right: 28px; }
   html.onhome .dash.pnfit ~ #hintbub, html.onhome #hintbub { display: none; }
-  .pick .pk1 { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 14px; font-weight: 700;
-    background: rgba(255,255,255,.14); color: #fff; margin-left: 8px; }
-  .pick .gorow { display: flex; align-items: center; margin-top: auto; }
 
   /* ===== v79 dashboard layout from the reference + pop-out figure ===== */
   .dash.pnfit { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0,1.2fr) auto minmax(0,1fr) minmax(0,1fr) auto;
@@ -2409,7 +2377,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .dash.pnfit .k-pick .in { max-width: 58%; height: 100%; }
   .dash.pnfit .k-pick .plogo { max-height: 26%; }
   .dash.pnfit .k-pick .why { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; }
-  .dash.pnfit .k-pick .gorow { margin-top: auto; }
   .dash.pnfit > .k-up .un { padding: 6px 12px 6px 6px; }
   .dash.pnfit > .k-cd { padding: 12px 14px; gap: 8px; }
   .dash.pnfit .stk > * { padding: 12px 14px; }
@@ -2430,7 +2397,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     background: transparent; color: var(--mute); transition: background-color .3s, color .3s, transform .35s var(--ease); }
   #hrail .tb svg { width: 20px; height: 20px; fill: currentColor; display: block !important; }
   #hrail .tb.on { background: var(--volt); color: var(--void); }
-  #hrail .tb:active { transform: scale(.88); }
+  
   #hrail .act.sm { width: 36px; height: 30px; border-radius: 12px; font-size: 14px; background: transparent; color: var(--mute); }
   @media (min-width: 620px) { }
 
@@ -2708,7 +2675,7 @@ html{scroll-behavior:smooth}
 html.sm-r:not(.tabslash) .panel.on{animation:smR .42s cubic-bezier(.16,1,.3,1) both!important}
 html.sm-l:not(.tabslash) .panel.on{animation:smL .42s cubic-bezier(.16,1,.3,1) both!important}
 .tile,.btn,.chip,nav button,.icon,.calarrow,.crow{transition:scale .45s cubic-bezier(.34,1.56,.64,1),transform .12s cubic-bezier(.2,.9,.25,1),background-color .2s,color .2s,opacity .2s}
-.tile:active,.btn:active,.chip:active,nav button:active,.icon:active,.calarrow:active,.crow:active{scale:.95;transition-duration:.08s}
+.tile:active,.btn:active,.chip:active,nav button:active,.icon:active,.calarrow:active,.crow:active{transition-duration:.08s}
 img.smld{animation:smImg .45s ease both}
 }
 @keyframes smR{from{opacity:0;translate:26px 0}to{opacity:1;translate:0 0}}
@@ -2716,7 +2683,7 @@ img.smld{animation:smImg .45s ease both}
 @keyframes smUp{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
 @keyframes smImg{from{opacity:0}to{opacity:1}}
 html.still .panel.on,html.still .panel.on>*,html.still img.smld{animation:none!important}
-html.still .tile:active,html.still .btn:active,html.still .chip:active,html.still nav button:active{scale:1}
+
 
 /* v112 play diary */
 #diary{position:fixed;inset:0;z-index:95;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0);pointer-events:none;transition:background .3s}
@@ -2743,7 +2710,7 @@ html.still .tile:active,html.still .btn:active,html.still .chip:active,html.stil
 .dy-h b{flex:1}
 .dy-gl{display:grid;gap:8px;margin-top:12px}
 .dy-g{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--void);border:1px solid var(--steel);border-left:3px solid var(--accent);border-radius:14px;padding:8px;color:var(--ice);font:inherit;cursor:pointer;transition:scale .35s cubic-bezier(.34,1.56,.64,1)}
-.dy-g:active{scale:.97}
+
 .dy-g img{width:40px;aspect-ratio:3/4;object-fit:cover;border-radius:8px}
 .dy-g span{flex:1;min-width:0}.dy-g b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dy-g small{color:var(--mute);font-size:12px}.dy-g em{color:var(--mute);font-style:normal;font-size:20px}
@@ -4148,7 +4115,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "268";
+const APP_V = "269";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -7837,7 +7804,6 @@ function eloTable() {
   });
   return t;
 }
-const duelCount = id => (S.duels || []).filter(d => d.a === id || d.b === id).length;
 const playedRows = () => (S.played || [])
   .map(p => ({ ...p, g: S.games.find(x => x.id === p.id) }))
   .filter(x => x.g && scored(x));
@@ -9029,7 +8995,6 @@ function hrsOf(g) {
   if (st === "all") return a || (x ? Math.round(x * 1.6) : Math.round(m * 2.4));
   return m || x || a;
 }
-const hrsGuess = g => { const st = playStyle(); return st === "extras" ? !num(g.hoursX, 0, 0, 3000) : st === "all" ? !num(g.hours100, 0, 0, 5000) : false; };
 const liveTimerHours = () =>
   S.timer && S.timer.from ? Math.max(0, (Date.now() - S.timer.from) / 3600000) : 0;
 function planView() {
@@ -10099,48 +10064,6 @@ function duelPool() {
     ? S.games.filter(g => !isPlayed(g) && !isDropped(g))
     : S.games.filter(isPlayed);
 }
-/* A league fixture list, not a raffle. The circle method pairs everyone with
-   everyone exactly once, split into rounds where no game appears twice — so the
-   order is fixed, the end is in sight, and you never see the same pair again. */
-function duelFixtures() {
-  const ids = duelPool().map(g => g.id).slice().sort();
-  if (ids.length < 2) return [];
-  const t = ids.slice();
-  if (t.length % 2) t.push(null);           /* odd count: someone sits out each round */
-  const n = t.length, rounds = [];
-  let arr = t.slice();
-  for (let r = 0; r < n - 1; r++) {
-    const round = [];
-    for (let i = 0; i < n / 2; i++) {
-      const a = arr[i], b = arr[n - 1 - i];
-      if (a && b) round.push(r % 2 ? [b, a] : [a, b]);   /* alternate sides so nothing always sits left */
-    }
-    if (round.length) rounds.push(round);
-    arr = [arr[0]].concat([arr[n - 1]], arr.slice(1, n - 1));  /* rotate, first one pinned */
-  }
-  return rounds;
-}
-let duelFix = null;
-function duelNext() {
-  const rounds = duelFixtures();
-  const seen = new Set((S.duels || []).map(d => [d.a, d.b].sort().join("|")));
-  let total = 0, done = 0, found = null;
-  rounds.forEach((rd, ri) => rd.forEach((pr, mi) => {
-    total++;
-    if (seen.has(pr.slice().sort().join("|"))) done++;
-    else if (!found) found = { pair: pr, round: ri + 1, match: mi + 1,
-      rounds: rounds.length, inRound: rd.length };
-  }));
-  return { found, total, done };
-}
-function pickDuel() {
-  const live = duelPool();
-  duelFix = duelNext();
-  if (!duelFix.found) return null;
-  const a = live.find(g => g.id === duelFix.found.pair[0]);
-  const b = live.find(g => g.id === duelFix.found.pair[1]);
-  return a && b ? [a, b] : null;
-}
 
 const bigBackOf = g => {
   const src = g ? bgSource(g) : "";
@@ -10421,10 +10344,6 @@ function tasteAnalytics() {
   const ahead = live.filter(g => g.date && new Date(g.date) > new Date())
     .sort((a, b) => new Date(a.date) - new Date(b.date));
   const tagged = rows.filter(x => whyOf(x.g).length).length;
-  const genres = {};
-  all.forEach(g => platList(g.genres).forEach(x => genres[x] = (genres[x] || 0) + 1));
-  const genreTop = Object.entries(genres).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const gmax = genreTop.length ? genreTop[0][1] : 1;
 
   return `
     <label>Your taste shape</label>
@@ -12774,7 +12693,6 @@ const tierBadge = v => { const t = tierOf(v); return t ? `<span class="tier t${t
 const confOf = n => n >= 6 ? 3 : n >= 3 ? 2 : n >= 1 ? 1 : 0;
 const CONF_WORD = ["Not duelled yet", "A first guess", "Fairly sure", "Settled"];
 const confDots = n => { const c = confOf(n); return `<span class="conf c${c}" title="${CONF_WORD[c]} · ${n} duel${n === 1 ? "" : "s"}">${[1, 2, 3].map(i => `<i${i <= c ? ' class="on"' : ""}></i>`).join("")}</span>`; };
-const scoreTxt = p => p && p.dk ? "Unscored" : scored(p) ? String(p.real) : "Not scored yet";
 
 /* The ranking. Every scored, played game starts at its score; each duel pulls the two games apart (or
    together, for an even call) and the score keeps pulling back a little, so a single duel can't throw a
@@ -14371,7 +14289,7 @@ button,a,.icon{-webkit-tap-highlight-color:transparent}
 .pnb-row::before{content:"";position:absolute;inset:0;background:var(--art) center 30%/cover;opacity:var(--pba,.8);transition:transform .6s ease}
 .pnb-row::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,6,14,calc(1.05 - var(--pba,.8)*.35)) 0,rgba(4,6,14,calc(.75 - var(--pba,.8)*.6)) 42%,rgba(4,6,14,calc(.75 - var(--pba,.8)*.6)) 60%,rgba(4,6,14,calc(1.1 - var(--pba,.8)*.3)) 86%);
   box-shadow:inset 0 -1px 0 rgba(var(--vrgb),.35)}
-.pnb-row:active::before{transform:scale(1.05)}
+
 .pnb-row>*{position:relative;z-index:1}
 .pnb-row>div:first-child{display:grid;justify-items:center;text-align:center}
 .pnb-t{font:900 calc(clamp(15px,4.2vw,26px)*(.55 + var(--pbs,.75)*.45))/1.08 "Archivo",system-ui,sans-serif;text-transform:uppercase;text-shadow:0 2px 14px #000,0 0 3px #000;
@@ -14597,10 +14515,10 @@ document.addEventListener("change",e=>{if(e.target.closest("[data-pnartv]"))save
 .pnb-row.in{animation:pnbGlide .45s cubic-bezier(.22,1,.36,1) both}
 @keyframes pnbGlide{from{opacity:0;translate:0 18px}}
 html.fast.scrolling .pnb-row.in{animation-play-state:running!important}
-.pnb-row:active::before{transform:none}
-.pnb-row{transition:scale .2s ease}.pnb-row:active{scale:.985}
+
+.pnb-row{transition:scale .2s ease}
 .pbd-row{animation:pnbDrop .4s ease both}
-.pbd-b{transition:scale .15s ease}.pbd-b:active{scale:.92}
+.pbd-b{transition:scale .15s ease}
 html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{animation:none}
 @media (prefers-reduced-motion:reduce){.pnb-row.wait{opacity:1}.pnb-row.in,.pbd-row{animation:none}}
 </style>
@@ -15033,20 +14951,6 @@ function nxDress(b) {
   if (b.classList.contains("face") || b.classList.contains("img") || b.querySelector(".core").style.backgroundImage) return;
   try { pnBubFace(); } catch (e) {}
 }
-function nxPoint(el, noHl) {
-  const b = $("#pnbub"); if (!b || !el) return;
-  nxDress(b); document.documentElement.classList.add("nxguide"); b.classList.remove("peek");
-  const r = el.getBoundingClientRect(), sz = 62, W = innerWidth, H = innerHeight;
-  let tx, ty;
-  if (r.right + sz + 16 < W) { tx = r.right + 10; ty = r.top + r.height / 2 - sz / 2; }          /* room beside it */
-  else if (r.left - sz - 16 > 0) { tx = r.left - sz - 10; ty = r.top + r.height / 2 - sz / 2; }
-  else { tx = r.right - sz - 14; ty = r.top - sz - 6 > 20 ? r.top - sz - 6 : r.bottom + 6; }       /* wide: just above or below, never on top of it */
-  tx = Math.max(8, Math.min(W - sz - 8, tx)); ty = Math.max(20, Math.min(H - sz - 20, ty));
-  b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${tx}px,${ty}px,0)` }], { duration: 600, easing: "ease-in-out" });
-  pnBubPlace(tx, ty); pnBubMood("happy", 1200);
-  if (noHl) return;
-  el.classList.remove("nxhl"); void el.offsetWidth; el.classList.add("nxhl");
-}
 function nxTour(was, all) {
   /* v173 everything since the last tour you finished, so skipped updates stack up; closing the app mid-tour resumes it next time */
   const w = parseInt(was, 10), from = all ? 0 : Math.min(S.tourFrom == null ? 162 : +S.tourFrom, w > 0 ? w : Infinity);
@@ -15179,7 +15083,7 @@ document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) {
 .dxpill svg { width: 18px; height: 18px; color: var(--volt); flex: none; }
 .dxpill .lb { display: none; }
 .dxpill.wide { align-self: center; width: min(100%, 210px); height: 46px; font-size: 14px; }
-.dxpill:active, .dxr:active, .dxc:active, .dxq:active .box, .cb:active, .dxhero:active .play, .tk button:active { transform: scale(.95); }
+
 .dxpill, .dxr, .dxc, .dxq .box, .cb, .play, .tk button, .dxhero { transition: transform .25s var(--ease), background-color .25s ease; }
 
 /* the pick, as a big player card */
@@ -15392,7 +15296,7 @@ html.fast.first .dxw > :nth-child(n+5), html.still .dxw > * { animation: none; }
 .ss-heat i.l3 { background: var(--c); opacity: .8; } .ss-heat i.l4 { background: var(--c); }
 .ss-q { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
 .ss-q button { background: var(--void); border: 1px solid var(--steel); border-radius: 12px; padding: 10px 0; color: var(--ice); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform .2s ease; }
-.ss-q button:active, .ss-r:active { transform: scale(.94); }
+
 .dy-s.ghost { background: transparent; border: 1.5px solid var(--volt); color: var(--ice); }
 .ss-e > span:nth-child(2) { font-weight: 700; }
 .ss-rec { display: grid; gap: 8px; margin: 6px 0 14px; }
@@ -15626,7 +15530,7 @@ document.addEventListener("toggle", e => {
 .squick > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .squick button { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--edge); border-radius: 16px; background: var(--ink);
   color: var(--ice); font: inherit; font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; transition: transform .2s ease; }
-.squick button:active, .ssres button:active, .more-btn:active { transform: scale(.96); }
+
 .squick button span { font-size: 18px; }
 .ssbar.searching .squick, .ssbar.searching .sall, #sheet-in.ssearch .setgroup { display: none; }
 .sall { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin: 16px 0 0 4px; }
@@ -15662,7 +15566,7 @@ html.still #sheet-in.drill details.grp[open] { animation: none; }
 .finpk .fm { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .finpk .fm button { padding: 11px 0; border-radius: 12px; border: 1px solid var(--edge); background: var(--void); color: var(--ice); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform .2s ease, background-color .2s ease; }
 .finpk .fm button[aria-pressed="true"] { background: var(--volt); color: var(--void); border-color: var(--volt); }
-.finpk button:not(:disabled):active { transform: scale(.94); }
+
 .pnb-c[data-findate] { cursor: pointer; }
 </style>
 <style>
@@ -15882,7 +15786,7 @@ html.shuffling #pnbub, html.shuffling #pnbubmsg { visibility: hidden; }
 .sh-bar button svg { width: 22px; height: 22px; }
 .sh-bar .big { width: 66px; height: 66px; background: var(--volt); color: var(--void); box-shadow: 0 14px 30px -10px rgba(var(--vrgb), .9); }
 .sh-bar .big svg { width: 28px; height: 28px; }
-.sh-bar button:not(:disabled):active, .sh-side:active, .sh-th:active { transform: scale(.9); }
+
 .sh-bar b { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--volt); color: var(--void); font-size: 11px; line-height: 18px; }
 /* picks */
 .sh-res { flex: 1; overflow-y: auto; padding: 10px 20px; max-width: 520px; width: 100%; margin: 0 auto; }
@@ -15907,7 +15811,7 @@ html.still .sh-card { transition: none !important; }
 .ls-r { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--steel); background: var(--void);
   color: var(--ice); font: inherit; text-align: left; cursor: pointer; transition: transform .2s ease, border-color .2s ease; }
 .ls-r.on { border-color: var(--volt); }
-.ls-r:active { transform: scale(.97); }
+
 .ls-r .e { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 19px; background: rgba(var(--vrgb), .12); flex: none; }
 .ls-r .n { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 700; font-size: 14.5px; background: none; border: 0; color: inherit; font-family: inherit; text-align: left; padding: 0; cursor: pointer; }
 .ls-r .n small { font-weight: 500; font-size: 12px; color: var(--mute); }
@@ -15933,10 +15837,10 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 .hub-acts .chip.hot { border-color: rgba(var(--vrgb), .55); background: rgba(var(--vrgb), .14); }
 .hit { position: relative; }
 .hitadd { margin-left: auto; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--volt); color: var(--void); font-size: 22px; font-weight: 800; }
-.hitadd:active { transform: scale(.9); }
+
 .qd-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-top: 12px; }
 .qd-g { display: grid; gap: 8px; justify-items: center; background: var(--void); border: 1px solid var(--steel); border-bottom: 3px solid var(--accent); border-radius: 16px; padding: 10px 8px 12px; color: var(--ice); font: inherit; cursor: pointer; transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s; min-width: 0; }
-.qd-g:active { transform: scale(.96); }
+
 .qd-g img { width: 100%; max-width: 150px; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; }
 .qd-g b { font-size: 14px; line-height: 1.25; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .qd-g.win { transform: scale(1.05); border-color: var(--accent); }
@@ -15956,7 +15860,7 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 .qs-grid .qs-h { height: 34px; font-size: 12px; color: var(--mute); grid-row: 2; }
 .qs-grid .qs-i { grid-row: 1; }
 .qs-grid button.on { background: var(--volt); color: var(--void); border-color: var(--volt); }
-.qs-grid button:active { transform: scale(.92); }
+
 .u-pv { font-size: 11px; color: var(--mute); font-weight: 600; margin-left: 6px; }
 .u-t { display: grid; gap: 2px; margin: 6px 0 12px; }
 .u-r { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 8px; padding: 7px 10px; border-radius: 10px; background: var(--void); font-size: 13px; }
@@ -16492,7 +16396,7 @@ html.ui2 .tabbar.shx { --fw: 124px; --cw: 60px; }
   overflow: hidden; background: #1b2445; cursor: pointer; pointer-events: auto;
   box-shadow: 0 12px 24px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.09);
   transform: translateY(var(--y)) rotate(var(--r)); transform-origin: 50% 110%; transition: transform .25s var(--ease); }
-.shx-fan button:active { transform: translateY(calc(var(--y) - 8px)) rotate(var(--r)) scale(.96); }
+
 .shx-fan img { width: 100%; height: 100%; object-fit: cover; display: block; }
 @keyframes shxDeal { from { opacity: 0; transform: translate(40px, 50px) rotate(calc(var(--r) + 16deg)); } }
 .shx-fan.deal button { animation: shxDeal .55s var(--ease) backwards; animation-delay: calc(var(--i) * 70ms); }
@@ -16522,7 +16426,7 @@ html.ui2 .tabbar.shx h3 { grid-column: 1; grid-row: 1; min-width: 0; }
 .shx-ln small { flex: none; color: var(--volt); font-size: 11px; font-weight: 600; }
 .shx-ln b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .shx-ln em { flex: none; font-style: normal; color: var(--mute); font-size: 11.5px; }
-.shx-ln:active { opacity: .7; }
+
 .shx-tg { grid-area: g; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .shx-tg span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 500; color: var(--ice);
   background: rgba(4,6,14,.55); border: 1px solid rgba(255,255,255,.09); white-space: nowrap; }
@@ -16601,7 +16505,7 @@ html.ui2 .cwrap.has { filter: none; }
 .cnext b { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cnext em { font-style: normal; font-size: 12.5px; color: var(--volt); font-weight: 600; }
 .cnext i { font-style: normal; font-size: 20px; color: var(--mute); }
-.cnext:active { transform: scale(.98); }
+
 
 /* game page: the numbers become tiles, the actions a tighter set of pills with the main ones filled */
 html.ui2 .hub-foot { gap: 10px; }
@@ -16849,7 +16753,7 @@ WHATS_NEW.push(
 @media (min-width: 900px) { #p-add.anew #hits { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 #p-add.anew .hit { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0; margin: 0; padding: 0; overflow: hidden;
   border: 1px solid var(--u-line); border-radius: 18px; background: var(--u-card); min-width: 0; transition: transform .25s var(--ease); }
-#p-add.anew .hit:active { transform: scale(.97); }
+
 #p-add.anew .hit img { width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 0; clip-path: none; background: var(--u-card2); }
 #p-add.anew .hit > span:not(.hitadd) { padding: 9px 11px 11px; min-width: 0; }
 #p-add.anew .hit b { font-weight: 600; font-size: 13.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -16931,7 +16835,7 @@ html.still .gd-bg { transition: none; }
   text-align: center; cursor: pointer; transition: transform .25s var(--ease); }
 .gd-more button i { font-style: normal; font-size: 20px; line-height: 1; }
 .gd-more button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.gd-main button:active, .gd-more button:active { transform: scale(.95); }
+
 @media (min-width: 760px) {
   .gd-hero { height: min(58vh, 560px); }
   .gd-body { padding: 0 28px 90px; }
@@ -18380,7 +18284,6 @@ WHATS_NEW.push(
    Kinds: "look" (design), "stuck" (you tried and it didn't respond). ===== */
 const LOOK_TAP = "button, a[href], [role=button], [data-opg], [data-open], [data-hub], [data-home-open], [data-row], [data-lxopen], [data-edit], [data-tab], [data-sub], [data-view], summary, label";
 const lookOk = () => bugOn() && !document.hidden && !(typeof nxTouring === "function" && nxTouring());
-const lookPlace = () => (typeof bugPlace === "function" ? bugPlace(bugScreen()) : bugScreen());
 
 /* 1. flicker */
 function flickWatch(el, name, opening) {
@@ -18908,7 +18811,7 @@ WHATS_NEW.push(
 .cb-copy b { grid-area: b; font-size: 15px; }
 .cb-copy small { grid-area: s; color: var(--mute); font-size: 12px; }
 .cb-copy em { grid-area: e; font-style: normal; font-size: 20px; color: var(--mute); }
-.cb-copy:active { transform: scale(.98); }
+
 </style>
 <script>
 /* ===== v212: "Where was I?" notes =====
@@ -19027,11 +18930,11 @@ WHATS_NEW.push(
 .wi em { font-style: normal; font-size: 16px; color: var(--mute); width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.06); }
 .wi.back { border-color: rgba(var(--vrgb), .6); box-shadow: 0 10px 30px -14px rgba(var(--vrgb), .7); }
 .wi-empty { background: rgba(8,11,24,.6); border-style: dashed; }
-.wi:active { transform: scale(.98); }
+
 .wi-in { width: 100%; box-sizing: border-box; margin: 4px 0 8px; padding: 12px 14px; border-radius: 14px; font: 500 15px/1.4 inherit; resize: vertical; min-height: 84px; }
 .wi-q { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .wi-q button { padding: 7px 12px; min-height: 32px; border-radius: 99px; border: 1px solid var(--u-line, rgba(234,242,255,.1)); background: var(--u-card, #131a32); color: var(--ice); font: 500 12.5px/1 inherit; cursor: pointer; }
-.wi-q button:active { transform: scale(.95); }
+
 .wi-save { width: 100%; }
 .wi-old { margin-top: 16px; display: grid; gap: 6px; }
 .wi-old > b { font-size: 12px; font-weight: 600; color: var(--mute); }
@@ -19193,7 +19096,6 @@ const pxGap = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px
 /* when the store checked longest ago was checked (0 = a watched store never answered) */
 const pxStale = it => { const g = S.games.find(x => x.id === it.k), p = (g && g.px) || {};
   return Math.min(...[["st", it.st !== -1], ["ps", it.ps !== "-"], ["ns", it.ns !== "-"]].filter(x => x[1]).map(([s]) => (p[s] || {}).at || 0), Infinity); };
-const pxSeen = id => { const g = S.games.find(x => x.id === id), p = g && g.px; return p ? Math.max((p.st || {}).at || 0, (p.ps || {}).at || 0, (p.ns || {}).at || 0) : 0; };
 function pxTake(res) {
   const drops = [], joins = [], min = num(S.pxMin, 0, 0, 90);
   for (const id in res) {
@@ -19481,7 +19383,7 @@ WHATS_NEW.push(
 .px-c .pxck { animation: pxck 1.2s ease-in-out infinite alternate; }
 @keyframes pxck { to { opacity: .35; } }
 html.still .px-c .pxck { animation: none; }
-.px-c:active, .px-more:active { transform: scale(.97); }
+
 .px-more { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 2px; border: 0; background: none; color: var(--volt); font: 600 12.5px/1.2 inherit; cursor: pointer; text-align: left; white-space: nowrap; }
 .px-more span { flex: 1; min-width: 0; color: var(--mute); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .pxs-r { padding: 12px 14px; margin-bottom: 10px; border-radius: 16px; background: var(--u-card, #131a32); }
@@ -19825,7 +19727,6 @@ WHATS_NEW.push(
 .rdlog { display: grid; gap: 6px; margin: 6px 0 2px; }
 .rdlog div { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--ice); }
 .rdlog small { color: var(--mute); font-size: 11.5px; flex: none; }
-.dr-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .dy-g.drd img { object-fit: cover; }
 </style>
 <script>
@@ -20309,7 +20210,7 @@ WHATS_NEW.push(
 .aw-i span { min-width: 0; overflow-wrap: anywhere; }
 .aw-i small { display: block; color: var(--mute); font-size: 12px; margin-top: 2px; }
 .aw-i.hot { border-color: rgba(var(--vrgb), .5); }
-.aw-i:active { transform: scale(.98); }
+
 .aw-b { display: flex; gap: 8px; flex-wrap: wrap; }
 .aw-b .btn { margin: 0; }
 .eta { display: grid; gap: 6px; margin: 12px 0 2px; padding: 12px 14px; border-radius: 18px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.1)); }
@@ -20653,7 +20554,7 @@ function lfSheet() {
   if (css !== lfCss) { lfCss = css; el.textContent = css; }
 }
 const lfFitted = img => { const row = img.closest("[data-row]"), g = row && S.games.find(x => x.id === row.dataset.row); return !!(g && g.art && LF[g.art] && lfBox && !LF_OFF()); };
-function lfClear() { lfCss = null; lfSheet(); }
+
 function lfApply() {
   if (LF_OFF()) { lfSheet(); return; }
   const missing = S.games.filter(g => g.art && !(g.art in LF) && !lfQ.includes(g.art)).map(g => g.art);
@@ -21480,7 +21381,7 @@ WHATS_NEW.push(
 .hub.gpage .gd-glance span { display: block; margin-top: 4px; font-size: 10.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gd-main button.ed { flex: 1 1 0; padding: 14px 12px; }
 .gd-main button.off { background: transparent; color: var(--mute); border-style: dashed; cursor: default; box-shadow: none; }
-.gd-main button.off:active { transform: none; }
+
 .gd-sec { margin: 12px 0 0; padding: 14px 14px 15px; border-radius: 20px; background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); min-width: 0; }
 .gd-sh { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 13px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); }
 .gd-sh i { font-style: normal; font-size: 15px; width: 18px; text-align: center; }
@@ -21531,7 +21432,7 @@ WHATS_NEW.push(
 .gd-x button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 8px 14px 8px 11px; border-radius: 999px; border: 1px solid var(--u-line2, rgba(234,242,255,.14));
   background: var(--u-card, #131a32); color: var(--ice); font: 500 13px/1.2 "Poppins", system-ui, sans-serif; cursor: pointer; transition: transform .2s var(--ease); }
 .gd-x button i { font-style: normal; font-size: 15px; line-height: 1; }
-.gd-x button:active { transform: scale(.95); }
+
 .gd-sec .rv-c.me { display: none; }
 .gd-sec .rv-c.you { background: rgba(var(--vrgb), .1); }
 @media (min-width: 760px) {
@@ -21542,7 +21443,7 @@ WHATS_NEW.push(
 /* v234: genre chips are buttons (tap = your games with that genre), +N unfolds the rest + Steam players' tags */
 .gd-tags .gtag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font: 500 11.5px/1.25 "Poppins", system-ui, sans-serif; color: var(--ice);
   background: var(--u-card, #131a32); border: 1px solid var(--u-line, rgba(234,242,255,.08)); cursor: pointer; transition: transform .2s var(--ease); }
-.gd-tags .gtag:active { transform: scale(.94); }
+
 .gd-tags .gtag small { font: 600 10.5px/1 "Poppins", system-ui, sans-serif; color: var(--mute); }
 .gd-tags .gtag.st { border-style: dashed; border-color: var(--u-line2, rgba(234,242,255,.2)); }
 .gd-tags .gd-tplus { color: var(--volt); border-color: rgba(var(--vrgb), .4); background: rgba(var(--vrgb), .1); font-weight: 600; }
@@ -22960,7 +22861,7 @@ WHATS_NEW.push(
 <style>
 /* v241: hours to beat from HowLongToBeat */
 .hub.gpage .gd-glance > .gd-hl { position: relative; cursor: pointer; transition: transform .15s; }
-.hub.gpage .gd-glance > .gd-hl:active { transform: scale(.96); }
+
 .hub.gpage .gd-glance > .gd-hl::after { content: "↗"; position: absolute; top: 5px; right: 7px; font-size: 10px; line-height: 1; color: var(--mute); }
 .hub.gpage .gd-glance > .gd-hl.src::after { content: "HLTB"; font-size: 7.5px; font-weight: 700; letter-spacing: .04em; top: 6px; right: 6px; }
 .hl-t { margin: 4px 0 12px; color: var(--mute); font-size: 13px; }
@@ -23233,22 +23134,9 @@ WHATS_NEW.push(
 );
 </script>
 <script>
-/* ===== v246 (#309): no press animation. The owner: "when I touch anything an animation happened, delete that". Every
-   :active rule loses its movement (transform / scale / translate / rotate / filter / opacity), wherever it was written, so
-   a button just answers; colour changes stay. Done on the parsed rules (at start and for style sheets added later) rather
-   than by editing ~55 rules spread over every script. Slow-tap reports on iPad/iPhone count only the app's own part
-   (see the v246 note in the lag observer). ===== */
-(() => {
-  const P = ["transform", "scale", "translate", "rotate", "filter", "opacity"];
-  const strip = rules => { for (const r of rules) {
-    if (r.selectorText && r.selectorText.includes(":active")) for (const k of P) r.style.removeProperty(k);
-    if (r.cssRules && r.cssRules.length) strip(r.cssRules);
-  } };
-  const run = sh => { try { if (sh) strip(sh.cssRules); } catch (e) {} };
-  for (const sh of document.styleSheets) run(sh);
-  new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeName === "STYLE") run(n.sheet); })
-    .observe(document.head, { childList: true });
-})();
+/* ===== v246 (#309): no press animation. The owner: "when I touch anything an animation happened, delete that". Until v268
+   this script stripped movement (transform / scale / translate / rotate / filter / opacity) from every :active rule on each
+   start; v269 removed those declarations from the CSS itself, and tools/kit.mjs syntax fails if one comes back. ===== */
 WHATS_NEW.push(
   { v: 246, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); }, at: () => $("#p-queue .row") || $("#p-queue .tabbar") || null,
     say: "No more press animation: buttons, rows and cards stay put when you touch them and simply do their thing.",
@@ -23811,6 +23699,26 @@ WHATS_NEW.push(
 );
 </script>
 <script>
+/* Screen changes in one place (the v269 tidy-up). goTab, goSub and openFull used to be wrapped once per feature that
+   wanted to know about a screen change (openFull went through 16 layers). Code from here on registers instead:
+     onNav("after", fn)   runs after any of them, in the order registered
+     onNav("before", fn)  runs before, newest first (the order the old wraps had)
+   fn gets (kind, args): kind is "tab" (goTab), "sub" (goSub) or "game" (openFull). A hook that throws no longer breaks the
+   screen change: the error is re-thrown on its own, so the problem reports still see it. */
+const NAV = { before: [], after: [] };
+function onNav(when, fn) { NAV[when].push(fn); }
+{
+  const run = (fns, kind, a) => { for (const fn of fns) { try { fn(kind, a); } catch (e) { setTimeout(() => { throw e; }); } } };
+  const hub = (fn, kind) => function () {
+    run(NAV.before.slice().reverse(), kind, arguments);
+    const o = fn.apply(this, arguments);
+    run(NAV.after, kind, arguments);
+    return o;
+  };
+  goTab = hub(goTab, "tab"); goSub = hub(goSub, "sub"); openFull = hub(openFull, "game");
+}
+</script>
+<script>
 /* ===== v249, smoother everywhere (the owner: "all tabs and windows lag"; "a lot of lags that even Nexi doesn't see").
    1. Nexi's own problem checks were the biggest job on every screen: bugLayout and its add-ons (cut text, overlaps, contrast,
       tilt, design review) ran after every tab switch, sheet and game page, 100–350ms at 4x CPU (20ms+ at full speed), even on
@@ -23863,8 +23771,7 @@ function lagWatch(what) {
   };
   requestAnimationFrame(tick);
 }
-{ const _gt = goTab; goTab = function () { const o = _gt.apply(this, arguments); lagWatch(() => "Switching to " + lagWhere()); return o; }; }
-{ const _of = openFull; openFull = function () { const o = _of.apply(this, arguments); lagWatch("Opening a game page"); return o; }; }
+onNav("after", k => { if (k === "tab") lagWatch(() => "Switching to " + lagWhere()); else if (k === "game") lagWatch("Opening a game page"); });
 { const _cf = closeFull; closeFull = function () { const on = !!$("#full.on"); const o = _cf.apply(this, arguments); if (on) lagWatch("Closing a game page"); return o; }; }
 { const _os = openSettings; openSettings = function () { const tpl = openSettings.tplOnly, o = _os.apply(this, arguments); if (!tpl) lagWatch("Opening Settings"); return o; }; openSettings.tplOnly = _os.tplOnly; }
 { const _dy = dyShow; dyShow = function () { const o = _dy.apply(this, arguments); lagWatch(() => "Opening a sheet on " + lagWhere()); return o; }; }
@@ -24402,7 +24309,7 @@ function hlvGame() {
 }
 function hlvKick() { if (!HLV.raf) HLV.raf = requestAnimationFrame(hlvSync); }
 { const _rh7 = renderHome; renderHome = function () { const o = _rh7.apply(this, arguments); hlvKick(); return o; }; }
-{ const _gt = goTab; goTab = function () { const o = _gt.apply(this, arguments); hlvKick(); return o; }; }
+onNav("after", k => { if (k === "tab") hlvKick(); });
 { const _ab = applyBg; applyBg = function () { const o = _ab.apply(this, arguments); hlvKick(); return o; }; }
 { const f = $("#full"); if (f && window.MutationObserver) new MutationObserver(hlvKick).observe(f, { childList: true, attributes: true, attributeFilter: ["class"] }); }
 /* the light is only drawn while the app is in front; a new day can bring Plan's release closer */
@@ -25116,7 +25023,7 @@ async function stackCheck() {
 }
 ["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => { STACK.go = null; stackArm(3500); }, { capture: true, passive: true }));
 addEventListener("scroll", () => { STACK.go = null; stackArm(3500); }, { capture: true, passive: true });
-{ const _gt2 = goTab; goTab = function () { const o = _gt2.apply(this, arguments); STACK.go = null; stackArm(3500); return o; }; }
+onNav("after", k => { if (k === "tab") { STACK.go = null; stackArm(3500); } });
 stackArm(16000);
 WHATS_NEW.push(
   { v: 264, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); }, at: null,
@@ -25244,9 +25151,7 @@ function prbSend() {
     prbStart(Math.abs(now[0] - was[0]) > Math.abs(now[1] - was[1]) ? "h" : "v", 250);
   }, { capture: true, passive: true });
 }
-{ const _gt3 = goTab; goTab = function () { prbStart("switch", 1000); return _gt3.apply(this, arguments); }; }
-{ const _gs3 = goSub; goSub = function () { prbStart("switch", 1000); return _gs3.apply(this, arguments); }; }
-{ const _of3 = openFull; openFull = function () { prbStart("open", 1000); return _of3.apply(this, arguments); }; }
+onNav("before", k => prbStart(k === "game" ? "open" : "switch", 1000));
 if (window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("long-animation-frame")) {
   PRB.lo = new PerformanceObserver(l => { const e = PRB.ep; if (!e) return;
     for (const x of l.getEntries()) if (x.startTime + x.duration > e.t0) e.loaf += x.duration; });
@@ -25285,9 +25190,7 @@ HLVF.busy = 0;
   addEventListener("touchstart", () => { down = true; HLVF.busy = Infinity; }, { capture: true, passive: true });
   ["touchend", "touchcancel"].forEach(t => addEventListener(t, e => { if (!e.touches || !e.touches.length) { down = false; HLVF.busy = 0; hold(400); } }, { capture: true, passive: true }));
   addEventListener("scroll", () => { if (!down) hold(300); }, { capture: true, passive: true });
-  { const _gt4 = goTab; goTab = function () { hold(900); return _gt4.apply(this, arguments); }; }
-  { const _gs4 = goSub; goSub = function () { hold(900); return _gs4.apply(this, arguments); }; }
-  { const _of4 = openFull; openFull = function () { hold(900); return _of4.apply(this, arguments); }; }
+  onNav("before", () => hold(900));
 }
 /* the smoothness check counts swiping a game's page to the next game as a sideways moment (it's not a scroll) */
 { const _hp = hubPaint; hubPaint = function () { prbStart("h", 300); return _hp.apply(this, arguments); }; }
@@ -25643,9 +25546,7 @@ if (window.MutationObserver) new MutationObserver(ms => {
 document.addEventListener("error", e => { const im = e.target; if (!im || im.tagName !== "IMG" || !im._fitFrom || im.getAttribute("src") !== im._fitTo) return;
   FIT.bad.add(im._fitFrom); const s = im._fitFrom; im._fitTo = s; im.setAttribute("src", s); }, true);
 document.addEventListener("contentvisibilityautostatechange", e => { if (!e.skipped) fitRetry(); }, true);
-{ const _gt5 = goTab; goTab = function () { const o = _gt5.apply(this, arguments); requestAnimationFrame(fitRetry); return o; }; }
-{ const _gs5 = goSub; goSub = function () { const o = _gs5.apply(this, arguments); requestAnimationFrame(fitRetry); return o; }; }
-{ const _of5 = openFull; openFull = function () { const o = _of5.apply(this, arguments); requestAnimationFrame(fitRetry); return o; }; }
+onNav("after", () => requestAnimationFrame(fitRetry));
 { let t = 0; addEventListener("scroll", () => { clearTimeout(t); t = setTimeout(fitRetry, 150); }, { capture: true, passive: true }); }
 addEventListener("resize", () => { clearTimeout(FIT.rt); FIT.rt = setTimeout(() => fitScan(document.body), 400); });   /* fitImg/fitBg refit only where a box grew */
 fitScan(document.body);
@@ -25688,8 +25589,7 @@ function picCheck() {
 }
 ["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => picArm(4000), { capture: true, passive: true }));
 addEventListener("scroll", () => picArm(4000), { capture: true, passive: true });
-{ const _gt6 = goTab; goTab = function () { const o = _gt6.apply(this, arguments); picArm(4000); return o; }; }
-{ const _of6 = openFull; openFull = function () { const o = _of6.apply(this, arguments); picArm(4000); return o; }; }
+onNav("after", k => { if (k !== "sub") picArm(4000); });
 picArm(16000);
 
 WHATS_NEW.push(
@@ -25730,8 +25630,7 @@ function picWait() {
     });
   }, 0));
 }
-{ const _gt7 = goTab; goTab = function () { const o = _gt7.apply(this, arguments); picWait(); return o; }; }
-{ const _of7 = openFull; openFull = function () { const o = _of7.apply(this, arguments); picWait(); return o; }; }
+onNav("after", k => { if (k !== "sub") picWait(); });
 
 WHATS_NEW.push(
   { v: 268, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); },
@@ -25744,5 +25643,14 @@ WHATS_NEW.push(
   { v: 268, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: if a picture takes more than 2.5 seconds to show after you open a screen or a game, I report it on my own.",
     tryIt: "Nothing to do: if it happens, I file it myself." }
+);
+</script>
+<script>
+/* v269: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change
+   hooks in one place), dead code and the press-animation stripper gone, tools/kit.mjs + tools/map.mjs + the App check. */
+WHATS_NEW.push(
+  { v: 269, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "I had a big tidy-up inside: leftovers are gone, every screen change goes through one door, and a broken piece can no longer stop a screen from opening.",
+    tryIt: "Nothing to tap: just use the app as usual. Every change is now tested on every screen before it reaches your phone." }
 );
 </script>
