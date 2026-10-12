@@ -17311,6 +17311,8 @@ try {
          There only the part after the app got the tap counts: running the handler + drawing the answer. A touch that
          became a scroll has no interactionId and isn't a tap at all. */
       if (ev.interactionId === 0 || !/^(click|pointerup|pointerdown|keydown)$/.test(ev.name)) continue;
+      /* #435: a tap on a text field brings the keyboard up, and Safari draws nothing until it has slid in (2s on an iPad) */
+      if (ev.name !== "keydown" && ev.target && ev.target.closest && ev.target.closest("textarea, [contenteditable], input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=file]):not([type=color])")) continue;
       const wait = Math.max(0, ev.processingStart - ev.startTime), took = LAG.wk ? ev.duration - wait : ev.duration;
       if (took < 250 || bugModal(ev.startTime, ev.duration)) continue;
       bugReport("slow", "A tap took " + Math.round(took / 10) * 10 + "ms to respond on " + lagWhere(), { at: ev.target && ev.target.nodeType === 1 ? bugPath(ev.target) : ev.name, screen: bugScreen(), sigAt: "",

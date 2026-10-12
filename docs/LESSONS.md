@@ -11,6 +11,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L2** · 2026-10-11 · v267 · `.claude/skills/release-guard`, `claude plugin test` — release-guard's merge test had been failing unnoticed since a Claude Code update changed what test hooks on session.append must return (call next): after a Claude Code update, run claude plugin test on every mod in .claude/skills, not only the one being changed
 - **L4** · 2026-10-12 · v269 · `tools/kit.mjs`, `--file` — kit.mjs --file resolves the path against the repo root, so a scratchpad path fails with ENOENT: write the old copy as old.html in the repo root (git show origin/main:index.html > old.html), run, then rm it (never commit it)
 - **L5** · 2026-10-12 · v269 · `tools/where.mjs`, `acorn` — A fresh container has no acorn, so tools/where.mjs throws 'acorn not found': run npm i -g acorn first
+- **L6** · 2026-10-12 · v269 · `issue comments`, `bugPath` — Wrote an issue comment guessing what an element id was (#dxq called a queue tile; it was the search box, which explained the whole report): grep the id in index.html before describing or diagnosing a report
 
 ## Missed opportunities
 
