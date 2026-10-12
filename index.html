@@ -4115,7 +4115,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "270";
+const APP_V = "271";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -25409,6 +25409,16 @@ document.addEventListener("click", e => { if (!e.target.closest("#s-stest")) ret
 .st-was { display: block; color: var(--mute); font-size: 12px; font-weight: 500; }
 .st-v { color: var(--ice); }
 </style>
+<style>
+/* v271: the progress line draws itself to the step a game just reached. While it runs, the segment's own lines go
+   transparent and .gd-fill (a dim track, inside the step it starts from so :first-child/:last-child still match) carries
+   a lit bar that grows with scaleX: transform only */
+.gd-trk.gd-go .gd-st.gd-st.gd-prev:first-child::before, .gd-trk.gd-go .gd-st.gd-st.gd-new::before { background: transparent; }
+.gd-trk.gd-go .gd-st.gd-st.gd-prev:not(:first-child)::before { background: linear-gradient(90deg, rgba(var(--vrgb), .55) 0 50%, transparent 50%); }
+.gd-trk.gd-go .gd-st.gd-st.gd-end:not(:last-child)::before { background: linear-gradient(90deg, transparent 0 50%, var(--u-line2, rgba(234,242,255,.14)) 50%); }
+.gd-fill { position: absolute; top: 6px; left: 50%; height: 2px; background: var(--u-line2, rgba(234,242,255,.14)); pointer-events: none; }
+.gd-fbar { position: absolute; inset: 0; background: rgba(var(--vrgb), .55); transform-origin: 0 50%; }
+</style>
 <script>
 WHATS_NEW.push(
   { v: 266, go: () => nxOpenSettings("#s-stest"), at: "#s-stest",
@@ -25700,5 +25710,62 @@ WHATS_NEW.push(
     at: () => $("#s-buzz") || null,
     say: "<b>iPhones buzz now too</b>: every little tap of feedback the app gives on Android (covers landing, long-presses, the wheel, ticking off a game) now taps on an iPhone as well.",
     tryIt: "On an iPhone, swipe through covers in the Library: each one that lands gives a tiny tap. Don't want it? Set this to No." }
+);
+</script>
+<script>
+/* v271: two moments that used to jump now move (the owner: "smoothness is rule number one, but I do like animations").
+   Picked with the find-animation-opportunities gate: only state changes you don't do a hundred times a day, transform and
+   opacity only, about a quarter of a second, nothing for calm()/reduced motion beyond a fade.
+   (1) Month ‹ ›: the new month slides in from the side you went (title, grid, list, 30ms apart).
+   (2) A game page's Your progress: when the game moves on (start playing, finish, drop it) while its page is open, the line
+       draws from the old step to the new one and each newly reached dot pops as the line arrives. */
+addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#cal-prev, #cal-next"); if (!b) return;
+  const d = b.id === "cal-next" ? 1 : -1;
+  requestAnimationFrame(() => {
+    const p = $("#p-cal"); if (!p) return;
+    const still = calm();
+    [p.querySelector(".cal-head h3"), p.querySelector(".cmonth"), p.querySelector(".clist")].filter(Boolean).forEach((el, i) =>
+      el.animate(still ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: `translateX(${d * 28}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
+        { duration: still ? 160 : 260, delay: i * 30, easing: PN_EASE, fill: "backwards" }));
+  });
+}, true);
+{ const seen = new Map();
+  const read = trk => { const st = [...trk.querySelectorAll(".gd-st")]; let n = -1;
+    st.forEach((s, i) => { if (s.matches(".done, .now")) n = i; }); return { st, n, drop: st.some(s => s.classList.contains("drop")) }; };
+  const pop = (dot, delay) => dot && dot.animate([{ transform: "scale(.4)", opacity: .3 }, { transform: "scale(1.3)", opacity: 1, offset: .6 }, { transform: "none", opacity: 1 }],
+    { duration: 380, delay, easing: "cubic-bezier(.34,1.4,.64,1)", fill: "backwards" });
+  function drawProgress(trk, was, now) {
+    if (now.drop && !was.drop) return pop(now.st[now.st.length - 1] && now.st[now.st.length - 1].querySelector("i"), 0);
+    if (now.n <= was.n || was.n < 0) return;
+    const c = s => { const r = s.querySelector("i").getBoundingClientRect(); return r.left + r.width / 2; };
+    const t0 = trk.getBoundingClientRect().left, x0 = c(now.st[was.n]) - t0, x1 = c(now.st[now.n]) - t0;
+    if (!(x1 > x0)) return;
+    now.st[was.n].classList.add("gd-prev"); for (let i = was.n + 1; i <= now.n; i++) now.st[i].classList.add("gd-new"); now.st[now.n].classList.add("gd-end");
+    const f = document.createElement("span"), bar = document.createElement("span"); f.className = "gd-fill"; bar.className = "gd-fbar"; f.setAttribute("aria-hidden", "true");
+    f.style.width = (x1 - x0) + "px"; f.appendChild(bar); now.st[was.n].prepend(f); trk.classList.add("gd-go");
+    const dur = 300 + 140 * (now.n - was.n);
+    const a = bar.animate([{ transform: "scaleX(0)" }, { transform: "none" }], { duration: dur, easing: "cubic-bezier(.65,0,.35,1)" });
+    const done = () => { f.remove(); trk.classList.remove("gd-go"); now.st.forEach(s => s.classList.remove("gd-prev", "gd-new", "gd-end")); };
+    a.finished.then(done, done);
+    for (let i = was.n + 1; i <= now.n; i++) pop(now.st[i].querySelector("i"), dur * (i - was.n) / (now.n - was.n) - 120);
+  }
+  onNav("after", (k, a) => {
+    if (k !== "game") return;
+    const id = a[0];
+    requestAnimationFrame(() => {
+      const trk = document.querySelector("#full.on .gd-trk"); if (!trk || hubAt !== id) return;
+      const now = read(trk), was = seen.get(id); seen.set(id, now);
+      if (was && !calm()) try { drawProgress(trk, was, now); } catch (e) {}
+    });
+  });
+}
+WHATS_NEW.push(
+  { v: 271, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); goSub("plan", "month"); }, at: () => $("#cal-next") || null,
+    say: "<b>Moments that used to jump now glide</b>: flip the calendar a month and the new one slides in from that side.",
+    tryIt: "Tap › and ‹ next to the month's name: the days, the title and the list slide the way you're going." },
+  { v: 271, go: () => nxOpenGame(), at: () => $("#full .gd-trk") || null,
+    say: "On a game's page, <b>Your progress</b> now draws itself: start playing, finish or drop a game and the line runs to the new step, with a little pop as it lands.",
+    tryIt: "On a game you haven't started, tap ▶ Start playing and watch the line under Your progress." }
 );
 </script>
