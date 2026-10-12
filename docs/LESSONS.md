@@ -9,6 +9,8 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 
 - **L1** ×2 · 2026-10-11 · v267 · `bugLayoutSoon`, `tools/kit.mjs` — A sweep that moves to the next screen 1.5s after switching misses the layout check (it runs 1.6s after a screen change, when idle): wait 2.6s per screen; a planted cut-off button went from 1 to 11 screens reported
 - **L2** · 2026-10-11 · v267 · `.claude/skills/release-guard`, `claude plugin test` — release-guard's merge test had been failing unnoticed since a Claude Code update changed what test hooks on session.append must return (call next): after a Claude Code update, run claude plugin test on every mod in .claude/skills, not only the one being changed
+- **L4** · 2026-10-12 · v269 · `tools/kit.mjs`, `--file` — kit.mjs --file resolves the path against the repo root, so a scratchpad path fails with ENOENT: write the old copy as old.html in the repo root (git show origin/main:index.html > old.html), run, then rm it (never commit it)
+- **L5** · 2026-10-12 · v269 · `tools/where.mjs`, `acorn` — A fresh container has no acorn, so tools/where.mjs throws 'acorn not found': run npm i -g acorn first
 
 ## Missed opportunities
 
