@@ -19523,6 +19523,8 @@ function revTrue(x, els) {
   if (/align/.test(say) && (same(rs.map(r => r.left), 2) || same(rs.map(r => r.top), 2))) return false;
   if (/too long|truncat|shorten/.test(say) && els.some(e => { const c = getComputedStyle(e); return (c.webkitLineClamp && c.webkitLineClamp !== "none") || (e.nextElementSibling && e.nextElementSibling.matches("[data-descmore]")); })) return false;
   if (/contrast|faint|hard to read|too small/.test(say)) return false;   /* measured for real by lookDesign already */
+  /* #433: "empty buttons" were screenshot thumbnails: a picture inside and an aria-label, just no visible text */
+  if (/empty|no text|no label|blank|missing (text|label)|unlabel/.test(say) && els.every(e => e.getAttribute("aria-label") || e.title || e.querySelector("img, svg, canvas, video"))) return false;
   return true;
 }
 
