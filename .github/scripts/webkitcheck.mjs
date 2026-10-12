@@ -57,6 +57,14 @@ async function walk(name, dev) {
   page.on("pageerror", e => errors.push(String(e && e.message || e)));
   page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked/i.test(m.text())) errors.push(m.text()); });
   await page.goto(BASE); await page.waitForTimeout(2500);
+  /* v270: Apple devices buzz through a hidden <input switch>: one buzz = one flip, and no page listener hears the click */
+  const hp = await page.evaluate(async () => { let heard = 0; const h = () => heard++; document.addEventListener("click", h, true);
+    const shim = typeof navigator.vibrate === "function" && !/native code/.test(String(navigator.vibrate));
+    if (shim) navigator.vibrate(20); await new Promise(r => setTimeout(r, 100)); document.removeEventListener("click", h, true);
+    const box = document.querySelector("label[aria-hidden] > input[switch]");
+    return { shim, flipped: box ? box.checked : null, isSwitch: box ? box.hasAttribute("switch") : null, heard }; }).catch(e => ({ err: String(e.message || e) }));
+  console.log(`\n[${name}] haptics: ${JSON.stringify(hp)}`);
+  if (hp.err || (hp.shim && (hp.flipped !== true || hp.heard))) errors.push("haptics: " + JSON.stringify(hp));
   /* a "too faint" report says only where: also note what made it faint (text colour, faded parents, what was animating) */
   await page.evaluate(() => { window.__diag = []; const o = window.bugReport; if (typeof o !== "function") return;
     window.bugReport = function (k, m, x) {

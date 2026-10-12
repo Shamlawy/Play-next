@@ -4115,7 +4115,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "269";
+const APP_V = "270";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -25656,5 +25656,49 @@ WHATS_NEW.push(
   { v: 269, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "I had a big tidy-up inside: leftovers are gone, every screen change goes through one door, and a broken piece can no longer stop a screen from opening.",
     tryIt: "Nothing to tap: just use the app as usual. Every change is now tested on every screen before it reaches your phone." }
+);
+</script>
+<script>
+/* v270: buzzes on the iPhone too. Safari has no navigator.vibrate, but iOS 18+ gives a light tap each time an
+   <input type="checkbox" switch> flips, even a hidden one flipped by label.click() (the trick from lochie/web-haptics).
+   So on Apple phones navigator.vibrate becomes "flip a hidden switch once per buzz in the pattern" and the 22 existing
+   calls (and S.buzz) work unchanged. Android keeps the real vibrate. The flip's click/input/change events are stopped at
+   window capture so no "tap outside closes it" handler or problem check ever sees them. */
+(() => {
+  if (typeof navigator.vibrate === "function") return;
+  const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!apple) return;
+  let lab = null, box = null, last = 0, timers = [];
+  const mine = e => e.target === lab || e.target === box;
+  for (const t of ["click", "input", "change"]) addEventListener(t, e => { if (mine(e)) e.stopImmediatePropagation(); }, true);
+  const flip = () => {
+    const now = performance.now(); if (now - last < 35) return; last = now;
+    if (!lab) {
+      lab = document.createElement("label"); box = document.createElement("input");
+      box.type = "checkbox"; box.setAttribute("switch", ""); box.tabIndex = -1;
+      lab.setAttribute("aria-hidden", "true"); lab.style.display = box.style.display = "none";
+      lab.appendChild(box); document.body.appendChild(lab);
+    }
+    try { lab.click(); } catch (e) {}
+  };
+  const hapticVibrate = function (p) {
+    timers.forEach(clearTimeout); timers = [];
+    const seq = Array.isArray(p) ? p : [p];
+    let at = 0;
+    seq.forEach((ms, i) => {
+      ms = Math.max(0, +ms || 0);
+      if (i % 2 === 0 && ms > 0) { if (at === 0) flip(); else timers.push(setTimeout(flip, at)); }
+      at += ms;
+    });
+    return true;
+  };
+  try { navigator.vibrate = hapticVibrate; } catch (e) {}
+  if (typeof navigator.vibrate !== "function") try { Object.defineProperty(navigator, "vibrate", { value: hapticVibrate, configurable: true }); } catch (e) {}
+})();
+WHATS_NEW.push(
+  { v: 270, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "lib"); openSettings("games"); const el = $("#s-buzz"), d = el && el.closest("details"); if (d) d.open = true; if (el) setMoreOpen(el); },
+    at: () => $("#s-buzz") || null,
+    say: "<b>iPhones buzz now too</b>: every little tap of feedback the app gives on Android (covers landing, long-presses, the wheel, ticking off a game) now taps on an iPhone as well.",
+    tryIt: "On an iPhone, swipe through covers in the Library: each one that lands gives a tiny tap. Don't want it? Set this to No." }
 );
 </script>
