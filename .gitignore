@@ -13,3 +13,6 @@ webkit-report.txt
 
 # where.mjs cache
 tools/.cache/
+
+# helper agents' temporary working copies (git worktrees)
+.claude/worktrees/
