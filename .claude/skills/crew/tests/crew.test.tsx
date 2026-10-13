@@ -68,6 +68,16 @@ describe('crew', () => {
     })
   }
 
+  test('/agents-info answers with the whole crew as text (for screens without panels)', async ($, on) => {
+    world(on)
+    await crew($)
+    const r: any = await $.command.run({ command: 'agents-info', args: '' } as any)
+    expect(r.text).toContain('🦀 Agents · 1 running · 1 finished')
+    expect(r.text).toContain('● Add JSDoc to src functions (general-purpose, Opus 5.5 · low)')
+    expect(r.text).toContain('Read greet.js')
+    expect(r.text).toContain('✓ Write greet test')
+  })
+
   test('no helpers, no band', async ($, on) => {
     world(on)
     await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
