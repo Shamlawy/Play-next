@@ -13911,7 +13911,7 @@ function pnPowerUp(line) {
     clearTimeout(say.t); say.t = setTimeout(() => m.classList.remove("on"), 5500); };
 
   /* eyes follow your finger, swipes included */
-  let lr = 0; const watch = (x, y) => { if (lr) return; lr = requestAnimationFrame(() => { lr = 0;
+  let lr = 0; const watch = (x, y) => { if (lr || !S.grum) return;   /* v273: hidden (the default), he doesn't redraw on every swipe */ lr = requestAnimationFrame(() => { lr = 0;
     const dx = x - gx - 32, dy = y - gy - 32, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 120) * 3;
     g.style.setProperty("--gx", (dx / d * k).toFixed(1) + "px"); g.style.setProperty("--gy", (dy / d * k).toFixed(1) + "px"); }); };
   addEventListener("pointermove", e => watch(e.clientX, e.clientY), { passive: true });
@@ -17297,7 +17297,9 @@ try {
       const fn = top ? [top.sourceFunctionName || "", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 120) : "";
       /* v206: a script that took a sliver of the frame isn't the cause (#59 blamed the stutter checker's own 7ms tick) */
       const who = top && top.duration >= f.duration * .3 ? fn : "rendering (style/layout/paint)" + (fn ? "; biggest script " + Math.round(top.duration) + "ms: " + fn : "");
-      bugReport("slow", "A " + Math.round(f.duration / 10) * 10 + "ms stutter on " + lagWhere(), { at: who, screen: bugScreen(),
+      /* v273: one issue per cause. `at` names whichever little script ran in a rendering stutter ("check ← FrameRequestCallback",
+         "IdleRequestCallback"…) with its ms, so one slow Queue became 35 issues: the signature keeps the cause only */
+      bugReport("slow", "A " + Math.round(f.duration / 10) * 10 + "ms stutter on " + lagWhere(), { at: who, sigAt: who === fn ? fn : "rendering", screen: bugScreen(),
         stack: top ? "blocking " + Math.round(f.blockingDuration || 0) + "ms; script " + Math.round(top.duration) + "ms at char " + (top.sourceCharPosition ?? "?") + "; style+layout " + Math.round(f.styleAndLayoutStart ? f.startTime + f.duration - f.styleAndLayoutStart : 0) + "ms" : "" });
     }
   }).observe({ type: "long-animation-frame", buffered: false });
@@ -18320,6 +18322,8 @@ function flickWatch(el, name, opening) {
     /* v220: closing, then something opens the same sheet again (Settings → Edit) isn't a flicker: stop at the reopen.
        Only a real open call counts (`_flkOpen`), so a sheet that snaps back by itself is still caught. */
     if (!opening && el._flkOpen > t0) return done();
+    /* v273 (#409): a sideways swipe to the next game fades the page under your finger (hubPaint, to .4): not a flicker */
+    if (el.querySelector(".dragging, .hub.snap") || el.matches(".dragging")) return;
     s.push(eff());
     /* v261: sampled every 40ms on a timer, not every frame: a requestAnimationFrame loop reading styles kept the main
        thread drawing (57ms of forced style at 4x CPU per game page) while the page grew in on the GPU */
@@ -18330,7 +18334,7 @@ function flickWatch(el, name, opening) {
     let mx = -1, dip = false, mn = 2, peak = false;
     for (const v of s) { if (v > mx) mx = v; if (mx - v >= .4) { mn = Math.min(mn, v); } if (mn < 2 && v - mn >= .4) dip = true; }
     if (opening) { let lo = 2, hi = -1; for (const v of s) { lo = Math.min(lo, v); if (v - lo >= .4) hi = Math.max(hi, v); if (hi > 0 && hi - v >= .4) peak = true; } }
-    if (dip || peak) bugReport("look", name + " flickers when it " + (opening ? "opens" : "closes"), { at: "#" + el.id + " opacity " + s.map(v => v.toFixed(1)).join(" "), screen: bugScreen() });
+    if (dip || peak) bugReport("look", name + " flickers when it " + (opening ? "opens" : "closes"), { at: "#" + el.id + " opacity " + s.map(v => v.toFixed(1)).join(" "), sigAt: "#" + el.id, screen: bugScreen() });
   };
   requestAnimationFrame(step);
 }
@@ -19513,7 +19517,8 @@ function revTrue(x, els) {
   const same = (a, tol = 0) => a.every(v => Math.abs(v - a[0]) <= tol);
   const kinds = new Set(els.map(e => e.tagName + "." + [...e.classList].filter(c => !/^(on|in|acc|hot|cur|pre)$/.test(c)).sort().join(".")));
   if ((x.confidence || 0) < .85) return false;
-  if (/overlap|cover/.test(say)) { if (els.some(a => els.some(b => a !== b && a.contains(b)))) return false;
+  /* v273 (#364, #288): "buttons hidden by pictures" / "overlayed elements" were a card's own background picture inside it */
+  if (/overlap|cover|overlay|hidden by|behind|obscur/.test(say)) { if (els.some(a => els.some(b => a !== b && a.contains(b)))) return false;
     if (!rs.some((a, i) => rs.some((b, k) => k > i && a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2))) return false; }
   if (/radius|round|corner/.test(say) && same(cs.map(c => parseFloat(c.borderTopLeftRadius) || 0).map(v => Math.min(v, 99)), 1)) return false;
   /* v231 (#179): a Settings section row (summary) next to buttons isn't the same kind of control: different corners are on purpose */
