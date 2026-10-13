@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25096 lines, 1870 KB, 98 scripts, 58 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25166 lines, 1876 KB, 100 scripts, 59 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -21,6 +21,7 @@ How the file is built: one core style (line 15) and one core script (the biggest
 | `renderQueue` | 8311 | 3: 11074 core, 20397 v221, 21459 v232 |
 | `pnBubShow` | 11920 | 3: 16105 v189, 17399 v204, 20446 v221 |
 | `lookDesign` | 18166 | 3: 19289 v215, 20357 v221, 21356 v232 |
+| `dyShow` | 10315 | 3: 20098 v220, 23536 v249, 25131 |
 | `renderTaste` | 10203 | 2: 12694 core, 17973 v205 |
 | `xFeatures` | 12362 | 2: 12764 core, 13179 core |
 | `qCounts` | 7023 | 2: 13000 core, 21349 v232 |
@@ -32,7 +33,6 @@ How the file is built: one core style (line 15) and one core script (the biggest
 | `pxRun` | 18827 | 2: 19609 v217, 23284 v249 |
 | `nxPlan` | 13065 | 2: 19705 v218, 19876 v219 |
 | `gdMarkup` | 16628 | 2: 19865 v219, 20133 v220 |
-| `dyShow` | 10315 | 2: 20098 v220, 23536 v249 |
 | `pnBubReact` | 11519 | 2: 20196 v220, 21923 v237 |
 | `tasteInsightsPage` | 17828 | 2: 20488 v221, 23963 v259 |
 | `closeFull` | 9536 | 2: 20607 v225, 23534 v249 |
@@ -232,3 +232,6 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 25064–25077 | script | 1 | v273 (the owner: "return the background to a solid gradient color, I hate how it looks"): the live background (v257 lights, specks and drifting art;… |
 | 25077–25083 | style | 0 | v274 (the owner, #447): one Nexi per screen. Unfolded, Home's own Nexi (the face beside your greeting) and the rail's seated Nexi showed at once:… |
 | 25083–25096 | script | 1 | — |
+| 25096–25104 | style | 0 | #201 (the friend, iPhone/iPad: "Restore a code is not working"): while a keyboard (or a zoom) hides the bottom of the screen, the open sheet sits on… |
+| 25104–25159 | script | 4 | #201: Safari's keyboard doesn't shrink the page, it slides over it. Sheets (#diary) sit at the bottom of the screen, so a short one (Restore from a… |
+| 25159–25166 | script | 1 | — |
