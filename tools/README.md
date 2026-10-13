@@ -9,13 +9,17 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/kit.mjs sweep` | Walks every screen, 3 game pages, Settings, Edit and chat at 412 / 859 / 360 in Chromium, with the app's own problem checks listening. Fails on a script error or a real report. Timing notes are printed only, because headless has no GPU | 3 min |
 | `node tools/kit.mjs tour` | Runs the what's-new tour from the previous version to `APP_V` at 412 and 859, and checks that every step opens and finds its target | 40 s |
 | `node tools/kit.mjs perf` | Measures main-thread ms per step (script / layout / style) with a 4x slower CPU. Use it to compare before and after a change | 30 s |
-| `node tools/kit.mjs all` | Runs syntax + sw + sweep + tour. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
+| `node tools/kit.mjs audit` | Code health (`tools/audit.mjs --check`): fails when anything piled up past `tools/audit-budget.txt` | 2 s |
+| `node tools/kit.mjs all` | Runs syntax + audit + sw + sweep + tour. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
 | `node tools/kit.mjs sweep --plant x.js --expect` | Runs `x.js` in every test phone, then sweeps. Fails unless the app reports it: the proof that a new detector catches its problem | 1 min per width |
 | `node tools/kit.mjs run tools/scenarios/x.mjs` | Runs a saved scenario: `export default async ({ p, w, fail }) => …` with `p.step`, `p.scroll`, `p.flush` and real touch (`p.tap`, `p.swipe` through CDP). Returning `false` fails it | — |
 | `node tools/map.mjs` | Rewrites `docs/MAP.md`: every block, every wrapped function with its layers, and the onNav hooks | 1 s |
 | `node tools/where.mjs <name>` | Where a function is defined and every later script that wraps it (acorn parse, scope-aware). `--at=<line>` says which function and script a line is in | 1 s |
 | `node tools/where.mjs --check --base=HEAD` | New hazards from the hard-won rules: state on a wrapped function (v198), assigning a top-level const (v216), calling a function hidden in another script's scope (v237), wrapping goTab/goSub/openFull/openSettings instead of `onNav` / `onSettings` (v269) | 2 s |
 | `node tools/learn.mjs list` | Claude's lessons (`docs/LESSONS.md`): mistakes, open ideas, lessons turned into checks. `add` / `done` / `promote` write it (see its header) | — |
+| `node tools/audit.mjs` | The code health report: wrap layers, functions wrapped 4+ times, dead code and CSS, CSS that never applies, selectors spread over 4+ rules, `!important`, hex colours, timers, endless animations, whole-subtree observers, Settings keys nothing reads. Each has a budget in `tools/audit-budget.txt` that may only go down (`--lower` after a cleanup; raising one is a hand edit with a reason in the commit). `--list <measure>` shows every offender | 2 s |
+| `node tools/audit.mjs --fix-css` | Removes CSS declarations that can never apply (the same selector sets the same property later in the same @media). Then prove it: `node tools/kit.mjs samecss --before old.html` (the browser applies exactly the same CSS) and `node tools/audit.mjs --verify old.html` | 2 s |
+| `node tools/kit.mjs run x.mjs --browser webkit` | A scenario in Safari's engine. Not in this container (Chromium only): on GitHub, run `webkit-check.yml` with its `scenario` input (e.g. `tools/scenarios/rail-nexi.mjs`, widths `414,1080`: iPhone 11, iPad sideways) | — |
 | `node tools/map.mjs --dead` | Lists functions, consts, CSS classes and ids that look unused. These are candidates only: some names are built from strings | 1 s |
 
 Options for kit.mjs:

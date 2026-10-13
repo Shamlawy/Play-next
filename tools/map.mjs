@@ -25,7 +25,7 @@ const short = (t, n) => t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") 
 
 /* every wrap: `const _x = fn; fn = function` / `fn = (...) =>` / `window.fn = ` after an earlier definition */
 const wraps = new Map();
-for (const m of html.matchAll(/const\s+([\w$]+)\s*=\s*([A-Za-z_$][\w$]*)\s*;\s*(?:window\.)?\2\s*=\s*(?:async\s+)?(?:function|\(|[\w$]+\s*=>)/g)) {
+for (const m of html.matchAll(/const\s+([\w$]+)\s*=\s*([A-Za-z_$][\w$]*)\s*;(?:\s*let\s+[^;]+;)?\s*(?:window\.)?\2\s*=\s*(?:async\s+)?(?:function|\(|[\w$]+\s*=>)/g)) {
   const l = lineAt(m.index); (wraps.get(m[2]) || wraps.set(m[2], []).get(m[2])).push(l);
 }
 const defs = new Map();

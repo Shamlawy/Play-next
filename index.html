@@ -15,7 +15,7 @@
 <style>
   :root {
     --void: #04060E; --ink: #080F24; --steel: #101C40; --edge: #24407F;
-    --volt: #4DA3FF; --volt2: #2F6BFF; --vrgb: 77,163,255; --v2rgb: 47,107,255; --ice: #EAF2FF; --mute: #7C92C4; --hot: #FF5470; --skew: -7deg;
+    --volt: #4DA3FF; --volt2: #2F6BFF; --vrgb: 77,163,255; --v2rgb: 47,107,255; --ice: #EAF2FF; --mute: #7C92C4; --hot: #FF5470; 
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   button, a, [role="button"], summary, input, select, textarea, label {
@@ -35,11 +35,10 @@
   }
   html, body { margin: 0; }
   body {
-    color: var(--ice); font-family: "Archivo", system-ui, sans-serif;
+    color: var(--ice); 
     font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased;
     background: transparent;
   }
-  html { scroll-behavior: smooth; }
   .wrap { max-width: 880px; margin: 0 auto; padding: 20px 16px 40px; overflow-x: hidden; position: relative; z-index: 1; }
 
   /* chamfered corners — opposite pair, matching the slant */
@@ -76,14 +75,14 @@
   .rowline span.v { color: var(--mute); font-size: 12px; min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
   h1 {
     margin: 0; font-size: clamp(34px, 11vw, 58px); font-weight: 900;
-    font-variation-settings: "wdth" 64; font-style: italic; letter-spacing: .02em;
+     font-style: italic; letter-spacing: .02em;
     line-height: .88; text-transform: uppercase;
     text-shadow: 4px 4px 0 var(--edge), 8px 8px 0 rgba(4,6,14,.9);
   }
   .sub { color: var(--mute); font-size: 13px; margin: 6px 0 0; }
 
   nav svg { width: 15px; height: 15px; fill: currentColor; flex: none; display: none; }
-  nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 24px; }
+  nav { display: flex; flex-wrap: wrap;  margin: 18px 0 24px; }
 
   /* a side rail once there's room — the Fold's inner screen has plenty */
   @media (min-width: 760px) {
@@ -112,12 +111,12 @@
     html.rail nav button[aria-current="true"] svg { background: var(--volt); color: var(--void); }
   }
   nav button {
-    flex: 1 1 auto; background: var(--steel); color: var(--mute); border: 0; border-left: 3px solid var(--edge);
+    flex: 1 1 auto; background: var(--steel); color: var(--mute); border: 0; 
     padding: 11px 10px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
     transform: skewX(var(--skew)); font-variation-settings: "wdth" 78;
   }
   nav button span, .chip span, .btn span { display: block; transform: skewX(calc(var(--skew) * -1)); }
-  nav button[aria-current="true"] { background: var(--volt); color: var(--void); border-left-color: var(--ice); }
+  nav button[aria-current="true"] {   border-left-color: var(--ice); }
   :focus-visible { outline: 3px solid var(--volt); outline-offset: 3px; }
 
   .panel { display: none; }
@@ -167,7 +166,7 @@
   .toprow .kicker { margin: 0; }
 
   .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-  .stat { background: rgba(255,255,255,.055); border-bottom: 2px solid var(--accent, var(--volt)); padding: 9px 13px 8px; min-width: 88px; }
+  .stat {    min-width: 88px; }
   .stat b {
     display: block; font-size: clamp(28px, 3.4vw, 40px); font-weight: 900; font-style: italic;
     font-variation-settings: "wdth" 66; line-height: 1;
@@ -188,8 +187,8 @@
   }
   .evenings { color: var(--mute); font-size: 12px; margin: 10px 0 0; }
   .tag.st-upcoming { background: var(--edge); color: var(--ice); }
-  .tag.st-fresh { color: #04122e; background: linear-gradient(100deg,var(--volt) 30%,#EAF2FF 50%,var(--volt) 70%) 0 0/250% 100%;
-    box-shadow: 0 0 12px var(--volt); animation: freshine 2.4s linear infinite; }
+  .tag.st-fresh { color: #04122e; 
+    box-shadow: 0 0 12px var(--volt); }
   @keyframes freshine { to { background-position: -250% 0; } }
   .tag.st-backlog { background: #E8A33C; color: var(--void); }
   .tag.st-playing { background: #3FD9A4; color: var(--void); }
@@ -227,9 +226,8 @@
   html.round details.grp { border-radius: calc(var(--r, 18px) * .7); }
   details.grp > *:not(summary) { margin-bottom: 2px; }
   details.grp > summary:active { background: rgba(234,242,255,.05); }
-  details.grp > summary > b { flex: none; }
   details.grp > summary > em {
-    margin-left: auto; font-style: normal; font-weight: 700; font-size: 11px;
+     font-style: normal; font-weight: 700; font-size: 11px;
     letter-spacing: 0; text-transform: none; color: var(--mute);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
   }
@@ -249,11 +247,10 @@
   details.grp[open] > summary > .gdesc { color: var(--mute); }
   details.grp > summary::-webkit-details-marker { display: none; }
   details.grp > summary::after {
-    content: "+"; margin-left: 12px; font-style: normal; font-size: 16px; line-height: 1; color: var(--volt);
+     margin-left: 12px; font-style: normal;  line-height: 1; color: var(--volt);
     width: 26px; height: 26px; flex: none; display: grid; place-items: center;
-    background: rgba(var(--v2rgb),.14); border-radius: 50%;
+     border-radius: 50%;
   }
-  details.grp[open] > summary::after { content: "−"; }
   details.grp[open] > summary { color: var(--volt); }
   details.grp > :last-child { padding-bottom: 8px; }
   .platpick .chip { display: inline-flex; align-items: center; gap: 6px; }
@@ -307,7 +304,7 @@
   .libreel .cn { font-size: 13px; padding-top: 8px; white-space: normal; }
 
   /* the whole-screen view: poster first, everything else below it */
-  #full { position: fixed; inset: 0; z-index: 70; display: none; overflow-y: auto; background: var(--void); }
+  #full { position: fixed; inset: 0; z-index: 70; display: none; overflow-y: auto; }
   #full.on { display: block; }
   /* the hub page — exactly one screen, nothing scrolls */
   #full { overflow: hidden; }
@@ -395,24 +392,24 @@
   .tile.accent { border-color: var(--volt); }
 
   /* the recommendation, loudest thing on screen, text kept off the busy art */
-  .pick { padding: 0; min-height: 130px; }
+  .pick { padding: 0; }
   .pick .shot {
     position: absolute; inset: 0; background-size: cover; background-position: center top;
-    opacity: .5;
+    
   }
   .pick .scrim {
     position: absolute; inset: 0;
     background: linear-gradient(100deg, var(--ink) 4%, rgba(8,15,36,.86) 40%, rgba(8,15,36,.15) 82%);
   }
   .pick .in {
-    position: relative; z-index: 1; padding: 13px 14px; display: flex; flex-direction: column;
-    gap: 4px; height: 100%; align-items: flex-start; text-align: left; max-width: 74%;
+    position: relative;   display: flex; flex-direction: column;
+     height: 100%; align-items: flex-start; text-align: left; max-width: 74%;
   }
-  .pick .name { font-size: 22px; font-weight: 900; color: var(--ice); line-height: 1.05; }
-  .pick .why { font-size: 11px; color: var(--mute); line-height: 1.3; margin-top: 2px; }
+  .pick .name {   color: var(--ice); line-height: 1.05; }
+  .pick .why {   line-height: 1.3; margin-top: 2px; }
   .pick .go {
-    margin-top: auto; padding-top: 8px; font-size: 10.5px; font-weight: 800;
-    letter-spacing: .1em; text-transform: uppercase; color: var(--volt);
+    margin-top: auto; padding-top: 8px; font-size: 10.5px; 
+    letter-spacing: .1em; text-transform: uppercase; 
   }
 
   /* bare month arrows — a boxed button either side read as a frame around the grid */
@@ -427,7 +424,7 @@
 
   .covrow { display: flex; gap: 12px; align-items: flex-start; margin-top: 6px; }
   .sgrow { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; }
-  .sgpick { flex: none; background: var(--steel); border: 0; padding: 0; cursor: pointer; width: 74px; height: 74px; }
+  .sgpick { flex: none;  border: 0; padding: 0; cursor: pointer; width: 74px; height: 74px; }
   .sgrow.wide .sgpick { width: 150px; height: 70px; }
   .sgpick img { width: 100%; height: 100%; object-fit: contain; display: block; }
   /* checkerboard so you can tell which pictures are truly see-through */
@@ -474,7 +471,7 @@
   .shelf-ledge { display:none; }
   .sb { flex:0 0 var(--w); height:calc(var(--w) * 1.65); scroll-snap-align:start; border:0; padding:0; background:none; position:relative; z-index:1;
         filter: drop-shadow(0 0 9px var(--accent,var(--volt))); animation: sbUp .55s cubic-bezier(.2,.9,.3,1.15) both; animation-delay: calc(var(--i) * 55ms);
-        transition: transform .3s cubic-bezier(.2,.9,.3,1.3), filter .3s; }
+        }
   /* lowered cards slide left along the slant so every gap stays the same width */
   .sb + .sb { margin-left:calc(var(--w) * -0.139); }
   .sb:nth-child(even) { margin-top:calc(var(--w) * 0.3); margin-left:calc(var(--w) * -0.241); }
@@ -569,7 +566,7 @@
     border-bottom: 1px solid var(--edge);
   }
   .yearbar button {
-    background: var(--edge); border: 0; border-radius: 3px 3px 0 0; min-height: 3px;
+     border: 0;  min-height: 3px;
     display: block; width: 100%; padding: 0; cursor: pointer;
     transition: background .15s ease;
   }
@@ -585,7 +582,6 @@
   .meter i { display: block; height: 100%; background: var(--volt); border-radius: 3px; }
 
   @media (min-width: 620px) {
-    .dash { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
     .dash .wide { grid-column: span 2; }
     .dash .full { grid-column: 1 / -1; }
     .pick { min-height: 172px; }
@@ -645,6 +641,9 @@
     letter-spacing: .1em; text-transform: uppercase; box-shadow: 0 0 0 1.5px rgba(var(--vrgb),.45), 0 4px 14px rgba(0,0,0,.4); cursor: pointer; }
   
   #full.dragging .hub { transition: none; }
+  /* v277 (#127): the browser only scrolls a game page up and down, so a touch that starts sideways stays a swipe to the next
+     game (the swipe itself is ours, hubDragStart) instead of scrolling as well; pinch zoom still works */
+  #full .hub { touch-action: pan-y pinch-zoom; }
   #full .hub.snap { transition: transform .34s cubic-bezier(.22,1,.36,1), opacity .34s ease; }
   #full .hub { position: absolute; inset: 0; backface-visibility: hidden; transform: translateZ(0); will-change: transform; }
   .hub-fig {
@@ -971,7 +970,7 @@
     display: block; margin-top: 7px; font-size: 10px; font-weight: 800;
     letter-spacing: .06em; text-transform: uppercase; color: var(--mute);
   }
-  .pbar { display: flex; height: 12px; margin-top: 12px; background: var(--ink); overflow: hidden; }
+  .pbar {  height: 12px; margin-top: 12px; background: var(--ink); overflow: hidden; }
   .pbar i { display: block; height: 100%; }
   .pbar i.free { background: repeating-linear-gradient(90deg, var(--edge) 0 4px, transparent 4px 8px); }
   .note.over { color: #e8443a; }
@@ -1060,8 +1059,6 @@
   }
   .crow img { width: 56px; flex: none; aspect-ratio: 3/4; object-fit: cover; }
   .cr-in { min-width: 0; flex: 1 1 auto; display: grid; gap: 3px; }
-  .cr-in b { font-size: 15.5px; font-weight: 800; }
-  .cr-in small { font-size: 12px; color: var(--mute); }
 
   /* the undated pile is a waiting room, not the headline */
   .undated .row img { width: 34px; }
@@ -1105,11 +1102,10 @@
     position: absolute; z-index: 0; left: 0; top: 6px; bottom: 6px; width: 0;
     background: var(--volt); border-radius: 999px; opacity: 0;
     box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.5);
-    transition: transform .28s cubic-bezier(.4,0,.2,1), width .28s cubic-bezier(.4,0,.2,1), opacity .18s linear;
-    will-change: transform, width;
+    
+    
   }
   html.still .vslide { transition: none; }
-  .vpill [data-view][aria-pressed="true"] { color: var(--void); box-shadow: none; }
   .vpill.on { display: flex; }
   .vpill button {
     border: 0; background: none; color: var(--mute); cursor: pointer; font: inherit;
@@ -1448,7 +1444,7 @@
     font-size: 11px; font-weight: 900; padding: 2px 9px; margin-bottom: 9px;
     font-variation-settings: "wdth" 80; text-transform: uppercase; letter-spacing: .08em;
   }
-  .hero h2 { overflow-wrap: anywhere; margin: 0 0 8px; font-size: clamp(23px, 6.4vw, 38px); font-weight: 900; font-style: italic; font-variation-settings: "wdth" 72; line-height: .95; text-transform: uppercase; }
+  .hero h2 { overflow-wrap: anywhere; margin: 0 0 8px; font-size: clamp(23px, 6.4vw, 38px);    line-height: .95; }
   .hero .desc { color: var(--mute); font-size: 14px; margin: 8px 0 0; max-width: 46ch; }
   .hours {
     display: inline-block; font-weight: 900; font-style: italic; font-variation-settings: "wdth" 70;
@@ -1522,7 +1518,7 @@
   html.still.dragging-now .row:not(.dragging) { transition: none; }
   .row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-variation-settings: "wdth" 84; }
   .score { color: var(--mute); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .tag { font-size: 10px; font-weight: 900; padding: 2px 6px; color: var(--void); background: var(--mute); text-transform: uppercase; }
+  .tag { font-size: 10px; font-weight: 900;  color: var(--void); background: var(--mute); text-transform: uppercase; }
   .tag.confirmed { background: var(--volt); }
   .tag.rumoured { background: #C8A44A; }
   .tag.tba { background: #5A6E9B; color: var(--ice); }
@@ -1824,10 +1820,8 @@ background:radial-gradient(ellipse at 50% 40%,#2a1150,#0b0520 70%);clip-path:pol
 #fxboss .lv{text-align:center;font:800 12px Archivo,sans-serif;color:#FF5470;letter-spacing:.2em}
 .fxhp{height:22px;background:#0b1633;border-radius:999px;position:relative;overflow:hidden;margin:16px 0 6px;box-shadow:inset 0 2px 6px rgba(0,0,0,.6),0 0 0 2px #1f3a7a}
 .fxhp i,.fxhp u{position:absolute;left:0;top:0;bottom:0;display:block;border-radius:999px 0 0 999px}
-.fxhp u{background:#EAF2FF;opacity:.85;transition:width .9s ease .5s}
-.fxhp i{background:linear-gradient(90deg,#d8345a,#ff8aa0);transition:width .35s ease}
-.fxhp i::after{content:"";position:absolute;left:calc(100% - 6px);top:0;bottom:0;width:18px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='24'%3E%3Cpath d='M0 0H8Q18 6 8 12Q-2 18 8 24H0Z' fill='%23ff8aa0'/%3E%3C/svg%3E") repeat-y 0 0/18px 24px;animation:fxflow 1s linear infinite,fxslosh 1.8s ease-in-out infinite alternate}
-.fxhp i::before{content:"";position:absolute;left:4px;right:10px;top:3px;height:30%;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent) 0 0/40% 100% no-repeat;animation:fxglint 1.8s ease-in-out infinite alternate}
+.fxhp i::after{content:"";position:absolute;left:calc(100% - 6px);top:0;bottom:0;width:18px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='24'%3E%3Cpath d='M0 0H8Q18 6 8 12Q-2 18 8 24H0Z' fill='%23ff8aa0'/%3E%3C/svg%3E") repeat-y 0 0/18px 24px;}
+.fxhp i::before{content:"";position:absolute;left:4px;top:3px;height:30%;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent) 0 0/40% 100% no-repeat;animation:fxglint 1.8s ease-in-out infinite alternate}
 @keyframes fxflow{to{background-position:0 24px}}
 @keyframes fxslosh{from{transform:translateX(-10px) skewX(12deg)}to{transform:translateX(9px) skewX(-12deg)}}
 @keyframes fxglint{from{background-position:0 0}to{background-position:100% 0}}
@@ -1839,7 +1833,7 @@ background:radial-gradient(ellipse at 50% 40%,#2a1150,#0b0520 70%);clip-path:pol
 -webkit-mask-position:0 0,right 0 top 0;mask-position:0 0,right 0 top 0;
 animation:hpflow 1.1s linear infinite}
 .fxhp i::after{display:none}
-.fxhp i[style*='width:100%'],.fxhp i[style*='width: 100%']{-webkit-mask-image:none;mask-image:none;border-radius:999px}.fxhp u{clip-path:inset(0 9px 0 0)}.fxhp.hpjolt i{animation:hpflow .45s linear infinite,hpshake .6s ease-out .5s}
+.fxhp i[style*='width:100%'],.fxhp i[style*='width: 100%']{-webkit-mask-image:none;mask-image:none;border-radius:999px}.fxhp u{clip-path:inset(0 9px 0 0)}
 .fxhp u{background:linear-gradient(180deg,#9c1f3d,#6e1530);opacity:.9;border-radius:999px;transition:width 1.6s cubic-bezier(.4,0,.2,1) 1.1s!important}.fxhp i{transition:width 1s cubic-bezier(.22,1,.36,1) .5s!important}#fxhud{transition:opacity .4s ease,transform .4s ease}#fxhud.bye{opacity:0;transform:translateY(-12px)}
 @keyframes hpflow{to{-webkit-mask-position:0 0,right 0 top 20px;mask-position:0 0,right 0 top 20px}}
 @keyframes hpshake{20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
@@ -1956,17 +1950,15 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .aw-h { text-align: center; margin: 0 0 4px; font-size: 22px; color: var(--ice); }
   .astep { display: none; } .astep.on { display: block; animation: lxstep .45s cubic-bezier(.22,1,.36,1) both; }
   @keyframes lxstep { from { opacity: 0; transform: translateX(24px); } }
-  .aw-nav { display: flex; gap: 10px; margin-top: 18px; }
-  .aw-nav .lx-go { flex: 1; } .aw-nav .lx-edit { flex: none; padding: 0 12px; }
-  .aw-prev { position: relative; min-height: 340px; border-radius: 14px; overflow: hidden; background: var(--steel); }
-  @media (min-width: 760px) { .aw-prev { position: sticky; top: 16px; min-height: 480px; } }
-  .aw-prev img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .4s ease; }
-  .aw-prev .lx-card { width: 78%; }
-  .aw-prev .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); font-size: 13px; }
+  .aw-nav { display: flex; gap: 10px; margin-top: 18px; } .aw-nav .lx-edit { flex: none; }
+  .aw-prev { position: relative; }
+  @media (min-width: 760px) { .aw-prev { position: sticky; top: 16px; } }
+  .aw-prev img {      transition: opacity .4s ease; }
+  .aw-prev .empty {  inset: 0; display: grid; place-items: center; color: var(--mute); font-size: 13px; }
 
   /* library launcher */
-  .lxl { display: grid; grid-template-columns: minmax(280px, 40%) 1fr; grid-template-rows: 1fr auto;
-    height: calc(100dvh - 170px); min-height: 520px; border-radius: 16px; overflow: hidden; background: var(--void);
+  .lxl {  grid-template-columns: minmax(280px, 40%) 1fr; 
+    height: calc(100dvh - 170px); min-height: 520px; border-radius: 16px;  background: var(--void);
     border: 1px solid var(--edge); }
   .lxl .lx-panel { grid-row: 1; padding: 24px 26px; }
   .lxl .lx-rows div { transition: opacity .35s ease, max-height .45s cubic-bezier(.22,1,.36,1), margin .45s ease; max-height: 60px; }
@@ -1983,19 +1975,19 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .lxl.reading .lx-desc::after { opacity: 0; pointer-events: none; }
   .lxl .lx-art { grid-row: 1; display: grid; place-items: center; touch-action: pan-y; }
   .lxl .lx-art::after { display: none; }
-  .lxl .lx-art img.lx-box { position: relative; inset: auto; width: auto; height: auto; max-width: 78%; max-height: 86%;
-    object-fit: contain; border-radius: 10px; box-shadow: 0 30px 60px rgba(0,0,0,.6); animation: lxbox .6s cubic-bezier(.22,1,.36,1) both; }
+  .lxl .lx-art img.lx-box {      
+       animation: lxbox .6s cubic-bezier(.22,1,.36,1) both; }
   @keyframes lxbox { from { opacity: 0; transform: scale(.9) translateY(14px); } }
   @keyframes lxboxr { from { opacity: 0; transform: translateX(60px) scale(.94); } }
   @keyframes lxboxl { from { opacity: 0; transform: translateX(-60px) scale(.94); } }
-  .lx-strip { grid-column: 1 / -1; display: flex; gap: 8px; overflow-x: auto; padding: 10px 14px; background: var(--ink);
+  .lx-strip { grid-column: 1 / -1; display: flex; gap: 8px; overflow-x: auto; padding: 10px 14px; 
     border-top: 1px solid var(--edge); scrollbar-width: none; }
   .lx-strip button { flex: none; width: 46px; height: 62px; padding: 0; border: 2px solid transparent; border-radius: 6px;
     overflow: hidden; background: none; cursor: pointer; opacity: .5; transition: all .3s ease; }
   .lx-strip button.on { border-color: var(--volt); opacity: 1; transform: translateY(-3px); }
   .lx-strip img { width: 100%; height: 100%; object-fit: cover; }
   @media (max-width: 759px) {
-    .lxl { grid-template-columns: 1fr; grid-template-rows: 44% 1fr auto; height: calc(100dvh - 150px); }
+    .lxl { grid-template-columns: 1fr;  height: calc(100dvh - 150px); }
     .lxl .lx-art { grid-row: 1; } .lxl .lx-panel { grid-row: 2; padding: 16px 18px; }
   }
 
@@ -2007,7 +1999,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #lxfull .lx-panel h2 { margin-top: 6px; }
 
   /* v51: art fills the right side; the strip floats in only while swiping */
-  .lxl { position: relative; grid-template-rows: 1fr; }
+  .lxl {  grid-template-rows: 1fr; }
   .lxl .lx-art img.lx-box { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
     object-fit: cover; border-radius: 0; box-shadow: none; }
   .lx-strip { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 5;
@@ -2100,7 +2092,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .ring { position: relative; width: 200px; height: 200px; display: grid; place-items: center; margin: 6px 0 12px; }
   .ring .blob { position: absolute; inset: 0; border-radius: 46% 54% 42% 58% / 55% 45% 55% 45%;
     background: conic-gradient(from 200deg, var(--volt2), #8FD0FF, #EAF2FF, #7B6CFF, var(--volt2));
-    filter: blur(2px); animation: blob 9s linear infinite; }
+     animation: blob 9s linear infinite; }
   .ring .core { position: relative; width: 150px; height: 150px; border-radius: 50%; background: var(--void);
     box-shadow: inset 0 0 0 1px rgba(234,242,255,.12), 0 0 30px rgba(0,0,0,.6); display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; }
@@ -2251,7 +2243,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #hrail { display: none; position: fixed; right: 12px; top: 12px; bottom: 12px; z-index: 40; width: 72px;
     flex-direction: column; align-items: center; gap: 10px; padding: 14px 0; border-radius: 30px;
     background: var(--ink); border: 1px solid var(--edge); box-shadow: 0 20px 40px rgba(0,0,0,.5);
-    transition: transform .5s var(--ease), opacity .4s; }
+    }
   @media (min-width: 620px) { #hrail { display: flex; } }
   #hrail .rh { font-size: 9px; letter-spacing: .14em; color: var(--mute); font-weight: 800; writing-mode: vertical-rl; transform: rotate(180deg); margin: 2px 0 4px; }
   #hrail .games { display: flex; flex-direction: column; gap: 12px; align-items: center; flex: 1; overflow-y: auto; scrollbar-width: none; padding: 4px 0; }
@@ -2275,13 +2267,11 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
 
   /* ===== v75 Home fits one screen: fixed slots, swipeable stacks ===== */
   .dash.pnfit { height: var(--dashH, 72vh); grid-auto-rows: unset; grid-auto-flow: row; gap: 12px;
-    grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0,1fr) auto minmax(0,1.1fr) minmax(0,1fr) auto;
-    grid-template-areas: "p p" "d d" "r b" "a a" "c c"; }
+     
+    }
   @media (min-width: 620px) {
-    .dash.pnfit { grid-template-columns: 1fr 1fr 1fr 1.3fr; grid-template-rows: minmax(0,1.15fr) auto minmax(0,1fr) auto;
-      grid-template-areas: "p p p r" "d d b r" "a a b r" "c c c c"; }
   }
-  .dash.pnfit > .k-cd { grid-area: d; min-height: 0; padding: 12px 14px; }
+  .dash.pnfit > .k-cd {  min-height: 0; }
   .dash.pnfit .cdb { padding: 8px 2px 6px; min-width: 0; } .dash.pnfit .cdb b { font-size: clamp(20px, 3.4vw, 28px); }
   .dash.pnfit .cdb small { font-size: 9px; letter-spacing: .04em; }
   .dash.pnfit .k-cd h5 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2292,9 +2282,9 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .dash.pnfit .k-taste .chip { font-size: 11.5px; padding: 5px 11px; margin: 0; }
   .dash.pnfit .k-taste .chips { gap: 6px; }
   .dash.pnfit .k-taste p { font-size: 12px; margin: 0 0 8px; }
-  .dash.pnfit > .k-ring { justify-content: flex-start; gap: 16px; padding: 16px 12px; }
+  .dash.pnfit > .k-ring {   padding: 16px 12px; }
   .dash.pnfit > .k-ring h5 { align-self: center; }
-  .dash.pnfit .ring { width: min(300px, 92%); margin: 0; }
+  .dash.pnfit .ring {  margin: 0; }
   .dash.pnfit .ring .core { width: 76%; height: 76%; }
   .dash.pnfit .ring .core b { font-size: clamp(26px, 4.2vw, 40px); }
   .dash.pnfit .trio .dot { width: 52px; height: 52px; }
@@ -2311,8 +2301,8 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .stk::-webkit-scrollbar { display: none; }
   .stk > * { flex: 0 0 100%; min-width: 0; min-height: 0; margin: 0 !important; scroll-snap-align: center;
     overflow-y: auto; scrollbar-width: none; }
-  .stkw.v .stk { flex-direction: column; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y mandatory; }
-  .stkd { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%); display: flex; gap: 5px; z-index: 3; pointer-events: auto; }
+  .stkw.v .stk { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+  .stkd { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%); display: flex;  z-index: 3; pointer-events: auto; }
   .stkw.v .stkd { left: auto; right: 8px; bottom: auto; top: 50%; transform: translateY(-50%); flex-direction: column; }
   .stkd { gap: 9px; }
   .stkd i { width: 6px; height: 6px; border-radius: 3px; background: rgba(234,242,255,.28); cursor: pointer;
@@ -2325,15 +2315,11 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   html.onhome .dash.pnfit ~ #hintbub, html.onhome #hintbub { display: none; }
 
   /* ===== v79 dashboard layout from the reference + pop-out figure ===== */
-  .dash.pnfit { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0,1.2fr) auto minmax(0,1fr) minmax(0,1fr) auto;
-    grid-template-areas: "p p" "u u" "x y" "b r" "c c"; }
   @media (min-width: 620px) {
-    .dash.pnfit { grid-template-columns: 1fr 1fr 1fr 1.3fr; grid-template-rows: minmax(0,1.25fr) minmax(0,1fr) auto;
-      grid-template-areas: "p p p u" "x y b r" "c c c r"; }
   }
   .dash.pnfit > .k-up { grid-area: u; background: transparent; border: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
   .dash.pnfit > .k-up .un { flex: 1; min-height: 0; border-radius: 20px; }
-  .dash.pnfit > .k-cd { grid-area: x; } .dash.pnfit > .k-tonight { grid-area: y; overflow-y: auto; scrollbar-width: none; }
+  .dash.pnfit > .k-cd { grid-area: x; } .dash.pnfit > .k-tonight {  overflow-y: auto; scrollbar-width: none; }
   .dash.pnfit > .k-cd .cd { margin-top: auto; }
   .imgcard { background-color: var(--ink) !important;
     background-image: linear-gradient(0deg, rgba(4,6,14,.94) 30%, rgba(4,6,14,.45) 70%, rgba(4,6,14,.2)), var(--bgi, none) !important;
@@ -2362,7 +2348,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   }
   .dash.pnfit > .k-tonight { grid-area: auto; }
   .dash.pnfit > .k-ring { gap: 10px; }
-  .dash.pnfit .ring { width: min(260px, 88%); }
   .dash.pnfit .k-pick .in { max-width: 58%; height: 100%; }
   .dash.pnfit .k-pick .plogo { max-height: 26%; }
   .dash.pnfit .k-pick .why { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; }
@@ -2380,10 +2365,10 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     html.pnrail:not(.railhide) #hintbub { right: 100px; }
     html.onhome.railhide .wrap { padding-right: 16px; }
   }
-  html.railhide #hrail { transform: translateX(130%); opacity: 0; pointer-events: none; }
+  html.railhide #hrail {  opacity: 0; pointer-events: none; }
   html:not(.onhome) #hrail { box-shadow: 0 24px 60px rgba(0,0,0,.75); }
   #hrail .tb { width: 48px; height: 44px; border-radius: 16px; border: 0; cursor: pointer; flex: none; display: grid; place-items: center;
-    background: transparent; color: var(--mute); transition: background-color .3s, color .3s, transform .35s var(--ease); }
+    background: transparent; color: var(--mute); }
   #hrail .tb svg { width: 20px; height: 20px; fill: currentColor; display: block !important; }
   #hrail .tb.on { background: var(--volt); color: var(--void); }
   
@@ -2430,7 +2415,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub { position: fixed; left: 0; top: 0; z-index: 60; width: 62px; height: 62px; touch-action: none; cursor: grab;
     will-change: transform; display: none; }
   @media (min-width: 620px) { html.railhide #pnbub { display: block; } }
-  #pnbub .core { position: absolute; inset: 0; border-radius: 50%; background: var(--volt) center/cover; border: 3px solid var(--ice);
+  #pnbub .core { position: absolute; inset: 0; border-radius: 50%; background: var(--volt) center/cover; 
     box-shadow: 0 10px 26px rgba(0,0,0,.55); animation: bubBob 3.4s ease-in-out infinite; }
   #pnbub .ring { position: absolute; inset: -8px; border-radius: 50%; border: 2px solid var(--volt); opacity: 0;
     animation: bubPing 2.8s ease-out infinite; pointer-events: none; }
@@ -2457,8 +2442,8 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub .ring { display: none; }
   #pnbub::before { content: ""; position: absolute; inset: -20px; border-radius: 50%; pointer-events: none;
     background: radial-gradient(circle, rgba(var(--vrgb),.4), transparent 66%); animation: pnBreath 4.5s ease-in-out infinite; }
-  #pnbub .aura { position: absolute; inset: -8px; border-radius: 46% 54% 42% 58% / 55% 45% 55% 45%; pointer-events: none;
-    background: conic-gradient(from 200deg, var(--volt2), #8FD0FF, #EAF2FF, #7B6CFF, var(--volt2)); filter: blur(1.5px);
+  #pnbub .aura { position: absolute;   pointer-events: none;
+     
     animation: blob 6s linear infinite; }
   #pnbub .core { border: 3px solid var(--void); }
   #pnbub.img .core { inset: -16px; border: 0; border-radius: 0; background-color: transparent; background-size: contain;
@@ -2490,7 +2475,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     background: rgba(255,110,170,.35); filter: blur(1px); } #pnbub .face::before { left: 14%; } #pnbub .face::after { right: 14%; }
   #pnbub .eyes { position: absolute; inset: 0; transform: translate(var(--ex,0px), var(--ey,0px)); transition: transform .18s ease-out; }
   #pnbub .eye { position: absolute; top: 32%; width: 11px; height: 15px; border-radius: 50%; background: #EAF2FF;
-    box-shadow: 0 0 8px #8FD0FF; animation: pnBlink 4.6s infinite; transition: height .15s, top .15s; }
+    box-shadow: 0 0 8px #8FD0FF; animation: pnBlink 4.6s infinite; }
   #pnbub .eye.l { left: 27%; } #pnbub .eye.r { right: 27%; animation-delay: .04s; }
   #pnbub .mouth { position: absolute; left: 50%; top: 62%; width: 14px; height: 7px; margin-left: -7px;
     border: 2.5px solid #8FD0FF; border-top: 0; border-radius: 0 0 14px 14px; transition: all .15s; }
@@ -2510,11 +2495,8 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub.dizzy .eye { width: 12px; height: 12px; background: transparent; box-shadow: none; border: 2.5px solid #EAF2FF;
     border-right-color: transparent; animation: pnSpin .45s linear infinite; }
   #pnbub.dizzy .mouth { width: 12px; height: 4px; margin-left: -6px; border-radius: 4px; border: 0; background: #8FD0FF; transform: rotate(-12deg); }
-  #pnbub.talk .mouth { width: 11px; height: 8px; margin-left: -5.5px; border: 0; border-radius: 50%; background: #8FD0FF;
-    animation: pnTalk .16s ease-in-out infinite alternate; }
   /* v86 more moods, hats, glow from your #1, poke, emote wheel, wandering */
   /* iPhone Safari ignores rounded corners on blurred, spinning layers, so the glow showed as a square: clip it to a circle */
-  #pnbub .aura { clip-path: circle(50% at 50% 50%); -webkit-clip-path: circle(50% at 50% 50%); -webkit-backface-visibility: hidden; }
   #pnbub .face { -webkit-mask-image: -webkit-radial-gradient(white, black); }
   #pnbub .aura { background: conic-gradient(from 200deg, var(--g1,var(--volt2)), #8FD0FF, #EAF2FF, var(--g2,#7B6CFF), var(--g1,var(--volt2))); }
   #pnbub .eye::before { content: ""; position: absolute; inset: -4px; display: grid; place-items: center; font: 900 14px/1 sans-serif; }
@@ -2534,7 +2516,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     border-radius: 10px 10px 0 0; animation: none; }
   #pnbub.love .mouth, #pnbub.wink .mouth { width: 16px; height: 9px; margin-left: -8px; background: #8FD0FF; }
   #pnbub.laugh .mouth { width: 18px; height: 11px; margin-left: -9px; border: 0; background: #8FD0FF; border-radius: 0 0 12px 12px; }
-  #pnbub.laugh .face, #pnbub.angry .face { animation: pnShake .1s linear infinite alternate; }
   #pnbub.love .eye { background: none; box-shadow: none; animation: pnBeat .45s ease-in-out infinite alternate; }
   #pnbub.love .eye::before { content: "\2665"; color: #ff5a8a; text-shadow: 0 0 6px #ff5a8a; font-size: 17px; }
   #pnbub.sad .eye { height: 11px; top: 36%; }
@@ -2571,7 +2552,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub.laugh .core, #pnbub.angry .core { animation: bubBob 3.4s ease-in-out infinite, pnJit .1s linear infinite alternate; }
   @keyframes pnJit { from { translate: -1.5px 0; } to { translate: 1.5px 0; } }
   #pnbub .mouth, #pnbub .face::before, #pnbub .face::after { translate: calc(var(--ex, 0px) * .8) calc(var(--ey, 0px) * .9);
-    transition: translate .18s ease-out, all .15s; }
+    }
   #pnbub { transition: translate .7s cubic-bezier(.34,1.3,.64,1); }
 
   #pnbub .nt { position: absolute; right: 6px; top: 4px; font: 800 12px/1 sans-serif; color: #8FD0FF; opacity: 0; font-style: normal; }
@@ -2729,16 +2710,16 @@ html.still #diary,html.still .dy-in{transition:none}
 
 .hflip.lift{animation:flLift .85s cubic-bezier(.3,1.2,.4,1)}
 @keyframes flLift{0%{transform:none}35%{transform:translateY(-10px) scale(1.035)}70%{transform:translateY(2px) scale(.995)}100%{transform:none}}
-.hflip>.plate::after{content:"";position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;background:linear-gradient(105deg,transparent 35%,rgba(234,242,255,.22) 50%,transparent 65%);background-size:250% 100%}
+.hflip>.plate::after{content:"";position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;background:linear-gradient(105deg,transparent 35%,rgba(234,242,255,.22) 50%,transparent 65%);}
 .hflip.lift>.plate::after{animation:flShine .85s ease-out}
 @keyframes flShine{0%{opacity:0;background-position:120% 0}30%{opacity:1}100%{opacity:0;background-position:-40% 0}}
 html.still .hflip.lift,html.still .hflip.lift>.plate::after{animation:none}
 html.still .hflip>.plate{transition:none}
   /* v128: the blur filter made phones redraw the spinning glow as a square now and then. Drop the blur,
      soften the edge with a round fade instead, so even a bad redraw has no corners to show */
-  #pnbub .aura { filter: none !important; border-radius: 50% !important; inset: -16px !important;
-    -webkit-mask-image: radial-gradient(circle closest-side, #000 82%, transparent 100%);
-            mask-image: radial-gradient(circle closest-side, #000 82%, transparent 100%); }
+  #pnbub .aura {   inset: -16px !important;
+    
+            }
   /* v129 smoother everywhere: each screen's pieces glide in one after another when you open it */
   .panel.enter > * { animation: pnCascade .55s cubic-bezier(.22,1,.36,1) backwards; }
   .panel.enter > :nth-child(2) { animation-delay: 45ms; }
@@ -2783,7 +2764,7 @@ html.still .hflip>.plate{transition:none}
     background: radial-gradient(circle, rgba(255,250,200,.95) 30%, rgba(255,200,40,.7) 48%, rgba(255,140,20,.25) 64%, transparent 72%);
     animation: fGlow .5s ease-in-out infinite alternate; }
   #pnbub .flame i { position: absolute; left: 50%; bottom: 50%; width: var(--w); height: var(--h); margin-left: calc(var(--w) / -2); transform-origin: 50% 100%;
-    border-radius: 50% 50% 45% 45% / 75% 75% 25% 25%;
+    
     background: linear-gradient(to top, rgba(255,255,230,.95) 28%, rgba(255,214,60,.92) 52%, rgba(255,150,20,.6) 78%, rgba(255,120,10,0));
     transform: rotate(var(--a)) translateY(-30px) rotate(var(--b)) scaleY(.9); animation: fTongue .32s ease-in-out infinite alternate; animation-delay: var(--d); }
   @keyframes fTongue { to { transform: rotate(var(--a)) translateY(-30px) rotate(calc(var(--b) + 5deg)) scale(.84, 1.16); } }
@@ -3459,7 +3440,6 @@ function mix(hex, to, amt) {
   const b = [to.slice(1, 3), to.slice(3, 5), to.slice(5, 7)].map(p);
   return "#" + a.map((v, i) => Math.round(v * (1 - amt) + b[i] * amt).toString(16).padStart(2, "0")).join("");
 }
-let bgSlot = 1;
 /* v181 one-tap themes: same black base, a different accent (the background has its own settings since v276) */
 const THEMES = {
   midnight: { n: "Midnight", a: "#4DA3FF", b: "#2F6BFF" }, crimson: { n: "Crimson", a: "#FF5C7A", b: "#D4264B" },
@@ -4004,7 +3984,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "276";
+const APP_V = "277";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4015,10 +3995,18 @@ function installed() {
    need to know it worked. */
 let saveT = 0;
 const saveIdle = window.requestIdleCallback || (f => setTimeout(f, 0));
+/* v277: what else happens on a save. A feature registers onSave({ before, after }) instead of wrapping save (it had 10 wraps):
+   befores run newest first, then the save is queued, then afters run oldest first (the order the wraps ran in);
+   whatever a before returns is handed to its own after. */
+var saveHooks = [];
+function onSave(h) { saveHooks.push(h); }
 function save() {
+  const hs = saveHooks || [], got = [];
+  for (let i = hs.length - 1; i >= 0; i--) if (hs[i].before) try { got[i] = hs[i].before(); } catch (e) {}
   /* wait until the screen's animation is done, then write while the phone is idle */
   if (!saveT) saveT = setTimeout(() => saveIdle(() => { if (saveT) saveNow(); }, { timeout: 1500 }), 1200);
   try { frAuto(); } catch (e) {}
+  for (let i = 0; i < hs.length; i++) if (hs[i].after) try { hs[i].after(got[i]); } catch (e) {}
   return true;
 }
 addEventListener("visibilitychange", () => { if (document.hidden && saveT) saveNow(); });
@@ -4953,7 +4941,7 @@ const GROUP_KEYS = {
   "Sound and reactions": ["sound", "reactions"],
   "Motion": ["motion", "vt", "rowAnim", "tabFade", "restOff"],
   "Header cards": ["shxOff", "shxX"],
-  "Look of the app": ["uiStyle", "addStyle", "picHQ", "bgBase", "bgTint", "bgGrad", "corners", "radius"],
+  "Look of the app": ["livePrev", "uiStyle", "addStyle", "picHQ", "bgBase", "bgTint", "bgGrad", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
   "Character art": ["artSize", "artH", "artFloat", "artSpeed", "artGlow"],
   "Library": ["libLayout", "libCols", "libTitle", "libTL", "libTR", "libBL", "libBR", "reelW", "buzz", "coverQ"],
@@ -6438,6 +6426,12 @@ function openSettings(scope) {
     ${scope && scope !== "app" && scope !== "home" && !openSettings.tplOnly ? `<div class="setgroup" data-scope="${scope}"><h4 data-desc="The card at the top of this screen (and every other one).">Header cards</h4>${shxSetHtml()}</div>` : ""}
 
     <div class="setgroup" data-scope="app"><h4 data-desc="A one-tap theme, the background behind everything, and how round things are.">Look of the app</h4>
+      <label>Live preview</label>
+      <div class="chips" id="s-livep">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.livePrev ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">Off by default. On: a screen's Customise (and this group, Motion, Header cards and Getting around) sits on the bottom part of the screen, or beside it when unfolded, so you watch the real screen change as you pick.</p>
       <label>Theme</label>
       <div class="thpick" id="s-theme">${Object.entries(THEMES).map(([k, t]) =>
         `<button type="button" class="chip" data-v="${k}" aria-pressed="${(S.theme || "midnight") === k}" style="--ta:${t.a};--tb:${t.b}"><i></i><span>${t.n}</span></button>`).join("")}</div>
@@ -6821,6 +6815,7 @@ function openSettings(scope) {
   slide("#s-cardbgstr", "#s-cardbgstr-v", "%", "cardBgStr", () => renderQueue());
   slide("#s-radius", "#s-radius-v", "px", "radius");
   slide("#s-bggrad", "#s-bggrad-v", "%", "bgGrad");
+  pick("#s-livep", v => S.livePrev = v === "on", () => lvpSync());
   slide("#s-libcols", "#s-libcols-v", "", "libCols", () => renderLib());
   slide("#s-reelw", "#s-reelw-v", "%", "reelW", () => renderLib());
   slide("#s-flowsize", "#s-flowsize-v", "px", "flowSize", () => renderCal());
@@ -9400,7 +9395,7 @@ function hubReady(el) {
   const jobs = urls.filter(Boolean).map(u => { const im = new Image(); im.src = u; return im.decode ? im.decode().catch(() => {}) : Promise.resolve(); });
   return Promise.race([Promise.all(jobs), new Promise(r => setTimeout(r, 350))]);
 }
-let hubAt = null, hubX = 0, hubY = 0, hubBusy = false;
+let hubAt = null, hubX = 0, hubY = 0, hubBusy = false, hubAxis = "";
 /* The hub follows your thumb the way the library reel does: both neighbours are
    laid out either side, everything moves with the finger, and where you let go
    decides which one lands. Stop mid-swipe and it stays where you left it. */
@@ -9500,13 +9495,16 @@ function hubDragEnd(vel) {
 }
 document.addEventListener("touchstart", e => {
   if (!hubBox() || e.touches.length > 1) return;
-  hubX = e.touches[0].clientX; hubY = e.touches[0].clientY; hubT0 = performance.now();
+  hubX = e.touches[0].clientX; hubY = e.touches[0].clientY; hubT0 = performance.now(); hubAxis = "";
 }, { passive: true });
 document.addEventListener("touchmove", e => {
   const b = hubBox();
   if (!b || !hubLive()) return;
   const dx = e.touches[0].clientX - hubX, dy = e.touches[0].clientY - hubY;
   if (!hd) {
+    /* v277 (#127): a drag picks its direction once, in its first 10px: one that starts as a scroll never turns into a swipe */
+    if (!hubAxis && Math.hypot(dx, dy) >= 10) hubAxis = Math.abs(dx) >= Math.abs(dy) * 1.2 ? "x" : "y";
+    if (hubAxis !== "x") return;
     if (hubBusy || b.classList.contains("sliding") || b.querySelectorAll(".hub").length !== 1) return;
     if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
     if (e.target.closest && e.target.closest("input, textarea, select, [data-noswipe]")) return;
@@ -12639,7 +12637,7 @@ function sigWatch() {
   sigIds = new Map(S.games.map(g => [g.id, Object.assign({ _st: g.state }, { id: g.id, title: g.title, genres: g.genres })]));
   sigIds._S = S;
 }
-{ const _sv = save; save = function () { try { sigWatch(); } catch (e) {} return _sv.apply(this, arguments); }; }
+onSave({ before: () => sigWatch() });
 
 /* ---- what your duels (and adds, removes, trailers) say about you ---- */
 const TAG_WORD = { rpg: "RPGs", strategy: "Strategy games", adventure: "Adventure games", action: "Action games", platformer: "Platformers", simulation: "Sims",
@@ -13286,12 +13284,12 @@ og.gain.setValueAtTime(.8,t);og.gain.exponentialRampToValueAtTime(.001,t+.25);o.
 [659,784,988,1319].forEach((f,i)=>{const r=a.createOscillator(),rg=a.createGain();r.type='triangle';r.frequency.value=f;
 const st=t+.12+i*.07;rg.gain.setValueAtTime(0,st);rg.gain.linearRampToValueAtTime(.12,st+.01);rg.gain.exponentialRampToValueAtTime(.001,st+.6);
 r.connect(rg).connect(m);r.start(st);r.stop(st+.65)})}catch(_){}}
-let done=new Set(S.games.filter(g=>g.state==="played").map(g=>g.id));const _sv=save;
-save=function(){const r=_sv.apply(this,arguments);const now=S.games.filter(g=>g.state==="played"),nw=now.find(g=>!done.has(g.id));
+let done=new Set(S.games.filter(g=>g.state==="played").map(g=>g.id));
+onSave({after:()=>{const now=S.games.filter(g=>g.state==="played"),nw=now.find(g=>!done.has(g.id));
 done=new Set(now.map(g=>g.id));if(nw){clang();if(!still()){const d=document.createElement('div');d.className='fxclr';
 d.innerHTML='<b>CLEAR!</b><small></small>';d.querySelector('small').textContent=nw.title||'';document.body.appendChild(d);
 setTimeout(()=>{const q=d.querySelector('b').getBoundingClientRect();burst(q.left+q.width/2,q.top+q.height/2,30,12,'#EAF2FF')},120);
-setTimeout(()=>d.remove(),1650)}}return r};
+setTimeout(()=>d.remove(),1650)}}}});
 
 function fanfare(){try{AC=AC||new AudioContext();AC.resume();const a=AC,t=a.currentTime+.02,m=a.createGain(),lp=a.createBiquadFilter();
 lp.type='lowpass';lp.frequency.value=2600;m.gain.value=.3;m.connect(lp).connect(a.destination);
@@ -13324,32 +13322,32 @@ g.gain.exponentialRampToValueAtTime(.001,t+o+.04);s.connect(g).connect(a.destina
 setTimeout(()=>{if(!gone)burst(innerWidth*.85,innerHeight*.42,22,10,'#EAF2FF')},1100)}
 setTimeout(()=>cal(outNow),300);
 function radar(){const td=new Date().toLocaleDateString('en-CA'),T=new Date(td);
-const up=S.games.filter(g=>isUpcoming(g)),dated=up.filter(g=>g.date).sort((a,b)=>a.date<b.date?-1:1),tba=up.filter(g=>!g.date);
+const now0=new Date(),up=S.games.filter(g=>isUpcoming(g)||(g.date&&new Date(g.date)>now0&&!isPlayed(g)&&!isDropped(g))),dated=up.filter(g=>g.date).sort((a,b)=>a.date<b.date?-1:1),tba=up.filter(g=>!g.date);
 const by={};dated.forEach(g=>(by[g.date.slice(0,7)]||(by[g.date.slice(0,7)]=[])).push(g));
 let k=0;const card=(g,i,arr)=>{const d=g.date?new Date(g.date):null,left=d?Math.round((d-T)/864e5):null;
 const clash=d&&arr.some(o=>o!==g&&o.date&&Math.abs(new Date(o.date)-d)<=7*864e5);
 return `<div class="gm" style="--a:${esc(g.colour||'#4DA3FF')};animation-delay:${Math.min(k++,12)*50}ms">
-<div class="d">${d?d.getDate():'?'}<small>${d?d.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase():'TBA'}</small></div>
+<div class="d">${d?d.getDate():'?'}<small>${d?d.toLocaleDateString('en-GB',{weekday:'short'}):'TBA'}</small></div>
 <img src="${esc(cover(g))}" alt=""><div><strong>${esc(g.title||'')}</strong><div class="hy"><span style="width:${(g.hype||0)*10}%"></span></div>
-${clash?'<div class="cl">CLASH — ANOTHER GAME WITHIN A WEEK</div>':''}</div>${left!=null?`<span class="left">${left===0?'TODAY':left+'D'}</span>`:''}</div>`};
-const heat=n=>n>=3?'<i class="h3">STACKED</i>':n===2?'<i class="h2">BUSY</i>':'<i class="h1">QUIET</i>';
+${clash?'<div class="cl">Clash: another game within a week</div>':''}</div>${left!=null?`<span class="left">${left===0?'Today':left+'d'}</span>`:''}</div>`};
+const heat=n=>n>=3?'<i class="h3">Stacked</i>':n===2?'<i class="h2">Busy</i>':'<i class="h1">Quiet</i>';
 const body=Object.keys(by).map(m=>`<div class="mo"><b>${new Date(m+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</b>${heat(by[m].length)}</div>`+by[m].map((g,i)=>card(g,i,dated)).join('')).join('')
 +(tba.length?`<div class="mo"><b>No date yet</b><i class="h1">${tba.length}</i></div>`+tba.map(g=>card(g,0,[])).join(''):'');
 const o=document.createElement('div');o.id='fxrad';
-o.innerHTML=`<div class="top"><h1>RADAR</h1><button class="x" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button></div><div class="tl"><div class="now">TODAY</div>${body||'<p>No upcoming games yet.</p>'}</div>`;
+o.innerHTML=`<div class="top"><h1>Radar</h1><button class="x" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button></div><div class="tl"><div class="now">Today</div>${body||'<p>No upcoming games yet.</p>'}</div>`;
 o.querySelector('.x').onclick=()=>o.remove();document.body.appendChild(o)}
 addEventListener('click',e=>{if(e.target.closest('#fx-radar'))radar()});
 function bossNow(){const L=S.games.filter(g=>!g.comp&&!isPlayed(g)&&g.state!=="played"&&!isDropped(g)&&(g.state==="backlog"||g.state==="playing"||isOutNow(g))).map(g=>({g,h:+g.hours||20,est:!(+g.hours)}));
 return{L,hp:L.reduce((a,x)=>a+x.h,0)}}
 function bossMax(hp){if(!S.fxBossMax||hp>S.fxBossMax||S.fxBossMax===0&&hp){S.fxBossMax=hp}return S.fxBossMax||1}
-let lastHP=bossNow().hp;bossMax(lastHP);const _sv2=save;
-save=function(){const r=_sv2.apply(this,arguments);const hp=bossNow().hp,df=hp-lastHP;if(!df)return r;if(window.pnSilentHP){lastHP=hp;if(hp>S.fxBossMax)S.fxBossMax=hp;return r}const old=lastHP;lastHP=hp;
-if(!hp)S.fxBossMax=0;const mx=hp?bossMax(hp):old||1;if(still())return r;
+let lastHP=bossNow().hp;bossMax(lastHP);
+onSave({after:()=>{const hp=bossNow().hp,df=hp-lastHP;if(!df)return;if(window.pnSilentHP){lastHP=hp;if(hp>S.fxBossMax)S.fxBossMax=hp;return}const old=lastHP;lastHP=hp;
+if(!hp)S.fxBossMax=0;const mx=hp?bossMax(hp):old||1;if(still())return;
 const _hud=()=>{document.getElementById('fxhud')?.remove();const h=document.createElement('div');h.id='fxhud';
 h.innerHTML=`SHADOW OF THE BACKLOG <div class="fxhp"><u style="width:${old/mx*100}%"></u><i style="width:${Math.min(old,mx)/mx*100}%"></i></div>HP ${hp} / ${mx}<em class="${df>0?'heal':''}">${df>0?'+'+df:df}</em>`;
 document.body.appendChild(h);requestAnimationFrame(()=>requestAnimationFrame(()=>{const fb=h.querySelector('.fxhp');fb.classList.add('hpjolt');setTimeout(()=>fb.classList.remove('hpjolt'),2200);h.querySelector('i').style.width=h.querySelector('u').style.width=hp/mx*100+'%'}));
 if(df<0){setTimeout(boom,700);setTimeout(()=>burst(innerWidth-50,40,16,9,'#FF5470'),700)}
-setTimeout(()=>{h.classList.add('bye');setTimeout(()=>h.remove(),400)},5200)};const _busy=()=>document.querySelector('.aoa,.fxclr,.fxout,#fxcal');let _w=0;const _go=()=>{if(_busy()&&_w++<40)return setTimeout(_go,200);setTimeout(_hud,_w?450:0)};setTimeout(_go,df<0?900:200);return r};
+setTimeout(()=>{h.classList.add('bye');setTimeout(()=>h.remove(),400)},5200)};const _busy=()=>document.querySelector('.aoa,.fxclr,.fxout,#fxcal');let _w=0;const _go=()=>{if(_busy()&&_w++<40)return setTimeout(_go,200);setTimeout(_hud,_w?450:0)};setTimeout(_go,df<0?900:200);}});
 function bossScreen(){const{L,hp}=bossNow(),mx=bossMax(hp),o=document.createElement('div');o.id='fxboss';
 const srt=L.slice().sort((a,b)=>a.h-b.h);
 o.innerHTML=`<button class="x" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>`+(hp?`<div class="sh"></div><h1>SHADOW OF THE BACKLOG</h1><div class="lv">LV ${L.length} · ${L.length} GAME${L.length>1?'S':''} UNPLAYED</div>
@@ -13698,13 +13696,13 @@ function pnPowerUp(line) {
   }
 
   /* reacts when your backlog grows or shrinks */
-  let last = hpNow(); const _sv = save;
-  save = function () { const r = _sv.apply(this, arguments); const hp = hpNow(), df = hp - last; last = hp;
-    if (df && !window.pnSilentHP) { look(); const a = arcG(), cls = df > 0 ? "gulp" : "ouch";
+  let last = hpNow();
+  onSave({ after: () => { const hp = hpNow(), df = hp - last; last = hp;
+    if (df && !window.pnSilentHP && S.grum) {   /* v277: hidden (the default), he doesn't react to what he can't show */ look(); const a = arcG(), cls = df > 0 ? "gulp" : "ouch";
       g.classList.remove("gulp", "ouch"); void g.offsetWidth; g.classList.add(cls); setTimeout(() => g.classList.remove(cls), 800);
       say(df > 0 ? pick(a === 0 ? [`+${df}h. Mmm, more for me 😈`, "Gulp. Thanks for the snack."] : a === 1 ? [`+${df}h… I'm trying not to eat it 🥺`] : [`+${df}h. Don't worry, we'll get through it 💛`])
                  : pick(a === 0 ? [`OW. -${-df}h. That one hurt 😤`, "No! That was MINE!"] : a === 1 ? [`-${-df}h. Thank you… really 🥹`] : [`-${-df}h! Nice hit ✨`])); }
-    return r; };
+  } });
 
   window.GRUM = { el: g, raw, place: () => place(0, gy), say, look, glide, get x() { return gx; }, get y() { return gy; }, sideX };
   /* idle chatter, plus a bit of banter with Nexi once per visit */
@@ -14073,14 +14071,14 @@ button,a,.icon{-webkit-tap-highlight-color:transparent}
 .pnb-p{display:inline-flex;margin-top:9px;border:1.5px solid var(--ice);border-radius:99px;overflow:hidden;font:700 11px "Poppins",system-ui,sans-serif}
 .pnb-p span{padding:4px 10px}.pnb-p span:first-child{background:var(--ice);color:var(--void)}
 .pnb-s{display:grid;justify-items:center;min-width:104px}
-.pnb-r{width:26px;height:26px;border:2px solid var(--volt);border-radius:50%;display:grid;place-items:center;font:800 12px "Poppins",sans-serif;color:var(--volt)}
+.pnb-r{place-items:center;}
 .pnb-art{display:flex;align-items:center;gap:10px;margin:0 2px 10px;color:var(--mute);font:700 12px "Poppins",sans-serif}.pnb-art input{flex:1;accent-color:var(--volt)}
-.pnb-n{display:flex;align-items:flex-start;font:900 calc(clamp(46px,12vw,68px)*(.45 + var(--pbs,.75)*.55))/1 "Archivo",system-ui,sans-serif;letter-spacing:-.03em;margin:2px 0 4px;
+.pnb-n{letter-spacing:-.03em;
   text-shadow:0 4px 18px rgba(0,0,0,.8);animation:pnbPop .6s cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i)*60ms + .15s)}
 .pnb-n small{font:800 italic 12px "Poppins",sans-serif;color:var(--volt);margin:8px 0 0 3px}
 .pnb-n i{font-style:normal;font-size:13px;color:var(--volt);margin:22px 4px 0 0}
 .pnb-c{border:1.5px solid var(--ice);border-radius:99px;padding:3px 10px;font:700 10.5px "Poppins",sans-serif;white-space:nowrap}
-.pnb-row.top .pnb-r{background:var(--volt);color:var(--void)}
+.pnb-row.top .pnb-r{background:var(--volt);}
 @keyframes pnbIn{from{opacity:0;translate:-22px 0}}
 @keyframes pnbPop{from{opacity:0;transform:scale(.6)}}
 html.still .pnb-row,html.still .pnb-n{animation:none}
@@ -14267,8 +14265,10 @@ function pnBadgePop(b){
   try{beep("add");}catch(e){}
   setTimeout(()=>{o.classList.add("out");setTimeout(()=>o.remove(),350);},2900);
 }
-const pnSaveRaw=save;
-save=function(){const r=pnSaveRaw.apply(this,arguments);clearTimeout(pnSaveRaw.bt);pnSaveRaw.bt=setTimeout(pnBadgeCheck,400);return r;};
+/* a badge check saves too: that save doesn't start another check */
+let pnBadgeT=0,pnBadgeSaving=false;
+const pnSaveRaw=()=>{pnBadgeSaving=true;try{save();}finally{pnBadgeSaving=false;}};
+onSave({after:()=>{if(pnBadgeSaving)return;clearTimeout(pnBadgeT);pnBadgeT=setTimeout(pnBadgeCheck,400);}});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-badge]");if(!b)return;
   const d=PN_BADGES.find(x=>x[0]===b.dataset.badge),got=(S.badges||{})[d[0]];
   toast(`${d[1]} ${d[2]}: ${d[3]}${got?" · earned "+got:""}`);});
@@ -14604,10 +14604,10 @@ html.fast #pnstory { background: rgba(2,4,10,.94); }
 
 <style>
 /* v172 what's-new tour: a small card with Nexi's words, while Nexi points at the real button */
-#nxtour { position: fixed; left: 50%; z-index: 100; width: min(92vw, 440px); padding: 16px 16px 14px; border-radius: 18px;
+#nxtour { position: fixed; left: 50%;  width: min(92vw, 440px); padding: 16px 16px 14px; border-radius: 18px;
   background: #0A0B10; color: #EDEFF5; border: 1px solid rgba(255,255,255,.1); border-top: 3px solid #6AA8FF;
-  box-shadow: 0 18px 44px rgba(0,0,0,.6); opacity: 0; transform: translate(-50%, 12px); transition: opacity .2s ease, transform .26s cubic-bezier(.2,.9,.25,1); }
-#nxtour.on { opacity: 1; transform: translate(-50%, 0); }
+  box-shadow: 0 18px 44px rgba(0,0,0,.6); opacity: 0; }
+#nxtour.on { opacity: 1; }
 #nxtour.bot { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 #nxtour.top { top: calc(16px + env(safe-area-inset-top, 0px)); }
 #nxtour small { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8FB4FF; margin-bottom: 6px; font-weight: 800; }
@@ -16141,7 +16141,7 @@ WHATS_NEW.push(
 html.ui2 .tabbar.shx {
   --shc: var(--volt);
   position: relative; isolation: isolate; overflow: hidden;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t c" "s s";
+  display: grid;  
   align-items: start; gap: 4px 10px; min-height: 138px; padding: 16px 16px 16px; margin: 0 0 16px;
   border-radius: 26px; border: 1px solid rgba(255,255,255,.05);
   background: linear-gradient(120deg, var(--u-pan) 38%, color-mix(in srgb, var(--shc) 16%, var(--u-pan)));
@@ -16595,7 +16595,6 @@ html.still .gd-bg { transition: none; }
   border: 1px solid var(--u-line2, rgba(234,242,255,.14)); background: var(--u-card, #131a32); color: var(--ice); font: 600 14px "Poppins", system-ui, sans-serif; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: transform .25s var(--ease); }
 .gd-main button.hot { border-color: transparent; background: var(--volt); color: var(--void); box-shadow: 0 12px 28px -12px rgba(var(--vrgb), .9); }
-.gd-main button.ed { flex: 0 0 auto; padding: 14px 18px; }
 .gd-more { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; }
 @media (min-width: 620px) { .gd-more { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .gd-more button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 76px; padding: 10px 4px;
@@ -16789,7 +16788,26 @@ function bugPath(el) {
   }
   return p.join(" > ");
 }
+/* v277: bugLayout had 6 wraps (v199–v208); folded into this: one input tracker (there were 3, 12 listeners) and BUG_AFTER,
+   the checks that run after every layout pass (each still lives in its own script). New checks push to BUG_AFTER. */
+let bugLastIn = 0;
+["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { bugLastIn = performance.now(); }, { capture: true, passive: true }));
+const BUG_AFTER = [];
+let bugBusyTries = 0;
 function bugLayout() {
+  /* v235: wait while a page or sheet is still animating in. An idle pass scheduled for the screen before could run in the
+     first frame of a game page's grow (#full at opacity .35) and measure its kicker pill as "too faint" (1.8:1) */
+  const busy = ["#full", "#sheet", "#diary", "#peek"].some(sel => { const el = document.querySelector(sel);
+    return el && el.getAnimations && el.getAnimations().some(a => a.playState === "running" && isFinite((a.effect && a.effect.getComputedTiming().endTime) || 0)); });
+  if (busy && bugBusyTries++ < 8) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 450); return; }
+  bugBusyTries = 0;
+  /* v200: never while you're touching or scrolling: try again once the screen has been still for 1.2s */
+  const quiet = performance.now() - bugLastIn;
+  if (quiet < 1200) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1300 - quiet); }
+  else bugLayoutPass();
+  for (const f of BUG_AFTER) try { f(); } catch (e) {}
+}
+function bugLayoutPass() {
   BUG.lt = 0;
   if (!bugOn() || document.hidden || !document.documentElement.classList) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
@@ -16944,8 +16962,22 @@ function bugPlace(scr) {
   if (sub) return subLabel(t, sub) || sub;
   return { home: "Home", add: "Add", games: "Games", plan: "Plan", taste: "Taste" }[t] || t || "this screen";
 }
+/* what Nexi says about a report he filed. A new check adds its line to BUG_NICE (before the first match wins:
+   [kind or "", /what the message says/, at => "the line"]) instead of wrapping this function (it had 7 wraps until v277) */
+const BUG_NICE = [];
 function bugNice(kind, scr, msg) {
   const at = bugPlace(scr), At = at.charAt(0).toUpperCase() + at.slice(1);
+  for (const [k, re, say] of BUG_NICE) if ((!k || k === kind) && re.test(msg)) return say(at, At);
+  /* v215–v242 (folded in from their wraps, newest first) */
+  if (/game room turned the opposite way/.test(msg)) return "The game room turned the wrong way when you swiped.";
+  if (kind === "look" && /never got its screenshots/.test(msg)) return "A game page stayed without screenshots.";
+  if (kind === "layout" && /swiped behind an open sheet/.test(msg)) return "A swipe inside a sheet moved the game page behind it.";
+  if (kind === "look" && /different game than the one picked/.test(msg)) return "A game I added wasn't the one you picked. I'll double-check the name next time.";
+  if (kind === "look" && /different sizes/.test(msg)) return "The open cards in your Queue weren't all the same size.";
+  if (kind === "look" && /number in a tile/.test(msg)) return `A number on ${at} was too long for its tile.`;
+  if (kind === "stuck" && /invisible/.test(msg)) return `Something invisible on ${at} was blocking your taps. I cleared it out of the way.`;
+  if (kind === "layout" && /blank while scrolling/.test(msg)) return `Part of ${at} went blank while you scrolled.`;
+  if (kind === "look" && /nothing more/.test(msg)) return `A "Read more" on ${at} had nothing more to show.`;
   if (kind === "layout" && /Text is cut/.test(msg)) return `Some text on ${at} is cut off.`;
   if (kind === "layout" && /overlaps/.test(msg)) return `Some text on ${at} is overlapping.`;
   if (kind === "layout" && /blank/.test(msg)) return `${At} came up blank.`;
@@ -17182,7 +17214,7 @@ WHATS_NEW.push(
     say: "I see more glitches on my own now: text that gets cut off, text drawn on top of other text, and a screen that comes up blank. When I spot one, I report it and tell you.",
     tryIt: "Just use the app. If I miss something, hold me and tap 🐞." }
 );
-{ const _bl = bugLayout; bugLayout = function () {
+{ const _bl = bugLayoutPass; bugLayoutPass = function () {
   _bl.apply(this, arguments);
   if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
@@ -17199,10 +17231,7 @@ if (!S.rowGlowMig) { if (S.rowArtGlow === 7) delete S.rowArtGlow; S.rowGlowMig =
 { const _al5 = applyLook; applyLook = function () { const o = _al5.apply(this, arguments);
   const g = num(S.rowArtGlow, 0, 0, 30); document.documentElement.style.setProperty("--rag", g + "px"); document.documentElement.classList.toggle("rowglow", g > 0); return o; }; }
 /* the problem checks never run while you're touching or scrolling: they wait until you've been still for a moment */
-{ let lastIn = 0; ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { lastIn = performance.now(); }, { capture: true, passive: true }));
-  const _bl2 = bugLayout; bugLayout = function () { const quiet = performance.now() - lastIn;
-    if (quiet < 1200) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1300 - quiet); return; }
-    return _bl2.apply(this, arguments); }; }
+/* (v200's "wait until the screen is still" gate now lives in bugLayout itself, v277) */
 /* game page: start fetching and decoding a game's pictures the moment a finger lands on it, not after the tap */
 addEventListener("pointerdown", e => {
   const t = e.target.closest && e.target.closest("[data-hub], [data-opg], [data-home-open], .dxr[data-open], .deck-g");
@@ -17261,15 +17290,14 @@ function bugBlurry() {
     const r = on(el); if (r && Math.max(r.width, r.height) * dpr > (LITE_W.get(hit) || 600) * 1.4) out.push([el, hit]); });
   return out;
 }
-{ let lastIn = 0; ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { lastIn = performance.now(); }, { capture: true, passive: true }));
-  const _bl4 = bugLayout; bugLayout = function () { const o = _bl4.apply(this, arguments);
-    if (!bugOn() || document.hidden || performance.now() - lastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return o;
-    const first = bugBlurry(); if (!first.length) return o;
+BUG_AFTER.push(() => {
+    if (!bugOn() || document.hidden || performance.now() - bugLastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return;
+    const first = bugBlurry(); if (!first.length) return;
     /* give the swap a fair chance first: only what's still soft 3s later counts */
     clearTimeout(BUG.blt); BUG.blt = setTimeout(() => { if (document.hidden) return;
       const now = bugBlurry(), hit = first.find(([el, s]) => el.isConnected && now.some(([e2, s2]) => e2 === el && s2 === s));
       if (hit) bugReport("layout", "A picture stayed blurry (its sharp copy never swapped in)", { at: bugPath(hit[0]), screen: bugScreen() }); }, 3000);
-    return o; }; }
+  });
 WHATS_NEW.push(
   { v: 202, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
     say: "Fixed: 4K pictures now really show in 4K. Every picture loads a small copy first and swaps in the sharp one when the screen settles, but the release countdown kept the screen from ever counting as settled, so the sharp copies never came.",
@@ -17602,13 +17630,13 @@ nxPDress();
 /* #57: Nexi's glow showed as a square. Peeking from the left gave him the class "pl", which another screen styles
    with overflow: hidden, and it stayed after the peek. Classes are now pkl/pkr. He now checks that nothing
    (any class, from anywhere) clips his glow. */
-{ const _bl5 = bugLayout; bugLayout = function () { const o = _bl5.apply(this, arguments);
-  try { const b = $("#pnbub"); if (!b || !bugOn() || document.hidden || !b.getClientRects().length || getComputedStyle(b).display === "none") return o;
+BUG_AFTER.push(() => {
+  try { const b = $("#pnbub"); if (!b || !bugOn() || document.hidden || !b.getClientRects().length || getComputedStyle(b).display === "none") return;
     const cs = getComputedStyle(b);
     if (cs.overflowX !== "visible" || cs.overflowY !== "visible" || cs.clipPath !== "none" || /paint|strict|content/.test(cs.contain))
       bugReport("layout", "Nexi's glow is clipped into a square (his box got overflow/clip from a class)", { at: "#pnbub." + b.className.trim().split(/\s+/).join(".") + " overflow " + cs.overflowX + "/" + cs.overflowY + " clip-path " + cs.clipPath + " contain " + cs.contain, screen: bugScreen() });
   } catch (e) {}
-  return o; }; }
+});
 WHATS_NEW.push(
   { v: 204, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Each of my personalities is its own character now: its own lines (about your games, the time of day, your streak), its own face and its own moves. The Butler wears a monocle, the Nerd has glasses, the Rival smirks, the Bard sings.",
@@ -17712,11 +17740,11 @@ WHATS_NEW.push(
 .ix-in > i { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; font-style: normal; font-size: 21px; background: rgba(var(--vrgb), .14); }
 .ix-in .tt { display: block; font-size: 14px; line-height: 1.35; color: var(--ice); }
 .ix-in small { display: block; margin-top: 3px; font-size: 11.5px; color: var(--mute); }
-.ix-rk { display: flex; gap: 8px; overflow-x: auto; margin: 12px -16px -4px; padding: 0 16px 4px; scrollbar-width: none; }
+.ix-rk { display: flex; gap: 8px; overflow-x: auto;   scrollbar-width: none; }
 .ix-rk::-webkit-scrollbar { display: none; }
-.ix-rk button { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 12px 8px 8px; border-radius: 999px; border: 1px solid var(--u-line, rgba(255,255,255,.08)); background: rgba(255,255,255,.04); color: var(--ice); font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
+.ix-rk button {  display: flex; align-items: center; gap: 7px; padding: 8px 12px 8px 8px; border-radius: 999px; border: 1px solid var(--u-line, rgba(255,255,255,.08)); background: rgba(255,255,255,.04); color: var(--ice); font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
 .ix-rk button > b { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(var(--vrgb), .18); font-size: 12px; }
-.ix-rk button span:last-child { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-rk button span:last-child {  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 5. what's coming */
 .ix-q { display: grid; gap: 10px; }
 .ix-qr { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 11px; align-items: center; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; }
@@ -18218,12 +18246,11 @@ function lookDesign2(root, scr) {
     }
   }
 }
-{ let lastIn = 0; ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { lastIn = performance.now(); }, { capture: true, passive: true }));
-  const _bl6 = bugLayout; bugLayout = function () { const o = _bl6.apply(this, arguments);
-  if (!lookOk() || performance.now() - lastIn < 1200) return o;
+BUG_AFTER.push(() => {
+  if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (root) try { lookDesign(root, bugScreen()); } catch (e) {}
-  return o; }; }
+});
 
 /* 8. Nexi's design eye: taste problems the rules above can't judge. Once per screen per app version (max 4 a day),
    a compact map of what's on screen goes to the helper's AI (POST /review); findings it's confident about (≥ .75),
@@ -18272,13 +18299,13 @@ async function lookReview(root, scr) {
       stack: "Suggested fix: " + x.fix + "\nConfidence " + x.confidence + "\nWhat the AI saw:\n" + ids.map(i => items[+i.slice(1)]).join("\n") });
   });
 }
-{ const _bl7 = bugLayout; bugLayout = function () { const o = _bl7.apply(this, arguments);
-  if (!lookOk()) return o;
+BUG_AFTER.push(() => {
+  if (!lookOk()) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   /* only after the screen has been on for 3s untouched, so it reviews what you actually look at */
   const scr = bugScreen(); clearTimeout(BUG.rvT);
   if (root) BUG.rvT = setTimeout(() => { if (bugScreen() === scr && lookOk()) lookReview(root, scr).catch(() => {}); }, 3000);
-  return o; }; }
+});
 WHATS_NEW.push(
   { v: 208, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "I got a lot sharper at spotting problems myself: things that flicker, text cut short with no way to read it, text too faint to read, buttons too small for a finger, squashed or broken pictures, and taps that do nothing when you try twice. And once per screen per update I ask my AI for a designer's opinion.",
@@ -18438,7 +18465,7 @@ async function cbRun(force) {
   }
 }
 /* every save marks the state dirty; the upload follows within 10 minutes, and straight away when you leave the app */
-{ const _sv = save; save = function () { const r = _sv.apply(this, arguments); if (!cbSelf) { cbDirty = true; cbKick(); } return r; }; }
+onSave({ after: () => { if (!cbSelf) { cbDirty = true; cbKick(); } } });
 addEventListener("visibilitychange", () => {
   if (document.hidden) { if (cbDirty && cbOn() && Date.now() - (CB.at || 0) > 60e3) cbRun(); }
   else cbKick();
@@ -19300,11 +19327,6 @@ WHATS_NEW.push(
     say: "Fixed: your top 5 on Insights wraps onto a new line instead of cutting names off, and Queue rows no longer go blank for a moment when you scroll fast. I watch for blank patches while you scroll now, too.",
     tryIt: "Tap a name to open that game." }
 );
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) { const at = bugPlace(scr);
-  if (kind === "stuck" && /invisible/.test(msg)) return `Something invisible on ${at} was blocking your taps. I cleared it out of the way.`;
-  if (kind === "layout" && /blank while scrolling/.test(msg)) return `Part of ${at} went blank while you scrolled.`;
-  if (kind === "look" && /nothing more/.test(msg)) return `A "Read more" on ${at} had nothing more to show.`;
-  return _bn.apply(this, arguments); }; }
 </script>
 <style>
 /* ===== v216: the story so far ===== */
@@ -19951,9 +19973,13 @@ function sgAsk(g, now) {
 function sgCheck() { if (document.hidden || $("#fnask.on")) return; const g = sgPick(); if (g) sgAsk(g); }
 setTimeout(sgCheck, 16000);
 { let away = 0; addEventListener("visibilitychange", () => { if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 3 * 36e5) setTimeout(sgCheck, 14000); }); }
-/* logging hours counts as touching it */
-{ const lg = new Map(S.games.map(g => [g.id, +g.logged || 0])), _sv = save;
-  save = function () { try { S.games.forEach(g => { const v = +g.logged || 0; if (lg.has(g.id) && lg.get(g.id) !== v) g.logAt = Date.now(); lg.set(g.id, v); }); } catch (e) {} return _sv.apply(this, arguments); }; }
+/* logging hours counts as touching it (logAt), and every change is kept with its day and size (lgH: v249's drifting games;
+   that used to be a second save wrap walking every game again, v277) */
+{ const lg = new Map(S.games.map(g => [g.id, +g.logged || 0]));
+  onSave({ before: () => S.games.forEach(g => { const v = +g.logged || 0, was = lg.get(g.id);
+    if (was != null && was !== v) { g.logAt = Date.now(); const d = Math.round((v - was) * 100) / 100;
+      if (d > 0) { (g.lgH ||= []).push([Date.now(), d]); if (g.lgH.length > 40) g.lgH.splice(0, g.lgH.length - 40); } }
+    lg.set(g.id, v); }) }); }
 WHATS_NEW.push(
   { v: 219, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => rvCard(x) && rvFor(x)) || S.games.find(x => rvCard(x));
       if (g) openFull(g.id); else setJump({ scope: "app", group: "Extra features", text: "Reviews are in" }); },
@@ -20254,9 +20280,7 @@ WHATS_NEW.push(
 /* ===== v221: logo fit, Nexi in the rail, dusty backlog, crystal ball ===== */
 @media (min-width: 620px) {
   html.nxseat #pnbub { display: block; }
-  html.nxseat #hrail { padding-bottom: 92px; }
 }
-html.nxseat #pnbub > * { scale: .84; }
 html.nxseat #pnbub { cursor: pointer; }
 html.nxseat #hrail [data-ra="hide"] { display: none; }
 .dustpuff { position: fixed; z-index: 120; pointer-events: none; width: 0; height: 0; }
@@ -21353,17 +21377,7 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
       const r = b.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || (b.checkVisibility && !b.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))) continue;
       bugReport("look", "A number in a tile is cut off", { at: bugPath(b) + " shows " + b.clientWidth + " of " + b.scrollWidth + "px", screen: scr }); break; } } catch (e) {}
   return o; }; }
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
-  if (kind === "look" && /number in a tile/.test(msg)) return `A number on ${bugPlace(scr)} was too long for its tile.`;
-  return _bn.apply(this, arguments); }; }
-/* v235: the problem checks wait while a page or sheet is still animating in. An idle pass scheduled for the screen before could
-   run in the first frame of a game page's grow (#full at opacity .35) and measure its kicker pill as "too faint" (1.8:1). */
-{ const _bl = bugLayout; let tries = 0;
-  bugLayout = function () {
-    const busy = ["#full", "#sheet", "#diary", "#peek"].some(sel => { const el = document.querySelector(sel);
-      return el && el.getAnimations && el.getAnimations().some(a => a.playState === "running" && isFinite((a.effect && a.effect.getComputedTiming().endTime) || 0)); });
-    if (busy && tries++ < 8) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 450); return; }
-    tries = 0; return _bl.apply(this, arguments); }; }
+/* (v235's "wait while a page or sheet is still animating in" now lives in bugLayout itself, v277) */
 /* the one thing worth doing next, by where the game is: [attributes, label, kind] */
 function gdNext(g) {
   const st = gdState(g), p = playedRec(g), id = g.id;
@@ -21453,9 +21467,6 @@ document.addEventListener("click", e => {
   const _rq = renderQueue; renderQueue = function () { const o = _rq.apply(this, arguments);
     if (ro) requestAnimationFrame(() => { const h = document.querySelector("#p-queue .hero[data-row]"); if (h && !h._szo) { h._szo = 1; ro.observe(h); } });
     return o; }; }
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
-  if (kind === "look" && /different sizes/.test(msg)) return "The open cards in your Queue weren't all the same size.";
-  return _bn.apply(this, arguments); }; }
 WHATS_NEW.push(
   { v: 232, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: () => $("#p-queue .hero") || $("#p-queue .row"),
     say: "Open queue cards are all the same size now: the title gets two lines, the description three, and there are always four numbers, so the list doesn't jump when you open another game. I've learned to spot a card that comes out a different size myself now.",
@@ -21853,9 +21864,6 @@ async function shOpen(q) {
 { const q = new URLSearchParams(location.search);
   if (q.has("url") || q.has("text") || q.has("title")) { history.replaceState(null, "", location.pathname); setTimeout(() => { if (typeof nxShut === "function") try { nxShut(); } catch (e) {} goTab("add"); shOpen(q); }, 1600); } }
 
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
-  if (kind === "look" && /different game than the one picked/.test(msg)) return "A game I added wasn't the one you picked. I'll double-check the name next time.";
-  return _bn.apply(this, arguments); }; }
 /* Settings → Extra features → Discover (#s-xdc) */
 if (GROUP_KEYS["Extra features"]) GROUP_KEYS["Extra features"].push("dcOff");
 WHATS_NEW.push(
@@ -21899,21 +21907,20 @@ const grumL = () => S.games.filter(g => !g.comp && !isPlayed(g) && g.state !== "
     const p = playedRec(g), ad = was.ad ? new Date(was.ad + "T12:00:00").getTime() : 0;
     return !!((p && p.t && was.ad && p.t < was.ad) || (ad && Date.now() - ad < 7 * 864e5)); };
   let snap = snapOf();
-  const _sv = save;
-  save = function () {
-    let now; try { now = snapOf(); } catch (e) { return _sv.apply(this, arguments); }
+  onSave({ before: () => {
+    const now = snapOf();
     let quiet = 0, real = 0; const fixed = [];
     snap.forEach((was, id) => { const n = now.get(id);
       if (n) { if (was.h > n.h) real += was.h - n.h; return; }
       const g = S.games.find(x => x.id === id);
       if (!g) quiet += was.h; else if (fixPlayed(g, was)) { quiet += was.h; fixed.push(g); } else real += was.h; });
     snap = now;
-    if (!quiet || real) return _sv.apply(this, arguments);
-    const was = window.pnSilentHP; window.pnSilentHP = true;
-    let r; try { r = _sv.apply(this, arguments); } finally { window.pnSilentHP = was; }
-    S.fxBossMax = Math.max(grumL().reduce((a, x) => a + x.h, 0), (S.fxBossMax || 0) - quiet);
-    fixed.forEach(g => { g.hpFix = 1; });
-    return r; }; }
+    if (!quiet || real) return null;
+    const was = window.pnSilentHP; window.pnSilentHP = true;   /* the HUD and Grumble's "ouch" (afters) see it */
+    return { was, quiet, fixed }; },
+  after: c => { if (!c) return; window.pnSilentHP = c.was;
+    S.fxBossMax = Math.max(grumL().reduce((a, x) => a + x.h, 0), (S.fxBossMax || 0) - c.quiet);
+    c.fixed.forEach(g => { g.hpFix = 1; }); } }); }
 { const _r = pnBubReact; pnBubReact = function () {
   const pl = S.played || [], old = S.bubSnap, last = pl[pl.length - 1], g = last && S.games.find(x => x.id === last.id);
   if (old && pl.length > (old.p || 0) && g && g.hpFix) { old.p = pl.length; delete g.hpFix; save();
@@ -21982,9 +21989,6 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
   const rep = () => { if (over()) bugReport("layout", "The game page swiped behind an open sheet", { at: ["#gprev.on", "#diary.on", "#shv", "#sheet.on"].filter(x => document.querySelector(x)).join(", "), screen: bugScreen() }); };
   const _hs = hubStep; hubStep = function () { rep(); return _hs.apply(this, arguments); };
   const _hd = hubDragStart; hubDragStart = function () { rep(); return _hd.apply(this, arguments); }; }
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
-  if (kind === "layout" && /swiped behind an open sheet/.test(msg)) return "A swipe inside a sheet moved the game page behind it.";
-  return _bn.apply(this, arguments); }; }
 /* the owner: "2 times Story Rich?": Steam's "Story Rich" sat next to RAWG's "Story-rich". One-time clean of every game's genres
    (same name ignoring case, spaces and hyphens = one genre, the first one kept); stApply now compares the same way */
 if (!S.genDedup) { let n = 0; S.games.forEach(g => { const l = platList(g.genres), u = l.filter((t, i) => l.findIndex(x => gdKey(x) === gdKey(t)) === i);
@@ -22122,9 +22126,6 @@ addEventListener("online", () => setTimeout(shotsSweep, 3000));
   const _gs = gdShots; gdShots = function (g) { const o = _gs.apply(this, arguments);
     if (g && !(g.shots || []).length) { const id = g.id; setTimeout(() => { if (hubAt === id) { clearTimeout(tm); tm = setTimeout(() => check(id), 15000); } }, 400); }
     return o; }; }
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
-  if (kind === "look" && /never got its screenshots/.test(msg)) return "A game page stayed without screenshots.";
-  return _bn.apply(this, arguments); }; }
 /* a game you add gets its screenshots straight away */
 { const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => shotsFetch(g, true), 3000); return o; }; }
 /* the viewer: the small copy at once, the big one swapped in when it's ready */
@@ -22557,9 +22558,6 @@ function rmDirCheck(s, dx) {
   if (Math.abs(mv) > 4 && Math.sign(mv) !== Math.sign(dx))
     try { bugReport("look", "The game room turned the opposite way to the swipe", { at: "#room .rm-w (finger " + Math.round(dx) + "px, front corner " + Math.round(mv) + "px)", screen: "room" }); } catch (e) {}
 }
-{ const _bn = bugNice; bugNice = function (kind, scr, msg) {
-  if (/game room turned the opposite way/.test(msg)) return "The game room turned the wrong way when you swiped.";
-  return _bn.apply(this, arguments); }; }
 function rmKey(e) { if (e.key === "Escape") roomClose(); else if (e.key === "ArrowLeft") { RM.vy = 3; rmSpin(); } else if (e.key === "ArrowRight") { RM.vy = -3; rmSpin(); } }
 function rmWire(v) {
   addEventListener("keydown", rmKey); addEventListener("resize", rmFit);
@@ -23051,7 +23049,7 @@ document.addEventListener("click", async e => {
     try { await nxPost("/cal/put", { id, off: 1 }); } catch (x) {} }
 }, true);
 /* saves come often (bookkeeping too), so this waits at most 5s after the first one instead of restarting the wait (v202) */
-{ let t = 0; const _sv = save; save = function () { const out = _sv.apply(this, arguments); if (S.calId && !t) t = setTimeout(() => { t = 0; calSync(false); }, 5000); return out; }; }
+{ let t = 0; onSave({ after: () => { if (S.calId && !t) t = setTimeout(() => { t = 0; calSync(false); }, 5000); } }); }
 setTimeout(() => calSync(false), 6000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(() => calSync(false), 4000); });
 
@@ -23279,11 +23277,8 @@ function smWatch(drops) {
 setTimeout(() => { if (!smBusy()) smWatch([]); }, 32000);
 
 /* ---- 2. drifting games ---- */
-/* every change to the hours you logged is kept (the day it happened and how much), so the app sees your rhythm */
-{ const lg = new Map(S.games.map(g => [g.id, +g.logged || 0])), _sv = save;
-  save = function () { try { S.games.forEach(g => { const v = +g.logged || 0, was = lg.get(g.id);
-    if (was != null && was !== v) { const d = Math.round((v - was) * 100) / 100; if (d > 0) { (g.lgH ||= []).push([Date.now(), d]); if (g.lgH.length > 40) g.lgH.splice(0, g.lgH.length - 40); } }
-    lg.set(g.id, v); }); } catch (e) {} return _sv.apply(this, arguments); }; }
+/* every change to the hours you logged is kept (the day it happened and how much), so the app sees your rhythm: g.lgH, kept by
+   the same save hook as logAt (v218's script, v277) */
 /* how far in you were when you dropped a game (your usual drop point, from now on) */
 { const _sp = syncPlayed; syncPlayed = function (g, state) {
   try { if (g && state === "dropped" && !g.dropP) { g.dropAt = Date.now(); const h = hrsOf(g); if (h > 0 && loggedOf(g) > 0) g.dropP = Math.round(Math.min(1, loggedOf(g) / h) * 100) / 100; }
@@ -25169,4 +25164,119 @@ WHATS_NEW.push(
     say: "<b>A darker background</b>: mostly black now, with just a soft blue glow from the bottom. You choose the background colour and how much gradient shows.",
     tryIt: "In Look of the app, slide How much gradient to 0% for pure black, or pick another background colour." }
 );
+</script>
+<style>
+/* v277 (#171, the friend: "a live preview when I'm editing the looks of all features, the same look everywhere, smart, off by
+   default"): with Settings › Look of the app › Live preview on, a screen's Customise (and the look groups of Settings: lvpSync)
+   docks to the bottom part of the screen (phone) or to one side (unfolded: the side away from the rail), with no dark
+   backdrop, so the real screen stays in sight and changes as you pick. Nothing new moves: the sheet's own slide-in is kept. */
+html.lvp #sheet.on { background: transparent; top: 42%; }
+html.lvp #sheet.on #sheet-in { margin: 0 auto; min-height: 100%; box-shadow: 0 -18px 48px rgba(0,0,0,.7); }
+@media (min-width: 620px) {
+  html.lvp #sheet.on { top: 0; right: auto; width: min(440px, 46vw); }
+  html.lvp.railleft #sheet.on { left: auto; right: 0; }
+  html.lvp #sheet.on #sheet-in { border-radius: 0 28px 28px 0; }
+  html.lvp.railleft #sheet.on #sheet-in { border-radius: 28px 0 0 28px; }
+}
+</style>
+<script>
+/* v277 (#171): when the sheet docks for Live preview. A screen's Customise always does; Settings itself only while one of
+   the look groups is the one open (the rest, like backups, keep the full sheet). Editing a game never docks. */
+const LVP_GROUPS = ["Look of the app", "Motion", "Header cards", "Getting around"];
+let lvpScope = null;
+function lvpSync() {
+  const sh = document.getElementById("sheet"), inn = document.getElementById("sheet-in"); if (!sh || !inn) return;
+  let on = false;
+  if (S.livePrev && lvpScope && !editing && sh.classList.contains("on")) {
+    if (lvpScope !== "app") on = true;
+    else { const g = inn.classList.contains("drill") && inn.querySelector("details.grp[open] > summary"); on = !!g && LVP_GROUPS.some(n => g.textContent.includes(n)); }
+  }
+  document.documentElement.classList.toggle("lvp", on);
+}
+onSettings("before", (k, a) => { lvpScope = SCOPE_NAME[a[0]] ? a[0] : "app"; });
+onSettings("after", () => requestAnimationFrame(lvpSync));
+new MutationObserver(() => { if (!document.getElementById("sheet").classList.contains("on")) lvpScope = null; lvpSync(); })
+  .observe(document.getElementById("sheet"), { attributes: true, attributeFilter: ["class"] });
+new MutationObserver(lvpSync).observe(document.getElementById("sheet-in"), { attributes: true, attributeFilter: ["class"] });
+document.addEventListener("toggle", e => { if (e.target.closest && e.target.closest("#sheet-in")) requestAnimationFrame(lvpSync); }, true);
+WHATS_NEW.push(
+  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Live preview" }); }, at: () => $("#s-livep"),
+    say: "<b>Live preview</b> while you customise: switch it on and every screen's Customise slides to the bottom (or the side when unfolded), so you watch the real screen change as you pick.",
+    tryIt: "Turn Live preview on, open Games › Customise and change a card setting: the Queue above changes straight away." },
+  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); }, at: () => $("#fx-radar"),
+    say: "<b>Radar got a makeover</b> in the app's own look, and it now lists every game with a release date ahead (it could miss some before). I'll also tell you myself if a screen ever slips back into the old slanted capitals.",
+    tryIt: "Tap 📡 Radar on Plan." },
+  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); const g = sortGames(allGames())[0]; if (g) openFull(g.id); }, at: null,
+    say: "Swiping to the next game no longer scrolls the page up and down at the same time: a swipe that starts sideways stays sideways, and a scroll stays a scroll. I also keep an eye on myself now: if I ever vanish from the open rail, I report it.",
+    tryIt: "On a game's page, swipe halfway to the next game and move your finger up and down: the page stays put." }
+);
+</script>
+<script>
+/* Nexi learned (#174, the friend, iPad v228: "Nexi disappeared while the rail was open"): with the rail open he sits at its
+   foot (html.nxseat). A while after each screen change, turn of the phone or closed sheet he checks he's really there:
+   shown, not faded out, on screen and inside the rail. Two looks 1.5s apart, so a cinematic (power-up, tour) passing by
+   isn't a report. On Home he steps out on purpose (v274), so Home isn't looked at. */
+{ let t = 0;
+  const gone = () => {
+    const H = document.documentElement, b = document.getElementById("pnbub"), r = document.getElementById("hrail");
+    if (!b || !r || !seatOn() || H.classList.contains("onhome") || document.querySelector("#sheet.on, #diary.on, #full.on")) return "";
+    if (!H.classList.contains("nxseat")) return "not seated";
+    const cs = getComputedStyle(b); if (cs.display === "none" || cs.visibility === "hidden") return "hidden (" + cs.display + "/" + cs.visibility + ")";
+    let op = 1; for (let e = b; e && e.nodeType === 1; e = e.parentElement) op *= +getComputedStyle(e).opacity;
+    if (op < .3) return "faded out (" + op.toFixed(2) + ")";
+    const br = b.getBoundingClientRect(), rr = r.getBoundingClientRect(), cx = br.left + br.width / 2, cy = br.top + br.height / 2;
+    if (br.width < 10 || cx < rr.left || cx > rr.right || cy < rr.top || cy > rr.bottom) return `outside the rail (at ${cx | 0},${cy | 0}, ${br.width | 0}px)`;
+    return "";
+  };
+  const look = () => { if (!lookOk()) return; const a = gone(); if (!a) return;
+    setTimeout(() => { if (!lookOk()) return; const b2 = gone(); if (b2) bugReport("layout", "Nexi went missing from the open rail", { at: "#pnbub", screen: bugScreen(), note: b2 }); }, 1500); };
+  const soon = () => { clearTimeout(t); t = setTimeout(() => requestAnimationFrame(look), 1800); };
+  BUG_NICE.push(["layout", /Nexi went missing/, () => "I slipped out of my seat in the rail for a moment."]);
+  onNav("after", soon); addEventListener("resize", soon, { passive: true });
+  new MutationObserver(soon).observe(document.getElementById("sheet"), { attributes: true, attributeFilter: ["class"] });
+}
+</script>
+<style>
+/* v277 (#130, the owner: "Radar needs a makeover, looks kinda ugly and doesn't match our theme"): Radar in the Clean style.
+   Its words are sentence case now; Arcade keeps its capitals and slants (first rule). */
+html:not(.ui2) #fxrad :is(h1, .now, .d small, .cl, .left, .mo i) { text-transform: uppercase; }
+html.ui2 #fxrad { background: var(--bgb, black); padding-top: 18px; }
+html.ui2 #fxrad h1 { transform: none; background: none; color: inherit; box-shadow: none; padding: 0; font: 700 30px/1.1 "Poppins", system-ui, sans-serif; letter-spacing: -.015em; }
+html.ui2 #fxrad .x { font: 600 14px "Poppins", system-ui, sans-serif; letter-spacing: 0; background: var(--u-card); border: 1px solid var(--u-line2); backdrop-filter: none; }
+html.ui2 #fxrad .tl { border-left: 2px solid var(--u-line2); }
+html.ui2 #fxrad .now { font: 600 13px "Poppins", system-ui, sans-serif; letter-spacing: 0; }
+html.ui2 #fxrad .now::before { width: 10px; height: 10px; border-radius: 50%; transform: none; box-shadow: none; margin-right: 10px; }
+html.ui2 #fxrad .mo b { font: 700 20px/1.2 "Poppins", system-ui, sans-serif; text-transform: none; letter-spacing: -.01em; }
+html.ui2 #fxrad .mo i { font: 600 11px "Poppins", system-ui, sans-serif; letter-spacing: 0; transform: none; border-radius: 999px; padding: 3px 10px; }
+html.ui2 #fxrad .h1 { background: var(--u-card2); color: rgba(234,242,255,.6); }
+html.ui2 #fxrad .gm { background: var(--u-card); border: 1px solid var(--u-line); border-left: 3px solid var(--a, var(--volt)); border-radius: var(--u-rs); clip-path: none; padding: 10px 14px 10px 0; }
+html.ui2 #fxrad .d { font: 700 24px/1 "Poppins", system-ui, sans-serif; }
+html.ui2 #fxrad .d small { font: 500 11px "Poppins", system-ui, sans-serif; letter-spacing: 0; color: rgba(234,242,255,.55); }
+html.ui2 #fxrad .gm img { border-radius: 8px; }
+html.ui2 #fxrad .gm strong { font: 600 15px/1.25 "Poppins", system-ui, sans-serif; text-transform: none; }
+html.ui2 #fxrad .hy { transform: none; border-radius: 99px; height: 4px; background: var(--u-card2); overflow: hidden; }
+html.ui2 #fxrad .cl { font: 500 12px "Poppins", system-ui, sans-serif; letter-spacing: 0; }
+html.ui2 #fxrad .left { font: 600 13px "Poppins", system-ui, sans-serif; }
+</style>
+<script>
+/* Nexi learned (#130, the owner: "Radar looks kinda ugly and doesn't match our theme"): Radar kept the old Arcade look
+   (slanted, all-caps heading) inside the Clean style. In Clean (html.ui2) a big heading on screen that is slanted or in
+   capitals is reported, a while after a screen change or after a full-screen layer (like Radar) opens. */
+{ let t = 0;
+  const look = () => {
+    if (!lookOk() || !document.documentElement.classList.contains("ui2")) return;
+    for (const h of document.querySelectorAll("h1, h2, h3")) {
+      const r = h.getBoundingClientRect(); if (r.width < 20 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+      const cs = getComputedStyle(h), fs = parseFloat(cs.fontSize);
+      if (fs < 18 || cs.visibility === "hidden" || !h.textContent.trim() || h.closest("[aria-hidden=true], .pcdov, .ccov, .fxout, .wr-in")) continue;
+      const old = cs.fontStyle === "italic" ? "slanted" : cs.textTransform === "uppercase" ? "in capitals" : "";
+      if (old) { bugReport("look", `A heading is ${old}: the old Arcade look inside the Clean style`, { at: bugPath(h), screen: bugScreen(), note: `${cs.fontStyle} ${cs.textTransform} ${fs}px ${cs.fontFamily.split(",")[0]}` }); return; }
+    }
+  };
+  const soon = () => { clearTimeout(t); t = setTimeout(() => requestAnimationFrame(look), 1800); };
+  BUG_NICE.push(["look", /old Arcade look/, at => `A heading on ${at} still had the old slanted capitals.`]);
+  onNav("after", soon); onSettings("after", soon);
+  /* a layer opened straight on <body> (Radar, a recap): only direct children, only elements */
+  new MutationObserver(ms => { if (ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && n.id))) soon(); }).observe(document.body, { childList: true });
+}
 </script>
