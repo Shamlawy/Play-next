@@ -8,9 +8,13 @@
      node tools/kit.mjs tour            the what's-new tour from the previous version: every step opens and finds its target
      node tools/kit.mjs perf            main-thread time for a fixed walk (4x slower CPU), to compare before/after a change
      node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
-     node tools/kit.mjs all             syntax + sw + sweep + tour
+     node tools/kit.mjs audit           code health (tools/audit.mjs --check): nothing piled up past tools/audit-budget.txt
+     node tools/kit.mjs all             syntax + audit + sw + sweep + tour
+     node tools/kit.mjs samecss --before old.html   the browser applies exactly the same CSS (after a CSS tidy)
      node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
                                         with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
+                                        --browser webkit: the same in Safari's engine (no p.tap / p.swipe; this container has
+                                        only Chromium, so on GitHub: webkit-check.yml with its "scenario" input)
 
    Options: --file other.html (test another copy, e.g. the old build), --widths 412,859, --cpu 4,
    --set '{"bugOff":true}' (extra saved settings), --shots dir (tour: a screenshot of every step),
@@ -33,7 +37,11 @@ const FILE = opt("file", "index.html");
 const SET = JSON.parse(opt("set", "{}"));
 const PLANT = opt("plant") ? fs.readFileSync(opt("plant"), "utf8") : "", EXPECT = args.includes("--expect");   /* --set '{"bugOff":true}': extra saved settings for every phone */
 const WIDTHS = opt("widths", "412,859,360").split(",").map(Number);
-const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2] };
+/* --browser webkit: Safari's engine, for the friend's iPhone 11 / iPad (on GitHub: webkit-check.yml's "scenario" input; this
+   container only has Chromium). No CDP there, so p.tap / p.swipe and perf need Chromium */
+const BROWSER = opt("browser", "chromium"), WK = BROWSER === "webkit";
+const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2],
+  414: [414, 896, 2], 810: [810, 1080, 2], 1080: [1080, 810, 2] };   /* 414 = iPhone 11, 810/1080 = iPad 9th gen upright / sideways */
 const html = fs.readFileSync(path.join(ROOT, FILE), "utf8");
 const APP_V = (html.match(/const APP_V = "(\d+)"/) || [])[1] || "1";
 let failed = 0;
@@ -98,6 +106,7 @@ function serve() {
   return { srv, base: `http://localhost:${srv.address().port}/` };
 }
 async function launch() {
+  if (WK) return (await pw()).webkit.launch();
   const { chromium } = await pw();
   const exe = ["/opt/pw-browsers/chromium/chrome-linux/chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(f => fs.existsSync(f));
   /* no browser swipe-back: a real finger swiping right on a game page otherwise "goes back" to about:blank (the installed
@@ -109,7 +118,9 @@ async function launch() {
 async function phone(browser, base, w, data) {
   const [vw, vh, dpr] = SIZES[w] || [w, Math.round(w * 2.1), 2.6];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, serviceWorkers: "block",
-    userAgent: "Mozilla/5.0 (Linux; Android 16; SM-F9800) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36" });
+    userAgent: WK ? (vw >= 600 ? "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
+      : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1")
+      : "Mozilla/5.0 (Linux; Android 16; SM-F9800) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36" });
   const reports = [], errors = [];
   await ctx.route(u => !u.href.startsWith(base), async r => {
     const u = r.request().url();
@@ -137,7 +148,7 @@ async function phone(browser, base, w, data) {
   }, dy).catch(() => {});
   const flush = () => step("flush", `typeof bugFlush === "function" && bugFlush()`, 1500);
   /* real touch (v207: mouse clicks skip the app's touch paths) */
-  const cdp = await ctx.newCDPSession(page);
+  const cdp = WK ? { send: () => { throw new Error("real touch (p.tap / p.swipe) needs Chromium: drop --browser webkit"); } } : await ctx.newCDPSession(page);
   const pt = (x, y) => [{ x: Math.round(x), y: Math.round(y), radiusX: 4, radiusY: 4, force: 1, id: 1 }];
   const tap = async (x, y) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x, y) }); await page.waitForTimeout(40);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); };
@@ -258,21 +269,55 @@ function sw() {
   if (r.status !== 0) fail("swcheck failed");
 }
 
+/* ---------- audit: nothing piled up (tools/audit.mjs, its budget only goes down) ---------- */
+function audit() {
+  const r = spawnSync(process.execPath, [path.join(ROOT, "tools/audit.mjs"), "--check", "--file", FILE], { cwd: ROOT, encoding: "utf8" });
+  console.log((r.stdout + r.stderr).trimEnd());
+  if (r.status !== 0) fail("code health: a measure went over its budget (tools/audit-budget.txt)");
+}
+
 if (mode === "syntax" || mode === "all") syntax();
+if (mode === "audit" || mode === "all") audit();
 if (mode === "sw" || mode === "all") sw();
 /* ---------- a saved scenario ---------- */
 async function scenario(browser, base) {
-  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set");
+  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set" && args[i - 1] !== "--browser" && args[i - 1] !== "--before");
   if (!file) return fail("usage: node tools/kit.mjs run tools/scenarios/x.mjs [--widths 412]");
   const fn = (await import(path.resolve(file))).default;
   for (const w of opt("widths") ? WIDTHS : [412]) {
     const p = await phone(browser, base, w, seed(APP_V));
-    console.log(`\n== ${path.basename(file)} at ${w}px ==`);
+    console.log(`\n== ${path.basename(file)} at ${w}px${WK ? " (WebKit)" : ""} ==`);
     if ((await fn({ p, w, fail, seed })) === false) fail(`${path.basename(file)} at ${w}px`);
     await p.ctx.close();
   }
 }
 
+/* ---------- samecss: the browser applies exactly the same CSS in two copies (after audit.mjs --fix-css or any CSS tidy) ---------- */
+async function samecss(browser) {
+  const old = opt("before"); if (!old) return fail("usage: node tools/kit.mjs samecss --before old.html [--file index.html]");
+  const dump = async file => {
+    const page = await browser.newPage();
+    await page.setContent(fs.readFileSync(path.resolve(ROOT, file), "utf8").replace(/<script[\s\S]*?<\/script>/g, ""), { waitUntil: "domcontentloaded" });
+    const r = await page.evaluate(() => { const w = {}; let n = 0;
+      const walk = (rules, ctx) => { for (const r of rules) {
+        if (r instanceof CSSKeyframesRule) w["@keyframes " + r.name + "#" + Object.keys(w).length] = { v: r.cssText };
+        else if (r.selectorText != null && r.style) for (let i = 0; i < r.style.length; i++) { const k = r.style[i], p = r.style.getPropertyPriority(k), key = ctx + "|" + r.selectorText + "|" + k, c = w[key]; n++;
+          if (!c || p || !c.p) w[key] = { v: r.style.getPropertyValue(k), p }; }
+        else if (r.cssRules) walk(r.cssRules, ctx + " " + (r.conditionText || (r.media && r.media.mediaText) || ""));
+      } };
+      for (const s of document.styleSheets) walk(s.cssRules, ""); return { w, n }; });
+    await page.close(); return r;
+  };
+  const A = await dump(old), B = await dump(FILE), d = [];
+  const kf = o => Object.keys(o.w).filter(k => k.startsWith("@keyframes")).map(k => o.w[k].v).sort().join("\n");
+  for (const k in A.w) if (!k.startsWith("@") && (!B.w[k] || B.w[k].v !== A.w[k].v || B.w[k].p !== A.w[k].p)) d.push(`${k}: ${A.w[k].v} → ${B.w[k] ? B.w[k].v : "(gone)"}`);
+  for (const k in B.w) if (!k.startsWith("@") && !A.w[k]) d.push(`${k}: (new) ${B.w[k].v}`);
+  if (kf(A) !== kf(B)) d.push("@keyframes differ");
+  console.log(`\n== samecss: ${old} → ${FILE} ==\n  declarations ${A.n} → ${B.n}, winning ${Object.keys(A.w).length} → ${Object.keys(B.w).length}`);
+  if (d.length) d.slice(0, 30).forEach(x => fail(x)); else console.log("  ✓ the browser applies exactly the same CSS");
+}
+
+if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
 if (["sweep", "tour", "perf", "all", "run"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
