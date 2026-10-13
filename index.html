@@ -25093,3 +25093,66 @@ WHATS_NEW.push(
     tryIt: "With the phone unfolded, go to another tab, double-tap me in the rail (or hold) and tap 🔥." }
 );
 </script>
+<style>
+/* #201 (the friend, iPhone/iPad: "Restore a code is not working"): while a keyboard (or a zoom) hides the bottom of the
+   screen, the open sheet sits on top of it and fits in what's still visible (--dykb / --dyvh, set by kbFit below).
+   The restore code field is 16px: Safari zooms the whole page in on a smaller text field and stays zoomed. */
+#diary.dykb { padding-bottom: var(--dykb, 0px); }
+#diary.dykb .dy-in { max-height: var(--dyvh, 85vh); }
+.cb-f .cb-in { font-size: 16px; }
+</style>
+<script>
+/* #201: Safari's keyboard doesn't shrink the page, it slides over it. Sheets (#diary) sit at the bottom of the screen,
+   so a short one (Restore from a code: one field and a button) went fully under the iPad's keyboard: all that showed
+   was the dimmed Settings with "Restore from a code…" still in sight, and tapping it again landed on the backdrop and
+   closed the sheet (8 taps in the report, never one on "Find my backup"). Now:
+   - kbFit: while the visible area (visualViewport) ends above the bottom of the screen, the open sheet is lifted to
+     sit on the keyboard and is no taller than what's visible;
+   - a tap on the backdrop while you're typing in the sheet only puts the keyboard away; the next one closes it;
+   - "Find my backup" puts the keyboard away, so the copies it finds show. */
+const KB_FIELD = "textarea, [contenteditable], input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=file]):not([type=color]):not([readonly])";
+let kbRaf = 0, kbGap = 0;
+function kbFit() {
+  kbRaf = 0;
+  const box = document.getElementById("diary"), vv = window.visualViewport; if (!box) return;
+  let lift = 0, vis = 0;
+  if (vv && box.classList.contains("on")) {
+    const r = box.getBoundingClientRect();   /* fixed, inset 0: the whole screen, in the same units as visualViewport */
+    lift = Math.round(r.bottom - (vv.offsetTop + vv.height)); vis = Math.round(vv.height);
+    if (lift < 40) lift = 0;   /* a toolbar settling, not a keyboard */
+  }
+  if (lift === kbGap && box.classList.contains("dykb") === lift > 0) return;
+  kbGap = lift; box.classList.toggle("dykb", lift > 0);
+  if (lift) { box.style.setProperty("--dykb", lift + "px"); box.style.setProperty("--dyvh", Math.max(160, vis - 12) + "px"); }
+}
+const kbSoon = () => { if (!kbRaf) kbRaf = requestAnimationFrame(kbFit); };
+if (window.visualViewport) { visualViewport.addEventListener("resize", kbSoon); visualViewport.addEventListener("scroll", kbSoon); }
+/* a sheet opening while the screen is still zoomed in (or the keyboard is up) fits straight away */
+{ const _ds = dyShow; dyShow = function () { const o = _ds.apply(this, arguments);
+  if (kbGap || (window.visualViewport && visualViewport.scale > 1.01)) requestAnimationFrame(kbSoon); return o; }; }
+{ let typing = false;
+  addEventListener("pointerdown", e => { const box = document.getElementById("diary"), a = document.activeElement;
+    typing = !!(box && e.target === box && box.classList.contains("on") && a && a !== document.body && box.contains(a) && a.matches(KB_FIELD)); }, { capture: true, passive: true });
+  addEventListener("click", e => {
+    const box = document.getElementById("diary"); if (!typing || !box || e.target !== box) return;
+    typing = false; e.stopPropagation();
+    const a = document.activeElement; if (a && box.contains(a) && a.blur) a.blur();
+  }, true);
+}
+addEventListener("submit", e => { const f = e.target; if (f && f.matches && f.matches(".cb-f")) { const i = f.querySelector(".cb-in"); if (i) i.blur(); } }, true);
+/* Nexi learned (#201): once the keyboard is up, a text field (or the sheet it's in) still out of sight is reported, and so
+   is a field that made the screen zoom in when it was tapped (Safari does that below 16px) */
+if (window.visualViewport) {
+  const vv = visualViewport; let f0 = null, t = 0;
+  addEventListener("focusin", e => { const a = e.target; f0 = a && a.matches && a.matches(KB_FIELD) ? { a, h: vv.height, s: vv.scale } : null; }, true);
+  const look = () => {
+    const f = f0; if (!f || document.activeElement !== f.a || !f.a.isConnected || !lookOk()) return;
+    const a = f.a, top = vv.offsetTop, bot = vv.offsetTop + vv.height, r = a.getBoundingClientRect();
+    if (vv.scale > f.s + .05) { f0 = null; bugReport("layout", "Tapping a text field zoomed the screen in (Safari does that below 16px)", { at: bugPath(a), screen: bugScreen(), note: "font " + getComputedStyle(a).fontSize }); return; }
+    if (f.h - vv.height < 120 || !r.height) return;   /* no keyboard came up */
+    const sh = a.closest("#diary.on .dy-in"), s = sh && sh.getBoundingClientRect(), hid = r.bottom > bot + 2 || r.top < top - 2;
+    if (hid || (s && s.bottom > bot + 4)) { f0 = null; bugReport("layout", "The keyboard covers the " + (hid ? "text field" : "sheet") + " you're typing in", { at: bugPath(a), screen: bugScreen() }); }
+  };
+  vv.addEventListener("resize", () => { if (!f0) return; clearTimeout(t); t = setTimeout(look, 800); });
+}
+</script>
