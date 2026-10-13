@@ -32,14 +32,29 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The reply is the whole crew as text too, so a screen that seats no panes (the phone app) still shows it.
   on('command.run', { command: 'agents-info' }, async $ => {
-    const r = await openPane($)
+    const r = await openPane($).catch(() => ({ isPlaced: false as const }))
     const list = await read($, helpers)
-    const t = totals(list, Date.now())
-    const summary = list.length
-      ? `${list.length} helper(s) this chat, ${t.running} running · ${k(t.tokens)} tokens · ${usd(t.cost)} · ${clock(t.time)}`
-      : 'No helpers yet this chat.'
-    return { text: r.isPlaced ? `Agents panel open. ${summary}` : `${summary} (This screen can't show the panel; the band above the prompt shows the same while helpers run.)` }
+    const at = Date.now()
+    if (!list.length) return { text: 'No helpers yet this chat. When Claude splits a job across helper agents, type /agents-info again to see them.' }
+    const t = totals(list, at)
+    const line = (x: Helper) => {
+      const [full, rest] = bar(progress(x), 16)
+      const mark = x.status === 'running' ? '●' : x.status === 'done' ? '✓' : '✗'
+      const doing = x.status === 'running' && x.lastTool ? ` · ${x.lastTool}` : ''
+      return `${mark} ${x.title} (${x.type}, ${modelName(x.model)}${x.effort ? ` · ${x.effort}` : ''})\n   ${full}${rest} ctx ${ctxPct(x)}% · ${k(x.context)} · ${usd(x.costUsd)} · ${clock(elapsed(x, at))}${doing}`
+    }
+    const running = list.filter(x => x.status === 'running')
+    const finished = list.filter(x => x.status !== 'running').reverse()
+    return {
+      text: [
+        `🦀 Agents · ${t.running} running · ${finished.length} finished · ${k(t.tokens)} tokens · ${usd(t.cost)} · ${clock(t.time)}${r.isPlaced ? ' (panel open)' : ''}`,
+        ...running.map(line),
+        ...finished.map(line),
+        'Cost is a rough guide from list prices; a Claude plan is not billed per token.',
+      ].join('\n'),
+    }
   })
 
   on('prompt.submit', async ($, e, next) => {
