@@ -4115,7 +4115,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "272";
+const APP_V = "273";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5051,7 +5051,6 @@ function demoFlow() {
 const GROUP_KEYS = {
   "Tiles on Home": ["homeHide"],
   "How tiles look": ["homeTint", "homeCount"],
-  "Live background": ["hlvOff", "hlvX"],
   "Playing now cards": ["dzX"],
   "On deck cards": ["dzX"],
   "Player type card": ["dzX"],
@@ -5970,15 +5969,6 @@ function openSettings(scope) {
       </div>
     </div>
 
-    <div class="setgroup" data-scope="home"><h4 data-desc="Soft light from your next game's art, moving behind Home.">Live background</h4>
-      <label>Live background</label>
-      <p class="note">Light from your #1 game's art drifts behind Home and changes colour by itself when your #1 changes. It runs at your screen's full refresh rate.</p>
-      <div class="chips" id="s-hlv">
-        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.hlvOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-    </div>
-
     <div class="setgroup" data-scope="home"><h4 data-desc="How many places the Home ranking lists.">The standings tile</h4>
       <label for="s-standn">Places in the standings</label>
       <div class="rowline"><input id="s-standn" type="range" min="2" max="10" value="${num(S.standN, 4, 2, 10)}">
@@ -5991,21 +5981,6 @@ function openSettings(scope) {
       <div class="chips" id="s-dzx-deck">
         ${[["on", "New"], ["off", "Classic"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).deck ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-    </div>
-
-    <div class="setgroup" data-scope="games"><h4 data-desc="Soft moving light behind Games and on each game's page.">Live background</h4>
-      <label>Behind Games</label>
-      <p class="note">Light from the game your backdrop shows drifts behind every Games screen.</p>
-      <div class="chips" id="s-hlvx-games">
-        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${((S.hlvX || {}).games ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-      <label>On a game's page</label>
-      <p class="note">Each game's page glows with light from its own art.</p>
-      <div class="chips" id="s-hlvx-game">
-        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${((S.hlvX || {}).game ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
     </div>
 
@@ -6293,15 +6268,6 @@ function openSettings(scope) {
       <p class="note">The cut-out character standing on the art at the top. Off by default: some key art doesn't sit well there.</p>
     </div>
 
-    <div class="setgroup" data-scope="plan"><h4 data-desc="Soft moving light from your next release.">Live background</h4>
-      <label>Live background</label>
-      <p class="note">Light from your next release drifts behind Plan. It gets brighter and quicker as release day gets closer.</p>
-      <div class="chips" id="s-hlvx-plan">
-        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${((S.hlvX || {}).plan ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-    </div>
-
     <div class="setgroup" data-scope="plan" data-sub="flow"><h4 data-desc="How big the art runs along the timeline.">Timeline board</h4>
       <div class="demohost" data-demo="flow">${demoFlow()}</div>
       ${S.calView === "flow" ? "" :
@@ -6340,15 +6306,6 @@ function openSettings(scope) {
       <div class="chips" id="s-dzx-court">
         ${[["on", "New"], ["off", "Classic"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).court ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-    </div>
-
-    <div class="setgroup" data-scope="taste"><h4 data-desc="Soft moving light in the colours of your favourite genres.">Live background</h4>
-      <label>Live background</label>
-      <p class="note">Taste glows in the colours of the genres you love most, over the art of your best-rated game.</p>
-      <div class="chips" id="s-hlvx-taste">
-        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${((S.hlvX || {}).taste ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
     </div>
 
@@ -24090,271 +24047,6 @@ WHATS_NEW.push(
 );
 </script>
 <style>
-/* v257 live background (hlv*): a game's art and three lights taken from it drift behind the screen, plus rising
-   specks. Only transform/opacity move, on small canvases the compositor stretches, so it runs at the screen's own
-   refresh rate (120Hz on the Fold) without touching the main thread. v258: on Games, Plan, Taste and a game's page too. */
-#hlv, #hlvg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; contain: strict; }
-html.hlvon #hlv { display: block; }
-#hlvg { position: absolute; z-index: -1; }
-#full.hlvgon #hlvg { display: block; }
-.hlv-s { position: absolute; inset: 0; opacity: 0; transition: opacity .9s cubic-bezier(.4,0,.2,1); display: none; }
-.hlv-s.live { display: block; }
-.hlv-s.in { opacity: 1; }
-.hlv-s canvas { position: absolute; display: block; will-change: transform; backface-visibility: hidden; }
-.hlv-art { left: -14%; top: -14%; width: 128%; height: 128%; opacity: calc(.38 * var(--hlvk, 1)); animation: hlvArt 48s ease-in-out infinite alternate; }
-.hlv-s.noart .hlv-art { display: none; }
-@keyframes hlvArt { from { transform: translate3d(-4%,-3%,0) scale(1); } to { transform: translate3d(4%,3%,0) scale(1.1); } }
-.hlv-l { width: 76vmax; height: 76vmax; left: calc(50% - 38vmax); top: calc(50% - 38vmax); opacity: calc(.45 * var(--hlvk, 1)); }
-.hlv-l1 { animation: hlvL1 31s ease-in-out infinite; }
-.hlv-l2 { animation: hlvL2 41s ease-in-out infinite; }
-.hlv-l3 { animation: hlvL3 53s ease-in-out infinite; }
-@keyframes hlvL1 { 0%, 100% { transform: translate3d(-34%,-30%,0) scale(.7); } 33% { transform: translate3d(28%,-22%,0) scale(.95); }
-  66% { transform: translate3d(6%,18%,0) scale(.6); } }
-@keyframes hlvL2 { 0%, 100% { transform: translate3d(30%,26%,0) scale(.85); } 40% { transform: translate3d(-26%,30%,0) scale(.6); }
-  75% { transform: translate3d(-12%,-28%,0) scale(1); } }
-@keyframes hlvL3 { 0%, 100% { transform: translate3d(0,38%,0) scale(.55); } 30% { transform: translate3d(-30%,-6%,0) scale(.8); }
-  60% { transform: translate3d(32%,-36%,0) scale(.65); } }
-.hlv-d i { position: absolute; bottom: -10px; width: 3px; height: 3px; border-radius: 50%; background: rgba(234,242,255,.8);
-  box-shadow: 0 0 6px 1px rgba(var(--vrgb),.55); opacity: 0; will-change: transform, opacity; animation: hlvD1 linear infinite; }
-.hlv-d i:nth-child(3n+1) { animation-name: hlvD2; } .hlv-d i:nth-child(3n+2) { animation-name: hlvD3; }
-@keyframes hlvD1 { 0% { transform: translate3d(0,0,0); opacity: 0; } 12%, 80% { opacity: .75; } 100% { transform: translate3d(18px,-105vh,0); opacity: 0; } }
-@keyframes hlvD2 { 0% { transform: translate3d(0,0,0); opacity: 0; } 15%, 75% { opacity: .5; } 100% { transform: translate3d(-26px,-90vh,0); opacity: 0; } }
-@keyframes hlvD3 { 0% { transform: translate3d(0,0,0); opacity: 0; } 10%, 85% { opacity: .9; } 100% { transform: translate3d(8px,-110vh,0); opacity: 0; } }
-/* Home's panel and a game's page let the light through */
-html.hlvon .dxw { background: rgba(10,14,27,.72); }
-#full.hlvgon .hub.gpage { background: rgba(10,14,27,.5); }
-#full.hlvgon .gd-hero::after {
-  background: linear-gradient(180deg, rgba(4,6,14,.55) 0%, rgba(4,6,14,0) 26%, rgba(10,14,27,0) 55%, rgba(10,14,27,.5) 100%),
-    radial-gradient(90% 70% at 85% 100%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); }
-/* v258: the calendar's cover dots (i.ccov) share a name with the calling card overlay and took its z-index 9000:
-   opening a game from Plan showed them floating over the game page */
-i.ccov { z-index: 1; }
-/* nothing moves where nobody can see it */
-html:has(#full.on) #hlv { visibility: hidden; }
-html:has(#full.on) #hlv *, html.dragging-now #hlv *, html.dragging-now #hlvg *, #hlv.hold *, #hlvg.hold * { animation-play-state: paused !important; }
-</style>
-<script>
-/* v257 live background. Switches: S.hlvOff (Home), S.hlvX.games / .game / .plan / .taste (Customise on each screen) */
-const HLV = { raf: 0, g: null };
-const hlvRgb = (r, g, b, top) => { const k = (top || 200) / Math.max(r, g, b, 1); return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`; };
-function hlvColours(c, g) {
-  /* three lights from the art: the strongest hues, brightened; the game's own colour and the accent fill in */
-  const out = [];
-  try {
-    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data, bins = {};
-    for (let i = 0; i < d.length; i += 16) {
-      const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0;
-      if (mx < 40 || sat < .25) continue;
-      let h = mx === mn ? 0 : mx === r ? (gg - b) / (mx - mn) : mx === gg ? 2 + (b - r) / (mx - mn) : 4 + (r - gg) / (mx - mn);
-      const k = Math.round(((h * 60 + 360) % 360) / 30) % 12, w = sat * mx, o = bins[k] || (bins[k] = { w: 0, r: 0, g: 0, b: 0 });
-      o.w += w; o.r += r * w; o.g += gg * w; o.b += b * w;
-    }
-    Object.values(bins).sort((x, y) => y.w - x.w).slice(0, 3).forEach(o => out.push(hlvRgb(o.r / o.w, o.g / o.w, o.b / o.w)));
-  } catch (e) { /* a picture from another site without permission: its colours can't be read */ }
-  const v = (getComputedStyle(document.documentElement).getPropertyValue("--vrgb") || "77,163,255").trim();
-  if (g && g.colour && out.length < 3) out.push(g.colour);
-  while (out.length < 3) out.push(`rgb(${v})`);
-  return out;
-}
-/* v258 Taste: a colour per genre, the three you love most (scores of finished games, hype of the rest) */
-const HLV_GEN = [[/rpg|role/, [160,110,255]], [/shoot/, [255,140,60]], [/fight/, [240,60,110]], [/horror|surviv/, [200,40,70]],
-  [/action/, [255,84,84]], [/adventure/, [70,200,140]], [/strateg|tactic/, [77,163,255]], [/puzzle/, [60,220,210]],
-  [/sport/, [90,210,90]], [/racing|driv/, [255,210,60]], [/platform/, [255,110,200]], [/simul/, [80,200,255]],
-  [/indie/, [190,240,90]], [/family|casual/, [255,180,120]], [/arcade/, [255,230,90]], [/massive|mmo/, [130,140,255]]];
-function hlvGenreCols() {
-  const sc = {}, real = {};
-  playedRows().forEach(x => { if (x && x.g) real[x.g.id] = x.real; });
-  S.games.forEach(g => { if (isDropped(g)) return;
-    const w = real[g.id] != null ? +real[g.id] || 0 : isPlayed(g) ? 0 : num(g.hype, 5, 0, 10) / 2;
-    platList(g.genres).forEach(n => { const k = n.toLowerCase(); sc[k] = (sc[k] || 0) + w; }); });
-  const top = Object.keys(sc).filter(k => sc[k] > 0).sort((a, b) => sc[b] - sc[a]).slice(0, 3);
-  return top.map(k => { const m = HLV_GEN.find(([re]) => re.test(k));
-    if (m) return hlvRgb(...m[1]);
-    let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360;
-    return `hsl(${h},75%,58%)`; });
-}
-function hlvLight(col) {
-  const c = document.createElement("canvas"); c.width = c.height = 64; c.className = "hlv-l";
-  const x = c.getContext("2d"); if (!x) return c;
-  /* the colour, then cut to a soft round light */
-  x.fillStyle = col; x.fillRect(0, 0, 64, 64);
-  const m = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  [[0, 1], [.3, .62], [.55, .26], [.8, .06], [1, 0]].forEach(([s, a]) => m.addColorStop(s, `rgba(0,0,0,${a})`));
-  x.globalCompositeOperation = "destination-in"; x.fillStyle = m; x.fillRect(0, 0, 64, 64);
-  return c;
-}
-function hlvMake(id) {
-  const b = document.createElement("div"); b.id = id; b.setAttribute("aria-hidden", "true");
-  /* 14 specks, each on its own path and speed */
-  let d = "";
-  for (let i = 0; i < 14; i++) d += `<i style="left:${(i * 7.3 + Math.random() * 5).toFixed(1)}%;animation-duration:${(14 + Math.random() * 16).toFixed(1)}s;animation-delay:-${(Math.random() * 30).toFixed(1)}s;${i % 4 ? "" : "width:2px;height:2px;"}"></i>`;
-  b.innerHTML = `<div class="hlv-d">${d}</div>`;
-  return b;
-}
-function hlvBox() {
-  let b = document.getElementById("hlv");
-  if (b) return b;
-  const t = document.getElementById("bgtint"); if (!t) return null;
-  b = hlvMake("hlv"); t.after(b);
-  return b;
-}
-/* show one scene of a box and fade the rest out (they stop for good once hidden) */
-function hlvShow(box, sc) {
-  box.querySelectorAll(".hlv-s").forEach(o => { if (o === sc || !o.classList.contains("in")) return;
-    o.classList.remove("in"); setTimeout(() => { if (!o.classList.contains("in")) o.classList.remove("live"); }, 950); });
-  if (sc.classList.contains("in")) return;
-  sc.classList.add("live");
-  requestAnimationFrame(() => requestAnimationFrame(() => { if (box._want === sc.dataset.sig) sc.classList.add("in"); }));
-  /* keep a few for going back and forth between screens */
-  const all = [...box.querySelectorAll(".hlv-s:not(.live)")]; all.slice(0, Math.max(0, all.length - 4)).forEach(o => o.remove());
-}
-function hlvHideAll(box) {
-  box._want = "";
-  box.querySelectorAll(".hlv-s.in").forEach(o => { o.classList.remove("in"); setTimeout(() => { if (!o.classList.contains("in")) o.classList.remove("live"); }, 950); });
-}
-/* o: g, src, k (how strong), fast (quicker lights), cols (fixed colours), noart */
-async function hlvScene(box, o) {
-  const sig = [o.src, o.k || 1, o.fast ? 1 : 0, (o.cols || []).join("/")].join("|");
-  box._want = sig;
-  const have = [...box.querySelectorAll(".hlv-s")].find(x => x.dataset.sig === sig);
-  if (have) { have.classList.toggle("noart", !!o.noart); hlvShow(box, have); return; }
-  if (box._busy === sig) return;
-  box._busy = sig;
-  try {
-    const url = liteFor(o.src, 1) || (bigData(o.src) ? blobRef(o.src) : o.src);
-    /* v261: decoded off the main thread when the site allows it (pnSmallBitmap) */
-    const bm = await pnSmallBitmap(url, 256);
-    if (box._want !== sig) return;
-    const get = cors => new Promise(res => { const im = new Image(); im.decoding = "async"; if (cors) im.crossOrigin = "anonymous";
-      im.onload = () => res(im); im.onerror = () => res(null); im.src = url; });
-    /* asked with CORS so its colours can be read; a site that refuses still gives the picture */
-    const im = bm || (/^https?:/.test(url) && !url.startsWith(location.origin) && await get(1)) || await get(0);
-    if (!im || box._want !== sig) return;
-    if (!bm) try { await im.decode(); } catch (e) {}
-    const iw = bm ? bm.width : im.naturalWidth, ih = bm ? bm.height : im.naturalHeight;
-    /* tiny on purpose: the stretch does the blur, and drawing it costs well under a millisecond */
-    const W = innerWidth || 400, H = innerHeight || 800, cw = 72, ch = Math.max(24, Math.min(200, Math.round(cw * H / W)));
-    const c = document.createElement("canvas"); c.width = cw; c.height = ch; c.className = "hlv-art";
-    const x = c.getContext("2d"); if (!x) return;
-    if ("filter" in x) x.filter = "blur(2px) saturate(1.35)";
-    const r = Math.max(cw / iw, ch / ih), w = iw * r, h = ih * r;
-    x.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h);
-    await new Promise(res => requestAnimationFrame(res));
-    if (box._want !== sig) return;
-    const cols = (o.cols && o.cols.length ? o.cols.concat(hlvColours(c, o.g)) : hlvColours(c, o.g)).slice(0, 3);
-    const sc = document.createElement("div"); sc.className = "hlv-s" + (o.noart ? " noart" : ""); sc.dataset.sig = sig;
-    sc.style.setProperty("--hlvk", String(o.k || 1));
-    sc.appendChild(c);
-    const f = o.fast ? .6 : 1;
-    cols.forEach((col, n) => { const l = hlvLight(col); l.classList.add("hlv-l" + (n + 1));
-      l.style.animationDuration = Math.round([31, 41, 53][n] * f) + "s";
-      l.style.animationDelay = -(Math.random() * 30).toFixed(1) + "s"; sc.appendChild(l); });
-    box.insertBefore(sc, box.querySelector(".hlv-d"));
-    hlvShow(box, sc);
-  } finally { if (box._busy === sig) box._busy = ""; }
-}
-/* what each screen glows with */
-function hlvWhat() {
-  const tab = curTab(), X = S.hlvX || {}, art = g => g ? (bgSource(g) || cover(g)) : "";
-  const top = () => S.games.find(x => x.id === focusId && !isPlayed(x)) || sortGames(liveGames())[0];
-  if (tab === "home") {
-    if (S.hlvOff) return null;
-    const hero = $("#p-home .dxhero[data-home-open]"), g = hero && S.games.find(x => x.id === hero.dataset.homeOpen);
-    return g ? { g, src: art(g) } : null;
-  }
-  if (tab === "games") {
-    if (X.games) return null;
-    const g = top(), bg = !S.bgOff && [$("#bgart"), $("#bgart2")].some(l => l && l.dataset.src);
-    /* the queue's own backdrop already shows the art: just the light on top */
-    return g ? { g, src: art(g), noart: bg, k: .75 } : null;
-  }
-  if (tab === "plan") {
-    if (X.plan) return null;
-    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
-    const next = S.games.filter(g => !isPlayed(g) && !isDropped(g) && g.date && !isNaN(new Date(g.date)) && new Date(g.date) >= t0 - 864e5)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-    if (!next) { const g = top(); return g ? { g, src: art(g), k: .55 } : null; }
-    const d = Math.max(0, Math.round((new Date(next.date) - t0) / 864e5));
-    /* brighter and quicker as the day comes (these screens have no panel over the light, so all softer than Home) */
-    return { g: next, src: art(next), k: d <= 0 ? 1 : d <= 3 ? .9 : d <= 7 ? .8 : d <= 30 ? .68 : .58, fast: d <= 7 };
-  }
-  if (tab === "taste") {
-    if (X.taste) return null;
-    const best = playedRows().filter(x => x && x.g).sort((a, b) => (b.real || 0) - (a.real || 0))[0], g = best ? best.g : top();
-    return g ? { g, src: art(g), cols: hlvGenreCols(), k: .75 } : null;
-  }
-  return null;
-}
-function hlvSync() {
-  HLV.raf = 0;
-  const r = document.documentElement, w = hlvWhat();
-  if (!w || !w.src) {
-    if (r.classList.contains("hlvon")) r.classList.remove("hlvon");
-    const b = document.getElementById("hlv"); if (b) hlvHideAll(b);
-  } else {
-    if (!r.classList.contains("hlvon")) r.classList.add("hlvon");
-    const b = hlvBox(); if (b) hlvScene(b, w);
-  }
-  hlvGame();
-}
-/* v258: a game's page gets its own light. #full is redrawn on every open, so the layer is put back each time */
-function hlvGame() {
-  const f = $("#full"); if (!f) return;
-  const g = f.classList.contains("on") && !(S.hlvX || {}).game && f.querySelector(".hub") && S.games.find(x => x.id === hubAt);
-  const src = g ? (bgSource(g) || cover(g)) : "";
-  if (!src) { clearTimeout(HLV.gt); HLV.gk = ""; if (f.classList.contains("hlvgon")) f.classList.remove("hlvgon"); if (HLV.g) hlvHideAll(HLV.g); return; }
-  if (!HLV.g) HLV.g = hlvMake("hlvg");
-  /* last, drawn underneath by z-index -1: the flicker check reads #full's first child, which must stay the page */
-  if (f.lastElementChild !== HLV.g) f.appendChild(HLV.g);
-  /* the page flies open first; the light joins once it has landed (building it mid-flight made the opening stutter) */
-  if (HLV.gk === g.id) return;
-  HLV.gk = g.id; clearTimeout(HLV.gt);
-  HLV.gt = setTimeout(() => {
-    const go = () => { if (HLV.gk !== g.id || hubAt !== g.id || !f.classList.contains("on")) return;
-      if (!f.classList.contains("hlvgon")) f.classList.add("hlvgon");
-      hlvScene(HLV.g, { g, src, k: 1.3 }); };
-    window.requestIdleCallback ? requestIdleCallback(go, { timeout: 600 }) : go();
-  }, 650);
-}
-function hlvKick() { if (!HLV.raf) HLV.raf = requestAnimationFrame(hlvSync); }
-{ const _rh7 = renderHome; renderHome = function () { const o = _rh7.apply(this, arguments); hlvKick(); return o; }; }
-onNav("after", k => { if (k === "tab") hlvKick(); });
-{ const _ab = applyBg; applyBg = function () { const o = _ab.apply(this, arguments); hlvKick(); return o; }; }
-{ const f = $("#full"); if (f && window.MutationObserver) new MutationObserver(hlvKick).observe(f, { childList: true, attributes: true, attributeFilter: ["class"] }); }
-/* the light is only drawn while the app is in front; a new day can bring Plan's release closer */
-document.addEventListener("visibilitychange", () => {
-  [document.getElementById("hlv"), HLV.g].forEach(b => { if (b) b.classList.toggle("hold", document.hidden); });
-  if (!document.hidden) hlvKick();
-});
-hlvKick();
-
-document.addEventListener("click", e => {
-  const b = e.target.closest && e.target.closest("#s-hlv [data-v], [id^=s-hlvx-] [data-v]"); if (!b) return;
-  e.stopPropagation(); const w = b.parentElement, off = b.dataset.v === "off";
-  w.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-  if (w.id === "s-hlv") S.hlvOff = off;
-  else { const X = Object.assign({}, S.hlvX), k = w.id.slice(7); if (off) X[k] = 1; else delete X[k]; S.hlvX = X; }
-  save(); beep("tap"); hlvKick();
-}, true);
-
-WHATS_NEW.push(
-  { v: 257, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); },
-    at: () => $("#p-home .dxhero") || null,
-    say: "Home has a <b>live background</b> now: soft light from your next game's art drifts behind everything, smooth at your screen's full refresh rate, and changes colour by itself when your #1 changes.",
-    tryIt: "Settle a duel with ⚔ on the big card: when your #1 changes, the light follows it. Customise → Live background turns it off." }
-);
-WHATS_NEW.push(
-  { v: 258, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); },
-    at: () => $(".panel.on .tabbar") || null,
-    say: "The <b>live background</b> now runs on Games, Plan and Taste too: Plan glows with your next release and gets brighter and quicker as release day gets closer, and Taste glows in the colours of the genres you love.",
-    tryIt: "Switch between Games, Plan and Taste and watch the light change. Each screen's Customise has its own switch." },
-  { v: 258, go: () => { closeFull(); dyClose(); nxShut(); nxOpenGame(); },
-    at: () => $("#full.on .gd-body") || null,
-    say: "Every game's page has its own <b>live light</b> now, made from that game's art and drifting behind the details.",
-    tryIt: "Swipe to the next game and watch the light change with it. Games → Customise → Live background turns it off." }
-);
-</script>
-<style>
 /* v259 three new card looks, from the owner's references (layout and style copied, our colours):
    dzp = Home "Playing now" colour cards, dzd = On deck photo cards, dzc = the player type as a court card.
    Switches: S.dzX.play / .deck / .court (Customise on Home, Games → Queue, Taste → Insights). */
@@ -24526,7 +24218,6 @@ WHATS_NEW.push(
 </script>
 <style>
 /* v260 smoothness + battery: fewer full-screen layers stacked on every frame */
-html.hlvon #pnorbs, html.hlvon::before { display: none; }   /* the live light already covers both */
 html:not(.bgon) #bgtint { display: none; }                  /* the tint is for the art backdrop only */
 </style>
 <script>
@@ -24796,187 +24487,7 @@ WHATS_NEW.push(
     tryIt: "Nothing to do: if it ever happens, I file it on my own." }
 );
 </script>
-<style>
-/* v264: the whole background in one layer (hlvf*, last script). The flat canvas keeps v257's own canvas rule (its own
-   layer, will-change: transform) and fills the scene. While it also carries the queue backdrop and the tint, those two
-   step aside; the classes they need are in the selector, so losing any of them shows them again at once. */
-.hlv-s canvas.hlv-f { left: 0; top: 0; width: 100%; height: 100%; }
-html.hlvflat.hlvon.bgon #bgart, html.hlvflat.hlvon.bgon #bgart2, html.hlvflat.hlvon.bgon #bgtint { visibility: hidden; }
-</style>
 <script>
-/* v264 (the owner, the fifth time: "still lags"). v263 made the main thread quiet; what was left is the GPU. A trace of what
-   it draws per frame (the viz.quads trace: every layer, its area and its blending) on Games/Plan at 859×847 @2.63 found
-   about 7 screens' worth of see-through layers blended on every frame: the queue backdrop (#bgart, a canvas at .58), the
-   tint over it (#bgtint), the live light's picture (.hlv-art, 128% of the screen) and its three lights (76vmax each),
-   on top of the page's own background and the page. Something on screen always moves (the lights, the specks, Nexi), so
-   the phone re-blends all of it at 120Hz on a 5-megapixel panel: the "60 or 70" on the FPS counter with an idle main
-   thread. A normal screen is 1.5 to 2 screens.
-   Now each live-light scene is ONE canvas at a quarter of the screen's size that the GPU stretches (all of it is soft):
-   the picture and the three lights are drawn into it with v257's exact paths (same keyframes, ease-in-out, 48s alternate
-   for the picture, 31/41/53s with their random starts for the lights), so it looks the same. When a scene has settled
-   on a screen with the queue backdrop, the backdrop and the tint are drawn into its bottom too and step aside ("over" is
-   associative, so the result is the same pixels). Any change to them (a new game's backdrop, a crossfade, a tab without
-   the backdrop, the game page opening) puts them back in the same task, before the next frame.
-   It's redrawn 30 times a second from a timer (the lights move about a pixel per step, too slow and soft to see steps);
-   a quarter-size canvas costs well under a millisecond. Holds still with the rest mode, while dragging, when the app is
-   hidden and with Motion off, like the CSS did. Result: about 7 → 2 screens of drawing per frame. */
-const HLVF = { t: 0, n: 0, W: innerWidth || 400, H: innerHeight || 800, recheck: true, mo: null };
-const hlvfEase = (() => {   /* ease-in-out = cubic-bezier(.42, 0, .58, 1) */
-  const cx = 1.26, bx = 3 * (.58 - .42) - cx, ax = 1 - cx - bx, by = 3, ay = -2;
-  const X = t => ((ax * t + bx) * t + cx) * t, dX = t => (3 * ax * t + 2 * bx) * t + cx;
-  return p => { if (p <= 0) return 0; if (p >= 1) return 1; let t = p;
-    for (let i = 0; i < 8; i++) { const d = dX(t); if (Math.abs(d) < 1e-6) break; t = Math.min(1, Math.max(0, t - (X(t) - p) / d)); }
-    return (ay * t + by) * t * t; };
-})();
-/* v257's keyframes (hlvArt, hlvL1–3): [offset, translate x %, translate y %, scale] */
-const HLVF_KF = {
-  art: [[0, -4, -3, 1], [1, 4, 3, 1.1]],
-  1: [[0, -34, -30, .7], [.33, 28, -22, .95], [.66, 6, 18, .6], [1, -34, -30, .7]],
-  2: [[0, 30, 26, .85], [.4, -26, 30, .6], [.75, -12, -28, 1], [1, 30, 26, .85]],
-  3: [[0, 0, 38, .55], [.3, -30, -6, .8], [.6, 32, -36, .65], [1, 0, 38, .55]]
-};
-function hlvfAt(kf, p) {
-  let i = 0; while (i < kf.length - 2 && p > kf[i + 1][0]) i++;
-  const a = kf[i], b = kf[i + 1], q = hlvfEase((p - a[0]) / ((b[0] - a[0]) || 1));
-  return [a[1] + (b[1] - a[1]) * q, a[2] + (b[2] - a[2]) * q, a[3] + (b[3] - a[3]) * q];
-}
-/* the tint's gradient, read from its computed style: only a plain top-to-bottom linear gradient of colours with % stops */
-function hlvfStops(bg) {
-  bg = bg || ""; if (bg.indexOf("gradient(") !== bg.lastIndexOf("gradient(")) return null;
-  const m = /^linear-gradient\((.*)\)$/.exec(bg); if (!m) return null;
-  let body = m[1]; const dir = /^(180deg|to bottom)\s*,\s*/.exec(body);
-  if (dir) body = body.slice(dir[0].length); else if (!/^rgba?\(/.test(body)) return null;
-  const out = [], re = /(rgba?\([^)]*\))\s+([\d.]+)%/g; let x;
-  while ((x = re.exec(body))) out.push([Math.min(1, +x[2] / 100), x[1]]);
-  return out.length >= 2 && out.length === (body.match(/rgba?\(/g) || []).length ? out : null;
-}
-/* can the backdrop and tint go into this scene? Only when everything is still: one settled scene on #hlv, one backdrop
-   shown with nothing fading, Speed boost's baked canvas (no live filter), a plain tint. */
-const HLVF_ID = /^(none|matrix\(1, 0, 0, 1, 0, 0\)|matrix3d\(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1\))$/;
-function hlvfBaseFor(sc) {
-  const r = document.documentElement, box = sc.parentElement, fu = document.getElementById("full");
-  if (!box || box.id !== "hlv" || !["bgon", "hlvon", "fast"].every(c => r.classList.contains(c)) || r.classList.contains("still")) return null;
-  if (fu && fu.classList.contains("on")) return null;
-  if (!sc.classList.contains("in") || box.querySelectorAll(".hlv-s.live").length !== 1 || sc.getAnimations().length) return null;
-  const t = document.getElementById("bgtint"); let shown = null;
-  for (const l of [document.getElementById("bgart"), document.getElementById("bgart2")]) {
-    if (!l || l.getAnimations().length) return null;
-    const cs = getComputedStyle(l), op = +cs.opacity;
-    if (cs.display === "none" || op <= .001) continue;
-    if (shown || cs.filter !== "none" || !HLVF_ID.test(cs.transform) || cs.mixBlendMode !== "normal" || l.style.backgroundImage !== "none") return null;
-    const cv = l.querySelector("canvas"); if (!cv || !cv.width) return null;
-    shown = { cv, op };
-  }
-  if (!shown || !t) return null;
-  const ts = getComputedStyle(t), stops = ts.display !== "none" && ts.filter === "none" && ts.mixBlendMode === "normal" &&
-    /rgba\(0, 0, 0, 0\)|transparent/.test(ts.backgroundColor) && hlvfStops(ts.backgroundImage);
-  return stops ? { cv: shown.cv, op: shown.op, top: +ts.opacity, stops } : null;
-}
-function hlvfShown(sc) {
-  const box = sc.parentElement, r = document.documentElement, fu = document.getElementById("full");
-  if (!box || box.classList.contains("hold")) return false;
-  if (box.id === "hlv") return r.classList.contains("hlvon") && !(fu && fu.classList.contains("on"));
-  if (box.id === "hlvg") return !!fu && fu.classList.contains("on") && fu.classList.contains("hlvgon") && fu.contains(box);
-  return false;
-}
-function hlvfDraw(sc) {
-  const f = sc._f, cv = f.cv, W = HLVF.W, H = HLVF.H, still = document.documentElement.classList.contains("still");
-  const cw = Math.max(8, Math.ceil(W / 4)), ch = Math.max(8, Math.ceil(H / 4));
-  if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
-  const x = cv.getContext("2d"); if (!x) return;
-  x.setTransform(cw / W, 0, 0, ch / H, 0, 0); x.globalAlpha = 1; x.clearRect(0, 0, W, H);
-  const b = f.base;
-  if (b) {
-    x.globalAlpha = Math.min(1, b.op); x.drawImage(b.cv, 0, 0, W, H);
-    const g = x.createLinearGradient(0, 0, 0, H); b.stops.forEach(([o, c]) => g.addColorStop(o, c));
-    x.globalAlpha = Math.min(1, b.top); x.fillStyle = g; x.fillRect(0, 0, W, H);
-  }
-  const t = f.clock / 1000;
-  if (f.art && !sc.classList.contains("noart")) {
-    let p = (t / 48) % 2; if (p > 1) p = 2 - p;   /* alternate */
-    const [tx, ty, s] = still ? [0, 0, 1] : hlvfAt(HLVF_KF.art, p), aw = W * 1.28, ah = H * 1.28, w = aw * s, h = ah * s;
-    x.globalAlpha = Math.min(1, .38 * f.k);
-    x.drawImage(f.art, W / 2 + tx / 100 * aw - w / 2, H / 2 + ty / 100 * ah - h / 2, w, h);
-  }
-  const L = .76 * Math.max(W, H);   /* 76vmax. v265: never innerWidth here: it forces a full layout when the page has changes (80ms over one swipe) */
-  x.globalAlpha = Math.min(1, .45 * f.k);
-  f.ls.forEach(l => {
-    const [tx, ty, s] = still ? [0, 0, 1] : hlvfAt(l.kf, ((t + l.off) / l.dur) % 1), d = L * s;
-    x.drawImage(l.c, W / 2 + tx / 100 * L - d / 2, H / 2 + ty / 100 * L - d / 2, d, d);
-  });
-  x.globalAlpha = 1; f.drawn = true;
-}
-const hlvfLive = () => [...document.querySelectorAll(".hlv-s.live")].filter(sc => sc._f);
-function hlvfFlatClass() {
-  const r = document.documentElement, on = hlvfLive().some(sc => sc._f.base && hlvfShown(sc));
-  if (r.classList.contains("hlvflat") !== on) r.classList.toggle("hlvflat", on);
-}
-/* the backdrop or tint may be about to change: they come back at once, the scene redrawn without them, same task */
-function hlvfExit() {
-  HLVF.recheck = true;
-  hlvfLive().forEach(sc => { if (!sc._f.base) return; sc._f.base = null; hlvfDraw(sc); });   /* hidden ones too: never shown stale */
-  hlvfFlatClass(); hlvfKick();
-}
-function hlvfTick() {
-  HLVF.t = 0;
-  const r = document.documentElement, now = performance.now(), live = hlvfLive();
-  if (!live.length) { hlvfFlatClass(); return; }
-  const frozen = document.hidden || !!window.pnRest || r.classList.contains("dragging-now") || r.classList.contains("prb-noanim") || now < HLVF.busy, still = r.classList.contains("still");
-  const chk = !(now < HLVF.busy) && (HLVF.recheck || HLVF.n++ % 8 === 0); if (chk) HLVF.recheck = false;   /* v265: no style reads while you're touching */
-  let moving = false;
-  for (const sc of live) {
-    const f = sc._f, dt = Math.min(250, now - (f.last || now)); f.last = now;
-    if (!hlvfShown(sc)) { if (f.base) { f.base = null; hlvfDraw(sc); } continue; }
-    let redraw = !f.drawn;
-    if (!frozen && !still) { f.clock += dt; redraw = moving = true; }
-    if (chk) { const b = hlvfBaseFor(sc); if (b || f.base) redraw = true; f.base = b; }
-    if (redraw) hlvfDraw(sc);
-  }
-  hlvfFlatClass();
-  HLVF.t = setTimeout(hlvfTick, moving ? 33 : now < HLVF.busy ? 120 : 400);
-}
-function hlvfKick() { if (!HLVF.t) HLVF.t = setTimeout(hlvfTick, 0); }
-/* a new scene from v257's hlvScene: its picture and lights move into one canvas (same task: never drawn apart) */
-function hlvfAdopt(box) {
-  if (!box) return;
-  box.querySelectorAll(".hlv-s").forEach(sc => {
-    if (sc._f) return;
-    const art = sc.querySelector("canvas.hlv-art"), ls = [...sc.querySelectorAll("canvas.hlv-l")];
-    if (!art && !ls.length) return;
-    const f = sc._f = { k: parseFloat(sc.style.getPropertyValue("--hlvk")) || 1, art, clock: 0, last: 0, drawn: false, base: null,
-      ls: ls.map((c, n) => { const m = /hlv-l([123])/.exec(c.className), i = m ? +m[1] : n % 3 + 1;
-        return { c, kf: HLVF_KF[i], dur: parseFloat(c.style.animationDuration) || [31, 41, 53][i - 1], off: -(parseFloat(c.style.animationDelay) || 0) }; }) };
-    if (art) art.remove(); ls.forEach(c => c.remove());
-    f.cv = document.createElement("canvas"); f.cv.className = "hlv-f"; sc.insertBefore(f.cv, sc.firstChild);
-    hlvfDraw(sc);
-  });
-  hlvfKick();
-}
-{ const _hs = hlvScene; hlvScene = async function (box) { try { return await _hs.apply(this, arguments); } finally { hlvfAdopt(box); } }; }
-/* every new scene is shown through here, including one v257 started before this script loaded (the parser lets frames run) */
-{ const _sh = hlvShow; hlvShow = function (box) { const o = _sh.apply(this, arguments); hlvfAdopt(box); hlvfExit(); return o; }; }
-{ const _ha = hlvHideAll; hlvHideAll = function () { const o = _ha.apply(this, arguments); hlvfExit(); return o; }; }
-{ const _hy = hlvSync; hlvSync = function () { const o = _hy.apply(this, arguments); if (document.documentElement.classList.contains("hlvflat")) hlvfExit(); else hlvfKick(); return o; }; }
-/* anything that could change what's under the light: the backdrop layers (opacity, picture, canvas), <html>'s classes and
-   style (bgon, hlvon, fast, still, --bgo), #full opening. A MutationObserver runs before the frame is drawn. */
-if (window.MutationObserver) {
-  const sig = () => ["bgon", "hlvon", "fast", "still"].map(c => +document.documentElement.classList.contains(c)).join("") + document.documentElement.getAttribute("style");
-  let last = sig();
-  HLVF.mo = new MutationObserver(recs => {
-    if (!document.documentElement.classList.contains("hlvflat")) { last = sig(); return; }
-    const s = sig(), rootOnly = recs.every(m => m.target === document.documentElement);
-    if (rootOnly && s === last) return;
-    last = s; hlvfExit();
-  });
-  HLVF.mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
-  ["bgart", "bgart2", "bgtint", "full"].forEach(id => { const el = document.getElementById(id);
-    if (el) HLVF.mo.observe(el, { attributes: true, attributeFilter: ["class", "style"], childList: id !== "full" }); });
-}
-addEventListener("resize", () => { HLVF.W = innerWidth || 400; HLVF.H = innerHeight || 800; hlvfExit(); });
-["pointerdown", "keydown", "wheel", "touchstart"].forEach(t => addEventListener(t, hlvfKick, { capture: true, passive: true }));
-document.addEventListener("visibilitychange", hlvfKick);
-/* scenes made before this script ran */
-[document.getElementById("hlv"), HLV.g].forEach(hlvfAdopt);
 /* v264: Nexi learned (the owner's fifth "still lags", with nothing in his own reports since v263): the lag he couldn't see
    was the GPU blending a pile of see-through, screen-sized layers on every frame. His lag checks only watch the main
    thread, so it never showed up. Now, a few seconds after you stop touching a screen (once per screen and size, at most 6
@@ -25035,9 +24546,6 @@ addEventListener("scroll", () => { STACK.go = null; stackArm(3500); }, { capture
 onNav("after", k => { if (k === "tab") { STACK.go = null; stackArm(3500); } });
 stackArm(16000);
 WHATS_NEW.push(
-  { v: 264, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); }, at: null,
-    say: "<b>Much lighter to draw</b>: the moving light behind your screens was six see-through layers stacked up, and your phone had to blend every one of them on every frame. It's one layer now and looks exactly the same.",
-    tryIt: "Switch between Plan, Taste and the Queue and scroll around: there's far less for the phone to draw now." },
   { v: 264, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: when too many see-through layers pile up on a screen, I notice it a few seconds after you stop touching and report it on my own, even though nothing looks wrong.",
     tryIt: "Nothing to do: if it ever happens, I file it on my own." }
@@ -25045,7 +24553,7 @@ WHATS_NEW.push(
 </script>
 <style>
 /* v265 smoothness check (prb*, last script): while it tests a suspect, that suspect is switched off for a little while */
-html.prb-nobg #hlv, html.prb-nobg #hlvg, html.prb-nobg #bgart, html.prb-nobg #bgart2, html.prb-nobg #bgtint, html.prb-nobg #pnorbs { visibility: hidden !important; }
+html.prb-nobg #bgart, html.prb-nobg #bgart2, html.prb-nobg #bgtint, html.prb-nobg #pnorbs { visibility: hidden !important; }
 html.prb-nobg::before { display: none !important; }
 html.prb-noshadow *, html.prb-noshadow *::before, html.prb-noshadow *::after { box-shadow: none !important; text-shadow: none !important; }
 html.prb-noblur *, html.prb-noblur *::before, html.prb-noblur *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; filter: none !important; }
@@ -25065,7 +24573,7 @@ html.prb-noanim *, html.prb-noanim *::before, html.prb-noanim *::after { animati
    carries on next time. At the end: one "slow" report per version (sigAt = "probe vN", so every version gets its own
    issue) with a line per turn and how much each suspect changes the drops. */
 const PRB_KEY = "gq:probe", PRB_ARMS = ["base", "nobg", "base", "noshadow", "base", "noblur", "base", "noanim", "base"];
-const PRB_NAME = { nobg: "the moving background", noshadow: "shadows", noblur: "blurs and filters", noanim: "animations" };
+const PRB_NAME = { nobg: "the backdrop", noshadow: "shadows", noblur: "blurs and filters", noanim: "animations" };
 const PRB = { ep: null, raf: 0, st: null, lo: null };
 function prbLoad() {
   let st = null; try { st = JSON.parse(localStorage.getItem(PRB_KEY) || "null"); } catch (e) {}
@@ -25190,17 +24698,6 @@ function dragBlock(e) {
 ["touchend", "touchcancel"].forEach(t => addEventListener(t, () => setTimeout(() => { if (!drag) removeEventListener("touchmove", dragBlock, true); }, 0), { capture: true, passive: true }));
 </script>
 <script>
-/* v265: the light behind the screen holds still while you're touching, scrolling or switching (it moves about a pixel per
-   step, so a pause can't be seen): during a swipe its 30 redraws a second were ~3ms each at 4x CPU, on the same main
-   thread the swipe needs. It carries on from the same spot. */
-HLVF.busy = 0;
-{ let down = false;
-  const hold = ms => { HLVF.busy = Math.max(HLVF.busy, performance.now() + ms); };
-  addEventListener("touchstart", () => { down = true; HLVF.busy = Infinity; }, { capture: true, passive: true });
-  ["touchend", "touchcancel"].forEach(t => addEventListener(t, e => { if (!e.touches || !e.touches.length) { down = false; HLVF.busy = 0; hold(400); } }, { capture: true, passive: true }));
-  addEventListener("scroll", () => { if (!down) hold(300); }, { capture: true, passive: true });
-  onNav("before", () => hold(900));
-}
 /* the smoothness check counts swiping a game's page to the next game as a sideways moment (it's not a scroll) */
 { const _hp = hubPaint; hubPaint = function () { prbStart("h", 300); return _hp.apply(this, arguments); }; }
 </script>
@@ -25303,7 +24800,7 @@ async function stPics(root) {
 function stHold() {
   const fu = document.getElementById("full");
   return { els: fu ? fu.getElementsByTagName("*").length : 0, hubs: fu ? fu.querySelectorAll(".hub").length : 0,
-    scenes: document.querySelectorAll(".hlv-s").length, anims: document.getAnimations().length };
+    anims: document.getAnimations().length };
 }
 async function stFling(to) {
   scrollTo({ top: to, behavior: "smooth" });
@@ -25376,7 +24873,7 @@ function stReport(o) {
     `swipes 1-10 worst ms: ${sw.map(d => d.worst).join(" ")}; long-frame ms: ${o.swipes.map(r => Math.round(r.loaf)).join(" ")}`,
     `queue pictures: ${p.n}, ${f1(p.mp)} MP (${Math.round(p.mp * 4)} MB decoded) for ${f1(p.need)} MP on screen, ${p.k4} at 4K, largest ${f1(p.big)} MP`,
     `first game page: ${g.n} pictures, ${f1(g.mp)} MP for ${f1(g.need)} MP shown, ${g.k4} at 4K`,
-    `game page after swipe 1 → ${o.hold.length}: elements ${h0.els}→${h9.els}, pages ${h0.hubs}→${h9.hubs}, light scenes ${h0.scenes}→${h9.scenes}, animations ${h0.anims}→${h9.anims}`,
+    `game page after swipe 1 → ${o.hold.length}: elements ${h0.els}→${h9.els}, pages ${h0.hubs}→${h9.hubs}, animations ${h0.anims}→${h9.anims}`,
     ...(was ? [`last run (v${was.v}): fling ${pc(was.fl)} worst ${was.flw}ms, swipes 1-3 ${pc(was.e)}, last 3 ${pc(was.l)}, pictures ${was.mb} MB for ${was.need} MB, ${was.k4} at 4K`] : []),
     `screen ${innerWidth}×${innerHeight} @${f1(devicePixelRatio || 1)}, cores ${navigator.hardwareConcurrency || "?"}, memory ${navigator.deviceMemory || "?"}GB${o.err ? ", error: " + o.err : ""}`
   ];
@@ -25781,5 +25278,20 @@ WHATS_NEW.push(
   { v: 272, go: () => { closeFull(); dyClose(); nxShut(); nxOpenGame(); }, at: () => [...document.querySelectorAll('#gear, button.act[aria-label*="Settings" i], button.act[title*="Settings" i]')].find(e => e.getBoundingClientRect().width) || null,   /* the rail's button when unfolded */
     say: "Fixed: swiping inside Settings no longer flips the game page behind it to another game.",
     tryIt: "Open a game, tap the gear and swipe sideways in Settings: the game stays put." }
+);
+</script>
+<script>
+/* v273 (the owner: "return the background to a solid gradient color, I hate how it looks"): the live background (v257
+   lights, specks and drifting art; v264's canvas; v265's hold) is gone, code and switches. The queue's art backdrop is
+   switched off once (S.bgOff; the switch stays in Settings › Motion › Blurred backdrop); old live-background switches are dropped.
+   What's left behind every screen is the still gradient (html.paper::before). */
+if (!S.bgMig273) {
+  S.bgMig273 = 1; S.bgOff = true; delete S.hlvOff; delete S.hlvX;
+  save(); try { applyBg(); } catch (e) {}
+}
+WHATS_NEW.push(
+  { v: 273, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>The background is a calm, still gradient again</b>: the moving lights, specks and blown-up game art behind your screens are gone, so there's less for your phone to draw.",
+    tryIt: "Look around Home, Games and a game's page: the same quiet gradient sits behind everything. Settings › Motion › Blurred backdrop brings the game art back behind the Queue if you ever miss it." }
 );
 </script>
