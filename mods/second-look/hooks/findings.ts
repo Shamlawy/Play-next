@@ -24,3 +24,16 @@ export function parseFindings(text: string): Finding[] | undefined {
 }
 
 export const describe = (fs: readonly Finding[]) => fs.map(f => `- ${f.file}: ${f.what}${f.fix ? ` Fix: ${f.fix}` : ''}`).join('\n')
+
+// .claude/second-look.md: prose for the reviewer, plus "first:" (review these paths first) and "skip:" (leave out) lines.
+export function readNotes(md: string) {
+  const first: string[] = []
+  const skip: string[] = []
+  const text = md.split('\n').filter(l => {
+    const m = l.match(/^\s*(first|skip):\s*(.+)$/i)
+    if (!m) return true
+    ;(m[1]?.toLowerCase() === 'first' ? first : skip).push(...(m[2] ?? '').split(/[\s,]+/).filter(Boolean))
+    return false
+  }).join('\n').trim()
+  return { text, first, skip }
+}

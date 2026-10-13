@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { parseFindings } from '../hooks/findings.ts'
+import { parseFindings, readNotes } from '../hooks/findings.ts'
 
 const BLOCK = JSON.stringify({ findings: [
   { severity: 'block', file: 'index.html:120', what: 'the new card uses a native date input, which the owner cannot use on the Fold', fix: 'use finPick()' },
@@ -7,7 +7,7 @@ const BLOCK = JSON.stringify({ findings: [
 ] })
 
 // A fake repo, GitHub and reviewer beneath the plugin.
-function world(on: any, w: { diff?: string; answers?: string[]; head?: string }) {
+function world(on: any, w: { diff?: string; answers?: string[]; head?: string; private?: boolean }) {
   mock.store(on)
   mock.clock(on, { now: 1_000 })
   const merged: unknown[] = []
@@ -19,12 +19,16 @@ function world(on: any, w: { diff?: string; answers?: string[]; head?: string })
     if (a === 'git rev-parse --show-toplevel') return out('/repo\n')
     if (a === 'git remote get-url origin') return out('https://github.com/shamlawy/Play-next.git\n')
     if (a.startsWith('git merge-base')) return out('base\n')
-    if (a.startsWith('git diff -U5')) return out(w.diff ?? '')
+    if (a.startsWith('git diff -U')) return out(a.includes(':(exclude)') ? '' : w.diff ?? '')
+    if (a === 'git symbolic-ref --short refs/remotes/origin/HEAD') return out('origin/main\n')
+    if (a === 'git rev-parse FETCH_HEAD') return out('beef\n')
     if (a === 'git rev-parse HEAD') return out(`${w.head ?? 'h1'}\n`)
     return out('')
   })
-  on('fs.read', () => ({ value: '# Play next rules\n- No press animation.' }))
-  on('http.fetch', () => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ head: { sha: w.head ?? 'feed', ref: 'claude/x' }, base: { ref: 'main' } }) } }))
+  on('fs.read', ($: unknown, e: any) => ({ value: e.path.endsWith('second-look.md') ? 'Two phones use this app.\nfirst: index.html\nskip: docs/MAP.md' : '# Play next rules\n- No press animation.' }))
+  on('http.fetch', () => (w.private
+    ? { value: { status: 404, ok: false, headers: {}, text: '' } }
+    : { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ head: { sha: w.head ?? 'feed', ref: 'claude/x' }, base: { ref: 'main' } }) } }))
   on('model.complete', ($: unknown, e: any) => {
     asked.push(e)
     return { value: { isAnswered: true, text: answers.shift() ?? '{"findings":[]}', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }
@@ -57,6 +61,8 @@ describe('second-look', () => {
     expect(r1.deny).toContain('Also noted')
     expect(w.merged.length).toBe(0)
     expect(String(w.asked[0].prompt)).toContain('No press animation')
+    expect(String(w.asked[0].prompt)).toContain('Two phones use this app')
+    expect(String(w.asked[0].prompt)).not.toContain('first: index.html')
     expect(String(w.asked[0].prompt)).toContain('type="date"')
     const r2 = await merge($)
     expect(r2.deny).toBeUndefined()
@@ -81,6 +87,18 @@ describe('second-look', () => {
     expect(r.deny).toBeUndefined()
     expect(w.merged.length).toBe(1)
     expect((r.context ?? []).join('\n')).toContain('could not run')
+  })
+
+  test('a private repo (the API says 404) is still reviewed, through pull/N/head', async ($, on) => {
+    const w = world(on, { diff: '+x\n', answers: [BLOCK], private: true })
+    await start($)
+    const r = await merge($)
+    expect(r.deny).toContain('second-look held this merge')
+    expect(w.asked.length).toBe(1)
+  })
+
+  test('project notes: prose for the reviewer, first/skip path lines', () => {
+    expect(readNotes('Be careful.\nfirst: a.js, src\nskip: docs/MAP.md')).toEqual({ text: 'Be careful.', first: ['a.js', 'src'], skip: ['docs/MAP.md'] })
   })
 
   test('a push to main is reviewed too; other pushes are not', async ($, on) => {

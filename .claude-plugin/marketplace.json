@@ -1,0 +1,9 @@
+{
+  "name": "shamlawy-mods",
+  "owner": { "name": "Shamlawy" },
+  "plugins": [
+    { "name": "crew", "source": "./mods/crew", "description": "Live progress for Claude's helper agents: a band above the prompt and the /agents-info panel (crabs in tier hats, steps, tokens, rough cost, time)." },
+    { "name": "blast-radius", "source": "./mods/blast-radius", "description": "Holds a destructive shell command once with exactly what it would delete; never deletes the repo, .git or home, never force-pushes the default branch." },
+    { "name": "second-look", "source": "./mods/second-look", "description": "A second Claude reviews every merge or push to the default branch against the repo's CLAUDE.md and holds it once on blocking findings." }
+  ]
+}

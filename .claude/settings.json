@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "shamlawy-mods": { "source": { "source": "github", "repo": "Shamlawy/Play-next" } }
+  },
+  "enabledPlugins": {
+    "crew@shamlawy-mods": true,
+    "blast-radius@shamlawy-mods": true,
+    "second-look@shamlawy-mods": true
+  }
+}

@@ -1,8 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { risks, sortFiles } from '../hooks/blast.ts'
+import { protectPatterns, risks, sortFiles } from '../hooks/blast.ts'
 
 // A fake repo at /repo: what git and the file walk answer.
-function world(on: any, w: { files?: string; tracked?: string; fresh?: string; diff?: string; ahead?: string; branch?: string }) {
+function world(on: any, w: { files?: string; tracked?: string; fresh?: string; diff?: string; ahead?: string; branch?: string; protect?: string }) {
   mock.store(on)
   mock.clock(on, { now: 0 })
   const ran: string[] = []
@@ -17,21 +17,22 @@ function world(on: any, w: { files?: string; tracked?: string; fresh?: string; d
     if (a === 'git diff --name-only HEAD' || a.startsWith('git diff --name-only --')) return out(w.diff ?? '')
     if (a.startsWith('git log --oneline origin/')) return out(w.ahead ?? '')
     if (a === 'git rev-parse --abbrev-ref HEAD') return out(w.branch ?? 'claude/x\n')
+    if (a === 'git symbolic-ref --short refs/remotes/origin/HEAD') return out('origin/main\n')
+    if (a.startsWith('sh -c')) return out('/root')
     return out('')
   })
+  on('fs.read', ($: unknown, e: any) => (e.path.endsWith('blast-radius-protect') && w.protect ? { value: w.protect } : { value: '' }))
   on('tool.call', ($: unknown, e: any) => {
     ran.push(e.command)
     return { result: 'done', text: 'done' }
   })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
-  on('command.register', () => ({ value: undefined }))
-  on('ui.status', () => ({ value: undefined }))
   return ran
 }
 const start = ($: any) => $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
 const bash = ($: any, command: string) => $.tool.call({ tool: 'Bash', command } as any) as Promise<any>
 
-describe('blast radius', () => {
+describe('blast-radius', () => {
   test('finds the destructive parts of a command', () => {
     const r = risks('cd tools && rm -rf scenarios/old "my dir" ; git reset --hard origin/main && git push -f origin HEAD:claude/x', '/repo')
     expect(r.map(x => x.kind)).toEqual(['rm', 'reset', 'force'])
@@ -42,8 +43,9 @@ describe('blast radius', () => {
 
   test('sorts deleted files by how much they matter', () => {
     const s = sortFiles(['/repo/a.jpg', '/repo/tools/x.mjs', '/repo/new.txt', '/repo/backup.json', '/repo/node_modules/k/i.js', '/tmp/z', '/root/.claude/s'], '/repo',
-      new Set(['a.jpg', 'tools/x.mjs']), new Set(['a.jpg', 'tools/x.mjs', 'new.txt']))
-    expect(s.rootTracked).toEqual(['a.jpg'])
+      new Set(['a.jpg', 'tools/x.mjs']), new Set(['a.jpg', 'tools/x.mjs', 'new.txt']), protectPatterns('*.jpg'))
+    expect(s.protected).toEqual(['a.jpg'])
+    expect(s.tracked).toEqual(['tools/x.mjs'])
     expect(s.fresh).toEqual(['new.txt'])
     expect(s.ignored).toEqual(['backup.json'])
     expect(s.outside).toEqual(['/root/.claude/s'])
@@ -62,11 +64,11 @@ describe('blast radius', () => {
     expect(ran.length).toBe(1)
   })
 
-  test('deleting a repo-root file is always stopped', async ($, on) => {
-    const ran = world(on, { files: 'fefw-key-art.jpg\n', tracked: 'fefw-key-art.jpg\n' })
+  test('a file the repo protects is always stopped; elsewhere a root file is only held', async ($, on) => {
+    const ran = world(on, { files: 'fefw-key-art.jpg\n', tracked: 'fefw-key-art.jpg\n', protect: '# saved games link to these\n*\n' })
     await start($)
-    expect((await bash($, 'rm fefw-key-art.jpg')).deny).toContain('repo root')
-    expect((await bash($, 'rm fefw-key-art.jpg')).deny).toContain('repo root')
+    expect((await bash($, 'rm fefw-key-art.jpg')).deny).toContain('protects')
+    expect((await bash($, 'rm fefw-key-art.jpg')).deny).toContain('protects')
     expect(ran.length).toBe(0)
   })
 
@@ -82,6 +84,7 @@ describe('blast radius', () => {
     await start($)
     expect((await bash($, 'git reset --hard')).deny).toContain('index.html')
     expect((await bash($, 'git push --force origin HEAD:main')).deny).toContain('never rewrite it')
+    expect((await bash($, 'BLAST_OK=1 git reset --hard')).deny).toBeUndefined()
   })
 
   test('a force-push that would drop commits from GitHub is held', async ($, on) => {
