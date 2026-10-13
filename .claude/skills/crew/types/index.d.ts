@@ -1,3 +1,5 @@
+export type Step = { id: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }
+
 export type Helper = {
   id: string
   title: string
@@ -12,10 +14,12 @@ export type Helper = {
   tokens: number
   costUsd: number
   context: number
+  // The helper's own task list, when it keeps one (TaskCreate/TodoWrite inside its loop).
+  todo?: Step[]
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    crew: { helpers: Helper[]; now: number; since: number; showDone: boolean }
+    crew: { helpers: Helper[]; now: number; since: number; showDone: boolean; compact: boolean; plan: Step[]; job: string }
   }
 }
