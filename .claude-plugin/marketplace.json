@@ -2,8 +2,9 @@
   "name": "shamlawy-mods",
   "owner": { "name": "Shamlawy" },
   "plugins": [
-    { "name": "crew", "source": "./mods/crew", "description": "Live progress for Claude's helper agents: a band above the prompt and the /agents-info panel (crabs in tier hats, steps, tokens, rough cost, time)." },
-    { "name": "blast-radius", "source": "./mods/blast-radius", "description": "Holds a destructive shell command once with exactly what it would delete; never deletes the repo, .git or home, never force-pushes the default branch." },
-    { "name": "second-look", "source": "./mods/second-look", "description": "A second Claude reviews every merge or push to the default branch against the repo's CLAUDE.md and holds it once on blocking findings." }
+    {"name": "crew", "source": "./mods/crew", "description": "Live progress for Claude's helper agents: a band above the prompt and the /agents-info panel (crabs in tier hats, steps, tokens, rough cost, time)."},
+    {"name": "blast-radius", "source": "./mods/blast-radius", "description": "Holds a destructive shell command once with exactly what it would delete; never deletes the repo, .git or home, never force-pushes the default branch."},
+    {"name": "second-look", "source": "./mods/second-look", "description": "A second Claude reviews every merge or push to the default branch against the repo's CLAUDE.md and holds it once on blocking findings."},
+    {"name": "heads-up", "source": "./mods/heads-up", "description": "After each long reply, a side panel with only what needs you: things to look at, things to do (tick them off) and ideas, instead of the whole wall of text."}
   ]
 }
