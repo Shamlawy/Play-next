@@ -52,13 +52,27 @@ export default {
   async scheduled(ev, env, ctx) { ctx.waitUntil(Promise.all([sendDue(env), checkUpdate(env), pxCron(env).catch(() => {})])); }
 };
 
+/* #428: a .slice() through an emoji leaves half of it (a lone surrogate). JSON.stringify writes that as "\ud83d",
+   which Workers AI's strict JSON parser refuses for the whole request ("8006: Invalid data for body ... must be valid JSON").
+   wellFormed() drops lone surrogates and control characters (keeps \n and \t); cutWf() trims without leaving half an emoji. */
+const wellFormed = s => String(s == null ? "" : s)
+  .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "")
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+const cutWf = (s, n) => wellFormed(String(s == null ? "" : s).slice(0, n));
 async function ask(env, messages, maxTokens, big) {
   if (!env.AI) throw new Error("No Workers AI binding named AI");
+  /* every message the model sees: a known role and a clean, non-empty string (the root fix for #428, for every route) */
+  messages = (Array.isArray(messages) ? messages : [])
+    .map(m => ({ role: m && (m.role === "system" || m.role === "assistant") ? m.role : "user", content: wellFormed(m && m.content).trim() }))
+    .filter(m => m.content);
+  if (!messages.some(m => m.role === "user")) throw new Error("nothing to ask the AI");
   let last;
   for (const m of big ? MODELS_BIG.concat(MODELS) : MODELS) {
     try { const out = await env.AI.run(m, { max_tokens: maxTokens || 300, messages }); const t = out && out.response;
       if (t) return typeof t === "string" ? t : JSON.stringify(t); }
-    catch (e) { last = e; }
+    catch (e) { last = e;
+      /* 8006 = the request itself was refused: every other model would refuse it too */
+      if (/\b8006\b/.test(String(e && e.message || e))) break; }
   }
   throw last || new Error("AI gave an empty answer");
 }
@@ -214,13 +228,22 @@ Answer with ONLY JSON: {"recap":"...","where":"max 8 words: where they are in th
     if (url.pathname === "/chat/memory" && req.method === "POST") {
       if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
       let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+      const old = cutWf(b && b.memory, 800).trim();
       const convo = (Array.isArray(b && b.messages) ? b.messages : []).slice(-12)
-        .map(m => (m.role === "user" ? "Player: " : "Nexi: ") + String(m.content || "").slice(0, 500)).join("\n");
-      const text = await ask(env, [
-        { role: "system", content: "You keep a short private memory about one video game player for their assistant. Facts only: tastes, habits, goals, platforms, likes and dislikes, what they asked for. No scores that the app already knows. Plain sentences, max 600 characters, no lists, no greeting." },
-        { role: "user", content: `Current memory:\n${String(b && b.memory || "(empty)").slice(0, 800)}\n\nNew conversation:\n${convo}\n\nWrite the updated memory now (max 600 characters). Keep old facts unless the conversation changes them.` }
-      ], 250);
-      return json({ memory: text.trim().slice(0, 700) }, 200, h);
+        .filter(m => m && typeof m.content === "string" && m.content.trim())
+        .map(m => (m.role === "user" ? "Player: " : "Nexi: ") + cutWf(m.content, 500)).join("\n");
+      if (!convo) return json({ memory: cutWf(old, 700) }, 200, h);
+      let text;
+      try {
+        text = await ask(env, [
+          { role: "system", content: "You keep a short private memory about one video game player for their assistant. Facts only: tastes, habits, goals, platforms, likes and dislikes, what they asked for. No scores that the app already knows. Plain sentences, max 600 characters, no lists, no greeting." },
+          { role: "user", content: `Current memory:\n${old || "(empty)"}\n\nNew conversation:\n${convo}\n\nWrite the updated memory now (max 600 characters). Keep old facts unless the conversation changes them.` }
+        ], 250);
+      } catch (e) {
+        /* fail soft: a clear JSON error; the phone keeps its old memory (nxRemember ignores errors) */
+        return json({ error: "memory not updated: " + cutWf(e && e.message || e, 160) }, 502, h);
+      }
+      return json({ memory: cutWf(text.trim(), 700) }, 200, h);
     }
 
     if (url.pathname === "/nudge/key" && req.method === "GET") {
