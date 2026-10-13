@@ -13312,7 +13312,7 @@ d.querySelector('img').src=g.hero||cover(g);d.querySelector('h2').textContent=g.
 d.querySelector('.tx small').textContent=g.date?new Date(g.date).toLocaleDateString('en-GB',{day:'numeric',month:'long'}).toUpperCase()+' · TAP TO CLOSE':'TAP TO CLOSE';
 d.onclick=()=>{d.remove();setTimeout(outNow,300)};document.body.appendChild(d);
 setTimeout(()=>burst(innerWidth/2,innerHeight*.72,30,12,'#EAF2FF'),450);
-try{AC=AC||new AudioContext();AC.resume().then(()=>{if(AC.state==='running')fanfare()})}catch(_){}}
+/* #215: keep our own handle; the tap-wake can close and null AC before resume() settles */try{const c=AC=AC||new AudioContext();c.resume().then(()=>{if(c.state==='running'&&AC===c)fanfare()},()=>{})}catch(_){}}
 function cal(next){const now=new Date(),td=now.toLocaleDateString('en-CA');if(S.fxCal===td||still())return next();S.fxCal=td;save();
 const y=new Date(now-864e5),md=d=>(d.getMonth()+1)+'/'+d.getDate(),wd=d=>d.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase().slice(0,2);
 const h=now.getHours(),tod=h<5?'LATE NIGHT':h<8?'EARLY MORNING':h<11?'MORNING':h<13?'LUNCHTIME':h<17?'AFTERNOON':h<21?'EVENING':'LATE NIGHT';
@@ -13324,9 +13324,9 @@ d.innerHTML=`<div class="wk">${now.toLocaleDateString('en-GB',{weekday:'long'}).
 if(nx)d.querySelector('.nx b').textContent=(nx.title||'').toUpperCase();
 let gone=false;const end=()=>{if(gone)return;gone=true;d.remove();setTimeout(next,150)};
 d.onclick=end;setTimeout(end,3000);document.body.appendChild(d);
-try{AC=AC||new AudioContext();AC.resume().then(()=>{if(AC.state!=='running')return;const a=AC,t=a.currentTime+.75;
+try{const c=AC=AC||new AudioContext();c.resume().then(()=>{if(c.state!=='running'||AC!==c)return;const a=c,t=a.currentTime+.75;
 [0,.07,.14].forEach(o=>{const s=a.createOscillator(),g=a.createGain();s.type='square';s.frequency.value=1800;g.gain.setValueAtTime(.06,t+o);
-g.gain.exponentialRampToValueAtTime(.001,t+o+.04);s.connect(g).connect(a.destination);s.start(t+o);s.stop(t+o+.05)});setTimeout(boom,1050)})}catch(_){}
+g.gain.exponentialRampToValueAtTime(.001,t+o+.04);s.connect(g).connect(a.destination);s.start(t+o);s.stop(t+o+.05)});setTimeout(boom,1050)},()=>{})}catch(_){}
 setTimeout(()=>{if(!gone)burst(innerWidth*.85,innerHeight*.42,22,10,'#EAF2FF')},1100)}
 setTimeout(()=>cal(outNow),300);
 function radar(){const td=new Date().toLocaleDateString('en-CA'),T=new Date(td);
