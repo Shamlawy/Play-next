@@ -7,18 +7,19 @@ const SIFTED = '```json\n{"gist":"Fixed the layout bug and pushed it","attention
 function world(on: any, answer = SIFTED, placed = true) {
   const calls: any[] = []
   const toasts: string[] = []
+  const statuses: (string | undefined)[] = []
   mock.store(on)
   const clock = mock.clock(on, { now: 1000 })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('ui.open', () => ({ value: placed ? { isPlaced: true } : { isPlaced: false, reason: 'narrow' } }))
   on('ui.toast', ($: unknown, e: any) => { toasts.push(e.text); return { value: undefined } })
-  on('ui.status', () => ({ value: undefined }))
+  on('ui.status', ($: unknown, e: any) => { statuses.push(e.text); return { value: undefined } })
   on('model.complete', ($: unknown, e: any) => { calls.push(e); return { value: { isAnswered: true, text: answer, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } } })
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
   on('prompt.submit', ($: unknown, e: any) => ({ text: e.text }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
-  return { calls, toasts, clock }
+  return { calls, toasts, statuses, clock }
 }
 
 async function reply($: any, clock: any, answer = LONG, extra: any = {}) {
@@ -64,6 +65,14 @@ describe('heads-up', () => {
     })
   }
 
+  test('a slash command clears the heading, so the next card is not headed with an older message', async ($, on) => {
+    const { calls, clock } = world(on)
+    await $.prompt.submit({ text: 'fix the layout bug on the queue screen' } as any)
+    await $.prompt.submit({ text: '/review' } as any)
+    await reply($, clock)
+    expect(calls[0].prompt).not.toContain('fix the layout bug')
+  })
+
   test('short replies, helpers\' replies and interrupted turns cost no model call', async ($, on) => {
     const { calls, clock } = world(on)
     await reply($, clock, 'Done, pushed.')
@@ -82,13 +91,16 @@ describe('heads-up', () => {
   })
 
   test('/heads-up answers as text (phones), toasts when no panel fits, and /heads-up off stops it', async ($, on) => {
-    const { calls, toasts, clock } = world(on, SIFTED, false)
+    const { calls, toasts, statuses, clock } = world(on, SIFTED, false)
     await reply($, clock)
     expect(toasts.some(t => /2 things need you/.test(t))).toBe(true)
     const r: any = await $.command.run({ command: 'heads-up', args: '' } as any)
     expect(r.text).toContain('👉 For you to do')
     expect(r.text).toContain('☐ Open the app on your phone')
     await $.command.run({ command: 'heads-up', args: 'off' } as any)
+    statuses.length = 0
+    await $.command.run({ command: 'heads-up', args: 'clear' } as any)
+    expect(statuses.every(x => x === undefined)).toBe(true)
     await reply($, clock)
     expect(calls.length).toBe(1)
     await $.command.run({ command: 'heads-up', args: 'on' } as any)

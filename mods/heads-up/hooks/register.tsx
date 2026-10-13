@@ -24,6 +24,7 @@ const openPane = ($: $) => $.ui.open({ id: PANE, title: TITLE }).catch(() => ({ 
 const isOff = async ($: $) => (await $.store.get('off')) === true
 
 async function status($: $) {
+  if (await isOff($)) return $.ui.status(undefined)
   const n = openCount(await read($, cards))
   $.ui.status(n ? `👀 ${n} need${n === 1 ? 's' : ''} you · /heads-up` : undefined)
 }
@@ -92,7 +93,8 @@ export const register: Register = on => {
 
   on('prompt.submit', async ($, e, next) => {
     // Only the person's own messages, not a helper's report or a task notice.
-    if (PERSON.has(e.origin?.kind ?? 'unclassified') && !e.text.trim().startsWith('/')) await update($, ask, () => e.text)
+    // A slash command clears it, so the reply after one isn't headed with an older, unrelated message.
+    if (PERSON.has(e.origin?.kind ?? 'unclassified')) await update($, ask, () => (e.text.trim().startsWith('/') ? '' : e.text))
     return next(e)
   }).catch(($, e, next) => next(e))
 
