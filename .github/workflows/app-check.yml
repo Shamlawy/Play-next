@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install Chromium and the bug finder (one npm call: a second one would remove the first one's packages)
+      - name: "Install Chromium and the bug finder (one npm call, since a second one would remove the first one's packages)"
         run: npm i --no-save playwright@1.56.1 eslint@9.36.0 globals@16.4.0 acorn@8.15.0 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
       - name: Check the app
         env:
