@@ -56,6 +56,16 @@ describe('blast-radius', () => {
     expect(sortFiles(['C:/'], 'C:/Users/PC/repo', new Set(), new Set()).whole).toBe(true)
   })
 
+  test('PowerShell: Windows case, -Path:x, piped deletes, MSYS home', () => {
+    expect(fromGit(['Index.HTML', 'TOOLS'], 'C:/r', 'C:/r', ['index.html', 'tools/a.mjs'])).toEqual(['C:/r/index.html', 'C:/r/tools/a.mjs'])
+    const s = sortFiles(['c:/users/pc/repo/Index.html', 'C:/Users/PC/Repo'], 'C:/Users/PC/repo', new Set(['index.html']), new Set(['index.html']), protectPatterns('*.html'))
+    expect(s.protected).toEqual(['Index.html'])
+    expect(s.whole).toBe(true)
+    expect(risks('Remove-Item -Path:old.txt -Force', '/repo', '/root', true)).toEqual([{ kind: 'rm', cwd: '/repo', targets: ['old.txt'] }])
+    expect(risks('Get-ChildItem *.log | Remove-Item', '/repo', '/root', true)).toEqual([{ kind: 'piped', cwd: '/repo', from: 'Get-ChildItem *.log' }])
+    expect(risks('ls | % { Remove-Item $_ }', '/repo', '/root', true).map(r => r.kind)).toEqual(['piped'])
+  })
+
   test('PowerShell: Remove-Item of new files is held once, .git is always stopped, git works the same', async ($, on) => {
     const ran = world(on, { tracked: 'tools/scenarios/a.mjs\n', fresh: 'tools/scenarios/b.mjs\n', diff: 'index.html\n' })
     await start($)
@@ -69,6 +79,9 @@ describe('blast-radius', () => {
     expect((await pwsh($, 'git reset --hard')).deny).toContain('index.html')
     expect((await pwsh($, 'git push --force origin HEAD:main')).deny).toContain('never rewrite it')
     expect((await pwsh($, 'Get-ChildItem; git status')).deny).toBeUndefined()
+    expect((await pwsh($, 'Get-ChildItem tools | Remove-Item -Recurse')).deny).toContain('fed by: Get-ChildItem tools')
+    expect((await pwsh($, 'ri .git -r -fo')).deny).toContain('$env:BLAST_OK=1;')
+    expect((await pwsh($, '$env:BLAST_OK=1; git reset --hard')).deny).toBeUndefined()
   })
 
   test('sorts deleted files by how much they matter', () => {
