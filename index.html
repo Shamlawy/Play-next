@@ -4006,7 +4006,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "274";
+const APP_V = "275";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -25155,4 +25155,11 @@ if (window.visualViewport) {
   };
   vv.addEventListener("resize", () => { if (!f0) return; clearTimeout(t); t = setTimeout(look, 800); });
 }
+</script>
+<script>
+WHATS_NEW.push(
+  { v: 275, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Cloud backup", text: "Your restore code" }); }, at: () => $("#s-cbrestore"),
+    say: "<b>Restore from a code</b> works on iPhone and iPad again: the keyboard used to hide the whole sheet. Sheets now sit above the keyboard, and tapping beside one while you type just puts the keyboard away.",
+    tryIt: "Tap Restore from a code… and then the code box: the box and Find my backup stay above the keyboard." }
+);
 </script>
