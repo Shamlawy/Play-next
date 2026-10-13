@@ -12,6 +12,7 @@ type $ = EngineInterface
 const PANE = 'crew'
 const MAX = 60
 const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TodoWrite'])
+const PERSON = new Set(['composer', 'bridge', 'sdk', 'unclassified'])
 
 const helpers = atom({ plugin: 'crew', key: 'helpers' } as const, [])
 const now = atom({ plugin: 'crew', key: 'now' } as const, 0)
@@ -78,9 +79,11 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    // Only the person's own messages start a round or name the panel, not a helper's report or a task notice.
+    if (!PERSON.has(e.origin?.kind ?? 'unclassified')) return next(e)
     await update($, since, () => Date.now())
     const head = heading(e.text)
-    if (head && !head.startsWith('/')) await update($, job, () => head)
+    if (head && !head.startsWith('/') && !head.startsWith('<')) await update($, job, () => head)
     return next(e)
   })
 
@@ -206,6 +209,17 @@ export const register: Register = on => {
       </Box>
     )
 
+    // One bar per helper. Where the surface draws pictures, a filled track that always fits its column;
+    // in a terminal, a line of cells sized to the pane.
+    const meter = (p: number, colour: string, full: string, rest: string) =>
+      'Svg' in els && els.Svg ? (
+        <Box width="100%" height={1} backgroundColor="#2a2b2e">
+          <Box width={`${Math.round(Math.max(0, Math.min(1, p)) * 100)}%`} height={1} backgroundColor={colour} />
+        </Box>
+      ) : (
+        <Text wrap="truncate-end"><Text color={colour}>{full}</Text><Text dimColor>{rest}</Text></Text>
+      )
+
     const row = (x: Helper) => {
       const tr = tier(x.effort)
       const [full, rest] = bar(progressOf(x), Math.max(8, width - 8))
@@ -226,7 +240,7 @@ export const register: Register = on => {
                   <Text dimColor>ctx {ctxPct(x)}% · {k(x.context)} {usd(x.costUsd)} {clock(elapsed(x, at))}</Text>
                 </Box>
               )}
-              <Text><Text color={x.status === 'failed' ? 'error' : tr.colour}>{full}</Text><Text dimColor>{rest}</Text></Text>
+              {meter(progressOf(x), x.status === 'failed' ? 'error' : tr.colour, full, rest)}
             </Box>
           </Box>
         </Box>
