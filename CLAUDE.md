@@ -22,6 +22,7 @@
 - Black / near-black theme.
 - When the owner shares a reference design: copy its layout and style, not its colours.
 - No press animation (#309, v246): nothing shrinks, lifts or fades when touched. Since v269 no `:active` rule has movement in the CSS itself, and `node tools/kit.mjs syntax` fails if one is added.
+- Background = a still gradient (`html.paper::before`), nothing moving behind the screens (the owner, v273: "I hate how it looks" about the live background, which was removed). Don't bring back moving lights, drifting art or specks; the queue's art backdrop stays off unless the owner turns it on (Settings › Motion › Blurred backdrop).
 
 ## Speed rule
 - Must feel smooth at high refresh rate.
@@ -86,6 +87,7 @@
 
 ## Automation
 - Daily bug fixer: Routine "Play next: daily bug fixes" (`trig_01RcRcYQJqZPDuBGMhvJmZZG`, 03:46 UTC) wakes session `session_01UrvHBmr3w5i37FFfMfe9a8`; it runs bugs.yml, fixes open `auto-bug` issues, ships one release. If that session is archived, make a new one with create_session and point the trigger at it.
+- Daily code check (the owner, Oct 2026: "keep checking on the code of the app to see any problems or stacked features that are causing issues or things I don't want"). Every daily run does it, even with no open `auto-bug` issues: `node tools/kit.mjs run tools/scenarios/idle-motion.mjs --widths 412,859` (what keeps moving at rest), `node tools/map.mjs --dead`, `node tools/where.mjs --check --base=HEAD~20`, `node tools/kit.mjs perf --widths 859`. Look for two features doing the same job on one screen (two backgrounds, two Nexi faces, two pop-ups at once), something switched off or hidden that still runs timers/listeners/redraws, Settings switches for features that are gone, leftover code of removed features, endless animations or per-frame redraws where nothing should move. Leftovers and hidden-but-running code: remove (no APP_V bump if nothing visible changes). Anything visible or a matter of taste: don't remove it; add a bullet (screen, what, suggested fix, no game titles) to the one open issue "Code check: things for the owner to decide" (label `code-check`, create it if missing). Chats mention that issue when it has new bullets.
 - Workflows: app-check.yml (tools/kit.mjs on every PR), deploy-helper.yml (worker/** on main), announce.yml (update pings), bugs.yml (problem reports → issues, `.github/scripts/bugsync.mjs`), price-probe.yml, hltb-probe.yml, news-probe.yml (Steam news + calendar, helper code and live helper), webkit-check.yml.
 
 ## Claude mod: auto-handoff
