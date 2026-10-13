@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { bar, clock, cost, modelName, progress } from '../hooks/numbers.ts'
+import { applyTask, bar, clock, cost, crabSvg, modelName, progress, stepLine, tier } from '../hooks/numbers.ts'
 
 const U = (i: number, o: number) => ({ input_tokens: i, output_tokens: o, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })
 
@@ -13,7 +13,7 @@ function world(on: any) {
   on('turn.step', async function* ($: unknown, e: any) {
     return { turnId: e.turnId, index: 0, answer: '', toolUses: [], stopReason: 'end_turn', usage: { ...U(30_000, 2_000), model: 'claude-opus-5-5' } }
   })
-  on('tool.call', () => ({ result: 'ok', text: 'ok' }))
+  on('tool.call', ($: unknown, e: any) => ({ result: 'ok', text: e.tool === 'TaskCreate' ? `Task #${e.subject.length} created` : 'ok' }))
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
   on('prompt.submit', ($: unknown, e: any) => ({ text: e.text }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
@@ -21,11 +21,14 @@ function world(on: any) {
 
 async function crew($: any) {
   await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
-  await $.prompt.submit({ text: 'add tests' })
+  await $.prompt.submit({ text: 'build the launch kit for the cold brew and review it all' })
+  for (const subject of ['Add JSDoc to src functions', 'Write greet test', 'Review the whole kit'])
+    await $.tool.call({ tool: 'TaskCreate', subject, description: 'x' } as any)
   const a: any = await $.agent.spawn({ prompt: 'p', description: 'Add JSDoc to src functions', subagentType: 'general-purpose' })
   const b: any = await $.agent.spawn({ prompt: 'p', description: 'Write greet test', subagentType: 'general-purpose' })
   for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'claude-opus-5-5', effort: 'low', messageCount: 1, agentId: a.agentId })) { /* stream */ }
   await $.tool.call({ tool: 'Read', file_path: '/repo/src/greet.js', agentId: a.agentId } as any)
+  await $.tool.call({ tool: 'TodoWrite', todos: [{ content: 'Find functions', status: 'completed' }, { content: 'Hero copy', status: 'in_progress' }, { content: 'Check', status: 'pending' }], agentId: a.agentId } as any)
   await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: 't', agentId: b.agentId, reason: 'answer' } as any)
   return { a: a.agentId, b: b.agentId }
 }
@@ -40,6 +43,15 @@ describe('crew', () => {
     expect(clock(79_000)).toBe('1:19')
     expect(progress({ status: 'running', steps: 0 })).toBeLessThan(progress({ status: 'running', steps: 5 }))
     expect(progress({ status: 'done', steps: 0 })).toBe(1)
+    expect(tier('low').name).toBe('light')
+    expect(tier('medium').name).toBe('medium')
+    expect(tier('xhigh').name).toBe('careful')
+    expect(crabSvg(tier('high'), 'working')).toContain('animate')
+    let steps = applyTask([], 'TaskCreate', { subject: 'Hero copy' }, 'Task #7 created successfully')
+    steps = applyTask(steps, 'TaskUpdate', { taskId: '7', status: 'in_progress' })
+    expect(steps).toEqual([{ id: '7', subject: 'Hero copy', status: 'in_progress' }])
+    expect(stepLine({ todo: steps, steps: 2, status: 'running' })).toBe('0/1 · Hero copy')
+    expect(stepLine({ steps: 4, lastTool: 'Read a.js', status: 'running' })).toBe('4 steps · Read a.js')
   })
 
   for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
@@ -49,7 +61,11 @@ describe('crew', () => {
       const ui = await $.ui.mount({ plugin: 'crew', surface, component: 'Pane', requestId: 'crew', props: { title: 'Agents', isFocused: false, bodyColumns: 60, placement: 'dock' } } as any)
       expect(await ui.find({ type: 'Text', text: /Running · 1/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /Add JSDoc to src functions/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /Read greet\.js/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /1\/3 · Hero copy/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^light$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /Build the launch kit/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /Planned · 1/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /3\. Review the whole kit/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /32k/ })).toBeDefined()
       expect(await ui.find({ key: 'crew-done' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /Write greet test/ })).toBeDefined()
@@ -73,8 +89,9 @@ describe('crew', () => {
     await crew($)
     const r: any = await $.command.run({ command: 'agents-info', args: '' } as any)
     expect(r.text).toContain('🦀 Agents · 1 running · 1 finished')
-    expect(r.text).toContain('● Add JSDoc to src functions (general-purpose, Opus 5.5 · low)')
-    expect(r.text).toContain('Read greet.js')
+    expect(r.text).toContain('● Add JSDoc to src functions (light, Opus 5.5 · low)')
+    expect(r.text).toContain('○ 3. Review the whole kit (planned)')
+    expect(r.text).toContain('1/3 · Hero copy')
     expect(r.text).toContain('✓ Write greet test')
   })
 
