@@ -61,6 +61,7 @@ describe('blast-radius', () => {
     const s = sortFiles(['c:/users/pc/repo/Index.html', 'C:/Users/PC/Repo'], 'C:/Users/PC/repo', new Set(['index.html']), new Set(['index.html']), protectPatterns('*.html'))
     expect(s.protected).toEqual(['Index.html'])
     expect(s.whole).toBe(true)
+    expect(sortFiles(['/repo/Index.html'], '/repo', new Set(['Index.html']), new Set(['Index.html']), protectPatterns('index.html')).protected).toEqual([])
     expect(risks('Remove-Item -Path:old.txt -Force', '/repo', '/root', true)).toEqual([{ kind: 'rm', cwd: '/repo', targets: ['old.txt'] }])
     expect(risks('Get-ChildItem *.log | Remove-Item', '/repo', '/root', true)).toEqual([{ kind: 'piped', cwd: '/repo', from: 'Get-ChildItem *.log' }])
     expect(risks('ls | % { Remove-Item $_ }', '/repo', '/root', true).map(r => r.kind)).toEqual(['piped'])
