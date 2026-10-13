@@ -12,6 +12,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L4** · 2026-10-12 · v269 · `tools/kit.mjs`, `--file` — kit.mjs --file resolves the path against the repo root, so a scratchpad path fails with ENOENT: write the old copy as old.html in the repo root (git show origin/main:index.html > old.html), run, then rm it (never commit it)
 - **L5** · 2026-10-12 · v269 · `tools/where.mjs`, `acorn` — A fresh container has no acorn, so tools/where.mjs throws 'acorn not found': run npm i -g acorn first
 - **L6** · 2026-10-12 · v269 · `issue comments`, `bugPath` — Wrote an issue comment guessing what an element id was (#dxq called a queue tile; it was the search box, which explained the whole report): grep the id in index.html before describing or diagnosing a report
+- **L7** · 2026-10-13 · v272 · `worker/helper.js`, `ask`, `fake env` — Wrote a helper fix (#428, half an emoji from .slice) and a fake AI to prove it, but JSON.stringify escapes lone surrogates as valid JSON, so the fake passed before and after: a fake that only encodes my own guess proves nothing; when the live service can't be reached, comment the hypothesis and leave the issue open instead of shipping
 
 ## Missed opportunities
 

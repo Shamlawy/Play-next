@@ -4115,7 +4115,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "271";
+const APP_V = "272";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -25767,5 +25767,14 @@ WHATS_NEW.push(
   { v: 271, go: () => nxOpenGame(), at: () => $("#full .gd-trk") || null,
     say: "On a game's page, <b>Your progress</b> now draws itself: start playing, finish or drop a game and the line runs to the new step, with a little pop as it lands.",
     tryIt: "On a game you haven't started, tap ▶ Start playing and watch the line under Your progress." }
+);
+</script>
+<script>
+/* #432: Settings (#sheet) let a sideways swipe through to the game page behind it; the other sheets already stop it (noHub) */
+noHub($("#sheet"));
+WHATS_NEW.push(
+  { v: 272, go: () => { closeFull(); dyClose(); nxShut(); nxOpenGame(); }, at: () => [...document.querySelectorAll('#gear, button.act[aria-label*="Settings" i], button.act[title*="Settings" i]')].find(e => e.getBoundingClientRect().width) || null,   /* the rail's button when unfolded */
+    say: "Fixed: swiping inside Settings no longer flips the game page behind it to another game.",
+    tryIt: "Open a game, tap the gear and swipe sideways in Settings: the game stays put." }
 );
 </script>
