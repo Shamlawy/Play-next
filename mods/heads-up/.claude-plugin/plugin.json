@@ -1,0 +1,1 @@
+{ "name": "heads-up", "version": "0.1.0", "description": "Reads each of Claude's replies and puts only what needs you in a side panel: things to look at, things to do (tick them off) and ideas, instead of the whole wall of text.", "types": "./types/index.d.ts" }
