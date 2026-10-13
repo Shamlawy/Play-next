@@ -13,6 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { spawnSync } from "child_process";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2), opt = k => { const i = args.indexOf("--" + k); return i >= 0 ? args[i + 1] : undefined; };
@@ -148,6 +149,11 @@ function measure() {
     if (!new RegExp(`\\bS\\.${k}\\b|S\\[["']${k}["']\\]|["']${k}["']`).test(rest)) orphan.push(k);
   add("orphanSettings", "Settings keys listed in GROUP_KEYS that nothing reads", orphan, "remove them from GROUP_KEYS (and the switch)");
 
+  /* the bug finder (tools/lint.mjs: ESLint's correctness rules with every script's names known) */
+  const lr = spawnSync(process.execPath, [path.join(ROOT, "tools/lint.mjs"), "--count", "--file", FILE], { encoding: "utf8" });
+  if (lr.status === 0) { const n = +lr.stdout.trim() || 0; add("lint", "bug finder findings (node tools/lint.mjs: undefined names, unused values, duplicate keys, unreachable code…)", Array.from({ length: n }, (_, i) => "see node tools/lint.mjs"), "fix them: node tools/lint.mjs lists each"); }
+  else if (process.env.CI) add("lint", "bug finder could not run (ESLint missing)", ["ESLint missing"], "npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0");
+  else console.log("  (lint skipped: npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0)");
   M._size = { lines: html.split("\n").length, kb: Math.round(html.length / 1024), scripts: scripts.length, styles: styles.length };
   return M;
 }

@@ -8,6 +8,8 @@
    POST /announce     → tells every phone about a new version of the app now (GitHub calls it once the site is live).
    POST /bug          → the app's automatic problem reports (no game data), kept in KV as bug:<sig>.
    GET  /bugs, POST /bugs/ack → for the GitHub "Problem reports" job only (Bearer BUG_KEY), which files them as issues.
+   POST /usage        → a phone's weekly usage counts (which screens, buttons and switches get used; no game data), kept 120
+        days as use:<random phone id>. GET /usage → all of them, for the GitHub "Usage" job only (Bearer BUG_KEY) (v19).
    POST /recap        → "the story so far" up to the player's own note (Workers AI, no spoilers past it).
    POST /steam        → Steam's own tags (genres players use) and "more like this" for a list of games.
    POST /reviews      → Steam's player-review summary (e.g. "Very Positive", 93% of 1,240) for a list of games (v11).
@@ -24,7 +26,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 18;
+const HELPER_V = 19;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -171,6 +173,16 @@ Answer with ONLY a JSON array like [{"ids":["e3","e7"],"problem":"max 16 words, 
       /* only the app itself sends these (a browser always says where it's from) */
       const o = req.headers.get("Origin"); if (o && !ALLOW.includes(o)) return json({ error: "not allowed" }, 403, h);
       return json(await bugTake(env, await req.json().catch(() => ({}))), 200, h);
+    }
+    if (url.pathname === "/usage" && req.method === "POST") {
+      const o = req.headers.get("Origin"); if (o && !ALLOW.includes(o)) return json({ error: "not allowed" }, 403, h);
+      if (!env.NUDGE) return json({ error: "no store" }, 503, h);
+      return json(await useTake(env, await req.text().catch(() => "")), 200, h);
+    }
+    if (url.pathname === "/usage" && req.method === "GET") {
+      if (!env.BUG_KEY || !env.NUDGE) return json({ error: "usage isn't set up (BUG_KEY / NUDGE)" }, 503, h);
+      if (!sameKey(req.headers.get("Authorization") || "", "Bearer " + env.BUG_KEY)) return json({ error: "no" }, 401, h);
+      return json({ usage: await useList(env) }, 200, h);
     }
     if (url.pathname === "/bugs" || url.pathname === "/bugs/ack") {
       if (!env.BUG_KEY || !env.NUDGE) return json({ error: "reports aren't set up (BUG_KEY / NUDGE)" }, 503, h);
@@ -1263,6 +1275,30 @@ async function bugList(env) {
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
   return out.sort((a, b) => b.last - a.last);
+}
+/* ===== v19: usage counts. {id, dev, v, since, taps: {key: n}, screens: {key: n}, opens: {key: n}} — only names of screens,
+   buttons and switches with counts; anything else is dropped. One record per phone, replaced each week. ===== */
+const USE_TTL = 120 * 86400;
+const useCounts = o => { const out = {}; if (!o || typeof o !== "object") return out;
+  for (const [k, v] of Object.entries(o).slice(0, 600)) if (/^[#\w:/.-]{1,60}$/.test(k) && Number.isFinite(+v) && +v > 0) out[k] = Math.min(1e7, Math.round(+v));
+  return out; };
+async function useTake(env, text) {
+  if (!text || text.length > 60000) return { ok: false, error: "size" };
+  let b; try { b = JSON.parse(text); } catch (e) { return { ok: false, error: "json" }; }
+  const id = String(b.id || ""); if (!/^[a-z0-9]{8,32}$/.test(id)) return { ok: false, error: "id" };
+  const rec = { id, dev: String(b.dev || "").slice(0, 40), v: String(b.v || "").slice(0, 8), since: String(b.since || "").slice(0, 10), at: Date.now(),
+    taps: useCounts(b.taps), screens: useCounts(b.screens), opens: useCounts(b.opens), on: (Array.isArray(b.on) ? b.on : []).slice(0, 200).map(x => String(x).slice(0, 40)).filter(x => /^[\w-]+$/.test(x)) };
+  await env.NUDGE.put("use:" + id, JSON.stringify(rec), { expirationTtl: USE_TTL });
+  return { ok: true };
+}
+async function useList(env) {
+  const out = []; let cursor;
+  do {
+    const page = await env.NUDGE.list({ prefix: "use:", cursor });
+    for (const k of page.keys) { const r = await env.NUDGE.get(k.name, "json"); if (r) out.push(r); }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  return out;
 }
 async function bugAck(env, body) {
   /* {sigs: {sig: n}}: that many are filed now */

@@ -3117,6 +3117,42 @@ function pcdHTML(o) {
 <div id="sheet"><div class="sheet-in" id="sheet-in"></div></div>
 
 <script>
+/* ===== v279: extend(name, hook) — how a feature adds to an app function, instead of wrapping it =====
+   The app grew by wrapping functions (const _f = f; f = function () { …; _f.apply(this, arguments) }), up to 10 layers
+   deep, each in a different script. extend keeps each feature's code where it lives, but every addition to a function is
+   one entry in EXT[name] (in the console: EXT.renderHome), they run in a known order, and one that throws is reported
+   without stopping the others. The hook object can have:
+     before(...args)            runs before the function, newest first. May return extend.skip(value) (the function and the
+                                older hooks don't run; it returns value) or extend.args(newArgs) (the older hooks and the
+                                function get these); anything else is handed to this hook's after/map as `got`
+     after(out, args, got)      runs after it, oldest first (the order the wraps ran in); its return value is ignored
+     map(out, args, got)        like after, but its return value becomes the function's result
+   Only for functions declared with `function name()` at the top level of a script (they live on window). */
+const EXT = {}, EXT_SKIP = Symbol("skip"), EXT_ARGS = Symbol("args");
+function extend(name, hook) {
+  let e = EXT[name];
+  if (!e) {
+    const base = window[name]; if (typeof base !== "function") throw new Error("extend: no top-level function " + name);
+    const run = (f, self, a) => { try { return f.apply(self, a); } catch (x) { setTimeout(() => { throw x; }); } };
+    e = EXT[name] = { base, list: [] };
+    window[name] = function () {
+      const L = e.list, got = [], seen = []; let a = arguments, i = L.length - 1, out;
+      for (; i >= 0; i--) { seen[i] = a; if (!L[i].before) continue;
+        const r = run(L[i].before, this, a);
+        if (r && r[EXT_SKIP]) { out = r.value; break; }
+        if (r && r[EXT_ARGS]) a = r.args; else got[i] = r; }
+      if (i < 0) out = e.base.apply(this, a);
+      for (let j = i + 1; j < L.length; j++) {
+        if (L[j].after) run(L[j].after, this, [out, seen[j], got[j]]);
+        if (L[j].map) { const r = run(L[j].map, this, [out, seen[j], got[j]]); if (r !== undefined) out = r; } }
+      return out;
+    };
+  }
+  e.list.push(hook);
+}
+extend.skip = value => ({ [EXT_SKIP]: true, value });
+extend.args = args => ({ [EXT_ARGS]: true, args });
+
 /* v169 speed: building a date/number formatter is slow, and the app formats dates for every card on
    every redraw. Keep one formatter per locale+options and reuse it — same output, a fraction of the cost. */
 (function () {
@@ -3302,7 +3338,7 @@ function tonight(hrs) {
 
   const scored = live.map(g => {
     const len = num(g.hours, 0, 0, 1000);
-    const x = expected(g);
+    const x = expectedInfo(g);
     let pts = 0;
     const why = [];
     /* where it sits in your own ranking is the strongest signal you have */
@@ -3331,7 +3367,7 @@ function tonight(hrs) {
 /* What your hype is actually worth, for a game you haven't played.
    Your overall drift, plus whatever this game's genres add on top of it. Returns
    null until there is enough behind it to be worth saying out loud. */
-function expected(g) {
+function expectedInfo(g) {   /* v279: was a second "expected" (the number one at "your hype, corrected" won, so .drift/.score were always missing) */
   const b = hypeBias();
   const hype = num(g && g.hype, 0, 0, 10);
   if (!hype || !b.n || !analysisReady().ok) return null;
@@ -3989,7 +4025,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "278";
+const APP_V = "279";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4946,6 +4982,7 @@ const GROUP_KEYS = {
   "Sound and reactions": ["sound", "reactions"],
   "Motion": ["motion", "vt", "rowAnim", "tabFade", "restOff"],
   "Header cards": ["shxOff", "shxX"],
+  "Your data": ["useOff"],
   "Look of the app": ["livePrev", "uiStyle", "addStyle", "picHQ", "bgBase", "bgTint", "bgGrad", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
   "Character art": ["artSize", "artH", "artFloat", "artSpeed", "artGlow"],
@@ -6558,6 +6595,11 @@ function openSettings(scope) {
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
       <button class="btn ghost" id="s-usage"><span>📊 Your usage (private)</span></button>
       <p class="note">Which screens you visit and what you open, counted per version so you can compare before and after a change. Only on this phone and in your backups.</p>
+      <label>Help tidy the app</label>
+      <div class="chips" id="s-useoff">
+        ${[["on", "Send weekly counts"], ["off", "Don't send"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.useOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">Once a week the app sends how often each screen, button and switch was used: names and numbers only, never your games, scores or notes. Features nobody uses get shown to the owner to remove, so the app stays light.</p>
       <p class="note" id="s-store">Using about ${storeKb()} KB of browser storage. Chrome cuts you off somewhere around 5,000 KB, and uploaded art is what fills it.</p>
 
       <p class="note" id="s-persist">Checking storage protection…</p>
@@ -6821,6 +6863,7 @@ function openSettings(scope) {
   slide("#s-radius", "#s-radius-v", "px", "radius");
   slide("#s-bggrad", "#s-bggrad-v", "%", "bgGrad");
   pick("#s-livep", v => S.livePrev = v === "on", () => lvpSync());
+  pick("#s-useoff", v => S.useOff = v === "off");
   slide("#s-libcols", "#s-libcols-v", "", "libCols", () => renderLib());
   slide("#s-reelw", "#s-reelw-v", "%", "reelW", () => renderLib());
   slide("#s-flowsize", "#s-flowsize-v", "px", "flowSize", () => renderCal());
@@ -6896,7 +6939,7 @@ function openSettings(scope) {
   if ($("#s-cine")) $("#s-cine").onclick = e => { const b = e.target.closest(".chip"); if (!b) return;
     S.cineOff = b.dataset.v === "off"; save(); [...$("#s-cine").children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
     toast(S.cineOff ? "Intro cutscene off" : "Intro plays every launch"); };
-  if ($("#s-cine-now")) $("#s-cine-now").onclick = () => { if (typeof closeSettings === "function") try { closeSettings(); } catch (x) {} setTimeout(() => window.pnCinema && pnCinema(), 300); };
+  if ($("#s-cine-now")) $("#s-cine-now").onclick = () => { closeEdit();   /* v279: called closeSettings, which never existed, so the intro played behind the open sheet */ setTimeout(() => window.pnCinema && pnCinema(), 300); };
   if ($("#s-full") && installed()) {
     $("#s-full").closest(".setgroup") && $("#s-full").remove();
   } else if ($("#s-full")) {
@@ -9011,7 +9054,7 @@ function hubStats(g) {
     hrsOf(g) ? [hrsOf(g) + "h", Math.max(1, Math.round(hrsOf(g) / ev2)) + " evenings"] : null,
     [(g.hype || "—") + "/10", "hype"],
     (() => {
-      const x = isPlayed(g) ? null : expected(g);
+      const x = isPlayed(g) ? null : expectedInfo(g);
       return x && Math.abs(x.drift) >= 0.8 ? [x.score.toFixed(1), "you'll likely give"] : null;
     })(),
     g.critic ? [g.critic, "critics"] : null,
@@ -9603,7 +9646,7 @@ function closePeek() {
 /* ---- played ---- */
 function renderPlayed() {
   const el = $("#p-played");
-  const live = liveGames();
+
   const done = S.played.map(p => ({ ...p, g: S.games.find(g => g.id === p.id) })).filter(x => x.g);
   const quit = S.games.filter(isDropped);
   el.innerHTML = `
@@ -10306,7 +10349,6 @@ document.addEventListener("click", e => {
 }, true);
 /* v113 play diary: Nexi picker + competitive mode */
 const MOODS = [["😍", "Loved it"], ["🙂", "Good"], ["😐", "Meh"], ["😴", "Bored"], ["😤", "Frustrated"]];
-const dyDay = t => new Date(t).toLocaleDateString("en-CA");
 function dyBox() { let box = document.getElementById("diary");
   if (!box) { box = document.createElement("div"); box.id = "diary"; document.body.appendChild(box); } return box; }
 function dyShow(box, html, onclick) {
@@ -10328,13 +10370,13 @@ function openDiaryPicker(all) {
 }
 function openDiary(id, mins) {
   const g = S.games.find(x => x.id === id); if (!g) return;
-  const box = dyBox(), comp = !!g.comp, today = dyDay(Date.now());
+  const box = dyBox(), comp = !!g.comp;
   g.diary ||= [];
   let cur = null;
   let pick = cur ? cur.m : -1, w = cur ? cur.w || 0 : 0, l = cur ? cur.l || 0 : 0, d = cur ? cur.d || 0 : 0;
   const list = g.diary.slice().reverse();
-  const tw = g.diary.reduce((a, e) => a + (e.w || 0), 0), tl = g.diary.reduce((a, e) => a + (e.l || 0), 0), td = g.diary.reduce((a, e) => a + (e.d || 0), 0);
-  const rate = tw + tl + td ? Math.round(tw / (tw + tl + td) * 100) : null;
+
+
   const wld = e => (e.w || e.l || e.d) ? `${e.w || 0}W ${e.l || 0}L${e.d ? " " + e.d + "D" : ""}` : "";
   dyShow(box, `<div class="dy-h"><button class="dy-bk" aria-label="Back">‹</button><b>${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
     <label class="dy-c"><input type="checkbox" class="dy-ct"${comp ? " checked" : ""}> ⚔️ Competitive game <small>no hours, immune to the Shadow</small></label>
@@ -10733,6 +10775,7 @@ function dxWire(root) {
   /* tapping a result must not blur the box and hide the list before the tap lands */
   res.addEventListener("mousedown", e => e.preventDefault());
 }
+var homeBgIO;   /* var, no value: renderHome can run before this line is reached, and must not lose its observer here */
 function renderHome() {
   const el = $("#p-home");
   if (!el) return;
@@ -10748,10 +10791,10 @@ function renderHome() {
   const pick = ranked[0];
   const runner = ranked[1];
   const settled = (S.duels || []).filter(d => d.w).length;
-  const gap = pick && runner ? Math.round((elo[pick.id] || 1500) - (elo[runner.id] || 1500)) : 0;
+
 
   const dated = live.filter(g => g.date).sort((a, b) => new Date(a.date) - new Date(b.date));
-  const soon = dated[0];
+
 
   const b = hypeBias();
   const cats = categoryPull().filter(c => c.r != null).sort((x, y) => Math.abs(y.r) - Math.abs(x.r));
@@ -10921,7 +10964,7 @@ function renderHome() {
 
       ${(() => {
         if (!on("trap")) return "";
-        const cand = live.map(g => ({ g, x: expected(g) }))
+        const cand = live.map(g => ({ g, x: expectedInfo(g) }))
           .filter(o => o.x && o.g.hype >= 7 && Math.abs(o.x.drift) >= 1)
           .sort((a, b2) => Math.abs(b2.x.drift) - Math.abs(a.x.drift))[0];
         if (!cand) return "";
@@ -10981,8 +11024,8 @@ function renderHome() {
       if (!src) return;
       /* v177 the picture goes on only when the card is actually on screen (most sit hidden in the stacks) */
       t.classList.add("dxbg"); t._bgi = `url('${cssUrl(src)}')`;
-      const io = renderHome.bgIO || (renderHome.bgIO = "IntersectionObserver" in window ? new IntersectionObserver((es, ob) => es.forEach(e => {
-        /* v198: the observer it's given, not renderHome.bgIO: renderHome is wrapped later, so that was undefined (crash) */
+      const io = homeBgIO || (homeBgIO = "IntersectionObserver" in window ? new IntersectionObserver((es, ob) => es.forEach(e => {
+        /* v198: the observer it's given; v279: kept in homeBgIO, not on renderHome (a property on a function is lost when it's extended) */
         if (e.isIntersecting) { e.target.style.setProperty("--bgi", e.target._bgi); ob.unobserve(e.target); } }), { rootMargin: "60px" }) : null);
       if (io) io.observe(t); else t.style.setProperty("--bgi", t._bgi);
       if (/^#[0-9a-f]{6}$/i.test(g.colour || "")) t.style.setProperty("--bgt", g.colour + "57");
@@ -11035,7 +11078,7 @@ function revealSetup(root) {
   }), { rootMargin: "0px 0px -8% 0px" }));
   root.querySelectorAll(".dash > *").forEach(el => { if (!el._rv) io.observe(el); });
 }
-{ const _rh = renderHome; renderHome = function () { _rh.apply(this, arguments); revealSetup($("#p-home")); }; }
+extend("renderHome", { after: () => { revealSetup($("#p-home")); } });
 const PN_EASE = "cubic-bezier(.22,1,.36,1)";
 
 /* numbers roll up from zero when Home opens */
@@ -11238,8 +11281,8 @@ function celebrate(g) {
   document.body.appendChild(el); sfx("cheer");
   setTimeout(() => el.remove(), 1900);
 }
-{ const _sp = syncPlayed; syncPlayed = function (g, state) { const was = isPlayed(g); _sp(g, state);
-  if (state === "played" && !was) setTimeout(() => celebrate(g), 150); }; }
+extend("syncPlayed", { before: g => isPlayed(g),
+  after: (out, [g, state], was) => { if (state === "played" && !was) setTimeout(() => celebrate(g), 150); } });
 
 
 
@@ -11252,12 +11295,12 @@ let pnVT = false;
    v261: the slide itself is CSS now (slashin / cut / smR / smL on .panel.on): this second one on the same panel made both
    run on the main thread (two transform animations on one element can't go to the GPU). The jump to the top waits for
    the frame's own layout instead of forcing one inside the tap (scrollY did, ~90ms at 4x CPU). */
-{ const _pt = paintTab; paintTab = function (tab) {
-    const cb = document.querySelector('nav button[aria-current="true"]'), from = cb && cb.dataset.tab;
-    _pt.apply(this, arguments);
+extend("paintTab", {
+  before: () => { const cb = document.querySelector('nav button[aria-current="true"]'); return cb && cb.dataset.tab; },
+  after: (out, [tab], from) => {
     if (calm() || pnVT || !from || from === tab) return;
     requestAnimationFrame(() => { if (scrollY > 0) scrollTo(0, 0); });
-  }; }
+  } });
 
 /* a game's page grows out of whatever you tapped, and shrinks back when closed */
 let pnNoGrow = false;
@@ -11354,8 +11397,8 @@ function pnRailTabs() {
   const cur = (document.querySelector('nav button[aria-current="true"]') || {}).dataset || {};
   document.querySelectorAll("#hrail .tb").forEach(b => b.classList.toggle("on", b.dataset.rt === cur.tab));
 }
-{ const _pt2 = paintTab; paintTab = function (tab) { _pt2.apply(this, arguments);
-  document.documentElement.classList.toggle("onhome", tab === "home"); pnRailTabs(); }; }
+extend("paintTab", { after: (out, [tab]) => {
+  document.documentElement.classList.toggle("onhome", tab === "home"); pnRailTabs(); } });
 
 /* Home on one screen: the pick and the ring stay put, everything else lives in stacks you swipe through */
 const pnStackPos = {};
@@ -11364,7 +11407,7 @@ function pnStack(root) {
   const kids = [...d.children], has = (x, ks) => ks.some(k => x.classList.contains(k));
   kids.forEach(x => { x.classList.remove("pnrv"); if (revealSetup.io) revealSetup.io.unobserve(x); });
   const pick = kids.find(x => x.classList.contains("k-pick")), ring = kids.find(x => x.classList.contains("k-ring"));
-  const A = [], up = kids.find(x => x.classList.contains("k-up")), ton = null, cd = kids.find(x => x.classList.contains("k-cd"));
+  const up = kids.find(x => x.classList.contains("k-up")), ton = null, cd = kids.find(x => x.classList.contains("k-cd"));
   kids.filter(x => x.classList.contains("k-taste")).forEach(x => x.remove());
   const C = kids.filter(x => has(x, ["k-tonight", "k-stand", "k-hours", "k-far", "k-year"]));
   const B = kids.filter(x => x !== pick && x !== ring && x !== cd && x !== up && !C.includes(x) && !x.classList.contains("k-taste") && !C.includes(x) && x.id !== "hintbub");
@@ -11403,8 +11446,8 @@ function pnFit() {
   d.style.setProperty("--dashH", Math.max(480, innerHeight - top - 16 - dock) + "px");
 }
 addEventListener("resize", () => requestAnimationFrame(pnFit), { passive: true });
-{ const _rh2 = renderHome; renderHome = function () { _rh2.apply(this, arguments); pnStack($("#p-home")); }; }
-{ const _pt3 = paintTab; paintTab = function (tab) { _pt3.apply(this, arguments); if (tab === "home") requestAnimationFrame(pnFit); }; }
+extend("renderHome", { after: () => { pnStack($("#p-home")); } });
+extend("paintTab", { after: (out, [tab]) => { if (tab === "home") requestAnimationFrame(pnFit); } });
 
 const pnStackAll = {};
 const pnCardId = x => [...x.classList].find(c => c.startsWith("k-")) || ((x.querySelector("h5") || {}).textContent || "").trim();
@@ -11479,7 +11522,7 @@ function pnBubble() {
         document.documentElement.classList.toggle("railleft", S.railSide === "left"); S.railHide = false; save();
         document.documentElement.classList.remove("railhide"); pnBubHush(); } taps = 0; }, 400); return; }
     pnBubPlace(pnBubX + vx * 120, pnBubY + vy * 120);           /* a flick carries it a little further */
-    const from = { x: pnBubX, y: pnBubY }, to = pnBubEdge();
+    const to = pnBubEdge();
     b.animate([{ transform: `translate3d(${ox + (lx - sx)}px,${oy + (ly - sy)}px,0)` }, { transform: `translate3d(${to.x}px,${to.y}px,0)` }],
       { duration: 520, easing: "cubic-bezier(.34,1.45,.64,1)" });
     pnBubPlace(to.x, to.y); pnBubMood(Math.hypot(vx, vy) > 1.2 ? "dizzy" : "happy", Math.hypot(vx, vy) > 1.2 ? 1600 : 900); S.bubPos = to; S.railSide = to.x < innerWidth / 2 ? "left" : "right"; save(); };
@@ -11534,7 +11577,7 @@ function pnBubReact() {
     else if (dn > (old.w || 0) && Math.random() < .5) { pnBubMood("cool", 1800);
       pnBubSay([["Good pick. I'd have chosen the same 😎", "Ooh, bold choice ⚔️", "Noted. I'm learning you 🧠"][Math.floor(Math.random() * 3)], "taste"]); }
   }
-  const t = new Date().toLocaleDateString("en-CA"), duels = (S.duels || []).filter(d => d.w).length;
+  const t = new Date().toLocaleDateString("en-CA");
   const bday = S.bubBorn && S.bubBorn.slice(5) === t.slice(5) && S.bubBorn !== t;
   const HS = nxHats(), hat = bday ? "🎂" : S.games.some(g => g.date === t) ? "🎉" : S.nxHat === "none" ? "" : HS.includes(S.nxHat) ? S.nxHat : HS[HS.length - 1] || "";
   b.querySelector(".hat").textContent = hat; pnBubBadge();
@@ -11900,6 +11943,7 @@ function pnBubLines() {
   L.push(["🔥 " + pnTake(), ""]); L.push([pnEvoLine(), ""]);
   return L;
 }
+var pnSayT;   /* v279: was pnBubSay.t (a property on a function is lost when it's extended) */
 function pnBubSay(line) {
   const m = $("#pnbubmsg"), L = pnBubLines(); if (!m || !L.length) return;
   const [txt, act] = line || L[Math.floor(Math.random() * L.length)];
@@ -11911,7 +11955,7 @@ function pnBubSay(line) {
   requestAnimationFrame(() => { m.classList.add("on"); m.style.transform = `translate3d(${x}px,${y}px,0) scale(1)`; });
   if (navigator.vibrate) navigator.vibrate(6);
   pnBubMood("talk", 1700); const bb = $("#pnbub"); if (bb) { bb.style.setProperty("--ex", right ? "-4px" : "4px"); bb.style.setProperty("--ey", "1px"); }
-  clearTimeout(pnBubSay.t); pnBubSay.t = setTimeout(pnBubHush, 5500);
+  clearTimeout(pnSayT); pnSayT = setTimeout(pnBubHush, 5500);
 }
 function pnBubHush() { const m = $("#pnbubmsg"); if (m) m.classList.remove("on"); }
 function pnBubShow() {
@@ -12363,7 +12407,7 @@ function xFeatures() {
   if (S.timerOn && !has) SUBS.plan.push(PLAN_TIMER);
   if (!S.timerOn && has) SUBS.plan.splice(SUBS.plan.findIndex(x => x[0] === "timer"), 1);
 }
-{ const _al = applyLook; applyLook = function () { try { xFeatures(); } catch (e) {} return _al.apply(this, arguments); }; }
+extend("applyLook", { before: () => { try { xFeatures(); } catch (e) {} } });
 
 /* ---- private usage counter: which screens you visit and what you open, per app version, so a change
    can be judged before/after. Only ever shown to you (Settings → Your data); it rides along in backups. ---- */
@@ -12383,7 +12427,7 @@ function uCount(kind, key) {
 let uLast = "";
 const uScreen = tab => tab + (SUBS[tab] ? "/" + subOf(tab) : "");
 function uVisit(tab) { const k = uScreen(tab); if (k !== uLast) { uLast = k; uCount("v", k); } }
-{ const _pt = paintTab; paintTab = function (tab) { const out = _pt.apply(this, arguments); try { uVisit(tab); } catch (e) {} return out; }; }
+extend("paintTab", { after: (out, [tab]) => { try { uVisit(tab); } catch (e) {} } });
 /* Screen changes in one place (v269, all of them since v270). goTab, goSub and openFull used to be wrapped once per feature
    that wanted to know about a screen change (openFull went through 16 layers). Every feature registers a hook instead:
      onNav("after", fn)   runs after the screen change, in the order registered
@@ -12411,7 +12455,7 @@ function onSettings(when, fn) { SET_HOOKS.push({ when, fn }); }
 }
 onNav("after", (k, a) => { if (k === "sub") try { uVisit(a[0]); } catch (e) {} });
 onNav("before", (k, a) => { if (k === "game" && (hubAt !== a[0] || !$("#full.on"))) uCount("o", "game"); });
-{ const _oe = openEdit; openEdit = function () { uCount("o", "edit"); return _oe.apply(this, arguments); }; }
+extend("openEdit", { before: () => { uCount("o", "edit"); } });
 onSettings("before", (k, a) => { const sc = a[0]; uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : "")); });
 setTimeout(() => { uCount("o", "app"); uVisit(curTab()); }, 0);
 { let away = 0; document.addEventListener("visibilitychange", () => {
@@ -12649,7 +12693,7 @@ const TAG_WORD = { rpg: "RPGs", strategy: "Strategy games", adventure: "Adventur
   "visual novel": "Visual novels", roguelike: "Roguelikes", shooter: "Shooters", puzzle: "Puzzle games", sports: "Sports games", racing: "Racing games", fighting: "Fighting games", horror: "Horror games" };
 const tagWord = t => TAG_WORD[t] || (t.charAt(0).toUpperCase() + t.slice(1) + " games");
 function tasteInsights() {
-  const out = [], t = rankTable(), G = id => S.games.find(g => g.id === id);
+  const out = [], t = rankTable();
   const ds = (S.duels || []).filter(d => d.w && t.pos[d.a] != null && t.pos[d.b] != null);
   /* how a kind of game does in duels against games that aren't that kind */
   const feats = {};
@@ -12754,10 +12798,8 @@ function nxHomeLine() {
 
 
 document.addEventListener("click", e => { const b = e.target.closest("[data-opg]"); if (!b) return; e.stopPropagation(); hubReturn = null; beep("open"); openFull(b.dataset.opg); }, true);
-{ const _rh = renderHome; renderHome = function () {
-  const out = _rh.apply(this, arguments), el = $("#p-home");
-  if (el && !S.nxHomeOff) { el.querySelectorAll(".nxhome").forEach(x => x.remove()); el.insertAdjacentHTML("afterbegin", nxHomeLine()); }
-  return out; }; }
+extend("renderHome", { after: () => { const el = $("#p-home");
+  if (el && !S.nxHomeOff) { el.querySelectorAll(".nxhome").forEach(x => x.remove()); el.insertAdjacentHTML("afterbegin", nxHomeLine()); } } });
 { const _xf = xFeatures; xFeatures = function () { try { scoreMigrate(); if (!sigIds) sigWatch(); } catch (e) {} return _xf.apply(this, arguments); }; }
 { const _ab = applyBackup; applyBackup = function () { sigIds = null; rankMemo = deckMemo = null; const o = _ab.apply(this, arguments); sigWatch(); return o; }; }
 { const _mb = mergeBackup; mergeBackup = function () { const o = _mb.apply(this, arguments); sigIds = null; sigWatch(); return o; }; }
@@ -12797,10 +12839,10 @@ function nxVoice(txt) {
   if (o && !/^(hi|hey|yo|hello|it's my)/i.test(t)) t = o + t;         /* openers end in . : or ! so names keep their capitals */
   return (t + (pick(NX_CLOSE[p]) || "")).replace(/\s+$/, "");
 }
-{ const _say = pnBubSay; pnBubSay = function (line) {
-  if (!line) { const L = pnBubLines(); if (!L.length) return; line = L[Math.floor(Math.random() * L.length)]; }
+extend("pnBubSay", { before: line => {
+  if (!line) { const L = pnBubLines(); if (!L.length) return extend.skip(); line = L[Math.floor(Math.random() * L.length)]; }
   const [txt, act] = Array.isArray(line) ? line : [line, ""];
-  return _say.call(this, [nxVoice(txt), act]); }; }
+  return extend.args([[nxVoice(txt), act]]); } });
 
 /* ---- competitive games: Nexi comments, never keeps score ---- */
 const NX_COMP = [
@@ -12815,7 +12857,7 @@ function nxCompLines() {
     return set.map(l => [l.replace(/\{t\}/g, g.title), ""]);
   }).flat();
 }
-{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments) || []; try { const c = nxCompLines(); c.sort(() => Math.random() - .5).slice(0, 2).forEach(x => L.push(x)); } catch (e) {} return L; }; }
+extend("pnBubLines", { map: out => { const L = out || []; try { const c = nxCompLines(); c.sort(() => Math.random() - .5).slice(0, 2).forEach(x => L.push(x)); } catch (e) {} return L; } });
 
 /* ---- Nexi chat (free Workers AI through the helper; no keys in the app) ---- */
 function nxContext() {
@@ -13028,7 +13070,7 @@ function nxWindow() {
   return [a, Math.min(23, b)];
 }
 function nxNudgeText(kind, n) {
-  const t = rankTable(), top = rankedGames(), deck = onDeck(3), nm = S.userName ? S.userName + ", " : "";
+  const top = rankedGames(), deck = onDeck(3), nm = S.userName ? S.userName + ", " : "";
   const pr = qDuelPair(null);
   if (kind === "duel" && pr) return ["⚔️ Close call", nxVoice(`${pr[0].title} or ${pr[1].title}? They're neck and neck in your ranking. One tap settles it.`), "duel"];
   if (kind === "next" && deck[n % Math.max(1, deck.length)]) { const g = deck[n % deck.length]; return ["🎮 Tonight's pick", nxVoice(`${nm}${g.title} is looking good for tonight${deckWhy(g) ? " (" + deckWhy(g) + ")" : ""}.`), "next"]; }
@@ -13519,7 +13561,7 @@ function pnPowerUp(line) {
     const o = document.createElement("div"); o.id = "ssjflash"; o.style.setProperty("--fx", cx + "px"); o.style.setProperty("--fy", cy + "px");
     document.body.appendChild(o); setTimeout(() => o.remove(), 850);
     if (line !== false) setTimeout(say, 250);
-    let n = 0; const t = setInterval(() => {
+    const t = setInterval(() => {
       const e = document.createElement("i"); e.className = "ssjbolt";
       const a = Math.random() * Math.PI * 2, r = 36 + Math.random() * 16;
       e.innerHTML = '<svg viewBox="0 0 16 28" width="16" height="28"><polyline points="9,0 3,11 11,15 5,28" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>';
@@ -13532,7 +13574,7 @@ function pnPowerUp(line) {
         m.style.setProperty("--ex", cx + Math.cos(ang) * r1 + "px"); m.style.setProperty("--ey", cy + Math.sin(ang) * r1 - 20 + "px");
         m.style.setProperty("--r", (ang * 57.3 + 90).toFixed(0) + "deg"); m.style.setProperty("--t", (.45 + Math.random() * .35).toFixed(2) + "s");
         document.body.appendChild(m); setTimeout(() => m.remove(), 850); }
-      n++;
+
     }, 180);
     /* 3. stays powered up until you tap anywhere, then the flames sink and the ring pulls back together */
     const end = () => { pnPowerUp.end = null; clearInterval(t); cat.remove(); b.classList.remove("ssj"); pnBubMood("happy", 2000); };
@@ -13694,7 +13736,7 @@ function pnPowerUp(line) {
       <div class="grw"><button class="btn ghost" id="fx-boss"><span>Face the Shadow</span></button><button class="btn ghost gre"><span>Replay intro</span></button><button class="btn ghost gx"><span>Close</span></button></div></div>`;
     document.body.appendChild(o);
     requestAnimationFrame(() => requestAnimationFrame(() => { o.querySelector(".ghp i").style.width = (hp / mx * 100) + "%"; }));
-    const msg = t => { o.querySelector(".gmsg").textContent = t; };
+
     const t0 = performance.now();  /* a finger tap sends a late click that landed on the backdrop and shut the menu instantly */
     o.addEventListener("click", e => { if (performance.now() - t0 < 450) return; if (e.target.closest(".gre")) { o.remove(); if (window.pnCinema) pnCinema(); return; }
       if (e.target === o || e.target.closest(".gx") || e.target.closest("#fx-boss")) setTimeout(() => o.remove(), 0); });
@@ -13945,7 +13987,7 @@ function pnPowerUp(line) {
   window.pnCinema = pnCinema;
 
   /* keep Nexi's own chatter and wandering out of the way during the show, and notice the ⚡ */
-  const _say = pnBubSay; pnBubSay = function () { if (window.pnCine) return; return _say.apply(this, arguments); };
+  extend("pnBubSay", { before: () => { if (window.pnCine) return extend.skip(); } });
   const _mood = pnBubMood; pnBubMood = function () { if (window.pnCine && !window.pnCineMood) return; return _mood.apply(this, arguments); };
   const _pu = pnPowerUp; pnPowerUp = function () { const r = _pu.apply(this, arguments);
     if (window.pnCineWaitPU) { const f = window.pnCineWaitPU; window.pnCineWaitPU = null; setTimeout(f, 0); } return r; };
@@ -13967,7 +14009,7 @@ function pnPowerUp(line) {
     const L = [["Next time, light. Next time 😈", "Keep dreaming, Grumble 😤"], ["You got lucky.", "Lucky? I've got {you} on my side 💙"],
       ["My backlog. My rules.", "Their backlog. Their rules. Back to your corner."], ["That tickled.", "Then why are you shaking? ⚡"]];
     const p = L[Math.floor(Math.random() * L.length)];
-    GRUM.say(p[0]); setTimeout(() => _say([p[1].replace(/\{you\}/g, you()), ""]), 2200);
+    GRUM.say(p[0]); setTimeout(() => pnBubSay([p[1].replace(/\{you\}/g, you()), ""]), 2200);
   }
   const loop = () => { setTimeout(loop, (5 + Math.random() * 4) * 60000); if (S.cine1 && S.grum) spar(); };
   setTimeout(loop, (4 + Math.random() * 3) * 60000);
@@ -14036,7 +14078,7 @@ button,a,.icon{-webkit-tap-highlight-color:transparent}
   }
   /* Grumble is hidden unless switched on in Settings; the choice is saved with everything else */
   let gv=()=>document.documentElement.classList.toggle("grumon",typeof S!=="undefined"&&!!S.grum);
-  if(typeof applyLook==="function"){const al=applyLook;applyLook=function(){const r=al.apply(this,arguments);gv();return r;};}
+  extend("applyLook",{after:()=>{gv();}});
   const H=document.documentElement;
   const fx=()=>{H.classList.toggle("fast",typeof S==="undefined"||S.fast!==false);fps();};
   gv=(o=>()=>{o();fx();})(gv);
@@ -14149,7 +14191,6 @@ async function pnShareBoard(noArt){
     else{x.strokeStyle="#EAF2FF";x.lineWidth=3;x.stroke();x.fillStyle="#EAF2FF";}x.fillText(t,px+18,py+31);return w;};
   const wrap=(t,max)=>{const w=t.toUpperCase().split(" "),L=[];let l="";w.forEach(s=>{const n=l?l+" "+s:s;
     if(x.measureText(n).width>max&&l){L.push(l);l=s;}else l=n;});L.push(l);return L.slice(0,4);};
-  let safe=true;
   rows.forEach((r,i)=>{const y=TOP+i*RH, im=imgs[i];
     x.save();x.beginPath();x.rect(0,y,W,RH-6);x.clip();x.fillStyle="#080F24";x.fillRect(0,y,W,RH);
     if(im){const s=Math.max(W/im.width,RH/im.height);x.globalAlpha=(S.boardArt==null?80:S.boardArt)/100;x.drawImage(im,(W-im.width*s)/2,y+(RH-im.height*s)/2,im.width*s,im.height*s);x.globalAlpha=1;}
@@ -14170,7 +14211,7 @@ async function pnShareBoard(noArt){
     x.fillStyle="#4DA3FF";x.font='800 italic 26px "Poppins",sans-serif';x.fillText("/10",Math.min(850+sw/2+8,1030),y+150);
   });
   x.fillStyle="#7C92C4";x.font='600 24px "Poppins",sans-serif';x.textAlign="center";x.fillText("Play next",W/2,H-32);
-  let blob=null;try{blob=await new Promise(r=>c.toBlob(r,"image/png"));}catch(e){safe=false;}
+  let blob=null;try{blob=await new Promise(r=>c.toBlob(r,"image/png"));}catch(e){}
   if(!blob){ /* a cover host blocked copying: redraw without art */ if(noArt!==true)return pnShareBoard(true);return;}
   pnShareFile=new File([blob],"play-next-top.png",{type:"image/png"});
   const url=URL.createObjectURL(blob),o=document.createElement("div");o.id="pnshare";
@@ -14308,9 +14349,6 @@ html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{an
   const calm=()=>S.motion===false||document.documentElement.classList.contains("still")||matchMedia("(prefers-reduced-motion: reduce)").matches;
   const io="IntersectionObserver" in window?new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;
     const r=e.target;io.unobserve(r);r.classList.remove("wait");r.classList.add("in");}),{rootMargin:"0px 0px -8% 0px"}):null;
-  function count(r){const v=r.querySelector(".pnb-v");if(!v||calm())return;const end=+v.dataset.v,t0=performance.now()+120;
-    const step=t=>{const k=Math.max(0,Math.min(1,(t-t0)/900)),e=1-Math.pow(1-k,4);v.textContent=(end*e).toFixed(1);if(k<1)requestAnimationFrame(step);};
-    v.textContent="0.0";requestAnimationFrame(step);}
   function wire(){const el=document.getElementById("p-played");if(!el)return;
     el.querySelectorAll(".pnb-row").forEach(r=>{if(calm()||!io){r.classList.add("in");return;}r.classList.add("wait");io.observe(r);});}
   const rp=renderPlayed;renderPlayed=function(){const x=rp.apply(this,arguments);wire();return x;};
@@ -15279,7 +15317,7 @@ document.addEventListener("toggle", e => {
   }
 }, true);
 onSettings("after", () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); });
-{ const _e = openEdit; openEdit = function () { const out = _e.apply(this, arguments); $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(false); return out; }; }
+extend("openEdit", { after: () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(false); } });
 /* the tour and search can point into a folded "More options" */
 { const _n = nxOpenSettings; nxOpenSettings = function (sel) { _n.apply(this, arguments); setMoreOpen($(sel)); }; }
 </script>
@@ -16100,7 +16138,7 @@ function nxNotch(done) {
   setTimeout(done, 1250);
 }
 /* while the tour runs: no chatter, and opening/closing the rail doesn't send him back to his corner */
-{ const _say = pnBubSay; pnBubSay = function () { if (nxTouring()) return; return _say.apply(this, arguments); }; }
+extend("pnBubSay", { before: () => { if (nxTouring()) return extend.skip(); } });
 { const _show = pnBubShow; pnBubShow = function () { if (nxTouring()) { try { pnBubFace(); } catch (e) {} if (nxTour.refit) setTimeout(nxTour.refit, 30); return; } return _show.apply(this, arguments); }; }
 /* tapping or dragging him mid-tour doesn't open the rail or fling him off: he just bounces */
 addEventListener("pointerdown", e => {
@@ -16471,13 +16509,13 @@ function shxAll() { SHX_PANELS.forEach(([id, k]) => shxDress(document.getElement
   window[fn] = function () { const o = f.apply(this, arguments); shxDress(document.getElementById(id), k); return o; };
 });
 /* Add has a fixed header: refresh its numbers whenever Home redraws (a game was added, removed…) */
-{ const _rh4 = renderHome; renderHome = function () { const o = _rh4.apply(this, arguments); shxDress($("#p-add"), "add"); return o; }; }
+extend("renderHome", { after: () => { shxDress($("#p-add"), "add"); } });
 /* Clean ⇄ Arcade: the card only exists in Clean */
-{ const _al4 = applyLook; applyLook = function () { const o = _al4.apply(this, arguments);
+extend("applyLook", { after: () => {
   const pa = $("#p-add"); if (pa) pa.classList.toggle("anew", document.documentElement.classList.contains("ui2") && S.addStyle !== "classic");
   if (!document.documentElement.classList.contains("ui2") || S.shxOff) document.querySelectorAll(".tabbar.shx").forEach(b => { b.classList.remove("shx"); b._shx = null; b.querySelectorAll(SHX_BITS).forEach(x => x.remove()); SHX_X.forEach(([k]) => b.classList.remove("shxw-" + k)); });
   else if (typeof shxAll === "function") shxAll();
-  return o; }; }
+  } });
 /* an empty month points at the next release */
 function calNextCard() {
   const end = new Date(calY, calM + 1, 1), day0 = new Date(new Date().toDateString());
@@ -17233,8 +17271,8 @@ WHATS_NEW.push(
    Now one thin pale edge (keeps near-black logos readable, costs about the same as none). The blurred glow is opt-in:
    Customise → Queue cards → glow (S.rowArtGlow, default 0 now; the old default 7 moves to 0 once). */
 if (!S.rowGlowMig) { if (S.rowArtGlow === 7) delete S.rowArtGlow; S.rowGlowMig = 1; save(); }
-{ const _al5 = applyLook; applyLook = function () { const o = _al5.apply(this, arguments);
-  const g = num(S.rowArtGlow, 0, 0, 30); document.documentElement.style.setProperty("--rag", g + "px"); document.documentElement.classList.toggle("rowglow", g > 0); return o; }; }
+extend("applyLook", { after: () => {
+  const g = num(S.rowArtGlow, 0, 0, 30); document.documentElement.style.setProperty("--rag", g + "px"); document.documentElement.classList.toggle("rowglow", g > 0); } });
 /* the problem checks never run while you're touching or scrolling: they wait until you've been still for a moment */
 /* (v200's "wait until the screen is still" gate now lives in bugLayout itself, v278) */
 /* game page: start fetching and decoding a game's pictures the moment a finger lands on it, not after the tap */
@@ -17421,8 +17459,8 @@ function nxPDress() {
   if (b.dataset.p !== nxP()) b.dataset.p = nxP();
   const eyes = b.querySelector(".eyes"); if (eyes && !eyes.querySelector(".acc")) eyes.insertAdjacentHTML("beforeend", '<i class="acc"></i>');
 }
-{ const _al6 = applyLook; applyLook = function () { const o = _al6.apply(this, arguments); nxPDress(); return o; }; }
-{ const _rh6 = renderHome; renderHome = function () { const o = _rh6.apply(this, arguments); nxPDress(); return o; }; }
+extend("applyLook", { after: () => { nxPDress(); } });
+extend("renderHome", { after: () => { nxPDress(); } });
 { const _bs6 = pnBubShow; pnBubShow = function () { nxPDress(); return _bs6.apply(this, arguments); }; }
 /* what the lines can talk about; every template skips itself when its piece is missing */
 function nxPCtx() {
@@ -17613,7 +17651,7 @@ function nxMoreLines() {
   if (c.ranked > 3) L.push(["Your top 3 is on Home, right under my face.", ""]);
   return L;
 }
-{ const _bl6 = pnBubLines; pnBubLines = function () { const L = _bl6.apply(this, arguments) || []; try { nxMoreLines().forEach(x => L.push(x)); } catch (e) {} return L; }; }
+extend("pnBubLines", { map: out => { const L = out || []; try { nxMoreLines().forEach(x => L.push(x)); } catch (e) {} return L; } });
 const NX_RAW = "⁣";   /* marks a persona's own line: nxVoice leaves it as written */
 function nxPersonaLine() {
   const set = NX_PLINES[nxP()] || NX_PLINES.hype, c = nxPCtx();
@@ -17626,11 +17664,11 @@ function nxPersonaLine() {
   try { return [NX_RAW + x[1](c), x[2](c) || ""]; } catch (e) { return null; }
 }
 { const _nv = nxVoice; nxVoice = function (t) { t = String(t || ""); return t.charAt(0) === NX_RAW ? t.slice(1) : _nv.apply(this, arguments); }; }
-{ const _say6 = pnBubSay; pnBubSay = function (line) {
+extend("pnBubSay", { before: line => {
   if (!line && Math.random() < .6) { const pl = nxPersonaLine(); if (pl) line = pl; }
   nxPDress();
   const b = $("#pnbub"); if (b && !document.documentElement.classList.contains("nxtouring")) { b.classList.remove("sig"); void b.offsetWidth; b.classList.add("sig"); clearTimeout(nxPDress.st); nxPDress.st = setTimeout(() => b.classList.remove("sig"), 950); }
-  return _say6.call(this, line); }; }
+  return extend.args([line]); } });
 nxPDress();
 /* #57: Nexi's glow showed as a square. Peeking from the left gave him the class "pl", which another screen styles
    with overflow: hidden, and it stayed after the peek. Classes are now pkl/pkr. He now checks that nothing
@@ -17854,7 +17892,7 @@ const ixShown = new Set();
 function ixRv(k) { return `ix-rv" data-ix="${k}`; }
 function tasteInsightsPage() {
   const ready = analysisReady(), T = ixType(), main = T[0], b = hypeBias(), acc = hypeAcc(), t = rankTable();
-  const rows = playedRows(), duels = (S.duels || []).filter(d => d.w).length;
+  const duels = (S.duels || []).filter(d => d.w).length;
   const out = [];
   /* 1. who you are */
   out.push(`<section class="ix-hero ${ixRv("hero")}"${bigBack()}><i class="ix-shine"></i>
@@ -17867,7 +17905,7 @@ function tasteInsightsPage() {
   </section>`);
   /* 2. how good your judgement is */
   if (acc && b.n) {
-    const W = 100, x = Math.max(-3, Math.min(3, b.mean));
+    const x = Math.max(-3, Math.min(3, b.mean));
     out.push(`<div class="ix-duo">
       <div class="ix-card ${ixRv("acc", 1)}"><span class="ix-cap">Hype accuracy</span>
         <div class="ix-ringw"><div class="ix-ring" style="--p:${acc.pct}"></div><b>${acc.pct}<small>%</small></b></div>
@@ -17922,7 +17960,7 @@ function ixBars(list) {
   return `<div class="ix-bars">${list.map((x, i) => `<div class="ix-bar${x.neg ? " neg" : ""}${x.faint ? " faint" : ""}" style="--i:${i}"><span>${esc(x.l)}</span><i style="--v:${Math.max(0, Math.min(1, x.v)).toFixed(3)}"></i><b>${x.b}</b></div>`).join("")}</div>`;
 }
 function ixFolds() {
-  const f = [], ready = analysisReady();
+  const f = [];
   /* what gets you */
   const wp = whyPull();
   if (wp.list.length) { const tp = wp.list[0];
@@ -18042,7 +18080,7 @@ render = function () {
   if (t === "add") rndFlush("p-home");            /* Home's render also refreshes Add's header */
   rndKick();
 };
-{ const _pt = paintTab; paintTab = function (tab) { rndFlush(panelOf(tab)); if (tab === "add") rndFlush("p-home"); return _pt.apply(this, arguments); }; }
+extend("paintTab", { before: tab => { rndFlush(panelOf(tab)); if (tab === "add") rndFlush("p-home"); } });
 /* #69: Nexi's wheel opened and closed in the same instant on phones (the tap's follow-up click hit its backdrop).
    Nexi now reports any menu/overlay that vanishes within 200ms of appearing. */
 { const OVL = new Set(["bubwheel", "shuf", "wrap", "fxrad", "fxboss", "bugtip", "nxbug"]), born = new WeakMap();
@@ -19713,7 +19751,7 @@ function fnDone(g) {
   setTimeout(() => { if (typeof qScore === "function") qScore(g.id); }, 1200);
 }
 /* when a game became "playing": the start of its pace estimate */
-{ const _sp = syncPlayed; syncPlayed = function (g, state) { if (g) { if (state === "playing" && !g.plAt) g.plAt = Date.now(); if (state !== "playing" && g.plAt && state !== g.state) delete g.plAt; } return _sp.apply(this, arguments); }; }
+extend("syncPlayed", { before: (g, state) => { if (g) { if (state === "playing" && !g.plAt) g.plAt = Date.now(); if (state !== "playing" && g.plAt && state !== g.state) delete g.plAt; } } });
 S.games.forEach(g => { if ((g.state || "") === "playing" && !g.plAt) g.plAt = Date.now(); });
 /* asking: once per open (or coming back after 3h+), after the Where-was-I card has had its turn */
 function fnCheck() { if (document.hidden) return; const x = fnPick(); if (x) fnAsk(x[0], x[1]); }
@@ -19931,12 +19969,11 @@ async function hbRun(force) {
 }
 setTimeout(() => hbRun(false), 40000);
 /* Edit says which hours Nexi filled in (until you change them) */
-{ const _oe = openEdit; openEdit = function (id) { const o = _oe.apply(this, arguments);
+extend("openEdit", { after: (out, [id]) => {
   try { const g = S.games.find(x => x.id === id), v = g && g.hbV;
     if (v) [["#e-hours", "hours", "m"], ["#e-hoursx", "hoursX", "x"], ["#e-hours100", "hours100", "c"]].forEach(([sel, k, kk]) => {
       const el = $(sel); if (el && v[kk] > 0 && +g[k] === v[kk] && !el.parentElement.querySelector(".e-auto")) el.insertAdjacentHTML("afterend", `<small class="e-auto">Typical time, filled in by ${esc(pnName())}</small>`); });
-  } catch (e) {}
-  return o; }; }
+  } catch (e) {} } });
 
 /* ---- still playing? ---- */
 const SG_AFTER = 14 * 864e5;
@@ -20184,7 +20221,7 @@ function chamTone(hex, l) {
 }
 THEMES.chameleon = { n: "Now playing", get a() { const g = chamGame(); return g ? chamTone(g.colour, .64) : "#4DA3FF"; }, get b() { const g = chamGame(); return g ? chamTone(g.colour, .42) : "#2F6BFF"; } };
 { let last = ""; const check = () => { if (S.theme !== "chameleon") { last = ""; return; } const k = THEMES.chameleon.a; if (k !== last) { last = k; applyLook(); } };
-  const _sp = syncPlayed; syncPlayed = function () { const o = _sp.apply(this, arguments); setTimeout(check, 0); return o; };
+  extend("syncPlayed", { after: () => { setTimeout(check, 0); } });
   const _rn = render; render = function () { const o = _rn.apply(this, arguments); check(); return o; };
   setTimeout(check, 0); }
 
@@ -20216,8 +20253,8 @@ function ssnLines(s) {
     return [[`Happy New Year 🥳 ${fin ? `You finished ${fin} game${fin === 1 ? "" : "s"} in ${s.y - 1}. Let's beat it.` : "New year, fresh backlog."}`, "played"], ["🥳 New year resolution: fewer games added, more games finished. (I'll believe it in March.)", ""]]; }
   return [];
 }
-{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments); const s = ssnNow(), x = ssnLines(s);
-  return x.length && Array.isArray(L) ? L.concat(x, x) : L; }; }
+extend("pnBubLines", { map: L => { const s = ssnNow(), x = ssnLines(s);
+  return x.length && Array.isArray(L) ? L.concat(x, x) : L; } });
 { const _rx = pnBubReact; pnBubReact = function () { const o = _rx.apply(this, arguments); ssnHat(); return o; }; }
 function ssnHat() { const b = document.getElementById("pnbub"), h = b && b.querySelector(".hat"), s = ssnNow(); if (!h || !s) return;
   const t = new Date().toLocaleDateString("en-CA"); if (S.bubBorn && S.bubBorn.slice(5) === t.slice(5) && S.bubBorn !== t) return; h.textContent = s.hat; }
@@ -20232,7 +20269,7 @@ setTimeout(() => { const s = ssnNow(); if (!s || document.documentElement.classL
 /* ---- 5. battery saver ---- */
 let batLow = false;
 function batApply() { const r = document.documentElement; if (batLow && !S.batOff) r.classList.add("still", "batsave"); else { r.classList.remove("batsave"); r.classList.toggle("still", S.motion === false); } }
-{ const _al = applyLook; applyLook = function () { const o = _al.apply(this, arguments); if (batLow && !S.batOff) document.documentElement.classList.add("still", "batsave"); return o; }; }
+extend("applyLook", { after: () => { if (batLow && !S.batOff) document.documentElement.classList.add("still", "batsave"); } });
 if (navigator.getBattery) navigator.getBattery().then(b => {
   const upd = () => { const low = !b.charging && b.level <= .15; if (low === batLow) return; batLow = low; batApply();
     if (S.batOff || document.hidden) return;
@@ -20241,10 +20278,9 @@ if (navigator.getBattery) navigator.getBattery().then(b => {
 }).catch(() => {});
 
 /* ---- 6. then & now ---- */
-{ const _sp = syncPlayed; syncPlayed = function (g, state) {
+extend("syncPlayed", { before: (g, state) => {
   try { if (g && state === "played" && !isPlayed(g) && !g.cap) { const f = typeof rvFor === "function" ? rvFor(g) : null, n0 = (g.wasI || [])[0];
-    g.cap = { h: num(g.hype, 0, 0, 10) || 0, pr: f ? f.v : (expected(g) || 0), cr: +g.critic || 0, st: +g.plAt || 0, ad: g.added || "", hrs: loggedOf(g) || 0, n1: n0 ? { t: n0.t, x: n0.x } : null, at: Date.now() }; } } catch (e) {}
-  return _sp.apply(this, arguments); }; }
+    g.cap = { h: num(g.hype, 0, 0, 10) || 0, pr: f ? f.v : (expected(g) || 0), cr: +g.critic || 0, st: +g.plAt || 0, ad: g.added || "", hrs: loggedOf(g) || 0, n1: n0 ? { t: n0.t, x: n0.x } : null, at: Date.now() }; } } catch (e) {} } });
 function capCard(g) {
   if (!g || S.capOff || !isPlayed(g) || g.comp) return "";
   const p = playedRec(g), c = g.cap || {}, sc = p && scored(p) ? p.real : null, hype = c.h || num(g.hype, 0, 0, 10);
@@ -20429,10 +20465,10 @@ onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x =
     if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([`*cough* ${g.title} had ${d >= 60 ? Math.round(d / 30) + " months" : d + " days"} of dust on it. Blown off ✨`, ""]); } catch (e) {} }, 380); };
 });
 /* Nexi points at the dustiest one now and then */
-{ const _bl = pnBubLines; pnBubLines = function () { const L = _bl.apply(this, arguments);
+extend("pnBubLines", { map: L => {
   try { const g = S.games.filter(x => dustLvl(x) >= 2).sort((a, b) => dustDays(b) - dustDays(a))[0];
     if (g && Array.isArray(L)) L.push([`${g.title} has been gathering dust for ${Math.round(dustDays(g) / 30)} months 🕸️ Blow it off tonight?`, g.id]); } catch (e) {}
-  return L; }; }
+  return L; } });
 
 /* ---- the app icon badge ---- */
 function bdgSync(leaving) {
@@ -20490,7 +20526,7 @@ setTimeout(() => seatSync(true), 900);
 /* ---- Nexi's crystal ball ---- */
 /* the first finish forecast for a game is kept, so Then & now can say how it went */
 { const _eo = etaOf; etaOf = function (g) { const e = _eo.apply(this, arguments); if (e && g && !g.eta0 && e.left > 0) { g.eta0 = { d: e.date, at: Date.now() }; } return e; }; }
-{ const _sp = syncPlayed; syncPlayed = function (g, state) { const o = _sp.apply(this, arguments); try { if (g && g.cap && g.eta0 && !g.cap.e0) g.cap.e0 = g.eta0.d; } catch (e) {} return o; }; }
+extend("syncPlayed", { after: (out, [g]) => { try { if (g && g.cap && g.eta0 && !g.cap.e0) g.cap.e0 = g.eta0.d; } catch (e) {} } });
 { const _sw = scoreWrite; scoreWrite = function (rec, v) { const o = _sw.apply(this, arguments);
   try { const g = rec && S.games.find(x => x.id === rec.id);
     if (g && g.cap && g.cap.pr > 0 && typeof v === "number" && g.cap.got == null) { g.cap.got = v; const d = v - g.cap.pr, pr = g.cap.pr.toFixed(1);
@@ -20963,10 +20999,10 @@ function nxNamed(txt) {
   if (m) return raw + m[1] + ", " + n + m[2] + m[3];
   return raw + n + "! " + t;
 }
-{ const _say = pnBubSay; pnBubSay = function (line) {
+extend("pnBubSay", { before: line => {
   if (!line && !document.documentElement.classList.contains("nxtouring") && Math.random() < .45) { const sl = nxSmartLine(); if (sl) line = sl; }
   try { if (Array.isArray(line)) line = [nxNamed(line[0]), line[1]]; else if (typeof line === "string") line = nxNamed(line); } catch (e) {}
-  return _say.call(this, line); }; }
+  return extend.args([line]); } });
 /* the bubble's new actions: deals / plan / settings (the old handler opens tabs and games) */
 document.addEventListener("click", e => {
   const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m) return;
@@ -21401,7 +21437,7 @@ gdMarkup = function (g) {
   /* everything else lives in the ⋯ drawer (Prices always, so a game without a price can still be tied to its store) */
   const rest = hubActs(g).filter(a => !/data-fulledit/.test(a[0]) && !used.includes(a[0].match(/data-[\w-]+/)[0]) && !(/data-q(score|duel)/.test(a[0]) && !p));
   if (!rest.some(a => /data-px=/.test(a[0])) && !used.includes("data-px")) rest.splice(Math.max(0, rest.findIndex(a => /data-wasi/.test(a[0]))), 0, [`data-px="${g.id}"`, "💸", "Prices"]);
-  const tags = [state ? [state, 1] : null, ...platList(g.genres).slice(0, 3).map(x => [x])].filter(Boolean);
+
   const plats = S.platText ? platList(g.platforms).slice(0, 3).map(x => `<span>${esc(x)}</span>`).join("") : platHtml(g.platforms);
   const icon = a => a[1] || GD_ICON[(a[0].match(/data-(\w+)/) || [])[1]] || "•";
   const kick = st === "played" ? "Finished" + (p && p.t ? " · " + gdMonth(p.t) : "") : st === "dropped" ? "Dropped" : g.date ? days(g.date) : "No date yet";
@@ -21996,8 +22032,8 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
   const _hd = hubDragStart; hubDragStart = function () { rep(); return _hd.apply(this, arguments); }; }
 /* the owner: "2 times Story Rich?": Steam's "Story Rich" sat next to RAWG's "Story-rich". One-time clean of every game's genres
    (same name ignoring case, spaces and hyphens = one genre, the first one kept); stApply now compares the same way */
-if (!S.genDedup) { let n = 0; S.games.forEach(g => { const l = platList(g.genres), u = l.filter((t, i) => l.findIndex(x => gdKey(x) === gdKey(t)) === i);
-  if (u.length < l.length) { g.genres = u.join(", "); n++; } }); S.genDedup = 1; save(); }
+if (!S.genDedup) { S.games.forEach(g => { const l = platList(g.genres), u = l.filter((t, i) => l.findIndex(x => gdKey(x) === gdKey(t)) === i);
+  if (u.length < l.length) { g.genres = u.join(", "); } }); S.genDedup = 1; save(); }
 /* the owner: "switching between pictures of a game I chose to see also switches the game page". The game page's swipe (and the
    tab swipe) listen to every touch on the document, so a sideways swipe inside the preview, the Similar sheet or the screenshot
    viewer also moved the page behind. Touches now stay inside those layers, and inside the page's own screenshot strip. */
@@ -22853,15 +22889,14 @@ function hlStatus() {
 function hlPaint() { const s = $("#s-hlst"); if (s) s.outerHTML = hlStatus().replace(/<button[\s\S]*$/, ""); }
 
 /* ---- Edit: say where the numbers come from, and offer HowLongToBeat's ---- */
-{ const _oe = openEdit; openEdit = function (id) { const o = _oe.apply(this, arguments);
+extend("openEdit", { after: (out, [id]) => {
   try { const g = S.games.find(x => x.id === id), el = $("#e-hours100");
     document.querySelectorAll(".e-auto").forEach(x => x.remove());
     const row = el && el.closest(".duo"); if (g && row && !g.comp && hlHas(g) && !$("#e-hl")) {
       const same = hlSame(g);
       row.insertAdjacentHTML("afterend", `<p class="note" id="e-hl">⏱ HowLongToBeat: <b>${hlFmt(g.hl.m)} · ${hlFmt(g.hl.x)} · ${hlFmt(g.hl.c)} h</b>${same ? " · these are them" : ` <button type="button" class="chip" data-ehl><span>Use these</span></button>`}</p>`);
       const b = $("[data-ehl]"); if (b) b.onclick = () => { HL_K.forEach(([k, kk]) => { const i = $(k === "hours" ? "#e-hours" : k === "hoursX" ? "#e-hoursx" : "#e-hours100"); if (i) i.value = g.hl[kk] > 0 ? g.hl[kk] : ""; }); b.remove(); beep("tap"); };
-    } } catch (e) {}
-  return o; }; }
+    } } catch (e) {} } });
 
 /* While you were away: the old AI line becomes this */
 WHATS_NEW.push(
@@ -23285,12 +23320,11 @@ setTimeout(() => { if (!smBusy()) smWatch([]); }, 32000);
 /* every change to the hours you logged is kept (the day it happened and how much), so the app sees your rhythm: g.lgH, kept by
    the same save hook as logAt (v218's script, v278) */
 /* how far in you were when you dropped a game (your usual drop point, from now on) */
-{ const _sp = syncPlayed; syncPlayed = function (g, state) {
+extend("syncPlayed", { before: (g, state) => {
   try { if (g && state === "dropped" && !g.dropP) { g.dropAt = Date.now(); const h = hrsOf(g); if (h > 0 && loggedOf(g) > 0) g.dropP = Math.round(Math.min(1, loggedOf(g) / h) * 100) / 100; }
     if (g && state === "played") { const back = S.games.find(x => x.dwBack === g.id && (x.state || "") === "playing" && x.id !== g.id);
       if (back) { delete back.dwBack; setTimeout(() => { const n = wiLast(back); dwSaid = back.id;
-        smSay(`Nice palate cleanser 🌿 Back to ${back.title}?${n ? ` You were at: “${String(n.x).slice(0, 90)}”` : ""} Tap me to open it.`, "drift"); }, 2400); } } } catch (e) {}
-  return _sp.apply(this, arguments); }; }
+        smSay(`Nice palate cleanser 🌿 Back to ${back.title}?${n ? ` You were at: “${String(n.x).slice(0, 90)}”` : ""} Tap me to open it.`, "drift"); }, 2400); } } } catch (e) {} } });
 let dwSaid = "";
 function dwDays(g) {
   const m = new Map(), add = (t, h, k) => { if (!(t > 0)) return; const d = new Date(t).toLocaleDateString("en-CA"), o = m.get(d) || { s: 0, l: 0 }; o[k] += h || 0; m.set(d, o); };
@@ -23396,7 +23430,7 @@ setTimeout(dwCheck, 21000);
 /* ---- 3. queue clean-up ---- */
 function qcCands() {
   const R = smReach(), td = smTd(), rows = playedRows(), avg = rows.length >= 3 ? rows.reduce((a, x) => a + x.real, 0) / rows.length : null;
-  const drops = S.games.filter(isDropped), elo = eloTable(), out = [];
+  const drops = S.games.filter(isDropped), out = [];
   R.q.forEach(g => {
     if (!isOutNow(g) || num(g.hype, 0, 0, 10) >= 8 || Date.now() - (+g.qcK || 0) < 180 * SM_DAY) return;
     const since = Math.max(g.added ? Date.parse(g.added + "T12:00:00") || 0 : 0, g.date && g.date <= td ? Date.parse(g.date + "T12:00:00") || 0 : 0);
@@ -23933,7 +23967,7 @@ function dzPlay() {
       <span class="dzp-k">${esc(k)}</span><b class="dzp-t">${esc(g.title)}</b><span class="dzp-go" aria-hidden="true">${DZ_ARROW}</span>${pic}
       ${(g.state || "") === "playing" && total && !g.comp ? `<span class="dzp-bar"><i style="--p:${pct.toFixed(3)}"></i></span>` : ""}</button>`; }).join("")}</div>`;
 }
-{ const _rh8 = renderHome; renderHome = function () { const o = _rh8.apply(this, arguments); dzPlay(); return o; }; }
+extend("renderHome", { after: () => { dzPlay(); } });
 
 /* 2. On deck: photo cards (#1 full picture, #2 and #3 picture on top) */
 { const _ods = onDeckStrip; onDeckStrip = function () {
@@ -25291,4 +25325,48 @@ html.ui2 #fxrad .left { font: 600 13px "Poppins", system-ui, sans-serif; }
   /* a layer opened straight on <body> (Radar, a recap): only direct children, only elements */
   new MutationObserver(ms => { if (ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && n.id))) soon(); }).observe(document.body, { childList: true });
 }
+</script>
+<script>
+/* v279 usage counts (the owner: "remove any junk or things that are not used"). Every tap and switch change counts once
+   under the nearest name it has: its own data-* attribute (data-lists → "lists"), else its id or its nearest parent's id
+   (a Settings chip counts as its group, "#s-theme"). Kept in their own localStorage key, not S, so the cloud backup doesn't
+   re-upload on every tap (v211). Once a week (Settings › Your data › Help tidy the app, on by default) the counts, the
+   screen visits and the switches that are on go to the helper (POST /usage): names and numbers only. GitHub's Usage job
+   (.github/workflows/usage.yml) compares them with every button and switch in the app and lists what nobody uses. */
+{ const KEY = "gq:taps", SENT = "gq:useSent", WEEK = 7 * 864e5;
+  const SKIP = new Set(["data-v", "data-g", "data-i", "data-id", "data-k", "data-n", "data-idx", "data-tstrip", "data-scope", "data-desc", "data-demo"]);
+  const fresh = () => ({ since: new Date().toLocaleDateString("en-CA"), t: {} });
+  let U; try { U = JSON.parse(localStorage.getItem(KEY) || "null") || fresh(); } catch (e) { U = fresh(); }
+  if (!U.t) U = fresh();
+  let t = 0;
+  const keep = () => { t = 0; try { localStorage.setItem(KEY, JSON.stringify(U)); } catch (e) {} };
+  const nameOf = el => { for (let x = el; x && x.nodeType === 1 && x !== document.body && x !== document.documentElement; x = x.parentElement) {
+      for (const a of x.attributes) if (a.name.startsWith("data-") && !SKIP.has(a.name)) return a.name.slice(5);
+      if (x.id) return "#" + x.id; } return ""; };
+  const bump = el => { const k = nameOf(el); if (!k || k.length > 60) return; U.t[k] = (U.t[k] || 0) + 1; if (!t) t = setTimeout(keep, 4000); };
+  addEventListener("click", e => bump(e.target), { capture: true, passive: true });
+  addEventListener("change", e => { const x = e.target; if (x && x.matches && x.matches("input[type=range], input[type=checkbox], select")) bump(x); }, { capture: true, passive: true });
+  addEventListener("pagehide", () => { if (t) { clearTimeout(t); keep(); } });
+  const uid = () => { let id = ""; try { id = localStorage.getItem("gq:uid") || ""; if (!/^[a-z0-9]{8,32}$/.test(id)) { id = (Math.random().toString(36).slice(2, 10) + Date.now().toString(36)).slice(0, 24); localStorage.setItem("gq:uid", id); } } catch (e) {} return id; };
+  const send = () => {
+    if (S.useOff || document.hidden || !navigator.onLine) return;
+    let last = 0; try { last = +localStorage.getItem(SENT) || 0; } catch (e) {}
+    if (Date.now() - last < WEEK) return;
+    const on = []; for (const ks of Object.values(GROUP_KEYS)) for (const k of ks) if (S[k] === true && !on.includes(k)) on.push(k);
+    const u = S.usage || {}, body = { id: uid(), dev: typeof bugDev === "function" ? bugDev() : "", v: APP_V, since: U.since, taps: U.t, screens: u.v || {}, opens: u.o || {}, on };
+    if (!body.id) return;
+    fetch(HELPER + "/usage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: true })
+      .then(r => r.json()).then(j => { if (j && j.ok) try { localStorage.setItem(SENT, String(Date.now())); } catch (e) {} }).catch(() => {});
+  };
+  setTimeout(send, 25000);
+  addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(send, 25000); });
+}
+WHATS_NEW.push(
+  { v: 279, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>Spring cleaning</b>: I fixed hidden bugs a new checker found (the \"hype trap\" card and the \"you'll likely give\" score were never showing), and the app's insides are tidier, so new features stay smooth.",
+    tryIt: "Nothing to do. If you've finished a few games, look on Home for a hype trap card." },
+  { v: 279, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Your data", text: "Help tidy the app" }); }, at: () => $("#s-useoff"),
+    say: "Once a week the app counts which screens, buttons and switches get used (names and numbers only, never your games), so features nobody uses can be removed and the app stays light.",
+    tryIt: "You can switch it off here in Your data." }
+);
 </script>
