@@ -54,6 +54,20 @@ describe('crew', () => {
     expect(stepLine({ steps: 4, lastTool: 'Read a.js', status: 'running' })).toBe('4 steps · Read a.js')
   })
 
+  test('a helper\'s report does not rename the panel or end the round', async ($, on) => {
+    world(on)
+    await crew($)
+    await $.prompt.submit({ text: '<agent-message from="a-1">done</agent-message>', origin: { kind: 'peer' } } as any)
+    await $.prompt.submit({ text: '<task-notification>x</task-notification>', origin: { kind: 'task-notification' } } as any)
+    const pane = await $.ui.mount({ plugin: 'crew', surface: 'desktop', component: 'Pane', requestId: 'crew', props: { title: 'Agents', isFocused: false, bodyColumns: 60, placement: 'dock' } } as any)
+    expect(await pane.find({ type: 'Text', text: /Build the launch kit/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /agent-message/ })).toBeUndefined()
+    await pane.unmount()
+    const band = await $.ui.mount({ plugin: 'crew', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 3, bodyColumns: 100 } } as any)
+    expect(await band.find({ type: 'Text', text: /Agents/ })).toBeDefined()
+    await band.unmount()
+  })
+
   for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
     test(`the panel shows running and finished helpers on ${surface}`, async ($, on) => {
       world(on)
