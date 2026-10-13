@@ -175,7 +175,8 @@ Answer with ONLY a JSON array like [{"ids":["e3","e7"],"problem":"max 16 words, 
       return json(await bugTake(env, await req.json().catch(() => ({}))), 200, h);
     }
     if (url.pathname === "/usage" && req.method === "POST") {
-      const o = req.headers.get("Origin"); if (o && !ALLOW.includes(o)) return json({ error: "not allowed" }, 403, h);
+      /* only the installed app sends these: a browser always says where a cross-site POST comes from */
+      if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "not allowed" }, 403, h);
       if (!env.NUDGE) return json({ error: "no store" }, 503, h);
       return json(await useTake(env, await req.text().catch(() => "")), 200, h);
     }
@@ -1278,7 +1279,7 @@ async function bugList(env) {
 }
 /* ===== v19: usage counts. {id, dev, v, since, taps: {key: n}, screens: {key: n}, opens: {key: n}} — only names of screens,
    buttons and switches with counts; anything else is dropped. One record per phone, replaced each week. ===== */
-const USE_TTL = 120 * 86400;
+const USE_TTL = 120 * 86400, USE_MAX = 12;
 const useCounts = o => { const out = {}; if (!o || typeof o !== "object") return out;
   for (const [k, v] of Object.entries(o).slice(0, 600)) if (/^[#\w:/.-]{1,60}$/.test(k) && Number.isFinite(+v) && +v > 0) out[k] = Math.min(1e7, Math.round(+v));
   return out; };
@@ -1286,7 +1287,12 @@ async function useTake(env, text) {
   if (!text || text.length > 60000) return { ok: false, error: "size" };
   let b; try { b = JSON.parse(text); } catch (e) { return { ok: false, error: "json" }; }
   const id = String(b.id || ""); if (!/^[a-z0-9]{8,32}$/.test(id)) return { ok: false, error: "id" };
-  const rec = { id, dev: String(b.dev || "").slice(0, 40), v: String(b.v || "").slice(0, 8), since: String(b.since || "").slice(0, 10), at: Date.now(),
+  /* one write per phone a day, and at most USE_MAX phones (it's two people's app): nothing can fill the store */
+  const old = await env.NUDGE.get("use:" + id, "json");
+  if (old && Date.now() - (old.at || 0) < 20 * 3600e3) return { ok: true, kept: true };
+  if (!old) { const page = await env.NUDGE.list({ prefix: "use:", limit: USE_MAX + 1 }); if (page.keys.length >= USE_MAX) return { ok: false, error: "full" }; }
+  const plain = (x, n) => String(x || "").replace(/[^\w .()-]/g, "").slice(0, n);
+  const rec = { id, dev: plain(b.dev, 40), v: plain(b.v, 8), since: /^\d{4}-\d{2}-\d{2}$/.test(String(b.since)) ? b.since : "", at: Date.now(),
     taps: useCounts(b.taps), screens: useCounts(b.screens), opens: useCounts(b.opens), on: (Array.isArray(b.on) ? b.on : []).slice(0, 200).map(x => String(x).slice(0, 40)).filter(x => /^[\w-]+$/.test(x)) };
   await env.NUDGE.put("use:" + id, JSON.stringify(rec), { expirationTtl: USE_TTL });
   return { ok: true };
