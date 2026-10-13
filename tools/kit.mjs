@@ -59,6 +59,19 @@ function syntax() {
       if (bad.length) fail(`press animation (${bad.join(", ")}) in "${r[1].trim().slice(0, 80)}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + r.index).split("\n").length}`);
     }
   }
+  /* house rule (v273/v276): one still background behind every screen: <html>'s base colour (var(--bgb)) and the
+     html.paper::before glow. Any other background on html/body or their ::before/::after is a second layer (v257's live
+     background, v274's art backdrop, the old stripes) */
+  for (const st of html.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/g)) {
+    const css = st[1].replace(/\/\*[\s\S]*?\*\//g, c => " ".repeat(c.length));
+    for (const r of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const bg = r[2].split(";").map(d => d.split(":")).filter(([k, ...v]) => /^\s*background(-image)?\s*$/.test(k) && !/^\s*(none|transparent)\s*(!important)?\s*$/.test(v.join(":")));
+      if (!bg.length) continue;
+      for (const sel of r[1].split(",").map(x => x.trim()).filter(x => /^(html|body)([.:\[][^\s>+~]*)?$/.test(x)))
+        if (!(sel === "html.paper::before" || (sel === "html" && bg.every(([, ...v]) => /^\s*var\(--bgb/.test(v.join(":"))))))
+          fail(`second background layer "${sel}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + r.index).split("\n").length}: change html.paper::before / --bgb (Settings › Background) instead`);
+    }
+  }
   /* house rule (v270): screen changes go through onNav / onSettings hooks, never a new wrap of these four */
   for (const m of html.matchAll(/const\s+[\w$]+\s*=\s*(goTab|goSub|openFull|openSettings)\s*;\s*\1\s*=/g))
     fail(`${m[1]} is wrapped at line ${html.slice(0, m.index).split("\n").length}: register onNav(...) / onSettings(...) instead`);
