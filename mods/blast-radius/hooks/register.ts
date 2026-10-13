@@ -87,6 +87,8 @@ async function blast($: $, cmd: string, ps = false): Promise<{ hard: string[]; h
       await sh(r, ['git', 'fetch', '-q', 'origin', dst], 40_000)
       const gone = lines(await sh(r, ['git', 'log', '--oneline', `origin/${dst}`, '--not', r.src || 'HEAD']))
       if (gone.length) held.push(`force-push to ${dst}: removes ${gone.length} commit(s) from GitHub:\n${list(gone)}`)
+    } else if (r.kind === 'piped') {
+      held.push(`Remove-Item with its paths from a pipe or a variable: can't list what goes. It is fed by: ${r.from.slice(0, 200)}`)
     } else if (r.kind === 'branch') {
       const gone = lines(await sh(r, ['git', 'log', '--oneline', r.name, '--not', 'HEAD', '--remotes']))
       if (gone.length) held.push(`git branch -D ${r.name}: drops ${gone.length} commit(s) that are nowhere else:\n${list(gone)}`)
@@ -100,7 +102,8 @@ async function blast($: $, cmd: string, ps = false): Promise<{ hard: string[]; h
 async function guard($: $, cmd: string, ps: boolean): Promise<{ deny: string } | undefined> {
   if (/BLAST_OK=1|RG_SKIP=1/.test(cmd)) return undefined
   const { hard, held } = await blast($, cmd, ps)
-  if (hard.length) return { deny: `blast-radius stopped this command:\n${bullet(hard)}\nFind another way; BLAST_OK=1 in front only if the person asked for exactly this.` }
+  const skip = ps ? '`$env:BLAST_OK=1;` in front' : 'BLAST_OK=1 in front'
+  if (hard.length) return { deny: `blast-radius stopped this command:\n${bullet(hard)}\nFind another way; ${skip} only if the person asked for exactly this.` }
   const key = cmd.trim()
   if (held.length && !shown.has(key)) {
     shown.add(key)
@@ -116,7 +119,8 @@ export const register: Register = on => {
     const env = await $.process.run(['sh', '-c', 'printf %s "$HOME"'], { cwd: e.cwd }).catch(() => undefined)
     // Windows has no sh: the home folder comes from cmd instead.
     const win = env?.stdout.trim() ? undefined : await $.process.run(['cmd', '/c', 'echo %USERPROFILE%'], { cwd: e.cwd }).catch(() => undefined)
-    const h = env?.stdout.trim() || (win?.exitCode === 0 ? win.stdout.trim() : '')
+    // Git Bash's sh answers MSYS-style (/c/Users/PC); the repo root is C:/Users/PC/…: use the drive form.
+    const h = (env?.stdout.trim() || (win?.exitCode === 0 ? win.stdout.trim() : '')).replace(/^\/([a-zA-Z])(?=\/|$)/, (_, d: string) => /^[A-Z]:/.test(root) ? `${d.toUpperCase()}:` : `/${d}`)
     if (h && !h.includes('%')) home = join('/', h)
     if (root) {
       const head = await git($, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).catch(() => undefined)

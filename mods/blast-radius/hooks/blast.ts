@@ -10,6 +10,8 @@ export type Risk =
   | { kind: 'discard'; cwd: string; paths: string[] }
   | { kind: 'force'; cwd: string; src: string; dst: string }
   | { kind: 'branch'; cwd: string; name: string }
+  // A PowerShell delete whose paths come from a pipe or a variable: nothing to measure, so it is held with what feeds it.
+  | { kind: 'piped'; cwd: string; from: string }
 
 // Shell words, quotes removed; enough for the commands Claude writes (no $(…) or backticks inside the risky parts).
 export function words(s: string): string[] {
@@ -95,27 +97,38 @@ const ENV = /^[A-Za-z_][A-Za-z0-9_]*=/
 export function risks(cmd: string, cwd: string, home = '/root', ps = false): Risk[] {
   const out: Risk[] = []
   let dir = cwd
+  let prev = ''
   for (const seg of segments(cmd)) {
     let w = words(seg)
     while (w.length && (ENV.test(w[0] ?? '') || w[0] === 'sudo' || w[0] === 'command' || w[0] === 'time')) w = w.slice(1)
     const [first, ...rest] = w
     if (!first) continue
     const head = ps ? first.toLowerCase().replace(/\.exe$/, '') : first
+    const before = prev
+    prev = seg
     if (ps && PS_CD.has(head)) {
       const to = rest.find((a, i) => !a.startsWith('-') || PS_PATH.test(rest[i - 1] ?? '')) ?? ''
       dir = to && !to.startsWith('-') ? join(dir, to, home) : home
+      continue
+    }
+    // A delete inside a script block (ForEach-Object { Remove-Item $_ }): its paths come from the pipe.
+    if (ps && !PS_DELETE.has(head) && /\{[^}]*(^|[\s{;])(remove-item|ri|rm|del|erase|rd|rmdir)(\s|\}|$)/i.test(seg)) {
+      out.push({ kind: 'piped', cwd: dir, from: before || seg })
       continue
     }
     if (ps && PS_DELETE.has(head)) {
       const targets: string[] = []
       for (let i = 0; i < rest.length; i++) {
         const a = rest[i] ?? ''
-        if (PS_PATH.test(a)) targets.push(...(rest[++i] ?? '').split(','))
-        else if (PS_VALUE.test(a)) i++
+        // -Path:foo is the same as -Path foo
+        const [name = a, glued] = a.startsWith('-') && a.includes(':') ? [a.slice(0, a.indexOf(':')), a.slice(a.indexOf(':') + 1)] : [a, undefined]
+        if (PS_PATH.test(name)) targets.push(...(glued ?? rest[++i] ?? '').split(','))
+        else if (PS_VALUE.test(name)) glued === undefined && i++
         else if (!a.startsWith('-')) targets.push(...a.split(','))
       }
       const real = targets.map(t => t.trim()).filter(Boolean)
-      if (real.length) out.push({ kind: 'rm', cwd: dir, targets: real })
+      if (!real.length || real.some(t => t.startsWith('$') && !/^\$(env:USERPROFILE|HOME)(\/|\\|$)/i.test(t))) out.push({ kind: 'piped', cwd: dir, from: before || seg })
+      else out.push({ kind: 'rm', cwd: dir, targets: real })
       continue
     }
     if (head === 'cd') {
@@ -189,27 +202,38 @@ export function protectPatterns(text: string): RegExp[] {
   })
 }
 
-export function sortFiles(abs: readonly string[], repo: string, tracked: ReadonlySet<string>, kept: ReadonlySet<string>, protect: readonly RegExp[] = [], home = '/root'): Sorted {
+// Windows paths (a drive letter) ignore case: compare them lower-cased.
+const fold = (repo: string) => (/^[A-Za-z]:/.test(repo) ? (x: string) => x.toLowerCase() : (x: string) => x)
+
+export function sortFiles(abs: readonly string[], repo0: string, tracked0: ReadonlySet<string>, kept0: ReadonlySet<string>, protect0: readonly RegExp[] = [], home0 = '/root'): Sorted {
   const s: Sorted = { tracked: [], fresh: [], ignored: [], outside: [], protected: [], whole: false }
+  const f = fold(repo0)
+  const repo = f(repo0)
+  const home = f(home0)
+  const tracked = new Set([...tracked0].map(f))
+  const kept = new Set([...kept0].map(f))
+  const protect = protect0.map(r => (f === fold('/') ? r : new RegExp(r.source, 'i')))
   const pre = repo.replace(/\/+$/, '') + '/'
-  for (const a of abs) {
-    if (a === repo || a === '/' || a === '/root' || a === '/home' || a === home || /^[A-Z]:\/?$/.test(a) || /^[A-Z]:\/Users\/?$/.test(a) || pre.startsWith(a + '/')) {
+  for (const a0 of abs) {
+    const a = f(a0)
+    if (a === repo || a === '/' || a === '/root' || a === '/home' || a === home || /^[a-z]:\/?$/i.test(a) || /^[a-z]:\/users\/?$/i.test(a) || pre.startsWith(a + '/')) {
       s.whole = true
       continue
     }
     if (!a.startsWith(pre)) {
-      if (!SAFE_OUTSIDE.some(r => r.test(a))) s.outside.push(a)
+      if (!SAFE_OUTSIDE.some(r => r.test(a))) s.outside.push(a0)
       continue
     }
+    const rel0 = a0.slice(pre.length)
     const rel = a.slice(pre.length)
     if (rel === '.git' || rel.startsWith('.git/')) {
       s.whole = true
       continue
     }
-    if (protect.some(r => r.test(rel)) && kept.has(rel)) s.protected.push(rel)
-    else if (tracked.has(rel)) s.tracked.push(rel)
-    else if (kept.has(rel)) s.fresh.push(rel)
-    else if (!SAFE_IGNORED.some(r => r.test(rel))) s.ignored.push(rel)
+    if (protect.some(r => r.test(rel0)) && kept.has(rel)) s.protected.push(rel0)
+    else if (tracked.has(rel)) s.tracked.push(rel0)
+    else if (kept.has(rel)) s.fresh.push(rel0)
+    else if (!SAFE_IGNORED.some(r => r.test(rel))) s.ignored.push(rel0)
   }
   return s
 }
@@ -224,17 +248,21 @@ export function list(xs: readonly string[], max = 12): string {
 // every tracked, untracked or ignored file at or under a target (globs matched), plus each target outside the repo as is.
 export function fromGit(targets: readonly string[], cwd: string, repo: string, files: readonly string[], home = '/root'): string[] {
   const out: string[] = []
+  const f = fold(repo)
   const pre = repo.replace(/\/+$/, '') + '/'
   for (const t of targets) {
     const abs = join(cwd, t, home)
-    if (!abs.startsWith(pre)) {
+    if (!f(abs).startsWith(f(pre))) {
       out.push(abs)
       continue
     }
-    const rel = abs.slice(pre.length)
+    const rel = f(abs.slice(pre.length))
     const glob = /[*?[]/.test(rel)
     const re = glob ? new RegExp(`^${rel.replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')}(/|$)`) : undefined
-    for (const f of files) if (re ? re.test(f) : f === rel || f.startsWith(rel + '/')) out.push(pre + f)
+    for (const file of files) {
+      const k = f(file)
+      if (re ? re.test(k) : k === rel || k.startsWith(rel + '/')) out.push(pre + file)
+    }
     if (rel === '.git' || rel.startsWith('.git/')) out.push(abs)
   }
   return out
