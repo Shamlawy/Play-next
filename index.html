@@ -1556,7 +1556,6 @@
     @keyframes fadein { from { opacity: 0; } }
     .stat { animation: statin .34s cubic-bezier(.16,1,.3,1) both; }
     @keyframes statin { from { opacity: 0; transform: translateY(8px); } }
-    #bgart, #bgart2 { transition: opacity .55s cubic-bezier(.4,0,.2,1); }
     #toast { transition: transform .4s cubic-bezier(.16,1,.3,1), opacity .3s ease; }
     .sheet-in { animation: sheetin .34s cubic-bezier(.16,1,.3,1) both; }
     @keyframes sheetin { from { opacity: 0; transform: translateY(26px); } }
@@ -1565,19 +1564,12 @@
   @media (prefers-reduced-motion: no-preference) {
     .row img { transition: width .18s ease; }
   }
-  #bgart, #bgart2 {
-    position: fixed; inset: 0; z-index: 0; background-size: cover; background-position: center;
-    filter: blur(var(--bgb, 5px)) saturate(1.3); opacity: 0; pointer-events: none;
-    transform: scale(1.06) translateZ(0); will-change: opacity; backface-visibility: hidden;
-  }
   html.still *, html.still *::before, html.still *::after { animation: none !important; transition: none !important; }
   /* the same switch, but only inside a game's own page: motion there is the part
      that keeps breaking, and it's worth being able to kill on its own */
   #full.stillhub, #full.stillhub *, #full.stillhub *::before, #full.stillhub *::after {
     animation: none !important; transition: none !important;
   }
-  #bgtint { position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: linear-gradient(180deg, rgba(4,6,14,.42) 0%, rgba(4,6,14,.7) 45%, rgba(4,6,14,.88) 100%); }
 
   .cal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .cal-head h3 { margin: 0; flex: 1; font-size: 20px; font-weight: 900; font-style: italic; font-variation-settings: "wdth" 70; text-transform: uppercase; }
@@ -2584,7 +2576,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub .mouth, #pnbub .face::before, #pnbub .face::after { translate: calc(var(--ex, 0px) * .8) calc(var(--ey, 0px) * .9);
     transition: translate .18s ease-out, all .15s; }
   #pnbub { transition: translate .7s cubic-bezier(.34,1.3,.64,1); }
-  #pnbub.peek.pkr { translate: 40px 0; } #pnbub.peek.pkl { translate: -40px 0; }
+
   #pnbub .nt { position: absolute; right: 6px; top: 4px; font: 800 12px/1 sans-serif; color: #8FD0FF; opacity: 0; font-style: normal; }
   @keyframes pnYawn { 0%, 100% { transform: scaleY(.3); } 40%, 70% { transform: scaleY(1.2); } }
   @keyframes pnSneeze { 0% { transform: scale(1); } 45% { transform: scale(1.08,.9) translateY(2px); } 55% { transform: scale(.92,1.1) translateY(-6px); } 100% { transform: scale(1); } }
@@ -2617,12 +2609,10 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   html.nxguide #pnbub { display: block !important; z-index: 99; }
   .nxhl { position: relative; border-radius: 10px; animation: nxHl 1.1s ease-in-out 5; }
   @keyframes nxHl { 0%, 100% { box-shadow: 0 0 0 0 rgba(143,208,255,0); } 50% { box-shadow: 0 0 0 4px var(--volt2), 0 0 24px #8FD0FF; } }
-  html.dragging-now #bgart, html.dragging-now #bgart2, html.dragging-now #pnbub, html.dragging-now #pnbub *,
+  html.dragging-now #pnbub, html.dragging-now #pnbub *,
   html.dragging-now #pnbub::before { animation-play-state: paused !important; }
   html.noenter .row { animation: none !important; }
   .cdb b { position: relative; } .cdb b .cdn { display: block; font-style: normal; } .cdb b .cdg { position: absolute; inset: 0; font-style: normal; }
-  #bgart, #bgart2 { animation: pnKen 38s ease-in-out infinite alternate; }
-  @keyframes pnKen { from { transform: scale(1.06) translate3d(0,0,0); } to { transform: scale(1.14) translate3d(-2%,-1.5%,0); } }
   .pips i.on { animation-name: pnPip !important; animation-timing-function: cubic-bezier(.34,1.8,.64,1) !important; }
   @keyframes pnPip { 0% { opacity: 0; transform: skewX(-10deg) scaleY(0); } 70% { opacity: 1; transform: skewX(-10deg) scaleY(1.35); } 100% { transform: skewX(-10deg) scaleY(1); } }
   .pips i.on:nth-child(1) { animation-delay: 55ms !important; }
@@ -2994,7 +2984,6 @@ html.still .pcd-note,html.still .pcd-acts,html.still .pcdov,html.still .pcdov-bg
 html.still .ccov,html.still .ccov img{animation:none}
 </style>
 
-<div id="bgart"></div><div id="bgart2"></div><div id="bgtint"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <div id="pnboot" aria-hidden="true"></div>
@@ -3130,14 +3119,6 @@ function pcdHTML(o) {
     <button class="btn ghost" id="boost-test"><span>Test it</span></button>
     <p class="note" id="boost-msg"></p>
 
-    <label>Background</label>
-    <div class="chips" id="bg-mode">
-      <button class="chip" data-v="art"><span>Cover art</span></button>
-      <button class="chip" data-v="custom"><span>My image</span></button>
-      <button class="chip" data-v="none"><span>Plain</span></button>
-    </div>
-    <label for="bg-file">Upload your own background</label>
-    <input id="bg-file" type="file" accept="image/*">
     <label for="ex">For Claude — paste this into chat</label>
     <textarea id="ex" readonly></textarea>
     <button class="btn" id="ex-copy"><span>Copy</span></button>
@@ -3494,8 +3475,6 @@ function applyLook() {
   const r = document.documentElement;
   { const t = theme(); r.style.setProperty("--volt", t.a); r.style.setProperty("--volt2", t.b);
     r.style.setProperty("--vrgb", rgbOf(t.a)); r.style.setProperty("--v2rgb", rgbOf(t.b)); r.dataset.theme = S.theme || "midnight"; }
-  r.style.setProperty("--bgo", (S.bgOpacity == null ? 58 : S.bgOpacity) / 100);
-  r.style.setProperty("--bgb", (S.bgBlur == null ? 5 : S.bgBlur) + "px");
   r.style.setProperty("--afh", num(S.artFloat, 10, 0, 40) + "px");
   r.style.setProperty("--afs", (num(S.artSpeed, 60, 15, 160) / 10) + "s");
   r.style.setProperty("--aglow", num(S.artGlow, 9, 0, 46) + "px");
@@ -3547,92 +3526,6 @@ function applyLook() {
   r.classList.toggle("railoff", onRail);
   if (!onRail) r.classList.remove("railopen");
 }
-
-function applyBg() {
-  const layers = [$("#bgart"), $("#bgart2")];
-  if (!layers[0] || !layers[1]) return;
-  if (!onQueueTab()) {
-    if (S.bgQueueOnly) layers.forEach(l => { l.style.opacity = "0"; l.dataset.src = ""; });
-    return;
-  }
-  if (S.bgOff) { layers.forEach(l => { l.style.opacity = "0"; l.dataset.src = ""; }); return; }
-  const mode = S.bgMode || "art";
-  let src = "";
-  if (mode === "custom") src = S.bgImg || "";
-  else if (mode === "art") {
-    const focus = S.games.find(g => g.id === focusId) || sortGames(liveGames())[0];
-    if (focus) src = focus.img || placeholder(focus);
-  }
-  if (!src) { layers.forEach(l => { l.style.opacity = "0"; l.dataset.src = ""; }); return; }
-  const shown = layers[bgSlot];
-  if (shown.dataset.src === src) {
-    /* Speed boost switched since this was drawn: bring it in line */
-    if (bgBaked() && shown.style.backgroundImage !== "none") bgBake(shown, src, () => {});
-    else if (!bgBaked() && shown.style.backgroundImage === "none") shown.style.backgroundImage = `url("${src}")`;
-    shown.style.opacity = "var(--bgo, .58)"; return;
-  }
-  const next = layers[1 - bgSlot];
-  next.dataset.src = src;
-  bgSlot = 1 - bgSlot;
-  if (bgBaked()) {
-    /* v170: blur it once into a small canvas and let the stretch keep it soft, instead of a live
-       blur filter the phone re-ran on every frame (the queue dropped most frames with it on) */
-    bgBake(next, src, () => { if (next.dataset.src !== src) return; next.style.opacity = "var(--bgo, .58)"; shown.style.opacity = "0"; });
-    return;
-  }
-  next.style.backgroundImage = `url("${src}")`;
-  next.style.opacity = "var(--bgo, .58)";
-  shown.style.opacity = "0";
-}
-const bgBaked = () => document.documentElement.classList.contains("fast");
-/* v261: a small copy of a picture decoded off the main thread (fetch, then createImageBitmap from the file, resized).
-   Drawing an <img> into a canvas makes Chrome decode the whole picture on the main thread when the canvas is shown
-   (134ms for a 1920px hero at 4x CPU, more for the 4K ones: the 360–520ms stutters when picking a game on the queue).
-   null when it can't (a site without CORS, an old Safari): callers keep their old way then. */
-const pnBmMemo = new Map();
-function pnSmallBitmap(url, w) {
-  if (!url || typeof createImageBitmap !== "function" || typeof fetch !== "function") return Promise.resolve(null);
-  const k = url + "|" + w; if (pnBmMemo.has(k)) return pnBmMemo.get(k);
-  const pr = fetch(url, { credentials: "omit" }).then(r => r.ok ? r.blob() : null)
-    .then(b => b && /^image\//.test(b.type || "image/") ? createImageBitmap(b, { resizeWidth: w, resizeQuality: "medium" }) : null).catch(() => null);
-  pnBmMemo.set(k, pr); if (pnBmMemo.size > 24) pnBmMemo.delete(pnBmMemo.keys().next().value);
-  return pr;
-}
-function bgBake(layer, src, done) {
-  const tok = layer._bgTok = (layer._bgTok || 0) + 1;
-  /* v183: it gets blurred to a quarter size anyway, so the light copy is plenty */
-  const url = liteFor(src, 1) || (bigData(src) ? blobRef(src) : src);
-  const draw = (im, iw, ih) => {
-    if (layer._bgTok !== tok) return;
-    let c = layer.querySelector("canvas");
-    if (!c) { c = document.createElement("canvas"); layer.appendChild(c); }
-    const W = innerWidth, H = innerHeight, x = c.getContext("2d");
-    const blur = S.bgBlur == null ? 5 : +S.bgBlur, live = x && "filter" in x;
-    /* Chrome: a quarter-size canvas with the real blur. Safari has no canvas blur: go smaller so the stretch does it */
-    const k = live ? 0.25 : 1 / Math.max(3, blur + 1);
-    c.width = Math.max(8, Math.round(W * k)); c.height = Math.max(8, Math.round(H * k));
-    if (!x) return done();
-    const r = Math.max(c.width / iw, c.height / ih), w = iw * r, h = ih * r;
-    if (live) x.filter = `blur(${(blur * k).toFixed(2)}px) saturate(1.3)`;
-    x.clearRect(0, 0, c.width, c.height);
-    x.drawImage(im, (c.width - w) / 2, (c.height - h) / 2, w, h);
-    layer.style.backgroundImage = "none"; layer._bgW = W; layer._bgH = H;
-    done();
-  };
-  pnSmallBitmap(url, 512).then(bm => {
-    if (layer._bgTok !== tok) return;
-    if (bm) return draw(bm, bm.width, bm.height);
-    const im = new Image(); im.decoding = "async";
-    im.onload = () => draw(im, im.naturalWidth, im.naturalHeight);
-    im.onerror = () => { if (layer._bgTok === tok) { layer.style.backgroundImage = `url("${src}")`; done(); } };
-    im.src = url;
-  });
-}
-/* folding or unfolding changes the screen shape: redraw the shown background to fit */
-addEventListener("resize", () => { clearTimeout(bgBake.t); bgBake.t = setTimeout(() => {
-  if (!bgBaked()) return;
-  [$("#bgart"), $("#bgart2")].forEach(l => { if (l && l.dataset.src && l._bgW && (l._bgW !== innerWidth || l._bgH !== innerHeight)) bgBake(l, l.dataset.src, () => {}); });
-}, 250); }, { passive: true });
 
 /* v219 the page has no doctype, so it runs in quirks mode, where querySelector("#id") can't use the id map and walks the
    whole page (~.3ms at 4x per call; Settings makes ~220). A plain #id goes straight to getElementById. */
@@ -4071,13 +3964,11 @@ function load() {
     S.games.forEach(g => { if ((g.state || "upcoming") === "upcoming" && g.date && g.date <= td &&
       Date.now() - new Date(g.date) < 30 * 864e5) { g.state = "backlog"; fl++; } });
     if (fl) save(); }
-  S.bgMode ||= "art";
   /* v174: the Arc and Wheel library layouts are gone; they become Swipe */
   if (S.libLayout === "arc" || S.libLayout === "wheel") S.libLayout = "reel";
   if (!S.games.length) { seed(); save(); }
   $("#key").value = rawgKey;
   if ($("#boost")) $("#boost").value = boostUrl;
-  [...$("#bg-mode").children].forEach(c => c.setAttribute("aria-pressed", String(c.dataset.v === S.bgMode)));
   applyLook();
   render();
   setupRail();
@@ -4115,7 +4006,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "273";
+const APP_V = "274";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4400,7 +4291,7 @@ function paintTab(tab) {
   });
   if (tab === "export") buildExport();
   renderPill();
-  applyBg();
+ 
 }
 document.querySelectorAll("nav button[data-tab]").forEach(b => b.onclick = () => {
   if (b.getAttribute("aria-current") !== "true") beep("tap");
@@ -5057,13 +4948,12 @@ const GROUP_KEYS = {
   "The standings tile": ["standN"],
   "Queue cards": ["platPos", "ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
-  "The backdrop": ["bgMode", "bgOpacity", "bgBlur", "bgImg", "bgQueueOnly"],
   "Labels on the board": ["flowTitle", "flowDate"],
   "Your evening": ["evening", "playStyle"],
   "The web": ["webGrid"],
   "Conclusions": ["analysisAt"],
   "Sound and reactions": ["sound", "reactions"],
-  "Motion": ["motion", "vt", "rowAnim", "bgOff", "tabFade", "restOff"],
+  "Motion": ["motion", "vt", "rowAnim", "tabFade", "restOff"],
   "Header cards": ["shxOff", "shxX"],
   "Look of the app": ["uiStyle", "addStyle", "picHQ", "paper", "paperCol", "paperStr", "corners", "radius"],
   "Getting around": ["nav", "railW", "pill", "startTab"],
@@ -5078,7 +4968,7 @@ const GROUP_KEYS = {
 };
 function resetKeys(keys) {
   keys.forEach(k => { delete S[k]; });
-  save(); applyLook(); applyBg(); render(); renderPill();
+  save(); applyLook(); render(); renderPill();
 }
 function collapsify(root, openCount) {
   [...root.querySelectorAll(".setgroup")].forEach((box, i) => {
@@ -6108,27 +5998,6 @@ function openSettings(scope) {
       <p class="note">Push these and the cut-out climbs out of its row and over the one above — the row keeps its shape, the art stops obeying it.</p>
     </div>
 
-    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="The picture sitting behind the whole queue.">The backdrop</h4>
-      <div class="demohost" data-demo="card">${demoCard()}</div>
-      <div class="chips" id="s-bg">
-        ${[["art", "Cover art"], ["custom", "My image"], ["none", "Plain"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.bgMode || "art") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-      <label for="s-bgfile">Upload a background</label>
-      <input id="s-bgfile" type="file" accept="image/*">
-      <label for="s-op">Strength</label>
-      <div class="rowline"><input id="s-op" type="range" min="0" max="100" value="${S.bgOpacity == null ? 58 : S.bgOpacity}">
-        <span class="v" id="s-op-v">${S.bgOpacity == null ? 58 : S.bgOpacity}%</span></div>
-      <label for="s-bl">Blur</label>
-      <div class="rowline"><input id="s-bl" type="range" min="0" max="30" value="${S.bgBlur == null ? 5 : S.bgBlur}">
-        <span class="v" id="s-bl-v">${S.bgBlur == null ? 5 : S.bgBlur}px</span></div>
-      <label>Backdrop away from the queue</label>
-      <div class="chips" id="s-bgqueue">
-        ${[["keep", "Keep it"], ["hide", "Hide it"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.bgQueueOnly ? "hide" : "keep") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-    </div>
-
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="The ticks and the sweep when a card reveals itself.">Opening a card</h4>
       <p class="note">The pips tick up first, then the rings sweep. Let go of a slider to hear it.</p>
       <div class="chips" id="s-ticks">
@@ -6560,11 +6429,6 @@ function openSettings(scope) {
         ${[["off", "No — faster"], ["on", "Yes"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.rowAnim ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <label>Blurred backdrop</label>
-      <div class="chips" id="s-bgblurmode">
-        ${[["on", "Keep it"], ["off", "Off — fastest"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.bgOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
       <label>Switching tabs</label>
       <div class="chips" id="s-tabfade">
         ${[["off", "Instant"], ["on", "Fade in"], ["slash", "Persona slash"]].map(([v, l]) =>
@@ -6781,7 +6645,7 @@ function openSettings(scope) {
   const pick = (sel, apply, after) => { if (!$(sel)) return; $(sel).onclick = e => {
     const b = e.target.closest(".chip"); if (!b) return;
     [...$(sel).children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
-    apply(b.dataset.v); save(); applyLook(); applyBg(); if (after) after(); beep("tap");
+    apply(b.dataset.v); save(); applyLook(); if (after) after(); beep("tap");
   }; };
   pick("#s-sound", v => { S.sound = v === "on"; if (S.sound) beep("add"); });
   pick("#s-playstyle", v => S.playStyle = v, () => { render(); if (typeof renderCal === "function") renderCal(); });
@@ -6789,7 +6653,6 @@ function openSettings(scope) {
   pick("#s-motion", v => S.motion = v !== "off");
   pick("#s-hubanim", v => { S.hubAnim = v !== "off"; applyHubAnim(); });
   pick("#s-plattext", v => { S.platText = v === "text"; });
-  pick("#s-bg", v => S.bgMode = v);
   pick("#s-ringstyle", v => S.ringStyle = v, () => renderQueue());
   pick("#s-platpos", v => S.platPos = v, () => renderQueue());
   pick("#s-cardbg", v => S.cardBg = v, () => renderQueue());
@@ -6897,8 +6760,6 @@ function openSettings(scope) {
   pick("#s-cardlayout", v => S.cardLayout = v, () => renderQueue());
   pick("#s-rowtint", v => S.rowTint = v, () => { applyLook(); renderQueue(); });
   pick("#s-vt", v => S.vt = v === "on");
-  pick("#s-bgblurmode", v => S.bgOff = v === "off", () => renderQueue());
-  pick("#s-bgqueue", v => S.bgQueueOnly = v === "hide");
   $("#sheet-in").querySelectorAll("[data-baddate]").forEach(b => b.onclick = () => {
     const g = S.games.find(x => x.id === b.dataset.baddate);
     if (!g) return;
@@ -6917,7 +6778,7 @@ function openSettings(scope) {
     const keep = { games: S.games, duels: S.duels, played: S.played,
       edits: S.edits, lastBackup: S.lastBackup, timer: S.timer, sessions: S.sessions };
     S = Object.assign({}, keep);
-    save(); applyLook(); applyBg(); render(); renderPill(); openSettings();
+    save(); applyLook(); render(); renderPill(); openSettings();
     toast("Every setting back to default"); beep("add");
   };
   if ($("#s-refresh")) $("#s-refresh").onclick = async () => {
@@ -6954,11 +6815,9 @@ function openSettings(scope) {
     $(sel).oninput = e => {
       const v = Number(e.target.value);
       $(vsel).textContent = (fmt ? fmt(v) : v) + unit;
-      S[key] = v; save(); applyLook(); applyBg(); if (after) after();
+      S[key] = v; save(); applyLook(); if (after) after();
     };
   };
-  slide("#s-op", "#s-op-v", "%", "bgOpacity");
-  slide("#s-bl", "#s-bl-v", "px", "bgBlur");
   slide("#s-evening", "#s-evening-v", "h", "evening", () => renderQueue());
   slide("#s-rsize", "#s-rsize-v", "px", "ringSize", () => renderQueue());
   slide("#s-rthick", "#s-rthick-v", "", "ringThick", () => renderQueue());
@@ -7000,17 +6859,6 @@ function openSettings(scope) {
   ["#s-tickvol", "#s-tickpitch", "#s-pace"].forEach(sel => { if ($(sel)) $(sel).onchange = preview; });
   pick("#s-ticks", v => S.ticks = v, preview);
 
-  if ($("#s-bgfile")) $("#s-bgfile").onchange = e => {
-    const f = e.target.files[0]; if (!f) return;
-    decodeToCanvas(f, 1280, (c, note) => {
-      if (!c) { toast("Couldn't read that image — " + note); return; }
-      try {
-        S.bgImg = encodePhoto(c, 0.78); S.bgMode = "custom";
-      } catch (err) { toast("Couldn't read that image"); return; }
-      [...$("#s-bg").children].forEach(x => x.setAttribute("aria-pressed", String(x.dataset.v === "custom")));
-      save(); applyBg(); toast("Background set");
-    });
-  };
   if ($("#s-keysave")) $("#s-keysave").onclick = () => {
     rawgKey = $("#s-key").value.trim();
     try { localStorage.setItem(KKEY, rawgKey); } catch (e) {}
@@ -7291,7 +7139,7 @@ function endDrag() {
   S.sort = "manual";
   beep("tap");
   const H = document.documentElement; H.classList.add("noenter"); pnSkipFlip = 1;
-  save(); renderQueue(); applyBg(); pnSkipFlip = 0;
+  save(); renderQueue(); pnSkipFlip = 0;
   requestAnimationFrame(() => requestAnimationFrame(() => H.classList.remove("noenter")));
 }
 /* v265: passive. A blocking touchmove here made every swipe on every screen wait for the main thread before it could
@@ -7313,7 +7161,7 @@ function move(id, dir) {
   [sorted[i], sorted[j]] = [sorted[j], sorted[i]];
   sorted.forEach((g, k) => { S.games.find(x => x.id === g.id).ord = k + 1; });
   S.sort = "manual";
-  save(); renderQueue(); applyBg();
+  save(); renderQueue();
 }
 
 /* ---- RAWG score + date refresh ----
@@ -8700,7 +8548,7 @@ function renderQueue() {
     renderQueue();
     const h = !collapsed && S.motion !== false && S.vt !== false && !calm() && $("#p-queue .hero");
     if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 600); }
-    applyBg();
+   
   });
   if ($("#nudge-save")) $("#nudge-save").onclick = () => {
     if (downloadBackup()) { S.lastBackup = Date.now(); S.edits = 0; save(); renderQueue(); }
@@ -8713,7 +8561,7 @@ function renderQueue() {
     sortGames(liveGames()).slice()
       .sort((x, y) => (y.hype || 0) - (x.hype || 0))
       .forEach((g, k) => { S.games.find(x => x.id === g.id).ord = k + 1; });
-    S.sort = "manual"; save(); renderQueue(); applyBg();
+    S.sort = "manual"; save(); renderQueue();
     toast("Reordered by hype");
   };
   if ($("#sortby")) $("#sortby").onclick = e => {
@@ -8744,10 +8592,10 @@ function renderQueue() {
   };
   el.querySelectorAll("[data-qfilter]").forEach(b => b.onclick = () => {
     S.qFilter = b.dataset.qfilter;
-    focusId = null; save(); renderQueue(); applyBg(); beep("tap");
+    focusId = null; save(); renderQueue(); beep("tap");
   });
   el.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => {
-    S.sort = b.dataset.sort; focusId = null; save(); renderQueue(); applyBg();
+    S.sort = b.dataset.sort; focusId = null; save(); renderQueue();
   });
   el.querySelectorAll("[data-up]").forEach(b => b.onclick = e => { e.stopPropagation(); beep("nudge"); move(b.dataset.up, -1); });
   el.querySelectorAll("[data-down]").forEach(b => b.onclick = e => { e.stopPropagation(); beep("nudge"); move(b.dataset.down, 1); });
@@ -10621,24 +10469,6 @@ $("#wipe").onclick = () => {
   S = { games: [], duels: [], played: [] }; save(); render(); buildExport();
 };
 
-$("#bg-mode").onclick = e => {
-  const b = e.target.closest(".chip"); if (!b) return;
-  S.bgMode = b.dataset.v;
-  [...$("#bg-mode").children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
-  save(); applyBg();
-};
-$("#bg-file").onchange = e => {
-  const f = e.target.files[0]; if (!f) return;
-  decodeToCanvas(f, 1280, (c, note) => {
-    if (!c) { toast("Couldn't read that image — " + note); return; }
-    try { S.bgImg = encodePhoto(c, 0.78); }
-    catch (err) { toast("Couldn't read that image"); return; }
-    S.bgMode = "custom";
-    [...$("#bg-mode").children].forEach(x => x.setAttribute("aria-pressed", String(x.dataset.v === "custom")));
-    save(); applyBg();
-  });
-};
-
 const TABS = ["home", "games", "plan", "taste", "add"];
 let tStartX = 0, tStartY = 0, tInScroller = null;
 /* a drag that starts inside something that scrolls sideways belongs to that thing, not the tabs */
@@ -10743,7 +10573,7 @@ function renderPill() {
     const t = e.target.closest("[data-toggle]");
     if (t) {
       S.showPlayed = !S.showPlayed;
-      focusId = null; save(); renderQueue(); applyBg();
+      focusId = null; save(); renderQueue();
       t.setAttribute("aria-pressed", String(!!S.showPlayed));
       t.textContent = S.showPlayed ? "\u2713 played" : "show played";
       beep("tap");
@@ -11662,33 +11492,19 @@ function pnBubble() {
     else if (["duel", "played", "games", "taste", "add"].includes(act)) goTab(act === "duel" ? "taste" : act);
     else if (act) { hubReturn = null; pnTap = { x: pnBubX + 31, y: pnBubY + 31 }; openFull(act); } };
   addEventListener("resize", () => { if (document.documentElement.classList.contains("nxtouring")) return; const t = pnBubEdge(); pnBubPlace(t.x, t.y); }, { passive: true });
-  /* it speaks up every minute or two, only while the rail is hidden and nothing else is open */
-  const talk = () => { setTimeout(talk, 60000 + Math.random() * 60000);
-    if (!document.documentElement.classList.contains("railhide") || down || document.hidden) return;
-    const f = $("#full"); if (f && f.classList.contains("on")) return; pnBubSay(); };
-  setTimeout(talk, 20000);
-  let lastLook = 0;
   const look = (x, y) => { const dx = x - pnBubX - 31, dy = y - pnBubY - 31, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 100) * 5;
     b.style.setProperty("--ex", (dx / d * k).toFixed(1) + "px"); b.style.setProperty("--ey", (dy / d * k).toFixed(1) + "px"); };
   let lr = 0;
-  const watch = e => { if (!document.documentElement.classList.contains("railhide") || down) return; lastLook = performance.now(); b.classList.remove("peek");
+  const watch = e => { if (!document.documentElement.classList.contains("railhide") || down) return;
     if (!lr) lr = requestAnimationFrame(() => { lr = 0; look(e.clientX, e.clientY); }); };
   addEventListener("pointermove", watch, { passive: true }); addEventListener("pointerdown", watch, { passive: true });
   addEventListener("touchmove", e => { const t = e.touches && e.touches[0]; if (t) watch({ clientX: t.clientX, clientY: t.clientY }); }, { passive: true });
-  setInterval(() => { if (document.hidden || performance.now() - lastLook < 3000 || !b.classList.contains("face")) return;
-    look(pnBubX + 31 + (Math.random() - .5) * 400, pnBubY + 31 + (Math.random() - .5) * 400);
-    if (Math.random() < .12) pnBubMood("happy", 900);
-    else if (Math.random() < .08) { const a = ["yawn", "sneeze", "whistle", "stretch"][Math.floor(Math.random() * 4)];
-      pnBubMood(a, a === "whistle" ? 2600 : 1800); if (a === "sneeze" && Math.random() < .5) setTimeout(() => pnBubSay(["Achoo! 🤧 ...sorry.", ""]), 400); }
-    b.classList.toggle("sleep", (h => h >= 1 && h < 6)(new Date().getHours())); }, 2800);
-  let tk = 0;
-  setInterval(() => { if (document.hidden || !document.documentElement.classList.contains("railhide")) return;
-    if (++tk % 4 === 0) pnBubReact();
-    const idle = performance.now() - lastLook > 15000, busy = down || $("#bubwheel") || $("#pnbubmsg.on");
-    if (b.classList.contains("peek") || document.documentElement.classList.contains("nxguide")) return;
-    if (performance.now() - lastLook > 90000 && !busy) { b.classList.remove("pkl", "pkr", "pl", "pr"); b.classList.add("peek", pnBubX > innerWidth / 2 ? "pkr" : "pkl");
-      b.style.setProperty("--ex", (pnBubX > innerWidth / 2 ? -5 : 5) + "px"); return; }
-    if (idle && !busy && Math.random() < .07) pnBubWander(); }, 2800);
+  /* v274 (the owner): no idle "life" on its own any more (wandering eyes, random yawns/sneezes/whistles, peeking, wandering
+     across the screen); he still blinks, follows your finger, reacts to real news and sleeps at night */
+  const nap = () => { if (!document.hidden) b.classList.toggle("sleep", (h => h >= 1 && h < 6)(new Date().getHours())); };
+  nap(); setInterval(nap, 60000);
+  /* he notices what changed in your games (a finish, a delay, a release) */
+  setInterval(() => { if (!document.hidden && document.documentElement.classList.contains("railhide")) pnBubReact(); }, 11200);
   let lastShake = 0;
   addEventListener("devicemotion", e => { const a = e.accelerationIncludingGravity; if (!a) return;
     const f = Math.abs(a.x) + Math.abs(a.y) + Math.abs(a.z), now = performance.now();
@@ -11991,21 +11807,10 @@ function nxFlyTo(el) {
     const e = pnBubEdge(); b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${e.x}px,${e.y}px,0)` }], { duration: 600, easing: "ease-in-out" }); pnBubPlace(e.x, e.y); }, 7000);
 }
 /* now and then it wanders to a new spot, sometimes hopping to the other side */
-function pnBubWander() {
-  const b = $("#pnbub"); if (!b) return;
-  const W = innerWidth, H = innerHeight, sz = 62, across = Math.random() < .3;
-  const tx = across ? (pnBubX < W / 2 ? W - sz - PN_EDGE : PN_EDGE) : pnBubX, ty = Math.min(H - sz - 90, Math.max(PN_EDGE, 60 + Math.random() * (H - 240)));
-  b.style.setProperty("--ex", (tx > pnBubX ? 4 : tx < pnBubX ? -4 : 0) + "px"); b.style.setProperty("--ey", (ty > pnBubY ? 3 : -3) + "px");
-  b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` },
-    { transform: `translate3d(${(pnBubX + tx) / 2}px,${Math.min(pnBubY, ty) - (across ? 120 : 40)}px,0)`, offset: .5 },
-    { transform: `translate3d(${tx}px,${ty}px,0)` }], { duration: across ? 1100 : 800, easing: "ease-in-out" });
-  pnBubPlace(tx, ty); S.bubPos = { x: tx, y: ty }; S.railSide = tx < W / 2 ? "left" : "right"; save();
-  if (across) setTimeout(() => pnBubMood("happy", 900), 1100);
-}
 /* hold it: a wheel of faces, plus the look changer */
 function pnBubWheel() {
   const ov = document.createElement("div"); ov.id = "bubwheel";
-  const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🤧", "sneeze"], ["🎨", "edit"]];
+  const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🔥", "take"], ["🎨", "edit"]];
   const cx = pnBubX + 31, cy = pnBubY + 31, right = cx > innerWidth / 2;
   const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"], ["⚙️", "nxset"], ["🐞", "bug"]];
   const btn = (e, a, i, ang, r, c) => { ang = ang * Math.PI / 180;
@@ -12020,6 +11825,7 @@ function pnBubWheel() {
   const born = performance.now();
   ov.onclick = e => { if (performance.now() - born < 350) return; const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
     if (a === "power") pnPowerUp();
+    else if (a === "take") pnBubSay(["🔥 Today's hot take: " + pnTake(), ""]);
     else if (a === "edit") pnBubEdit();
     else if (a === "story") pnLore(); else if (a === "ask") nxChat();
     else if (a === "nxset") setJump({ scope: "app", group: "Nexi", text: "Personality" }); else if (a === "bug") { if (typeof bugAsk === "function") bugAsk(); }
@@ -12099,7 +11905,6 @@ function pnBubLines() {
 }
 function pnBubSay(line) {
   const m = $("#pnbubmsg"), L = pnBubLines(); if (!m || !L.length) return;
-  const pb = $("#pnbub"); if (pb) pb.classList.remove("peek");
   const [txt, act] = line || L[Math.floor(Math.random() * L.length)];
   m.textContent = txt; m.dataset.act = act;
   const right = pnBubX > innerWidth / 2, w = Math.min(240, m.offsetWidth || 220);
@@ -12134,7 +11939,8 @@ function pnBubShow() {
       bl = `🎉 ${rel[0].title} is OUT today${rel.length > 1 ? ` (plus ${rel.length - 1} more)` : ""}! Party time!`; } }
   if (!bl && nxHabitLine) { bl = nxHabitLine; nxHabitLine = null; }
   if (!S.userName && !S.nxAsked) { setTimeout(nxAskName, 1500); bl = null; setTimeout(pnBubReact, 5000); return; }
-  pnTakeLater(); setTimeout(() => pnBubSay(bl ? (Array.isArray(bl) ? bl : [bl, ""]) : undefined), 1200); setTimeout(pnBubReact, 5000);
+  /* v274: he only speaks on opening when there's news; no random line every time, and the daily hot take is on his wheel (🔥) */
+  if (bl) setTimeout(() => pnBubSay(Array.isArray(bl) ? bl : [bl, ""]), 1200); setTimeout(pnBubReact, 5000);
 }
 
 function pnBubFace() {
@@ -12190,7 +11996,7 @@ function render() {
     if (isPlayed(g) && g.state !== "played") g.state = "played";
     else if (!isPlayed(g) && g.state === "played") g.state = "backlog";
   });
-  renderHome(); renderQueue(); renderCal(); renderPlayed(); renderReplay(); renderTaste(); renderLib(); applyBg(); }
+  renderHome(); renderQueue(); renderCal(); renderPlayed(); renderReplay(); renderTaste(); renderLib(); }
 /* unfolding the phone changes which layout fits */
 window.addEventListener("resize", () => { if ((S.nav || "auto") === "auto") applyLook(); });
 paintPlatPick();
@@ -13684,11 +13490,6 @@ function pnTake() {
   const d = new Date().toLocaleDateString("en-CA"), seed = [...d].reduce((a, c) => a + c.charCodeAt(0), 0);
   return T[seed % T.length];
 }
-function pnTakeLater() {
-  const td = new Date().toLocaleDateString("en-CA");
-  if (S.nxTakeDay === td) return; S.nxTakeDay = td; save();
-  setTimeout(() => pnBubSay(["🔥 Today's hot take: " + pnTake(), ""]), 9000);
-}
 
 /* v133 power-up transformation */
 function pnFlame(b) {
@@ -14149,7 +13950,6 @@ function pnPowerUp(line) {
   /* keep Nexi's own chatter and wandering out of the way during the show, and notice the ⚡ */
   const _say = pnBubSay; pnBubSay = function () { if (window.pnCine) return; return _say.apply(this, arguments); };
   const _mood = pnBubMood; pnBubMood = function () { if (window.pnCine && !window.pnCineMood) return; return _mood.apply(this, arguments); };
-  const _wan = pnBubWander; pnBubWander = function () { if (window.pnCine || window.pnSpar) return; return _wan.apply(this, arguments); };
   const _pu = pnPowerUp; pnPowerUp = function () { const r = _pu.apply(this, arguments);
     if (window.pnCineWaitPU) { const f = window.pnCineWaitPU; window.pnCineWaitPU = null; setTimeout(f, 0); } return r; };
   pnPowerUp.end = null; Object.defineProperty(pnPowerUp, "end", { get: () => _pu.end, set: v => { _pu.end = v; } });
@@ -14554,8 +14354,6 @@ html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{an
 /* v157 the real drag: a full-screen blurred picture sat behind every screen, slowly zooming forever,
    so the phone re-blurred the whole screen on every single frame. Speed boost now draws it at a quarter
    size and stretches it up (it's blurry anyway, looks the same) and holds it still. The two giant glow orbs hold still too. */
-html.fast #bgart,html.fast #bgart2{inset:auto;left:0;top:0;width:25vw;height:25vh;transform-origin:0 0;
-  transform:scale(4.3) translateZ(0)!important;filter:blur(calc(var(--bgb,5px) / 4)) saturate(1.3);animation:none!important}
 html.fast #pnorbs i{animation:none!important;will-change:auto}
 /* the board art no longer holds eight oversized layers in memory between scrolls */
 @supports (animation-timeline: view()){html.fast .pnb-row::before{will-change:auto}}
@@ -14727,11 +14525,6 @@ html.fast #loadbar, html.fast #pnstory { -webkit-backdrop-filter: none !importan
 html.fast .lx-strip { background: rgba(8,15,36,.94); }
 html.fast #loadbar { background: rgba(8,15,36,.96); }
 html.fast #pnstory { background: rgba(2,4,10,.94); }
-/* the queue background is pre-blurred into a canvas (bgBake), so no live filter and no quarter-size trick */
-html.fast #bgart, html.fast #bgart2 { filter: none !important; inset: 0 !important; width: auto !important; height: auto !important;
-  transform: translateZ(0) !important; }
-#bgart canvas, #bgart2 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-html:not(.fast) #bgart canvas, html:not(.fast) #bgart2 canvas { display: none; }
 /* pressing a shelf cover animated its glow blur; now only the lift animates */
 .sb { transition: transform .3s cubic-bezier(.2,.9,.3,1.3) !important; }
 /* HP bar glint slides; the liquid edge and ripple hold still (they repainted every frame, forever) */
@@ -18220,7 +18013,7 @@ render = function () {
   RND.forEach(([id]) => RND_DIRTY.add(id));
   rndFlush(vis);
   if (t === "add") rndFlush("p-home");            /* Home's render also refreshes Add's header */
-  applyBg(); rndKick();
+  rndKick();
 };
 { const _pt = paintTab; paintTab = function (tab) { rndFlush(panelOf(tab)); if (tab === "add") rndFlush("p-home"); return _pt.apply(this, arguments); }; }
 /* #69: Nexi's wheel opened and closed in the same instant on phones (the tap's follow-up click hit its backdrop).
@@ -24216,17 +24009,7 @@ WHATS_NEW.push(
     tryIt: "Open a few games and watch each page take on that game's colours." }
 );
 </script>
-<style>
-/* v260 smoothness + battery: fewer full-screen layers stacked on every frame */
-html:not(.bgon) #bgtint { display: none; }                  /* the tint is for the art backdrop only */
-</style>
 <script>
-/* v260: #bgtint only while an art backdrop is up */
-{ const _ab2 = applyBg; applyBg = function () { const o = _ab2.apply(this, arguments);
-  const on = !!(document.getElementById("bgart") || {}).dataset && [$("#bgart"), $("#bgart2")].some(l => l && l.dataset.src);
-  const H = document.documentElement; if (H.classList.contains("bgon") !== on) H.classList.toggle("bgon", on); return o; }; }
-applyBg();
-
 /* v260 rest: 12s without a touch, every looping animation holds still (no frames to draw, nothing for the GPU to do);
    the first touch, key, scroll or coming back to the app sets them going again. S.restOff turns it off. */
 /* v261: after 60s, not 12s (the owner: "all the animations have frozen" just looking at the queue) */
@@ -24553,8 +24336,6 @@ WHATS_NEW.push(
 </script>
 <style>
 /* v265 smoothness check (prb*, last script): while it tests a suspect, that suspect is switched off for a little while */
-html.prb-nobg #bgart, html.prb-nobg #bgart2, html.prb-nobg #bgtint, html.prb-nobg #pnorbs { visibility: hidden !important; }
-html.prb-nobg::before { display: none !important; }
 html.prb-noshadow *, html.prb-noshadow *::before, html.prb-noshadow *::after { box-shadow: none !important; text-shadow: none !important; }
 html.prb-noblur *, html.prb-noblur *::before, html.prb-noblur *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; filter: none !important; }
 html.prb-noanim *, html.prb-noanim *::before, html.prb-noanim *::after { animation-play-state: paused !important; }
@@ -24572,8 +24353,8 @@ html.prb-noanim *, html.prb-noanim *::before, html.prb-noanim *::after { animati
    moments and 12s, or 9 moments. Progress is kept in its own localStorage key (gq:probe; not S, v211), so closing the app
    carries on next time. At the end: one "slow" report per version (sigAt = "probe vN", so every version gets its own
    issue) with a line per turn and how much each suspect changes the drops. */
-const PRB_KEY = "gq:probe", PRB_ARMS = ["base", "nobg", "base", "noshadow", "base", "noblur", "base", "noanim", "base"];
-const PRB_NAME = { nobg: "the backdrop", noshadow: "shadows", noblur: "blurs and filters", noanim: "animations" };
+const PRB_KEY = "gq:probe", PRB_ARMS = ["base", "noshadow", "base", "noblur", "base", "noanim", "base"];
+const PRB_NAME = { noshadow: "shadows", noblur: "blurs and filters", noanim: "animations" };
 const PRB = { ep: null, raf: 0, st: null, lo: null };
 function prbLoad() {
   let st = null; try { st = JSON.parse(localStorage.getItem(PRB_KEY) || "null"); } catch (e) {}
@@ -25282,16 +25063,33 @@ WHATS_NEW.push(
 </script>
 <script>
 /* v273 (the owner: "return the background to a solid gradient color, I hate how it looks"): the live background (v257
-   lights, specks and drifting art; v264's canvas; v265's hold) is gone, code and switches. The queue's art backdrop is
-   switched off once (S.bgOff; the switch stays in Settings › Motion › Blurred backdrop); old live-background switches are dropped.
-   What's left behind every screen is the still gradient (html.paper::before). */
-if (!S.bgMig273) {
-  S.bgMig273 = 1; S.bgOff = true; delete S.hlvOff; delete S.hlvX;
-  save(); try { applyBg(); } catch (e) {}
-}
+   lights, specks and drifting art; v264's canvas; v265's hold) is gone, code and switches. v274 ("remove all"): the queue's
+   art backdrop (#bgart/#bgart2/#bgtint, applyBg, bgBake, its Settings) is gone too. What's left behind every screen is the
+   still gradient (html.paper::before). Their saved settings go (a custom backdrop picture could be a big data URL). */
+{ const old = ["bgOff", "bgMode", "bgImg", "bgOpacity", "bgBlur", "bgQueueOnly", "bgMig273", "hlvOff", "hlvX"].filter(k => k in S);
+  if (old.length) { old.forEach(k => delete S[k]); save(); } }
 WHATS_NEW.push(
   { v: 273, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "<b>The background is a calm, still gradient again</b>: the moving lights, specks and blown-up game art behind your screens are gone, so there's less for your phone to draw.",
-    tryIt: "Look around Home, Games and a game's page: the same quiet gradient sits behind everything. Settings › Motion › Blurred backdrop brings the game art back behind the Queue if you ever miss it." }
+    tryIt: "Look around Home, Games and a game's page: the same quiet gradient sits behind everything." }
+);
+</script>
+<style>
+/* v274 (the owner, #447): one Nexi per screen. Unfolded, Home's own Nexi (the face beside your greeting) and the rail's seated
+   Nexi showed at once: the rail one steps out while you're on Home, unless he's speaking (his words hang off him), touring
+   or on a cinematic (those use !important and win). */
+@media (min-width: 620px) { html.nxseat.onhome:not(:has(#pnbubmsg.on)) #pnbub { display: none; } }
+</style>
+<script>
+WHATS_NEW.push(
+  { v: 274, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#p-home .nxh-face") || null,
+    say: "<b>Calmer Nexi, cleaner screens</b>: one Nexi on Home instead of two, no more random yawns, sneezes or wandering, and he only speaks up when there's real news.",
+    tryIt: "Open Home on your unfolded phone: just the one Nexi beside your greeting. He still blinks, follows your finger and tells you when a game is out or delayed." },
+  { v: 274, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
+    say: "The blurred game art that sat behind the Queue is gone for good, with its settings: every screen has the same still gradient now.",
+    tryIt: "Open Games: the Queue sits on the plain gradient." },
+  { v: 274, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : $("#p-home .nxh-face") || null; },
+    say: "My daily <b>🔥 hot take</b> doesn't pop up by itself any more: it waits on my wheel until you want it.",
+    tryIt: "With the phone unfolded, go to another tab, double-tap me in the rail (or hold) and tap 🔥." }
 );
 </script>

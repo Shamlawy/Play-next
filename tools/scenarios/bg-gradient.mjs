@@ -1,5 +1,5 @@
 /* v273: behind every screen there's only the still gradient (html.paper::before): no live background (#hlv/#hlvg,
-   removed), no queue art backdrop (switched off once), nothing animating in the background layers.
+   removed), no queue art backdrop (removed in v274), nothing animating in the background layers.
      node tools/kit.mjs run tools/scenarios/bg-gradient.mjs --widths 412,859
      SHOTS=dir node tools/kit.mjs run tools/scenarios/bg-gradient.mjs   (also saves a screenshot per screen) */
 import fs from "node:fs";
@@ -14,7 +14,7 @@ export default async ({ p, w }) => {
         return c.display !== "none" && c.visibility !== "hidden" && +c.opacity > .02 ? 1 : 0; };
       const moving = ["bgart", "bgart2", "pnorbs"].flatMap(id => { const e = document.getElementById(id); return e && vis(id) ? e.getAnimations({ subtree: true }) : []; }).length;
       return { hlv: !!document.querySelector("#hlv, #hlvg, .hlv-s"), hlvon: H.classList.contains("hlvon"), grad: b.content !== "none" && b.display !== "none" && /gradient/.test(b.backgroundImage),
-        art: vis("bgart") || vis("bgart2"), moving, bgOff: S.bgOff === true };
+        art: vis("bgart") || vis("bgart2"), moving, bgOff: !("bgOff" in S) };
     });
     if (r.hlv || r.hlvon || !r.grad || r.art || r.moving || !r.bgOff) bad.push(`${name}: ${JSON.stringify(r)}`);
     if (shots) await p.page.screenshot({ path: `${shots}/${w}-${name}.png` });
