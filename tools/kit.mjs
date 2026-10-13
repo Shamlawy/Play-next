@@ -33,7 +33,11 @@ const FILE = opt("file", "index.html");
 const SET = JSON.parse(opt("set", "{}"));
 const PLANT = opt("plant") ? fs.readFileSync(opt("plant"), "utf8") : "", EXPECT = args.includes("--expect");   /* --set '{"bugOff":true}': extra saved settings for every phone */
 const WIDTHS = opt("widths", "412,859,360").split(",").map(Number);
-const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2] };
+/* --browser webkit: Safari's engine, for the friend's iPhone 11 / iPad (on GitHub: webkit-check.yml's "scenario" input; this
+   container only has Chromium). No CDP there, so p.tap / p.swipe and perf need Chromium */
+const BROWSER = opt("browser", "chromium"), WK = BROWSER === "webkit";
+const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2],
+  414: [414, 896, 2], 810: [810, 1080, 2], 1080: [1080, 810, 2] };   /* 414 = iPhone 11, 810/1080 = iPad 9th gen upright / sideways */
 const html = fs.readFileSync(path.join(ROOT, FILE), "utf8");
 const APP_V = (html.match(/const APP_V = "(\d+)"/) || [])[1] || "1";
 let failed = 0;
@@ -98,6 +102,7 @@ function serve() {
   return { srv, base: `http://localhost:${srv.address().port}/` };
 }
 async function launch() {
+  if (WK) return (await pw()).webkit.launch();
   const { chromium } = await pw();
   const exe = ["/opt/pw-browsers/chromium/chrome-linux/chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(f => fs.existsSync(f));
   /* no browser swipe-back: a real finger swiping right on a game page otherwise "goes back" to about:blank (the installed
@@ -109,7 +114,9 @@ async function launch() {
 async function phone(browser, base, w, data) {
   const [vw, vh, dpr] = SIZES[w] || [w, Math.round(w * 2.1), 2.6];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, serviceWorkers: "block",
-    userAgent: "Mozilla/5.0 (Linux; Android 16; SM-F9800) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36" });
+    userAgent: WK ? (vw >= 600 ? "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
+      : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1")
+      : "Mozilla/5.0 (Linux; Android 16; SM-F9800) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36" });
   const reports = [], errors = [];
   await ctx.route(u => !u.href.startsWith(base), async r => {
     const u = r.request().url();
@@ -137,7 +144,7 @@ async function phone(browser, base, w, data) {
   }, dy).catch(() => {});
   const flush = () => step("flush", `typeof bugFlush === "function" && bugFlush()`, 1500);
   /* real touch (v207: mouse clicks skip the app's touch paths) */
-  const cdp = await ctx.newCDPSession(page);
+  const cdp = WK ? { send: () => { throw new Error("real touch (p.tap / p.swipe) needs Chromium: drop --browser webkit"); } } : await ctx.newCDPSession(page);
   const pt = (x, y) => [{ x: Math.round(x), y: Math.round(y), radiusX: 4, radiusY: 4, force: 1, id: 1 }];
   const tap = async (x, y) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x, y) }); await page.waitForTimeout(40);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); };
@@ -262,12 +269,12 @@ if (mode === "syntax" || mode === "all") syntax();
 if (mode === "sw" || mode === "all") sw();
 /* ---------- a saved scenario ---------- */
 async function scenario(browser, base) {
-  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set");
+  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set" && args[i - 1] !== "--browser");
   if (!file) return fail("usage: node tools/kit.mjs run tools/scenarios/x.mjs [--widths 412]");
   const fn = (await import(path.resolve(file))).default;
   for (const w of opt("widths") ? WIDTHS : [412]) {
     const p = await phone(browser, base, w, seed(APP_V));
-    console.log(`\n== ${path.basename(file)} at ${w}px ==`);
+    console.log(`\n== ${path.basename(file)} at ${w}px${WK ? " (WebKit)" : ""} ==`);
     if ((await fn({ p, w, fail, seed })) === false) fail(`${path.basename(file)} at ${w}px`);
     await p.ctx.close();
   }

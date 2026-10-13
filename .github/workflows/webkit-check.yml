@@ -4,6 +4,15 @@
 name: WebKit check
 on:
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Also run a saved scenario in WebKit (e.g. tools/scenarios/rail-nexi.mjs)"
+        required: false
+        default: ""
+      widths:
+        description: "Its widths (414 = iPhone 11, 810 / 1080 = iPad upright / sideways)"
+        required: false
+        default: "414,1080"
   push:
     branches: [main]
     paths:
@@ -26,6 +35,15 @@ jobs:
         run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps webkit >/dev/null 2>&1
       - name: Walk the app on iPhone 11 and iPad
         run: set -o pipefail; node .github/scripts/webkitcheck.mjs | tee webkit-report.txt
+      - name: Saved scenario in WebKit (tools/kit.mjs run --browser webkit)
+        if: always() && inputs.scenario != ''
+        env:
+          SCENARIO: ${{ inputs.scenario }}
+          WIDTHS: ${{ inputs.widths }}
+        run: |
+          case "$SCENARIO" in tools/scenarios/*.mjs) ;; *) echo "scenario must be tools/scenarios/<name>.mjs"; exit 1;; esac
+          case "$WIDTHS" in *[!0-9,]*) echo "widths: numbers and commas only"; exit 1;; esac
+          set -o pipefail; node tools/kit.mjs run "$SCENARIO" --browser webkit --widths "$WIDTHS" | tee -a webkit-report.txt
       - name: Pictures shrunk on the phone (sw.js, v268)
         if: always()
         run: node .github/scripts/swcheck.mjs
