@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { join, list, protectPatterns, risks, sortFiles, type Risk } from './blast.ts'
+import { fromGit, join, list, protectPatterns, risks, sortFiles, type Risk } from './blast.ts'
 
 type $ = EngineInterface
 
@@ -29,11 +29,11 @@ done; done | head -n 20000`
 const lines = (s: string) => s.split('\n').map(l => l.trim()).filter(Boolean)
 
 // Blast radius: what the destructive parts of a shell command would take. `hard` is never allowed; `held` is shown once.
-async function blast($: $, cmd: string): Promise<{ hard: string[]; held: string[] }> {
+async function blast($: $, cmd: string, ps = false): Promise<{ hard: string[]; held: string[] }> {
   const hard: string[] = []
   const held: string[] = []
   if (!root) return { hard, held }
-  const found = risks(cmd, root, home)
+  const found = risks(cmd, root, home, ps)
   if (!found.length) return { hard, held }
   const sh = (r: Risk, argv: string[], timeoutMs = 20_000) => $.process.run(argv, { cwd: r.cwd, timeoutMs }).then(x => x.stdout, () => '')
   let sets: { tracked: Set<string>; kept: Set<string> } | undefined
@@ -43,13 +43,20 @@ async function blast($: $, cmd: string): Promise<{ hard: string[]; held: string[
   }
   for (const r of found) {
     if (r.kind === 'rm' || r.kind === 'find') {
-      const out = r.kind === 'rm'
-        ? await sh(r, ['bash', '-c', RM_LIST, 'rm-list', ...r.targets], 30_000)
-        : r.args.some(a => a === '-exec' || a === '-execdir' || a === '-ok') ? '' : await sh(r, ['find', ...r.args, '-print'], 30_000)
-      const abs = lines(out).map(p => join(r.cwd, p))
-      if (r.kind === 'rm') abs.push(...r.targets.filter(t => !/[*?[]/.test(t)).map(t => join(r.cwd, t)))
       const { tracked, kept } = await repoSets()
-      const s = sortFiles([...new Set(abs)], root, tracked, kept, protect)
+      let abs: string[]
+      if (ps && r.kind === 'rm') {
+        // PowerShell (Windows): no bash to walk folders, so read what goes from git's lists, ignored files included.
+        const ignored = lines((await git($, ['ls-files', '-o', '-i', '--exclude-standard'])).stdout)
+        abs = fromGit(r.targets, r.cwd, root, [...kept, ...ignored], home)
+      } else {
+        const out = r.kind === 'rm'
+          ? await sh(r, ['bash', '-c', RM_LIST, 'rm-list', ...r.targets], 30_000)
+          : r.args.some(a => a === '-exec' || a === '-execdir' || a === '-ok') ? '' : await sh(r, ['find', ...r.args, '-print'], 30_000)
+        abs = lines(out).map(p => join(r.cwd, p))
+        if (r.kind === 'rm') abs.push(...r.targets.filter(t => !/[*?[]/.test(t)).map(t => join(r.cwd, t)))
+      }
+      const s = sortFiles([...new Set(abs)], root, tracked, kept, protect, home)
       const what = r.kind === 'rm' ? `rm ${r.targets.join(' ')}` : 'find … -delete'
       if (s.whole) hard.push(`${what}: would delete the repo, its .git, or a whole home/system folder`)
       if (s.protected.length) hard.push(`${what}: deletes files this repo protects (.claude/blast-radius-protect):\n${list(s.protected)}`)
@@ -89,12 +96,28 @@ async function blast($: $, cmd: string): Promise<{ hard: string[]; held: string[
 }
 
 
+// Holds or stops a shell command (Bash, or PowerShell when `ps`) by its blast radius; undefined lets it run.
+async function guard($: $, cmd: string, ps: boolean): Promise<{ deny: string } | undefined> {
+  if (/BLAST_OK=1|RG_SKIP=1/.test(cmd)) return undefined
+  const { hard, held } = await blast($, cmd, ps)
+  if (hard.length) return { deny: `blast-radius stopped this command:\n${bullet(hard)}\nFind another way; BLAST_OK=1 in front only if the person asked for exactly this.` }
+  const key = cmd.trim()
+  if (held.length && !shown.has(key)) {
+    shown.add(key)
+    return { deny: `blast-radius held this command once. It would:\n${bullet(held)}\nIf that's all meant to go, run the exact same command again; otherwise narrow it.` }
+  }
+  return undefined
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd: e.cwd }).catch(() => undefined)
-    root = top?.exitCode === 0 ? top.stdout.trim() : ''
+    root = top?.exitCode === 0 ? join('/', top.stdout.trim()) : ''
     const env = await $.process.run(['sh', '-c', 'printf %s "$HOME"'], { cwd: e.cwd }).catch(() => undefined)
-    if (env?.stdout.trim()) home = env.stdout.trim()
+    // Windows has no sh: the home folder comes from cmd instead.
+    const win = env?.stdout.trim() ? undefined : await $.process.run(['cmd', '/c', 'echo %USERPROFILE%'], { cwd: e.cwd }).catch(() => undefined)
+    const h = env?.stdout.trim() || (win?.exitCode === 0 ? win.stdout.trim() : '')
+    if (h && !h.includes('%')) home = join('/', h)
     if (root) {
       const head = await git($, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).catch(() => undefined)
       const b = head?.exitCode === 0 ? head.stdout.trim().replace(/^origin\//, '') : ''
@@ -105,16 +128,11 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const cmd = e.command
-    if (/BLAST_OK=1|RG_SKIP=1/.test(cmd)) return next(e)
-    const { hard, held } = await blast($, cmd)
-    if (hard.length) return { deny: `blast-radius stopped this command:\n${bullet(hard)}\nFind another way; BLAST_OK=1 in front only if the person asked for exactly this.` }
-    const key = cmd.trim()
-    if (held.length && !shown.has(key)) {
-      shown.add(key)
-      return { deny: `blast-radius held this command once. It would:\n${bullet(held)}\nIf that's all meant to go, run the exact same command again; otherwise narrow it.` }
-    }
-    return next(e)
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => (await guard($, e.command, false)) ?? next(e)).catch(($, e, next) => next(e))
+
+  // PowerShell is the shell tool Claude Code uses on Windows.
+  on('tool.call', { tool: 'PowerShell' }, async ($, e, next) => {
+    const cmd = (e as unknown as { command?: unknown }).command
+    return (typeof cmd === 'string' && (await guard($, cmd, true))) || next(e)
   }).catch(($, e, next) => next(e))
 }
