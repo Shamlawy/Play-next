@@ -1043,7 +1043,10 @@
     font-size: clamp(12px, 3.4vw, 15px); font-weight: 800; color: var(--mute); font-variant-numeric: tabular-nums;
   }
   .cwrap.has .cday { color: var(--ice); }
-  .cwrap.past { opacity: .66; }   /* v276: .42 read 1.9:1 on the black background */
+  /* v277: past days fade their rings and covers, not their number (fading the whole cell read 2.2:1 on a coloured background) */
+  .cwrap.past::before { opacity: .25; }
+  .cwrap.past > i { opacity: .42; }
+  .cwrap.past .cday { font-weight: 500; }
   .cwrap.today::after {
     content: ""; position: absolute; inset: -3px; border-radius: 50%;
     border: 2px solid var(--ice);
@@ -3469,7 +3472,9 @@ const THEMES = {
 const theme = () => THEMES[S.theme] || THEMES.midnight;
 /* v276 background defaults: black, a little blue */
 const BG_BASE = "#000000", BG_TINT = "#2F6BFF", BG_GRAD = 30;
-const BG_BASES = ["#000000", "#04060E", "#0A0A0C", "#060B1A", "#0B0716", "#04100C", "#120608", "#141414"];
+/* v277 (the owner: "give different colours to it, not all black, but default black"): real colours, each dark enough
+   that white text still reads on it; the colour picker after them takes anything */
+const BG_BASES = ["#000000", "#0E1A3D", "#16307A", "#0C3D5C", "#0B4A48", "#0F3D22", "#2A1B5E", "#4A1460", "#5A1240", "#5C1020", "#5A2A0E", "#2E2E36"];
 const rgbOf = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(",");
 function applyLook() {
   const r = document.documentElement;
@@ -4004,7 +4009,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "276";
+const APP_V = "277";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6465,7 +6470,7 @@ function openSettings(scope) {
       <label for="s-bggrad">How much gradient</label>
       <div class="rowline"><input id="s-bggrad" type="range" min="0" max="100" value="${num(S.bgGrad, BG_GRAD, 0, 100)}">
         <span class="v" id="s-bggrad-v">${num(S.bgGrad, BG_GRAD, 0, 100)}%</span></div>
-      <p class="note">Mostly black with a soft glow from the bottom. 0% is the plain background colour.</p>
+      <p class="note">Black unless you pick a colour: navy, blue, ocean, teal, forest, indigo, purple, plum, wine, rust, graphite, or any colour from the picker. A soft glow rises from the bottom; 0% is the plain background colour.</p>
       <label>Corners</label>
       <div class="chips" id="s-corners">
         ${[["round", "Rounded"], ["sharp", "Chamfered"]].map(([v, l]) =>
@@ -25168,5 +25173,12 @@ WHATS_NEW.push(
   { v: 276, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Background colour" }); }, at: () => $("#s-bgbase"),
     say: "<b>A darker background</b>: mostly black now, with just a soft blue glow from the bottom. You choose the background colour and how much gradient shows.",
     tryIt: "In Look of the app, slide How much gradient to 0% for pure black, or pick another background colour." }
+);
+</script>
+<script>
+WHATS_NEW.push(
+  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Background colour" }); }, at: () => $("#s-bgbase"),
+    say: "<b>Colour your background</b>: it's still black unless you choose, but now you can pick navy, blue, teal, forest, purple, plum, wine, rust and more, or any colour you like.",
+    tryIt: "Tap a colour under Background colour and watch every screen change behind your games." }
 );
 </script>
