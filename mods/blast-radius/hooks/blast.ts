@@ -1,5 +1,6 @@
 // Blast radius (pure): which parts of a shell command can destroy work, and how to read what they would take.
 // register.ts measures each risk with git/find and holds the command once with the list.
+// Works in any git repo; a repo can list files that must never be deleted in .claude/blast-radius-protect.
 
 export type Risk =
   | { kind: 'rm'; cwd: string; targets: string[] }
@@ -142,14 +143,22 @@ export function risks(cmd: string, cwd: string, home = '/root'): Risk[] {
 }
 
 // Which deleted files matter. `repo` = repo root; `kept` = tracked + untracked-not-ignored paths (repo-relative); `tracked` ⊂ kept.
-export type Sorted = { tracked: string[]; fresh: string[]; ignored: string[]; outside: string[]; rootTracked: string[]; whole: boolean }
+export type Sorted = { tracked: string[]; fresh: string[]; ignored: string[]; outside: string[]; protected: string[]; whole: boolean }
 
 const SAFE_OUTSIDE = [/^\/tmp(\/|$)/, /^\/var\/tmp(\/|$)/, /\/scratchpad(\/|$)/, /\/node_modules(\/|$)/]
-// Ignored files in the repo that are only caches/build output; everything else ignored (a *.json backup!) counts.
-const SAFE_IGNORED = [/(^|\/)node_modules\//, /^tools\/\.cache\//, /^webkit\//, /^webkit-report\.txt$/, /(^|\/)test-results\//, /(^|\/)playwright-report\//]
+// Ignored files in a repo that are only caches/build output; everything else ignored (a .env, a backup) counts.
+const SAFE_IGNORED = [/(^|\/)node_modules\//, /(^|\/)\.cache\//, /(^|\/)(dist|build|out|coverage|\.next|\.turbo|__pycache__|\.pytest_cache|\.venv|venv|target)\//, /\.pyc$/, /(^|\/)test-results\//, /(^|\/)playwright-report\//, /(^|\/)\.DS_Store$/]
 
-export function sortFiles(abs: readonly string[], repo: string, tracked: ReadonlySet<string>, kept: ReadonlySet<string>): Sorted {
-  const s: Sorted = { tracked: [], fresh: [], ignored: [], outside: [], rootTracked: [], whole: false }
+// Lines of .claude/blast-radius-protect as path patterns: * stays inside a folder, ** crosses folders, # starts a comment.
+export function protectPatterns(text: string): RegExp[] {
+  return text.split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean).map(g => {
+    const body = g.replace(/^\/+/, '').replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]').replace(/\u0000/g, '.*')
+    return new RegExp(`^${body}$`)
+  })
+}
+
+export function sortFiles(abs: readonly string[], repo: string, tracked: ReadonlySet<string>, kept: ReadonlySet<string>, protect: readonly RegExp[] = []): Sorted {
+  const s: Sorted = { tracked: [], fresh: [], ignored: [], outside: [], protected: [], whole: false }
   const pre = repo.replace(/\/+$/, '') + '/'
   for (const a of abs) {
     if (a === repo || a === '/' || a === '/root' || a === '/home' || pre.startsWith(a + '/')) {
@@ -165,10 +174,9 @@ export function sortFiles(abs: readonly string[], repo: string, tracked: Readonl
       s.whole = true
       continue
     }
-    if (tracked.has(rel)) {
-      s.tracked.push(rel)
-      if (!rel.includes('/')) s.rootTracked.push(rel)
-    } else if (kept.has(rel)) s.fresh.push(rel)
+    if (protect.some(r => r.test(rel)) && kept.has(rel)) s.protected.push(rel)
+    else if (tracked.has(rel)) s.tracked.push(rel)
+    else if (kept.has(rel)) s.fresh.push(rel)
     else if (!SAFE_IGNORED.some(r => r.test(rel))) s.ignored.push(rel)
   }
   return s

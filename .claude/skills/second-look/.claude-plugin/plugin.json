@@ -1,1 +1,0 @@
-{ "name": "second-look", "version": "0.1.0", "description": "Before every release (a merge or push to main), a second Claude reads the whole change against CLAUDE.md and the two phones, and holds the merge once if it finds something that would break.", "types": "./types/index.d.ts" }

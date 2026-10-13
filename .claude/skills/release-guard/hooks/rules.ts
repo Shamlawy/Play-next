@@ -125,7 +125,7 @@ export function parsePorcelain(out: string): Change[] {
 
 export const rootDeleted = (changes: readonly Change[]) => changes.filter(c => c.status === 'D' && !c.path.includes('/')).map(c => c.path)
 
-const MANIFEST = /^\.claude\/skills\/[^/]+\/(\.claude-plugin\/plugin|hooks\/hooks)\.json$/
+const MANIFEST = /^(?:(?:\.claude\/skills|mods)\/[^/]+\/(?:\.claude-plugin\/plugin|hooks\/hooks)|\.claude-plugin\/marketplace|\.claude\/settings)\.json$/
 
 // Files that must never be committed or deleted, whatever the release.
 export function fileProblems(changes: readonly Change[], deleted: readonly string[] = []): string[] {

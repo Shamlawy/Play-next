@@ -2,57 +2,61 @@ import { atom, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Review } from '../types'
-import { describe, parseFindings } from './findings.ts'
+import { describe, parseFindings, readNotes } from './findings.ts'
 
 type $ = EngineInterface
 
-// The owner merges without reading code ("Always merge auto"), so the merge is where a second pair of eyes pays.
+// When nobody reads the code before it ships, the merge is where a second pair of eyes pays. Works in any GitHub repo;
+// a project adds its own notes for the reviewer in .claude/second-look.md.
 // One review per head commit: a merge of a reviewed commit with blocking findings is held once; the same commit again goes through.
 
 const MODEL = 'opus'
 const MAX_DIFF = 160_000
-// Generated or bookkeeping files: no review needed.
-const SKIP = [':(exclude)docs/MAP.md', ':(exclude)docs/LESSONS.md', ':(exclude)*.png', ':(exclude)*.jpg', ':(exclude)*.webp']
+// Generated, binary or lock files: no review needed. A project adds its own with "skip:" lines in .claude/second-look.md.
+const SKIP = ['*.png', '*.jpg', '*.jpeg', '*.gif', '*.webp', '*.ico', '*.pdf', '*.woff', '*.woff2', '*.min.js', '*.map', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'Cargo.lock', 'poetry.lock']
 
 const last = atom({ plugin: 'second-look', key: 'last' } as const, null)
 
-const PUSH_MAIN = /\bgit\s+(?:-C\s+\S+\s+)?push\b[^&;|]*(?:\s(?:\S+:)?(?:refs\/heads\/)?main\b)/
+const pushTo = (branch: string) => new RegExp(`\\bgit\\s+(?:-C\\s+\\S+\\s+)?push\\b[^&;|]*(?:\\s(?:\\S+:)?(?:refs\\/heads\\/)?${branch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w./-]))`)
 
-const SYSTEM = `You are the second reviewer for "Play next", a single-file web app (index.html, sw.js, worker/helper.js) used by two people:
-the owner on a Samsung Galaxy Z Fold (Chrome, installed to the home screen, folded and unfolded, high refresh rate)
-and a friend on an iPhone 11 (Safari, installed to the home screen). The owner never reads code and merges automatically,
-so you are the last look before a change reaches both phones.
+const SYSTEM = `You are the second reviewer on a code change that is about to be merged into the default branch.
+Often nobody else reads this code before it ships, so you are the last look.
 
-You get the repo's CLAUDE.md (the house rules) and the diff of one release. Find what would actually go wrong:
-- breaks or throws on either phone (iOS Safari quirks, the folded 360-412px width, the unfolded ~860px width), or a screen that can no longer be reached
-- loses, corrupts or leaks saved data (localStorage S, cloud backup /vault, a migration that drops fields, private data or game titles in a public file)
-- breaks a hard rule in CLAUDE.md (press animation, animating anything but transform/opacity, looping blur, hex colours, native date inputs, a doctype, reassigning a wrapped const, layout read right after innerHTML, a fill-forwards animation never cancelled, *.json committed, a repo-root file deleted)
-- a release that is incomplete (APP_V bumped without a WHATS_NEW entry that has go/at/say/tryIt, a helper route the app calls but worker/helper.js lacks)
-- a real security hole (secrets, injection of untrusted text as HTML, an open proxy)
-- something switched off or hidden that still runs timers, listeners or redraws; a feature that duplicates another on the same screen
+You get the repo's CLAUDE.md (its house rules, if it has one), the project's own review notes (if any) and the diff. Find what would actually go wrong:
+- a bug, crash or error the change introduces; something that no longer works or can no longer be reached
+- loses, corrupts or leaks data (a migration that drops fields, secrets or personal data committed, private data in a public repo)
+- breaks a rule written in CLAUDE.md or the project's review notes
+- an incomplete change (a caller left pointing at something removed, a config or version bump the rules require but is missing)
+- a real security hole (secrets, injection, an open endpoint)
+- something switched off or hidden that still runs timers, listeners or work; two features doing the same job
 
 Only report what you can point to in the diff. No style nits, no "consider", no praise.
-severity "block" = it would visibly break, lose data, leak, or break a hard rule. Everything else is "note".
+severity "block" = it would visibly break, lose or leak data, or break a hard rule. Everything else is "note".
 
 Answer with JSON only, no prose, exactly: {"findings":[{"severity":"block"|"note","file":"path:line","what":"one sentence: what goes wrong and for whom","fix":"one sentence"}]}
 An empty list is a fine answer.`
 
 let root = ''
-let repo = 'shamlawy/Play-next'
+let repo = ''
+let mainBranch = 'main'
+// The project's own review notes (.claude/second-look.md): prose for the reviewer, plus "first:" and "skip:" path lines.
+let notes = { text: '', first: [] as string[], skip: [] as string[] }
+
 
 function git($: $, args: string[], timeoutMs = 30_000) {
   return $.process.run(['git', ...args], { cwd: root || undefined, timeoutMs })
 }
 
-// The diff a revision brings to main, biggest-risk files first, cut to what one request holds.
+// The diff a revision brings to the default branch, the project's "first:" paths first, cut to what one request holds.
 async function diffFor($: $, rev: string): Promise<{ diff: string; cut: boolean } | string> {
-  await git($, ['fetch', '-q', 'origin', 'main'], 40_000).catch(() => undefined)
-  const mb = await git($, ['merge-base', 'origin/main', rev])
-  if (mb.exitCode !== 0) return `no common base with origin/main for ${rev}`
+  await git($, ['fetch', '-q', 'origin', mainBranch], 40_000).catch(() => undefined)
+  const mb = await git($, ['merge-base', `origin/${mainBranch}`, rev])
+  if (mb.exitCode !== 0) return `no common base with origin/${mainBranch} for ${rev}`
   const base = mb.stdout.trim()
-  const first = await git($, ['diff', '-U5', base, rev, '--', 'index.html', 'sw.js', 'worker', 'manifest.webmanifest'])
-  const rest = await git($, ['diff', '-U3', base, rev, '--', '.', ':(exclude)index.html', ':(exclude)sw.js', ':(exclude)worker', ':(exclude)manifest.webmanifest', ...SKIP])
-  const all = `${first.stdout}${rest.stdout}`
+  const skip = [...SKIP, ...notes.skip].map(p => `:(exclude,glob)**/${p.replace(/^\/+/, '')}`)
+  const first = notes.first.length ? (await git($, ['diff', '-U5', base, rev, '--', ...notes.first])).stdout : ''
+  const rest = await git($, ['diff', '-U3', base, rev, '--', '.', ...notes.first.map(p => `:(exclude)${p}`), ...skip])
+  const all = `${first}${rest.stdout}`
   if (!all.trim()) return { diff: '', cut: false }
   return all.length > MAX_DIFF ? { diff: all.slice(0, MAX_DIFF), cut: true } : { diff: all, cut: false }
 }
@@ -70,7 +74,7 @@ async function review($: $, rev: string, sha: string): Promise<Review> {
     timeoutMs: 240_000,
     system: SYSTEM,
     prompt: [
-      { text: `CLAUDE.md:\n${typeof rules === 'string' ? rules : ''}`, cache: true },
+      { text: `CLAUDE.md:\n${typeof rules === 'string' && rules ? rules : '(none)'}${notes.text ? `\n\nThe project's review notes (.claude/second-look.md):\n${notes.text}` : ''}`, cache: true },
       { text: `\n\nThe release diff${got.cut ? ` (cut at ${MAX_DIFF} characters; the app files come first)` : ''}:\n${got.diff}` },
     ],
   })
@@ -114,6 +118,11 @@ export const register: Register = on => {
     const url = (await git($, ['remote', 'get-url', 'origin']).catch(() => undefined))?.stdout.trim() ?? ''
     const m = url.match(/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
     if (m) repo = `${m[1]}/${m[2]}`
+    const head = await git($, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).catch(() => undefined)
+    const b = head?.exitCode === 0 ? head.stdout.trim().replace(/^origin\//, '') : ''
+    if (b) mainBranch = b
+    const md = await $.fs.read(`${root}/.claude/second-look.md`).catch(() => '')
+    notes = readNotes(typeof md === 'string' ? md : '')
     await $.command.register({ name: 'second-look', description: 'Have a second Claude review this branch against CLAUDE.md now, the way it does before every merge.' })
     return next(e)
   })
@@ -132,24 +141,27 @@ export const register: Register = on => {
 
   on('tool.call', { tool: 'mcp__github__merge_pull_request' }, async ($, e, next) => {
     const a = e as unknown as { owner?: string; repo?: string; pullNumber?: number }
-    if (`${a.owner ?? ''}/${a.repo ?? ''}`.toLowerCase() !== repo.toLowerCase()) return next(e)
+    if (!repo || `${a.owner ?? ''}/${a.repo ?? ''}`.toLowerCase() !== repo.toLowerCase() || !a.pullNumber) return next(e)
     const pr = await $.http.fetch(`https://api.github.com/repos/${repo}/pulls/${a.pullNumber}`, {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'play-next-second-look' },
-    })
-    const info = pr.ok ? (JSON.parse(pr.text) as { head?: { sha?: string; ref?: string }; base?: { ref?: string } }) : {}
-    if (info.base?.ref !== 'main' || !info.head?.sha || !info.head.ref) return next(e)
-    await git($, ['fetch', '-q', 'origin', info.head.ref], 40_000)
-    const g = await gate($, info.head.sha, info.head.sha, 'merge')
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'second-look-mod' },
+    }).catch(() => undefined)
+    const info = pr?.ok ? (JSON.parse(pr.text) as { head?: { sha?: string }; base?: { ref?: string } }) : {}
+    if (info.base?.ref && info.base.ref !== mainBranch) return next(e)
+    // A private repo answers the API with 404: GitHub keeps every PR's head at pull/N/head, which git can fetch.
+    const got = await git($, ['fetch', '-q', 'origin', `pull/${a.pullNumber}/head`], 40_000)
+    const sha = info.head?.sha ?? (got.exitCode === 0 ? (await git($, ['rev-parse', 'FETCH_HEAD'])).stdout.trim() : '')
+    if (!sha) return next(e)
+    const g = await gate($, sha, sha, 'merge')
     if (g.deny) return { deny: g.deny }
     const ran = await next(e)
     return g.note && ran.deny === undefined ? { ...ran, context: [...(ran.context ?? []), g.note] } : ran
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!PUSH_MAIN.test(e.command) || /RG_SKIP=1/.test(e.command)) return next(e)
+    if (!root || !pushTo(mainBranch).test(e.command) || /RG_SKIP=1|LOOK_OK=1/.test(e.command)) return next(e)
     const sha = (await git($, ['rev-parse', 'HEAD'])).stdout.trim()
     if (!sha) return next(e)
-    const g = await gate($, 'HEAD', sha, 'push to main')
+    const g = await gate($, 'HEAD', sha, `push to ${mainBranch}`)
     if (g.deny) return { deny: g.deny }
     const ran = await next(e)
     return g.note && ran.deny === undefined ? { ...ran, context: [...(ran.context ?? []), g.note] } : ran

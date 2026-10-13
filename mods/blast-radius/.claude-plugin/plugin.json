@@ -1,0 +1,1 @@
+{ "name": "blast-radius", "version": "0.1.0", "description": "Before Claude runs a shell command that can destroy work (rm, find -delete, git reset --hard, git clean, git checkout --, force-push, branch -D), it measures what would go and holds the command once with the list. Deleting the repo, .git or home, or force-pushing the default branch is always stopped." }

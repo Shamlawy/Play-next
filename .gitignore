@@ -5,6 +5,11 @@ webkit-report.txt
 # ...except the Claude Code mods' own manifests (no private data)
 !.claude/skills/*/.claude-plugin/plugin.json
 !.claude/skills/*/hooks/hooks.json
+# ...and the shared mods (mods/, installable anywhere from .claude-plugin/marketplace.json)
+!.claude-plugin/marketplace.json
+!.claude/settings.json
+!mods/*/.claude-plugin/plugin.json
+!mods/*/hooks/hooks.json
 
 # where.mjs cache
 tools/.cache/
