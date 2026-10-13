@@ -1,0 +1,26 @@
+# Every Monday: the weekly usage counts the phones send (see worker/helper.js /usage) become one GitHub issue,
+# "Usage: what gets used and what doesn't" (label usage), listing every button and switch nobody has tapped.
+# Nothing to set up: the key comes from the CLOUDFLARE_API_TOKEN secret, like the problem reports.
+name: Usage
+on:
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+permissions:
+  issues: write
+  contents: read
+concurrency: usage
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Update the usage issue
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: node .github/scripts/usagesync.mjs

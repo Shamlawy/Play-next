@@ -1,8 +1,8 @@
 # Code health budget for tools/audit.mjs: the highest number allowed for each measure.
 # `node tools/audit.mjs --lower` lowers these after a cleanup. Raising one is a decision: edit by hand and say why in the commit.
 
-wraps              127    # wrap layers on functions (a later script replacing a function with one that calls the old one)
-deepWraps          7      # functions wrapped 4 or more times
+wraps              92     # wrap layers on functions (a later script replacing a function with one that calls the old one)
+deepWraps          0      # functions wrapped 4 or more times
 deadCode           0      # functions and top-level consts nothing uses
 deadCss            0      # CSS classes nothing in the page or the scripts uses
 cssOverridden      0      # CSS declarations that never apply (the same selector sets the same property again later)
@@ -13,3 +13,4 @@ intervals          10     # setInterval timers
 endlessAnimations  58     # animations that never stop (CSS `infinite`, Web Animations `Infinity`)
 subtreeObservers   7      # MutationObservers watching a whole subtree
 orphanSettings     0      # Settings keys listed in GROUP_KEYS that nothing reads
+lint               0      # bug finder findings (node tools/lint.mjs: undefined names, unused values, duplicate keys, unreachable code…)

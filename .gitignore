@@ -16,3 +16,6 @@ tools/.cache/
 
 # helper agents' temporary working copies (git worktrees)
 .claude/worktrees/
+
+# test tools installed with npm i --no-save (ESLint, Playwright): never committed
+node_modules/
