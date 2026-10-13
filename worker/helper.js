@@ -1292,7 +1292,7 @@ async function useTake(env, text) {
   if (old && Date.now() - (old.at || 0) < 20 * 3600e3) return { ok: true, kept: true };
   if (!old) { const page = await env.NUDGE.list({ prefix: "use:", limit: USE_MAX + 1 }); if (page.keys.length >= USE_MAX) return { ok: false, error: "full" }; }
   const plain = (x, n) => String(x || "").replace(/[^\w .()-]/g, "").slice(0, n);
-  const rec = { id, dev: plain(b.dev, 40), v: plain(b.v, 8), since: /^\d{4}-\d{2}-\d{2}$/.test(String(b.since)) ? b.since : "", at: Date.now(),
+  const rec = { id, dev: plain(b.dev, 40), v: plain(b.v, 8), since: /^\d{4}-\d{2}-\d{2}$/.test(String(b.since || "").slice(0, 10)) ? String(b.since).slice(0, 10) : "", at: Date.now(),
     taps: useCounts(b.taps), screens: useCounts(b.screens), opens: useCounts(b.opens), on: (Array.isArray(b.on) ? b.on : []).slice(0, 200).map(x => String(x).slice(0, 40)).filter(x => /^[\w-]+$/.test(x)) };
   await env.NUDGE.put("use:" + id, JSON.stringify(rec), { expirationTtl: USE_TTL });
   return { ok: true };

@@ -50,9 +50,9 @@ console.log(inv.size + " things to tap or switch in the app");
 /* ---- add up every phone ---- */
 /* whatever a phone sent is shown in a public issue: plain words and numbers only */
 const plain = (x, n) => String(x || "").replace(/[^\w .()-]/g, "").slice(0, n);
-for (const p of phones) { p.dev = plain(p.dev, 40); p.v = plain(p.v, 8); p.since = /^\d{4}-\d{2}-\d{2}$/.test(String(p.since)) ? p.since : ""; p.at = +p.at || 0;
+for (const p of phones) { p.dev = plain(p.dev, 40); p.v = plain(p.v, 8); p.since = /^\d{4}-\d{2}-\d{2}$/.test(String(p.since || "").slice(0, 10)) ? String(p.since).slice(0, 10) : ""; p.at = +p.at || 0;
   for (const f of ["taps", "screens", "opens"]) { const o = {}; for (const [k, v] of Object.entries(p[f] || {})) if (/^[#\w:/.-]{1,60}$/.test(k) && +v > 0) o[k] = Math.round(+v); p[f] = o; }
-  p.on = (Array.isArray(p.on) ? p.on : []).filter(x => /^\w{1,40}$/.test(String(x))); }
+  p.on = (Array.isArray(p.on) ? p.on : []).filter(x => /^[\w-]{1,40}$/.test(String(x))); }
 const sum = (field) => { const t = {}; for (const p of phones) for (const [k, v] of Object.entries(p[field] || {})) t[k] = (t[k] || 0) + v; return t; };
 const taps = sum("taps"), screens = sum("screens");
 const since = phones.map(p => p.since).filter(Boolean).sort()[0] || "";
