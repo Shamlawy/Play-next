@@ -7,6 +7,8 @@ type $ = EngineInterface
 // Never merges, rebases or touches uncommitted work: anything else is only reported. A fresh cloud copy is already current.
 
 let note = ''
+// The pull started at chat start: the first message waits for it (capped), so files don't change under Claude's first turn.
+let pending: Promise<void> | undefined
 
 async function pull($: $, cwd: string): Promise<string> {
   const git = (args: string[], timeoutMs = 20_000) => $.process.run(['git', ...args], { cwd, timeoutMs })
@@ -35,7 +37,7 @@ async function pull($: $, cwd: string): Promise<string> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    void pull($, e.cwd).then(text => {
+    pending = pull($, e.cwd).then(text => {
       if (!text) return
       note = text
       $.ui.toast(text.replace(/^auto-pull: /, ''), { timeoutMs: 10_000 })
@@ -44,7 +46,12 @@ export const register: Register = on => {
   })
 
   // The first message after the pull carries what came in, so Claude works from the new code knowingly.
-  on('prompt.submit', ($, e, next) => {
+  on('prompt.submit', async ($, e, next) => {
+    if (pending) {
+      const wait = pending
+      pending = undefined
+      await Promise.race([wait, $.clock.sleep(30_000)])
+    }
     if (!note) return next(e)
     const text = note
     note = ''

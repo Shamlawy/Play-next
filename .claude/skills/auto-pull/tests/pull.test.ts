@@ -83,4 +83,12 @@ describe('auto-pull', () => {
     await start($)
     expect(w.ran).toEqual(['git rev-parse --show-toplevel'])
   })
+
+  test('the first message waits for a pull still running', async ($, on) => {
+    const w = world(on, { behind: 1 })
+    await $.session.start({ cwd: '/repo', surface: null, isInteractive: true })
+    await $.prompt.submit({ text: 'right away' })
+    expect(w.ran).toContain('git merge --ff-only -q origin/main')
+    expect(w.contexts[0]).toContain('1 new commit(s)')
+  })
 })
