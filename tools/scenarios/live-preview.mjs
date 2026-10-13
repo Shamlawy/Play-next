@@ -1,4 +1,4 @@
-/* v277 (#171): Settings › Look of the app › Live preview (off by default). On: a screen's Customise docks (bottom part on a
+/* v278 (#171): Settings › Look of the app › Live preview (off by default). On: a screen's Customise docks (bottom part on a
    phone, one side unfolded) with the real screen in sight, and a change shows on that screen straight away. Settings only
    docks while a look group is open; editing a game never does; off = the full sheet as before.
      node tools/kit.mjs run tools/scenarios/live-preview.mjs --widths 412,859 */

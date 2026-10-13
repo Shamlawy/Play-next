@@ -1,4 +1,4 @@
-/* v277: save() had 10 wraps; now onSave({ before, after }) hooks. Everything that rode on a save still happens:
+/* v278: save() had 10 wraps; now onSave({ before, after }) hooks. Everything that rode on a save still happens:
    logged hours → logAt + lgH (one hook, was two), cloud backup marked dirty, a badge check queued, the CLEAR! banner when a
    game is finished, the boss HUD on a real backlog change, and a deleted game is not a hit (pnSilentHP, no HUD, max drops).
      node tools/kit.mjs run tools/scenarios/save-hooks.mjs */

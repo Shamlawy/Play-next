@@ -641,7 +641,7 @@
     letter-spacing: .1em; text-transform: uppercase; box-shadow: 0 0 0 1.5px rgba(var(--vrgb),.45), 0 4px 14px rgba(0,0,0,.4); cursor: pointer; }
   
   #full.dragging .hub { transition: none; }
-  /* v277 (#127): the browser only scrolls a game page up and down, so a touch that starts sideways stays a swipe to the next
+  /* v278 (#127): the browser only scrolls a game page up and down, so a touch that starts sideways stays a swipe to the next
      game (the swipe itself is ours, hubDragStart) instead of scrolling as well; pinch zoom still works */
   #full .hub { touch-action: pan-y pinch-zoom; }
   #full .hub.snap { transition: transform .34s cubic-bezier(.22,1,.36,1), opacity .34s ease; }
@@ -1042,7 +1042,10 @@
     font-size: clamp(12px, 3.4vw, 15px); font-weight: 800; color: var(--mute); font-variant-numeric: tabular-nums;
   }
   .cwrap.has .cday { color: var(--ice); }
-  .cwrap.past { opacity: .66; }   /* v276: .42 read 1.9:1 on the black background */
+  /* v277: past days fade their rings and covers, not their number (fading the whole cell read 2.2:1 on a coloured background) */
+  .cwrap.past::before { opacity: .25; }
+  .cwrap.past > i { opacity: .42; }
+  .cwrap.past .cday { font-weight: 500; }
   .cwrap.today::after {
     content: ""; position: absolute; inset: -3px; border-radius: 50%;
     border: 2px solid var(--ice);
@@ -3449,7 +3452,9 @@ const THEMES = {
 const theme = () => THEMES[S.theme] || THEMES.midnight;
 /* v276 background defaults: black, a little blue */
 const BG_BASE = "#000000", BG_TINT = "#2F6BFF", BG_GRAD = 30;
-const BG_BASES = ["#000000", "#04060E", "#0A0A0C", "#060B1A", "#0B0716", "#04100C", "#120608", "#141414"];
+/* v277 (the owner: "give different colours to it, not all black, but default black"): real colours, each dark enough
+   that white text still reads on it; the colour picker after them takes anything */
+const BG_BASES = ["#000000", "#0E1A3D", "#16307A", "#0C3D5C", "#0B4A48", "#0F3D22", "#2A1B5E", "#4A1460", "#5A1240", "#5C1020", "#5A2A0E", "#2E2E36"];
 const rgbOf = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(",");
 function applyLook() {
   const r = document.documentElement;
@@ -3984,7 +3989,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "277";
+const APP_V = "278";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -3995,7 +4000,7 @@ function installed() {
    need to know it worked. */
 let saveT = 0;
 const saveIdle = window.requestIdleCallback || (f => setTimeout(f, 0));
-/* v277: what else happens on a save. A feature registers onSave({ before, after }) instead of wrapping save (it had 10 wraps):
+/* v278: what else happens on a save. A feature registers onSave({ before, after }) instead of wrapping save (it had 10 wraps):
    befores run newest first, then the save is queued, then afters run oldest first (the order the wraps ran in);
    whatever a before returns is handed to its own after. */
 var saveHooks = [];
@@ -6459,7 +6464,7 @@ function openSettings(scope) {
       <label for="s-bggrad">How much gradient</label>
       <div class="rowline"><input id="s-bggrad" type="range" min="0" max="100" value="${num(S.bgGrad, BG_GRAD, 0, 100)}">
         <span class="v" id="s-bggrad-v">${num(S.bgGrad, BG_GRAD, 0, 100)}%</span></div>
-      <p class="note">Mostly black with a soft glow from the bottom. 0% is the plain background colour.</p>
+      <p class="note">Black unless you pick a colour: navy, blue, ocean, teal, forest, indigo, purple, plum, wine, rust, graphite, or any colour from the picker. A soft glow rises from the bottom; 0% is the plain background colour.</p>
       <label>Corners</label>
       <div class="chips" id="s-corners">
         ${[["round", "Rounded"], ["sharp", "Chamfered"]].map(([v, l]) =>
@@ -9502,7 +9507,7 @@ document.addEventListener("touchmove", e => {
   if (!b || !hubLive()) return;
   const dx = e.touches[0].clientX - hubX, dy = e.touches[0].clientY - hubY;
   if (!hd) {
-    /* v277 (#127): a drag picks its direction once, in its first 10px: one that starts as a scroll never turns into a swipe */
+    /* v278 (#127): a drag picks its direction once, in its first 10px: one that starts as a scroll never turns into a swipe */
     if (!hubAxis && Math.hypot(dx, dy) >= 10) hubAxis = Math.abs(dx) >= Math.abs(dy) * 1.2 ? "x" : "y";
     if (hubAxis !== "x") return;
     if (hubBusy || b.classList.contains("sliding") || b.querySelectorAll(".hub").length !== 1) return;
@@ -13698,7 +13703,7 @@ function pnPowerUp(line) {
   /* reacts when your backlog grows or shrinks */
   let last = hpNow();
   onSave({ after: () => { const hp = hpNow(), df = hp - last; last = hp;
-    if (df && !window.pnSilentHP && S.grum) {   /* v277: hidden (the default), he doesn't react to what he can't show */ look(); const a = arcG(), cls = df > 0 ? "gulp" : "ouch";
+    if (df && !window.pnSilentHP && S.grum) {   /* v278: hidden (the default), he doesn't react to what he can't show */ look(); const a = arcG(), cls = df > 0 ? "gulp" : "ouch";
       g.classList.remove("gulp", "ouch"); void g.offsetWidth; g.classList.add(cls); setTimeout(() => g.classList.remove(cls), 800);
       say(df > 0 ? pick(a === 0 ? [`+${df}h. Mmm, more for me 😈`, "Gulp. Thanks for the snack."] : a === 1 ? [`+${df}h… I'm trying not to eat it 🥺`] : [`+${df}h. Don't worry, we'll get through it 💛`])
                  : pick(a === 0 ? [`OW. -${-df}h. That one hurt 😤`, "No! That was MINE!"] : a === 1 ? [`-${-df}h. Thank you… really 🥹`] : [`-${-df}h! Nice hit ✨`])); }
@@ -16788,7 +16793,7 @@ function bugPath(el) {
   }
   return p.join(" > ");
 }
-/* v277: bugLayout had 6 wraps (v199–v208); folded into this: one input tracker (there were 3, 12 listeners) and BUG_AFTER,
+/* v278: bugLayout had 6 wraps (v199–v208); folded into this: one input tracker (there were 3, 12 listeners) and BUG_AFTER,
    the checks that run after every layout pass (each still lives in its own script). New checks push to BUG_AFTER. */
 let bugLastIn = 0;
 ["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { bugLastIn = performance.now(); }, { capture: true, passive: true }));
@@ -16963,7 +16968,7 @@ function bugPlace(scr) {
   return { home: "Home", add: "Add", games: "Games", plan: "Plan", taste: "Taste" }[t] || t || "this screen";
 }
 /* what Nexi says about a report he filed. A new check adds its line to BUG_NICE (before the first match wins:
-   [kind or "", /what the message says/, at => "the line"]) instead of wrapping this function (it had 7 wraps until v277) */
+   [kind or "", /what the message says/, at => "the line"]) instead of wrapping this function (it had 7 wraps until v278) */
 const BUG_NICE = [];
 function bugNice(kind, scr, msg) {
   const at = bugPlace(scr), At = at.charAt(0).toUpperCase() + at.slice(1);
@@ -17231,7 +17236,7 @@ if (!S.rowGlowMig) { if (S.rowArtGlow === 7) delete S.rowArtGlow; S.rowGlowMig =
 { const _al5 = applyLook; applyLook = function () { const o = _al5.apply(this, arguments);
   const g = num(S.rowArtGlow, 0, 0, 30); document.documentElement.style.setProperty("--rag", g + "px"); document.documentElement.classList.toggle("rowglow", g > 0); return o; }; }
 /* the problem checks never run while you're touching or scrolling: they wait until you've been still for a moment */
-/* (v200's "wait until the screen is still" gate now lives in bugLayout itself, v277) */
+/* (v200's "wait until the screen is still" gate now lives in bugLayout itself, v278) */
 /* game page: start fetching and decoding a game's pictures the moment a finger lands on it, not after the tap */
 addEventListener("pointerdown", e => {
   const t = e.target.closest && e.target.closest("[data-hub], [data-opg], [data-home-open], .dxr[data-open], .deck-g");
@@ -19974,7 +19979,7 @@ function sgCheck() { if (document.hidden || $("#fnask.on")) return; const g = sg
 setTimeout(sgCheck, 16000);
 { let away = 0; addEventListener("visibilitychange", () => { if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 3 * 36e5) setTimeout(sgCheck, 14000); }); }
 /* logging hours counts as touching it (logAt), and every change is kept with its day and size (lgH: v249's drifting games;
-   that used to be a second save wrap walking every game again, v277) */
+   that used to be a second save wrap walking every game again, v278) */
 { const lg = new Map(S.games.map(g => [g.id, +g.logged || 0]));
   onSave({ before: () => S.games.forEach(g => { const v = +g.logged || 0, was = lg.get(g.id);
     if (was != null && was !== v) { g.logAt = Date.now(); const d = Math.round((v - was) * 100) / 100;
@@ -21377,7 +21382,7 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
       const r = b.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || (b.checkVisibility && !b.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))) continue;
       bugReport("look", "A number in a tile is cut off", { at: bugPath(b) + " shows " + b.clientWidth + " of " + b.scrollWidth + "px", screen: scr }); break; } } catch (e) {}
   return o; }; }
-/* (v235's "wait while a page or sheet is still animating in" now lives in bugLayout itself, v277) */
+/* (v235's "wait while a page or sheet is still animating in" now lives in bugLayout itself, v278) */
 /* the one thing worth doing next, by where the game is: [attributes, label, kind] */
 function gdNext(g) {
   const st = gdState(g), p = playedRec(g), id = g.id;
@@ -23278,7 +23283,7 @@ setTimeout(() => { if (!smBusy()) smWatch([]); }, 32000);
 
 /* ---- 2. drifting games ---- */
 /* every change to the hours you logged is kept (the day it happened and how much), so the app sees your rhythm: g.lgH, kept by
-   the same save hook as logAt (v218's script, v277) */
+   the same save hook as logAt (v218's script, v278) */
 /* how far in you were when you dropped a game (your usual drop point, from now on) */
 { const _sp = syncPlayed; syncPlayed = function (g, state) {
   try { if (g && state === "dropped" && !g.dropP) { g.dropAt = Date.now(); const h = hrsOf(g); if (h > 0 && loggedOf(g) > 0) g.dropP = Math.round(Math.min(1, loggedOf(g) / h) * 100) / 100; }
@@ -25165,8 +25170,15 @@ WHATS_NEW.push(
     tryIt: "In Look of the app, slide How much gradient to 0% for pure black, or pick another background colour." }
 );
 </script>
+<script>
+WHATS_NEW.push(
+  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Background colour" }); }, at: () => $("#s-bgbase"),
+    say: "<b>Colour your background</b>: it's still black unless you choose, but now you can pick navy, blue, teal, forest, purple, plum, wine, rust and more, or any colour you like.",
+    tryIt: "Tap a colour under Background colour and watch every screen change behind your games." }
+);
+</script>
 <style>
-/* v277 (#171, the friend: "a live preview when I'm editing the looks of all features, the same look everywhere, smart, off by
+/* v278 (#171, the friend: "a live preview when I'm editing the looks of all features, the same look everywhere, smart, off by
    default"): with Settings › Look of the app › Live preview on, a screen's Customise (and the look groups of Settings: lvpSync)
    docks to the bottom part of the screen (phone) or to one side (unfolded: the side away from the rail), with no dark
    backdrop, so the real screen stays in sight and changes as you pick. Nothing new moves: the sheet's own slide-in is kept. */
@@ -25180,7 +25192,7 @@ html.lvp #sheet.on #sheet-in { margin: 0 auto; min-height: 100%; box-shadow: 0 -
 }
 </style>
 <script>
-/* v277 (#171): when the sheet docks for Live preview. A screen's Customise always does; Settings itself only while one of
+/* v278 (#171): when the sheet docks for Live preview. A screen's Customise always does; Settings itself only while one of
    the look groups is the one open (the rest, like backups, keep the full sheet). Editing a game never docks. */
 const LVP_GROUPS = ["Look of the app", "Motion", "Header cards", "Getting around"];
 let lvpScope = null;
@@ -25200,13 +25212,13 @@ new MutationObserver(() => { if (!document.getElementById("sheet").classList.con
 new MutationObserver(lvpSync).observe(document.getElementById("sheet-in"), { attributes: true, attributeFilter: ["class"] });
 document.addEventListener("toggle", e => { if (e.target.closest && e.target.closest("#sheet-in")) requestAnimationFrame(lvpSync); }, true);
 WHATS_NEW.push(
-  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Live preview" }); }, at: () => $("#s-livep"),
+  { v: 278, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Look of the app", text: "Live preview" }); }, at: () => $("#s-livep"),
     say: "<b>Live preview</b> while you customise: switch it on and every screen's Customise slides to the bottom (or the side when unfolded), so you watch the real screen change as you pick.",
     tryIt: "Turn Live preview on, open Games › Customise and change a card setting: the Queue above changes straight away." },
-  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); }, at: () => $("#fx-radar"),
+  { v: 278, go: () => { closeFull(); dyClose(); nxShut(); goTab("plan"); }, at: () => $("#fx-radar"),
     say: "<b>Radar got a makeover</b> in the app's own look, and it now lists every game with a release date ahead (it could miss some before). I'll also tell you myself if a screen ever slips back into the old slanted capitals.",
     tryIt: "Tap 📡 Radar on Plan." },
-  { v: 277, go: () => { closeFull(); dyClose(); nxShut(); const g = sortGames(allGames())[0]; if (g) openFull(g.id); }, at: null,
+  { v: 278, go: () => { closeFull(); dyClose(); nxShut(); const g = sortGames(allGames())[0]; if (g) openFull(g.id); }, at: null,
     say: "Swiping to the next game no longer scrolls the page up and down at the same time: a swipe that starts sideways stays sideways, and a scroll stays a scroll. I also keep an eye on myself now: if I ever vanish from the open rail, I report it.",
     tryIt: "On a game's page, swipe halfway to the next game and move your finger up and down: the page stays put." }
 );
@@ -25237,7 +25249,7 @@ WHATS_NEW.push(
 }
 </script>
 <style>
-/* v277 (#130, the owner: "Radar needs a makeover, looks kinda ugly and doesn't match our theme"): Radar in the Clean style.
+/* v278 (#130, the owner: "Radar needs a makeover, looks kinda ugly and doesn't match our theme"): Radar in the Clean style.
    Its words are sentence case now; Arcade keeps its capitals and slants (first rule). */
 html:not(.ui2) #fxrad :is(h1, .now, .d small, .cl, .left, .mo i) { text-transform: uppercase; }
 html.ui2 #fxrad { background: var(--bgb, black); padding-top: 18px; }
