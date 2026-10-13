@@ -73,7 +73,7 @@ for (const b of blocks) {
   }
 }
 /* the other two code files: the service worker, and the helper (a Cloudflare Worker, an ES module) */
-if (!opt("file")) for (const [file, sourceType, g] of [["sw.js", "script", globals.serviceworker], ["worker/helper.js", "module", { ...globals.serviceworker, ...globals.worker }]]) {
+if (FILE === path.join(ROOT, "index.html")) for (const [file, sourceType, g] of [["sw.js", "script", globals.serviceworker], ["worker/helper.js", "module", { ...globals.serviceworker, ...globals.worker }]]) {
   const p = path.join(ROOT, file); if (!fs.existsSync(p)) continue;
   for (const m of linter.verify(fs.readFileSync(p, "utf8"), [{ languageOptions: { ecmaVersion: "latest", sourceType, globals: g }, rules: RULES }]))
     found.push({ rule: m.ruleId || "parse", line: file + ":" + m.line, msg: m.message });
