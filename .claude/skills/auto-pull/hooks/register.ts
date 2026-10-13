@@ -9,6 +9,8 @@ type $ = EngineInterface
 let note = ''
 // The pull started at chat start: the first message waits for it (capped), so files don't change under Claude's first turn.
 let pending: Promise<void> | undefined
+// Set once the first message stopped waiting: a pull still running then skips the fast-forward.
+let late = false
 
 async function pull($: $, cwd: string): Promise<string> {
   const git = (args: string[], timeoutMs = 20_000) => $.process.run(['git', ...args], { cwd, timeoutMs })
@@ -28,6 +30,7 @@ async function pull($: $, cwd: string): Promise<string> {
   if (behind <= 0) return ''
   const ahead = await count(`${remote}..HEAD`)
   if (ahead > 0) return `auto-pull: ${branch} is ${behind} commit(s) behind ${remote} and has ${ahead} of its own; not pulled. Merge ${remote} before working on it.`
+  if (late) return `auto-pull: ${branch} is ${behind} commit(s) behind ${remote}; GitHub was slow, so it wasn't pulled mid-turn. Pull before working on it.`
   const ff = await git(['merge', '--ff-only', '-q', remote], 60_000)
   if (ff.exitCode !== 0) return `auto-pull: ${branch} is ${behind} commit(s) behind ${remote} but couldn't fast-forward (uncommitted edits in the way?): ${ff.stderr.trim().split('\n')[0] ?? ''}`
   const log = (await git(['log', '--format=%s', '-n', '5', `HEAD~${Math.min(behind, 5)}..HEAD`])).stdout.trim().split('\n').filter(Boolean)
@@ -41,7 +44,7 @@ export const register: Register = on => {
       if (!text) return
       note = text
       $.ui.toast(text.replace(/^auto-pull: /, ''), { timeoutMs: 10_000 })
-    }, () => undefined)
+    }).catch(() => undefined)
     return r
   })
 
@@ -50,7 +53,9 @@ export const register: Register = on => {
     if (pending) {
       const wait = pending
       pending = undefined
-      await Promise.race([wait, $.clock.sleep(30_000)])
+      let done = false
+      await Promise.race([wait.then(() => { done = true }), $.clock.sleep(30_000)]).catch(() => undefined)
+      if (!done) late = true
     }
     if (!note) return next(e)
     const text = note
