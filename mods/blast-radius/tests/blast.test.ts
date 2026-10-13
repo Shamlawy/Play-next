@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { protectPatterns, risks, sortFiles } from '../hooks/blast.ts'
+import { fromGit, join, protectPatterns, risks, sortFiles } from '../hooks/blast.ts'
 
 // A fake repo at /repo: what git and the file walk answer.
 function world(on: any, w: { files?: string; tracked?: string; fresh?: string; diff?: string; ahead?: string; branch?: string; protect?: string }) {
@@ -31,6 +31,7 @@ function world(on: any, w: { files?: string; tracked?: string; fresh?: string; d
 }
 const start = ($: any) => $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
 const bash = ($: any, command: string) => $.tool.call({ tool: 'Bash', command } as any) as Promise<any>
+const pwsh = ($: any, command: string) => $.tool.call({ tool: 'PowerShell', command } as any) as Promise<any>
 
 describe('blast-radius', () => {
   test('finds the destructive parts of a command', () => {
@@ -39,6 +40,35 @@ describe('blast-radius', () => {
     expect(r[0]).toEqual({ kind: 'rm', cwd: '/repo/tools', targets: ['scenarios/old', 'my dir'] })
     expect(r[2]).toEqual({ kind: 'force', cwd: '/repo/tools', src: 'HEAD', dst: 'claude/x' })
     expect(risks('git push -u origin claude/x && git checkout -b y && git restore --staged a.txt', '/repo')).toEqual([])
+  })
+
+  test('reads PowerShell deletes and Windows paths', () => {
+    const r = risks('Set-Location tools; Remove-Item -Recurse -Force scenarios\\old, "my dir"; ri -LiteralPath a.txt; git reset --hard; Get-ChildItem', '/repo', '/root', true)
+    expect(r.map(x => x.kind)).toEqual(['rm', 'rm', 'reset'])
+    expect(r[0]).toEqual({ kind: 'rm', cwd: '/repo/tools', targets: ['scenarios\\old', 'my dir'] })
+    expect(r[1]).toEqual({ kind: 'rm', cwd: '/repo/tools', targets: ['a.txt'] })
+    expect(risks('Remove-Item x', '/repo')).toEqual([])
+    expect(join('C:/Users/PC/repo', 'tools\\x\\..\\y')).toBe('C:/Users/PC/repo/tools/y')
+    expect(join('c:\\Users\\PC\\repo', 'D:\\stuff')).toBe('D:/stuff')
+    expect(join('C:/Users/PC/repo', '~\\notes.txt', 'C:/Users/PC')).toBe('C:/Users/PC/notes.txt')
+    expect(fromGit(['tools', '*.json', 'C:/elsewhere/x'], 'C:/r', 'C:/r', ['tools/a.mjs', 'tools/b/c.mjs', 'toolsy.txt', 'b.json', 'd/e.json'])).toEqual(['C:/r/tools/a.mjs', 'C:/r/tools/b/c.mjs', 'C:/r/b.json', 'C:/elsewhere/x'])
+    expect(sortFiles(['C:/Users/PC'], 'C:/Users/PC/repo', new Set(), new Set(), [], 'C:/Users/PC').whole).toBe(true)
+    expect(sortFiles(['C:/'], 'C:/Users/PC/repo', new Set(), new Set()).whole).toBe(true)
+  })
+
+  test('PowerShell: Remove-Item of new files is held once, .git is always stopped, git works the same', async ($, on) => {
+    const ran = world(on, { tracked: 'tools/scenarios/a.mjs\n', fresh: 'tools/scenarios/b.mjs\n', diff: 'index.html\n' })
+    await start($)
+    const r1 = await pwsh($, 'Remove-Item tools\\scenarios -Recurse -Force')
+    expect(r1.deny).toContain('not in git yet')
+    expect(r1.deny).toContain('tools/scenarios/b.mjs')
+    expect(ran.length).toBe(0)
+    expect((await pwsh($, 'Remove-Item tools\\scenarios -Recurse -Force')).deny).toBeUndefined()
+    expect(ran.length).toBe(1)
+    expect((await pwsh($, 'ri .git -r -fo')).deny).toContain('stopped')
+    expect((await pwsh($, 'git reset --hard')).deny).toContain('index.html')
+    expect((await pwsh($, 'git push --force origin HEAD:main')).deny).toContain('never rewrite it')
+    expect((await pwsh($, 'Get-ChildItem; git status')).deny).toBeUndefined()
   })
 
   test('sorts deleted files by how much they matter', () => {

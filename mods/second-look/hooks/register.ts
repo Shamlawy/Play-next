@@ -111,6 +111,14 @@ async function gate($: $, rev: string, sha: string, where: string): Promise<{ de
   return { note: said || undefined }
 }
 
+// A shell command that pushes to the default branch gets the same review as a merge; anything else, undefined.
+async function pushGate($: $, cmd: string) {
+  if (!root || !pushTo(mainBranch).test(cmd) || /RG_SKIP=1|LOOK_OK=1/.test(cmd)) return undefined
+  const sha = (await git($, ['rev-parse', 'HEAD'])).stdout.trim()
+  if (!sha) return undefined
+  return gate($, 'HEAD', sha, `push to ${mainBranch}`)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd: e.cwd }).catch(() => undefined)
@@ -158,12 +166,18 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!root || !pushTo(mainBranch).test(e.command) || /RG_SKIP=1|LOOK_OK=1/.test(e.command)) return next(e)
-    const sha = (await git($, ['rev-parse', 'HEAD'])).stdout.trim()
-    if (!sha) return next(e)
-    const g = await gate($, 'HEAD', sha, `push to ${mainBranch}`)
-    if (g.deny) return { deny: g.deny }
+    const g = await pushGate($, e.command)
+    if (g?.deny) return { deny: g.deny }
     const ran = await next(e)
-    return g.note && ran.deny === undefined ? { ...ran, context: [...(ran.context ?? []), g.note] } : ran
+    return g?.note && ran.deny === undefined ? { ...ran, context: [...(ran.context ?? []), g.note] } : ran
+  }).catch(($, e, next) => next(e))
+
+  // PowerShell is the shell tool Claude Code uses on Windows: the same push, the same review.
+  on('tool.call', { tool: 'PowerShell' }, async ($, e, next) => {
+    const cmd = (e as unknown as { command?: unknown }).command
+    const g = typeof cmd === 'string' ? await pushGate($, cmd) : undefined
+    if (g?.deny) return { deny: g.deny }
+    const ran = await next(e)
+    return g?.note && ran.deny === undefined ? { ...ran, context: [...(ran.context ?? []), g.note] } : ran
   }).catch(($, e, next) => next(e))
 }

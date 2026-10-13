@@ -110,4 +110,14 @@ describe('second-look', () => {
     const r1 = await $.tool.call({ tool: 'Bash', command: 'git push origin HEAD:main' } as any) as any
     expect(r1.deny).toContain('second-look held this push to main')
   })
+
+  test('a push to main from PowerShell (Windows) is reviewed the same way', async ($, on) => {
+    const w = world(on, { diff: '+x\n', answers: [BLOCK] })
+    await start($)
+    const r0 = await $.tool.call({ tool: 'PowerShell', command: 'git push -u origin claude/x; Get-ChildItem' } as any) as any
+    expect(r0.deny).toBeUndefined()
+    expect(w.asked.length).toBe(0)
+    const r1 = await $.tool.call({ tool: 'PowerShell', command: 'Set-Location C:\\code\\app; git push origin HEAD:main' } as any) as any
+    expect(r1.deny).toContain('second-look held this push to main')
+  })
 })

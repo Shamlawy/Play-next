@@ -64,28 +64,60 @@ export function segments(cmd: string): string[] {
 }
 
 export function join(base: string, p: string, home = '/root'): string {
-  const raw = p === '~' || p.startsWith('~/') ? home + p.slice(1) : p
-  const abs = raw.startsWith('/') ? raw : `${base.replace(/\/+$/, '')}/${raw}`
+  const fix = (x: string) => x.replace(/\\/g, '/').replace(/^([a-zA-Z]):/, (_, d: string) => `${d.toUpperCase()}:`)
+  const h = fix(home)
+  let raw = fix(p)
+  if (raw === '~' || raw.startsWith('~/')) raw = h + raw.slice(1)
+  else if (/^\$(env:USERPROFILE|HOME)(\/|$)/i.test(raw)) raw = h + raw.replace(/^\$(env:USERPROFILE|HOME)/i, '')
+  const drive = (x: string) => /^[A-Z]:(\/|$)/.test(x)
+  const abs = raw.startsWith('/') || drive(raw) ? raw : `${fix(base).replace(/\/+$/, '')}/${raw}`
+  const pre = drive(abs) ? abs.slice(0, 2) : ''
   const parts: string[] = []
-  for (const part of abs.split('/')) {
+  for (const part of abs.slice(pre.length).split('/')) {
     if (!part || part === '.') continue
     if (part === '..') parts.pop()
     else parts.push(part)
   }
-  return '/' + parts.join('/')
+  return pre + '/' + parts.join('/')
 }
+
+// PowerShell's ways to delete and to change folder (names and aliases, any case).
+const PS_DELETE = new Set(['remove-item', 'ri', 'rm', 'del', 'erase', 'rd', 'rmdir'])
+const PS_CD = new Set(['cd', 'set-location', 'sl', 'chdir', 'pushd'])
+// Remove-Item parameters that name what goes, and ones whose value only narrows it.
+const PS_PATH = /^-(path|literalpath|lp|pspath)$/i
+const PS_VALUE = /^-(include|exclude|filter|credential|stream)$/i
 
 const ENV = /^[A-Za-z_][A-Za-z0-9_]*=/
 
 // Every destructive part of `cmd`, run from `cwd`.
-export function risks(cmd: string, cwd: string, home = '/root'): Risk[] {
+// `ps`: the command is PowerShell (Windows), where deleting is Remove-Item and its aliases.
+export function risks(cmd: string, cwd: string, home = '/root', ps = false): Risk[] {
   const out: Risk[] = []
   let dir = cwd
   for (const seg of segments(cmd)) {
     let w = words(seg)
     while (w.length && (ENV.test(w[0] ?? '') || w[0] === 'sudo' || w[0] === 'command' || w[0] === 'time')) w = w.slice(1)
-    const [head, ...rest] = w
-    if (!head) continue
+    const [first, ...rest] = w
+    if (!first) continue
+    const head = ps ? first.toLowerCase().replace(/\.exe$/, '') : first
+    if (ps && PS_CD.has(head)) {
+      const to = rest.find((a, i) => !a.startsWith('-') || PS_PATH.test(rest[i - 1] ?? '')) ?? ''
+      dir = to && !to.startsWith('-') ? join(dir, to, home) : home
+      continue
+    }
+    if (ps && PS_DELETE.has(head)) {
+      const targets: string[] = []
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i] ?? ''
+        if (PS_PATH.test(a)) targets.push(...(rest[++i] ?? '').split(','))
+        else if (PS_VALUE.test(a)) i++
+        else if (!a.startsWith('-')) targets.push(...a.split(','))
+      }
+      const real = targets.map(t => t.trim()).filter(Boolean)
+      if (real.length) out.push({ kind: 'rm', cwd: dir, targets: real })
+      continue
+    }
     if (head === 'cd') {
       const to = rest[0]
       dir = to && to !== '-' ? join(dir, to, home) : home
@@ -145,7 +177,7 @@ export function risks(cmd: string, cwd: string, home = '/root'): Risk[] {
 // Which deleted files matter. `repo` = repo root; `kept` = tracked + untracked-not-ignored paths (repo-relative); `tracked` ⊂ kept.
 export type Sorted = { tracked: string[]; fresh: string[]; ignored: string[]; outside: string[]; protected: string[]; whole: boolean }
 
-const SAFE_OUTSIDE = [/^\/tmp(\/|$)/, /^\/var\/tmp(\/|$)/, /\/scratchpad(\/|$)/, /\/node_modules(\/|$)/]
+const SAFE_OUTSIDE = [/^\/tmp(\/|$)/, /\/AppData\/Local\/Temp(\/|$)/i, /^\/var\/tmp(\/|$)/, /\/scratchpad(\/|$)/, /\/node_modules(\/|$)/]
 // Ignored files in a repo that are only caches/build output; everything else ignored (a .env, a backup) counts.
 const SAFE_IGNORED = [/(^|\/)node_modules\//, /(^|\/)\.cache\//, /(^|\/)(dist|build|out|coverage|\.next|\.turbo|__pycache__|\.pytest_cache|\.venv|venv|target)\//, /\.pyc$/, /(^|\/)test-results\//, /(^|\/)playwright-report\//, /(^|\/)\.DS_Store$/]
 
@@ -157,11 +189,11 @@ export function protectPatterns(text: string): RegExp[] {
   })
 }
 
-export function sortFiles(abs: readonly string[], repo: string, tracked: ReadonlySet<string>, kept: ReadonlySet<string>, protect: readonly RegExp[] = []): Sorted {
+export function sortFiles(abs: readonly string[], repo: string, tracked: ReadonlySet<string>, kept: ReadonlySet<string>, protect: readonly RegExp[] = [], home = '/root'): Sorted {
   const s: Sorted = { tracked: [], fresh: [], ignored: [], outside: [], protected: [], whole: false }
   const pre = repo.replace(/\/+$/, '') + '/'
   for (const a of abs) {
-    if (a === repo || a === '/' || a === '/root' || a === '/home' || pre.startsWith(a + '/')) {
+    if (a === repo || a === '/' || a === '/root' || a === '/home' || a === home || /^[A-Z]:\/?$/.test(a) || /^[A-Z]:\/Users\/?$/.test(a) || pre.startsWith(a + '/')) {
       s.whole = true
       continue
     }
@@ -186,4 +218,24 @@ export function list(xs: readonly string[], max = 12): string {
   const shown = xs.slice(0, max).map(x => `  - ${x}`)
   if (xs.length > max) shown.push(`  - …and ${xs.length - max} more`)
   return shown.join('\n')
+}
+
+// What deleting `targets` from `cwd` takes, read from git's own lists instead of walking the disk (no bash on Windows):
+// every tracked, untracked or ignored file at or under a target (globs matched), plus each target outside the repo as is.
+export function fromGit(targets: readonly string[], cwd: string, repo: string, files: readonly string[], home = '/root'): string[] {
+  const out: string[] = []
+  const pre = repo.replace(/\/+$/, '') + '/'
+  for (const t of targets) {
+    const abs = join(cwd, t, home)
+    if (!abs.startsWith(pre)) {
+      out.push(abs)
+      continue
+    }
+    const rel = abs.slice(pre.length)
+    const glob = /[*?[]/.test(rel)
+    const re = glob ? new RegExp(`^${rel.replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')}(/|$)`) : undefined
+    for (const f of files) if (re ? re.test(f) : f === rel || f.startsWith(rel + '/')) out.push(pre + f)
+    if (rel === '.git' || rel.startsWith('.git/')) out.push(abs)
+  }
+  return out
 }
