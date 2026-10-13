@@ -1,0 +1,1 @@
+{ "name": "auto-pull", "version": "0.1.0", "description": "Every chat starts on the newest code: at the start it fetches from GitHub and fast-forwards the current branch when it is behind (changes made in the cloud or by the daily fixer reach a copy on a computer by themselves), and tells Claude what came in." }
