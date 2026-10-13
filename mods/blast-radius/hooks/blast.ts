@@ -212,7 +212,7 @@ export function sortFiles(abs: readonly string[], repo0: string, tracked0: Reado
   const home = f(home0)
   const tracked = new Set([...tracked0].map(f))
   const kept = new Set([...kept0].map(f))
-  const protect = protect0.map(r => (f === fold('/') ? r : new RegExp(r.source, 'i')))
+  const protect = /^[A-Za-z]:/.test(repo0) ? protect0.map(r => new RegExp(r.source, r.flags.includes('i') ? r.flags : `${r.flags}i`)) : protect0
   const pre = repo.replace(/\/+$/, '') + '/'
   for (const a0 of abs) {
     const a = f(a0)
