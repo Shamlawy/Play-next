@@ -140,7 +140,7 @@ function measure() {
   add("intervals", "setInterval timers", [...js.matchAll(/setInterval\(/g)].map(m => `line ${lineAt(html.indexOf(m[0], 0))}`).map((x, i) => "setInterval #" + (i + 1)), "a timer that runs only while it's needed");
   const inf = [...css.matchAll(/animation[^;{}]*\binfinite\b/g)].length + [...js.matchAll(/iterations:\s*Infinity/g)].length;
   add("endlessAnimations", "animations that never stop (CSS `infinite`, Web Animations `Infinity`)", Array.from({ length: inf }, (_, i) => "#" + (i + 1)), "stop them when nothing should move (speed rule)");
-  add("subtreeObservers", "MutationObservers watching a whole subtree", [...js.matchAll(/subtree:\s*true/g)].map((m, i) => "#" + (i + 1)), "watch the one element that changes");
+  add("subtreeObservers", "MutationObservers watching a whole subtree (not getAnimations({ subtree: true }), v280)", [...js.matchAll(/subtree:\s*true/g)].filter(m => !/getAnimations\(\s*\{[^}]*$/.test(js.slice(Math.max(0, m.index - 60), m.index))).map((m, i) => "#" + (i + 1)), "watch the one element that changes");
 
   /* settings that point at nothing */
   const gk = (html.match(/const GROUP_KEYS = \{([\s\S]*?)\n\};/) || [])[1] || "", orphan = [];
