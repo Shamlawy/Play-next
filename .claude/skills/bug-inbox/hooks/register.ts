@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 import { firstNote, listing, LOUD, line, parse, status, type Issue, type Report } from './inbox.ts'
-import { checkHere, isHere } from './here.ts'
+import { herePath, isHere, setHere } from './here.ts'
 
 type $ = EngineInterface
 
@@ -57,11 +57,17 @@ async function refresh($: $) {
   }
 }
 
+// On only in a repo that carries this mod (see here.ts); kept in this file, as $ never crosses an import.
+async function checkHere($: $, cwd: string) {
+  const path = herePath(cwd, 'bug-inbox')
+  return setHere(path ? await $.fs.exists(path).catch(() => false) : false)
+}
+
 export const register: Register = on => {
   let news: Report[] = []
 
   on('session.start', async ($, e, next) => {
-    if (!(await checkHere($, e.cwd, 'bug-inbox'))) return next(e)
+    if (!(await checkHere($, e.cwd))) return next(e)
     try {
       const url = (await $.process.run(['git', 'remote', 'get-url', 'origin'], { cwd: e.cwd })).stdout.trim()
       const m = url.match(/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
