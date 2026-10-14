@@ -27,6 +27,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L19** · 2026-10-14 · v280 · `gh pr create`, `PowerShell` — On the Windows PC, PowerShell 5.1 splits a --body with double quotes inside into stray arguments (gh: unknown arguments): write PR text to a scratchpad file and pass --body-file, and use the Bash tool for claude -p (PowerShell passes no prompt).
 - **L20** · 2026-10-14 · v280 · `Bash`, `node`, `python` — On the Windows PC the Bash tool has no node on PATH and there is no python: run node as /c/Program Files/nodejs/node.exe (or use PowerShell after refreshing PATH), and write multi-line edit scripts to a scratchpad .cjs file.
 - **L21** · 2026-10-14 · v280 · `mods/*/hooks`, `register.tsx` — A mod module that declares a variable named on (the register arg) fails to load (on is declared again): never name a local on, even inside a render callback; run claude plugin test right after each mod edit.
+- **L22** · 2026-10-14 · v280 · `.claude/skills/learn`, `turn.complete`, `M8` — The learn mod's 'asked for something automatic' trigger fired on a handoff brief (the first message came from another session, not the person) → treat a session-sent first message like a system-reminder: scan only words the person typed (fold into M8).
 
 ## Missed opportunities
 
