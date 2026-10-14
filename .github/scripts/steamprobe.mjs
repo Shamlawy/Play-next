@@ -23,14 +23,21 @@ for (const w of WHO) {
     if (games.length && !good) good = { w, id: tag("steamID64") };
   } catch (e) { console.log(` ${w}: profile xml error ${e.message}`); }
 }
-if (good) {
-  const b = base(good.w);
-  for (const u of [b + "/games/?tab=all&xml=1", b + "/games/?tab=recent", "https://steamcommunity.com/miniprofile/" + (BigInt(good.id) - 76561197960265728n) + "/json"]) {
+const pub = [];
+for (const w of WHO) { try { const t = await (await fetch(base(w) + "/?xml=1", { headers: { "User-Agent": UA } })).text(); if (/<privacyState>public</.test(t)) pub.push([w, (t.match(/<steamID64>(\d+)/) || [])[1]]); } catch (e) {} }
+if (!good && pub[0]) good = { w: pub[0][0], id: pub[0][1] };
+for (const [w, id] of pub.slice(0, 4)) {
+  const b = base(w);
+  for (const u of [b + "/games/?tab=all&xml=1", b + "/games/?tab=all", b + "/", "https://steamcommunity.com/miniprofile/" + (BigInt(id) - 76561197960265728n) + "/json"]) {
     try { const r = await fetch(u, { headers: { "User-Agent": UA } }); const t = await r.text();
-      console.log(` ${u.replace(/\d{17}/, "<id>")}: ${r.status} ${r.headers.get("content-type")} ${t.length} chars`);
-      const m = t.match(/data-profile-gameslist="([^"]{0,600})/); if (m) console.log("   gameslist attr:", cut(m[1].replace(/&quot;/g, '"'), 500));
-      else console.log("   start:", cut(t.replace(/<[^>]+>/g, " "), 300));
-      const pt = t.match(/"playtime_forever":\d+/g); if (pt) console.log("   playtime_forever entries:", pt.length);
+      console.log(` ${u}: ${r.status} ${r.headers.get("content-type")} ${t.length} chars`);
+      const m = t.match(/data-profile-gameslist="([^"]{0,700})/); if (m) console.log("   gameslist attr:", cut(m[1].replace(/&quot;/g, '"'), 600));
+      const pt = t.match(/"?playtime_forever"?\s*[:=]\s*\d+/g); if (pt) console.log("   playtime_forever entries:", pt.length, pt.slice(0, 3).join(" "));
+      const hr = [...t.matchAll(/class="recent_game_content"[\s\S]{0,900}?game_info_details">\s*([^<]*)/g)].map(x => cut(x[1], 80)); if (hr.length) console.log("   recent games (profile html):", hr.slice(0, 3).join(" | "));
+      const gn = [...t.matchAll(/class="game_name"[^>]*>(?:<a[^>]*>)?([^<]*)/g)].map(x => cut(x[1], 40)); if (gn.length) console.log("   game names:", gn.slice(0, 3).join(" | "));
+      const xg = (t.match(/<game>/g) || []).length; if (xg) console.log("   xml <game> entries:", xg, cut((t.match(/<game>[\s\S]*?<\/game>/) || [""])[0], 400));
+      if (u.includes("miniprofile")) console.log("   ", cut(t, 300));
+      if (!m && !pt && !hr.length && !xg && !u.includes("miniprofile")) console.log("   text:", cut(t.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " "), 240));
     } catch (e) { console.log(" ", u, "error", e.message); }
   }
 }
