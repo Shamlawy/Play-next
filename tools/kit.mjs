@@ -124,7 +124,7 @@ function serve() {
 async function launch() {
   if (WK) return (await pw()).webkit.launch();
   const { chromium } = await pw();
-  const exe = ["/opt/pw-browsers/chromium/chrome-linux/chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(f => fs.existsSync(f));
+  const exe = [process.env.CHROME, "/opt/pw-browsers/chromium/chrome-linux/chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(f => fs.existsSync(f));
   /* no browser swipe-back: a real finger swiping right on a game page otherwise "goes back" to about:blank (the installed
      app has no browser history gesture) */
   const args = ["--overscroll-history-navigation=0", "--disable-features=OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation"];

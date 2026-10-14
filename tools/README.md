@@ -22,6 +22,7 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/lint.mjs` | The bug finder: ESLint's correctness rules (undefined names, unused values, duplicate keys, unreachable code, a function declared twice…) over every script block, sw.js and worker/helper.js, with every script's top-level names known. The audit counts its findings (`lint`, budget 0). Needs `npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0` | 3 s |
 | `node tools/audit.mjs --fix-css` | Removes CSS declarations that can never apply (the same selector sets the same property later in the same @media). Then prove it: `node tools/kit.mjs samecss --before old.html` (the browser applies exactly the same CSS) and `node tools/audit.mjs --verify old.html` | 2 s |
 | `node tools/kit.mjs run x.mjs --browser webkit` | A scenario in Safari's engine. Not in this container (Chromium only): on GitHub, run `webkit-check.yml` with its `scenario` input (e.g. `tools/scenarios/rail-nexi.mjs`, widths `414,1080`: iPhone 11, iPad sideways) | — |
+| `node tools/steam-sessions.mjs` | The helper's Steam session code (`/steam/me`, `/steam/sync`, the cron) against a fake Steam profile page and push service, in Node: 17 checks | 1 s |
 | `node tools/map.mjs --dead` | Lists functions, consts, CSS classes and ids that look unused. These are candidates only: some names are built from strings | 1 s |
 
 Options for kit.mjs:
@@ -29,6 +30,7 @@ Options for kit.mjs:
 - `--widths 412,900` sets the screen widths.
 - `--cpu 4` sets how much `perf` slows the CPU.
 - `--set '{"bugOff":true}'` adds saved settings to every test phone.
+- `CHROME=<path>` (environment) runs another Chrome, e.g. a newer Chrome for Testing for features the bundled Chromium lacks (v280's scroll triggers need 145+).
 - `--shots dir` makes `tour` save a screenshot of each step.
 
 Saved scenarios live in `tools/scenarios/` (the scratchpad is lost with the chat). The sweep waits 2.6s on each screen because the app's layout check runs 1.6s after a screen change, when idle: with 1.4s, a planted cut-off button was reported on 3 screens instead of 10. The test browser has swipe-back turned off, because a right swipe on a game page otherwise "goes back" to about:blank.

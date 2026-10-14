@@ -17,16 +17,17 @@
    POST /hours        → time to beat (main / main + extras / everything) for a list of games, from HowLongToBeat (v17; the AI's guesses before).
    POST /news         → the latest official announcements (patches, DLC, demos, launches) from Steam for a list of Steam ids (v18).
    POST /cal/put, GET /cal/<id>.ics → release days as a calendar feed the phone's calendar subscribes to (v18).
+   POST /steam/me, POST /steam/sync → play sessions from a linked Steam profile, found by the cron (v20, end of the file).
    POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
-   cron (every 15 min) → sends the nudges that are due, and is the backup for new-version pings.
+   cron (every 15 min) → sends the nudges that are due, is the backup for new-version pings, checks price drops and Steam sessions.
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 19;
+const HELPER_V = 20;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -51,7 +52,7 @@ export default {
     try { return await handle(req, env); }
     catch (e) { return json({ error: String(e && e.message || e) }, 500, cors(req.headers.get("Origin") || "")); }
   },
-  async scheduled(ev, env, ctx) { ctx.waitUntil(Promise.all([sendDue(env), checkUpdate(env), pxCron(env).catch(() => {})])); }
+  async scheduled(ev, env, ctx) { ctx.waitUntil(Promise.all([sendDue(env), checkUpdate(env), pxCron(env).catch(() => {}), spCron(env).catch(() => {})])); }
 };
 
 /* #428: a .slice() through an emoji leaves half of it (a lone surrogate). JSON.stringify writes that as "\ud83d",
@@ -135,10 +136,11 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
+    if ((url.pathname === "/steam/me" || url.pathname === "/steam/sync") && req.method === "POST") return spRoute(req, env, h, url);
     if (url.pathname === "/reviews" && req.method === "POST") return rvRoute(req, env, h);
     if (url.pathname === "/hours" && req.method === "POST") return hbRoute(req, env, h);
     if (url.pathname === "/art" && req.method === "POST") return artRoute(req, env, h);
@@ -1381,4 +1383,110 @@ async function calGet(env, url) {
   if (!rec) return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain" } });
   return new Response(calIcs(rec.ev || [], rec.t), { status: 200, headers: { "Content-Type": "text/calendar; charset=utf-8", "Cache-Control": "max-age=1800",
     "Content-Disposition": 'inline; filename="play-next.ics"', "Access-Control-Allow-Origin": "*" } });
+}
+
+/* ===== v20: play sessions from Steam, by themselves. The phone links a Steam profile once (POST /steam/me {id, who, apps});
+   from then on the cron (every 15 min) looks at that profile's public page: "in a game" starts a session, "not any more" ends
+   it, and a phone with notifications gets "🎮 <game> · 1h 20m — how was it?". The phone picks the finished sessions up with
+   POST /steam/sync {id, apps} (which also looks right then) and logs them on the game. Keyless: Steam's public profile
+   (?xml=1) says whether you're in a game and which one; the games list with hours now needs a sign-in, so a session is
+   timed from the checks (start and end are each the middle of two checks, so ±7 minutes). Needs a public profile.
+   KV sp:<phone id> = {sid, nm, apps: [{k, a, t}], live: {a, n, s, l} | null, done: [{k, a, n, s, e}], err}. ===== */
+const SP_TTL = 120 * 86400, SP_GAP = 15 * 60e3, SP_MAX_H = 10, SP_KEEP = 10 * 864e5;
+const spTag = (t, n) => { const m = t.match(new RegExp(`<${n}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${n}>`)); return m ? m[1].trim() : ""; };
+/* "https://steamcommunity.com/id/name/", "steamcommunity.com/profiles/7656…", a bare 64-bit id or a custom name */
+function spWho(s) {
+  s = String(s || "").trim().slice(0, 200);
+  let m = s.match(/(?:steamcommunity\.com\/)?profiles\/(\d{17})/) || s.match(/^(\d{17})$/);
+  if (m) return { sid: m[1] };
+  m = s.match(/(?:steamcommunity\.com\/)?id\/([\w.-]{2,64})/) || s.match(/^([\w.-]{2,64})$/);
+  return m ? { v: m[1] } : null;
+}
+/* one look at the public profile: {sid, nm, pub, game: {a, n} | null} */
+async function spLook(who) {
+  const url = who.sid ? `https://steamcommunity.com/profiles/${who.sid}/?xml=1` : `https://steamcommunity.com/id/${encodeURIComponent(who.v)}/?xml=1`;
+  const r = await fetch(url, { headers: PX_UA });
+  if (!r.ok) throw new Error("Steam " + r.status);
+  const t = await r.text();
+  if (!/<profile>/.test(t)) { if (/could not be found/i.test(t)) return { none: 1 }; throw new Error("Steam sent no profile"); }
+  const sid = spTag(t, "steamID64"), nm = spTag(t, "steamID").slice(0, 40), pub = spTag(t, "privacyState") === "public";
+  let game = null;
+  if (spTag(t, "onlineState") === "in-game") {
+    const info = spTag(t, "inGameInfo"), link = info.match(/\/app\/(\d+)/);
+    const n = (spTag(info, "gameName") || spTag(t, "stateMessage").split(/<br\s*\/?>/i).slice(1).join(" ")).replace(/<[^>]*>/g, "").trim().slice(0, 100);
+    if (n || link) game = { a: link ? +link[1] : 0, n: n || "a game" };
+  }
+  return { sid, nm, pub, game };
+}
+/* which game in the phone's library a Steam game is: its Steam id first, then the name */
+function spMatch(apps, g) {
+  if (!g) return "";
+  const byId = g.a && apps.find(x => +x.a === g.a); if (byId) return byId.k;
+  let best = "", top = .75; for (const x of apps) { const s = pxSame(x.t, g.n); if (s > top) { top = s; best = x.k; } }
+  return best;
+}
+const spApps = a => (Array.isArray(a) ? a : []).slice(0, 600).map(x => ({ k: String(x && x.k || "").slice(0, 24), a: Number.isFinite(+x.a) ? Math.max(0, Math.trunc(+x.a)) : 0, t: String(x && x.t || "").slice(0, 100) })).filter(x => x.k && x.t);
+/* move a record on by one look; returns the session that just ended (or null) and whether anything changed */
+function spStep(rec, look, now) {
+  let ended = null, changed = false;
+  const g = look.game, live = rec.live;
+  const close = () => { const e = Math.min(now, live.l + SP_GAP / 2), s = Math.max(live.s, e - SP_MAX_H * 36e5);
+    ended = { k: spMatch(rec.apps || [], live), a: live.a, n: live.n, s: Math.round(s), e: Math.round(e) };
+    rec.done = (rec.done || []).filter(d => now - d.e < SP_KEEP).concat(ended).slice(-40); rec.live = null; changed = true; };
+  if (live && (!g || (g.a ? g.a !== live.a : g.n !== live.n))) close();
+  if (g) {
+    /* saved on every sighting: only while you play (4 writes an hour), so an end is always timed from the last one */
+    if (rec.live) rec.live.l = now;
+    else rec.live = { a: g.a, n: g.n, s: Math.round(now - SP_GAP / 2), l: now };
+    changed = true;
+  }
+  return { ended, changed };
+}
+async function spRoute(req, env, h, url) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  if (!env.NUDGE) return json({ error: "No KV binding named NUDGE" }, 500, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const id = String(b && b.id || "");
+  if (!/^[A-Za-z0-9_-]{16,40}$/.test(id)) return json({ error: "bad id" }, 400, h);
+  const key = "sp:" + id;
+  if (url.pathname === "/steam/me") {
+    if (b.off) { await env.NUDGE.delete(key); return json({ ok: true, off: true }, 200, h); }
+    const who = spWho(b.who); if (!who) return json({ error: "That doesn't look like a Steam profile link or name" }, 400, h);
+    let look; try { look = await spLook(who); } catch (e) { return json({ error: String(e.message || e).slice(0, 80) }, 502, h); }
+    if (look.none || !/^\d{17}$/.test(look.sid)) return json({ error: "Steam has no profile by that name" }, 404, h);
+    const rec = { sid: look.sid, nm: look.nm, apps: spApps(b.apps), live: null, done: [] };
+    spStep(rec, look, Date.now());
+    await env.NUDGE.put(key, JSON.stringify(rec), { expirationTtl: SP_TTL });
+    return json({ ok: true, sid: look.sid, name: look.nm, private: !look.pub, playing: rec.live ? { n: rec.live.n, k: spMatch(rec.apps, rec.live) } : null }, 200, h);
+  }
+  /* /steam/sync: a fresh look, then what's finished (the phone skips the ones it already has) */
+  const rec = await env.NUDGE.get(key, "json");
+  if (!rec) return json({ ok: false, gone: true }, 200, h);
+  let changed = false;
+  if (Array.isArray(b.apps)) { const a = spApps(b.apps); if (JSON.stringify(a) !== JSON.stringify(rec.apps)) { rec.apps = a; changed = true; } }
+  let look = null, err = "";
+  try { look = await spLook({ sid: rec.sid }); } catch (e) { err = String(e.message || e).slice(0, 80); }
+  if (look && !look.none) { const st = spStep(rec, look, Date.now()); changed = changed || st.changed; if (rec.nm !== look.nm) { rec.nm = look.nm; changed = true; } }
+  if (changed) await env.NUDGE.put(key, JSON.stringify(rec), { expirationTtl: SP_TTL });
+  const done = (rec.done || []).map(d => ({ ...d, k: d.k || spMatch(rec.apps || [], d) }));
+  return json({ ok: true, name: rec.nm, private: look ? !look.pub : undefined, err: err || undefined,
+    live: rec.live ? { n: rec.live.n, k: spMatch(rec.apps || [], rec.live), s: rec.live.s } : null, done }, 200, h);
+}
+async function spCron(env) {
+  if (!env.NUDGE) return;
+  const keys = (await env.NUDGE.list({ prefix: "sp:" })).keys.slice(0, 12);
+  for (const k of keys) {
+    try {
+      const rec = await env.NUDGE.get(k.name, "json"); if (!rec || !rec.sid) continue;
+      const now = Date.now();
+      let look; try { look = await spLook({ sid: rec.sid }); } catch (e) { continue; }
+      if (look.none) continue;
+      const { ended, changed } = spStep(rec, look, now);
+      if (changed) await env.NUDGE.put(k.name, JSON.stringify(rec), { expirationTtl: SP_TTL });
+      if (!ended || ended.e - ended.s < 10 * 60e3 || !ended.k) continue;
+      const sub = await env.NUDGE.get("sub:" + k.name.slice(3), "json"); if (!sub || !sub.sub) continue;
+      const m = Math.round((ended.e - ended.s) / 6e4), dur = m < 60 ? m + " min" : Math.floor(m / 60) + "h" + (m % 60 ? " " + String(m % 60).padStart(2, "0") + "m" : "");
+      try { await webPush(env, sub.sub, { title: `🎮 ${ended.n.slice(0, 40)} · ${dur}`, body: "I logged your session from Steam. How was it?", tag: "steam-" + ended.k, url: "./?nudge=steam&g=" + ended.k }, 86400); } catch (e) {}
+    } catch (e) {}
+  }
 }

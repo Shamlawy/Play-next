@@ -3126,6 +3126,10 @@ function pcdHTML(o) {
      after(out, args, got)      runs after it, oldest first (the order the wraps ran in); its return value is ignored
      map(out, args, got)        like after, but its return value becomes the function's result
    Only for functions declared with `function name()` at the top level of a script (they live on window). */
+/* v281: Chrome 145+ starts an animation when its element scrolls into view by itself (scroll-triggered animations,
+   timeline-trigger / animation-trigger). Where it can, the reveal on Home, Insights and a game's page is plain CSS (last
+   <style>) and the IntersectionObservers that did it in script stay off; Safari keeps the script version. */
+const PN_TRIG = !!(window.CSS && CSS.supports("timeline-trigger: --t view()") && CSS.supports("animation-trigger: --t play-once"));
 const EXT = {}, EXT_SKIP = Symbol("skip"), EXT_ARGS = Symbol("args");
 function extend(name, hook) {
   let e = EXT[name];
@@ -4023,7 +4027,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "280";
+const APP_V = "281";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6587,6 +6591,8 @@ function openSettings(scope) {
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Steam and PlayStation Store prices for the games you're waiting on, and a ping when one drops.">Price alerts</h4><div id="s-pxbox">${typeof pxSetHtml === "function" ? pxSetHtml() : ""}</div></div>
+
+    <div class="setgroup" data-scope="app"><h4 data-desc="Your Steam sessions log themselves: link your profile once.">Steam</h4><div id="s-spbox">${typeof spSetHtml === "function" ? spSetHtml() : ""}</div></div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Your games, locked and backed up by themselves. Get them back on any phone with your code.">Cloud backup</h4><div id="s-cbbox">${typeof cbSetHtml === "function" ? cbSetHtml() : ""}</div></div>
 
@@ -11069,7 +11075,7 @@ function renderHome() {
    those hide (they're off screen, so nothing blinks) and drift in when you reach them. */
 let pnRevIO = null;
 function revealSetup(root) {
-  if (!root || !("IntersectionObserver" in window)) return;
+  if (!root || PN_TRIG || !("IntersectionObserver" in window)) return;
   const io = pnRevIO || (pnRevIO = new IntersectionObserver((es, ob) => es.forEach(e => { const el = e.target;
     if (!el._rv) { el._rv = 1; if (!e.isIntersecting && e.boundingClientRect.top > innerHeight) el.classList.add("pnrv"); else ob.unobserve(el); return; }
     if (e.isIntersecting) { el.classList.add("in"); ob.unobserve(el); }
@@ -14750,6 +14756,7 @@ function nxDress(b) {
   if (b.classList.contains("face") || b.classList.contains("img") || b.querySelector(".core").style.backgroundImage) return;
   try { pnBubFace(); } catch (e) {}
 }
+const NX_ANC = !!(window.CSS && CSS.supports("anchor-name: --a") && CSS.supports("left: anchor(left, 0px)"));   /* v281 */
 function nxTour(was, all) {
   /* v173 everything since the last tour you finished, so skipped updates stack up; closing the app mid-tour resumes it next time */
   const w = parseInt(was, 10), from = all ? 0 : Math.min(S.tourFrom == null ? 162 : +S.tourFrom, w > 0 ? w : Infinity);
@@ -14773,12 +14780,20 @@ function nxTour(was, all) {
   const at = !all && S.tourAt && S.tourAt.from === from && S.tourAt.n === steps.length ? Math.min(S.tourAt.i, steps.length - 1) : 0;
   let i = at, lit = null, gone = false;
   const mark = () => { if (!all) { S.tourAt = { from, n: steps.length, i }; saveNow(); } };
-  const unlit = () => { lit = null; ring.classList.remove("on"); };
-  const ringAt = () => { if (!lit || !lit.isConnected) { ring.classList.remove("on"); return; }
+  /* v281: where the browser can (anchor positioning: Chrome 125+, Safari 26+) the ring is pinned to what it points at
+     (#nxring.anc, anchor-name --nxlit) and follows it through every scroll by itself; older browsers measure it once a
+     frame while scrolling, as before */
+  let anc = null;
+  const unanc = () => { if (anc) anc.style.removeProperty("anchor-name"); anc = null; };
+  const unlit = () => { lit = null; ring.classList.remove("on"); unanc(); };
+  const ringAt = () => { if (!lit || !lit.isConnected) { ring.classList.remove("on"); unanc(); return; }
+    if (NX_ANC) { if (anc !== lit) { unanc(); lit.style.setProperty("anchor-name", "--nxlit"); anc = lit; }
+      if (!lit.getClientRects().length) { ring.classList.remove("on"); return; }
+      ring.classList.add("anc", "on"); return; }
     const r = lit.getBoundingClientRect(); if (!r.width) { ring.classList.remove("on"); return; }
     ring.style.width = (r.width + 12) + "px"; ring.style.height = (r.height + 12) + "px";
     ring.style.transform = `translate3d(${r.left - 6}px,${r.top - 6}px,0)`; ring.classList.add("on"); };
-  let rq = 0; const follow = () => { if (!rq) rq = requestAnimationFrame(() => { rq = 0; ringAt(); }); };
+  let rq = 0; const follow = () => { if (!NX_ANC && !rq) rq = requestAnimationFrame(() => { rq = 0; ringAt(); }); };
   addEventListener("scroll", follow, { passive: true, capture: true });
   const refit = () => { if (gone) return; ringAt(); nxDock(card, lit, true); };
   addEventListener("resize", refit, { passive: true });
@@ -15895,6 +15910,7 @@ function helperCheck() {
     if (!$("#s-helperv")) return;
     el.textContent = ok && j.v === 13 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except prices in your own currency (exchange rates) and PlayStation prices for countries without a PS Store, which need the new helper."
       : ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
+      : ok && j.v >= 15 && j.v < 20 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Steam sessions logging themselves, which need the new helper."
       : ok && j.v >= 15 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews, hours to beat and game pictures from the stores are all on."
       : ok && j.v === 14 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except game pictures from Steam, Xbox, PlayStation and Nintendo in Browse and choose, which need the new helper."
       : ok && j.v >= 9 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except Steam player reviews and filling in hours to beat, which need the new helper."
@@ -18017,7 +18033,7 @@ function ixWire(el) {
     if (d.open && body && !body.firstChild && IX_BODY[d.dataset.fold]) { body.classList.add("pre"); body.innerHTML = IX_BODY[d.dataset.fold]();
       requestAnimationFrame(() => requestAnimationFrame(() => body.classList.remove("pre"))); }
     if (d.open) beep("open"); }));
-  if (calm() || !("IntersectionObserver" in window)) { items.forEach(x => { x.classList.add("ix-now"); show(x); }); return; }
+  if (calm() || PN_TRIG || !("IntersectionObserver" in window)) { items.forEach(x => { x.classList.add("ix-now"); show(x); }); return; }
   items.forEach(x => { if (ixShown.has(x.dataset.ix)) { x.classList.add("ix-now"); show(x); requestAnimationFrame(() => requestAnimationFrame(() => x.classList.remove("ix-now"))); } });
   if (ixIO) ixIO.disconnect();
   ixIO = new IntersectionObserver((es, ob) => es.forEach(e => { if (e.isIntersecting) { show(e.target); ob.unobserve(e.target); } }), { threshold: .12 });
@@ -25430,5 +25446,199 @@ WHATS_NEW.push(
   { v: 280, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
     say: "No more touch effects: the glow under your finger is gone, and rows, the gear and other buttons no longer stay lit up after you touch them.",
     tryIt: "Touch a row or an empty spot and scroll: nothing lights up or spreads." }
+);
+</script>
+<style>
+/* ===== v281 (#7): cards rise in when you scroll to them, by the browser itself (Chrome 145+: timeline-trigger +
+   animation-trigger). Only "forwards": a card that hasn't been reached keeps its normal look, so what's already on screen
+   when a page opens never blinks, and a fling past a card just shows it. Home (except the shelf stack, which has its own
+   entrance), Insights, and a game's page below its title. The script reveal (revealSetup / ixWire) stays off here.
+   Only on the screen that's showing (.panel.on): a hidden screen is a clipped scroll box, and a card built in one stayed
+   paused on its first frame (invisible) once the screen opened. Each visit starts the reveal fresh, as the script did. ===== */
+@supports (timeline-trigger: --t view()) and (animation-trigger: --t play-once) {
+  @keyframes pnTrig { from { opacity: 0; transform: translateY(24px) scale(.985); } }
+  :is(#p-home.on .dash > :not(.sb), #full .hub.gpage .gd-body > :not(.gd-head), .panel.on .ix-rv) {
+    timeline-trigger: --pnrv view() entry 0% entry 60%; animation: pnTrig .7s cubic-bezier(.22,1,.36,1) forwards; animation-trigger: --pnrv play-once; }
+  .pnrv, .pnrv.in, .ix-rv, .ix-rv.in { opacity: 1; transform: none; transition: none; }
+  html.still :is(#p-home .dash > *, #full .hub.gpage .gd-body > *, .ix-rv) { animation: none; }
+  @media (prefers-reduced-motion: reduce) { :is(#p-home .dash > *, #full .hub.gpage .gd-body > *, .ix-rv) { animation: none; } }
+}
+/* ===== v281 (#8): on a game's page the name and Back stay at the top once you scroll past the art. The bar is sticky and
+   knows by itself when it's stuck (scroll-state container query, Chrome 133+): no scroll listener. Without it (Safari for
+   now) there's no bar at all. ===== */
+.gdsb { display: none; }
+@supports (container-type: scroll-state) {
+  #full .hub.gpage > .gdsb { display: block; position: sticky; top: 0; z-index: 7; container-type: scroll-state; pointer-events: none;
+    height: calc(56px + env(safe-area-inset-top, 0px)); margin-bottom: calc(-56px - env(safe-area-inset-top, 0px)); }
+  .gdsb-in { display: flex; align-items: center; gap: 10px; height: 100%; box-sizing: border-box; padding: env(safe-area-inset-top, 0px) 12px 0 14px;
+    background: var(--u-pan); border-bottom: 1px solid var(--u-line); opacity: 0; transform: translateY(-100%); visibility: hidden;
+    transition: opacity .18s ease, transform .28s cubic-bezier(.22,1,.36,1); }
+  @container scroll-state(stuck: top) {
+    .gdsb-in { opacity: 1; transform: none; visibility: visible; pointer-events: auto; } }
+  .gdsb-in img { width: 30px; height: 40px; flex: none; border-radius: 8px; object-fit: cover; background: var(--u-card); }
+  .gdsb-t { flex: 1 1 auto; min-width: 0; padding: 8px 0; border: 0; background: none; color: var(--ice); text-align: left; cursor: pointer;
+    font: 600 15px/1.25 "Poppins", system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gdsb-x { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px 14px 8px 10px; border: 1px solid var(--u-line2); border-radius: 999px;
+    background: var(--u-card); color: var(--ice); font: 600 13px "Poppins", system-ui, sans-serif; cursor: pointer; }
+  .gdsb-x svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+  html.ui2.pnrail:not(.railhide):not(.railleft) .gdsb-in { padding-right: 100px; }
+  html.still .gdsb-in { transition: none; }
+}
+/* ===== v281 (#9): the tour's ring is pinned to what it points at (anchor positioning) and follows it through scrolling by
+   itself; a target that's off screen or gone hides it. ===== */
+#nxring.anc { position-anchor: --nxlit; left: calc(anchor(left, -9999px) - 6px); top: calc(anchor(top, -9999px) - 6px);
+  width: calc(anchor-size(width, 0px) + 12px); height: calc(anchor-size(height, 0px) + 12px); transform: none; position-visibility: anchors-visible; }
+/* ===== v281 (#1): Steam sessions in Settings ===== */
+#s-spbox .sp-st b { color: var(--ice); }
+#s-spbox .sp-warn { color: var(--volt); }
+</style>
+<script>
+/* ===== v281 (#8): the bar on a game's page (styles above). Tapping the name scrolls back to the top. ===== */
+const GDSB = !!(window.CSS && CSS.supports("container-type: scroll-state"));
+extend("gdMarkup", { map(out, args) {
+  const g = args[0]; if (!GDSB || !g || typeof out !== "string" || !out.includes("hub gpage")) return;
+  const bar = `<div class="gdsb"><div class="gdsb-in"><img src="${esc(cover(g))}" alt="" decoding="async">
+    <button type="button" class="gdsb-t" data-gdtop>${esc(g.title)}</button>
+    <button type="button" class="gdsb-x" data-gdback aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button></div></div>`;
+  return out.replace('<button class="fullx x" id="full-close"', bar + '<button class="fullx x" id="full-close"');
+} });
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-gdback], [data-gdtop]"); if (!b) return;
+  const hub = b.closest(".hub"); if (!hub) return;
+  e.stopPropagation();
+  if (b.hasAttribute("data-gdback")) { const x = hub.querySelector("#full-close"); if (x) x.click(); return; }
+  if (typeof beep === "function") beep("tap");
+  hub.scrollTo({ top: 0, behavior: calm() ? "auto" : "smooth" });
+}, true);
+
+/* ===== v281 (#1): play sessions from Steam, by themselves. Settings › Steam: link your profile once (its link or custom
+   name). The helper looks at your public Steam profile every 15 minutes, even with the app closed: "in a game" starts a
+   session, "not any more" ends it (each end ±7 minutes) and, with notifications on, it pings "🎮 <game> · 1h 20m — how was
+   it?". The app picks the finished sessions up when it opens or comes back (POST /steam/sync), logs each on its game like a
+   timer run (sessAdd + the game's hours; skipped if a logged session already covers that time) and asks how it felt (the
+   diary, if it's on). S.steamMe = {sid, name, priv}; the last sync time is bookkeeping, so it lives in localStorage. ===== */
+const SP_SYNC = "gq:spSync";
+const spOn = () => !!(S.steamMe && S.steamMe.sid);
+const spPid = () => { if (!S.nudgeId) { S.nudgeId = frRid(24).replace(/[^A-Za-z0-9_-]/g, "x"); saveNow(); } return S.nudgeId; };
+const spApps = () => S.games.slice(0, 600).map(g => ({ k: g.id, a: +g.steamId > 0 ? +g.steamId : +g.pxSt > 0 ? +g.pxSt : 0, t: g.title }));
+let spLast = null, spBusy = false;
+async function spPost(path, body) {
+  const r = await fetch(HELPER + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 404 && j.error === "not found") throw new Error("the helper needs updating");
+  if (!r.ok || j.error) throw new Error(j.error || "helper " + r.status);
+  return j;
+}
+/* a finished Steam session onto its game, unless a session you logged already covers that time */
+function spLog(d) {
+  const g = S.games.find(x => x.id === d.k); if (!g || !(d.e > d.s)) return null;
+  if ((S.sessions || []).some(s => s.g === g.id && s.s < d.e && s.e > d.s)) return null;
+  sessAdd(g.id, d.s, d.e);
+  g.logged = Math.round((loggedOf(g) + (d.e - d.s) / 36e5) * 100) / 100;
+  return { g, min: Math.round((d.e - d.s) / 6e4), e: d.e };
+}
+async function spSync(how) {
+  if (!spOn() || spBusy || !navigator.onLine) return null;
+  spBusy = true;
+  try {
+    let j = await spPost("/steam/sync", { id: spPid(), apps: spApps() });
+    /* the helper forgets a link nobody played on for 4 months: link it again quietly */
+    if (j.gone) { await spPost("/steam/me", { id: spPid(), who: S.steamMe.sid, apps: spApps() }); j = await spPost("/steam/sync", { id: spPid() }); }
+    try { localStorage.setItem(SP_SYNC, String(Date.now())); } catch (e) {}
+    spLast = j;
+    if (j.private !== undefined && !!j.private !== !!S.steamMe.priv) { S.steamMe.priv = !!j.private; save(); }
+    const got = (j.done || []).map(spLog).filter(Boolean);
+    if (got.length) {
+      saveNow(); if (typeof render === "function") render();
+      const last = got.sort((a, b) => b.e - a.e)[0], tot = got.reduce((a, x) => a + x.min, 0);
+      toast(nxVoice(got.length === 1 ? `🎮 Logged ${fmtH(last.min / 60)} of ${last.g.title} from Steam` : `🎮 Logged ${got.length} Steam sessions (${fmtH(tot / 60)})`));
+      /* ask about the newest one if it ended in the last 12 hours (the nudge's tap asks straight away, below) */
+      if (how !== "nudge" && S.diaryOn && last.min >= 10 && Date.now() - last.e < 12 * 36e5)
+        setTimeout(() => { if (!$("#diary.on") && !$("#dy.on") && !document.hidden && typeof openDiary === "function") openDiary(last.g.id, last.min); }, 1600);
+    }
+    if (how === "manual" && !got.length) toast(j.live && j.live.n ? `Steam says you're playing ${j.live.n} right now` : "Nothing new from Steam");
+    spPaint();
+    return j;
+  } catch (e) { if (how === "manual") toast("Couldn't check Steam: " + (e.message || e)); return null; }
+  finally { spBusy = false; }
+}
+const spWhen = t => new Date(t).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+function spStatus() {
+  if (!spOn()) return "";
+  const j = spLast, live = j && j.live, done = j && (j.done || []).slice().sort((a, b) => b.e - a.e)[0];
+  const g = id => S.games.find(x => x.id === id);
+  if (live) return `Playing <b>${esc(live.k && g(live.k) ? g(live.k).title : live.n)}</b> right now${live.k && g(live.k) ? "" : " (not in your games, so it won't be logged)"}.`;
+  if (done) return `Last session: <b>${esc(done.k && g(done.k) ? g(done.k).title : done.n)}</b> · ${fmtH((done.e - done.s) / 36e5)} · ${spWhen(done.e)}.`;
+  return j ? "No sessions yet: the next time you play on Steam, it lands on that game by itself." : "Checking…";
+}
+function spSetHtml() {
+  if (!spOn()) return `<label for="s-spwho">Your Steam profile</label>
+      <input id="s-spwho" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Profile link or custom name">
+      <button class="btn" id="s-splink"><span>🔗 Link Steam</span></button>
+      <p class="note">Once linked, your Steam sessions log themselves: every 15 minutes (even with the app closed) the helper looks whether you're in a game, and when you stop, the session lands on that game with its time, and I ask how it went. Your Steam profile has to be public: in Steam, Edit Profile › Privacy Settings, set My profile and Game details to Public.</p>`;
+  const me = S.steamMe;
+  return `<p class="note">Linked to <b>${esc(me.name || me.sid)}</b>.</p>
+      <p class="note sp-st" id="s-spst">${spStatus()}</p>
+      ${me.priv ? `<p class="note sp-warn">⚠️ Your Steam profile is private, so I can't see when you play. In Steam: Edit Profile › Privacy Settings › My profile and Game details: Public.</p>` : ""}
+      ${S.nudgeOn ? "" : `<p class="note">Turn on notifications (Settings › Notifications) to get a "how was it?" ping as soon as a session ends.</p>`}
+      <div class="cb-acts"><button class="btn ghost" id="s-spnow"><span>Check now</span></button><button class="btn ghost" id="s-spoff"><span>Unlink</span></button></div>
+      <p class="note">Games you play on Steam that aren't in your games are skipped. Each start and end is timed within about 7 minutes.</p>`;
+}
+function spPaint() { const st = $("#s-spst"); if (st) st.innerHTML = spStatus(); }
+function spSetWire() {
+  const box = $("#s-spbox"); if (!box) return;
+  const redraw = () => { const w = $("#s-spbox"); if (w) { w.innerHTML = spSetHtml(); spSetWire(); } };
+  const link = $("#s-splink"), who = $("#s-spwho");
+  if (link) link.onclick = async () => {
+    const v = (who.value || "").trim(); if (!v) { toast("Paste your Steam profile link or custom name first"); who.focus(); return; }
+    beep("tap"); link.disabled = true; link.firstElementChild.textContent = "Linking…";
+    try {
+      const j = await spPost("/steam/me", { id: spPid(), who: v, apps: spApps() });
+      S.steamMe = { sid: j.sid, name: j.name || "", priv: !!j.private }; saveNow(); spLast = null;
+      toast(nxVoice(j.private ? "Linked, but your Steam profile is private: set it to public so I can see your sessions" : `Steam linked: your sessions will log themselves${j.name ? ", " + j.name : ""}`));
+      beep("add");
+    } catch (e) { toast("Couldn't link Steam: " + (e.message || e)); }
+    redraw();
+  };
+  if (who) who.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); link.click(); } };
+  if ($("#s-spnow")) $("#s-spnow").onclick = () => { beep("tap"); const st = $("#s-spst"); if (st) st.textContent = "Checking…"; spSync("manual"); };
+  if ($("#s-spoff")) $("#s-spoff").onclick = async () => {
+    if (!confirm("Unlink Steam? Sessions already logged stay on your games.")) return;
+    beep("back"); try { await spPost("/steam/me", { id: spPid(), off: 1 }); } catch (e) {}
+    S.steamMe = null; spLast = null; saveNow(); redraw(); toast("Steam unlinked");
+  };
+  if (spOn() && !spLast) spSync();
+}
+GROUP_ICON["Steam"] = "🎮";
+onSettings("after", () => spSetWire());
+/* on open, and on coming back after 10+ minutes */
+{ const due = () => { let t = 0; try { t = +localStorage.getItem(SP_SYNC) || 0; } catch (e) {} return Date.now() - t > 10 * 60e3; };
+  const qp = new URLSearchParams(location.search), fromNudge = qp.get("nudge") === "steam", gid = qp.get("g");
+  setTimeout(async () => {
+    if (!fromNudge) { if (due()) spSync(); return; }
+    await spSync("nudge");
+    const g = S.games.find(x => x.id === gid); if (!g) return;
+    const s = (S.sessions || []).filter(x => x.g === g.id).sort((a, b) => b.e - a.e)[0];
+    openFull(g.id);
+    if (S.diaryOn && s && typeof openDiary === "function") setTimeout(() => openDiary(g.id, Math.round((s.e - s.s) / 6e4)), 900);
+  }, fromNudge ? 2200 : 5000);
+  addEventListener("visibilitychange", () => { if (!document.hidden && due()) setTimeout(() => spSync(), 1500); });
+}
+WHATS_NEW.push(
+  { v: 281, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Steam", text: "Your Steam profile" }); }, at: () => $("#s-spbox"),
+    say: "<b>Your Steam sessions log themselves</b>: link your Steam profile once, and every time you play, the session lands on that game with its time, even with the app closed. Then I ask how it went.",
+    tryIt: "Paste your Steam profile link here and tap Link Steam." }
+);
+if (GDSB) WHATS_NEW.push(
+  { v: 281, go: () => { dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (!g) return; openFull(g.id);
+      setTimeout(() => { const h = $("#full .hub.gpage"); if (h) h.scrollTo({ top: Math.round(h.clientHeight * .9) }); }, 600); },
+    at: () => $("#full .gdsb-in"),
+    say: "On a game's page, its name and <b>Back</b> now stay at the top once you scroll past the art. Tap the name to jump back up.",
+    tryIt: "Scroll down a game's page, then tap its name in the bar." }
+);
+if (PN_TRIG || NX_ANC) WHATS_NEW.push(
+  { v: 281, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "Smoother scrolling: cards rising in as you reach them (Home, Insights and now a game's page) and this tour's highlight are handled by your phone's browser itself instead of the app's own code.",
+    tryIt: "Open a game and scroll down slowly: its cards rise in one by one." }
 );
 </script>
