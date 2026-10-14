@@ -90,6 +90,8 @@ describe('heads-up', () => {
       // Ticking a to-do drops it to a collapsed "Done · 1" line; opened, it is there dim and ticked.
       const box = (await ui.findAll({ type: 'Button' })).find(b => /^hu-.*-a0$/.test(b.key))!
       expect(box.text).toContain('☐')
+      // A desktop draws a Button's label in full: the box carries no long label that would squeeze the line.
+      expect(JSON.stringify(await ui.drawn())).not.toContain('Mark done')
       await ui.press({ key: box.key })
       expect(await ui.find({ type: 'Text', text: /Open the app/ })).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: '👉 1' })).toBeUndefined()
