@@ -2,40 +2,38 @@ import type { Card } from '../types'
 
 // Replies shorter than this are already short enough to read; no model call for them.
 export const MIN_REPLY = 300
-export const MAX_CARDS = 12
-// Only the few lines that matter: across all three lists, most important first.
-export const MAX_LINES = 4
-const MAX_ITEM = 220
-const MAX_WHY = 500
+// Only the few lines that matter (0.8, the owner: "too much ... it should be shorter"): three in all across
+// attention, to-dos and ideas, a choice counting as one, most important first.
+export const MAX_LINES = 3
+const MAX_ITEM = 80
+const MAX_GIST = 80
+const MAX_LABEL = 60
 
-export const SYSTEM = `You read a coding assistant's reply to its user and pull out ONLY what the user needs to see, so they can skip the wall of text.
+export const SYSTEM = `You read a coding assistant's reply to its user and pull out ONLY what the user needs to see, so they can skip the wall of text. Be very short.
 
 Answer with one JSON object and nothing else:
-{"gist": "...", "attention": [{"line": "...", "why": "..."}], "actions": [{"line": "...", "why": "..."}], "ideas": [{"line": "...", "why": "..."}], "choice": null}
+{"gist": "...", "attention": ["..."], "actions": ["..."], "ideas": ["..."], "choice": null}
 
-- gist: one plain line (at most 15 words) saying what was done or found. Past tense. No filler.
-- attention: what the user must know or decide: something failed, broke, was skipped or could not be done; a risk; a question the assistant asked them; a choice waiting on them; a result that differs from what they asked. Not routine success.
-- actions: things ONLY the user can do (approve, answer, test on their device, add a secret, click a link, merge if the assistant did not). Never things the assistant already did or will do itself. Start each with a verb.
-- ideas: suggestions or follow-ups the assistant offered but did not do, when they are not part of the choice below.
-- choice: when the reply asks the user to pick, or lays out options or next steps the assistant could do on the user's say-so ("want me to A or B?", "options: ...", "I can also ..."), turn them into something the user can tap: {"question": "...", "multi": true|false, "options": [{"label": "...", "why": "..."}], "suggested": <index or null>}. question: the decision, at most 12 words, ending with "?". options: 2 to 5, each label at most 10 words, the way the user would say it ("Fix the Safari scroll first"); each why one plain sentence (what it means or costs). multi: true when several can be done together (independent follow-ups), false when they exclude each other (one way or the other). suggested: the option the assistant recommended, else null. Leave choice null when nothing is offered; never invent options. Options in the choice are not repeated in ideas or actions.
+- gist: at most 8 words saying what was done or found. Past tense. No filler.
+- attention: what the user must know or decide: something failed, broke, was skipped or could not be done; a risk; a question the assistant asked them. Not routine success.
+- actions: things ONLY the user can do (approve, answer, test on their device, add a secret, click a link). Never things the assistant already did or will do itself. Start each with a verb.
+- ideas: suggestions the assistant offered but did not do, when they are not part of the choice below.
+- choice: when the reply asks the user to pick, or lays out options or next steps the assistant could do on the user's say-so ("want me to A or B?", "options: ..."), turn them into something the user can tap: {"question": "...", "multi": true|false, "options": ["...", "..."], "suggested": <index or null>}. question: at most 6 words, ending with "?". options: 2 to 4 labels, each at most 6 words, the way the user would say it ("Fix the Safari scroll first"). multi: true when several can be done together, false when they exclude each other. suggested: the option the assistant recommended, else null. Leave choice null when nothing is offered; never invent options. Options in the choice are not repeated in ideas or actions.
 
-Each item has "line" (the short point, at most 15 words) and "why" (one or two plain sentences from the reply explaining it: the reason, the detail or what happens next; shown when the user hovers the line).
+Each line is a plain string of at most 8 words.
 
-Rules: never invent anything that is not in the reply. Plain words, keep exact names, numbers, links and PR/issue references. Merge duplicates. At most ${MAX_LINES} items in the three lists together (the choice does not count), the most important first; one or two is often right. Empty lists are fine and common: a reply that only reports finished work has attention, actions and ideas all empty.`
+Rules: never invent anything that is not in the reply. Plain words, keep exact names, numbers and PR/issue references. Merge duplicates. At most ${MAX_LINES} lines in attention, actions and ideas together, and a choice counts as one of them; the most important first; one is often right. Empty lists are fine and common: a reply that only reports finished work has attention, actions and ideas all empty.`
 
-// Box mode (the default): cloud chats in the desktop and phone apps show only text, never a mod's panel, so the
+// Box mode (cloud chats): the desktop and phone apps show a cloud chat's text only, never a mod's panel, so the
 // important lines go at the top of the reply itself. Added to the system prompt each turn.
-export const BOX = `Heads-up box (the person asked that the important part of a long reply never gets buried). When your reply to the person will be longer than about 300 characters, begin it with this box, before anything else:
+export const BOX = `Heads-up box (the person asked that the important part of a long reply never gets buried, and that it stays short). When your reply to the person will be longer than about 300 characters, begin it with this box, before anything else:
 
 > **Heads-up**
 > ⚠ <something they must know or decide: a failure, a risk, a question you are asking them>
-> ↳ <one plain sentence: why, or the detail>
 > 👉 <something only they can do>
-> ↳ <one plain sentence>
-> 💡 <an idea or option you offered but did not do>
-> ↳ <one plain sentence>
+> 💡 <an idea you offered but did not do>
 
-Use 2 to 4 lines in all (each with its ↳), most important first, and only the kinds that apply. Each line at most 15 words, each ↳ at most 20; plain words; keep exact names, numbers and links; never invent. When nothing needs them, the box is one line: "> **Heads-up** ✓ <what was done, at most 15 words>". When the reply offers options or asks them to choose, the box ends with "> ❓ <the question>" and the options numbered on their own lines ("> 1. ...", the one you recommend marked "(suggested)"), then "> Reply with the numbers, or none." Then write the reply as usual, without repeating the box. Short replies get no box, and neither does a report a helper agent writes for another Claude.`
+Use 1 to ${MAX_LINES} lines in all, most important first, and only the kinds that apply. Each line at most 8 words; plain words; keep exact names and numbers; never invent. When nothing needs them, the box is one line: "> **Heads-up** ✓ <what was done, at most 8 words>". When the reply offers options or asks them to choose, that counts as one line: "> ❓ <the question>" followed by the options numbered on their own lines ("> 1. ...", at most 6 words each, the one you recommend marked "(suggested)"). Then write the reply as usual, without repeating the box. Short replies get no box, and neither does a report a helper agent writes for another Claude.`
 
 export function prompt(ask: string, reply: string): string {
   return `${ask ? `The user's message:\n${ask.slice(0, 2000)}\n\n` : ''}The assistant's reply:\n${reply.slice(0, 30_000)}`
@@ -46,84 +44,69 @@ const clean = (x: string, max: number) => {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t
 }
 
-type Item = { line: string; why: string }
 type Choice = NonNullable<Card['choice']>
 
-// The choice, read leniently: 2-5 labelled options, a question, one or many, and the suggested one if it exists.
+// A line from the model: a plain string, or an older {line, ...} object.
+const text = (x: unknown): string => {
+  if (typeof x === 'string') return x
+  if (x && typeof x === 'object') {
+    const o = x as Record<string, unknown>
+    const v = o.line ?? o.label
+    return typeof v === 'string' ? v : ''
+  }
+  return ''
+}
+
+// The choice, read leniently: 2-4 labels, a question, one or many, and the suggested one if it exists.
 const choiceOf = (v: unknown): Choice | undefined => {
   if (!v || typeof v !== 'object') return undefined
   const c = v as Record<string, unknown>
   const options = (Array.isArray(c.options) ? c.options : [])
-    .map(x => {
-      if (typeof x === 'string') return { label: x, why: '' }
-      if (!x || typeof x !== 'object') return undefined
-      const o = x as Record<string, unknown>
-      return { label: String(o.label ?? o.line ?? ''), why: typeof o.why === 'string' ? o.why : '' }
-    })
-    .filter((x): x is { label: string; why: string } => !!x)
-    .map(x => ({ label: clean(x.label, 120), why: clean(x.why, MAX_WHY) }))
-    .filter(x => x.label)
-    .slice(0, 5)
+    .map(x => clean(text(x), MAX_LABEL))
+    .filter(Boolean)
+    .slice(0, 4)
+    .map(label => ({ label }))
   if (options.length < 2) return undefined
   const n = c.suggested
   const suggested = typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < options.length ? n : undefined
-  const question = clean(typeof c.question === 'string' && c.question ? c.question : 'Which one?', 160)
+  const question = clean(typeof c.question === 'string' && c.question ? c.question : 'Which one?', 80)
   return { question, multi: c.multi === true, options, ...(suggested === undefined ? {} : { suggested }), picked: [] }
 }
 
-// Each entry a {line, why} or a bare string (an older answer, or a model that skipped the why).
-const items = (v: unknown): Item[] =>
-  Array.isArray(v)
-    ? v
-        .map(x => {
-          if (typeof x === 'string') return { line: x, why: '' }
-          if (x && typeof x === 'object' && typeof (x as Item).line === 'string') return { line: (x as Item).line, why: typeof (x as Item).why === 'string' ? (x as Item).why : '' }
-          return undefined
-        })
-        .filter((x): x is Item => !!x)
-        .map(x => ({ line: clean(x.line, MAX_ITEM), why: clean(x.why, MAX_WHY) }))
-        .filter(x => x.line)
-    : []
+const items = (v: unknown): string[] => (Array.isArray(v) ? v.map(x => clean(text(x), MAX_ITEM)).filter(Boolean) : [])
 
 // The model's answer, read leniently: the first {...} in it, fenced or not.
-export function parse(text: string): Pick<Card, 'gist' | 'attention' | 'actions' | 'ideas' | 'why' | 'choice'> | undefined {
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
+export function parse(raw: string): Pick<Card, 'gist' | 'attention' | 'actions' | 'ideas' | 'choice'> | undefined {
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
   if (start < 0 || end <= start) return undefined
   let o: unknown
   try {
-    o = JSON.parse(text.slice(start, end + 1))
+    o = JSON.parse(raw.slice(start, end + 1))
   } catch {
     return undefined
   }
   if (!o || typeof o !== 'object') return undefined
   const r = o as Record<string, unknown>
-  const gist = typeof r.gist === 'string' ? r.gist.replace(/\s+/g, ' ').trim().slice(0, 200) : ''
-  // Keep MAX_LINES in all, attention before actions before ideas.
-  let room = MAX_LINES
-  const why: Record<string, string> = {}
-  const take = (v: unknown, k: string) => {
+  const gist = typeof r.gist === 'string' ? clean(r.gist, MAX_GIST) : ''
+  const choice = choiceOf(r.choice)
+  // MAX_LINES in all, the choice counting as one; attention before actions before ideas.
+  let room = MAX_LINES - (choice ? 1 : 0)
+  const take = (v: unknown) => {
     const got = items(v).slice(0, Math.max(0, room))
     room -= got.length
-    got.forEach((x, i) => {
-      if (x.why && x.why !== x.line) why[`${k}${i}`] = x.why
-    })
-    return got.map(x => x.line)
+    return got
   }
-  const attention = take(r.attention, 'n')
-  const actions = take(r.actions, 'a')
-  const ideas = take(r.ideas, 'i')
-  const choice = choiceOf(r.choice)
-  return { gist, attention, actions, ideas, why, ...(choice ? { choice } : {}) }
-}
-
-export const heading = (text: string) => {
-  const t = text.replace(/\s+/g, ' ').trim()
-  const cut = t.length > 60 ? `${t.slice(0, 59).replace(/\s+\S*$/, '')}…` : t
-  return cut ? cut.charAt(0).toUpperCase() + cut.slice(1) : ''
+  const attention = take(r.attention)
+  const actions = take(r.actions)
+  const ideas = take(r.ideas)
+  return { gist, attention, actions, ideas, ...(choice ? { choice } : {}) }
 }
 
 export const hasAny = (c: Pick<Card, 'attention' | 'actions' | 'ideas' | 'choice'>) => c.attention.length + c.actions.length + c.ideas.length > 0 || !!c.choice
+
+// How many lines the card shows besides the gist (the choice is one).
+export const lines = (c: Pick<Card, 'attention' | 'actions' | 'ideas' | 'choice'>) => c.attention.length + c.actions.length + c.ideas.length + (c.choice ? 1 : 0)
 
 // A choice still waiting on the person counts as one thing that needs them.
 const waiting = (c: Card) => (c.choice && !c.choice.sent ? 1 : 0)
@@ -142,14 +125,26 @@ export const pick = (c: Choice, i: number): Choice => ({
   picked: c.multi ? (c.picked.includes(i) ? c.picked.filter(x => x !== i) : [...c.picked, i].sort((a, b) => a - b)) : c.picked[0] === i ? [] : [i],
 })
 
-// What still needs the person: un-ticked attention and action items, across the kept cards.
-export const openCount = (cards: readonly Card[]) =>
-  cards.reduce(
-    (n, c) => n + waiting(c) + c.attention.filter((_, i) => !c.done.includes(`n${i}`)).length + c.actions.filter((_, i) => !c.done.includes(`a${i}`)).length,
-    0,
-  )
+// What still needs the person on a card: un-ticked attention and action items, and an unsent choice.
+export const openCount = (c: Card | undefined) =>
+  !c ? 0 : waiting(c) + c.attention.filter((_, i) => !c.done.includes(`n${i}`)).length + c.actions.filter((_, i) => !c.done.includes(`a${i}`)).length
 
 export const toggle = (c: Card, key: string): Card => ({ ...c, done: c.done.includes(key) ? c.done.filter(k => k !== key) : [...c.done, key] })
+
+// The card as plain text: the /heads-up reply, for a screen that seats no panes.
+export function asText(c: Card): string {
+  const box = (key: string) => (c.done.includes(key) ? '☑' : '☐')
+  return [
+    c.gist ? `✓ ${c.gist}` : '',
+    ...c.attention.map((x, i) => `⚠ ${box(`n${i}`)} ${x}`),
+    ...c.actions.map((x, i) => `👉 ${box(`a${i}`)} ${x}`),
+    ...(c.choice ? [`❓ ${c.choice.question}${c.choice.multi ? ' (pick any)' : ' (pick one)'}`, ...c.choice.options.map((o, i) => `${i + 1}. ${o.label}${c.choice?.suggested === i ? ' (suggested)' : ''}`), c.choice.sent ? `→ ${c.choice.sent}` : 'Reply with the numbers, or none.'] : []),
+    ...c.ideas.map(x => `💡 ${x}`),
+    ...(hasAny(c) ? [] : ['Nothing needs you.']),
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
 
 // The tiles' look: each kind its tint, its colour and an 8x8 pixel icon (an emoji where no Svg is drawn).
 export type Kind = 'attention' | 'action' | 'idea' | 'ok'
@@ -177,7 +172,7 @@ export function iconSvg(kind: Kind): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="16" height="16" shape-rendering="crispEdges">${px}</svg>`
 }
 
-// The header's count chips: what is still open in one card, by kind.
+// The header's count chips: what is still open in the card, by kind.
 export function chips(c: Card): { kind: Kind | 'choice'; n: number }[] {
   const open = (list: string[], k: string) => list.filter((_, i) => !c.done.includes(`${k}${i}`)).length
   return [
@@ -185,22 +180,4 @@ export function chips(c: Card): { kind: Kind | 'choice'; n: number }[] {
     { kind: 'choice' as const, n: waiting(c) },
     { kind: 'action' as const, n: open(c.actions, 'a') },
   ].filter(x => x.n > 0)
-}
-
-// Newest first, as plain text: the /heads-up reply, for a screen that seats no panes.
-export function asText(c: Card): string {
-  const box = (key: string) => (c.done.includes(key) ? '☑' : '☐')
-  const why = (key: string) => (c.why?.[key] ? [`   ↳ ${c.why[key]}`] : [])
-  return [
-    c.ask ? `“${c.ask}”` : '',
-    c.gist ? `✓ ${c.gist}` : '',
-    ...(c.attention.length ? ['', '⚠ Needs your attention', ...c.attention.flatMap((x, i) => [`${box(`n${i}`)} ${x}`, ...why(`n${i}`)])] : []),
-    ...(c.actions.length ? ['', '👉 For you to do', ...c.actions.flatMap((x, i) => [`${box(`a${i}`)} ${x}`, ...why(`a${i}`)])] : []),
-    ...(c.choice ? ['', `❓ ${c.choice.question}${c.choice.multi ? ' (pick any)' : ' (pick one)'}`, ...c.choice.options.map((o, i) => `${i + 1}. ${o.label}${c.choice?.suggested === i ? ' (suggested)' : ''}`), c.choice.sent ? `→ ${c.choice.sent}` : 'Reply with the numbers, or none.'] : []),
-    ...(c.ideas.length ? ['', '💡 Ideas', ...c.ideas.flatMap((x, i) => [`• ${x}`, ...why(`i${i}`)])] : []),
-    ...(hasAny(c) ? [] : ['', 'Nothing needs you.']),
-  ]
-    .filter((x, i, a) => x !== '' || (i > 0 && a[i - 1] !== ''))
-    .join('\n')
-    .trim()
 }
