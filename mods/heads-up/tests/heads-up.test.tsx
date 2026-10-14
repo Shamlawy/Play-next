@@ -4,12 +4,13 @@ import { asText, openCount, parse } from '../hooks/sift.ts'
 const LONG = `I fixed the layout bug and pushed it. ${'Details of everything I checked along the way. '.repeat(12)} One thing failed: the iPhone check timed out. Could you open the app on your phone and tell me if the list scrolls? We could also add a dark-mode toggle later.`
 const SIFTED = '```json\n{"gist":"Fixed the layout bug and pushed it","attention":[{"line":"iPhone check timed out","why":"The WebKit run stopped after 10 minutes, so the fix is untested on Safari."}],"actions":["Open the app on your phone and check the list scrolls"],"ideas":[{"line":"Add a dark-mode toggle","why":"Offered as a follow-up, not started."}]}\n```'
 
-function world(on: any, answer = SIFTED, placed = true, mode: 'panel' | 'box' = 'panel') {
+function world(on: any, answer = SIFTED, placed = true, mode: 'panel' | 'box' | 'auto' = 'panel', cloud = false) {
   const calls: any[] = []
   const toasts: string[] = []
   const statuses: (string | undefined)[] = []
   const opens: number[] = []
-  mock.store(on, mode === 'panel' ? { mode: 'panel' } : {})
+  mock.store(on, mode === 'auto' ? {} : { mode })
+  on('env.get', ($: unknown, e: any) => ({ value: e.name === 'CLAUDE_CODE_REMOTE' && cloud ? 'true' : undefined }))
   const clock = mock.clock(on, { now: 1000 })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
@@ -142,8 +143,18 @@ describe('heads-up', () => {
     expect(calls.length).toBe(2)
   })
 
-  test('box mode (the default): long replies start with a Heads-up box, no model call, no panel', async ($, on) => {
-    const { calls, opens, clock } = world(on, SIFTED, true, 'box')
+  test('a chat on a computer gets the panel by itself: no box, the reply is sifted and the panel opens', async ($, on) => {
+    const { calls, opens, clock } = world(on, SIFTED, true, 'auto')
+    const composed: any = await ($ as any).prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
+    expect(composed.sections.some((x: any) => x.id === 'heads-up:box')).toBe(false)
+    await $.prompt.submit({ text: 'fix the queue' } as any)
+    await reply($, clock)
+    expect(calls.length).toBe(1)
+    expect(opens.length).toBeGreaterThan(0)
+  })
+
+  test('a cloud chat gets box mode by itself: long replies start with a Heads-up box, no model call, no panel', async ($, on) => {
+    const { calls, opens, clock } = world(on, SIFTED, true, 'auto', true)
     const composed: any = await ($ as any).prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
     const box = composed.sections.find((x: any) => x.id === 'heads-up:box')
     expect(box?.text).toContain('**Heads-up**')

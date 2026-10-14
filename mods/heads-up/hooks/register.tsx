@@ -39,9 +39,15 @@ async function openOnMessage($: $) {
   await openPane($)
 }
 const isOff = async ($: $) => (await $.store.get('off')) === true
-// 'box' (default): the lines go in a box at the top of each long reply, the only thing a cloud chat shows.
-// 'panel': the side panel with hover, for a Local chat on the PC, where mods draw (`/heads-up panel`).
-const isPanel = async ($: $) => (await $.store.get('mode')) === 'panel'
+// 'panel': the side panel with hover, where mods draw (a chat on a computer). 'box': the lines go in a box at the top
+// of each long reply, the only thing a cloud chat shows. Unchosen (the owner: "I want the panel always, not me typing
+// something"), it follows where the chat runs: the box in a cloud chat, the panel everywhere else.
+// `/heads-up panel` and `/heads-up box` pin a choice on this machine.
+const isPanel = async ($: $) => {
+  const mode = await $.store.get('mode')
+  if (mode === 'panel' || mode === 'box') return mode === 'panel'
+  return (await $.env.get('CLAUDE_CODE_REMOTE')) !== 'true'
+}
 
 async function status($: $) {
   if ((await isOff($)) || !(await isPanel($))) return $.ui.status(undefined)
@@ -78,7 +84,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'heads-up',
-      description: 'The 2-4 lines that matter in Claude\'s long replies: a Heads-up box at the top of each (cloud chats), or "/heads-up panel" for the side panel with hover (a Local chat on the PC); "/heads-up box" goes back. "/heads-up off" stops it, "/heads-up on" starts it again.',
+      description: 'The 2-4 lines that matter in Claude\'s long replies: the side panel with hover on a computer, a Heads-up box at the top of each in a cloud chat; "/heads-up panel" or "/heads-up box" picks one here. "/heads-up off" stops it, "/heads-up on" starts it again.',
       argumentHint: '[box|panel|on|off|clear]',
     })
     return next(e)
@@ -103,7 +109,7 @@ export const register: Register = on => {
       return { text: 'Heads-up is in panel mode: after each long reply, the side panel shows the lines that need you; point at one to see why. Mod panels only draw in a Local chat on your PC; "/heads-up box" goes back to the box at the top of replies.' }
     }
     if (arg === 'box') {
-      await $.store.delete('mode')
+      await $.store.set('mode', 'box')
       await status($)
       return { text: 'Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter.' }
     }
@@ -113,7 +119,7 @@ export const register: Register = on => {
       return { text: 'Heads-up cleared.' }
     }
     const off = (await isOff($)) ? '\n(Heads-up is off: "/heads-up on" turns it back on.)' : ''
-    if (!(await isPanel($))) return { text: `Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter. In a Local chat on your PC, "/heads-up panel" switches to the side panel with hover.${off}` }
+    if (!(await isPanel($))) return { text: `Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter. "/heads-up panel" switches to the side panel with hover (it draws in a chat on a computer).${off}` }
     const opened = await openPane($)
     const list = await read($, cards)
     if (!list.length) return { text: `Nothing needs you yet.${off}` }
