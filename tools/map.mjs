@@ -6,8 +6,9 @@
                                    (candidates only: check each by hand, some names are built from strings) */
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = process.argv.includes("--file") ? process.argv[process.argv.indexOf("--file") + 1] : "index.html";
 const html = fs.readFileSync(path.join(ROOT, FILE), "utf8");
 const lineAt = i => html.slice(0, i).split("\n").length;
