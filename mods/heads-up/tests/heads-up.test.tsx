@@ -8,18 +8,20 @@ function world(on: any, answer = SIFTED, placed = true) {
   const calls: any[] = []
   const toasts: string[] = []
   const statuses: (string | undefined)[] = []
+  const opens: number[] = []
   mock.store(on)
   const clock = mock.clock(on, { now: 1000 })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
-  on('ui.open', () => ({ value: placed ? { isPlaced: true } : { isPlaced: false, reason: 'narrow' } }))
+  on('ui.open', () => { opens.push(1); return { value: placed ? { isPlaced: true } : { isPlaced: false, reason: 'narrow' } } })
+  on('ui.close', () => undefined)
   on('ui.toast', ($: unknown, e: any) => { toasts.push(e.text); return { value: undefined } })
   on('ui.status', ($: unknown, e: any) => { statuses.push(e.text); return { value: undefined } })
   on('model.complete', ($: unknown, e: any) => { calls.push(e); return { value: { isAnswered: true, text: answer, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } } })
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
   on('prompt.submit', ($: unknown, e: any) => ({ text: e.text }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
-  return { calls, toasts, statuses, clock }
+  return { calls, toasts, statuses, clock, opens }
 }
 
 async function reply($: any, clock: any, answer = LONG, extra: any = {}) {
@@ -82,6 +84,19 @@ describe('heads-up', () => {
       await ui.unmount()
     })
   }
+
+  test('each message opens the panel (placed at any width, unlike an open of its own); slash commands do not', async ($, on) => {
+    const { opens, clock } = world(on)
+    await $.prompt.submit({ text: 'hi' } as any)
+    expect(opens.length).toBe(1)
+    await $.prompt.submit({ text: '/heads-up off' } as any)
+    expect(opens.length).toBe(1)
+    await $.prompt.submit({ text: 'fix the queue' } as any)
+    expect(opens.length).toBe(2)
+    // A new card opens it too (shown where the screen is wide enough).
+    await reply($, clock)
+    expect(opens.length).toBe(3)
+  })
 
   test('a slash command clears the heading, so the next card is not headed with an older message', async ($, on) => {
     const { calls, clock } = world(on)

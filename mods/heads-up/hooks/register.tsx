@@ -21,8 +21,23 @@ const showOld = atom({ plugin: 'heads-up', key: 'showOld' } as const, false)
 const last = atom({ plugin: 'heads-up', key: 'last' } as const, '')
 // Lines whose explanation a tap opened (phones have no hover), as `<card id>-<key>`.
 const opened = atom({ plugin: 'heads-up', key: 'opened' } as const, [])
+// The newest card's id when the person closed the panel by hand ('' = not closed): it stays closed until a newer card.
+const closedAt = atom({ plugin: 'heads-up', key: 'closedAt' } as const, '')
 
+const newestKey = (list: readonly Card[]) => list[list.length - 1]?.id ?? 'none'
 const openPane = ($: $) => $.ui.open({ id: PANE, title: TITLE }).catch(() => ({ isPlaced: false as const }))
+
+// A panel a mod opens on its own waits unseen below 144 columns (the desktop app's chat is narrower), while one
+// opened in answer to the person's message is placed at any width. So each message opens it, unless they closed
+// it and nothing new has come since.
+async function openOnMessage($: $) {
+  if (await isOff($)) return
+  const list = await read($, cards)
+  const closed = await read($, closedAt)
+  if (closed && closed === newestKey(list)) return
+  await update($, closedAt, () => '')
+  await openPane($)
+}
 const isOff = async ($: $) => (await $.store.get('off')) === true
 
 async function status($: $) {
@@ -96,7 +111,20 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     // Only the person's own messages, not a helper's report or a task notice.
     // A slash command clears it, so the reply after one isn't headed with an older, unrelated message.
-    if (PERSON.has(e.origin?.kind ?? 'unclassified')) await update($, ask, () => (e.text.trim().startsWith('/') ? '' : e.text))
+    if (PERSON.has(e.origin?.kind ?? 'unclassified')) {
+      const slash = e.text.trim().startsWith('/')
+      await update($, ask, () => (slash ? '' : e.text))
+      if (!slash) await openOnMessage($).catch(() => undefined)
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // Closed by hand: stay closed until a newer card arrives.
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    if (e.origin?.kind === 'person') {
+      const list = await read($, cards)
+      await update($, closedAt, () => newestKey(list))
+    }
     return next(e)
   }).catch(($, e, next) => next(e))
 
