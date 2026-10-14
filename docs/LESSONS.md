@@ -24,6 +24,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L16** · 2026-10-14 · v280 · `tools/kit.mjs`, `smooth`, `pnEvo`, `nxEvo` — A test that turns off a timed feature after the page loads is too late when the app schedules it at load (Nexi's 15s power-up): put the setting in the seed passed to phone() so it is there before the load.
 - **L17** · 2026-10-14 · v280 · `tools/*.mjs`, `import.meta.url`, `.gitattributes` — Tools must work on the owner's Windows PC too: find files with fileURLToPath(import.meta.url), import with pathToFileURL(p).href, split lines on /\r?\n/; never new URL(import.meta.url).pathname or a bare absolute path.
 - **L18** · 2026-10-14 · v280 · `gh pr merge`, `set_auto_merge` — GitHub auto-merge is turned off in this repo (set_auto_merge fails): once node tools/kit.mjs all has passed on the branch with main merged in, merge with gh pr merge N --squash --delete-branch instead.
+- **L19** · 2026-10-14 · v280 · `gh pr create`, `PowerShell` — On the Windows PC, PowerShell 5.1 splits a --body with double quotes inside into stray arguments (gh: unknown arguments): write PR text to a scratchpad file and pass --body-file, and use the Bash tool for claude -p (PowerShell passes no prompt).
 
 ## Missed opportunities
 
