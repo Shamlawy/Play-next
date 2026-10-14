@@ -1,7 +1,7 @@
 /* Play next test kit. Lives in the repo so every chat (and GitHub) runs the same checks; before this, each chat
    rebuilt its harness in a scratchpad that was lost at the end.
 
-     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation in the CSS;
+     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation or sticky :hover in the CSS;
                                         no new wrap of goTab/goSub/openFull/openSettings (use onNav/onSettings)
      node tools/kit.mjs sweep           every screen, a game page, Settings, Edit, chat at 412 / 859 / 360 wide in Chromium:
                                         script errors + every problem the app reports about itself (its own detectors)
@@ -66,6 +66,20 @@ function syntax() {
       if (!r[1].includes(":active")) continue;
       const bad = r[2].split(";").map(d => d.split(":")[0].trim()).filter(k => MOVE.test(k));
       if (bad.length) fail(`press animation (${bad.join(", ")}) in "${r[1].trim().slice(0, 80)}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + r.index).split("\n").length}`);
+    }
+  }
+  /* house rule (v280, the owner: "remove the touch glow and any touch effects when I touch an empty spot"): phones keep
+     :hover on whatever was touched last (a Queue row stayed grey after a scroll started on it, the gear stayed lit), so a
+     :hover look only applies with a real mouse: inside @media (hover: hover) */
+  for (const st of html.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/g)) {
+    const css = st[1].replace(/\/\*[\s\S]*?\*\//g, c => " ".repeat(c.length)), open = [];
+    let from = 0;
+    for (let i = 0; i < css.length; i++) {
+      if (css[i] === "{") { open.push(css.slice(from, i)); from = i + 1; }
+      else if (css[i] === "}") { const pre = open.pop() || ""; from = i + 1;
+        if (/:hover\b/.test(pre) && !/^\s*@/.test(pre) && !open.some(o => /@media[^{]*\(\s*hover\s*:\s*hover\s*\)/.test(o)))
+          fail(`sticky touch look: "${pre.trim().slice(0, 80)}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + i).split("\n").length} needs @media (hover: hover) and (pointer: fine) { … }`); }
+      else if (css[i] === ";" && !open.length) from = i + 1;
     }
   }
   /* house rule (v273/v276): one still background behind every screen: <html>'s base colour (var(--bgb)) and the
@@ -268,7 +282,9 @@ async function smooth(browser, base) {
   console.log(`\n== smooth: endless animations hold still mid-swipe (${FILE}) ==`);
   for (const w of opt("widths") ? WIDTHS : [412, 859]) {
     const p = await phone(browser, base, w, seed(APP_V));
-    await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
+    /* also Nexi's "I evolved" power-up (a timer 15s after the first load) off: it lands at a random moment; the power-up
+       gets its own fixed-time case below */
+    await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } S.nxEvo = 99; document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
     const live = () => p.page.evaluate(() => {
       const out = [];
       for (const a of document.getAnimations()) {
@@ -292,6 +308,22 @@ async function smooth(browser, base) {
       else if (!side && after.length < before.length) fail(`${w}px ${name}: ${before.length} endless animations before the scroll, only ${after.length} running again after it`);
       else console.log(`  ✓ ${w}px ${name}: ${before.length} endless running → 0 mid-swipe → ${after.length} after`);
       if (side) await p.step("close", `closeFull()`, 700);
+    }
+    /* a loop CSS switches on mid-swipe (Nexi's flame runs only while he's powered up): held too, and given back to CSS after */
+    if (await p.page.evaluate(() => typeof pnPowerUp === "function" && !!document.querySelector("#pnbub") && document.querySelector("#pnbub").checkVisibility() && !calm())) {
+      await p.step("queue", `goTab("games")`, 1500);
+      const flame = () => p.page.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".flame")).map(a => a.playState));
+      const go = p.swipe(p.w * .5, p.h * .85, p.w * .52, p.h * .2, 1600, 80);
+      await p.page.waitForTimeout(100); await p.page.evaluate(() => pnPowerUp(false));
+      await p.page.waitForTimeout(1250);
+      const mid = await flame(); await go; await p.page.waitForTimeout(1200);
+      const after = await flame(); await p.page.evaluate(() => pnPowerUp.end && pnPowerUp.end()); await p.page.waitForTimeout(400);
+      const end = await flame();
+      const n = (l, st) => l.filter(x => x === st).length;
+      if (n(mid, "running")) fail(`${w}px power-up mid-swipe: ${n(mid, "running")} flame loops running mid-swipe`);
+      else if (!n(after, "running")) fail(`${w}px power-up mid-swipe: the flame didn't start again after the swipe (${after.join(",") || "none"})`);
+      else if (n(end, "running")) fail(`${w}px power-up mid-swipe: ${n(end, "running")} flame loops still running after the power-up ended (CSS lost control of them)`);
+      else console.log(`  ✓ ${w}px power-up mid-swipe: flame ${mid.length} held → ${n(after, "running")} running after → paused by CSS when it ends`);
     }
     await p.ctx.close();
   }

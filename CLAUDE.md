@@ -22,13 +22,14 @@
 - Black / near-black theme.
 - When the owner shares a reference design: copy its layout and style, not its colours.
 - No press animation (#309, v246): nothing shrinks, lifts or fades when touched. Since v269 no `:active` rule has movement in the CSS itself, and `node tools/kit.mjs syntax` fails if one is added.
+- No touch effects (v280, the owner: "remove the touch glow and any touch effects when I touch an empty spot"): nothing spreads, glows or appears under the finger (v68's glow is gone), and every `:hover` look sits in `@media (hover: hover) and (pointer: fine)`, because phones keep hover on the last thing touched (`kit.mjs syntax` fails otherwise). Check with `node tools/kit.mjs run tools/scenarios/touch-empty.mjs --widths 412,859`.
 - Background = a still gradient (`html.paper::before`), nothing moving behind the screens (the owner, v273: "I hate how it looks" about the live background, which was removed). Don't bring back moving lights, drifting art or specks. Since v276 (the owner: "mostly black with a little blue gradient"): `html` = the base colour (`--bgb`, `S.bgBase`, black) and `html.paper::before` = a soft glow (`--bgt`, `S.bgTint`, blue) at `S.bgGrad` % (default 30); Settings › Look of the app › Background colour (v277: real colours in `BG_BASES`, black first and default, each dark enough for white text) / Gradient colour / How much gradient. That's the only background layer: `node tools/kit.mjs syntax` fails on any other background on html/body or their ::before/::after.
 
 ## Speed rule
 - Must feel smooth at high refresh rate.
 - Animate only `transform` and `opacity`. No looping blur. No stacked effects.
 - Test performance in a browser before saying it's done: `node tools/kit.mjs perf` (main-thread ms per step, 4x slower CPU; `--file old.html` for the before).
-- Nothing endless runs while a finger moves (v280): every scroll frame is a main-thread frame that restyles each running loop, GPU or not. The app pauses them from the first move until the scroll stops (`mvh*`, last script); `node tools/kit.mjs smooth` (in `all`, every PR) fails if one is still running mid-swipe. A new looping animation needs nothing extra; one driven by a script timer/rAF must check `MVH.on` itself.
+- Nothing endless runs while a finger moves (v280): every scroll frame is a main-thread frame that restyles each running loop, GPU or not. The app holds them from the first move until the scroll stops (`mvh*`, last script: CSS loops by the `.mvh` class so CSS stays in charge, never `pause()` on a CSS animation; script loops by pause/play); `node tools/kit.mjs smooth` (in `all`, every PR) fails if one is still running mid-swipe. A new looping animation needs nothing extra; one driven by a script timer/rAF must check `MVH.on` itself.
 
 ## Settings
 - Grumble is hidden by default (Settings toggle).

@@ -66,7 +66,7 @@
     html.rail nav #gear svg { width: 20px; height: 20px; }
   }
   html.round #gear { clip-path: none; border-radius: calc(var(--r, 18px) * .72); }
-  #gear:hover { background: var(--volt); color: var(--void); }
+  @media (hover: hover) and (pointer: fine) { #gear:hover { background: var(--volt); color: var(--void); } }
   .setgroup { border-top: 1px solid var(--steel); margin-top: 22px; padding-top: 4px; }
   .setgroup h4 { margin: 14px 0 0; font-size: 13px; font-weight: 900; text-transform: uppercase;
     font-variation-settings: "wdth" 78; color: var(--ice); letter-spacing: .05em; }
@@ -274,7 +274,8 @@
     font-size: 13px; font-weight: 800; padding: 10px 12px; cursor: pointer;
     font-variation-settings: "wdth" 84;
   }
-  .sortpop button:hover, .sortpop button:focus-visible { background: rgba(234,242,255,.08); color: var(--ice); }
+  .sortpop button:focus-visible { background: rgba(234,242,255,.08); color: var(--ice); }
+  @media (hover: hover) and (pointer: fine) { .sortpop button:hover { background: rgba(234,242,255,.08); color: var(--ice); } }
   .sortpop button[aria-pressed="true"] { background: var(--volt); color: var(--void); }
   .sortpop .act { border-top: 1px solid var(--edge); margin-top: 4px; color: var(--volt); }
   .when.bad { color: #e8443a; text-decoration: line-through 1px; }
@@ -418,7 +419,8 @@
     font: inherit; font-size: 26px; line-height: 1; padding: 4px 14px;
     clip-path: none; transition: color .15s ease;
   }
-  .calarrow:hover, .calarrow:active { color: var(--volt); }
+  .calarrow:active { color: var(--volt); }
+  @media (hover: hover) and (pointer: fine) { .calarrow:hover { color: var(--volt); } }
   .calarrow span { display: block; transform: none; }
 
 
@@ -1476,7 +1478,7 @@
     clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px);
   }
   html.round .row.artrow > .rowbg { clip-path: none; border-radius: var(--r, 18px); }
-  .row.artrow:hover > .rowbg { background: var(--steel); }
+  @media (hover: hover) and (pointer: fine) { .row.artrow:hover > .rowbg { background: var(--steel); } }
   /* the art has a column of its own on the right; the row's own content stops
      before it, so a badge is never underneath it */
   .row.artrow > div { position: relative; z-index: 1; padding-right: calc(var(--raw, 96px) + var(--rax, -14px) + 12px); }
@@ -1526,14 +1528,14 @@
   .tag.rumoured { background: #C8A44A; }
   .tag.tba { background: #5A6E9B; color: var(--ice); }
   .icon { background: none; border: 0; color: var(--mute); cursor: pointer; font-size: 15px; padding: 2px 5px; }
-  .icon:hover { color: var(--volt); }
+  @media (hover: hover) and (pointer: fine) { .icon:hover { color: var(--volt); } }
 
   .row { cursor: pointer; filter: drop-shadow(0 8px 12px rgba(0,0,0,.55)); }
   /* rounded rows can use a cheap box-shadow; the filter repainted every row on scroll */
   html.round .row { filter: none; box-shadow: 0 8px 14px rgba(0,0,0,.45); }
   html.round .row.artrow { box-shadow: none; }
   html.round .row.artrow > .rowbg { box-shadow: 0 8px 14px rgba(0,0,0,.45); }
-  .row:hover { background: var(--steel); }
+  @media (hover: hover) and (pointer: fine) { .row:hover { background: var(--steel); } }
   @media (prefers-reduced-motion: no-preference) {
     .row, .chip, .btn, nav button, .hit, .sw, .duel-card, .icon {
       transition: transform .16s cubic-bezier(.16,1,.3,1), filter .22s ease, background .22s ease,
@@ -1595,7 +1597,7 @@
   .btn.danger { background: var(--hot); color: #fff; }
 
   .hit { display: flex; gap: 10px; align-items: center; background: var(--ink); padding: 7px 9px; margin-bottom: 6px; width: 100%; border: 0; border-left: 3px solid var(--edge); color: inherit; font: inherit; text-align: left; cursor: pointer; }
-  .hit:hover { border-left-color: var(--volt); background: var(--steel); }
+  @media (hover: hover) and (pointer: fine) { .hit:hover { border-left-color: var(--volt); background: var(--steel); } }
   .hit img { width: 52px; height: 40px; object-fit: cover; flex: none; background: var(--steel); }
   .hit b { display: block; font-weight: 800; font-size: 14px; }
   .hit small { color: var(--mute); font-size: 12px; }
@@ -2164,10 +2166,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
 
   /* ===== v68 transitions + more butter ===== */
   .tile, .chip, .btn, nav button { position: relative; overflow: hidden; }
-  .pnrip { position: absolute; border-radius: 50%; pointer-events: none; z-index: 5;
-    background: radial-gradient(circle, rgba(234,242,255,.28), rgba(234,242,255,0) 70%);
-    width: var(--d); height: var(--d); transform: translate(-50%,-50%) scale(0); animation: pnRip .7s var(--ease) forwards; }
-  @keyframes pnRip { 60% { opacity: 1; } to { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
   html:not(.dragging-now) .row { transition: scale .3s var(--ease); }
   html:not(.dragging-now) .row:active { transition-duration: .1s; }
   #pnorbs { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
@@ -11332,18 +11330,7 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
     a.onfinish = () => { if (pnClosing === a) { pnClosing = null; _cf(); } a.cancel(); };
   }; }
 
-/* a soft glow spreads from your finger on anything tappable */
-document.addEventListener("pointerdown", e => {
-  if (calm()) return;
-  let t = e.target.closest(".tile, .row, .un, .chip, .btn, nav button");
-  if (!t) return;
-  if (t.classList.contains("artrow")) t = t.querySelector(".rowbg") || t;
-  else if (t.classList.contains("pick")) t = t.querySelector(".scrim") || t;
-  else if (t.classList.contains("row")) { if (getComputedStyle(t).position === "static") return; }
-  const r = t.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2, sp = document.createElement("span");
-  sp.className = "pnrip"; sp.style.cssText = `--d:${d}px;left:${e.clientX - r.left}px;top:${e.clientY - r.top}px`;
-  t.appendChild(sp); setTimeout(() => sp.remove(), 750);
-}, { passive: true });
+/* (v68's touch glow under the finger was removed in v280: the owner, "remove the touch glow and any touch effects") */
 
 /* two slow glows drifting behind everything */
 document.body.insertAdjacentHTML("afterbegin", '<div id="pnorbs" aria-hidden="true"><i></i><i></i></div>');
@@ -14884,7 +14871,8 @@ document.addEventListener("click", e => { if (e.target.closest("#s-whatsnew")) {
 .dxres[hidden] { display: none; }
 .dxres button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 14px; background: none;
   color: var(--ice); text-align: left; font-size: 13.5px; font-weight: 500; cursor: pointer; }
-.dxres button:hover, .dxres button:focus-visible { background: var(--dxc); }
+.dxres button:focus-visible { background: var(--dxc); }
+@media (hover: hover) and (pointer: fine) { .dxres button:hover { background: var(--dxc); } }
 .dxres img { width: 36px; height: 36px; border-radius: 10px; object-fit: cover; flex: none; }
 .dxres span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dxres small { color: var(--mute); font-size: 11px; white-space: nowrap; }
@@ -25370,6 +25358,11 @@ WHATS_NEW.push(
     tryIt: "You can switch it off here in Your data." }
 );
 </script>
+<style>
+/* v280: endless loops hold still while a finger moves (mvh*, next script) */
+/* .mvh on a loop's own element; on Nexi (#pnbub) it holds all of him: his reactions switch loops on by class mid-swipe */
+.mvh, .mvh::before, .mvh::after, #pnbub.mvh *, #pnbub.mvh *::before, #pnbub.mvh *::after { animation-play-state: paused !important; }
+</style>
 <script>
 /* v280: still while you move (the owner: "it lags less but still does it a lot"). Measured (tools/scenarios/trace-scroll.mjs,
    859 wide): a finger scroll makes Chrome draw a main-thread frame every frame, and each one restyles every running endless
@@ -25380,15 +25373,24 @@ WHATS_NEW.push(
    on from the same spot. Spinners keep going (REST_KEEP, like rest mode); touching Nexi himself doesn't hold him; ones the
    hidden-screen hold (OFFHOLD), rest mode or the rail's own touch pause are holding stay held. `node tools/kit.mjs smooth`
    fails if anything endless is still running mid-swipe. */
-const MVH = { on: false, last: 0, t: 0, held: [] };
+const MVH = { on: false, last: 0, re: 0, t: 0, held: [], els: new Set() };
+/* a CSS loop is held by a class on its element, not by pause(): a script pause takes the animation away from CSS for good,
+   and some loops are switched on and off by CSS (Nexi's flame runs only while he's powered up) */
 function mvhOne(a) {
-  const tm = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+  const tm = a.effect && a.effect.getTiming ? a.effect.getTiming() : null, el = a.effect && a.effect.target;
   if (a.playState !== "running" || !tm || tm.iterations !== Infinity || (a.timeline && a.timeline !== document.timeline)) return;
   if (REST_KEEP.has(a.animationName) && tm.duration < 2000) return;
+  if (el && typeof CSSAnimation !== "undefined" && a instanceof CSSAnimation) { if (!MVH.els.has(el)) { el.classList.add("mvh"); MVH.els.add(el); } return; }
   try { a.pause(); MVH.held.push(a); } catch (e) {}
 }
-function mvhHold() { for (const a of document.getAnimations()) mvhOne(a); }
+function mvhHold() {
+  MVH.re = performance.now();
+  const nx = document.getElementById("pnbub"); if (nx && !MVH.els.has(nx)) { nx.classList.add("mvh"); MVH.els.add(nx); }
+  for (const a of document.getAnimations()) mvhOne(a);
+}
 function mvhFree() {
+  for (const el of MVH.els) el.classList.remove("mvh");
+  MVH.els.clear();
   const h = MVH.held; MVH.held = [];
   if (REST.on) { REST.held.push(...h); return; }
   for (const a of h) {
@@ -25403,8 +25405,10 @@ function mvhWait() {
   MVH.t = setTimeout(() => { if (performance.now() - MVH.last < 450) return mvhWait(); MVH.on = false; mvhFree(); }, 500);
 }
 function mvhMove(e) {
-  MVH.last = performance.now();
-  if (MVH.on || (e && e.type === "touchmove" && e.target && e.target.closest && e.target.closest("#pnbub"))) return;
+  const now = MVH.last = performance.now();
+  /* a loop CSS switches on mid-move (no animationstart: it had started paused) is caught on the next move */
+  if (MVH.on) { if (now - MVH.re > 200) mvhHold(); return; }
+  if (e && e.type === "touchmove" && e.target && e.target.closest && e.target.closest("#pnbub")) return;
   MVH.on = true; mvhHold(); mvhWait();
 }
 addEventListener("touchmove", mvhMove, { capture: true, passive: true });
@@ -25419,6 +25423,9 @@ addEventListener("animationstart", e => {
 WHATS_NEW.push(
   { v: 280, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
     say: "<b>Smoother scrolling</b>: while your finger moves, my little loops (and the rail's live strip) hold still, so the phone only draws what you're scrolling. They carry on the moment you stop.",
-    tryIt: "Scroll the Queue fast or swipe between games: it should stay smooth, and I'll start moving again when you stop." }
+    tryIt: "Scroll the Queue fast or swipe between games: it should stay smooth, and I'll start moving again when you stop." },
+  { v: 280, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
+    say: "No more touch effects: the glow under your finger is gone, and rows, the gear and other buttons no longer stay lit up after you touch them.",
+    tryIt: "Touch a row or an empty spot and scroll: nothing lights up or spreads." }
 );
 </script>
