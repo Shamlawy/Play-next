@@ -13,6 +13,8 @@ const ISSUES = [
 
 function world(on: any, issues: unknown[], store?: Record<string, unknown>) {
   mock.store(on, store)
+  // The repo carries the mod (.claude/skills/<name>), so it is on.
+  on('fs.exists', () => ({ value: true }))
   const clock = mock.clock(on, { now: NOW })
   let list = issues
   const contexts: string[] = []

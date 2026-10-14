@@ -14,15 +14,20 @@ type World = {
   headHtml?: string
   commitDiff?: string
   runs?: unknown[]
+  // false: a repo that doesn't carry the Play next mods (another project)
+  carries?: boolean
 }
 
 // A fake repo, GitHub and tool runner beneath the plugin.
 function world(on: any, w: World) {
   mock.store(on)
+  // The repo carries the mod (.claude/skills/<name>), so it is on.
+  on('fs.exists', () => ({ value: w.carries ?? true }))
   const clock = mock.clock(on, { now: NOW })
   let head = 1
   const calls: any[] = []
   const contexts: string[] = []
+  const toasts: string[] = []
   on('process.run', ($: unknown, e: any) => {
     const a = (e.argv as string[]).join(' ')
     const out = (stdout = '', exitCode = 0) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
@@ -55,7 +60,7 @@ function world(on: any, w: World) {
   })
   on('session.append', ($: unknown, e: any, next: any) => next(e))
   on('ui.status', () => ({ value: undefined }))
-  on('ui.toast', () => ({ value: undefined }))
+  on('ui.toast', ($: unknown, e: any) => { toasts.push(e.text); return { value: undefined } })
   on('prompt.submit', ($: unknown, e: any) => {
     contexts.push((e.context ?? []).join('\n'))
     return { text: e.text, context: e.context }
@@ -64,12 +69,31 @@ function world(on: any, w: World) {
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('turn.start', ($: unknown, e: any) => ({ turnId: e.turnId }))
   on('command.register', () => ({ value: undefined }))
-  return { clock, calls, contexts }
+  return { clock, calls, contexts, toasts }
 }
 
 const start = ($: any) => $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
 
 describe('release-guard', () => {
+  test('in a project without the Play next mods it stays out of the way and says so once', async ($, on) => {
+    const w = world(on, { carries: false, staged: 'A\tbackup-2026.json\n' })
+    await start($)
+    const r: any = await $.tool.call({ tool: 'Bash', command: 'git commit -m "x"' } as any)
+    expect(r.deny).toBeUndefined()
+    expect(w.calls.length).toBe(1)
+    expect(w.toasts.some(t => /Play next mods are off in this project/.test(t))).toBe(true)
+    await $.prompt.submit({ text: 'hi' } as any)
+    await $.prompt.submit({ text: 'again' } as any)
+    expect(w.contexts[0]).toContain('off here')
+    expect(w.contexts[1]).not.toContain('off here')
+    // A later chat in the same project hears nothing more.
+    w.toasts.length = 0
+    await start($)
+    await $.prompt.submit({ text: 'new chat' } as any)
+    expect(w.toasts.length).toBe(0)
+    expect(w.contexts[2]).not.toContain('off here')
+  })
+
   test('a commit with a backup .json is stopped', async ($, on) => {
     const w = world(on, { staged: 'A\tbackup-2026.json\nM\tindex.html\n' })
     await start($)
