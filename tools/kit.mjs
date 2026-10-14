@@ -28,10 +28,11 @@ import fs from "fs";
 import path from "path";
 import vm from "vm";
 import { createRequire } from "module";
+import { fileURLToPath, pathToFileURL } from "url";
 import { spawnSync } from "child_process";
 import { seed, TITLES } from "./seed.mjs";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2), mode = args.find(a => !a.startsWith("--")) || "all";
 const opt = (k, d) => { const i = args.indexOf("--" + k); return i >= 0 ? args[i + 1] : d; };
 const FILE = opt("file", "index.html");
@@ -281,9 +282,10 @@ async function perf(browser, base) {
 async function smooth(browser, base) {
   console.log(`\n== smooth: endless animations hold still mid-swipe (${FILE}) ==`);
   for (const w of opt("widths") ? WIDTHS : [412, 859]) {
-    const p = await phone(browser, base, w, seed(APP_V));
-    /* also Nexi's "I evolved" power-up (a timer 15s after the first load) off: it lands at a random moment; the power-up
-       gets its own fixed-time case below */
+    /* nxEvo before the load: Nexi's "I evolved" power-up is a timer set 15s ahead at the first load, so turning it off
+       after the load came too late; on a slower machine the game page's swipe landed on the power-up's full-screen tap
+       catcher (#ssjcatch) and never reached the page. The power-up gets its own fixed-time case below */
+    const p = await phone(browser, base, w, { ...seed(APP_V), nxEvo: 99 });
     await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } S.nxEvo = 99; document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
     const live = () => p.page.evaluate(() => {
       const out = [];
@@ -358,7 +360,7 @@ if (mode === "sw" || mode === "all") sw();
 async function scenario(browser, base) {
   const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set" && args[i - 1] !== "--browser" && args[i - 1] !== "--before");
   if (!file) return fail("usage: node tools/kit.mjs run tools/scenarios/x.mjs [--widths 412]");
-  const fn = (await import(path.resolve(file))).default;
+  const fn = (await import(pathToFileURL(path.resolve(file)).href)).default;
   for (const w of opt("widths") ? WIDTHS : [412]) {
     const p = await phone(browser, base, w, seed(APP_V));
     console.log(`\n== ${path.basename(file)} at ${w}px${WK ? " (WebKit)" : ""} ==`);
