@@ -1,5 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 import { firstNote, listing, LOUD, line, parse, status, type Issue, type Report } from './inbox.ts'
+import { checkHere, isHere } from './here.ts'
 
 type $ = EngineInterface
 
@@ -60,6 +61,7 @@ export const register: Register = on => {
   let news: Report[] = []
 
   on('session.start', async ($, e, next) => {
+    if (!(await checkHere($, e.cwd, 'bug-inbox'))) return next(e)
     try {
       const url = (await $.process.run(['git', 'remote', 'get-url', 'origin'], { cwd: e.cwd })).stdout.trim()
       const m = url.match(/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
@@ -88,6 +90,7 @@ export const register: Register = on => {
 
   // The first message of a chat knows what's open; later ones hear only of new hand-filed reports.
   on('prompt.submit', ($, e, next) => {
+    if (!isHere()) return next(e)
     const notes: string[] = []
     if (!told && reports) {
       told = true

@@ -26,6 +26,8 @@ const AT = [{ line: 9540, script: 2, fns: [{ name: 'openFull', from: 9537, to: 9
 type W = { lessonsDirty?: boolean; commitDiff?: string; mapCheck?: { code: number; out: string }; reopened?: unknown[] }
 function world(on: any, w: W = {}) {
   mock.store(on)
+  // The repo carries the mod (.claude/skills/<name>), so it is on.
+  on('fs.exists', () => ({ value: true }))
   mock.clock(on, { now: NOW })
   let head = 1
   const runs: string[] = []

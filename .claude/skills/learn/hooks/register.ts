@@ -3,6 +3,7 @@ import {
   checkFamily, deferrals, failed, firstNote, identifiers, parseLessons, promptSignals, recallNote, reflection, relevant, STRONG, wrapNote,
   type At, type Brief, type Lesson, type Reopened, type Signal,
 } from './signals.ts'
+import { checkHere, isHere } from './here.ts'
 
 type $ = EngineInterface
 
@@ -71,6 +72,7 @@ async function recall($: $, at: { file?: string; names?: readonly string[]; cmd?
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    if (!(await checkHere($, e.cwd, 'learn'))) return next(e)
     try {
       const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd: e.cwd })
       root = top.exitCode === 0 ? top.stdout.trim() : e.cwd
@@ -97,6 +99,7 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', ($, e, next) => {
+    if (!isHere()) return next(e)
     const notes: string[] = []
     if (!told) {
       told = true
@@ -113,6 +116,7 @@ export const register: Register = on => {
 
   // Edits: lessons about the code touched, what wraps it (index.html), and edits that didn't apply.
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const html = /(^|\/)index\.html$/.test(e.file_path)
     let lines: number[] = []
     if (html && !e.replace_all) {
@@ -137,6 +141,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const ran = await next(e)
     if (ran.deny !== undefined || ran.isError) return ran
     const notes = [await recall($, { file: e.file_path, names: identifiers(e.content.slice(0, 20_000)) })]
@@ -149,6 +154,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const cmd = e.command
     const fam = checkFamily(cmd)
     // A commit that carries index.html also carries a fresh docs/MAP.md (the code map can't go stale).
@@ -203,6 +209,7 @@ export const register: Register = on => {
 
   // Closing a problem report: did it say whether Nexi can now catch it himself (CLAUDE.md)?
   on('tool.call', { tool: 'mcp__github__add_issue_comment' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const a = e as unknown as { body?: string; issue_number?: number }
     const ran = await next(e)
     if (ran.deny === undefined && !ran.isError && /fixed in v\d+/i.test(a.body ?? '') && !SAID_DETECTOR.test(a.body ?? ''))
@@ -211,6 +218,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'mcp__github__merge_pull_request' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const ran = await next(e)
     if (ran.deny === undefined && !ran.isError && !/not mergeable|failed|error/i.test(ran.text ?? '')) signal({ kind: 'release', text: 'merged to main' })
     return ran
@@ -218,6 +226,7 @@ export const register: Register = on => {
 
   // The end of a turn: a short retrospective when the turn earned one; lessons committed so the next chat has them.
   on('classic.Stop', async ($, e, next) => {
+    if (!isHere()) return next(e)
     const r = await next(e)
     if (r.block || e.stop_hook_active) return r
     if (!asked) {
@@ -239,6 +248,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('turn.complete', ($, e, next) => {
+    if (!isHere()) return next(e)
     if (!e.agentId) {
       signals = []
       asked = askedCommit = recorded = committed = false
