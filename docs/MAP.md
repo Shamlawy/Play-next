@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25373 lines, 1888 KB, 106 scripts, 61 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25425 lines, 1892 KB, 107 scripts, 61 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -235,3 +235,4 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 25285–25307 | style | 2 | v278 (#130, the owner: "Radar needs a makeover, looks kinda ugly and doesn't match our theme"): Radar in the Clean style. Its words are sentence… |
 | 25307–25329 | script | 2 | Nexi learned (#130, the owner: "Radar looks kinda ugly and doesn't match our theme"): Radar kept the old Arcade look (slanted, all-caps heading)… |
 | 25329–25373 | script | 4 | v279 usage counts (the owner: "remove any junk or things that are not used"). Every tap and switch change counts once under the nearest name it has:… |
+| 25373–25425 | script | 3 | v280: still while you move (the owner: "it lags less but still does it a lot"). Measured (tools/scenarios/trace-scroll.mjs, 859 wide): a finger… |

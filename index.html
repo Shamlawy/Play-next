@@ -4025,7 +4025,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "279";
+const APP_V = "280";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -25368,5 +25368,57 @@ WHATS_NEW.push(
   { v: 279, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Your data", text: "Help tidy the app" }); }, at: () => $("#s-useoff"),
     say: "Once a week the app counts which screens, buttons and switches get used (names and numbers only, never your games), so features nobody uses can be removed and the app stays light.",
     tryIt: "You can switch it off here in Your data." }
+);
+</script>
+<script>
+/* v280: still while you move (the owner: "it lags less but still does it a lot"). Measured (tools/scenarios/trace-scroll.mjs,
+   859 wide): a finger scroll makes Chrome draw a main-thread frame every frame, and each one restyles every running endless
+   animation (Nexi's blink/breath/blob/core, the rail's live strip) even though they run on the GPU: 289 style passes over six
+   swipes on the Queue. Paused, scroll style work fell ~70% (Queue 143 → 42ms, Library 154 → 49ms), and the phone's own
+   smoothness check (#438) said the same: sideways swipes 15% of frames dropped, 3% with animations off. So the endless ones
+   hold still from the first move until 0.5s after the last scroll/move (a fling keeps them held until it stops), then carry
+   on from the same spot. Spinners keep going (REST_KEEP, like rest mode); touching Nexi himself doesn't hold him; ones the
+   hidden-screen hold (OFFHOLD), rest mode or the rail's own touch pause are holding stay held. `node tools/kit.mjs smooth`
+   fails if anything endless is still running mid-swipe. */
+const MVH = { on: false, last: 0, t: 0, held: [] };
+function mvhOne(a) {
+  const tm = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+  if (a.playState !== "running" || !tm || tm.iterations !== Infinity || (a.timeline && a.timeline !== document.timeline)) return;
+  if (REST_KEEP.has(a.animationName) && tm.duration < 2000) return;
+  try { a.pause(); MVH.held.push(a); } catch (e) {}
+}
+function mvhHold() { for (const a of document.getAnimations()) mvhOne(a); }
+function mvhFree() {
+  const h = MVH.held; MVH.held = [];
+  if (REST.on) { REST.held.push(...h); return; }
+  for (const a of h) {
+    if (a.playState !== "paused" || OFFHOLD.has(a)) continue;
+    /* its screen was left or its row scrolled out of drawing meanwhile: the hidden-screen hold takes it over */
+    const el = a.effect && a.effect.target; if (el && !offSeen(el)) { OFFHOLD.add(a); continue; }
+    if (typeof RLV !== "undefined" && a === RLV.anim && (RLV.hold || RLV.drag || rlvCalm())) continue;
+    try { a.play(); } catch (e) {}
+  }
+}
+function mvhWait() {
+  MVH.t = setTimeout(() => { if (performance.now() - MVH.last < 450) return mvhWait(); MVH.on = false; mvhFree(); }, 500);
+}
+function mvhMove(e) {
+  MVH.last = performance.now();
+  if (MVH.on || (e && e.type === "touchmove" && e.target && e.target.closest && e.target.closest("#pnbub"))) return;
+  MVH.on = true; mvhHold(); mvhWait();
+}
+addEventListener("touchmove", mvhMove, { capture: true, passive: true });
+addEventListener("scroll", mvhMove, { capture: true, passive: true });
+addEventListener("wheel", mvhMove, { capture: true, passive: true });
+/* a loop that starts mid-move (Nexi reacting to the swipe, a row's badge drawn in) holds still too */
+addEventListener("animationstart", e => {
+  if (!MVH.on || !e.target.getAnimations) return;
+  for (const a of e.target.getAnimations({ subtree: true }))
+    if (a.animationName === e.animationName && a.effect.target === e.target && (a.effect.pseudoElement || "") === (e.pseudoElement || "")) mvhOne(a);
+}, { capture: true, passive: true });
+WHATS_NEW.push(
+  { v: 280, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
+    say: "<b>Smoother scrolling</b>: while your finger moves, my little loops (and the rail's live strip) hold still, so the phone only draws what you're scrolling. They carry on the moment you stop.",
+    tryIt: "Scroll the Queue fast or swipe between games: it should stay smooth, and I'll start moving again when you stop." }
 );
 </script>

@@ -7,9 +7,10 @@
                                         script errors + every problem the app reports about itself (its own detectors)
      node tools/kit.mjs tour            the what's-new tour from the previous version: every step opens and finds its target
      node tools/kit.mjs perf            main-thread time for a fixed walk (4x slower CPU), to compare before/after a change
+     node tools/kit.mjs smooth          mid-swipe (Queue, Library, a game page) no endless animation is still running (v280)
      node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
      node tools/kit.mjs audit           code health (tools/audit.mjs --check): nothing piled up past tools/audit-budget.txt
-     node tools/kit.mjs all             syntax + audit + sw + sweep + tour
+     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth
      node tools/kit.mjs samecss --before old.html   the browser applies exactly the same CSS (after a CSS tidy)
      node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
                                         with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
@@ -258,6 +259,44 @@ async function perf(browser, base) {
   await p.ctx.close();
 }
 
+/* ---------- smooth: nothing endless keeps running while a finger moves (v280) ----------
+   A finger scroll makes the browser draw a main-thread frame every frame, and each one restyles every running endless
+   animation, even ones on the GPU (v280: 315 style passes over six Queue swipes, ~70% of the scroll's style work). The app
+   holds them still from the first move until the scroll stops (mvh*, last script). This fails if one keeps running
+   mid-swipe (a new loop that slips past the hold, or the hold gone) or a vertical scroll leaves them stopped. */
+async function smooth(browser, base) {
+  console.log(`\n== smooth: endless animations hold still mid-swipe (${FILE}) ==`);
+  for (const w of opt("widths") ? WIDTHS : [412, 859]) {
+    const p = await phone(browser, base, w, seed(APP_V));
+    await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
+    const live = () => p.page.evaluate(() => {
+      const out = [];
+      for (const a of document.getAnimations()) {
+        const t = a.effect && a.effect.target, tm = a.effect && a.effect.getTiming();
+        if (!t || a.playState !== "running" || !tm || tm.iterations !== Infinity) continue;
+        if (typeof REST_KEEP !== "undefined" && REST_KEEP.has(a.animationName) && tm.duration < 2000) continue;   /* spinners */
+        if (!t.checkVisibility || !t.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+        out.push(`${a.animationName || "script"} on ${t.tagName.toLowerCase()}${t.classList[0] ? "." + t.classList[0] : ""}${a.effect.pseudoElement || ""}`);
+      }
+      return out;
+    });
+    for (const [name, js, side] of [["queue", `goTab("games")`, 0], ["library", `goTab("lib")`, 0], ["game page", `openFull("g1")`, 1]]) {
+      await p.step(name, js, 2500);
+      const before = await live();
+      const go = side ? p.swipe(p.w * .85, p.h * .5, p.w * .2, p.h * .52, 600, 30) : p.swipe(p.w * .5, p.h * .8, p.w * .52, p.h * .3, 600, 30);
+      await p.page.waitForTimeout(250);
+      const mid = await live();
+      await go; await p.page.waitForTimeout(1500);
+      const after = await live();
+      if (mid.length) fail(`${w}px ${name}: still running mid-swipe: ${[...new Set(mid)].join(", ")}`);
+      else if (!side && after.length < before.length) fail(`${w}px ${name}: ${before.length} endless animations before the scroll, only ${after.length} running again after it`);
+      else console.log(`  ✓ ${w}px ${name}: ${before.length} endless running → 0 mid-swipe → ${after.length} after`);
+      if (side) await p.step("close", `closeFull()`, 700);
+    }
+    await p.ctx.close();
+  }
+}
+
 /* ---------- sw.js picture shrinking ---------- */
 function sw() {
   console.log("\n== sw.js picture shrink (Chromium) ==");
@@ -318,11 +357,12 @@ async function samecss(browser) {
 }
 
 if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
-if (["sweep", "tour", "perf", "all", "run"].includes(mode)) {
+if (["sweep", "tour", "perf", "smooth", "all", "run"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
     if (mode === "tour" || mode === "all") await tour(browser, base);
+    if (mode === "smooth" || mode === "all") await smooth(browser, base);
     if (mode === "perf") await perf(browser, base);
     if (mode === "run") await scenario(browser, base);
   } finally { await browser.close(); srv.close(); }
