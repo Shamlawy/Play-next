@@ -14,10 +14,12 @@ export type Card = {
   ideas: string[]
   // Ticked items, by key (`a3` = actions[3], `n0` = attention[0]).
   done: string[]
+  // The longer explanation behind a line, by the same key (`i1` = ideas[1]): shown on hover (a tap on phones).
+  why?: Record<string, string>
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    'heads-up': { cards: Card[]; ask: string; busy: boolean; showOld: boolean; last: string }
+    'heads-up': { cards: Card[]; ask: string; busy: boolean; showOld: boolean; last: string; opened: string[] }
   }
 }

@@ -19,6 +19,8 @@ const busy = atom({ plugin: 'heads-up', key: 'busy' } as const, false)
 const showOld = atom({ plugin: 'heads-up', key: 'showOld' } as const, false)
 // What the panel says when the newest reply had nothing for the person.
 const last = atom({ plugin: 'heads-up', key: 'last' } as const, '')
+// Lines whose explanation a tap opened (phones have no hover), as `<card id>-<key>`.
+const opened = atom({ plugin: 'heads-up', key: 'opened' } as const, [])
 
 const openPane = ($: $) => $.ui.open({ id: PANE, title: TITLE }).catch(() => ({ isPlaced: false as const }))
 const isOff = async ($: $) => (await $.store.get('off')) === true
@@ -58,7 +60,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'heads-up',
-      description: 'Open the Heads-up panel: only what needs you from Claude\'s replies (to look at, to do, ideas). "/heads-up off" stops it, "/heads-up on" starts it again.',
+      description: 'Open the Heads-up panel: the 2-4 lines that matter in Claude\'s replies (to look at, to do, ideas); point at a line (tap ⓘ on a phone) to see why. "/heads-up off" stops it, "/heads-up on" starts it again.',
       argumentHint: '[on|off|clear]',
     })
     return next(e)
@@ -115,6 +117,8 @@ export const register: Register = on => {
     const working = await read($, busy)
     const quiet = await read($, last)
     const old = await read($, showOld)
+    const open = await read($, opened)
+    const touch = e.surface === 'mobile'
     const newest = list[list.length - 1]
     const earlier = list.slice(0, -1).reverse()
 
@@ -131,6 +135,32 @@ export const register: Register = on => {
       )
     }
 
+    // A line and its explanation: hidden until the pointer is over the line (the keyed Box is the
+    // hover scope, so nothing runs for it), or on a phone until its ⓘ is tapped.
+    const row = (c: Card, key: string, body: RenderChildren) => {
+      const why = c.why?.[key]
+      if (!why) return body
+      const id = `${c.id}-${key}`
+      const isOpen = touch && open.includes(id)
+      return (
+        <Box key={`hr-${id}`} flexDirection="column">
+          {touch ? (
+            <Box flexDirection="row">
+              <Button key={`hw-${id}`} plain label={isOpen ? '▾ ' : 'ⓘ '} onPress={() => void update($, opened, l => (l.includes(id) ? l.filter(x => x !== id) : [...l, id].slice(-40)))} />
+              <Box flexShrink={1}>{body}</Box>
+            </Box>
+          ) : (
+            body
+          )}
+          {touch ? (
+            isOpen ? <Box marginLeft={2}><Text dimColor>↳ {why}</Text></Box> : null
+          ) : (
+            <Box marginLeft={2} display="none" hover={{ display: 'flex' }}><Text dimColor>↳ {why}</Text></Box>
+          )}
+        </Box>
+      )
+    }
+
     const section = (label: string, colour: string, rows: RenderChildren[]) =>
       rows.length ? (
         <Box key={`s-${label}`} flexDirection="column" marginTop={1}>
@@ -143,9 +173,12 @@ export const register: Register = on => {
       <Box key={`card-${c.id}`} flexDirection="column" marginTop={isNewest ? 0 : 1}>
         {c.ask ? <Text dimColor wrap="truncate-end">“{c.ask}”</Text> : null}
         {c.gist ? <Text>✓ {c.gist}</Text> : null}
-        {section('⚠ Needs your attention', 'warning', c.attention.map((x, i) => tick(c, `n${i}`, x, 'warning')))}
-        {section('👉 For you to do', 'suggestion', c.actions.map((x, i) => tick(c, `a${i}`, x, 'suggestion')))}
-        {section('💡 Ideas', 'success', c.ideas.map((x, i) => <Text key={`i-${c.id}-${i}`}>• {x}</Text>))}
+        {section('⚠ Needs your attention', 'warning', c.attention.map((x, i) => row(c, `n${i}`, tick(c, `n${i}`, x, 'warning'))))}
+        {section('👉 For you to do', 'suggestion', c.actions.map((x, i) => row(c, `a${i}`, tick(c, `a${i}`, x, 'suggestion'))))}
+        {section('💡 Ideas', 'success', c.ideas.map((x, i) => row(c, `i${i}`, <Text key={`i-${c.id}-${i}`}>• {x}</Text>)))}
+        {isNewest && c.why && Object.keys(c.why).length ? (
+          <Box marginTop={1}><Text dimColor>{touch ? 'Tap ⓘ to see why.' : 'Point at a line to see why.'}</Text></Box>
+        ) : null}
       </Box>
     )
 
