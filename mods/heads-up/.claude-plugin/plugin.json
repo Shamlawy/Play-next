@@ -1,1 +1,1 @@
-{ "name": "heads-up", "version": "0.3.0", "description": "Reads each of Claude's replies and puts the 2-4 lines that need you in a side panel (things to look at, things to do, ideas) instead of the whole wall of text; point at a line to see why.", "types": "./types/index.d.ts" }
+{ "name": "heads-up", "version": "0.4.0", "description": "The 2-4 lines that matter in each long reply, so nothing gets buried: a Heads-up box at the top of the reply (cloud chats show only text), or a side panel with hover in a Local chat (/heads-up panel).", "types": "./types/index.d.ts" }

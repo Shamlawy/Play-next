@@ -22,6 +22,20 @@ Each item has "line" (the short point, at most 15 words) and "why" (one or two p
 
 Rules: never invent anything that is not in the reply. Plain words, keep exact names, numbers, links and PR/issue references. Merge duplicates. At most ${MAX_LINES} items in all three lists together, the most important first; one or two is often right. Empty lists are fine and common: a reply that only reports finished work has attention, actions and ideas all empty.`
 
+// Box mode (the default): cloud chats in the desktop and phone apps show only text, never a mod's panel, so the
+// important lines go at the top of the reply itself. Added to the system prompt each turn.
+export const BOX = `Heads-up box (the person asked that the important part of a long reply never gets buried). When your reply to the person will be longer than about 300 characters, begin it with this box, before anything else:
+
+> **Heads-up**
+> ⚠ <something they must know or decide: a failure, a risk, a question you are asking them>
+> ↳ <one plain sentence: why, or the detail>
+> 👉 <something only they can do>
+> ↳ <one plain sentence>
+> 💡 <an idea or option you offered but did not do>
+> ↳ <one plain sentence>
+
+Use 2 to 4 lines in all (each with its ↳), most important first, and only the kinds that apply. Each line at most 15 words, each ↳ at most 20; plain words; keep exact names, numbers and links; never invent. When nothing needs them, the box is one line: "> **Heads-up** ✓ <what was done, at most 15 words>". Then write the reply as usual, without repeating the box. Short replies get no box, and neither does a report a helper agent writes for another Claude.`
+
 export function prompt(ask: string, reply: string): string {
   return `${ask ? `The user's message:\n${ask.slice(0, 2000)}\n\n` : ''}The assistant's reply:\n${reply.slice(0, 30_000)}`
 }

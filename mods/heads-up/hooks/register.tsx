@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Card } from '../types'
-import { MAX_CARDS, MIN_REPLY, SYSTEM, asText, hasAny, heading, openCount, parse, prompt, toggle } from './sift.ts'
+import { BOX, MAX_CARDS, MIN_REPLY, SYSTEM, asText, hasAny, heading, openCount, parse, prompt, toggle } from './sift.ts'
 
 type $ = EngineInterface
 
@@ -31,7 +31,7 @@ const openPane = ($: $) => $.ui.open({ id: PANE, title: TITLE }).catch(() => ({ 
 // opened in answer to the person's message is placed at any width. So each message opens it, unless they closed
 // it and nothing new has come since.
 async function openOnMessage($: $) {
-  if (await isOff($)) return
+  if ((await isOff($)) || !(await isPanel($))) return
   const list = await read($, cards)
   const closed = await read($, closedAt)
   if (closed && closed === newestKey(list)) return
@@ -39,9 +39,12 @@ async function openOnMessage($: $) {
   await openPane($)
 }
 const isOff = async ($: $) => (await $.store.get('off')) === true
+// 'box' (default): the lines go in a box at the top of each long reply, the only thing a cloud chat shows.
+// 'panel': the side panel with hover, for a Local chat on the PC, where mods draw (`/heads-up panel`).
+const isPanel = async ($: $) => (await $.store.get('mode')) === 'panel'
 
 async function status($: $) {
-  if (await isOff($)) return $.ui.status(undefined)
+  if ((await isOff($)) || !(await isPanel($))) return $.ui.status(undefined)
   const n = openCount(await read($, cards))
   $.ui.status(n ? `👀 ${n} need${n === 1 ? 's' : ''} you · /heads-up` : undefined)
 }
@@ -75,8 +78,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'heads-up',
-      description: 'Open the Heads-up panel: the 2-4 lines that matter in Claude\'s replies (to look at, to do, ideas); point at a line (tap ⓘ on a phone) to see why. "/heads-up off" stops it, "/heads-up on" starts it again.',
-      argumentHint: '[on|off|clear]',
+      description: 'The 2-4 lines that matter in Claude\'s long replies: a Heads-up box at the top of each (cloud chats), or "/heads-up panel" for the side panel with hover (a Local chat on the PC); "/heads-up box" goes back. "/heads-up off" stops it, "/heads-up on" starts it again.',
+      argumentHint: '[box|panel|on|off|clear]',
     })
     return next(e)
   })
@@ -93,14 +96,26 @@ export const register: Register = on => {
       await status($)
       return { text: 'Heads-up is on: after each long reply, what needs you shows in the side panel.' }
     }
+    if (arg === 'panel') {
+      await $.store.set('mode', 'panel')
+      await status($)
+      await openPane($)
+      return { text: 'Heads-up is in panel mode: after each long reply, the side panel shows the lines that need you; point at one to see why. Mod panels only draw in a Local chat on your PC; "/heads-up box" goes back to the box at the top of replies.' }
+    }
+    if (arg === 'box') {
+      await $.store.delete('mode')
+      await status($)
+      return { text: 'Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter.' }
+    }
     if (arg === 'clear') {
       await update($, cards, () => [])
       await status($)
       return { text: 'Heads-up cleared.' }
     }
+    const off = (await isOff($)) ? '\n(Heads-up is off: "/heads-up on" turns it back on.)' : ''
+    if (!(await isPanel($))) return { text: `Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter. In a Local chat on your PC, "/heads-up panel" switches to the side panel with hover.${off}` }
     const opened = await openPane($)
     const list = await read($, cards)
-    const off = (await isOff($)) ? '\n(Heads-up is off: "/heads-up on" turns it back on.)' : ''
     if (!list.length) return { text: `Nothing needs you yet.${off}` }
     // The newest reply's card as text too, for a screen that seats no panes (the phone app).
     const newest = list[list.length - 1]!
@@ -119,6 +134,13 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
+  // Box mode: the instruction rides at the end of the system prompt.
+  on('prompt.compose', async ($, e, next) => {
+    const r = await next(e)
+    if ((await isOff($)) || (await isPanel($))) return r
+    return { ...r, sections: [...r.sections.filter(x => x.id !== 'heads-up:box'), { id: 'heads-up:box', text: BOX, scope: 'session' as const }] }
+  }).catch(($, e, next) => next(e))
+
   // Closed by hand: stay closed until a newer card arrives.
   on('ui.close', { id: PANE }, async ($, e, next) => {
     if (e.origin?.kind === 'person') {
@@ -133,7 +155,7 @@ export const register: Register = on => {
     const r = await next(e)
     if (e.agentId || e.reason !== 'answer') return r
     const reply = (r.text || e.answer || '').trim()
-    if (reply.length < MIN_REPLY || (await isOff($))) return r
+    if (reply.length < MIN_REPLY || (await isOff($)) || !(await isPanel($))) return r
     const question = await read($, ask)
     $.clock.after(10, () => void sift($, reply, question).catch(() => update($, busy, () => false)))
     return r
