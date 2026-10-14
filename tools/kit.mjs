@@ -315,7 +315,11 @@ async function smooth(browser, base) {
       const flame = () => p.page.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".flame")).map(a => a.playState));
       const go = p.swipe(p.w * .5, p.h * .85, p.w * .52, p.h * .2, 1600, 80);
       await p.page.waitForTimeout(100); await p.page.evaluate(() => pnPowerUp(false));
-      await p.page.waitForTimeout(1250);
+      /* the charge (`#pnbub.ssj-charge .core { animation: ssjShake … !important }`) outranks a plain class rule */
+      await p.page.waitForTimeout(300);
+      const charge = await p.page.evaluate(() => document.getAnimations().filter(a => a.playState === "running" && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest("#pnbub") && a.effect.getTiming().iterations === Infinity).map(a => a.animationName || "script"));
+      if (charge.length) fail(`${w}px power-up mid-swipe: still running in Nexi while he charges: ${[...new Set(charge)].join(", ")}`);
+      await p.page.waitForTimeout(950);
       const mid = await flame(); await go; await p.page.waitForTimeout(1200);
       const after = await flame(); await p.page.evaluate(() => pnPowerUp.end && pnPowerUp.end()); await p.page.waitForTimeout(400);
       const end = await flame();

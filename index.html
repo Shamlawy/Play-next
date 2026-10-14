@@ -25361,7 +25361,10 @@ WHATS_NEW.push(
 <style>
 /* v280: endless loops hold still while a finger moves (mvh*, next script) */
 /* .mvh on a loop's own element; on Nexi (#pnbub) it holds all of him: his reactions switch loops on by class mid-swipe */
-.mvh, .mvh::before, .mvh::after, #pnbub.mvh *, #pnbub.mvh *::before, #pnbub.mvh *::after { animation-play-state: paused !important; }
+/* two IDs' weight (:not(#…) counts as an ID): Nexi's own forced animation rules use one ID (#pnbub.ssj-charge .core)
+   and would otherwise win, leaving his charge shake running mid-swipe */
+html:not(#mvh0):not(#mvh1) .mvh, html:not(#mvh0):not(#mvh1) .mvh::before, html:not(#mvh0):not(#mvh1) .mvh::after,
+html:not(#mvh0) #pnbub.mvh *, html:not(#mvh0) #pnbub.mvh *::before, html:not(#mvh0) #pnbub.mvh *::after { animation-play-state: paused !important; }
 </style>
 <script>
 /* v280: still while you move (the owner: "it lags less but still does it a lot"). Measured (tools/scenarios/trace-scroll.mjs,
