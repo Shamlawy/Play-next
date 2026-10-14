@@ -1,0 +1,30 @@
+# By hand (Actions tab), or when the probe or the helper changes: Steam's public profile data (play sessions, helper v20)
+# from GitHub's servers (this container can't reach Steam), the helper's own /steam/me + /steam/sync + cron code against real
+# Steam, and the live helper. Read it with the job log.
+name: Steam sessions probe
+on:
+  workflow_dispatch:
+    inputs:
+      who:
+        description: "Steam profiles (links, custom names or 64-bit ids), | separated"
+        required: false
+  push:
+    paths:
+      - ".github/scripts/steamprobe.mjs"
+      - "worker/helper.js"
+      - ".github/workflows/steam-probe.yml"
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe
+        env:
+          WHO: ${{ github.event.inputs.who }}
+        run: node .github/scripts/steamprobe.mjs 2>&1
