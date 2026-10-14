@@ -3,6 +3,7 @@ import {
   appV, diffLines, fileProblems, logLookup, parseNameStatus, parsePorcelain, releaseProblems, rootDeleted, scanBlock, scanLines,
   type Range,
 } from './rules.ts'
+import { checkHere, isHere, withNote } from './here.ts'
 
 type $ = EngineInterface
 
@@ -161,6 +162,7 @@ async function poll($: $) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    if (!(await checkHere($, e.cwd, 'release-guard', true))) return next(e)
     const cwd = e.cwd
     const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd }).catch(() => undefined)
     root = top?.exitCode === 0 ? top.stdout.trim() : cwd
@@ -184,12 +186,14 @@ export const register: Register = on => {
   })
 
   on('turn.start', ($, e, next) => {
+    if (!isHere()) return next(e)
     seq = lastEdit = lastTest = 0
     return next(e)
   })
 
   // Every reply: news from the watch (merged → live) that arrived since the last one.
   on('prompt.submit', ($, e, next) => {
+    if (!isHere()) return next(withNote(e))
     if (!pending.length) return next(e)
     const note = `[release-guard] Since your last reply: ${pending.splice(0).join(' ')} Tell the person in one short line.`
     return next({ ...e, context: [...(e.context ?? []), note] })
@@ -197,6 +201,7 @@ export const register: Register = on => {
 
   // Edits to index.html: house rules on the added lines, and the LOG lines about the code touched.
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     if (!/(^|\/)index\.html$/.test(e.file_path)) return next(e)
     const ran = await next(e)
     if (ran.deny !== undefined || ran.isError) return ran
@@ -214,6 +219,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     if (!/(^|\/)index\.html$/.test(e.file_path)) return next(e)
     const before = await $.fs.read(e.file_path).catch(() => '')
     const ran = await next(e)
@@ -229,6 +235,7 @@ export const register: Register = on => {
 
   // Shell: commits and pushes are gated; edits and browser tests are counted for the end-of-turn check.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const cmd = e.command
     if (HTML_WRITE.test(cmd) && WRITER.test(cmd) && !COMMIT.test(cmd) && !PUSH.test(cmd)) lastEdit = ++seq
     if (TESTED.test(cmd)) lastTest = ++seq
@@ -283,6 +290,7 @@ export const register: Register = on => {
 
   // The merge is the release: GitHub Pages serves main. Check what the PR brings, then watch it go live.
   on('tool.call', { tool: 'mcp__github__merge_pull_request' }, async ($, e, next) => {
+    if (!isHere()) return next(e)
     const a = e as unknown as { owner?: string; repo?: string; pullNumber?: number }
     const full = `${a.owner ?? ''}/${a.repo ?? ''}`
     if (full.toLowerCase() !== repo.toLowerCase()) return next(e)
@@ -304,6 +312,7 @@ export const register: Register = on => {
 
   // Before Claude says it's done: index.html changed this turn, so a browser test must have run after it.
   on('classic.Stop', async ($, e, next) => {
+    if (!isHere()) return next(e)
     const r = await next(e)
     if (r.block || e.stop_hook_active || !lastEdit || lastTest > lastEdit) return r
     return {

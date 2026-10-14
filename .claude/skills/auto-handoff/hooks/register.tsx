@@ -1,5 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
+import { checkHere, isHere } from './here.ts'
 
 // Chat size (tokens the last reply was answered over) where the chat moves on by itself.
 const LIMIT = 300_000
@@ -21,6 +22,7 @@ const k = (n: number) => `${Math.round(n / 1000)}k`
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    if (!(await checkHere($, e.cwd, 'auto-handoff'))) return next(e)
     await $.command.register({ name: 'handoff', description: 'Write a handoff note and start a fresh chat with it.' })
     return next(e)
   })
@@ -31,6 +33,7 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    if (!isHere()) return next(e)
     // A failed reading must never hold up the message.
     const tokens = await $.session.usage().then(u => u.context.tokens ?? 0).catch(() => 0)
     let note = ''
