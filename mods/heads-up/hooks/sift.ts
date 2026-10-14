@@ -151,6 +151,42 @@ export const openCount = (cards: readonly Card[]) =>
 
 export const toggle = (c: Card, key: string): Card => ({ ...c, done: c.done.includes(key) ? c.done.filter(k => k !== key) : [...c.done, key] })
 
+// The tiles' look: each kind its tint, its colour and an 8x8 pixel icon (an emoji where no Svg is drawn).
+export type Kind = 'attention' | 'action' | 'idea' | 'ok'
+export const LOOK: Record<Kind, { bg: string; fg: string; emoji: string; alt: string }> = {
+  attention: { bg: '#2a2112', fg: '#F0B44C', emoji: '⚠', alt: 'needs your attention' },
+  action: { bg: '#13212f', fg: '#5AA9F0', emoji: '👉', alt: 'for you to do' },
+  idea: { bg: '#132619', fg: '#5FD38A', emoji: '💡', alt: 'idea' },
+  ok: { bg: '#132619', fg: '#5FD38A', emoji: '✓', alt: 'nothing needs you' },
+}
+export const CHOICE_BG = '#1c1d20'
+export const ROW_BG = '#26272b'
+export const PICKED_BG = '#172638'
+export const ACCENT = '#4C8DF6'
+
+const ICONS: Record<Kind, string[]> = {
+  attention: ['...##...', '...##...', '...##...', '...##...', '...##...', '........', '...##...', '...##...'],
+  action: ['........', '....#...', '....##..', '.######.', '.######.', '....##..', '....#...', '........'],
+  idea: ['..####..', '.######.', '.######.', '.######.', '..####..', '...bb...', '..bbbb..', '...bb...'],
+  ok: ['........', '.......#', '......##', '#....##.', '##..##..', '.####...', '..##....', '........'],
+}
+
+export function iconSvg(kind: Kind): string {
+  const fill: Record<string, string> = { '#': LOOK[kind].fg, b: '#8A8F98' }
+  const px = ICONS[kind].flatMap((r, y) => [...r].map((c, x) => (fill[c] ? `<rect x="${x}" y="${y}" width="1" height="1" fill="${fill[c]}"/>` : ''))).join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="16" height="16" shape-rendering="crispEdges">${px}</svg>`
+}
+
+// The header's count chips: what is still open in one card, by kind.
+export function chips(c: Card): { kind: Kind | 'choice'; n: number }[] {
+  const open = (list: string[], k: string) => list.filter((_, i) => !c.done.includes(`${k}${i}`)).length
+  return [
+    { kind: 'attention' as const, n: open(c.attention, 'n') },
+    { kind: 'choice' as const, n: waiting(c) },
+    { kind: 'action' as const, n: open(c.actions, 'a') },
+  ].filter(x => x.n > 0)
+}
+
 // Newest first, as plain text: the /heads-up reply, for a screen that seats no panes.
 export function asText(c: Card): string {
   const box = (key: string) => (c.done.includes(key) ? '☑' : '☐')
