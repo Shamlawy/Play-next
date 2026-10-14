@@ -107,17 +107,6 @@ export const register: Register = on => {
       await status($)
       return { text: 'Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter.' }
     }
-    if (arg === 'panel') {
-      await $.store.set('mode', 'panel')
-      await status($)
-      await openPane($)
-      return { text: 'Heads-up is in panel mode: after each long reply, the side panel shows the lines that need you; point at one to see why. Mod panels only draw in a Local chat on your PC; "/heads-up box" goes back to the box at the top of replies.' }
-    }
-    if (arg === 'box') {
-      await $.store.delete('mode')
-      await status($)
-      return { text: 'Heads-up is in box mode: each long reply starts with a short Heads-up box of the 2-4 lines that matter.' }
-    }
     if (arg === 'clear') {
       await update($, cards, () => [])
       await status($)
