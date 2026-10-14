@@ -4,12 +4,12 @@ import { asText, openCount, parse } from '../hooks/sift.ts'
 const LONG = `I fixed the layout bug and pushed it. ${'Details of everything I checked along the way. '.repeat(12)} One thing failed: the iPhone check timed out. Could you open the app on your phone and tell me if the list scrolls? We could also add a dark-mode toggle later.`
 const SIFTED = '```json\n{"gist":"Fixed the layout bug and pushed it","attention":[{"line":"iPhone check timed out","why":"The WebKit run stopped after 10 minutes, so the fix is untested on Safari."}],"actions":["Open the app on your phone and check the list scrolls"],"ideas":[{"line":"Add a dark-mode toggle","why":"Offered as a follow-up, not started."}]}\n```'
 
-function world(on: any, answer = SIFTED, placed = true) {
+function world(on: any, answer = SIFTED, placed = true, mode: 'panel' | 'box' = 'panel') {
   const calls: any[] = []
   const toasts: string[] = []
   const statuses: (string | undefined)[] = []
   const opens: number[] = []
-  mock.store(on)
+  mock.store(on, mode === 'panel' ? { mode: 'panel' } : {})
   const clock = mock.clock(on, { now: 1000 })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
@@ -20,6 +20,7 @@ function world(on: any, answer = SIFTED, placed = true) {
   on('model.complete', ($: unknown, e: any) => { calls.push(e); return { value: { isAnswered: true, text: answer, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } } })
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
   on('prompt.submit', ($: unknown, e: any) => ({ text: e.text }))
+  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'engine', scope: 'shared' }] }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
   return { calls, toasts, statuses, clock, opens }
 }
@@ -139,5 +140,31 @@ describe('heads-up', () => {
     await $.command.run({ command: 'heads-up', args: 'on' } as any)
     await reply($, clock)
     expect(calls.length).toBe(2)
+  })
+
+  test('box mode (the default): long replies start with a Heads-up box, no model call, no panel', async ($, on) => {
+    const { calls, opens, clock } = world(on, SIFTED, true, 'box')
+    const composed: any = await ($ as any).prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
+    const box = composed.sections.find((x: any) => x.id === 'heads-up:box')
+    expect(box?.text).toContain('**Heads-up**')
+    expect(box?.scope).toBe('session')
+    await $.prompt.submit({ text: 'fix the queue' } as any)
+    await reply($, clock)
+    expect(calls.length).toBe(0)
+    expect(opens.length).toBe(0)
+    const r: any = await $.command.run({ command: 'heads-up', args: '' } as any)
+    expect(r.text).toContain('box mode')
+  })
+
+  test('/heads-up panel switches to the side panel (and drops the box); /heads-up box goes back', async ($, on) => {
+    const { calls, clock } = world(on, SIFTED, true, 'box')
+    await $.command.run({ command: 'heads-up', args: 'panel' } as any)
+    let composed: any = await ($ as any).prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
+    expect(composed.sections.some((x: any) => x.id === 'heads-up:box')).toBe(false)
+    await reply($, clock)
+    expect(calls.length).toBe(1)
+    await $.command.run({ command: 'heads-up', args: 'box' } as any)
+    composed = await ($ as any).prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
+    expect(composed.sections.some((x: any) => x.id === 'heads-up:box')).toBe(true)
   })
 })
