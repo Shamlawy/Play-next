@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { asText, openCount, parse } from '../hooks/sift.ts'
+import { asText, hasAny, openCount, parse, pick, pickText } from '../hooks/sift.ts'
 
 const LONG = `I fixed the layout bug and pushed it. ${'Details of everything I checked along the way. '.repeat(12)} One thing failed: the iPhone check timed out. Could you open the app on your phone and tell me if the list scrolls? We could also add a dark-mode toggle later.`
 const SIFTED = '```json\n{"gist":"Fixed the layout bug and pushed it","attention":[{"line":"iPhone check timed out","why":"The WebKit run stopped after 10 minutes, so the fix is untested on Safari."}],"actions":["Open the app on your phone and check the list scrolls"],"ideas":[{"line":"Add a dark-mode toggle","why":"Offered as a follow-up, not started."}]}\n```'
@@ -20,10 +20,11 @@ function world(on: any, answer = SIFTED, placed = true, mode: 'panel' | 'box' | 
   on('ui.status', ($: unknown, e: any) => { statuses.push(e.text); return { value: undefined } })
   on('model.complete', ($: unknown, e: any) => { calls.push(e); return { value: { isAnswered: true, text: answer, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } } })
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
-  on('prompt.submit', ($: unknown, e: any) => ({ text: e.text }))
+  const sent: string[] = []
+  on('prompt.submit', ($: unknown, e: any) => { if (e.origin?.kind === 'plugin' || e.asUser) sent.push(e.text); return { text: e.text } })
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'engine', scope: 'shared' }] }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
-  return { calls, toasts, statuses, clock, opens }
+  return { calls, toasts, statuses, clock, opens, sent }
 }
 
 async function reply($: any, clock: any, answer = LONG, extra: any = {}) {
@@ -177,5 +178,51 @@ describe('heads-up', () => {
     await $.command.run({ command: 'heads-up', args: 'box' } as any)
     composed = await ($ as any).prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
     expect(composed.sections.some((x: any) => x.id === 'heads-up:box')).toBe(true)
+  })
+  test('parse turns offered options into a choice: one or many, the suggested one, junk refused', () => {
+    const one = parse('{"gist":"g","attention":[],"actions":[],"ideas":[],"choice":{"question":"Which fix first?","multi":false,"options":[{"label":"Fix Safari scroll","why":"Hits the friend."},{"label":"Fix Month stutter","why":"Owner sees it daily."}],"suggested":1}}')
+    expect(one?.choice).toEqual({ question: 'Which fix first?', multi: false, options: [{ label: 'Fix Safari scroll', why: 'Hits the friend.' }, { label: 'Fix Month stutter', why: 'Owner sees it daily.' }], suggested: 1, picked: [] })
+    expect(parse('{"gist":"g","choice":{"question":"?","options":["only one"]}}')?.choice).toBeUndefined()
+    expect(parse('{"gist":"g","choice":{"options":["a","b"],"suggested":7,"multi":true}}')?.choice).toEqual({ question: 'Which one?', multi: true, options: [{ label: 'a', why: '' }, { label: 'b', why: '' }], picked: [] })
+    expect(hasAny({ attention: [], actions: [], ideas: [], choice: one!.choice })).toBe(true)
+  })
+
+  test('pick and pickText: one swaps, many toggle, none says so', () => {
+    const c = { question: 'Next?', multi: false, options: [{ label: 'A', why: '' }, { label: 'B', why: '' }, { label: 'C', why: '' }], picked: [] as number[] }
+    expect(pick(pick(c, 0), 1).picked).toEqual([1])
+    const m = { ...c, multi: true }
+    expect(pick(pick(pick(m, 2), 0), 2).picked).toEqual([0])
+    expect(pickText(c, [1])).toBe('Next? Go with "B".')
+    expect(pickText(m, [0, 2])).toBe('Next? Do these: "A" and "C".')
+    expect(pickText(c, [])).toBe('None of those for now (Next).')
+  })
+
+  test('the panel lets the person pick several options and sends them as their message, once', async ($, on) => {
+    const CHOICE = '{"gist":"Found three slow screens","attention":[],"actions":[],"ideas":[],"choice":{"question":"Which should I fix?","multi":true,"options":[{"label":"Month scroll","why":"Worst hitch 1.4s."},{"label":"Library switch","why":"110ms."},{"label":"Game page scroll","why":"180ms."}],"suggested":0}}'
+    const { clock, sent, statuses } = world(on, CHOICE)
+    await $.prompt.submit({ text: 'what is slow?' } as any)
+    await reply($, clock)
+    const ui = await $.ui.mount(pane('desktop'))
+    expect(await ui.find({ type: 'Text', text: /Which should I fix\?/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /★ suggested/ })).toBeDefined()
+    expect(statuses[statuses.length - 1]).toContain('1 needs you')
+    await ui.press({ key: (await ui.find({ type: 'Button', text: /Month scroll/ }))!.key })
+    await ui.press({ key: (await ui.find({ type: 'Button', text: /Game page scroll/ }))!.key })
+    await ui.press({ key: (await ui.find({ type: 'Button', text: 'Send 2 picks' }))!.key })
+    expect(sent).toEqual(['Which should I fix? Do these: "Month scroll" and "Game page scroll".'])
+    expect(await ui.find({ type: 'Text', text: /Sent:/ })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: /None of these/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('"None of these" is always there and sends a no', async ($, on) => {
+    const CHOICE = '{"gist":"g","attention":[],"actions":[],"ideas":[],"choice":{"question":"Want me to add tests?","multi":false,"options":[{"label":"Yes, unit tests"},{"label":"Yes, a scenario"}],"suggested":null}}'
+    const { clock, sent } = world(on, CHOICE)
+    await reply($, clock)
+    const ui = await $.ui.mount(pane('mobile'))
+    expect(await ui.find({ type: 'Button', text: /^Send/ })).toBeUndefined()
+    await ui.press({ key: (await ui.find({ type: 'Button', text: 'None of these' }))!.key })
+    expect(sent).toEqual(['None of those for now (Want me to add tests).'])
+    await ui.unmount()
   })
 })

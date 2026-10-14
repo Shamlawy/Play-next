@@ -16,6 +16,9 @@ export type Card = {
   done: string[]
   // The longer explanation behind a line, by the same key (`i1` = ideas[1]): shown on hover (a tap on phones).
   why?: Record<string, string>
+  // Options the reply laid out for the person to pick from: one (multi false) or several; none is always allowed.
+  // picked = the tapped options' indexes; sent = what went back to Claude once they sent it.
+  choice?: { question: string; multi: boolean; options: { label: string; why: string }[]; suggested?: number; picked: number[]; sent?: string }
 }
 
 declare module 'claude-code' {

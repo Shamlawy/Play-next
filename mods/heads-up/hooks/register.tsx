@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Card } from '../types'
-import { BOX, MAX_CARDS, MIN_REPLY, SYSTEM, asText, hasAny, heading, openCount, parse, prompt, toggle } from './sift.ts'
+import { BOX, MAX_CARDS, MIN_REPLY, SYSTEM, asText, hasAny, heading, openCount, parse, pick, pickText, prompt, toggle } from './sift.ts'
 
 type $ = EngineInterface
 
@@ -217,22 +217,83 @@ export const register: Register = on => {
       )
     }
 
+    // Each kind of line in its own tinted block, so the card reads at a glance.
     const section = (label: string, colour: string, rows: RenderChildren[]) =>
       rows.length ? (
-        <Box key={`s-${label}`} flexDirection="column" marginTop={1}>
+        <Box key={`s-${label}`} flexDirection="column" marginTop={1} backgroundColor="#1c1d20" paddingX={1} paddingY={0}>
           <Text bold color={colour}>{label}</Text>
           {rows}
         </Box>
       ) : null
 
+    const setChoice = (c: Card, fn: (x: NonNullable<Card['choice']>) => NonNullable<Card['choice']>) =>
+      update($, cards, l => l.map(x => (x.id === c.id && x.choice ? { ...x, choice: fn(x.choice) } : x)))
+
+    // The pick goes back to Claude as the person's own next message; the card then says what was sent.
+    const send = async (c: Card, picked: number[]) => {
+      if (!c.choice || c.choice.sent) return
+      const text = pickText(c.choice, picked)
+      await setChoice(c, x => ({ ...x, picked, sent: text }))
+      await status($)
+      await $.prompt.submit({ text, asUser: true })
+    }
+
+    // Options laid out in the reply: tap one (or several, when they go together), then Send; "None of these" is always there.
+    const choiceBlock = (c: Card) => {
+      const ch = c.choice
+      if (!ch) return null
+      const option = (o: { label: string; why: string }, i: number) => {
+        const chosen = ch.picked.includes(i)
+        const mark = ch.multi ? (chosen ? "☑" : "☐") : chosen ? "◉" : "○"
+        const body = (
+          <Button key={`hc-${c.id}-${i}`} plain onPress={() => (ch.sent ? undefined : void setChoice(c, x => pick(x, i)))}>
+            <Text color={chosen ? "suggestion" : undefined} dimColor={!!ch.sent && !chosen}>{mark}</Text> <Text bold={chosen} dimColor={!!ch.sent && !chosen}>{o.label}</Text>
+            {ch.suggested === i ? <Text color="success"> ★ suggested</Text> : null}
+          </Button>
+        )
+        if (!o.why) return body
+        const id = `${c.id}-o${i}`
+        return touch ? (
+          <Box key={`hco-${id}`} flexDirection="column">
+            <Box flexDirection="row">
+              <Button key={`hcw-${id}`} plain label={open.includes(id) ? '▾ ' : 'ⓘ '} onPress={() => void update($, opened, l => (l.includes(id) ? l.filter(x => x !== id) : [...l, id].slice(-40)))} />
+              <Box flexShrink={1}>{body}</Box>
+            </Box>
+            {open.includes(id) ? <Box marginLeft={2}><Text dimColor>↳ {o.why}</Text></Box> : null}
+          </Box>
+        ) : (
+          <Box key={`hco-${id}`} flexDirection="column">
+            {body}
+            <Box marginLeft={2} display="none" hover={{ display: 'flex' }}><Text dimColor>↳ {o.why}</Text></Box>
+          </Box>
+        )
+      }
+      return (
+        <Box key={`hc-${c.id}`} flexDirection="column" marginTop={1} backgroundColor="#1c1d20" paddingX={1} paddingY={0}>
+          <Text bold color="suggestion">❓ {ch.question}</Text>
+          <Text dimColor>{ch.multi ? 'Pick any that you want' : 'Pick one'}, or none.</Text>
+          {ch.options.map(option)}
+          {ch.sent ? (
+            <Box marginTop={1}><Text color="success">✓ Sent: </Text><Text dimColor>{ch.sent}</Text></Box>
+          ) : (
+            <Box marginTop={1} gap={2}>
+              {ch.picked.length ? <Button key={`hcs-${c.id}`} label={ch.picked.length > 1 ? `Send ${ch.picked.length} picks` : 'Send'} onPress={() => void send(c, ch.picked)} /> : null}
+              <Button key={`hcn-${c.id}`} plain label="None of these" onPress={() => void send(c, [])} />
+            </Box>
+          )}
+        </Box>
+      )
+    }
+
     const card = (c: Card, isNewest: boolean) => (
       <Box key={`card-${c.id}`} flexDirection="column" marginTop={isNewest ? 0 : 1}>
-        {c.ask ? <Text dimColor wrap="truncate-end">“{c.ask}”</Text> : null}
-        {c.gist ? <Text>✓ {c.gist}</Text> : null}
+        {c.gist ? <Text bold>✓ {c.gist}</Text> : null}
+        {c.ask ? <Text dimColor wrap="truncate-end">for “{c.ask}”</Text> : null}
         {section('⚠ Needs your attention', 'warning', c.attention.map((x, i) => row(c, `n${i}`, tick(c, `n${i}`, x, 'warning'))))}
+        {choiceBlock(c)}
         {section('👉 For you to do', 'suggestion', c.actions.map((x, i) => row(c, `a${i}`, tick(c, `a${i}`, x, 'suggestion'))))}
         {section('💡 Ideas', 'success', c.ideas.map((x, i) => row(c, `i${i}`, <Text key={`i-${c.id}-${i}`}>• {x}</Text>)))}
-        {isNewest && c.why && Object.keys(c.why).length ? (
+        {isNewest && ((c.why && Object.keys(c.why).length) || c.choice?.options.some(o => o.why)) ? (
           <Box marginTop={1}><Text dimColor>{touch ? 'Tap ⓘ to see why.' : 'Point at a line to see why.'}</Text></Box>
         ) : null}
       </Box>
