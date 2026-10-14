@@ -211,13 +211,13 @@ export const register: Register = on => {
         <Text dimColor>ⓘ</Text>
       )
 
-    const tick = (c: Card, key: string, text: string) => {
+    // Only the box: a desktop draws a Button's label in full (a long "Mark done: …" squeezed the line to a sliver).
+    const tick = (c: Card, key: string) => {
       const ticked = c.done.includes(key)
       return (
         <Button
           key={`hu-${c.id}-${key}`}
           plain
-          label={ticked ? `Mark not done: ${text}` : `Mark done: ${text}`}
           onPress={() => void update($, cards, l => l.map(x => (x.id === c.id ? toggle(x, key) : x))).then(() => status($))}
         >
           <Text color={ticked ? undefined : LOOK[key.startsWith('n') ? 'attention' : 'action'].fg} dimColor={ticked}>{ticked ? '☑' : '☐'}</Text>
@@ -237,7 +237,7 @@ export const register: Register = on => {
             {whyLine(id, why)}
           </Box>
           {whyMark(id, why)}
-          {withTick ? tick(c, key, text) : null}
+          {withTick ? tick(c, key) : null}
         </Box>
       )
     }
