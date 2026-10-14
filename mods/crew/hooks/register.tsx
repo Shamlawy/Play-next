@@ -151,14 +151,26 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The band above the prompt: one line with the crew's progress while this round has helpers.
+  // The band above the prompt: one line with the crew's progress while this round has helpers, and a quiet
+  // line at rest (the owner: "I want the crew always", so it never disappears).
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
     const list = await read($, helpers)
     const from = await read($, since)
     const t0 = await read($, now)
     const round = list.filter(x => x.status === 'running' || x.startedAt >= from)
-    if (!round.length || e.props.hasSurvey) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
+    if (!round.length) {
+      const all = totals(list, Math.max(t0, ...list.map(x => x.startedAt), 0))
+      return (
+        <Box gap={1}>
+          <Text>🦀</Text>
+          <Text bold>Agents</Text>
+          <Text dimColor>{list.length ? `idle · ${list.length} earlier this chat · ${k(all.tokens)} · ${usd(all.cost)}` : 'idle · none yet this chat'}</Text>
+          <Button key="crew-open" label="Details" onPress={() => void openPane($)} />
+        </Box>
+      )
+    }
     const t = totals(round, Math.max(t0, ...round.map(x => x.startedAt)))
     const done = round.length - t.running
     const avg = round.reduce((a, x) => a + progressOf(x), 0) / round.length

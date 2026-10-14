@@ -9,8 +9,9 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/kit.mjs sweep` | Walks every screen, 3 game pages, Settings, Edit and chat at 412 / 859 / 360 in Chromium, with the app's own problem checks listening. Fails on a script error or a real report. Timing notes are printed only, because headless has no GPU | 3 min |
 | `node tools/kit.mjs tour` | Runs the what's-new tour from the previous version to `APP_V` at 412 and 859, and checks that every step opens and finds its target | 40 s |
 | `node tools/kit.mjs perf` | Measures main-thread ms per step (script / layout / style) with a 4x slower CPU. Use it to compare before and after a change | 30 s |
+| `node tools/kit.mjs smooth` | Mid-swipe on Queue, Library and a game page (412 / 859), no endless animation may still be running, and a vertical scroll must leave them running again. Every scroll frame is a main-thread frame that restyles each running loop, so the app holds them still while a finger moves (v280) | 40 s |
 | `node tools/kit.mjs audit` | Code health (`tools/audit.mjs --check`): fails when anything piled up past `tools/audit-budget.txt` | 2 s |
-| `node tools/kit.mjs all` | Runs syntax + audit + sw + sweep + tour. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
+| `node tools/kit.mjs all` | Runs syntax + audit + sw + sweep + tour + smooth. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
 | `node tools/kit.mjs sweep --plant x.js --expect` | Runs `x.js` in every test phone, then sweeps. Fails unless the app reports it: the proof that a new detector catches its problem | 1 min per width |
 | `node tools/kit.mjs run tools/scenarios/x.mjs` | Runs a saved scenario: `export default async ({ p, w, fail }) => …` with `p.step`, `p.scroll`, `p.flush` and real touch (`p.tap`, `p.swipe` through CDP). Returning `false` fails it | — |
 | `node tools/map.mjs` | Rewrites `docs/MAP.md`: every block, every wrapped function with its layers, and the onNav hooks | 1 s |

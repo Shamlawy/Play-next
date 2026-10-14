@@ -34,7 +34,7 @@ const LINE = /^- (?:\[( |x)\] )?\*\*([LM]\d+)\*\*(?: ×(\d+))?(?: → `([^`]+)`)
 export function parse(text) {
   const out = [];
   let sec = "";
-  for (const l of String(text).split("\n")) {
+  for (const l of String(text).split(/\r?\n/)) {
     if (l.startsWith("## ")) { sec = l.slice(3).trim(); continue; }
     const m = l.match(LINE); if (!m) continue;
     const [, box, id, n, to, date, v, anc, rest] = m;

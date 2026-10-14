@@ -1,6 +1,6 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
-import { checkHere, isHere } from './here.ts'
+import type { EngineInterface, Register } from 'claude-code'
+import { herePath, isHere, setHere } from './here.ts'
 
 // Chat size (tokens the last reply was answered over) where the chat moves on by itself.
 const LIMIT = 300_000
@@ -20,9 +20,15 @@ const STEPS = [
 
 const k = (n: number) => `${Math.round(n / 1000)}k`
 
+// On only in a repo that carries this mod (see here.ts); kept in this file, as $ never crosses an import.
+async function checkHere($: EngineInterface, cwd: string) {
+  const path = herePath(cwd, 'auto-handoff')
+  return setHere(path ? await $.fs.exists(path).catch(() => false) : false)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    if (!(await checkHere($, e.cwd, 'auto-handoff'))) return next(e)
+    if (!(await checkHere($, e.cwd))) return next(e)
     await $.command.register({ name: 'handoff', description: 'Write a handoff note and start a fresh chat with it.' })
     return next(e)
   })

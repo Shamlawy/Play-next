@@ -3,7 +3,7 @@ import {
   checkFamily, deferrals, failed, firstNote, identifiers, parseLessons, promptSignals, recallNote, reflection, relevant, STRONG, wrapNote,
   type At, type Brief, type Lesson, type Reopened, type Signal,
 } from './signals.ts'
-import { checkHere, isHere } from './here.ts'
+import { herePath, isHere, setHere } from './here.ts'
 
 type $ = EngineInterface
 
@@ -70,9 +70,15 @@ async function recall($: $, at: { file?: string; names?: readonly string[]; cmd?
   return hits.length ? recallNote(hits) : ''
 }
 
+// On only in a repo that carries this mod (see here.ts); kept in this file, as $ never crosses an import.
+async function checkHere($: $, cwd: string) {
+  const path = herePath(cwd, 'learn')
+  return setHere(path ? await $.fs.exists(path).catch(() => false) : false)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    if (!(await checkHere($, e.cwd, 'learn'))) return next(e)
+    if (!(await checkHere($, e.cwd))) return next(e)
     try {
       const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd: e.cwd })
       root = top.exitCode === 0 ? top.stdout.trim() : e.cwd

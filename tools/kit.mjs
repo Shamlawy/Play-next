@@ -1,15 +1,16 @@
 /* Play next test kit. Lives in the repo so every chat (and GitHub) runs the same checks; before this, each chat
    rebuilt its harness in a scratchpad that was lost at the end.
 
-     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation in the CSS;
+     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation or sticky :hover in the CSS;
                                         no new wrap of goTab/goSub/openFull/openSettings (use onNav/onSettings)
      node tools/kit.mjs sweep           every screen, a game page, Settings, Edit, chat at 412 / 859 / 360 wide in Chromium:
                                         script errors + every problem the app reports about itself (its own detectors)
      node tools/kit.mjs tour            the what's-new tour from the previous version: every step opens and finds its target
      node tools/kit.mjs perf            main-thread time for a fixed walk (4x slower CPU), to compare before/after a change
+     node tools/kit.mjs smooth          mid-swipe (Queue, Library, a game page) no endless animation is still running (v280)
      node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
      node tools/kit.mjs audit           code health (tools/audit.mjs --check): nothing piled up past tools/audit-budget.txt
-     node tools/kit.mjs all             syntax + audit + sw + sweep + tour
+     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth
      node tools/kit.mjs samecss --before old.html   the browser applies exactly the same CSS (after a CSS tidy)
      node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
                                         with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
@@ -27,10 +28,11 @@ import fs from "fs";
 import path from "path";
 import vm from "vm";
 import { createRequire } from "module";
+import { fileURLToPath, pathToFileURL } from "url";
 import { spawnSync } from "child_process";
 import { seed, TITLES } from "./seed.mjs";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2), mode = args.find(a => !a.startsWith("--")) || "all";
 const opt = (k, d) => { const i = args.indexOf("--" + k); return i >= 0 ? args[i + 1] : d; };
 const FILE = opt("file", "index.html");
@@ -65,6 +67,20 @@ function syntax() {
       if (!r[1].includes(":active")) continue;
       const bad = r[2].split(";").map(d => d.split(":")[0].trim()).filter(k => MOVE.test(k));
       if (bad.length) fail(`press animation (${bad.join(", ")}) in "${r[1].trim().slice(0, 80)}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + r.index).split("\n").length}`);
+    }
+  }
+  /* house rule (v280, the owner: "remove the touch glow and any touch effects when I touch an empty spot"): phones keep
+     :hover on whatever was touched last (a Queue row stayed grey after a scroll started on it, the gear stayed lit), so a
+     :hover look only applies with a real mouse: inside @media (hover: hover) */
+  for (const st of html.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/g)) {
+    const css = st[1].replace(/\/\*[\s\S]*?\*\//g, c => " ".repeat(c.length)), open = [];
+    let from = 0;
+    for (let i = 0; i < css.length; i++) {
+      if (css[i] === "{") { open.push(css.slice(from, i)); from = i + 1; }
+      else if (css[i] === "}") { const pre = open.pop() || ""; from = i + 1;
+        if (/:hover\b/.test(pre) && !/^\s*@/.test(pre) && !open.some(o => /@media[^{]*\(\s*hover\s*:\s*hover\s*\)/.test(o)))
+          fail(`sticky touch look: "${pre.trim().slice(0, 80)}" at line ${html.slice(0, st.index + st[0].indexOf(st[1]) + i).split("\n").length} needs @media (hover: hover) and (pointer: fine) { … }`); }
+      else if (css[i] === ";" && !open.length) from = i + 1;
     }
   }
   /* house rule (v273/v276): one still background behind every screen: <html>'s base colour (var(--bgb)) and the
@@ -258,6 +274,67 @@ async function perf(browser, base) {
   await p.ctx.close();
 }
 
+/* ---------- smooth: nothing endless keeps running while a finger moves (v280) ----------
+   A finger scroll makes the browser draw a main-thread frame every frame, and each one restyles every running endless
+   animation, even ones on the GPU (v280: 315 style passes over six Queue swipes, ~70% of the scroll's style work). The app
+   holds them still from the first move until the scroll stops (mvh*, last script). This fails if one keeps running
+   mid-swipe (a new loop that slips past the hold, or the hold gone) or a vertical scroll leaves them stopped. */
+async function smooth(browser, base) {
+  console.log(`\n== smooth: endless animations hold still mid-swipe (${FILE}) ==`);
+  for (const w of opt("widths") ? WIDTHS : [412, 859]) {
+    /* nxEvo before the load: Nexi's "I evolved" power-up is a timer set 15s ahead at the first load, so turning it off
+       after the load came too late; on a slower machine the game page's swipe landed on the power-up's full-screen tap
+       catcher (#ssjcatch) and never reached the page. The power-up gets its own fixed-time case below */
+    const p = await phone(browser, base, w, { ...seed(APP_V), nxEvo: 99 });
+    await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } S.nxEvo = 99; document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
+    const live = () => p.page.evaluate(() => {
+      const out = [];
+      for (const a of document.getAnimations()) {
+        const t = a.effect && a.effect.target, tm = a.effect && a.effect.getTiming();
+        if (!t || a.playState !== "running" || !tm || tm.iterations !== Infinity) continue;
+        if (typeof REST_KEEP !== "undefined" && REST_KEEP.has(a.animationName) && tm.duration < 2000) continue;   /* spinners */
+        if (!t.checkVisibility || !t.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+        out.push(`${a.animationName || "script"} on ${t.tagName.toLowerCase()}${t.classList[0] ? "." + t.classList[0] : ""}${a.effect.pseudoElement || ""}`);
+      }
+      return out;
+    });
+    for (const [name, js, side] of [["queue", `goTab("games")`, 0], ["library", `goTab("lib")`, 0], ["game page", `openFull("g1")`, 1]]) {
+      await p.step(name, js, 2500);
+      const before = await live();
+      const go = side ? p.swipe(p.w * .85, p.h * .5, p.w * .2, p.h * .52, 600, 30) : p.swipe(p.w * .5, p.h * .8, p.w * .52, p.h * .3, 600, 30);
+      await p.page.waitForTimeout(250);
+      const mid = await live();
+      await go; await p.page.waitForTimeout(1500);
+      const after = await live();
+      if (mid.length) fail(`${w}px ${name}: still running mid-swipe: ${[...new Set(mid)].join(", ")}`);
+      else if (!side && after.length < before.length) fail(`${w}px ${name}: ${before.length} endless animations before the scroll, only ${after.length} running again after it`);
+      else console.log(`  ✓ ${w}px ${name}: ${before.length} endless running → 0 mid-swipe → ${after.length} after`);
+      if (side) await p.step("close", `closeFull()`, 700);
+    }
+    /* a loop CSS switches on mid-swipe (Nexi's flame runs only while he's powered up): held too, and given back to CSS after */
+    if (await p.page.evaluate(() => typeof pnPowerUp === "function" && !!document.querySelector("#pnbub") && document.querySelector("#pnbub").checkVisibility() && !calm())) {
+      await p.step("queue", `goTab("games")`, 1500);
+      const flame = () => p.page.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".flame")).map(a => a.playState));
+      const go = p.swipe(p.w * .5, p.h * .85, p.w * .52, p.h * .2, 1600, 80);
+      await p.page.waitForTimeout(100); await p.page.evaluate(() => pnPowerUp(false));
+      /* the charge (`#pnbub.ssj-charge .core { animation: ssjShake … !important }`) outranks a plain class rule */
+      await p.page.waitForTimeout(300);
+      const charge = await p.page.evaluate(() => document.getAnimations().filter(a => a.playState === "running" && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest("#pnbub") && a.effect.getTiming().iterations === Infinity).map(a => a.animationName || "script"));
+      if (charge.length) fail(`${w}px power-up mid-swipe: still running in Nexi while he charges: ${[...new Set(charge)].join(", ")}`);
+      await p.page.waitForTimeout(950);
+      const mid = await flame(); await go; await p.page.waitForTimeout(1200);
+      const after = await flame(); await p.page.evaluate(() => pnPowerUp.end && pnPowerUp.end()); await p.page.waitForTimeout(400);
+      const end = await flame();
+      const n = (l, st) => l.filter(x => x === st).length;
+      if (n(mid, "running")) fail(`${w}px power-up mid-swipe: ${n(mid, "running")} flame loops running mid-swipe`);
+      else if (!n(after, "running")) fail(`${w}px power-up mid-swipe: the flame didn't start again after the swipe (${after.join(",") || "none"})`);
+      else if (n(end, "running")) fail(`${w}px power-up mid-swipe: ${n(end, "running")} flame loops still running after the power-up ended (CSS lost control of them)`);
+      else console.log(`  ✓ ${w}px power-up mid-swipe: flame ${mid.length} held → ${n(after, "running")} running after → paused by CSS when it ends`);
+    }
+    await p.ctx.close();
+  }
+}
+
 /* ---------- sw.js picture shrinking ---------- */
 function sw() {
   console.log("\n== sw.js picture shrink (Chromium) ==");
@@ -283,7 +360,7 @@ if (mode === "sw" || mode === "all") sw();
 async function scenario(browser, base) {
   const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set" && args[i - 1] !== "--browser" && args[i - 1] !== "--before");
   if (!file) return fail("usage: node tools/kit.mjs run tools/scenarios/x.mjs [--widths 412]");
-  const fn = (await import(path.resolve(file))).default;
+  const fn = (await import(pathToFileURL(path.resolve(file)).href)).default;
   for (const w of opt("widths") ? WIDTHS : [412]) {
     const p = await phone(browser, base, w, seed(APP_V));
     console.log(`\n== ${path.basename(file)} at ${w}px${WK ? " (WebKit)" : ""} ==`);
@@ -318,11 +395,12 @@ async function samecss(browser) {
 }
 
 if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
-if (["sweep", "tour", "perf", "all", "run"].includes(mode)) {
+if (["sweep", "tour", "perf", "smooth", "all", "run"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
     if (mode === "tour" || mode === "all") await tour(browser, base);
+    if (mode === "smooth" || mode === "all") await smooth(browser, base);
     if (mode === "perf") await perf(browser, base);
     if (mode === "run") await scenario(browser, base);
   } finally { await browser.close(); srv.close(); }

@@ -3,7 +3,7 @@ import {
   appV, diffLines, fileProblems, logLookup, parseNameStatus, parsePorcelain, releaseProblems, rootDeleted, scanBlock, scanLines,
   type Range,
 } from './rules.ts'
-import { checkHere, isHere, withNote } from './here.ts'
+import { ANNOUNCE_TOAST, announceNote, herePath, hereRoot, isHere, setHere, toldKey, withNote } from './here.ts'
 
 type $ = EngineInterface
 
@@ -160,9 +160,22 @@ async function poll($: $) {
   }
 }
 
+// On only in a repo that carries this mod (see here.ts); kept in this file, as $ never crosses an import.
+// Elsewhere it says so once per project (a toast now, a note on the first message) for the whole family.
+async function checkHere($: $, cwd: string) {
+  const root = hereRoot(cwd)
+  const path = herePath(cwd, 'release-guard')
+  const found = path ? await $.fs.exists(path).catch(() => false) : false
+  if (found || !root) return setHere(found)
+  if (await $.store.get(toldKey(root)).catch(() => true)) return setHere(false)
+  await $.store.set(toldKey(root), true).catch(() => undefined)
+  $.ui.toast(ANNOUNCE_TOAST)
+  return setHere(false, announceNote('release-guard'))
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    if (!(await checkHere($, e.cwd, 'release-guard', true))) return next(e)
+    if (!(await checkHere($, e.cwd))) return next(e)
     const cwd = e.cwd
     const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd }).catch(() => undefined)
     root = top?.exitCode === 0 ? top.stdout.trim() : cwd

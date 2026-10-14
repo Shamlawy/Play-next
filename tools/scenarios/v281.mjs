@@ -1,9 +1,9 @@
-/* v280: (#8) a game page's sticky bar shows only once you've scrolled past the art, Back closes the page, the name scrolls
+/* v281: (#8) a game page's sticky bar shows only once you've scrolled past the art, Back closes the page, the name scrolls
    back up; (#7) the reveal never leaves a card hidden: cards on screen when a page opens are never animated, and after a
    slow scroll or a fling every card is fully visible; (#9) the tour's ring sits on its target and stays on it while the page
    scrolls; (#1) Steam: link in Settings (fake helper), sessions from /steam/sync land on their games once (a second sync or
    an overlapping timer session doesn't log twice), the status line says so, Unlink clears it.
-     CHROME=<path to Chrome 145+> node tools/kit.mjs run tools/scenarios/v280.mjs --widths 412,859
+     CHROME=<path to Chrome 145+> node tools/kit.mjs run tools/scenarios/v281.mjs --widths 412,859
      SHOTS=dir … also saves the bar and the Steam settings (unlinked, linked) as pictures
    With an older Chromium the #7 checks still run (the script reveal); OLD=1 also turns off the bar and the anchored ring
    (as on Safari before 26) and checks the old paths. */
@@ -51,7 +51,7 @@ export default async ({ p, w }) => {
   await p.step("home", `goTab("home")`, 1600);
   hid = await hidden("#p-home .dash > *"); if (hid.length) bad.push("Home cards hidden: " + hid.join(", "));
   /* ---- #9 tour ring ---- */
-  await p.step("tour", `S.lastV = "279"; nxTour("279")`, 2600);
+  await p.step("tour", `S.lastV = "280"; nxTour("280")`, 2600);
   const ring = () => ev(() => { const r = document.getElementById("nxring"); if (!r || !r.classList.contains("on")) return null;
     const a = r.getBoundingClientRect(); return { anc: r.classList.contains("anc"), x: Math.round(a.left), y: Math.round(a.top), w: Math.round(a.width), h: Math.round(a.height) }; });
   const target = () => ev(() => { const t = document.querySelector("#s-spbox"); if (!t) return null; const a = t.getBoundingClientRect(); return { x: Math.round(a.left) - 6, y: Math.round(a.top) - 6, w: Math.round(a.width) + 12, h: Math.round(a.height) + 12 }; });
