@@ -3,37 +3,52 @@ import type { Card } from '../types'
 // Replies shorter than this are already short enough to read; no model call for them.
 export const MIN_REPLY = 300
 export const MAX_CARDS = 12
-const MAX_ITEMS = 6
+// Only the few lines that matter: across all three lists, most important first.
+export const MAX_LINES = 4
 const MAX_ITEM = 220
+const MAX_WHY = 500
 
 export const SYSTEM = `You read a coding assistant's reply to its user and pull out ONLY what the user needs to see, so they can skip the wall of text.
 
 Answer with one JSON object and nothing else:
-{"gist": "...", "attention": ["..."], "actions": ["..."], "ideas": ["..."]}
+{"gist": "...", "attention": [{"line": "...", "why": "..."}], "actions": [{"line": "...", "why": "..."}], "ideas": [{"line": "...", "why": "..."}]}
 
 - gist: one plain line (at most 15 words) saying what was done or found. Past tense. No filler.
 - attention: what the user must know or decide: something failed, broke, was skipped or could not be done; a risk; a question the assistant asked them; a choice waiting on them; a result that differs from what they asked. Not routine success.
 - actions: things ONLY the user can do (approve, answer, test on their device, add a secret, click a link, merge if the assistant did not). Never things the assistant already did or will do itself. Start each with a verb.
 - ideas: suggestions, options or follow-ups the assistant offered but did not do.
 
-Rules: never invent anything that is not in the reply. Each item at most 20 words, plain words, keep exact names, numbers, links and PR/issue references. Merge duplicates. At most ${MAX_ITEMS} items per list. Empty lists are fine and common: a reply that only reports finished work has attention, actions and ideas all empty.`
+Each item has "line" (the short point, at most 15 words) and "why" (one or two plain sentences from the reply explaining it: the reason, the detail or what happens next; shown when the user hovers the line).
+
+Rules: never invent anything that is not in the reply. Plain words, keep exact names, numbers, links and PR/issue references. Merge duplicates. At most ${MAX_LINES} items in all three lists together, the most important first; one or two is often right. Empty lists are fine and common: a reply that only reports finished work has attention, actions and ideas all empty.`
 
 export function prompt(ask: string, reply: string): string {
   return `${ask ? `The user's message:\n${ask.slice(0, 2000)}\n\n` : ''}The assistant's reply:\n${reply.slice(0, 30_000)}`
 }
 
-const list = (v: unknown): string[] =>
+const clean = (x: string, max: number) => {
+  const t = x.replace(/\s+/g, ' ').trim()
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t
+}
+
+type Item = { line: string; why: string }
+
+// Each entry a {line, why} or a bare string (an older answer, or a model that skipped the why).
+const items = (v: unknown): Item[] =>
   Array.isArray(v)
     ? v
-        .filter((x): x is string => typeof x === 'string')
-        .map(x => x.replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
-        .map(x => (x.length > MAX_ITEM ? `${x.slice(0, MAX_ITEM - 1)}…` : x))
-        .slice(0, MAX_ITEMS)
+        .map(x => {
+          if (typeof x === 'string') return { line: x, why: '' }
+          if (x && typeof x === 'object' && typeof (x as Item).line === 'string') return { line: (x as Item).line, why: typeof (x as Item).why === 'string' ? (x as Item).why : '' }
+          return undefined
+        })
+        .filter((x): x is Item => !!x)
+        .map(x => ({ line: clean(x.line, MAX_ITEM), why: clean(x.why, MAX_WHY) }))
+        .filter(x => x.line)
     : []
 
 // The model's answer, read leniently: the first {...} in it, fenced or not.
-export function parse(text: string): Pick<Card, 'gist' | 'attention' | 'actions' | 'ideas'> | undefined {
+export function parse(text: string): Pick<Card, 'gist' | 'attention' | 'actions' | 'ideas' | 'why'> | undefined {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start < 0 || end <= start) return undefined
@@ -46,7 +61,21 @@ export function parse(text: string): Pick<Card, 'gist' | 'attention' | 'actions'
   if (!o || typeof o !== 'object') return undefined
   const r = o as Record<string, unknown>
   const gist = typeof r.gist === 'string' ? r.gist.replace(/\s+/g, ' ').trim().slice(0, 200) : ''
-  return { gist, attention: list(r.attention), actions: list(r.actions), ideas: list(r.ideas) }
+  // Keep MAX_LINES in all, attention before actions before ideas.
+  let room = MAX_LINES
+  const why: Record<string, string> = {}
+  const take = (v: unknown, k: string) => {
+    const got = items(v).slice(0, Math.max(0, room))
+    room -= got.length
+    got.forEach((x, i) => {
+      if (x.why && x.why !== x.line) why[`${k}${i}`] = x.why
+    })
+    return got.map(x => x.line)
+  }
+  const attention = take(r.attention, 'n')
+  const actions = take(r.actions, 'a')
+  const ideas = take(r.ideas, 'i')
+  return { gist, attention, actions, ideas, why }
 }
 
 export const heading = (text: string) => {
@@ -69,12 +98,13 @@ export const toggle = (c: Card, key: string): Card => ({ ...c, done: c.done.incl
 // Newest first, as plain text: the /heads-up reply, for a screen that seats no panes.
 export function asText(c: Card): string {
   const box = (key: string) => (c.done.includes(key) ? '☑' : '☐')
+  const why = (key: string) => (c.why?.[key] ? [`   ↳ ${c.why[key]}`] : [])
   return [
     c.ask ? `“${c.ask}”` : '',
     c.gist ? `✓ ${c.gist}` : '',
-    ...(c.attention.length ? ['', '⚠ Needs your attention', ...c.attention.map((x, i) => `${box(`n${i}`)} ${x}`)] : []),
-    ...(c.actions.length ? ['', '👉 For you to do', ...c.actions.map((x, i) => `${box(`a${i}`)} ${x}`)] : []),
-    ...(c.ideas.length ? ['', '💡 Ideas', ...c.ideas.map(x => `• ${x}`)] : []),
+    ...(c.attention.length ? ['', '⚠ Needs your attention', ...c.attention.flatMap((x, i) => [`${box(`n${i}`)} ${x}`, ...why(`n${i}`)])] : []),
+    ...(c.actions.length ? ['', '👉 For you to do', ...c.actions.flatMap((x, i) => [`${box(`a${i}`)} ${x}`, ...why(`a${i}`)])] : []),
+    ...(c.ideas.length ? ['', '💡 Ideas', ...c.ideas.flatMap((x, i) => [`• ${x}`, ...why(`i${i}`)])] : []),
     ...(hasAny(c) ? [] : ['', 'Nothing needs you.']),
   ]
     .filter((x, i, a) => x !== '' || (i > 0 && a[i - 1] !== ''))
