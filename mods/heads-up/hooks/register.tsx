@@ -94,7 +94,7 @@ export const register: Register = on => {
     if (arg === 'on') {
       await $.store.delete('off')
       await status($)
-      return { text: 'Heads-up is on: after each long reply, what needs you shows in the side panel.' }
+      return { text: (await isPanel($)) ? 'Heads-up is on: after each long reply, what needs you shows in the side panel.' : 'Heads-up is on: each long reply starts with a short Heads-up box of the lines that matter.' }
     }
     if (arg === 'panel') {
       await $.store.set('mode', 'panel')
