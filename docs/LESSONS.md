@@ -28,6 +28,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L20** · 2026-10-14 · v280 · `Bash`, `node`, `python` — On the Windows PC the Bash tool has no node on PATH and there is no python: run node as /c/Program Files/nodejs/node.exe (or use PowerShell after refreshing PATH), and write multi-line edit scripts to a scratchpad .cjs file.
 - **L21** · 2026-10-14 · v280 · `mods/*/hooks`, `register.tsx` — A mod module that declares a variable named on (the register arg) fails to load (on is declared again): never name a local on, even inside a render callback; run claude plugin test right after each mod edit.
 - **L22** · 2026-10-14 · v280 · `.claude/skills/learn`, `turn.complete`, `M8` — The learn mod's 'asked for something automatic' trigger fired on a handoff brief (the first message came from another session, not the person) → treat a session-sent first message like a system-reminder: scan only words the person typed (fold into M8).
+- **L23** · 2026-10-14 · v280 · `mods/heads-up/hooks/register.tsx`, `Button`, `label` — Gave a mod's tick Button a long label ('Mark done: <line>') thinking it only named the control; the desktop app draws a Button's label in full, so it squeezed the tile text to a sliver → in mods, a Button's label is what gets drawn: keep it to the visible text, put the address in key, and test the drawn tree for stray label text
 
 ## Missed opportunities
 
