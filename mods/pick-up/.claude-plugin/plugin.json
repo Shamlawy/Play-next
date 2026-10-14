@@ -1,0 +1,5 @@
+{
+  "name": "pick-up",
+  "version": "0.1.0",
+  "description": "Pick up any chat's unfinished work from anywhere: each turn's uncommitted or unpushed work is saved to GitHub (pickup/<place>/<branch>), and the next chat on another machine or in the cloud is told and can bring it in."
+}
