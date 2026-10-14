@@ -121,12 +121,12 @@ export const register: Register = on => {
 
   // Closed by hand: stay closed until a newer card arrives.
   on('ui.close', { id: PANE }, async ($, e, next) => {
-    if (e.origin.kind === 'person') {
+    if (e.origin?.kind === 'person') {
       const list = await read($, cards)
       await update($, closedAt, () => newestKey(list))
     }
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   // The main loop's finished answer: sift it in a dispatch of its own, so the reply is never held up.
   on('turn.complete', async ($, e, next) => {
