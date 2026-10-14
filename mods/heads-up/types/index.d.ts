@@ -23,6 +23,6 @@ export type Card = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'heads-up': { cards: Card[]; ask: string; busy: boolean; showOld: boolean; last: string; opened: string[]; closedAt: string }
+    'heads-up': { cards: Card[]; ask: string; busy: boolean; showOld: boolean; last: string; opened: string[]; closedAt: string; showDone: boolean }
   }
 }

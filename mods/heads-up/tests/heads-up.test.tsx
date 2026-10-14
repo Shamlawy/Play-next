@@ -63,27 +63,39 @@ describe('heads-up', () => {
       expect(calls[0].model).toBe('haiku')
       expect(calls[0].prompt).toContain('fix the layout bug')
       const ui = await $.ui.mount(pane(surface))
-      expect(await ui.find({ type: 'Text', text: /Fix the layout bug on the queue screen/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /Needs your attention/ })).toBeDefined()
+      // Tiles, not a wall of text: the gist with count chips, no "for <message>" line on the newest card.
+      expect(await ui.find({ type: 'Text', text: /Fix the layout bug on the queue screen/ })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: /Fixed the layout bug and pushed it/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '⚠ 1' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '👉 1' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /Needs your attention/ })).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: /iPhone check timed out/ })).toBeDefined()
+      const drawn = JSON.stringify(await ui.drawn())
+      expect(drawn).toContain('#2a2112')
+      if (surface === 'terminal') expect(drawn).not.toContain('"type":"Svg"')
+      else expect(drawn).toContain('shape-rendering')
       expect(await ui.find({ type: 'Text', text: /Add a dark-mode toggle/ })).toBeDefined()
       const why = /stopped after 10 minutes/
       if (surface === 'mobile') {
         // No hover on a phone: the explanation waits behind its ⓘ.
         expect(await ui.find({ type: 'Text', text: why })).toBeUndefined()
-        expect(await ui.find({ type: 'Text', text: /Tap ⓘ/ })).toBeDefined()
-        await ui.press({ key: (await ui.findAll({ type: 'Button', text: 'ⓘ ' }))[0]!.key })
+        await ui.press({ key: (await ui.findAll({ type: 'Button', text: 'ⓘ' }))[0]!.key })
         expect(await ui.find({ type: 'Text', text: why })).toBeDefined()
       } else {
         // Drawn hidden, shown by the surface while the pointer is over its line.
         const tree = JSON.stringify(await ui.drawn())
         expect(tree).toContain('stopped after 10 minutes')
         expect(tree).toContain('"display":"none"},"hover":{"display":"flex"}')
-        expect(await ui.find({ type: 'Text', text: /Point at a line/ })).toBeDefined()
       }
-      // Ticking a to-do marks it done.
-      await ui.press({ key: (await ui.find({ type: 'Button', text: /Open the app/ }))!.key })
+      // Ticking a to-do drops it to a collapsed "Done · 1" line; opened, it is there dim and ticked.
+      const box = (await ui.findAll({ type: 'Button' })).find(b => /^hu-.*-a0$/.test(b.key))!
+      expect(box.text).toContain('☐')
+      await ui.press({ key: box.key })
+      expect(await ui.find({ type: 'Text', text: /Open the app/ })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: '👉 1' })).toBeUndefined()
+      await ui.press({ key: (await ui.find({ type: 'Button', text: /Done · 1/ }))!.key })
       expect(await ui.find({ type: 'Text', text: '☑' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /Open the app/ })).toBeDefined()
       await ui.unmount()
     })
   }
@@ -121,8 +133,9 @@ describe('heads-up', () => {
     const { clock } = world(on, '{"gist":"Renamed the files","attention":[],"actions":[],"ideas":[]}')
     await reply($, clock)
     const ui = await $.ui.mount(pane('desktop'))
+    expect(await ui.find({ type: 'Text', text: 'Nothing needs you' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Renamed the files/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Needs your attention/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /iPhone/ })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -204,14 +217,18 @@ describe('heads-up', () => {
     await reply($, clock)
     const ui = await $.ui.mount(pane('desktop'))
     expect(await ui.find({ type: 'Text', text: /Which should I fix\?/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /★ suggested/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /★/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'pick any' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '❓ 1' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: /^Send/ })).toBeUndefined()
     expect(statuses[statuses.length - 1]).toContain('1 needs you')
     await ui.press({ key: (await ui.find({ type: 'Button', text: /Month scroll/ }))!.key })
     await ui.press({ key: (await ui.find({ type: 'Button', text: /Game page scroll/ }))!.key })
-    await ui.press({ key: (await ui.find({ type: 'Button', text: 'Send 2 picks' }))!.key })
+    await ui.press({ key: (await ui.find({ type: 'Button', text: 'Send 2' }))!.key })
     expect(sent).toEqual(['Which should I fix? Do these: "Month scroll" and "Game page scroll".'])
     expect(await ui.find({ type: 'Text', text: /Sent:/ })).toBeDefined()
     expect(await ui.find({ type: 'Button', text: /None of these/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Button', text: /Month scroll/ })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -223,6 +240,19 @@ describe('heads-up', () => {
     expect(await ui.find({ type: 'Button', text: /^Send/ })).toBeUndefined()
     await ui.press({ key: (await ui.find({ type: 'Button', text: 'None of these' }))!.key })
     expect(sent).toEqual(['None of those for now (Want me to add tests).'])
+    await ui.unmount()
+  })
+
+  test('earlier replies fold into one quiet line; Clear all only inside it', async ($, on) => {
+    const { clock } = world(on)
+    await reply($, clock)
+    await reply($, clock)
+    const ui = await $.ui.mount(pane('desktop'))
+    expect(await ui.find({ type: 'Button', text: '▸ 1 earlier · 2 open' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: 'Clear all' })).toBeUndefined()
+    await ui.press({ key: (await ui.find({ type: 'Button', text: /1 earlier/ }))!.key })
+    await ui.press({ key: (await ui.find({ type: 'Button', text: 'Clear all' }))!.key })
+    expect(await ui.find({ type: 'Text', text: /iPhone check timed out/ })).toBeUndefined()
     await ui.unmount()
   })
 })
