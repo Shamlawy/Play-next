@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import { asText, openCount, parse } from '../hooks/sift.ts'
 
 const LONG = `I fixed the layout bug and pushed it. ${'Details of everything I checked along the way. '.repeat(12)} One thing failed: the iPhone check timed out. Could you open the app on your phone and tell me if the list scrolls? We could also add a dark-mode toggle later.`
-const SIFTED = '```json\n{"gist":"Fixed the layout bug and pushed it","attention":["iPhone check timed out"],"actions":["Open the app on your phone and check the list scrolls"],"ideas":["Add a dark-mode toggle"]}\n```'
+const SIFTED = '```json\n{"gist":"Fixed the layout bug and pushed it","attention":[{"line":"iPhone check timed out","why":"The WebKit run stopped after 10 minutes, so the fix is untested on Safari."}],"actions":["Open the app on your phone and check the list scrolls"],"ideas":[{"line":"Add a dark-mode toggle","why":"Offered as a follow-up, not started."}]}\n```'
 
 function world(on: any, answer = SIFTED, placed = true) {
   const calls: any[] = []
@@ -36,12 +36,16 @@ describe('heads-up', () => {
   test('parse reads fenced JSON, trims and caps lists, refuses junk', () => {
     expect(parse(SIFTED)?.actions).toEqual(['Open the app on your phone and check the list scrolls'])
     expect(parse('no json here')).toBeUndefined()
-    expect(parse('{"gist": 3, "attention": "x", "actions": [1, " a  b "], "ideas": []}')).toEqual({ gist: '', attention: [], actions: ['a b'], ideas: [] })
-    expect(parse(`{"ideas": ${JSON.stringify(Array(10).fill('i'))}}`)?.ideas.length).toBe(6)
+    expect(parse('{"gist": 3, "attention": "x", "actions": [1, " a  b ", {"why": "no line"}], "ideas": []}')).toEqual({ gist: '', attention: [], actions: ['a b'], ideas: [], why: {} })
+    // Four lines in all, attention first, then actions, then ideas; each explanation keyed to its line.
+    const many = parse(JSON.stringify({ attention: [{ line: 'n1', why: 'w1' }, 'n2'], actions: ['a1', { line: 'a2', why: 'w2' }, 'a3'], ideas: ['i1'] }))!
+    expect([many.attention, many.actions, many.ideas]).toEqual([['n1', 'n2'], ['a1', 'a2'], []])
+    expect(many.why).toEqual({ n0: 'w1', a1: 'w2' })
     const card = { id: 'c', at: 0, ask: 'Fix it', gist: 'Done', attention: ['x'], actions: ['y', 'z'], ideas: [], done: ['a1'] }
     expect(openCount([card])).toBe(2)
     expect(asText(card)).toContain('☑ z')
     expect(asText({ ...card, attention: [], actions: [] })).toContain('Nothing needs you.')
+    expect(asText({ ...card, why: { a1: 'because' } })).toContain('☑ z\n   ↳ because')
   })
 
   for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
@@ -58,6 +62,20 @@ describe('heads-up', () => {
       expect(await ui.find({ type: 'Text', text: /Needs your attention/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /iPhone check timed out/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /Add a dark-mode toggle/ })).toBeDefined()
+      const why = /stopped after 10 minutes/
+      if (surface === 'mobile') {
+        // No hover on a phone: the explanation waits behind its ⓘ.
+        expect(await ui.find({ type: 'Text', text: why })).toBeUndefined()
+        expect(await ui.find({ type: 'Text', text: /Tap ⓘ/ })).toBeDefined()
+        await ui.press({ key: (await ui.findAll({ type: 'Button', text: 'ⓘ ' }))[0]!.key })
+        expect(await ui.find({ type: 'Text', text: why })).toBeDefined()
+      } else {
+        // Drawn hidden, shown by the surface while the pointer is over its line.
+        const tree = JSON.stringify(await ui.drawn())
+        expect(tree).toContain('stopped after 10 minutes')
+        expect(tree).toContain('"display":"none"},"hover":{"display":"flex"}')
+        expect(await ui.find({ type: 'Text', text: /Point at a line/ })).toBeDefined()
+      }
       // Ticking a to-do marks it done.
       await ui.press({ key: (await ui.find({ type: 'Button', text: /Open the app/ }))!.key })
       expect(await ui.find({ type: 'Text', text: '☑' })).toBeDefined()
