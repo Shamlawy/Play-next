@@ -109,10 +109,19 @@ describe('crew', () => {
     expect(r.text).toContain('✓ Write greet test')
   })
 
-  test('no helpers, no band', async ($, on) => {
+  test('no helpers: the band stays, saying the crew is idle', async ($, on) => {
     world(on)
     await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
     const ui = await $.ui.mount({ plugin: 'crew', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 3, bodyColumns: 100 } } as any)
+    expect(await ui.find({ key: 'crew-open' })).toBeDefined()
+    expect(await ui.find({ text: 'idle · none yet this chat' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a survey above the prompt still wins over the band', async ($, on) => {
+    world(on)
+    await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
+    const ui = await $.ui.mount({ plugin: 'crew', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: true, isWorking: false, maxRows: 3, bodyColumns: 100 } } as any)
     expect(await ui.find({ key: 'crew-open' })).toBeUndefined()
     await ui.unmount()
   })
