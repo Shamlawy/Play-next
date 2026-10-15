@@ -36,11 +36,15 @@ export function words(s: string): string[] {
   return out
 }
 
-// Split on && || ; | and newlines, outside quotes.
+// A heredoc's start (<<WORD, <<-WORD, <<'WORD', <<"WORD"; not the <<< here-string).
+const HEREDOC = /^<<(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|[^\s;&|<>()'"])+)/
+
+// Split on && || ; | and newlines, outside quotes. Heredoc bodies are text, not commands: they're dropped.
 export function segments(cmd: string): string[] {
   const out: string[] = []
   let cur = ''
   let q = ''
+  let docs: { word: string; tabs: boolean }[] = []
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i] ?? ''
     if (q) {
@@ -51,6 +55,34 @@ export function segments(cmd: string): string[] {
     if (ch === '"' || ch === "'") {
       q = ch
       cur += ch
+      continue
+    }
+    if (ch === '<' && cmd[i + 1] === '<' && cmd[i + 2] !== '<' && cmd[i - 1] !== '<') {
+      const m = HEREDOC.exec(cmd.slice(i))
+      if (m) {
+        docs.push({ word: (m[2] ?? '').replace(/['"]/g, ''), tabs: m[1] === '-' })
+        cur += m[0]
+        i += m[0].length - 1
+        continue
+      }
+    }
+    // The line that started heredocs ends: skip each body up to its terminator line.
+    if (ch === '\n' && docs.length) {
+      out.push(cur)
+      cur = ''
+      let j = i + 1
+      for (const d of docs) {
+        while (j < cmd.length) {
+          const nl = cmd.indexOf('\n', j)
+          const end = nl < 0 ? cmd.length : nl
+          let line = cmd.slice(j, end).replace(/\r$/, '')
+          if (d.tabs) line = line.replace(/^\t+/, '')
+          j = end + 1
+          if (line === d.word) break
+        }
+      }
+      docs = []
+      i = j - 1
       continue
     }
     if (ch === ';' || ch === '\n' || ch === '|' || (ch === '&' && cmd[i + 1] === '&')) {
