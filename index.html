@@ -25749,7 +25749,7 @@ onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {
 document.addEventListener("toggle", e => { if (e.target && e.target.open) requestAnimationFrame(fitRetry); }, true);
 WHATS_NEW.push(
   { v: 286, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); },
-    at: () => $(".panel.on .tag.st-fresh") || null,
+    at: () => $(".panel.on .tag.st-fresh") || $("#p-queue [data-row]") || null,   /* no game out right now: the first row */
     say: "<b>Calmer screens</b>: the Out now tags shine three times when you open a screen, then rest, Nexi only sweats for a moment when your backlog grows, and Grumble's HP bar shows only while Grumble is switched on (CLEAR! still cheers when you finish a game).",
     tryIt: "Open the Queue and watch an Out now tag shine, then stop. Add a game when your backlog is over 15 and look at Nexi." }
 );
