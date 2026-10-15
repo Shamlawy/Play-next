@@ -160,3 +160,7 @@ export function progressOf(x: Pick<Helper, 'todo' | 'steps' | 'status'>): number
   if (todo.length) return Math.max(0.04, Math.min(0.96, (todo.filter(t => t.status === 'completed').length + 0.5 * todo.filter(t => t.status === 'in_progress').length) / todo.length))
   return progress(x)
 }
+
+// A helper still at work: running, and heard from in the last 10 minutes (one killed midway never reports back,
+// and must not keep the panel from opening by itself for the next batch).
+export const active = (h: Pick<Helper, 'status' | 'startedAt' | 'seenAt'>, at: number) => h.status === 'running' && at - (h.seenAt ?? h.startedAt) < 10 * 60_000

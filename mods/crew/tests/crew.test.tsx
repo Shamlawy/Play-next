@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { applyTask, bar, clock, crabSvg, gist, modelName, progress, push, stepLine, tier, toolLabel } from '../hooks/numbers.ts'
+import { active, applyTask, bar, clock, crabSvg, gist, modelName, progress, push, stepLine, tier, toolLabel } from '../hooks/numbers.ts'
 
 const U = (i: number, o: number) => ({ input_tokens: i, output_tokens: o, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })
 
@@ -8,7 +8,9 @@ function world(on: any) {
   mock.clock(on, { now: 0 })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  const opens: string[] = []
+  on('ui.open', ($: unknown, e: any) => { opens.push(e.id); return { value: { isPlaced: true } } })
+  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'engine', scope: 'shared' }] }))
   on('agent.spawn', ($: unknown, e: any) => ({ model: 'claude-opus-5-5', agentId: `a-${e.description.length}` }))
   on('turn.step', async function* ($: unknown, e: any) {
     return { turnId: e.turnId, index: 0, answer: 'Looking at the **src** functions first.', toolUses: [], stopReason: 'end_turn', usage: { ...U(30_000, 2_000), model: 'claude-opus-5-5' } }
@@ -17,7 +19,10 @@ function world(on: any) {
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
   on('prompt.submit', ($: unknown, e: any) => ({ text: e.text }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
+  return { opens }
 }
+
+const compose = ($: any, tools = ['Agent', 'Read']) => $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools, outputStyle: null, traits: [] })
 
 async function crew($: any) {
   await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
@@ -138,6 +143,46 @@ describe('crew', () => {
     expect(await ui.find({ key: 'crew-open' })).toBeDefined()
     expect(await ui.find({ text: 'idle · none yet this chat' })).toBeDefined()
     await ui.unmount()
+  })
+
+  test('the panel opens by itself when a batch of helpers starts, once per batch', async ($, on) => {
+    const { opens } = world(on)
+    await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
+    const a: any = await $.agent.spawn({ prompt: 'p', description: 'Find the scroll code', subagentType: 'Explore' })
+    await $.agent.spawn({ prompt: 'p', description: 'Check the tests', subagentType: 'general-purpose' })
+    expect(opens).toEqual(['crew'])
+    await $.turn.complete({ answer: 'x', durationMs: 1, isAborted: false, turnId: 't', agentId: a.agentId, reason: 'answer' } as any)
+    await $.turn.complete({ answer: 'x', durationMs: 1, isAborted: false, turnId: 't', agentId: 'a-15', reason: 'answer' } as any)
+    await $.agent.spawn({ prompt: 'p', description: 'Review the diff', subagentType: 'general-purpose' })
+    expect(opens).toEqual(['crew', 'crew'])
+  })
+
+  test('a helper that never finished stops blocking the auto-open after 10 quiet minutes', () => {
+    const t = 1_000_000
+    expect(active({ status: 'running', startedAt: t }, t + 5 * 60_000)).toBe(true)
+    expect(active({ status: 'running', startedAt: t }, t + 11 * 60_000)).toBe(false)
+    expect(active({ status: 'running', startedAt: t, seenAt: t + 9 * 60_000 }, t + 11 * 60_000)).toBe(true)
+    expect(active({ status: 'done', startedAt: t }, t)).toBe(false)
+  })
+
+  test('Claude is told to use helpers by itself, unless "/agents-info auto off"', async ($, on) => {
+    world(on)
+    await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
+    const section = (r: any) => r.sections.find((x: any) => x.id === 'crew:delegate')
+    const on1: any = await compose($)
+    expect(section(on1)?.text).toContain('without being asked')
+    expect(section(on1)?.text).toContain('in parallel')
+    expect(section(on1)?.scope).toBe('session')
+    // No Agent tool (a helper's own loop): nothing to say.
+    expect(section(await compose($, ['Read']))).toBeUndefined()
+    const off: any = await $.command.run({ command: 'agents-info', args: 'auto off' } as any)
+    expect(off.text).toContain('only when you ask')
+    expect(section(await compose($))).toBeUndefined()
+    await $.command.run({ command: 'agents-info', args: 'auto on' } as any)
+    expect(section(await compose($))).toBeDefined()
+    expect(section(await compose($))?.text).toContain('the edits stay with you')
+    await $.command.run({ command: 'agents-info', args: 'off' } as any)
+    expect(section(await compose($))).toBeUndefined()
   })
 
   test('a survey above the prompt still wins over the band', async ($, on) => {
