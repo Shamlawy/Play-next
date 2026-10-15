@@ -17,6 +17,8 @@ export type Helper = {
   said?: string
   recent?: string[]
   result?: string
+  // When it last did or said anything: a helper silent for 10 minutes no longer holds the panel's auto-open.
+  seenAt?: number
   // The helper's own task list, when it keeps one (TaskCreate/TodoWrite inside its loop).
   todo?: Step[]
 }
