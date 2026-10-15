@@ -7,7 +7,7 @@ deadCode           0      # functions and top-level consts nothing uses
 deadCss            0      # CSS classes nothing in the page or the scripts uses
 cssOverridden      0      # CSS declarations that never apply (the same selector sets the same property again later)
 cssScattered       4      # selectors defined in 4 or more separate rules
-important          168    # !important in CSS
+important          166    # !important in CSS
 hexColours         409    # colours written as hex in CSS rules (house rule v181: var(--volt) / rgba(var(--vrgb), a) / the --u-* tokens)
 intervals          10     # setInterval timers
 endlessAnimations  57     # animations that never stop (CSS `infinite`, Web Animations `Infinity`)
