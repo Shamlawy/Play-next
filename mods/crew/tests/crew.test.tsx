@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { applyTask, bar, clock, crabSvg, gist, modelName, progress, push, stepLine, tier, toolLabel } from '../hooks/numbers.ts'
+import { active, applyTask, bar, clock, crabSvg, gist, modelName, progress, push, stepLine, tier, toolLabel } from '../hooks/numbers.ts'
 
 const U = (i: number, o: number) => ({ input_tokens: i, output_tokens: o, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })
 
@@ -157,6 +157,14 @@ describe('crew', () => {
     expect(opens).toEqual(['crew', 'crew'])
   })
 
+  test('a helper that never finished stops blocking the auto-open after 10 quiet minutes', () => {
+    const t = 1_000_000
+    expect(active({ status: 'running', startedAt: t }, t + 5 * 60_000)).toBe(true)
+    expect(active({ status: 'running', startedAt: t }, t + 11 * 60_000)).toBe(false)
+    expect(active({ status: 'running', startedAt: t, seenAt: t + 9 * 60_000 }, t + 11 * 60_000)).toBe(true)
+    expect(active({ status: 'done', startedAt: t }, t)).toBe(false)
+  })
+
   test('Claude is told to use helpers by itself, unless "/agents-info auto off"', async ($, on) => {
     world(on)
     await $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
@@ -172,6 +180,9 @@ describe('crew', () => {
     expect(section(await compose($))).toBeUndefined()
     await $.command.run({ command: 'agents-info', args: 'auto on' } as any)
     expect(section(await compose($))).toBeDefined()
+    expect(section(await compose($))?.text).toContain('the edits stay with you')
+    await $.command.run({ command: 'agents-info', args: 'off' } as any)
+    expect(section(await compose($))).toBeUndefined()
   })
 
   test('a survey above the prompt still wins over the band', async ($, on) => {

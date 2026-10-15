@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Helper, Step } from '../types'
-import { applyTask, bar, clock, crabSvg, elapsed, gist, modelName, progressOf, push, stepLine, tier, toolLabel, totals } from './numbers.ts'
+import { active, applyTask, bar, clock, crabSvg, elapsed, gist, modelName, progressOf, push, stepLine, tier, toolLabel, totals } from './numbers.ts'
 
 type $ = EngineInterface
 
@@ -32,10 +32,10 @@ const job = atom({ plugin: 'crew', key: 'job' } as const, '')
 // so it splits work across helpers by itself when that helps.
 export const DELEGATE = `Helper agents (the person's standing request: they want you to use helper agents on your own, without being asked, because they don't know when to ask; this counts as the person asking). Use the Agent tool by yourself when it makes the job faster or better:
 - Searching or reading widely (many files, several places, "where is X used", an unfamiliar area): an Explore helper.
-- Two or more independent questions or checks: one helper each, started in the same message so they run in parallel.
+- Two or more independent questions or checks that each take real work: one helper each, started in the same message so they run in parallel.
 - A second opinion on a finished change (bugs, missed cases, the project's rules) before you call it done: a review helper.
 - Long checks or test runs whose output you only need the verdict of, and research that needs many web or file reads.
-Keep the main work yourself: decisions, design, the edits that need the whole conversation, and anything a few tool calls settle (a helper starts cold, so it only pays off for real work). Give each helper a complete brief (the goal, the files or area, what to report back) and a short description. Pick the model for the job: haiku or sonnet for mechanical or read-only work, the default model for anything that needs judgment. Never let two helpers edit the same files. When you start helpers, say in one short line who is doing what; then use what they report, checking anything surprising yourself.`
+Keep the main work yourself: decisions, design, the edits that need the whole conversation, and anything a few tool calls settle (a helper starts cold, so it only pays off for real work). Give each helper a complete brief (the goal, the files or area, what to report back) and a short description. Pick the model for the job: haiku or sonnet for mechanical or read-only work, the default model for anything that needs judgment. Helpers read, check and report back; the edits stay with you, unless a helper's files are clearly separate from yours and from every other helper's. When you start helpers, say in one short line who is doing what; then use what they report, checking anything surprising yourself.`
 
 const patch = ($: $, id: string, fn: (x: Helper) => Helper) => update($, helpers, list => list.map(x => (x.id === id ? fn(x) : x)))
 const openPane = ($: $) => $.ui.open({ id: PANE, title: 'Agents' })
@@ -76,11 +76,11 @@ export const register: Register = on => {
   // The reply is the whole crew as text too, so a screen that seats no panes (the phone app) still shows it.
   on('command.run', { command: 'agents-info' }, async ($, e) => {
     const arg = (e.args ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
-    if (arg === 'auto off') {
+    if (arg === 'auto off' || arg === 'off') {
       await $.store.set('manual', true)
       return { text: 'Claude will start helper agents only when you ask. "/agents-info auto on" lets it decide again.' }
     }
-    if (arg === 'auto on' || arg === 'auto') {
+    if (arg === 'auto on' || arg === 'auto' || arg === 'on') {
       await $.store.delete('manual')
       return { text: 'Claude starts helper agents by itself when a job splits well (wide searches, parallel checks, a second-opinion review); the Agents panel opens when they start.' }
     }
@@ -130,9 +130,14 @@ export const register: Register = on => {
         id, title: e.description || e.subagentType, type: e.subagentType, model: r.model || e.model || e.parentModel,
         startedAt: Date.now(), status: 'running', steps: 0, task: gist(e.prompt || '', 140) || undefined,
       }
-      // The panel opens by itself when a batch of helpers starts (none was running), not on every spawn.
-      const first = !(await read($, helpers)).some(y => y.status === 'running')
-      await update($, helpers, list => [...list.filter(y => y.id !== id), x].slice(-MAX))
+      // The panel opens by itself when a batch of helpers starts (none was running), not on every spawn. Decided inside
+      // the updater (re-run on a clash), so two spawns in one message can't both count as first; a helper still
+      // "running" after 10 minutes with no news (killed, never finished) doesn't count, or it would block this forever.
+      let first = false
+      await update($, helpers, list => {
+        first = !list.some(y => active(y, x.startedAt))
+        return [...list.filter(y => y.id !== id), x].slice(-MAX)
+      })
       void update($, now, () => Date.now())
       if (first) void openPane($).catch(() => undefined)
     }
@@ -158,6 +163,7 @@ export const register: Register = on => {
           model: res.usage?.model || x.model,
           effort: e.effort === undefined ? x.effort : String(e.effort),
           said: said || x.said,
+          seenAt: Date.now(),
           status: 'running',
           endedAt: undefined,
         }))
@@ -175,7 +181,7 @@ export const register: Register = on => {
     const input = e as unknown as Record<string, unknown>
     if (id) {
       const label = toolLabel(tool, input)
-      void patch($, id, x => ({ ...x, steps: x.steps + 1, lastTool: label, recent: push(x.recent, label) }))
+      void patch($, id, x => ({ ...x, steps: x.steps + 1, lastTool: label, recent: push(x.recent, label), seenAt: Date.now() }))
     }
     if (!TASK_TOOLS.has(tool)) return next(e)
     const ran = await next(e)
