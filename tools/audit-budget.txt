@@ -1,7 +1,7 @@
 # Code health budget for tools/audit.mjs: the highest number allowed for each measure.
 # `node tools/audit.mjs --lower` lowers these after a cleanup. Raising one is a decision: edit by hand and say why in the commit.
 
-wraps              41     # wrap layers on functions (a later script replacing a function with one that calls the old one)
+wraps              0      # wrap layers on functions (a later script replacing a function with one that calls the old one)
 deepWraps          0      # functions wrapped 4 or more times
 deadCode           0      # functions and top-level consts nothing uses
 deadCss            0      # CSS classes nothing in the page or the scripts uses
