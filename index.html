@@ -4023,7 +4023,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "284";
+const APP_V = "285";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6239,6 +6239,7 @@ function openSettings(scope) {
         <button class="chip" data-v="on" aria-pressed="${!!S.sound}"><span>On</span></button>
         <button class="chip" data-v="off" aria-pressed="${!S.sound}"><span>Off</span></button>
       </div>
+      ${typeof silSetHtml === "function" ? silSetHtml() : ""}
       <label>Reactions</label>
       <p class="note">A line back when you rate something, drop something, or pass a milestone.</p>
       <div class="chips" id="s-reactions">
@@ -25678,5 +25679,52 @@ WHATS_NEW.push(
     at: () => $("#p-home .dxmore"),
     say: "<b>Fixed: the empty space under More for you</b>. Its two card stacks were waiting for a fade-in that never started; they show again, and so does the big card at the top of Insights. Cards now rise in the way they do on the iPhone. I've learned to spot cards stuck invisible myself now.",
     tryIt: "Swipe through both stacks: the left one up and down, the right one sideways." }
+);
+</script>
+<script>
+/* v285 (#177, the friend: "all the sounds in the app are not working" on an iPhone 11 and an iPad 9th gen): on iPhone/iPad
+   a web app's sounds follow the Silent switch (the iPad's bell in Control Center), and the app's sounds were already woken
+   on every tap the way Safari needs. Settings › Sound and reactions › "Play sounds in Silent mode" (S.silentPlay, off by
+   default) sets navigator.audioSession.type (Safari 16.4+/iOS 17) to "playback". WebKit maps "ambient", "transient" and
+   "transient-solo" to iOS's ambient categories, which the Silent switch mutes, so only "playback" plays through it (and
+   "play-and-record" would bring in the microphone); the catch: "playback" doesn't mix, so music from another app pauses
+   when the app plays a sound. Hence off by default and shown only where audioSession exists (Android sees nothing new).
+   The type is set at load (before any sound: sounds need a tap), again on every tap (the same capture as the sound wake)
+   and on coming back to the app. Proof: tools/scenarios/silent-sound.mjs (also in WebKit via webkit-check.yml). */
+const SIL = navigator.audioSession && "type" in navigator.audioSession ? navigator.audioSession : null;
+function silApply() {
+  if (!SIL) return;
+  const want = S.sound && S.silentPlay ? "playback" : "auto";
+  try { if (SIL.type !== want) SIL.type = want; } catch (e) {}
+}
+function silSetHtml() {
+  if (!SIL) return "";
+  return `<label>Play sounds in Silent mode</label>
+      <p class="note">Your iPhone's Silent switch (on iPad, the bell in Control Center) keeps the app quiet. On: the app's sounds play anyway, but music or a podcast from another app pauses when one plays.</p>
+      <div class="chips" id="s-silent">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.silentPlay ? "on" : "off") === v}"><span>${l}</span></button>`).join("")}
+      </div>`;
+}
+GROUP_KEYS["Sound and reactions"].push("silentPlay");
+onSettings("after", () => {
+  const box = $("#s-silent"); if (!box) return;
+  box.onclick = e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    [...box.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+    S.silentPlay = b.dataset.v === "on"; saveNow(); silApply();
+    /* a sound engine made before the switch keeps its old kind of sound: start a fresh one */
+    if (AC) { try { AC.close(); } catch (e) {} AC = null; }
+    beep(S.silentPlay ? "add" : "tap");
+    if (S.silentPlay && !S.sound) toast("Sounds are off: turn them on just above");
+  };
+});
+silApply();
+["pointerdown", "touchend", "keydown"].forEach(t => addEventListener(t, silApply, { capture: true, passive: true }));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) silApply(); });
+WHATS_NEW.push(
+  { v: 285, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Sound and reactions", text: SIL ? "Play sounds in Silent mode" : "Sounds" }); },
+    at: () => $("#s-silent") || $("#s-sound"),
+    say: "<b>Sounds on iPhone and iPad</b>: the Silent switch was keeping the app quiet there. On an iPhone or iPad, Settings › Sound and reactions now has <b>Play sounds in Silent mode</b>.",
+    tryIt: "On an iPhone or iPad: turn it on, keep Silent on and tap around. Music from another app pauses while a sound plays." }
 );
 </script>
