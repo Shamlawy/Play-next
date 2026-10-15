@@ -398,10 +398,6 @@
     position: absolute; inset: 0; background-size: cover; background-position: center top;
     
   }
-  .pick .scrim {
-    position: absolute; inset: 0;
-    background: linear-gradient(100deg, var(--ink) 4%, rgba(8,15,36,.86) 40%, rgba(8,15,36,.15) 82%);
-  }
   .pick .in {
     position: relative;   display: flex; flex-direction: column;
      height: 100%; align-items: flex-start; text-align: left; max-width: 74%;
@@ -2080,7 +2076,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     box-shadow: 0 18px 40px -16px rgba(0,0,0,.8); }
   .pick .shot { opacity: .95; left: 38%; -webkit-mask-image: var(--fade); mask-image: var(--fade);
     --fade: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.04) 8%, rgba(0,0,0,.14) 16%, rgba(0,0,0,.3) 24%, rgba(0,0,0,.5) 32%, rgba(0,0,0,.7) 40%, rgba(0,0,0,.86) 48%, rgba(0,0,0,.96) 56%, #000 64%); }
-  .pick .scrim { background: linear-gradient(90deg, var(--tn) 22%, color-mix(in srgb, var(--tn) 70%, transparent) 36%, color-mix(in srgb, var(--tn) 40%, transparent) 48%, color-mix(in srgb, var(--tn) 15%, transparent) 60%, transparent 72%); }
   .pick .in { padding: 18px; gap: 8px; }
   .pick .name { font-size: 30px; font-weight: 700; letter-spacing: -.01em; }
   .pick .why { color: var(--mute); font-size: 12px; }
@@ -2137,10 +2132,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   /* ===== v66 more buttery motion (transform/opacity only) ===== */
   .pnrv { opacity: 0; transform: translateY(26px) scale(.98); }
   .pnrv.in { opacity: 1; transform: none; transition: opacity .8s var(--ease), transform .8s var(--ease); }
-  .pick .scrim::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-    background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.13) 50%, transparent 62%);
-    transform: translateX(-110%); animation: pnSheen 8s var(--ease) 1.2s infinite; }
-  @keyframes pnSheen { 0% { transform: translateX(-110%); } 22%, 100% { transform: translateX(110%); } }
   .ring::before { content: ""; position: absolute; inset: -18px; border-radius: 50%;
     background: radial-gradient(circle, rgba(var(--vrgb),.35), transparent 66%); animation: pnBreath 4.5s ease-in-out infinite; }
   @keyframes pnBreath { 0%, 100% { opacity: .45; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
@@ -2329,7 +2320,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   /* hero lets the character step out of the frame; everything else stays clipped inside it */
   .dash > .k-pick { overflow: visible !important; }
   .pick .shot { border-radius: 0 26px 26px 0; }
-  .pick .scrim { border-radius: 26px; overflow: hidden; }
   .pick .pop { position: absolute; right: 3%; bottom: 0; height: 128%; max-width: 58%; width: auto; object-fit: contain;
     object-position: bottom right; z-index: 4; pointer-events: none; filter: drop-shadow(0 18px 28px rgba(0,0,0,.65)); }
   .pick:has(.pop) .shot { opacity: .55; }
