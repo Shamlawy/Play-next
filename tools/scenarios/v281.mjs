@@ -12,7 +12,7 @@ export default async ({ p, w }) => {
   /* OLD=1: as an older browser (Safari before 26): no anchor positioning, scroll-state or scroll triggers in script */
   if (process.env.OLD) { await p.ctx.addInitScript(() => { const s = CSS.supports.bind(CSS); CSS.supports = (...a) => /anchor|scroll-state|trigger/.test(a.join(" ")) ? false : s(...a); });
     await pg.reload(); await pg.waitForTimeout(2500); }
-  const feat = await ev(() => ({ trig: PN_TRIG, gdsb: GDSB, anc: NX_ANC }));
+  const feat = await ev(() => ({ trig: false, gdsb: GDSB, anc: NX_ANC }));   /* v284: the CSS reveal (PN_TRIG) is gone, always the script one */
   /* ---- #8 sticky bar ---- */
   await p.step("game", `openFull("g1")`, 1600);
   const bar = () => ev(() => { const b = document.querySelector("#full .hub.gpage .gdsb-in"); if (!b) return null; const c = getComputedStyle(b), r = b.getBoundingClientRect();

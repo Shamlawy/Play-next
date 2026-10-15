@@ -3115,10 +3115,6 @@ function pcdHTML(o) {
      after(out, args, got)      runs after it, oldest first (the order the wraps ran in); its return value is ignored
      map(out, args, got)        like after, but its return value becomes the function's result
    Only for functions declared with `function name()` at the top level of a script (they live on window). */
-/* v281: Chrome 145+ starts an animation when its element scrolls into view by itself (scroll-triggered animations,
-   timeline-trigger / animation-trigger). Where it can, the reveal on Home, Insights and a game's page is plain CSS (last
-   <style>) and the IntersectionObservers that did it in script stay off; Safari keeps the script version. */
-const PN_TRIG = !!(window.CSS && CSS.supports("timeline-trigger: --t view()") && CSS.supports("animation-trigger: --t play-once"));
 const EXT = {}, EXT_SKIP = Symbol("skip"), EXT_ARGS = Symbol("args");
 function extend(name, hook) {
   let e = EXT[name];
@@ -4027,7 +4023,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "283";
+const APP_V = "284";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11077,7 +11073,7 @@ function renderHome() {
    those hide (they're off screen, so nothing blinks) and drift in when you reach them. */
 let pnRevIO = null;
 function revealSetup(root) {
-  if (!root || PN_TRIG || !("IntersectionObserver" in window)) return;
+  if (!root || !("IntersectionObserver" in window)) return;
   const io = pnRevIO || (pnRevIO = new IntersectionObserver((es, ob) => es.forEach(e => { const el = e.target;
     if (!el._rv) { el._rv = 1; if (!e.isIntersecting && e.boundingClientRect.top > innerHeight) el.classList.add("pnrv"); else ob.unobserve(el); return; }
     if (e.isIntersecting) { el.classList.add("in"); ob.unobserve(el); }
@@ -18055,7 +18051,7 @@ function ixWire(el) {
     if (d.open && body && !body.firstChild && IX_BODY[d.dataset.fold]) { body.classList.add("pre"); body.innerHTML = IX_BODY[d.dataset.fold]();
       requestAnimationFrame(() => requestAnimationFrame(() => body.classList.remove("pre"))); }
     if (d.open) beep("open"); }));
-  if (calm() || PN_TRIG || !("IntersectionObserver" in window)) { items.forEach(x => { x.classList.add("ix-now"); show(x); }); return; }
+  if (calm() || !("IntersectionObserver" in window)) { items.forEach(x => { x.classList.add("ix-now"); show(x); }); return; }
   items.forEach(x => { if (ixShown.has(x.dataset.ix)) { x.classList.add("ix-now"); show(x); requestAnimationFrame(() => requestAnimationFrame(() => x.classList.remove("ix-now"))); } });
   if (ixIO) ixIO.disconnect();
   ixIO = new IntersectionObserver((es, ob) => es.forEach(e => { if (e.isIntersecting) { show(e.target); ob.unobserve(e.target); } }), { threshold: .12 });
@@ -25424,20 +25420,8 @@ WHATS_NEW.push(
 );
 </script>
 <style>
-/* ===== v281 (#7): cards rise in when you scroll to them, by the browser itself (Chrome 145+: timeline-trigger +
-   animation-trigger). Only "forwards": a card that hasn't been reached keeps its normal look, so what's already on screen
-   when a page opens never blinks, and a fling past a card just shows it. Home (except the shelf stack, which has its own
-   entrance), Insights, and a game's page below its title. The script reveal (revealSetup / ixWire) stays off here.
-   Only on the screen that's showing (.panel.on): a hidden screen is a clipped scroll box, and a card built in one stayed
-   paused on its first frame (invisible) once the screen opened. Each visit starts the reveal fresh, as the script did. ===== */
-@supports (timeline-trigger: --t view()) and (animation-trigger: --t play-once) {
-  @keyframes pnTrig { from { opacity: 0; transform: translateY(24px) scale(.985); } }
-  :is(#p-home.on .dash > :not(.sb), #full .hub.gpage .gd-body > :not(.gd-head), .panel.on .ix-rv) {
-    timeline-trigger: --pnrv view() entry 0% entry 60%; animation: pnTrig .7s cubic-bezier(.22,1,.36,1) forwards; animation-trigger: --pnrv play-once; }
-  .pnrv, .pnrv.in, .ix-rv, .ix-rv.in { opacity: 1; transform: none; transition: none; }
-  html.still :is(#p-home .dash > *, #full .hub.gpage .gd-body > *, .ix-rv) { animation: none; }
-  @media (prefers-reduced-motion: reduce) { :is(#p-home .dash > *, #full .hub.gpage .gd-body > *, .ix-rv) { animation: none; } }
-}
+/* v281 (#7) cards rising in by the browser itself (timeline-trigger) was removed in v284: in Chrome it left cards stuck invisible
+   (More for you, the top of Insights); Home and Insights use the script reveal (revealSetup / ixWire) again. */
 /* ===== v281 (#8): on a game's page the name and Back stay at the top once you scroll past the art. The bar is sticky and
    knows by itself when it's stuck (scroll-state container query, Chrome 133+): no scroll listener. Without it (Safari for
    now) there's no bar at all. ===== */
@@ -25611,10 +25595,10 @@ if (GDSB) WHATS_NEW.push(
     say: "On a game's page, its name and <b>Back</b> now stay at the top once you scroll past the art. Tap the name to jump back up.",
     tryIt: "Scroll down a game's page, then tap its name in the bar." }
 );
-if (PN_TRIG || NX_ANC) WHATS_NEW.push(
+if (NX_ANC) WHATS_NEW.push(
   { v: 281, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
-    say: "Smoother scrolling: cards rising in as you reach them (Home, Insights and now a game's page) and this tour's highlight are handled by your phone's browser itself instead of the app's own code.",
-    tryIt: "Open a game and scroll down slowly: its cards rise in one by one." }
+    say: "Smoother tours: this tour's highlight is placed by your phone's browser itself instead of the app's own code.",
+    tryIt: "Watch the ring follow each step." }
 );
 </script>
 <script>
@@ -25650,5 +25634,49 @@ WHATS_NEW.push(
   { v: 283, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: null,
     say: "<b>Smoother scrolling on Month and Insights</b>: one of my own problem checks was measuring hundreds of hidden rows on every frame you scrolled. It now skips what you can't see, and my design look waits until you stop touching the screen.",
     tryIt: "Scroll Insights and Month quickly: it should glide. If anything still stutters, my report now says exactly what caused it." }
+);
+</script>
+<script>
+/* v284 (the owner, a screenshot: "Fix this empty space it should have 2 stuff"): Home's "More for you" was an empty band on
+   the Fold. v281's reveal by the browser itself (Chrome 145+, timeline-trigger: view()) left cards sitting on their first
+   frame, invisible: it watches the nearest scroll box, and .wrap is one that never scrolls (the page does), and even with
+   that fixed a 25px layout shift on Insights flipped its top card to the invisible first frame with no script involved.
+   That CSS reveal is gone; Home and Insights use the script reveal again (as on Safari). Proof:
+   tools/scenarios/more-for-you.mjs with a Chrome 145+ (CHROME=…). Nexi learned it: something on the open screen that a paused or never-started entrance holds
+   invisible, still invisible 0.7s later with nobody touching, is reported. Not the loops the app pauses on purpose (OFFHOLD,
+   rest mode). */
+{
+  const SKIP = BUG_SKIP.replace(/, \.stk, \.stkw/, "");   /* the stacks are what went missing */
+  const held = a => (typeof OFFHOLD !== "undefined" && OFFHOLD.has(a)) || (typeof REST !== "undefined" && REST.held.includes(a)) || window.pnRest;
+  const stuck = root => {
+    const H = innerHeight, W = innerWidth, out = [];
+    for (const a of root.getAnimations({ subtree: true })) {
+      if (a.playState === "running" || a.playState === "finished" || held(a)) continue;
+      const el = a.effect && a.effect.target; if (!el || a.effect.pseudoElement || el.closest(SKIP)) continue;
+      const r = el.getBoundingClientRect(); if (r.width < 40 || r.height < 40) continue;
+      const vis = Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0)) * Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0));
+      if (vis < r.width * r.height * .4) continue;
+      if (+getComputedStyle(el).opacity > .05) continue;
+      out.push(el);
+    }
+    return out;
+  };
+  let t = 0;
+  BUG_AFTER.push(() => {
+    if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
+    const root = document.querySelector("#full.on .hub") || document.querySelector(".panel.on"); if (!root) return;
+    const a = stuck(root); if (!a.length) return;
+    clearTimeout(t); t = setTimeout(() => { if (performance.now() - bugLastIn < 1200 || !root.isConnected) return;
+      const b = stuck(root).filter(el => a.includes(el)); if (!b.length) return;
+      const an = b[0].getAnimations().map(x => (x.animationName || "script") + ":" + x.playState).join(", ");
+      bugReport("layout", "A card stayed invisible on screen (its entrance never ran)", { at: bugPath(b[0]), screen: bugScreen(), note: an + (b.length > 1 ? ` (+${b.length - 1} more)` : "") }); }, 700);
+  });
+  BUG_NICE.push(["layout", /stayed invisible on screen/, at => `A card on ${at} never faded in, so there was an empty space where it should be.`]);
+}
+WHATS_NEW.push(
+  { v: 284, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); setTimeout(() => { const m = $("#p-home .dxmore"); if (m) m.scrollIntoView({ block: "center" }); }, 300); },
+    at: () => $("#p-home .dxmore"),
+    say: "<b>Fixed: the empty space under More for you</b>. Its two card stacks were waiting for a fade-in that never started; they show again, and so does the big card at the top of Insights. Cards now rise in the way they do on the iPhone. I've learned to spot cards stuck invisible myself now.",
+    tryIt: "Swipe through both stacks: the left one up and down, the right one sideways." }
 );
 </script>
