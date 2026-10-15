@@ -2,14 +2,14 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import { fromGit, join, protectPatterns, risks, sortFiles } from '../hooks/blast.ts'
 
 // A fake repo at /repo: what git and the file walk answer.
-function world(on: any, w: { files?: string; tracked?: string; fresh?: string; diff?: string; ahead?: string; branch?: string; protect?: string }) {
+function world(on: any, w: { top?: string; home?: string; files?: string; tracked?: string; fresh?: string; diff?: string; ahead?: string; branch?: string; protect?: string }) {
   mock.store(on)
   mock.clock(on, { now: 0 })
   const ran: string[] = []
   on('process.run', ($: unknown, e: any) => {
     const a = (e.argv as string[]).join(' ')
     const out = (stdout = '') => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (a === 'git rev-parse --show-toplevel') return out('/repo\n')
+    if (a === 'git rev-parse --show-toplevel') return out(w.top ?? '/repo\n')
     if (a === 'git remote get-url origin') return out('https://github.com/shamlawy/Play-next.git\n')
     if (a.startsWith('bash -c')) return out(w.files ?? '')
     if (a === 'git ls-files') return out(w.tracked ?? '')
@@ -18,7 +18,7 @@ function world(on: any, w: { files?: string; tracked?: string; fresh?: string; d
     if (a.startsWith('git log --oneline origin/')) return out(w.ahead ?? '')
     if (a === 'git rev-parse --abbrev-ref HEAD') return out(w.branch ?? 'claude/x\n')
     if (a === 'git symbolic-ref --short refs/remotes/origin/HEAD') return out('origin/main\n')
-    if (a.startsWith('sh -c')) return out('/root')
+    if (a.startsWith('sh -c')) return out(w.home ?? '/root')
     return out('')
   })
   on('fs.read', ($: unknown, e: any) => (e.path.endsWith('blast-radius-protect') && w.protect ? { value: w.protect } : { value: '' }))
@@ -83,6 +83,30 @@ describe('blast-radius', () => {
     expect((await pwsh($, 'Get-ChildItem tools | Remove-Item -Recurse')).deny).toContain('fed by: Get-ChildItem tools')
     expect((await pwsh($, 'ri .git -r -fo')).deny).toContain('$env:BLAST_OK=1;')
     expect((await pwsh($, '$env:BLAST_OK=1; git reset --hard')).deny).toBeUndefined()
+  })
+
+  test('Git Bash in a Windows worktree: cd "C:/…" or /c/…, then rm relative stays inside the repo', async ($, on) => {
+    const wt = 'C:/Users/PC/Play-next/.claude/worktrees/great-curie-8dbf2a'
+    expect(join(wt, 'C:/Users/PC/Play-next/.claude/worktrees/great-curie-8dbf2a')).toBe(wt)
+    expect(join(wt, '/c/Users/PC/Play-next/.claude/worktrees/great-curie-8dbf2a/old.html')).toBe(`${wt}/old.html`)
+    expect(join(wt, '/cygdrive/c/x')).toBe('C:/x')
+    expect(join(wt, 'C:\\Users\\PC\\Play-next\\.claude\\worktrees\\great-curie-8dbf2a\\old.html')).toBe(`${wt}/old.html`)
+    expect(join('/repo', '/c/x')).toBe('/c/x')
+    expect(risks(`cd "${wt}"; ls; rm old.html`, wt)).toEqual([{ kind: 'rm', cwd: wt, targets: ['old.html'] }])
+    expect(risks('cd /c/Users/PC/Play-next/.claude/worktrees/great-curie-8dbf2a && rm tools/scenarios/_dbg.mjs', wt)).toEqual([{ kind: 'rm', cwd: wt, targets: ['tools/scenarios/_dbg.mjs'] }])
+
+    const ran = world(on, { top: `${wt}\n`, home: '/c/Users/PC', files: 'old.html\n', fresh: 'old.html\ntools/scenarios/_dbg.mjs\n' })
+    await start($)
+    const r1 = await bash($, `cd "${wt}"; ls; rm old.html`)
+    expect(r1.deny).toContain('not in git yet')
+    expect(r1.deny).toContain('old.html')
+    expect(r1.deny).not.toContain('outside the repo')
+    expect((await bash($, `cd "${wt}"; ls; rm old.html`)).deny).toBeUndefined()
+    expect(ran.length).toBe(1)
+    const r2 = await bash($, 'cd /c/Users/PC/Play-next/.claude/worktrees/great-curie-8dbf2a && rm tools/scenarios/_dbg.mjs')
+    expect(r2.deny).toContain('tools/scenarios/_dbg.mjs')
+    expect(r2.deny).not.toContain('outside the repo')
+    expect((await bash($, 'rm -rf ~/x')).deny).toContain('C:/Users/PC/x')
   })
 
   test('sorts deleted files by how much they matter', () => {

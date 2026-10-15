@@ -72,6 +72,8 @@ export function join(base: string, p: string, home = '/root'): string {
   if (raw === '~' || raw.startsWith('~/')) raw = h + raw.slice(1)
   else if (/^\$(env:USERPROFILE|HOME)(\/|$)/i.test(raw)) raw = h + raw.replace(/^\$(env:USERPROFILE|HOME)/i, '')
   const drive = (x: string) => /^[A-Z]:(\/|$)/.test(x)
+  // Git Bash on Windows (base is a drive path): /c/Users/… and /cygdrive/c/… are C:/Users/…
+  if (drive(fix(base))) raw = raw.replace(/^(?:\/cygdrive)?\/([a-zA-Z])(?=\/|$)/, (_, d: string) => `${d.toUpperCase()}:`)
   const abs = raw.startsWith('/') || drive(raw) ? raw : `${fix(base).replace(/\/+$/, '')}/${raw}`
   const pre = drive(abs) ? abs.slice(0, 2) : ''
   const parts: string[] = []
