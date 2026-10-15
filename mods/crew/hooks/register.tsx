@@ -2,13 +2,15 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Helper, Step } from '../types'
-import {
-  applyTask, bar, billed, clock, cost, crabSvg, elapsed, k, modelName, progressOf, stepLine, tier, toolLabel, totals, usd, window,
-} from './numbers.ts'
+import { applyTask, bar, clock, crabSvg, elapsed, gist, modelName, progressOf, push, stepLine, tier, toolLabel, totals } from './numbers.ts'
 
 type $ = EngineInterface
 
-// Savvy-Progress-style view of Claude's helper agents: what each is doing, how far along, what it costs.
+// Savvy-Progress-style view of Claude's helper agents: what each was asked, what it is doing right now, how
+// (model, effort, its last steps), how far along, and what it came back with.
+// 0.3 (the owner: "crew only shows price which i dont care about much i care about what the agents are doing and
+// how"): prices and token counts are gone; the band names each running helper's current step, the panel shows its
+// task, its words, its recent steps and its result.
 const PANE = 'crew'
 const MAX = 60
 const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TodoWrite'])
@@ -26,7 +28,6 @@ const plan = atom({ plugin: 'crew', key: 'plan' } as const, [])
 const job = atom({ plugin: 'crew', key: 'job' } as const, '')
 
 const patch = ($: $, id: string, fn: (x: Helper) => Helper) => update($, helpers, list => list.map(x => (x.id === id ? fn(x) : x)))
-const ctxPct = (x: Helper) => Math.min(100, Math.round((x.context / (/haiku-4/.test(x.model) ? 200_000 : 1_000_000)) * 100))
 const openPane = ($: $) => $.ui.open({ id: PANE, title: 'Agents' })
 const same = (a: string, b: string) => {
   const n = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -39,10 +40,16 @@ const heading = (text: string) => {
 }
 const planned = (steps: readonly Step[], list: readonly Helper[]) =>
   steps.map((s, i) => ({ ...s, n: i + 1 })).filter(s => s.status === 'pending' && !list.some(x => same(x.title, s.subject)))
+// What a running helper is doing this moment: its current step, else what it last said.
+const doing = (x: Helper) => x.lastTool || x.said || 'Starting…'
+// How it works: its tier, model, effort and agent type.
+const how = (x: Helper) => `${modelName(x.model)}${x.effort ? ` · ${x.effort}` : ''}${x.type && x.type !== 'general-purpose' ? ` · ${x.type}` : ''}`
+// The progress line without the step it's on (that has its own "Now" line).
+const progressLine = (x: Helper) => stepLine({ ...x, lastTool: undefined })
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'agents-info', description: 'Open the Agents panel: every helper Claude starts, live (model, progress, tokens, rough cost, time).' })
+    await $.command.register({ name: 'agents-info', description: 'Open the Agents panel: every helper Claude starts, live: its task, what it is doing now and how, its last steps and what it found.' })
     // A one-second tick while something runs: times and crabs move; nothing redraws at rest.
     $.clock.every(1000, async () => {
       const list = await read($, helpers)
@@ -63,17 +70,22 @@ export const register: Register = on => {
     const line = (x: Helper) => {
       const [full, rest] = bar(progressOf(x), 16)
       const mark = x.status === 'running' ? '●' : x.status === 'done' ? '✓' : '✗'
-      return `${mark} ${x.title} (${tier(x.effort).name}, ${modelName(x.model)}${x.effort ? ` · ${x.effort}` : ''})\n   ${full}${rest} ${stepLine(x)} · ctx ${ctxPct(x)}% · ${k(x.context)} · ${usd(x.costUsd)} · ${clock(elapsed(x, at))}`
+      return [
+        `${mark} ${x.title} (${tier(x.effort).name}, ${how(x)})`,
+        x.task ? `   Task: ${x.task}` : '',
+        x.status === 'running' ? `   Now: ${doing(x)}` : x.result ? `   Result: ${x.result}` : '',
+        x.status === 'running' && x.said && x.lastTool ? `   Says: ${x.said}` : '',
+        `   ${full}${rest} ${progressLine(x)} · ${clock(elapsed(x, at))}`,
+      ].filter(Boolean).join('\n')
     }
     const running = list.filter(x => x.status === 'running')
     const finished = list.filter(x => x.status !== 'running').reverse()
     return {
       text: [
-        `🦀 Agents · ${t.running} running · ${finished.length} finished · ${k(t.tokens)} tokens · ${usd(t.cost)} · ${clock(t.time)}${r.isPlaced ? ' (panel open)' : ''}`,
+        `🦀 Agents · ${t.running} running · ${finished.length} finished · ${clock(t.time)}${r.isPlaced ? ' (panel open)' : ''}`,
         ...running.map(line),
         ...finished.map(line),
         ...later.map(s => `○ ${s.n}. ${s.subject} (planned)`),
-        'Cost is a rough guide from list prices; a Claude plan is not billed per token.',
       ].join('\n'),
     }
   })
@@ -93,7 +105,7 @@ export const register: Register = on => {
       const id = r.agentId
       const x: Helper = {
         id, title: e.description || e.subagentType, type: e.subagentType, model: r.model || e.model || e.parentModel,
-        startedAt: Date.now(), status: 'running', steps: 0, tokens: 0, costUsd: 0, context: 0,
+        startedAt: Date.now(), status: 'running', steps: 0, task: gist(e.prompt || '', 140) || undefined,
       }
       void update($, helpers, list => [...list.filter(y => y.id !== id), x].slice(-MAX))
       void update($, now, () => Date.now())
@@ -101,36 +113,37 @@ export const register: Register = on => {
     return r
   }).catch(($, e, next) => next(e))
 
-  // Each model request a helper makes: its tokens, cost and context size, as the API reported them.
+  // Each model request a helper makes: the model and effort it really runs on, and what it says between steps.
   on('turn.step', async function* ($, e, next) {
     const res = yield* next(e)
     const id = e.agentId
-    if (id && res.usage) {
-      const u = res.usage
+    if (id) {
       try {
+        const said = gist(res.answer || '')
         await patch($, id, x => ({
           ...x,
-          model: u.model || x.model,
+          model: res.usage?.model || x.model,
           effort: e.effort === undefined ? x.effort : String(e.effort),
-          tokens: x.tokens + billed(u),
-          costUsd: x.costUsd + cost(u.model || x.model, u),
-          context: window(u),
+          said: said || x.said,
           status: 'running',
           endedAt: undefined,
         }))
       } catch {
-        // A missed reading only makes the numbers a little low.
+        // A missed reading only makes the line a step behind.
       }
     }
     return res
   })
 
-  // Each tool a helper calls moves its bar along and says what it is doing; task lists give real steps.
+  // Each tool a helper calls moves its bar along and says, in plain words, what it is doing; task lists give real steps.
   on('tool.call', async ($, e, next) => {
     const id = e.agentId
     const tool = String(e.tool)
     const input = e as unknown as Record<string, unknown>
-    if (id) void patch($, id, x => ({ ...x, steps: x.steps + 1, lastTool: toolLabel(tool, input) }))
+    if (id) {
+      const label = toolLabel(tool, input)
+      void patch($, id, x => ({ ...x, steps: x.steps + 1, lastTool: label, recent: push(x.recent, label) }))
+    }
     if (!TASK_TOOLS.has(tool)) return next(e)
     const ran = await next(e)
     if (!ran.isError && ran.deny === undefined) {
@@ -145,14 +158,15 @@ export const register: Register = on => {
     const id = e.agentId
     if (id) {
       const end = Date.now()
-      await patch($, id, x => ({ ...x, status: e.reason === 'answer' ? 'done' : 'failed', endedAt: end, lastTool: undefined }))
+      const result = gist(e.answer || '', 160)
+      await patch($, id, x => ({ ...x, status: e.reason === 'answer' ? 'done' : 'failed', endedAt: end, lastTool: undefined, result: result || x.result }))
       await update($, now, () => end)
     }
     return next(e)
   })
 
-  // The band above the prompt: one line with the crew's progress while this round has helpers, and a quiet
-  // line at rest (the owner: "I want the crew always", so it never disappears).
+  // The band above the prompt: the round's progress and, for each running helper (as many as fit), what it is doing
+  // now; a quiet line at rest (the owner: "I want the crew always", so it never disappears).
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const list = await read($, helpers)
@@ -161,12 +175,11 @@ export const register: Register = on => {
     const round = list.filter(x => x.status === 'running' || x.startedAt >= from)
     const { Box, Text, Button } = $.ui.resolve(e)
     if (!round.length) {
-      const all = totals(list, Math.max(t0, ...list.map(x => x.startedAt), 0))
       return (
         <Box gap={1}>
           <Text>🦀</Text>
           <Text bold>Agents</Text>
-          <Text dimColor>{list.length ? `idle · ${list.length} earlier this chat · ${k(all.tokens)} · ${usd(all.cost)}` : 'idle · none yet this chat'}</Text>
+          <Text dimColor>{list.length ? `idle · ${list.length} earlier this chat` : 'idle · none yet this chat'}</Text>
           <Button key="crew-open" label="Details" onPress={() => void openPane($)} />
         </Box>
       )
@@ -174,21 +187,31 @@ export const register: Register = on => {
     const t = totals(round, Math.max(t0, ...round.map(x => x.startedAt)))
     const done = round.length - t.running
     const avg = round.reduce((a, x) => a + progressOf(x), 0) / round.length
-    const [full, rest] = bar(avg, Math.max(6, Math.min(24, e.props.bodyColumns - 62)))
+    const [full, rest] = bar(avg, Math.max(6, Math.min(16, e.props.bodyColumns - 70)))
+    const running = round.filter(x => x.status === 'running').slice(-Math.max(0, Math.min(3, (e.props.maxRows ?? 3) - 1)))
     return (
-      <Box gap={1}>
-        <Text>🦀</Text>
-        <Text bold>Agents</Text>
-        <Text dimColor>{t.running ? `${t.running} running` : 'all done'}{done && t.running ? ` · ${done} done` : ''}</Text>
-        <Text><Text color="success">{full}</Text><Text dimColor>{rest}</Text></Text>
-        <Text dimColor>{k(t.tokens)} · {usd(t.cost)} · {clock(t.time)}</Text>
-        <Button key="crew-open" label="Details" onPress={() => void openPane($)} />
+      <Box flexDirection="column">
+        <Box gap={1}>
+          <Text>🦀</Text>
+          <Text bold>Agents</Text>
+          <Text dimColor>{t.running ? `${t.running} running` : 'all done'}{done && t.running ? ` · ${done} done` : ''}</Text>
+          <Text><Text color="success">{full}</Text><Text dimColor>{rest}</Text></Text>
+          <Text dimColor>{clock(t.time)}</Text>
+          <Button key="crew-open" label="Details" onPress={() => void openPane($)} />
+        </Box>
+        {running.map(x => (
+          <Box key={`crew-now-${x.id}`} gap={1}>
+            <Text color={tier(x.effort).colour}>●</Text>
+            <Text wrap="truncate-end"><Text bold>{x.title}</Text><Text dimColor> · </Text>{doing(x)}</Text>
+          </Box>
+        ))}
       </Box>
     )
   })
 
-  // The panel, laid out like Savvy Progress: heading, three stat cards, then Running / Finished / Planned,
-  // each helper a crab in its tier's hat, its tier word and bar in the tier's colour.
+  // The panel, laid out like Savvy Progress: heading, three stat cards, then Running / Finished / Planned. Each
+  // helper: a crab in its tier's hat, its title, how it runs (tier, model, effort, type), its task, what it is doing
+  // now (or its result), its last few steps, and its bar.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const list = await read($, helpers)
     const t0 = await read($, now)
@@ -232,26 +255,35 @@ export const register: Register = on => {
         <Text wrap="truncate-end"><Text color={colour}>{full}</Text><Text dimColor>{rest}</Text></Text>
       )
 
+    const labelled = (key: string, label: string, text: string, colour?: string) => (
+      <Text key={key} wrap="wrap"><Text color={colour} dimColor={!colour}>{label} </Text>{text}</Text>
+    )
+
     const row = (x: Helper) => {
       const tr = tier(x.effort)
       const [full, rest] = bar(progressOf(x), Math.max(8, width - 8))
-      const mark = x.status === 'running' ? <Text color="success">●</Text> : x.status === 'done' ? <Text color="success">✓</Text> : <Text color="error">✗</Text>
+      const live = x.status === 'running'
+      const mark = live ? <Text color="success">●</Text> : x.status === 'done' ? <Text color="success">✓</Text> : <Text color="error">✗</Text>
+      // The steps before the current one, oldest first.
+      const earlier = (x.recent ?? []).slice(live ? 0 : undefined, live ? -1 : undefined).slice(-3)
       return (
         <Box key={`h-${x.id}`} flexDirection="column" marginTop={1}>
           <Box gap={1}>
-            {crab(x, x.status === 'running' ? 'working' : x.status === 'failed' ? 'failed' : 'resting')}
-            <Box flexDirection="column" flexGrow={1}>
+            {crab(x, live ? 'working' : x.status === 'failed' ? 'failed' : 'resting')}
+            <Box flexDirection="column" flexGrow={1} flexShrink={1}>
               <Box justifyContent="space-between">
                 <Text bold wrap="truncate-end">{x.title}</Text>
                 {mark}
               </Box>
-              {small ? null : <Text><Text color={tr.colour}>{tr.name}</Text><Text dimColor> {modelName(x.model)}{x.effort ? ` · ${x.effort}` : ''}</Text></Text>}
-              {small ? null : (
-                <Box justifyContent="space-between" gap={1}>
-                  <Text wrap="truncate-end">{stepLine(x)}</Text>
-                  <Text dimColor>ctx {ctxPct(x)}% · {k(x.context)} {usd(x.costUsd)} {clock(elapsed(x, at))}</Text>
-                </Box>
-              )}
+              <Text><Text color={tr.colour}>{tr.name}</Text><Text dimColor> {how(x)}</Text></Text>
+              {live ? labelled(`now-${x.id}`, 'Now', doing(x), tr.colour) : x.result ? labelled(`res-${x.id}`, x.status === 'failed' ? 'Stopped' : 'Found', x.result, x.status === 'failed' ? 'error' : 'success') : null}
+              {small ? null : x.task ? labelled(`task-${x.id}`, 'Task', x.task) : null}
+              {small || !live || !x.said || !x.lastTool ? null : labelled(`says-${x.id}`, 'Says', x.said)}
+              {small ? null : earlier.map((s, i) => <Text key={`st-${x.id}-${i}`} dimColor wrap="truncate-end">  · {s}</Text>)}
+              <Box justifyContent="space-between" gap={1}>
+                <Text dimColor wrap="truncate-end">{progressLine(x)}</Text>
+                <Text dimColor>{clock(elapsed(x, at))}</Text>
+              </Box>
               {meter(progressOf(x), x.status === 'failed' ? 'error' : tr.colour, full, rest)}
             </Box>
           </Box>
@@ -272,7 +304,7 @@ export const register: Register = on => {
     if (!list.length && !later.length) {
       return (
         <Box flexDirection="column">
-          <Text dimColor>No helpers yet. When Claude splits a job across helper agents, each one shows up here live.</Text>
+          <Text dimColor>No helpers yet. When Claude splits a job across helper agents, each one shows up here live: its task, what it is doing and what it found.</Text>
         </Box>
       )
     }
@@ -280,8 +312,8 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Text bold>{title}</Text>
         <Box gap={1} marginTop={1}>
-          {stat('Cost', usd(t.cost))}
-          {stat('Tokens', k(t.tokens))}
+          {stat('Running', String(running.length))}
+          {stat('Finished', String(finished.length))}
           {stat('Time', clock(t.time))}
         </Box>
         <Box marginTop={1}>
@@ -297,7 +329,6 @@ export const register: Register = on => {
         {open ? finished.map(row) : null}
         {later.length ? <Box marginTop={1}><Text dimColor>Planned · {later.length}</Text></Box> : null}
         {later.map(plannedRow)}
-        <Box marginTop={1}><Text dimColor>Cost is a rough guide from list prices; a Claude plan isn't billed per token.</Text></Box>
       </Box>
     )
   })

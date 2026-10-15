@@ -1,29 +1,7 @@
-// Pure helpers (no `$`): prices, labels and bars for the crew panel.
+// Pure helpers (no `$`): labels, bars and "what it is doing" lines for the crew panel.
+// 0.3 (the owner: "crew only shows price which i dont care about much i care about what the agents are doing and how"):
+// no prices or token counts any more; each helper's task, what it says, its recent steps and its result instead.
 import type { Helper, Step } from '../types'
-
-type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
-
-// $ per million tokens: input, output, cache read (first-party API list prices, Oct 2026). Cache writes cost 1.25x input.
-// A rough guide only: on a Claude plan nothing is billed per token.
-const PRICES: [RegExp, number, number, number][] = [
-  [/fable|mythos/, 10, 50, 0.25],
-  [/opus-5-5/, 4, 20, 0.2],
-  [/opus/, 5, 25, 0.5],
-  [/sonnet-5/, 2, 10, 0.2],
-  [/sonnet/, 3, 15, 0.3],
-  [/haiku-5/, 0.1, 0.5, 0.01],
-  [/haiku/, 1, 5, 0.1],
-]
-
-export function cost(model: string, u: Usage): number {
-  const p = PRICES.find(([re]) => re.test(model.toLowerCase()))
-  if (!p) return 0
-  const [, inp, out, read] = p
-  return (u.input_tokens * inp + u.cache_creation_input_tokens * inp * 1.25 + u.cache_read_input_tokens * read + u.output_tokens * out) / 1e6
-}
-
-export const billed = (u: Usage) => u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
-export const window = (u: Usage) => u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
 
 // claude-opus-5-5 → Opus 5.5; an alias or unknown id is shown as given.
 export function modelName(id: string): string {
@@ -33,8 +11,6 @@ export function modelName(id: string): string {
   return `${fam} ${m[2]}${m[3] && m[3].length < 3 ? `.${m[3]}` : ''}`
 }
 
-export const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`)
-export const usd = (n: number) => (n >= 10 ? `≈$${n.toFixed(0)}` : `≈$${n.toFixed(2)}`)
 
 export function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000))
@@ -59,21 +35,48 @@ export function totals(hs: readonly Helper[], now: number) {
   const start = Math.min(...hs.map(h => h.startedAt))
   const end = hs.some(h => h.status === 'running') ? now : Math.max(...hs.map(h => h.endedAt ?? now))
   return {
-    cost: hs.reduce((a, h) => a + h.costUsd, 0),
-    tokens: hs.reduce((a, h) => a + h.tokens, 0),
     time: hs.length ? Math.max(0, end - start) : 0,
     running: hs.filter(h => h.status === 'running').length,
   }
 }
 
-// A short "what it is doing" from a tool call.
-export function toolLabel(tool: string, input: Record<string, unknown>): string {
-  const file = typeof input.file_path === 'string' ? input.file_path.split('/').pop() : undefined
-  if (file) return `${tool} ${file}`
-  if (typeof input.command === 'string') return `${tool}: ${input.command.slice(0, 40)}`
-  if (typeof input.pattern === 'string') return `${tool} ${input.pattern.slice(0, 30)}`
-  return tool.replace(/^mcp__[^_]+__/, '')
+const base = (x: string) => x.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? x
+const cut = (x: string, n: number) => {
+  const t = x.replace(/\s+/g, ' ').trim()
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t
 }
+
+// What a tool call is doing, in plain words: "Reading index.html", "Searching for 'onScrolled'", "Running node tools/kit.mjs sweep".
+export function toolLabel(tool: string, input: Record<string, unknown>): string {
+  const str = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : '')
+  const file = str('file_path') || str('notebook_path')
+  const short = tool.replace(/^mcp__.*?__/, '')
+  switch (tool) {
+    case 'Read': return `Reading ${base(file)}`
+    case 'Edit': case 'MultiEdit': case 'NotebookEdit': return `Editing ${base(file)}`
+    case 'Write': return `Writing ${base(file)}`
+    case 'Grep': return `Searching for '${cut(str('pattern'), 30)}'${str('path') ? ` in ${base(str('path'))}` : ''}`
+    case 'Glob': return `Finding files ${cut(str('pattern'), 30)}`
+    case 'Bash': case 'PowerShell': return str('description') ? cut(str('description'), 50) : `Running ${cut(str('command'), 40)}`
+    case 'WebFetch': return `Fetching ${cut(str('url').replace(/^https?:\/\//, ''), 40)}`
+    case 'WebSearch': return `Searching the web: ${cut(str('query'), 36)}`
+    case 'TaskCreate': case 'TaskUpdate': case 'TodoWrite': return 'Updating its task list'
+    case 'Agent': case 'Task': return `Starting a helper: ${cut(str('description'), 36)}`
+  }
+  if (file) return `${short} ${base(file)}`
+  if (str('command')) return `${short}: ${cut(str('command'), 40)}`
+  if (str('pattern')) return `${short} ${cut(str('pattern'), 30)}`
+  return short
+}
+
+// A helper's words, cut to one short line: its task, what it last said, its result.
+export function gist(text: string, n = 120): string {
+  const line = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[`*_#>]+/g, '').split('\n').map(x => x.trim()).find(Boolean) ?? ''
+  return cut(line, n)
+}
+
+// The newest steps first-in-first-out, at most n.
+export const push = (list: readonly string[] | undefined, x: string, n = 4) => [...(list ?? []).filter((y, i, a) => !(i === a.length - 1 && y === x)), x].slice(-n)
 
 // How hard a helper thinks, as a crew tier: its word, colour and hat.
 export type Tier = { name: 'light' | 'medium' | 'careful'; colour: string; hat: string; band: string }
