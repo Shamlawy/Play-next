@@ -53,8 +53,8 @@ async function blast($: $, cmd: string, ps = false): Promise<{ hard: string[]; h
         const out = r.kind === 'rm'
           ? await sh(r, ['bash', '-c', RM_LIST, 'rm-list', ...r.targets], 30_000)
           : r.args.some(a => a === '-exec' || a === '-execdir' || a === '-ok') ? '' : await sh(r, ['find', ...r.args, '-print'], 30_000)
-        abs = lines(out).map(p => join(r.cwd, p))
-        if (r.kind === 'rm') abs.push(...r.targets.filter(t => !/[*?[]/.test(t)).map(t => join(r.cwd, t)))
+        abs = lines(out).map(p => join(r.cwd, p, home))
+        if (r.kind === 'rm') abs.push(...r.targets.filter(t => !/[*?[]/.test(t)).map(t => join(r.cwd, t, home)))
       }
       const s = sortFiles([...new Set(abs)], root, tracked, kept, protect, home)
       const what = r.kind === 'rm' ? `rm ${r.targets.join(' ')}` : 'find … -delete'
