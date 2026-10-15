@@ -11114,18 +11114,18 @@ setTimeout(() => { const h = document.documentElement; h.classList.add("first");
 
 /* ranks glide to their new places instead of jumping */
 let pnSkipFlip = 0;
-{ const _rq = renderQueue; renderQueue = function () {
+extend("renderQueue", { before() {
     const pn = $("[data-row]") && $("[data-row]").closest(".panel"), live = !pnSkipFlip && pn && pn.classList.contains("on") && !calm(), before = {};
     if (live) document.querySelectorAll("[data-row]").forEach(r => before[r.dataset.row] = r.getBoundingClientRect().top);
-    const out = _rq.apply(this, arguments);
-    if (live) document.querySelectorAll("[data-row]").forEach(r => { const t = before[r.dataset.row]; if (t == null) return;
+    return live ? before : null; },
+  after(out, args, before) {
+    if (before) document.querySelectorAll("[data-row]").forEach(r => { const t = before[r.dataset.row]; if (t == null) return;
       const now = r.getBoundingClientRect().top, dy = t - now; if (!dy || Math.abs(dy) > innerHeight * 2) return;
       if ((t > innerHeight && now > innerHeight) || (t < -200 && now < -200)) return;   /* off screen both times: nobody sees it glide */
       /* z-index in the keyframes kept this off the GPU and re-drew every row each frame; set it on the side instead */
       r.style.animation = "none"; r.style.zIndex = "2";
       const a = r.animate([{ translate: `0 ${dy}px` }, { translate: "0 0" }], { duration: 560, easing: "cubic-bezier(.2,.9,.25,1)" });
-      a.onfinish = a.oncancel = () => { r.style.zIndex = ""; }; });
-    return out; }; }
+      a.onfinish = a.oncancel = () => { r.style.zIndex = ""; }; }); } });
 /* live countdown — one ticker for the whole app, only the changed digit animates */
 setInterval(() => {
   if (document.hidden) return;
@@ -14338,7 +14338,7 @@ html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{an
     const r=e.target;io.unobserve(r);r.classList.remove("wait");r.classList.add("in");}),{rootMargin:"0px 0px -8% 0px"}):null;
   function wire(){const el=document.getElementById("p-played");if(!el)return;
     el.querySelectorAll(".pnb-row").forEach(r=>{if(calm()||!io){r.classList.add("in");return;}r.classList.add("wait");io.observe(r);});}
-  const rp=renderPlayed;renderPlayed=function(){const x=rp.apply(this,arguments);wire();return x;};
+  extend("renderPlayed",{after:()=>{wire();}});
   /* sliders: live while dragging, saved on release */
   document.addEventListener("input",e=>{const r=e.target.closest("[data-pnsize]");if(!r)return;S.boardSize=+r.value;
     document.querySelectorAll(".pnb").forEach(b=>b.style.setProperty("--pbs",r.value/100));
@@ -16137,7 +16137,7 @@ function nxNotch(done) {
 }
 /* while the tour runs: no chatter, and opening/closing the rail doesn't send him back to his corner */
 extend("pnBubSay", { before: () => { if (nxTouring()) return extend.skip(); } });
-{ const _show = pnBubShow; pnBubShow = function () { if (nxTouring()) { try { pnBubFace(); } catch (e) {} if (nxTour.refit) setTimeout(nxTour.refit, 30); return; } return _show.apply(this, arguments); }; }
+extend("pnBubShow", { before: () => { if (nxTouring()) { try { pnBubFace(); } catch (e) {} if (nxTour.refit) setTimeout(nxTour.refit, 30); return extend.skip(); } } });
 /* tapping or dragging him mid-tour doesn't open the rail or fling him off: he just bounces */
 addEventListener("pointerdown", e => {
   if (!nxTouring() || !e.target.closest || !e.target.closest("#pnbub")) return;
@@ -17484,7 +17484,7 @@ function nxPDress() {
 }
 extend("applyLook", { after: () => { nxPDress(); } });
 extend("renderHome", { after: () => { nxPDress(); } });
-{ const _bs6 = pnBubShow; pnBubShow = function () { nxPDress(); return _bs6.apply(this, arguments); }; }
+extend("pnBubShow", { before: () => { nxPDress(); } });
 /* what the lines can talk about; every template skips itself when its piece is missing */
 function nxPCtx() {
   const now = new Date(), hr = now.getHours(), dow = now.getDay();
@@ -17886,7 +17886,7 @@ WHATS_NEW.push(
 SUBS.taste.splice(0, SUBS.taste.length, ["insights", "Insights"], ["duels", "Duels"], ["friend", "Friend"]);
 SUBDEF.taste = "insights";
 Object.assign(SUBHOME, { insights: "taste" });
-{ const _ss = setSub; setSub = function (tab, v) { if (tab === "taste" && /^(psych|patterns|analytics)$/.test(v)) v = "insights"; return _ss.call(this, tab, v); }; }
+extend("setSub", { before(tab, v) { if (tab === "taste" && /^(psych|patterns|analytics)$/.test(v)) return extend.args([tab, "insights"]); } });
 /* who you are: the strongest signal in your data names you, the next ones become traits */
 function ixType() {
   const rows = playedRows(), b = hypeBias(), acc = hypeAcc(), R = rankedGames();
@@ -19387,11 +19387,11 @@ function revTrue(x, els) {
 }
 
 /* ---- Nexi learned (3): a "Read more" (or any expander next to a clamped text) with nothing more to show (#100) */
-{ const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
+extend("lookDesign", { after(o, [root, scr]) {
   try { for (const b of root.querySelectorAll("[data-descmore][aria-expanded=false]:not([hidden])")) {
     const d = b.previousElementSibling, r = b.getBoundingClientRect(); if (!d || !r.width || r.bottom < 0 || r.top > innerHeight) continue;
     if (d.scrollHeight <= d.clientHeight + 2) { bugReport("look", "A Read more button has nothing more to show", { at: bugPath(b) + " text " + d.clientHeight + "/" + d.scrollHeight + "px", screen: scr }); break; } } } catch (e) {}
-  return o; }; }
+  } });
 WHATS_NEW.push(
   { v: 215, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Fixed: after the update tour, a game page could turn invisible and freeze the app. I've learned to spot this myself now: if anything invisible ever blocks your taps, I clear it on the spot and report it.",
@@ -19957,10 +19957,6 @@ function rvCard(g) {
     <p class="rv-w">${why ? esc(why.charAt(0).toUpperCase() + why.slice(1)) + "." : ""}${f.sure ? ` ${why ? "Still " : ""}${esc(f.sure)}.` : ""}</p></div>`;
 }
 function rvPaint() { document.querySelectorAll(".rv[data-g]").forEach(el => { const g = S.games.find(x => x.id === el.dataset.g); if (g) el.outerHTML = rvCard(g) || "<i hidden></i>"; }); }
-/* the game page (New style): under the price card, before the description */
-{ const _gd = gdMarkup; gdMarkup = function (g) { const o = _gd.apply(this, arguments); const c = rvCard(g); if (!c) return o;
-  const at = o.indexOf('<p class="gd-desc">') >= 0 ? o.indexOf('<p class="gd-desc">') : o.indexOf('<div class="hub-data">');
-  return at < 0 ? o : o.slice(0, at) + c + "\n        " + o.slice(at); }; }
 /* opening a fresh game's page checks it if it's due (no waiting for the next sweep) */
 onNav("after", (k, a) => { if (k !== "game") return;
   try { const g = S.games.find(x => x.id === a[0]); if (g) { const m = JSON.parse(localStorage.getItem("gq:seenG") || "{}"); m[g.id] = Date.now(); localStorage.setItem("gq:seenG", JSON.stringify(m)); sgSeenMemo = null; }
@@ -20194,7 +20190,7 @@ addEventListener("visibilitychange", () => { if (!document.hidden) awCheck(windo
 
 /* the flicker check's "opened again" mark (v220) for the two openers flickWatch doesn't wrap */
 onSettings("before", () => { const el = document.getElementById("sheet"); if (el) el._flkOpen = performance.now(); });
-{ const _ds = dyShow; dyShow = function (box) { if (box) box._flkOpen = performance.now(); return _ds.apply(this, arguments); }; }
+extend("dyShow", { before(box) { if (box) box._flkOpen = performance.now(); } });
 
 /* ---- 2. finish forecast + clash radar ---- */
 const etaDay = 864e5;
@@ -20229,10 +20225,6 @@ function etaCard(g) {
     <p>${e.left <= 0 ? "By the hours, you should be about done!" : `Done around <b>${esc(etaNice(e.at))}</b> · ${Math.round(e.left)}h left`}<br><small>Going by ${esc(e.src)}.</small></p>
     ${c ? `<p class="clash">⚠️ ${esc(c.r.title)} comes out ${esc(rdNice(c.r.date))}, before you'll finish. ${esc(etaFix(c))}.</p>` : ""}</div>`;
 }
-{ const _gd = gdMarkup; gdMarkup = function (g) { const o = _gd.apply(this, arguments);
-  const add = (S.etaOff ? "" : etaCard(g)) + capCard(g); if (!add) return o;
-  const at = o.indexOf('<p class="gd-desc">') >= 0 ? o.indexOf('<p class="gd-desc">') : o.indexOf('<div class="hub-data">');
-  return at < 0 ? o : o.slice(0, at) + add + "\n        " + o.slice(at); }; }
 /* one Nexi line per clash (when it first shows up) */
 function etaSay() {
   if (S.etaOff || document.hidden || document.documentElement.classList.contains("nxtouring")) return;
@@ -20259,7 +20251,7 @@ function chamTone(hex, l) {
 THEMES.chameleon = { n: "Now playing", get a() { const g = chamGame(); return g ? chamTone(g.colour, .64) : "#4DA3FF"; }, get b() { const g = chamGame(); return g ? chamTone(g.colour, .42) : "#2F6BFF"; } };
 { let last = ""; const check = () => { if (S.theme !== "chameleon") { last = ""; return; } const k = THEMES.chameleon.a; if (k !== last) { last = k; applyLook(); } };
   extend("syncPlayed", { after: () => { setTimeout(check, 0); } });
-  const _rn = render; render = function () { const o = _rn.apply(this, arguments); check(); return o; };
+  extend("render", { after: () => { check(); } });
   setTimeout(check, 0); }
 
 /* ---- 4. seasons ---- */
@@ -20450,7 +20442,7 @@ addEventListener("resize", () => { lfBox = null; clearTimeout(lfApply.t); lfAppl
 
 /* Nexi learned both reports: a price row that stays on "checking…" while no check is running (#118), and a queue logo
    drawn under 30% of its tile's height (#114; not when you chose "same box for all") */
-{ const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
+extend("lookDesign", { after(o, [root, scr]) {
   try {
     if (!pxBusy) { const el = [...document.querySelectorAll(".px .pxck")].find(x => x.getClientRects().length); if (el) bugReport("look", "A price stayed on “checking…”", { at: bugPath(el), screen: scr }); }
     if (!LF_OFF()) for (const img of document.querySelectorAll("#p-queue .rowart img")) {
@@ -20459,7 +20451,7 @@ addEventListener("resize", () => { lfBox = null; clearTimeout(lfApply.t); lfAppl
       const k = Math.min(b.width / img.naturalWidth, b.height / img.naturalHeight);
       if (img.naturalHeight * k / b.height < .3) { bugReport("look", "A logo is too small for its card", { at: bugPath(img), screen: scr }); break; } }
   } catch (e) {}
-  return o; }; }
+  } });
 
 /* ---- the dusty backlog ---- */
 const DUST_DAY = 864e5;
@@ -20490,12 +20482,12 @@ function dustPuff(x, y) {
   p.innerHTML = [...Array(9)].map((_, i) => { const a = i / 9 * 6.283 + Math.random() * .4, r = 40 + Math.random() * 50; return `<i style="--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r - 20}px;animation-delay:${i * 12}ms"></i>`; }).join("");
   document.body.appendChild(p); setTimeout(() => p.remove(), 1100);
 }
-{ const _rq = renderQueue; renderQueue = function () { const o = _rq.apply(this, arguments); try { dustApply(); lfApply(); } catch (e) {} return o; }; }
+extend("renderQueue", { after: () => { try { dustApply(); lfApply(); } catch (e) {} } });
 /* the queue is first drawn by load(), before this script exists, and isn't redrawn until something changes: apply both
    now, and measure the tile when the queue comes on screen (it can't be measured while its tab is hidden) */
 setTimeout(() => { try { dustApply(); lfApply(); } catch (e) {} }, 0);
 onNav("after", k => { if (k === "tab" && !lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); });
-{ const _ss = setSub; setSub = function () { const o = _ss.apply(this, arguments); if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); return o; }; }
+extend("setSub", { after: () => { if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); } });
 /* opening a dusty game blows the dust off */
 onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]), d = g ? dustDays(g) : 0, l = g ? dustLvl(g) : 0;
   if (g && l) return () => { g.dustOff = Date.now(); save(); dustApply(); setTimeout(() => { dustPuff(innerWidth / 2, innerHeight * .3);
@@ -20539,11 +20531,11 @@ function seatSync(anim) {
     if (anim && !calm() && Math.hypot(from.x - p.x, from.y - p.y) > 4) b.animate([{ transform: `translate3d(${from.x}px,${from.y}px,0)` }, { transform: `translate3d(${p.x}px,${p.y}px,0)` }], { duration: 560, easing: "cubic-bezier(.34,1.3,.64,1)" }); });
 }
 /* leaving the seat (rail hidden): glide from the seat to his usual spot instead of popping up there */
-{ const _bs = pnBubShow; pnBubShow = function () { const H = document.documentElement, b = document.getElementById("pnbub"), was = H.classList.contains("nxseat") ? { x: pnBubX, y: pnBubY } : null;
-  if (was) H.classList.remove("nxseat");
-  const o = _bs.apply(this, arguments);
-  if (was && b && !calm()) b.animate([{ transform: `translate3d(${was.x}px,${was.y}px,0)` }, { transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }], { duration: 560, easing: "cubic-bezier(.34,1.3,.64,1)" });
-  return o; }; }
+extend("pnBubShow", { before() { const H = document.documentElement, b = document.getElementById("pnbub"), was = H.classList.contains("nxseat") ? { x: pnBubX, y: pnBubY } : null;
+    if (was) H.classList.remove("nxseat");
+    return was && b ? { was, b } : null; },
+  after(o, args, at) { if (!at) return; const { was, b } = at;
+    if (!calm()) b.animate([{ transform: `translate3d(${was.x}px,${was.y}px,0)` }, { transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }], { duration: 560, easing: "cubic-bezier(.34,1.3,.64,1)" }); } });
 new MutationObserver(() => { const H = document.documentElement, want = seatOn();
   if (want !== H.classList.contains("nxseat")) seatSync(true); }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 addEventListener("resize", () => { if (document.documentElement.classList.contains("nxseat")) seatSync(false); else if (seatOn()) seatSync(false); }, { passive: true });
@@ -20700,7 +20692,7 @@ onNav("before", k => { if (k !== "game") return;
   if (src) return () => { try { cvFly(src); } catch (e) {} };
 });
 /* closing mid-flight: no copy left floating over the screen */
-{ const _cf = closeFull; closeFull = function () { document.querySelectorAll(".cvfly").forEach(x => x.remove()); return _cf.apply(this, arguments); }; }
+extend("closeFull", { before: () => { document.querySelectorAll(".cvfly").forEach(x => x.remove()); } });
 WHATS_NEW.push(
   { v: 225, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#p-home .dxhero") || $("#p-home .dxr") || null,
     say: "Opening a game feels like picking up the box now: the cover you tap lifts off and flies into place on the game's page.",
@@ -21449,12 +21441,12 @@ if (/^G:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { QF
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-gtag]"); if (!b) return; e.stopPropagation(); beep("tap"); gtagFilter(b.dataset.gtag); }, true);
 /* Nexi learned (v234): a number in a stat tile cut short with "…" (the release tile showed "13 S…"). The ellipsis kept it out of
    the cut-off-text check, but a number you can't read is still broken. Checks the tiles on screen: game page, open queue card */
-{ const _ld = lookDesign; lookDesign = function (root, scr) { const o = _ld.apply(this, arguments);
+extend("lookDesign", { after(o, [root, scr]) {
   try { for (const b of document.querySelectorAll(".gd-glance b, .hub-data b, .hero .stat > b")) {
       if (b.scrollWidth <= b.clientWidth + 1 || !b.getClientRects().length) continue;
       const r = b.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || (b.checkVisibility && !b.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))) continue;
       bugReport("look", "A number in a tile is cut off", { at: bugPath(b) + " shows " + b.clientWidth + " of " + b.scrollWidth + "px", screen: scr }); break; } } catch (e) {}
-  return o; }; }
+  } });
 /* (v235's "wait while a page or sheet is still animating in" now lives in bugLayout itself, v278) */
 /* the one thing worth doing next, by where the game is: [attributes, label, kind] */
 function gdNext(g) {
@@ -21542,9 +21534,9 @@ document.addEventListener("click", e => {
       bugReport("look", "Open queue cards are different sizes", { at: `.hero ${last.h}px, then ${ht}px at ${innerWidth}px wide`, screen: "games/queue" });
     last = { k, id, h: ht };
   })) : null;
-  const _rq = renderQueue; renderQueue = function () { const o = _rq.apply(this, arguments);
+  extend("renderQueue", { after: () => {
     if (ro) requestAnimationFrame(() => { const h = document.querySelector("#p-queue .hero[data-row]"); if (h && !h._szo) { h._szo = 1; ro.observe(h); } });
-    return o; }; }
+    } }); }
 WHATS_NEW.push(
   { v: 232, go: () => { closeFull(); dyClose(); nxShut(); goTab("queue"); }, at: () => $("#p-queue .hero") || $("#p-queue .row"),
     say: "Open queue cards are all the same size now: the title gets two lines, the description three, and there are always four numbers, so the list doesn't jump when you open another game. I've learned to spot a card that comes out a different size myself now.",
@@ -22170,10 +22162,10 @@ shotsFetch = async function (g, force) {
 };
 /* a game page (or its swipe neighbour) drawn without screenshots asks for them: every way of reaching a page goes through gdShots */
 let SHOT_AUTO = true;
-{ const _gs = gdShots; gdShots = function (g) {
+extend("gdShots", { before(g) {
   if (SHOT_AUTO && g && !(g.shots || []).length && shotsDue(g) && !SHOT_BUSY.has(g.id) && Date.now() - (SHOT_TRY.get(g.id) || 0) > 60000)
     setTimeout(() => shotsFetch(g), 60);
-  return _gs.apply(this, arguments); }; }
+  } });
 /* the background sweep: the whole library in one go, 3 at a time, the games you're most likely to open first */
 let shotsT = 0, shotsOn = false;
 async function shotsSweep() {
@@ -22201,9 +22193,9 @@ addEventListener("online", () => setTimeout(shotsSweep, 3000));
     if (!g || !f || !f.classList.contains("on") || hubAt !== id || fullStyleOf() !== "dash" || (g.shots || []).length || shotsNoNow(g) || SHOT_BUSY.has(id) || !navigator.onLine || SHOT_ERR.get(id) === "helper-old") return;
     const sec = f.querySelector(`.gd-s-shots[data-g="${id}"]`); if (!sec) return;
     bugReport("look", "A game page never got its screenshots", { at: SHOT_ERR.get(id) || (SHOT_TRY.has(id) ? "asked, nothing came back" : "never asked"), screen: bugScreen() }); };
-  const _gs = gdShots; gdShots = function (g) { const o = _gs.apply(this, arguments);
+  extend("gdShots", { after(o, [g]) {
     if (g && !(g.shots || []).length) { const id = g.id; setTimeout(() => { if (hubAt === id) { clearTimeout(tm); tm = setTimeout(() => check(id), 15000); } }, 400); }
-    return o; }; }
+    } }); }
 /* a game you add gets its screenshots straight away */
 { const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => shotsFetch(g, true), 3000); return o; }; }
 /* the viewer: the small copy at once, the big one swapped in when it's ready */
@@ -22693,9 +22685,9 @@ function rmWire(v) {
   cam.addEventListener("wheel", e => { e.preventDefault(); RM.zoom = Math.max(.6, Math.min(2.2, RM.zoom * Math.exp(-e.deltaY * .0015))); rmDraw(); }, { passive: false });
 }
 /* the way in: a 🧊 Room chip next to Grid / Swipe in the Library */
-{ const _rl = renderLib; renderLib = function () { const o = _rl.apply(this, arguments);
+extend("renderLib", { after: () => {
   const lv = $("#lib-view"); if (lv && !lv.querySelector("[data-room]")) lv.insertAdjacentHTML("beforeend", `<button class="chip" data-room><span>🧊 Room</span></button>`);
-  return o; }; }
+  } });
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-room]"); if (!b) return; e.stopPropagation(); beep("open"); roomOpen(); }, true);
 { const lv = $("#lib-view"); if (lv && !lv.querySelector("[data-room]")) lv.insertAdjacentHTML("beforeend", `<button class="chip" data-room><span>🧊 Room</span></button>`); }
 WHATS_NEW.push(
@@ -23596,9 +23588,9 @@ function lagWatch(what) {
   requestAnimationFrame(tick);
 }
 onNav("after", k => { if (k === "tab") lagWatch(() => "Switching to " + lagWhere()); else if (k === "game") lagWatch("Opening a game page"); });
-{ const _cf = closeFull; closeFull = function () { const on = !!$("#full.on"); const o = _cf.apply(this, arguments); if (on) lagWatch("Closing a game page"); return o; }; }
+extend("closeFull", { before: () => !!$("#full.on"), after: (o, a, on) => { if (on) lagWatch("Closing a game page"); } });
 onSettings("after", () => lagWatch("Opening Settings"));
-{ const _dy = dyShow; dyShow = function () { const o = _dy.apply(this, arguments); lagWatch(() => "Opening a sheet on " + lagWhere()); return o; }; }
+extend("dyShow", { after: () => { lagWatch(() => "Opening a sheet on " + lagWhere()); } });
 /* opening the app: the lag checks start 8s in, so a freeze while it starts up went unseen */
 try {
   const boot = [], ob = new PerformanceObserver(l => { for (const f of l.getEntries()) if (f.startTime < 8000) boot.push(f); });
@@ -25198,8 +25190,8 @@ function kbFit() {
 const kbSoon = () => { if (!kbRaf) kbRaf = requestAnimationFrame(kbFit); };
 if (window.visualViewport) { visualViewport.addEventListener("resize", kbSoon); visualViewport.addEventListener("scroll", kbSoon); }
 /* a sheet opening while the screen is still zoomed in (or the keyboard is up) fits straight away */
-{ const _ds = dyShow; dyShow = function () { const o = _ds.apply(this, arguments);
-  if (kbGap || (window.visualViewport && visualViewport.scale > 1.01)) requestAnimationFrame(kbSoon); return o; }; }
+extend("dyShow", { after: () => {
+  if (kbGap || (window.visualViewport && visualViewport.scale > 1.01)) requestAnimationFrame(kbSoon); } });
 { let typing = false;
   addEventListener("pointerdown", e => { const box = document.getElementById("diary"), a = document.activeElement;
     typing = !!(box && e.target === box && box.classList.contains("on") && a && a !== document.body && box.contains(a) && a.matches(KB_FIELD)); }, { capture: true, passive: true });
