@@ -99,6 +99,15 @@ function syntax() {
   /* house rule (v270): screen changes go through onNav / onSettings hooks, never a new wrap of these four */
   for (const m of html.matchAll(/const\s+[\w$]+\s*=\s*(goTab|goSub|openFull|openSettings)\s*;\s*\1\s*=/g))
     fail(`${m[1]} is wrapped at line ${html.slice(0, m.index).split("\n").length}: register onNav(...) / onSettings(...) instead`);
+  /* v285 wrap clean-up: a function given to extend() and then assigned again (fn = function …) loses every hook, and every
+     extend() after that adds to a list nothing runs (gdMarkup: v2's page replaced it after two layers, so those never ran,
+     and turning them into hooks would have dropped v281's bar). Replace it before its first extend, or extend instead */
+  { const js = html.replace(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/g, (s, a, body) => s.replace(body, body.replace(/\/\*[\s\S]*?\*\//g, c => c.replace(/[^\n]/g, " "))));
+    const first = new Map(); for (const m of js.matchAll(/\bextend\(\s*"([\w$]+)"/g)) if (!first.has(m[1])) first.set(m[1], m.index);
+    for (const [n, at] of first) for (const m of js.matchAll(new RegExp(`(^|[^\\w$.])(?:window\\.)?${n.replace(/\$/g, "\\$")}\\s*=(?![=>])`, "g"))) {
+      const i = m.index + m[1].length;
+      if (i > at && !/\b(const|let|var)\s+$/.test(js.slice(Math.max(0, i - 12), i)))
+        fail(`${n} is extended at line ${js.slice(0, at).split("\n").length} and replaced at line ${js.slice(0, i).split("\n").length}: the hooks stop running; use extend(…) or move the replacement above the first extend`); } }
   for (const f of ["sw.js"]) try { new vm.Script(fs.readFileSync(path.join(ROOT, f), "utf8")); } catch (e) { fail(`${f}: ${e.message}`); }
   console.log(`  ${n} script blocks checked`);
 }
