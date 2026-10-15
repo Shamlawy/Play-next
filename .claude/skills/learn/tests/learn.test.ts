@@ -179,6 +179,28 @@ describe('learn', () => {
     expect((r2.context ?? []).join('\n')).not.toContain('tools/scenarios/')
   })
 
+  test('only the person asking for something automatic earns a retrospective, not text the app or a session put in', async ($, on) => {
+    world(on)
+    await start($)
+    // A system-reminder appended to the person's message: "runs on its own" is the app's, not theirs.
+    await $.prompt.submit({ text: 'ok thanks\n<system-reminder>\nLinked sessions now: fix-x (working). It runs on its own; a note reaches you when it ends a turn.\n</system-reminder>' } as any)
+    expect(((await stop($)) as any).block).toBeUndefined()
+    await endTurn($)
+    // A side-session note quoting a child's report.
+    await $.prompt.submit({ text: '<side-sessions-event>\nfix-x ended a turn. Its report: "Merged PR 512. Left an idea to make that automatic: a check on every merge."\n</side-sessions-event>' } as any)
+    expect(((await stop($)) as any).block).toBeUndefined()
+    await endTurn($)
+    // A brief from the session that started this one.
+    await $.prompt.submit({ text: 'Background (from the session that started this one):\nThe owner wants it to run by itself.\n\nTask:\nMake the sweep automatic.' } as any)
+    expect(((await stop($)) as any).block).toBeUndefined()
+    await endTurn($)
+    // The person, in their own words.
+    await $.prompt.submit({ text: 'can the price check run automatically every morning?' } as any)
+    const r: any = await stop($)
+    expect(r.block).toContain('the person asked for something to happen by itself')
+    expect(r.block).toContain('run automatically every morning')
+  })
+
   test('/retro asks for a retrospective of the whole chat', async ($, on) => {
     const w = world(on)
     await start($)
@@ -197,6 +219,21 @@ describe('signals', () => {
     expect(promptSignals('the price card looks broken on the iPad')).toEqual([])
     expect(promptSignals('you broke the queue').map(s => s.kind)).toEqual(['correction'])
     expect(promptSignals('/release-check')).toEqual([])
+  })
+  test("only the person's own words are scanned", () => {
+    const reminder = '<system-reminder>Linked sessions now: a (working). It runs on its own; a note reaches you when it ends a turn.</system-reminder>'
+    expect(promptSignals(`looks good ${reminder}`)).toEqual([])
+    expect(promptSignals(`${reminder} can it do that by itself?`).map(s => s.kind)).toEqual(['auto'])
+    expect(promptSignals('<side-sessions-event>b ended a turn: "an idea to make that automatic, and the rest of the report"</side-sessions-event>')).toEqual([])
+    expect(promptSignals('b ended a turn. Its report: "Merged it. Left an idea to make that automatic on every merge."')).toEqual([])
+    expect(promptSignals('> it runs on its own now\n\nnice')).toEqual([])
+    expect(promptSignals('<task-notification>the job runs on its own and is cut off')).toEqual([])
+    expect(promptSignals('<pasted_content id="x">you broke it, do it automatically</pasted_content> what is this log?')).toEqual([])
+    // Messages from another session or an agent, whatever they say.
+    expect(promptSignals('Background (from the session that started this one):\nmake it automatic')).toEqual([])
+    expect(promptSignals('Handoff note from an earlier chat\nThe price pings now run by themselves.')).toEqual([])
+    expect(promptSignals('do it automatically', 'peer')).toEqual([])
+    expect(promptSignals('do it automatically', 'composer').map(s => s.kind)).toEqual(['auto'])
   })
   test('things put off in a reply', () => {
     const d = deferrals('Fixed the queue. The calendar could also use the same fix, worth doing later. All tests pass.')

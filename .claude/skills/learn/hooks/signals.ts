@@ -30,9 +30,32 @@ const CORRECTION = [
 ]
 const AUTO = /\b(automatic(ally)?|auto[- ]?(run|update|fix|detect|matic)|by (it|him|her)self|on (its|his) own|without (me|asking|a tap|tapping|me asking))\b/i
 
-export function promptSignals(text: string): Signal[] {
-  const t = String(text ?? '').slice(0, 4000)
+// Only the person's own words count. The app and other sessions put text into a message too: system-reminders
+// ("it runs on its own"), side-session notes quoting a child's report ("an idea to make that automatic"),
+// task notifications, pasted blocks. L22/M8: the 'auto' trigger fired on those three times.
+const INJECTED = ['system-reminder', 'side-sessions-event', 'task-notification', 'agent-message', 'ci-monitor-event', 'pasted_content', 'command-name', 'command-message', 'command-args', 'local-command-stdout']
+// Origins of a message the person sent (the same set crew and heads-up use); others are agents, peers, notifications.
+const PERSON = new Set(['composer', 'bridge', 'sdk', 'unclassified'])
+// A brief from another session: the app's "Background (from the session that started this one)", or an auto-handoff note.
+const FROM_SESSION = /^[\s\S]{0,300}?\(from the session that started this one\)|^\s*(?:#+\s*|\*\*)?handoff note\b/i
+export function fromSession(text: string, origin?: string): boolean {
+  return !PERSON.has(origin ?? 'unclassified') || FROM_SESSION.test(String(text ?? ''))
+}
+export function personWords(text: string): string {
+  let t = String(text ?? '')
+  for (const tag of INJECTED) {
+    t = t.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}\\s*>`, 'gi'), ' ')
+      .replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*$`, 'i'), ' ') // cut off before its end tag
+  }
+  return t
+    .replace(/^[ \t]*>.*$/gm, ' ') // quoted lines
+    .replace(/“[^”]{40,}”|"[^"\n]{40,}"/g, ' ') // a quoted report; a short quote is often the person's own
+}
+
+export function promptSignals(text: string, origin?: string): Signal[] {
   const out: Signal[] = []
+  if (fromSession(text, origin)) return out
+  const t = personWords(text).slice(0, 4000)
   // A slash command or a pasted block isn't a correction.
   if (/^\s*\//.test(t)) return out
   const hit = CORRECTION.find(r => r.test(t))
