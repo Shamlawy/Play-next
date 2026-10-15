@@ -23,6 +23,7 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/audit.mjs --fix-css` | Removes CSS declarations that can never apply (the same selector sets the same property later in the same @media). Then prove it: `node tools/kit.mjs samecss --before old.html` (the browser applies exactly the same CSS) and `node tools/audit.mjs --verify old.html` | 2 s |
 | `node tools/kit.mjs run x.mjs --browser webkit` | A scenario in Safari's engine. Not in this container (Chromium only): on GitHub, run `webkit-check.yml` with its `scenario` input (e.g. `tools/scenarios/rail-nexi.mjs`, widths `414,1080`: iPhone 11, iPad sideways) | — |
 | `node tools/steam-sessions.mjs` | The helper's Steam session code (`/steam/me`, `/steam/sync`, the cron) against a fake Steam profile page and push service, in Node: 17 checks | 1 s |
+| `node tools/bugsync-check.mjs` | The Problem reports job's filing rules (`.github/scripts/bugsync.mjs`, offline with `DRY=1`): a one-off stutter is held until it repeats (3 sightings, or 400ms+), a normal smoothness check / self-test only goes to the log, a closed stutter needs 2 new sightings to reopen, everything else files as before: 18 made-up cases | 1 s |
 | `node tools/map.mjs --dead` | Lists functions, consts, CSS classes and ids that look unused. These are candidates only: some names are built from strings | 1 s |
 
 Options for kit.mjs:
