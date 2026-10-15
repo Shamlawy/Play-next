@@ -27,6 +27,16 @@ const plan = atom({ plugin: 'crew', key: 'plan' } as const, [])
 // The panel's heading: the person's last message, cut short.
 const job = atom({ plugin: 'crew', key: 'job' } as const, '')
 
+// 0.4 (the owner: "i noticed you dont use agents and sub agents alone i need to ask and i dont have enough knowledge
+// about this so make it auto"): unless `/agents-info auto off`, Claude's system prompt carries this standing request,
+// so it splits work across helpers by itself when that helps.
+export const DELEGATE = `Helper agents (the person's standing request: they want you to use helper agents on your own, without being asked, because they don't know when to ask; this counts as the person asking). Use the Agent tool by yourself when it makes the job faster or better:
+- Searching or reading widely (many files, several places, "where is X used", an unfamiliar area): an Explore helper.
+- Two or more independent questions or checks: one helper each, started in the same message so they run in parallel.
+- A second opinion on a finished change (bugs, missed cases, the project's rules) before you call it done: a review helper.
+- Long checks or test runs whose output you only need the verdict of, and research that needs many web or file reads.
+Keep the main work yourself: decisions, design, the edits that need the whole conversation, and anything a few tool calls settle (a helper starts cold, so it only pays off for real work). Give each helper a complete brief (the goal, the files or area, what to report back) and a short description. Pick the model for the job: haiku or sonnet for mechanical or read-only work, the default model for anything that needs judgment. Never let two helpers edit the same files. When you start helpers, say in one short line who is doing what; then use what they report, checking anything surprising yourself.`
+
 const patch = ($: $, id: string, fn: (x: Helper) => Helper) => update($, helpers, list => list.map(x => (x.id === id ? fn(x) : x)))
 const openPane = ($: $) => $.ui.open({ id: PANE, title: 'Agents' })
 const same = (a: string, b: string) => {
@@ -49,7 +59,11 @@ const progressLine = (x: Helper) => stepLine({ ...x, lastTool: undefined })
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'agents-info', description: 'Open the Agents panel: every helper Claude starts, live: its task, what it is doing now and how, its last steps and what it found.' })
+    await $.command.register({
+      name: 'agents-info',
+      description: 'Open the Agents panel: every helper Claude starts, live: its task, what it is doing now and how, its last steps and what it found. "/agents-info auto off" stops Claude starting helpers by itself, "/agents-info auto on" starts it again.',
+      argumentHint: '[auto on|auto off]',
+    })
     // A one-second tick while something runs: times and crabs move; nothing redraws at rest.
     $.clock.every(1000, async () => {
       const list = await read($, helpers)
@@ -60,7 +74,16 @@ export const register: Register = on => {
   })
 
   // The reply is the whole crew as text too, so a screen that seats no panes (the phone app) still shows it.
-  on('command.run', { command: 'agents-info' }, async $ => {
+  on('command.run', { command: 'agents-info' }, async ($, e) => {
+    const arg = (e.args ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+    if (arg === 'auto off') {
+      await $.store.set('manual', true)
+      return { text: 'Claude will start helper agents only when you ask. "/agents-info auto on" lets it decide again.' }
+    }
+    if (arg === 'auto on' || arg === 'auto') {
+      await $.store.delete('manual')
+      return { text: 'Claude starts helper agents by itself when a job splits well (wide searches, parallel checks, a second-opinion review); the Agents panel opens when they start.' }
+    }
     const r = await openPane($).catch(() => ({ isPlaced: false as const }))
     const list = await read($, helpers)
     const later = planned(await read($, plan), list)
@@ -107,10 +130,20 @@ export const register: Register = on => {
         id, title: e.description || e.subagentType, type: e.subagentType, model: r.model || e.model || e.parentModel,
         startedAt: Date.now(), status: 'running', steps: 0, task: gist(e.prompt || '', 140) || undefined,
       }
-      void update($, helpers, list => [...list.filter(y => y.id !== id), x].slice(-MAX))
+      // The panel opens by itself when a batch of helpers starts (none was running), not on every spawn.
+      const first = !(await read($, helpers)).some(y => y.status === 'running')
+      await update($, helpers, list => [...list.filter(y => y.id !== id), x].slice(-MAX))
       void update($, now, () => Date.now())
+      if (first) void openPane($).catch(() => undefined)
     }
     return r
+  }).catch(($, e, next) => next(e))
+
+  // The standing request to use helpers, at the end of the system prompt, wherever the Agent tool is offered.
+  on('prompt.compose', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.tools.includes('Agent') || (await $.store.get('manual')) === true) return r
+    return { ...r, sections: [...r.sections.filter(x => x.id !== 'crew:delegate'), { id: 'crew:delegate', text: DELEGATE, scope: 'session' as const }] }
   }).catch(($, e, next) => next(e))
 
   // Each model request a helper makes: the model and effort it really runs on, and what it says between steps.
