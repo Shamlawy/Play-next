@@ -71,6 +71,10 @@ export default async ({ p, w }) => {
     });
   }
   ok(step && step.ring && step.target && step.near, `tour step points at the switch: ${JSON.stringify(step)}`);
-  ok(!p.errors.length, `no script errors${p.errors.length ? ": " + p.errors.join(" | ") : ""}`);
+  /* WebKit logs "… due to access control checks" for the old page's picture blob: URLs (index.html makes them from data
+     URLs) still loading when the page reloads: one per reload here, none on Chromium; not the app's */
+  const reload = p.errors.filter(e => /due to access control checks/.test(e)), errs = p.errors.filter(e => !reload.includes(e));
+  if (reload.length) console.log(`  (${reload.length} picture load(s) cut off by this test's 3 reloads, WebKit only)`);
+  ok(!errs.length && reload.length <= 3, `no script errors${errs.length ? ": " + errs.join(" | ") : ""}`);
   return !bad.length;
 };
