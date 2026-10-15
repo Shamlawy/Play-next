@@ -7,7 +7,7 @@
                                         script errors + every problem the app reports about itself (its own detectors)
      node tools/kit.mjs tour            the what's-new tour from the previous version: every step opens and finds its target
      node tools/kit.mjs perf            main-thread time for a fixed walk (4x slower CPU), to compare before/after a change
-     node tools/kit.mjs smooth          mid-swipe (Queue, Library, a game page) no endless animation is still running (v280)
+     node tools/kit.mjs smooth          mid-swipe (Queue, Library, a game page) Nexi's and the rail's loops keep running, GPU only (v282)
      node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
      node tools/kit.mjs audit           code health (tools/audit.mjs --check): nothing piled up past tools/audit-budget.txt
      node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth
@@ -274,62 +274,75 @@ async function perf(browser, base) {
   await p.ctx.close();
 }
 
-/* ---------- smooth: nothing endless keeps running while a finger moves (v280) ----------
-   A finger scroll makes the browser draw a main-thread frame every frame, and each one restyles every running endless
-   animation, even ones on the GPU (v280: 315 style passes over six Queue swipes, ~70% of the scroll's style work). The app
-   holds them still from the first move until the scroll stops (mvh*, last script). This fails if one keeps running
-   mid-swipe (a new loop that slips past the hold, or the hold gone) or a vertical scroll leaves them stopped. */
+/* ---------- smooth: loops keep running while a finger moves, and cost the scroll nothing (v282) ----------
+   v280 paused every endless loop while a finger moved; v282 removed that (the owner: "nexi animation and rail stops ... I dont
+   want animation to stop while scrolling"): pausing and restarting them cost 20–43ms when a scroll started and stopped, more
+   than the ~0.3ms a frame the loops cost while running (tools/scenarios/trace-loops.mjs). This fails if Nexi's or the rail's
+   loops stop mid-swipe (a hold is back), if a loop running mid-swipe animates anything but transform/opacity (it would be
+   restyled and repainted on the main thread every scroll frame), or if what the finger landed on moves or animates (#309). */
 async function smooth(browser, base) {
-  console.log(`\n== smooth: endless animations hold still mid-swipe (${FILE}) ==`);
+  console.log(`\n== smooth: loops keep running mid-swipe, GPU only (${FILE}) ==`);
   for (const w of opt("widths") ? WIDTHS : [412, 859]) {
     /* nxEvo before the load: Nexi's "I evolved" power-up is a timer set 15s ahead at the first load, so turning it off
        after the load came too late; on a slower machine the game page's swipe landed on the power-up's full-screen tap
        catcher (#ssjcatch) and never reached the page. The power-up gets its own fixed-time case below */
     const p = await phone(browser, base, w, { ...seed(APP_V), nxEvo: 99 });
     await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } S.nxEvo = 99; document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
+    /* every running endless loop that is drawn: where it is (Nexi, the rail, elsewhere) and what it animates */
     const live = () => p.page.evaluate(() => {
       const out = [];
       for (const a of document.getAnimations()) {
         const t = a.effect && a.effect.target, tm = a.effect && a.effect.getTiming();
         if (!t || a.playState !== "running" || !tm || tm.iterations !== Infinity) continue;
-        if (typeof REST_KEEP !== "undefined" && REST_KEEP.has(a.animationName) && tm.duration < 2000) continue;   /* spinners */
         if (!t.checkVisibility || !t.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
-        out.push(`${a.animationName || "script"} on ${t.tagName.toLowerCase()}${t.classList[0] ? "." + t.classList[0] : ""}${a.effect.pseudoElement || ""}`);
+        const props = new Set(); for (const k of a.effect.getKeyframes()) for (const x of Object.keys(k)) if (!/^(offset|easing|composite|computedOffset)$/.test(x)) props.add(x);
+        out.push({ id: `${a.animationName || "script"} on ${t.tagName.toLowerCase()}${t.classList[0] ? "." + t.classList[0] : ""}${a.effect.pseudoElement || ""}`,
+          own: t.closest("#pnbub") ? "nexi" : t.closest("#hrail") ? "rail" : "", slow: [...props].filter(x => !/^(transform|opacity|translate|scale|rotate)$/.test(x)) });
       }
       return out;
     });
+    /* the piece under the finger: no inline transform, nothing animating on it while the swipe runs */
+    const touched = (x, y) => p.page.evaluate(([x, y]) => {
+      const el = document.elementFromPoint(x, y), card = el && el.closest("button, .row, .chip, .libcard, .tile, a") || el;
+      if (!card) return "";
+      const moving = card.getAnimations().filter(a => a.playState === "running").map(a => a.animationName || a.transitionProperty || "script");
+      return [card.style.transform && "transform " + card.style.transform, moving.length && "animating " + moving.join(",")].filter(Boolean).join(", ")
+        + (card.style.transform || moving.length ? ` (${card.tagName.toLowerCase()}.${card.classList[0] || ""})` : "");
+    }, [x, y]);
     for (const [name, js, side] of [["queue", `goTab("games")`, 0], ["library", `goTab("lib")`, 0], ["game page", `openFull("g1")`, 1]]) {
       await p.step(name, js, 2500);
-      const before = await live();
-      const go = side ? p.swipe(p.w * .85, p.h * .5, p.w * .2, p.h * .52, 600, 30) : p.swipe(p.w * .5, p.h * .8, p.w * .52, p.h * .3, 600, 30);
-      await p.page.waitForTimeout(250);
+      const before = await live(), x0 = side ? p.w * .85 : p.w * .5, y0 = side ? p.h * .5 : p.h * .8;
+      const go = side ? p.swipe(x0, y0, p.w * .2, p.h * .52, 600, 30) : p.swipe(x0, y0, p.w * .52, p.h * .3, 600, 30);
+      await p.page.waitForTimeout(60);
+      const under = side ? "" : await touched(x0, y0 - 20);
+      await p.page.waitForTimeout(190);
       const mid = await live();
       await go; await p.page.waitForTimeout(1500);
-      const after = await live();
-      if (mid.length) fail(`${w}px ${name}: still running mid-swipe: ${[...new Set(mid)].join(", ")}`);
-      else if (!side && after.length < before.length) fail(`${w}px ${name}: ${before.length} endless animations before the scroll, only ${after.length} running again after it`);
-      else console.log(`  ✓ ${w}px ${name}: ${before.length} endless running → 0 mid-swipe → ${after.length} after`);
+      const ids = l => new Set(l.map(a => a.id)), m = ids(mid);
+      const stopped = before.filter(a => a.own && !m.has(a.id)).map(a => `${a.own}: ${a.id}`);
+      const slow = mid.filter(a => a.slow.length).map(a => `${a.id} (${a.slow.join(", ")})`);
+      const own = mid.filter(a => a.own).length;
+      if (stopped.length) fail(`${w}px ${name}: stopped mid-swipe (nothing should hold them while a finger moves): ${[...new Set(stopped)].join(", ")}`);
+      else if (!side && !own && before.some(a => a.own)) fail(`${w}px ${name}: Nexi and the rail had no loop running mid-swipe`);
+      else if (slow.length) fail(`${w}px ${name}: a loop running mid-swipe animates more than transform/opacity, so every scroll frame restyles and repaints it: ${[...new Set(slow)].join(", ")}`);
+      else if (under) fail(`${w}px ${name}: what the finger landed on moved under it: ${under}`);
+      else console.log(`  ✓ ${w}px ${name}: ${before.length} endless running → ${mid.length} mid-swipe (Nexi + rail ${own}), all transform/opacity`);
       if (side) await p.step("close", `closeFull()`, 700);
     }
-    /* a loop CSS switches on mid-swipe (Nexi's flame runs only while he's powered up): held too, and given back to CSS after */
+    /* a loop CSS switches on mid-swipe (Nexi's flame runs only while he's powered up) runs, and CSS stays in charge of it */
     if (await p.page.evaluate(() => typeof pnPowerUp === "function" && !!document.querySelector("#pnbub") && document.querySelector("#pnbub").checkVisibility() && !calm())) {
       await p.step("queue", `goTab("games")`, 1500);
       const flame = () => p.page.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".flame")).map(a => a.playState));
       const go = p.swipe(p.w * .5, p.h * .85, p.w * .52, p.h * .2, 1600, 80);
       await p.page.waitForTimeout(100); await p.page.evaluate(() => pnPowerUp(false));
-      /* the charge (`#pnbub.ssj-charge .core { animation: ssjShake … !important }`) outranks a plain class rule */
-      await p.page.waitForTimeout(300);
-      const charge = await p.page.evaluate(() => document.getAnimations().filter(a => a.playState === "running" && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest("#pnbub") && a.effect.getTiming().iterations === Infinity).map(a => a.animationName || "script"));
-      if (charge.length) fail(`${w}px power-up mid-swipe: still running in Nexi while he charges: ${[...new Set(charge)].join(", ")}`);
-      await p.page.waitForTimeout(950);
-      const mid = await flame(); await go; await p.page.waitForTimeout(1200);
-      const after = await flame(); await p.page.evaluate(() => pnPowerUp.end && pnPowerUp.end()); await p.page.waitForTimeout(400);
+      await p.page.waitForTimeout(1250);
+      const mid = await flame(); await go; await p.page.waitForTimeout(600);
+      await p.page.evaluate(() => pnPowerUp.end && pnPowerUp.end()); await p.page.waitForTimeout(400);
       const end = await flame();
       const n = (l, st) => l.filter(x => x === st).length;
-      if (n(mid, "running")) fail(`${w}px power-up mid-swipe: ${n(mid, "running")} flame loops running mid-swipe`);
-      else if (!n(after, "running")) fail(`${w}px power-up mid-swipe: the flame didn't start again after the swipe (${after.join(",") || "none"})`);
+      if (!n(mid, "running")) fail(`${w}px power-up mid-swipe: the flame isn't running mid-swipe (${mid.join(",") || "none"})`);
       else if (n(end, "running")) fail(`${w}px power-up mid-swipe: ${n(end, "running")} flame loops still running after the power-up ended (CSS lost control of them)`);
-      else console.log(`  ✓ ${w}px power-up mid-swipe: flame ${mid.length} held → ${n(after, "running")} running after → paused by CSS when it ends`);
+      else console.log(`  ✓ ${w}px power-up mid-swipe: flame ${n(mid, "running")} running mid-swipe → paused by CSS when it ends`);
     }
     await p.ctx.close();
   }

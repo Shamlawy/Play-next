@@ -6,6 +6,8 @@ export default async ({ p, w }) => {
   /* the phone's smoothness check runs once per version and switches decorations on and off: finish it so it isn't measured */
   await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } document.documentElement.className = document.documentElement.className.replace(/\bprb-\w+/g, ""); });
   const tab = process.env.TAB || "queue";
+  /* HOLD=off: the v280 scroll hold switched off (loops keep running mid-swipe) */
+  if (process.env.HOLD === "off") await p.page.evaluate(() => { if (typeof mvhMove === "function") for (const t of ["touchmove", "scroll", "wheel"]) removeEventListener(t, mvhMove, { capture: true }); });
   await p.step("tab", `goTab(${JSON.stringify(tab)})`, 3000);
   const events = [];
   p.cdp.on("Tracing.dataCollected", e => events.push(...e.value));
@@ -22,7 +24,7 @@ export default async ({ p, w }) => {
     if (!/^(ScheduleStyleRecalculation|StyleRecalcInvalidationTracking|StyleInvalidatorInvalidationTracking)$/.test(e.name)) continue;
     const d = (e.args && e.args.data) || {};
     const st = (d.stackTrace || []).slice(0, 4).map(f => `${f.functionName || "(anon)"}:${f.lineNumber}`).join(" < ");
-    const k = `${e.name.replace("InvalidationTracking", "")} ${d.reason || ""} ${d.nodeName || ""} | ${st || "(no stack)"}`;
+    const k = `${e.name.replace("InvalidationTracking", "")} ${d.reason || ""} ${d.nodeName || ""} ${d.subtree ? "subtree " : ""}${d.extraData || ""} | ${st || "(no stack)"}`;
     by[k] = (by[k] || 0) + 1;
   }
   console.log("    " + Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 18).map(([k, v]) => `${v}× ${k.slice(0, 200)}`).join("\n    "));

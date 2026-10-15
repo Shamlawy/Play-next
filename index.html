@@ -1856,7 +1856,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
 @keyframes fxst{from{transform:rotate(-12deg) scale(3);opacity:0}}
 @keyframes fxcf{0%{opacity:1}80%{opacity:1}100%{opacity:0}}
 @keyframes fxcf2{from{opacity:0;transform:translateY(10px)}}
-.libcard.fxt{transition:transform .08s linear!important;will-change:transform}
 
   /* all-out attack finish */
   .aoa { position: fixed; inset: 0; z-index: 9998; display: grid; place-items: center; overflow: hidden;
@@ -4017,7 +4016,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "281";
+const APP_V = "282";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -13227,8 +13226,6 @@ g.beginPath();g.moveTo(0,-p.s);g.lineTo(p.s*.45,p.s);g.lineTo(-p.s*.45,p.s*.4);g
 for(let i=R.length;i--;){const r=R[i];r.r+=(60-r.r)*.18;r.l-=.05;if(r.l<=0){R.splice(i,1);continue}
 g.globalAlpha=r.l;g.strokeStyle=r.c;g.lineWidth=2.5;g.beginPath();g.arc(r.x,r.y,r.r,0,6.283);g.stroke()}
 g.globalAlpha=1;if(P.length||R.length)requestAnimationFrame(tick);else{run=false;g.clearRect(0,0,W,H);cv.style.display='none'}}
-let tc=null,tr=null;
-const reset=()=>{if(tc){tc.style.transform='';tc.classList.remove('fxt');tc=null}};
 let AC;
 /* v141: wake this effects engine too on the first tap after coming back to the app */
 const _fxKick=()=>{if(AC&&AC.state!=='running'){try{AC.resume()}catch(_){}setTimeout(()=>{if(AC&&AC.state!=='running'){try{AC.close()}catch(_){}AC=null}},400)}};
@@ -13255,11 +13252,8 @@ burst(cx,cy,24,11,'#4DA3FF');setTimeout(()=>burst(cx,cy,12,9,'#EAF2FF'),90)}
 burst(e.clientX,e.clientY,8,5,'#EAF2FF')}
 /* v260: no sparks on ordinary taps (a full-screen canvas redrawn every frame right when the next screen draws; #309 no press effects) */
 },true);
-addEventListener('pointerdown',e=>{if(still())return;const c=e.target.closest('.libcard');if(c){tc=c;tr=c.getBoundingClientRect();c.classList.add('fxt');tilt(e)}},{passive:true});
-function tilt(e){if(!tc)return;const x=(e.clientX-tr.left)/tr.width-.5,y=(e.clientY-tr.top)/tr.height-.5;
-tc.style.transform=`perspective(600px) rotateY(${x*18}deg) rotateX(${-y*18}deg) scale(.97)`}
-addEventListener('pointermove',tilt,{passive:true});
-['pointerup','pointercancel','scroll'].forEach(t=>addEventListener(t,reset,{passive:true,capture:true}));
+/* v282: a Library card no longer tilts and shrinks under the finger (#309 no press effects; it measured the card on every
+   touch and sprang back as each scroll started) */
 function boom(){try{AC=AC||new AudioContext();const a=AC,t=a.currentTime+.01,m=a.createGain();m.gain.value=.55;m.connect(a.destination);
 const o=a.createOscillator(),og=a.createGain();o.type='triangle';o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(32,t+.35);
 og.gain.setValueAtTime(.9,t);og.gain.exponentialRampToValueAtTime(.001,t+.45);o.connect(og).connect(m);o.start(t);o.stop(t+.5);
@@ -25364,75 +25358,9 @@ WHATS_NEW.push(
     tryIt: "You can switch it off here in Your data." }
 );
 </script>
-<style>
-/* v280: endless loops hold still while a finger moves (mvh*, next script) */
-/* .mvh on a loop's own element; on Nexi (#pnbub) it holds all of him: his reactions switch loops on by class mid-swipe */
-/* two IDs' weight (:not(#…) counts as an ID): Nexi's own forced animation rules use one ID (#pnbub.ssj-charge .core)
-   and would otherwise win, leaving his charge shake running mid-swipe */
-html:not(#mvh0):not(#mvh1) .mvh, html:not(#mvh0):not(#mvh1) .mvh::before, html:not(#mvh0):not(#mvh1) .mvh::after,
-html:not(#mvh0) #pnbub.mvh *, html:not(#mvh0) #pnbub.mvh *::before, html:not(#mvh0) #pnbub.mvh *::after { animation-play-state: paused !important; }
-</style>
 <script>
-/* v280: still while you move (the owner: "it lags less but still does it a lot"). Measured (tools/scenarios/trace-scroll.mjs,
-   859 wide): a finger scroll makes Chrome draw a main-thread frame every frame, and each one restyles every running endless
-   animation (Nexi's blink/breath/blob/core, the rail's live strip) even though they run on the GPU: 289 style passes over six
-   swipes on the Queue. Paused, scroll style work fell ~70% (Queue 143 → 42ms, Library 154 → 49ms), and the phone's own
-   smoothness check (#438) said the same: sideways swipes 15% of frames dropped, 3% with animations off. So the endless ones
-   hold still from the first move until 0.5s after the last scroll/move (a fling keeps them held until it stops), then carry
-   on from the same spot. Spinners keep going (REST_KEEP, like rest mode); touching Nexi himself doesn't hold him; ones the
-   hidden-screen hold (OFFHOLD), rest mode or the rail's own touch pause are holding stay held. `node tools/kit.mjs smooth`
-   fails if anything endless is still running mid-swipe. */
-const MVH = { on: false, last: 0, re: 0, t: 0, held: [], els: new Set() };
-/* a CSS loop is held by a class on its element, not by pause(): a script pause takes the animation away from CSS for good,
-   and some loops are switched on and off by CSS (Nexi's flame runs only while he's powered up) */
-function mvhOne(a) {
-  const tm = a.effect && a.effect.getTiming ? a.effect.getTiming() : null, el = a.effect && a.effect.target;
-  if (a.playState !== "running" || !tm || tm.iterations !== Infinity || (a.timeline && a.timeline !== document.timeline)) return;
-  if (REST_KEEP.has(a.animationName) && tm.duration < 2000) return;
-  if (el && typeof CSSAnimation !== "undefined" && a instanceof CSSAnimation) { if (!MVH.els.has(el)) { el.classList.add("mvh"); MVH.els.add(el); } return; }
-  try { a.pause(); MVH.held.push(a); } catch (e) {}
-}
-function mvhHold() {
-  MVH.re = performance.now();
-  const nx = document.getElementById("pnbub"); if (nx && !MVH.els.has(nx)) { nx.classList.add("mvh"); MVH.els.add(nx); }
-  for (const a of document.getAnimations()) mvhOne(a);
-}
-function mvhFree() {
-  for (const el of MVH.els) el.classList.remove("mvh");
-  MVH.els.clear();
-  const h = MVH.held; MVH.held = [];
-  if (REST.on) { REST.held.push(...h); return; }
-  for (const a of h) {
-    if (a.playState !== "paused" || OFFHOLD.has(a)) continue;
-    /* its screen was left or its row scrolled out of drawing meanwhile: the hidden-screen hold takes it over */
-    const el = a.effect && a.effect.target; if (el && !offSeen(el)) { OFFHOLD.add(a); continue; }
-    if (typeof RLV !== "undefined" && a === RLV.anim && (RLV.hold || RLV.drag || rlvCalm())) continue;
-    try { a.play(); } catch (e) {}
-  }
-}
-function mvhWait() {
-  MVH.t = setTimeout(() => { if (performance.now() - MVH.last < 450) return mvhWait(); MVH.on = false; mvhFree(); }, 500);
-}
-function mvhMove(e) {
-  const now = MVH.last = performance.now();
-  /* a loop CSS switches on mid-move (no animationstart: it had started paused) is caught on the next move */
-  if (MVH.on) { if (now - MVH.re > 200) mvhHold(); return; }
-  if (e && e.type === "touchmove" && e.target && e.target.closest && e.target.closest("#pnbub")) return;
-  MVH.on = true; mvhHold(); mvhWait();
-}
-addEventListener("touchmove", mvhMove, { capture: true, passive: true });
-addEventListener("scroll", mvhMove, { capture: true, passive: true });
-addEventListener("wheel", mvhMove, { capture: true, passive: true });
-/* a loop that starts mid-move (Nexi reacting to the swipe, a row's badge drawn in) holds still too */
-addEventListener("animationstart", e => {
-  if (!MVH.on || !e.target.getAnimations) return;
-  for (const a of e.target.getAnimations({ subtree: true }))
-    if (a.animationName === e.animationName && a.effect.target === e.target && (a.effect.pseudoElement || "") === (e.pseudoElement || "")) mvhOne(a);
-}, { capture: true, passive: true });
+/* v280's scroll hold (mvh*: every endless loop paused from the first move until the scroll stopped) was removed in v282 */
 WHATS_NEW.push(
-  { v: 280, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
-    say: "<b>Smoother scrolling</b>: while your finger moves, my little loops (and the rail's live strip) hold still, so the phone only draws what you're scrolling. They carry on the moment you stop.",
-    tryIt: "Scroll the Queue fast or swipe between games: it should stay smooth, and I'll start moving again when you stop." },
   { v: 280, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
     say: "No more touch effects: the glow under your finger is gone, and rows, the gear and other buttons no longer stay lit up after you touch them.",
     tryIt: "Touch a row or an empty spot and scroll: nothing lights up or spreads." }
@@ -25630,5 +25558,25 @@ if (PN_TRIG || NX_ANC) WHATS_NEW.push(
   { v: 281, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "Smoother scrolling: cards rising in as you reach them (Home, Insights and now a game's page) and this tour's highlight are handled by your phone's browser itself instead of the app's own code.",
     tryIt: "Open a game and scroll down slowly: its cards rise in one by one." }
+);
+</script>
+<script>
+/* v282 (the owner: "App freezes a lot when I move or scroll and nexi animation and rail stops ... I dont want animation to stop
+   while scrolling"). v280 paused every endless loop from the first move until the scroll stopped. Measured with
+   tools/scenarios/trace-loops.mjs (859 wide, real CPU): Nexi's and the rail's loops are all transform/opacity, so while a finger
+   scrolls they cost one small style pass per frame (~0.3ms; a main frame 2.0 vs 1.0ms with every loop stopped), well inside
+   the 8ms of a 120Hz frame, while the hold itself cost 20–43ms at the start of a move (document.getAnimations() forcing a style
+   pass, the class on Nexi restyling all of him) and again on release, when every loop was handed back to the GPU at once: a
+   visible hitch exactly when a scroll starts and stops, and Nexi and the rail standing still in between. So nothing holds now:
+   loops keep running while you scroll. `node tools/kit.mjs smooth` now fails if Nexi's or the rail's loops stop mid-swipe,
+   if a loop running mid-swipe animates anything but transform/opacity (that one would really cost every scroll frame), or
+   if what the finger landed on moves or animates (Library cards tilted and shrank under the finger, also removed). */
+WHATS_NEW.push(
+  { v: 282, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
+    say: "<b>Smoother scrolling, and I keep moving</b>: I no longer freeze while you scroll (stopping and restarting me was what made the app hitch as you started and stopped moving), and the rail's strip keeps rolling too.",
+    tryIt: "Scroll the Queue or Library fast: it should feel smooth, and I keep breathing and floating the whole time." },
+  { v: 282, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: null,
+    say: "Library cards no longer tilt and shrink under your finger when you touch them to scroll.",
+    tryIt: "Put your finger on a card and scroll: the card stays still." }
 );
 </script>
