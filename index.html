@@ -1831,12 +1831,10 @@ background:radial-gradient(ellipse at 50% 40%,#2a1150,#0b0520 70%);clip-path:pol
 -webkit-mask-image:linear-gradient(#000,#000),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='20'%3E%3Cpath d='M0 0H5Q11 5 5 10Q-1 15 5 20H0Z'/%3E%3C/svg%3E");mask-image:linear-gradient(#000,#000),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='20'%3E%3Cpath d='M0 0H5Q11 5 5 10Q-1 15 5 20H0Z'/%3E%3C/svg%3E");
 -webkit-mask-size:calc(100% - 6px) 100%,12px 20px;mask-size:calc(100% - 6px) 100%,12px 20px;
 -webkit-mask-repeat:no-repeat,repeat-y;mask-repeat:no-repeat,repeat-y;
--webkit-mask-position:0 0,right 0 top 0;mask-position:0 0,right 0 top 0;
-animation:hpflow 1.1s linear infinite}
+-webkit-mask-position:0 0,right 0 top 0;mask-position:0 0,right 0 top 0}
 .fxhp i::after{display:none}
 .fxhp i[style*='width:100%'],.fxhp i[style*='width: 100%']{-webkit-mask-image:none;mask-image:none;border-radius:999px}.fxhp u{clip-path:inset(0 9px 0 0)}
 .fxhp u{background:linear-gradient(180deg,#9c1f3d,#6e1530);opacity:.9;border-radius:999px;transition:width 1.6s cubic-bezier(.4,0,.2,1) 1.1s!important}.fxhp i{transition:width 1s cubic-bezier(.22,1,.36,1) .5s!important}#fxhud{transition:opacity .4s ease,transform .4s ease}#fxhud.bye{opacity:0;transform:translateY(-12px)}
-@keyframes hpflow{to{-webkit-mask-position:0 0,right 0 top 20px;mask-position:0 0,right 0 top 20px}}
 @keyframes hpshake{20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
 #fxboss .num{text-align:right;font:900 italic 16px Archivo,sans-serif}
 #fxboss .wr{display:flex;gap:8px;margin:16px 0}#fxboss .wr div{flex:1;background:#0b1633;padding:10px;font:800 10px Archivo,sans-serif;letter-spacing:.15em;color:#7C92C4}
@@ -2090,15 +2088,13 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .un .ar { font-size: 24px; color: var(--mute); }
   .ring { position: relative; width: 200px; height: 200px; display: grid; place-items: center; margin: 6px 0 12px; }
   .ring .blob { position: absolute; inset: 0; border-radius: 46% 54% 42% 58% / 55% 45% 55% 45%;
-    background: conic-gradient(from 200deg, var(--volt2), #8FD0FF, #EAF2FF, #7B6CFF, var(--volt2));
-     animation: blob 9s linear infinite; }
+    background: conic-gradient(from 200deg, var(--volt2), #8FD0FF, #EAF2FF, #7B6CFF, var(--volt2)); }
   .ring .core { position: relative; width: 150px; height: 150px; border-radius: 50%; background: var(--void);
     box-shadow: inset 0 0 0 1px rgba(234,242,255,.12), 0 0 30px rgba(0,0,0,.6); display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; }
   .ring .core b { font-size: 30px; font-weight: 700; line-height: 1.1; }
   .ring .core small { font-size: 11px; color: var(--mute); }
   @keyframes blob { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .ring .blob { animation: none; } }
   .trio { display: flex; justify-content: space-around; width: 100%; }
   .trio .one { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 30%; min-width: 0; }
   .trio .dot { width: 56px; height: 56px; border-radius: 50%; background: var(--tint) center/cover; box-shadow: 0 0 0 3px rgba(234,242,255,.15); }
@@ -2120,9 +2116,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .tile.go2:active, .pick:active, .un:active, .chip:active, .btn:active, nav button:active { transition-duration: .12s; }
   @keyframes pnDrift { from { transform: scale(1); } to { transform: scale(1.07) translateX(-1.5%); } }
   .un .ar { transition: transform .35s var(--ease); } 
-  .trio .dot { animation: pnFloat 4s ease-in-out infinite; }
-  .trio .one:nth-child(2) .dot { animation-delay: -1.3s } .trio .one:nth-child(3) .dot { animation-delay: -2.6s }
-  @keyframes pnFloat { 50% { transform: translateY(-5px); } }
   @keyframes pnGlow { 50% { box-shadow: 0 0 16px rgba(234,242,255,.45); } }
   .ring .core b { animation: pnPop .7s var(--ease) both; }
   @keyframes pnPop { from { opacity: 0; transform: scale(.85); } }
@@ -2131,8 +2124,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   /* ===== v66 more buttery motion (transform/opacity only) ===== */
   .pnrv { opacity: 0; transform: translateY(26px) scale(.98); }
   .pnrv.in { opacity: 1; transform: none; transition: opacity .8s var(--ease), transform .8s var(--ease); }
-  .ring::before { content: ""; position: absolute; inset: -18px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(var(--vrgb),.35), transparent 66%); animation: pnBreath 4.5s ease-in-out infinite; }
   @keyframes pnBreath { 0%, 100% { opacity: .45; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
   .chip[aria-pressed="true"], nav button[aria-current="true"] { animation: pnPick .45s var(--ease); }
   @keyframes pnPick { from { transform: scale(.9); } }
@@ -2368,7 +2359,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   /* ===== v81 bigger ring, breathing room, filled deck cards, stack editor ===== */
   .dash.pnfit > .k-ring { justify-content: flex-start; }
   .dash.pnfit .ring { width: min(330px, 94%); margin-top: 6px; }
-  .dash.pnfit .ring::before { inset: -30px; }
   .dash.pnfit .trio { margin-top: auto; padding-bottom: 6px; }
   .stkw.sB .stk > * { justify-content: flex-end !important; }
   .stkw.sB .stk > .imgcard { background-image: linear-gradient(0deg, rgba(4,6,14,.95) 22%, rgba(4,6,14,.35) 62%, rgba(4,6,14,.05)), var(--bgi, none) !important; }
@@ -2407,13 +2397,9 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   @media (min-width: 620px) { html.railhide #pnbub { display: block; } }
   #pnbub .core { position: absolute; inset: 0; border-radius: 50%; background: var(--volt) center/cover; 
     box-shadow: 0 10px 26px rgba(0,0,0,.55); animation: bubBob 3.4s ease-in-out infinite; }
-  #pnbub .ring { position: absolute; inset: -8px; border-radius: 50%; border: 2px solid var(--volt); opacity: 0;
-    animation: bubPing 2.8s ease-out infinite; pointer-events: none; }
-  #pnbub .ring.b { animation-delay: 1.4s; }
   #pnbub.grab .core { animation: none; transform: scale(.9); transition: transform .2s var(--ease); }
   #pnbub.pop .core { animation: bubPop .6s cubic-bezier(.34,1.56,.64,1) both, bubBob 3.4s ease-in-out .6s infinite; }
   @keyframes bubBob { 50% { transform: translateY(-5px) rotate(-3deg); } }
-  @keyframes bubPing { from { transform: scale(.85); opacity: .7; } to { transform: scale(1.45); opacity: 0; } }
   @keyframes bubPop { from { transform: scale(.2); } }
   #pnbubmsg { position: fixed; left: 0; top: 0; z-index: 60; max-width: 240px; padding: 10px 14px; border-radius: 16px;
     background: var(--ice); color: var(--void); font-weight: 700; font-size: 13px; line-height: 1.3; cursor: pointer;
@@ -2429,7 +2415,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
     content-visibility: visible !important; overflow: visible !important; }
 
   /* bubble: a live spinning aura instead of pulsing rings; can wear any picture */
-  #pnbub .ring { display: none; }
   #pnbub::before { content: ""; position: absolute; inset: -20px; border-radius: 50%; pointer-events: none;
     background: radial-gradient(circle, rgba(var(--vrgb),.4), transparent 66%); animation: pnBreath 4.5s ease-in-out infinite; }
   #pnbub .aura { position: absolute;   pointer-events: none;
@@ -2553,8 +2538,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub.yawn .mouth { width: 11px; height: 13px; margin-left: -5.5px; border: 0; border-radius: 50%; background: #8FD0FF; animation: pnYawn 1.8s ease-in-out both; }
   #pnbub.sneeze .core { animation: pnSneeze .9s ease both; }
   #pnbub.stretch .core { animation: pnStretch 1.4s ease-in-out both; }
-  #pnbub.whistle .mouth { width: 6px; height: 6px; margin-left: -3px; border: 2px solid #8FD0FF; border-radius: 50%; }
-  #pnbub.whistle .nt { animation: pnZz 1.1s ease-in infinite; }
   .pnconf { position: fixed; left: 0; top: 0; z-index: 62; width: 6px; height: 9px; border-radius: 2px; pointer-events: none; }
   #pnbub .badge { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); padding: 2px 7px; border-radius: 9px;
     background: var(--volt2); color: #fff; font: 800 10px/1.3 sans-serif; white-space: nowrap; box-shadow: 0 3px 8px rgba(0,0,0,.5); pointer-events: none; }
@@ -11126,9 +11109,12 @@ let pnSkipFlip = 0;
       a.onfinish = a.oncancel = () => { r.style.zIndex = ""; }; });
     return out; }; }
 /* live countdown — one ticker for the whole app, only the changed digit animates */
-setInterval(() => {
+function cdTick() {
   if (document.hidden) return;
   document.querySelectorAll("[data-cd-to]").forEach(cd => {
+    /* Oct 2026 clean-up: a countdown on a hidden screen keeps its digits until the screen shows (onNav ticks at once):
+       rewriting them every second woke all five whole-page observers and a frame callback, on every screen, all day */
+    if (cd.closest(".panel:not(.on)") && !/–/.test(cd.textContent)) return;
     let ms = new Date(cd.dataset.cdTo + "T00:00:00") - new Date(); if (ms < 0) ms = 0;
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
     /* v263: a countdown on a hidden screen (Home's, while you're on Games) only changes its digits: a flip there can't go to
@@ -11143,7 +11129,8 @@ setInterval(() => {
         b.firstChild.animate([{ transform: "translateY(110%)" }, { transform: "translateY(-10%)", offset: .75 }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
     });
   });
-}, 1000);
+}
+setInterval(cdTick, 1000);
 
 
 /* ---- synthesised sound effects (no files; follow the app's sound switch) ---- */
@@ -11545,7 +11532,7 @@ function pnBubble() {
 }
 function pnBubMood(c, ms) { const b = $("#pnbub"); if (!b) return; b.classList.remove(...PN_MOODS); b.classList.add(c);
   clearTimeout(pnBubMood.t); pnBubMood.t = setTimeout(() => b.classList.remove(c), ms); }
-const PN_MOODS = ["yawn", "sneeze", "whistle", "stretch", "happy", "dizzy", "talk", "love", "sad", "angry", "faint", "laugh", "wink", "cool", "nap", "bored", "roll"];
+const PN_MOODS = ["yawn", "sneeze", "stretch", "happy", "dizzy", "talk", "love", "sad", "angry", "faint", "laugh", "wink", "cool", "nap", "bored", "roll"];
 /* it notices what changed in your games since it last looked */
 function pnBubReact() {
   const b = $("#pnbub"); if (!b) return;
@@ -13615,8 +13602,9 @@ function pnPowerUp(line) {
   #grum .gsm.b { inset: -20px; background: radial-gradient(circle at 70% 60%, rgba(20,6,40,.8), rgba(70,30,140,.35) 50%, transparent 74%);
     animation-duration: 11s; animation-direction: reverse; }
   #grum .gsm.c { inset: -12px; background: radial-gradient(circle at 50% 80%, var(--gc), transparent 65%); animation-duration: 6s; }
-  @keyframes gMorph { 0% { rotate: 0deg; border-radius: 42% 58% 55% 45% / 50% 40% 60% 50%; }
-    50% { border-radius: 58% 42% 45% 55% / 40% 60% 50% 50%; } 100% { rotate: 360deg; border-radius: 42% 58% 55% 45% / 50% 40% 60% 50%; } }
+  /* Oct 2026 clean-up: the smoke wobbles with a squash instead of reshaping its corners (border-radius redrew all three
+     layers on the main thread every frame; speed rule: transform/opacity only) */
+  @keyframes gMorph { 0% { rotate: 0deg; scale: 1; } 50% { rotate: 180deg; scale: 1.07 .93; } 100% { rotate: 360deg; scale: 1; } }
   #grum .gshape { position: absolute; inset: 2px 6px 4px; filter: drop-shadow(0 0 8px var(--ge)); }
   #grum .gbody { position: absolute; inset: 0; clip-path: polygon(50% 0,80% 12%,100% 45%,88% 100%,65% 82%,50% 100%,35% 82%,12% 100%,0 45%,20% 12%);
     -webkit-clip-path: polygon(50% 0,80% 12%,100% 45%,88% 100%,65% 82%,50% 100%,35% 82%,12% 100%,0 45%,20% 12%);
@@ -13681,8 +13669,11 @@ function pnPowerUp(line) {
   const glide = (tx, ty, ms) => new Promise(res => { const fx = gx, fy = gy, t0 = performance.now();
     const st = t => { const k = Math.min(1, (t - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       raw(fx + (tx - fx) * e, fy + (ty - fy) * e); if (k < 1) requestAnimationFrame(st); else res(); }; requestAnimationFrame(st); });
-  setInterval(() => { if (!S.grum || document.hidden || busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
+  /* Oct 2026 clean-up: the side check runs only while he's switched on (hidden by default, it ticked every 0.8s all day) */
+  let gTick = 0; const gOn = () => { if (S.grum && !gTick) gTick = setInterval(() => { if (!S.grum || document.hidden || busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
     const tx = sideX(); if (Math.abs(tx - gx) > 4) { busy = true; glide(tx, gy, 900).then(() => busy = false); } }, 800);
+    else if (!S.grum && gTick) { clearInterval(gTick); gTick = 0; } };
+  gOn(); extend("applyLook", { after: gOn });
   /* he swells with your backlog: bigger pile, bigger Grumble */
   const look = () => { const a = arcG(); g.classList.remove("g0", "g1", "g2"); g.classList.add("g" + a);
     g.style.setProperty("--gs", (.8 + Math.min(1, hpNow() / 400) * .5).toFixed(2)); };
@@ -24079,6 +24070,7 @@ WHATS_NEW.push(
 /* v261: after 60s, not 12s (the owner: "all the animations have frozen" just looking at the queue) */
 const REST_AFTER = 60000;
 const REST = { t: 0, on: false, held: [] }, REST_KEEP = new Set(["pnSpin", "gDot", "ncDot", "pnShim"]);
+const OFFPLAYED = new Set();   /* CSS loops set going again with play(), here and by offFree: offOrphans lets go of ones their CSS dropped */
 function restHold() {
   if (!REST.on) return;
   for (const a of document.getAnimations()) {
@@ -24093,7 +24085,7 @@ function restGo() { const w = scrollWait(REST_AFTER); if (w > 8) { REST.t = setT
 function restWake() {
   clearTimeout(REST.t);
   window.pnRest = false;
-  if (REST.on) { REST.on = false; const h = REST.held; REST.held = []; h.forEach(a => { try { if (a.playState === "paused") a.play(); } catch (e) {} }); }
+  if (REST.on) { REST.on = false; const h = REST.held; REST.held = []; h.forEach(a => { try { if (a.playState === "paused") { a.play(); OFFPLAYED.add(a); } } catch (e) {} }); }
   REST.t = setTimeout(restGo, REST_AFTER);
 }
 ["pointerdown", "keydown", "wheel", "touchstart"].forEach(t => addEventListener(t, restWake, { capture: true, passive: true }));
@@ -24245,7 +24237,7 @@ function offFree(root) {
     /* its CSS may have moved on while it was out of sight (a picture's loading shimmer once the picture is in) */
     if (a.animationName && !getComputedStyle(el, a.effect.pseudoElement || null).animationName.split(", ").includes(a.animationName)) { try { a.cancel(); } catch (e) {} continue; }
     if (window.pnRest) { REST.held.push(a); continue; }   /* resting: they wake with everything else */
-    try { if (a.playState === "paused") a.play(); } catch (e) {}
+    try { if (a.playState === "paused") { a.play(); OFFPLAYED.add(a); } } catch (e) {}
   }
 }
 { /* a hidden screen also gets redrawn now and then (the queue after a change): look again after it settles */
@@ -24268,7 +24260,14 @@ function offFree(root) {
 /* a safety net for what the observer can't see coming (a screen warmed up off to the side, a late picture, Settings' chips
    finishing in a section scrolled out of sight): every 2s the whole page is looked at once more, and whatever is drawn
    again carries on (a few dozen animations: 1-7ms at 4x CPU) */
-setInterval(() => { if (document.hidden) return; offHold(document.body); offFree(null); }, 2000);
+/* Oct 2026 clean-up: at rest nothing changes, so a look that finds the same animations in the same states as last time is
+   skipped (it was 1-3ms every 2s, all day); the full look still runs at least every 10s */
+{ let last = [], st = "", n = 0;
+  setInterval(() => { if (document.hidden) return;
+    const all = document.getAnimations(), now = all.map(x => x.playState[0]).join("");
+    if (++n % 5 && now === st && all.length === last.length && all.every((x, i) => x === last[i])) return;
+    offHold(document.body); offFree(null); offOrphans();
+    last = document.getAnimations(); st = last.map(x => x.playState[0]).join(""); }, 2000); }
 document.addEventListener("toggle", e => { const d = e.target; if (d && d.open) requestAnimationFrame(() => offFree(d)); }, true);   /* a section opened */
 document.addEventListener("contentvisibilityautostatechange", e => { const el = e.target;
   if (e.skipped) offHold(el); else { offFree(el); requestAnimationFrame(() => offFree(el)); } }, true);
@@ -24785,7 +24784,7 @@ WHATS_NEW.push(
    the frame the piece is first drawn, before it's painted (MutationObserver collects, one rAF measures them all at
    once), so the big one is never unpacked; pieces that aren't drawn yet (a hidden screen, a row skipped by
    content-visibility) are sized when they show. A copy that fails puts the original back. */
-const FIT = { q: new Set(), raf: 0, wait: new Set(), local: new Map(), bad: new Set(), STEPS: [128, 192, 256, 384, 512, 768, 1024, 1536] };
+const FIT = { q: new Set(), raf: 0, wait: new Set(), again: new Set(), local: new Map(), bad: new Set(), STEPS: [128, 192, 256, 384, 512, 768, 1024, 1536] };
 const fitStep = px => { for (const b of FIT.STEPS) if (px <= b) return b; return 0; };
 /* the app's own files (pictures kept in the repo, e.g. a key art an old save links to) are resized on the phone too */
 const fitSame = u => u.indexOf(location.origin + "/") === 0 || (u.length < 300 && /^[\w\-./%]+\.(jpe?g|png|webp)$/i.test(u));
@@ -24876,6 +24875,9 @@ function fitBg(el, n) {
 function fitRun() {
   FIT.raf = 0;
   const list = [...FIT.q]; FIT.q.clear();
+  /* Oct 2026 clean-up: only pieces new to this pass get the timed looks again below. A retry re-armed them for whatever was
+     still waiting, and a hidden screen's pictures always are: a check every 0.7s, all day, on every screen */
+  const fresh = list.some(el => !FIT.again.has(el)); FIT.again.clear();
   /* read every box first (one layout), then write */
   const jobs = [];
   for (const el of list) {
@@ -24887,7 +24889,7 @@ function fitRun() {
   }
   for (const [el, n] of jobs) { try { if (el.tagName === "IMG") fitImg(el, n); else fitBg(el, n); } catch (e) {} el._fitSig = fitUrls(el); }
   /* not drawn yet: also look again shortly, a screen can finish showing without a tab switch (an animation, a late layout) */
-  if (FIT.wait.size) { clearTimeout(FIT.wt); FIT.wt = setTimeout(fitRetry, 700); clearTimeout(FIT.wt2); FIT.wt2 = setTimeout(fitRetry, 2500); }
+  if (FIT.wait.size && fresh) { clearTimeout(FIT.wt); FIT.wt = setTimeout(fitRetry, 700); clearTimeout(FIT.wt2); FIT.wt2 = setTimeout(fitRetry, 2500); }
 }
 function fitAdd(el) { FIT.q.add(el); if (!FIT.raf) FIT.raf = requestAnimationFrame(fitRun); }
 function fitScan(root) {
@@ -24896,7 +24898,7 @@ function fitScan(root) {
   root.querySelectorAll("img, [style*='url(']").forEach(fitAdd);
 }
 /* pieces that weren't drawn yet: look again when a screen or a page shows, a skipped row comes back, or after a scroll */
-function fitRetry() { if (!FIT.wait.size) return; const w = [...FIT.wait]; FIT.wait.clear(); w.forEach(el => { if (el.isConnected) fitAdd(el); }); }
+function fitRetry() { if (!FIT.wait.size) return; const w = [...FIT.wait]; FIT.wait.clear(); w.forEach(el => { if (el.isConnected) { FIT.again.add(el); fitAdd(el); } }); }
 if (window.MutationObserver) new MutationObserver(ms => {
   for (const m of ms) {
     if (m.type === "childList") { m.addedNodes.forEach(fitScan); continue; }
@@ -25679,4 +25681,25 @@ WHATS_NEW.push(
     say: "<b>Fixed: the empty space under More for you</b>. Its two card stacks were waiting for a fade-in that never started; they show again, and so does the big card at the top of Insights. Cards now rise in the way they do on the iPhone. I've learned to spot cards stuck invisible myself now.",
     tryIt: "Swipe through both stacks: the left one up and down, the right one sideways." }
 );
+</script>
+<script>
+/* Oct 2026 clean-up (step 3b, work nobody sees). 1. A CSS loop that was held (its screen hidden, or resting) and set going
+   again with play() no longer obeys its CSS in Chrome: when the CSS switched it off later (Motion off, a mood ending), it
+   kept running (Home's orb and Nexi's blinking eyes with Motion off). Loops whose CSS no longer names them are let go:
+   at once when Motion is switched off, and with the 2s look-around. */
+function offOrphans() {
+  for (const a of OFFPLAYED) {
+    const el = a.effect && a.effect.target;
+    if (!a.animationName || a.playState === "idle" || !el || !el.isConnected) { OFFPLAYED.delete(a); continue; }
+    if (!getComputedStyle(el, a.effect.pseudoElement || null).animationName.split(", ").includes(a.animationName)) {
+      try { a.cancel(); } catch (e) {} OFFPLAYED.delete(a); OFFHOLD.delete(a); }
+  }
+}
+{ let still = document.documentElement.classList.contains("still");   /* only when Motion is switched: other classes change mid-scroll */
+  new MutationObserver(() => { const now = document.documentElement.classList.contains("still"); if (now !== still) { still = now; requestAnimationFrame(offOrphans); } })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] }); }
+/* 2. countdowns on a screen that just showed get their digits now (hidden screens' countdowns no longer tick), and pictures in
+   a section just opened get fitted (the picture fitter no longer checks every 0.7s for ones it couldn't see) */
+onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {} }));
+document.addEventListener("toggle", e => { if (e.target && e.target.open) requestAnimationFrame(fitRetry); }, true);
 </script>
