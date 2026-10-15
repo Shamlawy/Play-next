@@ -2496,7 +2496,7 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub.sad .eye { height: 11px; top: 36%; }
   #pnbub.sad .mouth { top: 66%; border: 2.5px solid #8FD0FF; border-bottom: 0; border-radius: 14px 14px 0 0; }
   #pnbub.sad .tear { display: block; animation: pnTear 1.2s ease-in infinite; }
-  #pnbub.stress .sweat { display: block; animation: pnTear 1.8s ease-in infinite; }
+  #pnbub.stress .sweat { display: block; animation: pnTear 1.8s ease-in 3; }   /* v286: three drops, then the class goes */
   #pnbub.angry .face { background: radial-gradient(circle at 34% 28%, #5a1c2c, #14070a 72%); }
   #pnbub.angry .eyes::before, #pnbub.angry .eyes::after { content: ""; position: absolute; top: 25%; width: 13px; height: 3px; background: #EAF2FF; border-radius: 2px; }
   #pnbub.angry .eyes::before { left: 24%; transform: rotate(22deg); } #pnbub.angry .eyes::after { right: 24%; transform: rotate(-22deg); }
@@ -4006,7 +4006,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "285";
+const APP_V = "286";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11534,6 +11534,7 @@ function pnBubble() {
 let pnMoodT = 0;
 function pnBubMood(c, ms) { const b = $("#pnbub"); if (!b) return; b.classList.remove(...PN_MOODS); b.classList.add(c);
   clearTimeout(pnMoodT); pnMoodT = setTimeout(() => b.classList.remove(c), ms); }
+let pnSweatT = 0;
 const PN_MOODS = ["yawn", "sneeze", "stretch", "happy", "dizzy", "talk", "love", "sad", "angry", "faint", "laugh", "wink", "cool", "nap", "bored", "roll"];
 /* it notices what changed in your games since it last looked */
 function pnBubReact() {
@@ -11541,7 +11542,10 @@ function pnBubReact() {
   const played = S.played || [], live = S.games.filter(g => !isPlayed(g)), old = S.bubSnap;
   const dn = (S.duels || []).filter(d => d.w).length, snap = { p: played.length, w: dn, n: S.games.length, d: {}, f: {} };
   live.forEach(g => { if (g.date) snap.d[g.id] = g.date; if (isFresh(g)) snap.f[g.id] = 1; });
-  b.classList.toggle("stress", live.length > 15);
+  /* v286 (the owner): the sweat drop shows for a few seconds when the backlog grows past 15, not all day */
+  if (live.length <= 15) b.classList.remove("stress");
+  else if (old && snap.n > (old.n || snap.n)) { b.classList.remove("stress"); void b.offsetWidth; b.classList.add("stress");
+    clearTimeout(pnSweatT); pnSweatT = setTimeout(() => b.classList.remove("stress"), 5400); }
   if (old) {
     const done = snap.p > old.p && S.games.find(g => g.id === played[played.length - 1].id);
     const late = live.find(g => old.d[g.id] && g.date > old.d[g.id]);
@@ -13364,7 +13368,7 @@ return{L,hp:L.reduce((a,x)=>a+x.h,0)}}
 function bossMax(hp){if(!S.fxBossMax||hp>S.fxBossMax||S.fxBossMax===0&&hp){S.fxBossMax=hp}return S.fxBossMax||1}
 let lastHP=bossNow().hp;bossMax(lastHP);
 onSave({after:()=>{const hp=bossNow().hp,df=hp-lastHP;if(!df)return;if(window.pnSilentHP){lastHP=hp;if(hp>S.fxBossMax)S.fxBossMax=hp;return}const old=lastHP;lastHP=hp;
-if(!hp)S.fxBossMax=0;const mx=hp?bossMax(hp):old||1;if(still())return;
+if(!hp)S.fxBossMax=0;const mx=hp?bossMax(hp):old||1;if(still()||!S.grum)return;/* v286 (the owner): the HP bar only while Grumble is switched on; CLEAR! stays */
 const _hud=()=>{document.getElementById('fxhud')?.remove();const h=document.createElement('div');h.id='fxhud';
 h.innerHTML=`SHADOW OF THE BACKLOG <div class="fxhp"><u style="width:${old/mx*100}%"></u><i style="width:${Math.min(old,mx)/mx*100}%"></i></div>HP ${hp} / ${mx}<em class="${df>0?'heal':''}">${df>0?'+'+df:df}</em>`;
 document.body.appendChild(h);requestAnimationFrame(()=>requestAnimationFrame(()=>{const fb=h.querySelector('.fxhp');fb.classList.add('hpjolt');setTimeout(()=>fb.classList.remove('hpjolt'),2200);h.querySelector('i').style.width=h.querySelector('u').style.width=hp/mx*100+'%'}));
@@ -14522,8 +14526,10 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
 .tag.st-fresh { animation: none !important; background: var(--volt); position: relative; overflow: hidden; isolation: isolate; }
 .tag.st-fresh::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: linear-gradient(100deg, transparent 30%, rgba(234,242,255,.95) 50%, transparent 70%);
-  transform: translateX(-100%); animation: freshSweep 2.4s linear infinite; }
+  transform: translateX(-100%); animation: freshSweep 2.4s linear 3; }
 @keyframes freshSweep { to { transform: translateX(100%); } }
+/* v286 (the owner): three sweeps, then it rests; a hidden screen's tags have none, so showing the screen sweeps again */
+.panel:not(.on) .tag.st-fresh::after { animation-name: none; }
 /* progress bars grow by scaling, not by changing width */
 .lx-bar .tr i { animation-name: lxbarS !important; transform-origin: left center; }
 @keyframes lxbarS { from { transform: scaleX(0); } }
@@ -25741,4 +25747,10 @@ function offOrphans() {
    a section just opened get fitted (the picture fitter no longer checks every 0.7s for ones it couldn't see) */
 onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {} }));
 document.addEventListener("toggle", e => { if (e.target && e.target.open) requestAnimationFrame(fitRetry); }, true);
+WHATS_NEW.push(
+  { v: 286, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); },
+    at: () => $(".panel.on .tag.st-fresh") || null,
+    say: "<b>Calmer screens</b>: the Out now tags shine three times when you open a screen, then rest, Nexi only sweats for a moment when your backlog grows, and Grumble's HP bar shows only while Grumble is switched on (CLEAR! still cheers when you finish a game).",
+    tryIt: "Open the Queue and watch an Out now tag shine, then stop. Add a game when your backlog is over 15 and look at Nexi." }
+);
 </script>

@@ -10,7 +10,7 @@ cssScattered       4      # selectors defined in 4 or more separate rules
 important          166    # !important in CSS
 hexColours         408    # colours written as hex in CSS rules (house rule v181: var(--volt) / rgba(var(--vrgb), a) / the --u-* tokens)
 intervals          10     # setInterval timers
-endlessAnimations  51     # animations that never stop (CSS `infinite`, Web Animations `Infinity`)
+endlessAnimations  49     # animations that never stop (CSS `infinite`, Web Animations `Infinity`)
 subtreeObservers   6      # MutationObservers watching a whole subtree (not getAnimations({ subtree: true }), v280)
 orphanSettings     0      # Settings keys listed in GROUP_KEYS that nothing reads
 lint               0      # bug finder findings (node tools/lint.mjs: undefined names, unused values, duplicate keys, unreachable code…)
