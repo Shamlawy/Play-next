@@ -3105,7 +3105,7 @@ function pcdHTML(o) {
 
 <script>
 /* ===== v279: extend(name, hook) — how a feature adds to an app function, instead of wrapping it =====
-   The app grew by wrapping functions (const _f = f; f = function () { …; _f.apply(this, arguments) }), up to 10 layers
+   The app grew by wrapping functions (const _f = f, then f = function () { …; _f.apply(this, arguments) }), up to 10 layers
    deep, each in a different script. extend keeps each feature's code where it lives, but every addition to a function is
    one entry in EXT[name] (in the console: EXT.renderHome), they run in a known order, and one that throws is reported
    without stopping the others. The hook object can have:
@@ -11544,8 +11544,9 @@ function pnBubble() {
     b.classList.remove("wob"); void b.offsetWidth; b.classList.add("wob"); pnBubMood("dizzy", 1800);
     if (Math.random() < .4) pnBubSay(["Whoa whoa whoa 🌀 put me down!", ""]); });
 }
+let pnMoodT = 0;
 function pnBubMood(c, ms) { const b = $("#pnbub"); if (!b) return; b.classList.remove(...PN_MOODS); b.classList.add(c);
-  clearTimeout(pnBubMood.t); pnBubMood.t = setTimeout(() => b.classList.remove(c), ms); }
+  clearTimeout(pnMoodT); pnMoodT = setTimeout(() => b.classList.remove(c), ms); }
 const PN_MOODS = ["yawn", "sneeze", "whistle", "stretch", "happy", "dizzy", "talk", "love", "sad", "angry", "faint", "laugh", "wink", "cool", "nap", "bored", "roll"];
 /* it notices what changed in your games since it last looked */
 function pnBubReact() {
@@ -12724,10 +12725,10 @@ function insightsBlock() {
     ${top.length ? `<div class="tins-rk">${top.map((g, i) => `<button class="rk" data-opg="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<span>${esc(g.title)}</span>${confDots(t.n[g.id])}<small>${t.sc[g.id]}</small></button>`).join("")}</div>` : ""}
   </div>`;
 }
-{ const _rt = renderTaste; renderTaste = function () {
-  const out = _rt.apply(this, arguments), v = subOf("taste"), el = $("#p-taste");
+extend("renderTaste", { after() {
+  const v = subOf("taste"), el = $("#p-taste");
   if (el && (v === "psych" || v === "patterns")) { const h = el.querySelector(".tabbar"); if (h) h.insertAdjacentHTML("afterend", insightsBlock()); }
-  return out; }; }
+  } });
 
 /* ---- On deck: what to play next = close to the games you rank highest + on the machine you're on + your duels ---- */
 const curPlat = () => S.curPlat || "Switch";
@@ -12792,9 +12793,9 @@ function nxHomeLine() {
 document.addEventListener("click", e => { const b = e.target.closest("[data-opg]"); if (!b) return; e.stopPropagation(); hubReturn = null; beep("open"); openFull(b.dataset.opg); }, true);
 extend("renderHome", { after: () => { const el = $("#p-home");
   if (el && !S.nxHomeOff) { el.querySelectorAll(".nxhome").forEach(x => x.remove()); el.insertAdjacentHTML("afterbegin", nxHomeLine()); } } });
-{ const _xf = xFeatures; xFeatures = function () { try { scoreMigrate(); if (!sigIds) sigWatch(); } catch (e) {} return _xf.apply(this, arguments); }; }
-{ const _ab = applyBackup; applyBackup = function () { sigIds = null; rankMemo = deckMemo = null; const o = _ab.apply(this, arguments); sigWatch(); return o; }; }
-{ const _mb = mergeBackup; mergeBackup = function () { const o = _mb.apply(this, arguments); sigIds = null; sigWatch(); return o; }; }
+extend("xFeatures", { before: () => { try { scoreMigrate(); if (!sigIds) sigWatch(); } catch (e) {} } });
+extend("applyBackup", { before: () => { sigIds = null; rankMemo = deckMemo = null; }, after: () => { sigWatch(); } });
+extend("mergeBackup", { after: () => { sigIds = null; sigWatch(); } });
 /* ===== v185 Nexi + discovery: personalities, AI chat with a memory, competitive chat, nudges, similar games, trailers ===== */
 const HELPER = "https://playnext-helper.hussamnabil48.workers.dev";
 /* ---- personalities: same tips, different voice ---- */
@@ -13028,8 +13029,8 @@ function simFilter(id) {
   QFILTERS.push(["S:" + id, "Like " + g.title]); QICON["S:" + id] = "🔍";
   S.qFilter = "S:" + id; save(); renderQueue();
 }
-{ const _qc = qCounts; qCounts = function () { const c = _qc.apply(this, arguments); QFILTERS.forEach(([k]) => { if (/^S:/.test(k)) { const g = S.games.find(x => x.id === k.slice(2)); c[k] = g ? simLocal(g, 99).length : 0; } }); return c; }; }
-{ const _ql = queueList; queueList = function () { const f = qNow(); if (/^S:/.test(f)) { const g = S.games.find(x => x.id === f.slice(2)); return g ? simLocal(g, 99).map(x => x.g) : []; } return _ql.apply(this, arguments); }; }
+extend("qCounts", { after: c => { QFILTERS.forEach(([k]) => { if (/^S:/.test(k)) { const g = S.games.find(x => x.id === k.slice(2)); c[k] = g ? simLocal(g, 99).length : 0; } }); } });
+extend("queueList", { before: () => { const f = qNow(); if (/^S:/.test(f)) { const g = S.games.find(x => x.id === f.slice(2)); return extend.skip(g ? simLocal(g, 99).map(x => x.g) : []); } } });
 function simRestore() { if (/^S:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { const g = S.games.find(x => x.id === S.qFilter.slice(2)); if (g) { QFILTERS.push([S.qFilter, "Like " + g.title]); QICON[S.qFilter] = "🔍"; } } }
 /* the back of a queue card: a few games like it, the trailer, more */
 function simBack(g) {
@@ -13207,7 +13208,7 @@ document.addEventListener("click", async e => { if (!e.target.closest("#s-nudget
     else if (q === "verdict" && typeof qScorePick === "function") qScorePick();
     else if (q === "recap") { const m = String(qp.get("m") || "").match(/^(\d{4})-(\d{2})$/); if (m && typeof openWrapped === "function") openWrapped(+m[1], +m[2] - 1); } }, 1800); }
 
-{ const _xf2 = xFeatures; xFeatures = function () { try { simRestore(); } catch (e) {} return _xf2.apply(this, arguments); }; }
+extend("xFeatures", { before: () => { try { simRestore(); } catch (e) {} } });
 /* Home: Nexi's line in the chosen voice; tapping Nexi opens the chat */
 { const _nl = nxHomeLine; nxHomeLine = function () {
   const pick = onDeck(1)[0], out = _nl.apply(this, arguments); if (!out || !pick) return out;
@@ -13526,11 +13527,12 @@ function pnFlame(b) {
     `<i style="--a:${a}deg;--b:${Math.round(-a * 0.55)}deg;--h:${Math.round(34 + 58 * (1 + Math.cos(a * Math.PI / 180)) / 2 + (i % 3) * 8)}px;--w:${18 + (i % 2) * 6}px;--d:${(i % 5) * -0.07}s"></i>`).join("");
   b.prepend(f);
 }
+let pnPuT2 = 0, pnPuEnd = null;
 function pnPowerUp(line) {
   const b = $("#pnbub"); if (!b) return; pnFlame(b);
   const say = () => pnBubSay([line || "HAAAAAA!!! ⚡ Power level: off the charts.", ""]);
   if (calm()) { if (line !== false) say(); return; }
-  clearTimeout(pnPowerUp.t2); if (pnPowerUp.end) { pnPowerUp.end(); pnPowerUp.end = null; } b.classList.remove("ssj");
+  clearTimeout(pnPuT2); if (pnPuEnd) { pnPuEnd(); pnPuEnd = null; } b.classList.remove("ssj");
   const cx = pnBubX + 31, cy = pnBubY + 31, pos = el => { el.style.setProperty("--cx", cx + "px"); el.style.setProperty("--cy", cy + "px"); };
   /* 1. charge: ring tightens, turns gold, spins hard, energy gets sucked in */
   b.classList.add("ssj-charge");
@@ -13540,7 +13542,7 @@ function pnPowerUp(line) {
     d.style.setProperty("--x", cx + Math.cos(a) * r + "px"); d.style.setProperty("--y", cy + Math.sin(a) * r + "px");
     d.style.setProperty("--dl", (Math.random() * .25).toFixed(2) + "s"); document.body.appendChild(d); setTimeout(() => d.remove(), 1000); }
   /* 2. burst: the ring blows outward and becomes the flames */
-  pnPowerUp.t2 = setTimeout(() => {
+  pnPuT2 = setTimeout(() => {
     b.classList.add("ssj"); b.classList.remove("ssj-charge");
     if (navigator.vibrate) navigator.vibrate([60, 40, 30, 40, 30]);
     [440, 560, 700].forEach((f, i) => setTimeout(() => pnBeep(f, .08, "square", .03), i * 70));
@@ -13564,11 +13566,11 @@ function pnPowerUp(line) {
 
     }, 180);
     /* 3. stays powered up until you tap anywhere, then the flames sink and the ring pulls back together */
-    const end = () => { pnPowerUp.end = null; clearInterval(t); cat.remove(); b.classList.remove("ssj"); pnBubMood("happy", 2000); };
+    const end = () => { pnPuEnd = null; clearInterval(t); cat.remove(); b.classList.remove("ssj"); pnBubMood("happy", 2000); };
     const cat = document.createElement("div"); cat.id = "ssjcatch";
     cat.style.cssText = "position:fixed;inset:0;z-index:93;background:transparent";
     setTimeout(() => { document.body.appendChild(cat); cat.addEventListener("pointerdown", e => { e.preventDefault(); end(); }, { once: true }); }, 400);
-    pnPowerUp.end = end; setTimeout(() => { if (pnPowerUp.end === end) end(); }, 6000);
+    pnPuEnd = end; setTimeout(() => { if (pnPuEnd === end) end(); }, 6000);
   }, 850);
 }
 
@@ -13874,7 +13876,7 @@ function pnPowerUp(line) {
 
   async function pnCinema() {
     if (H.classList.contains("cine") || !N.el || !window.GRUM) return;
-    if (window.pnPowerUp && pnPowerUp.end) pnPowerUp.end();
+    if (pnPuEnd) pnPuEnd();
     H.classList.add("cine"); window.pnCine = true; hp = { n: 100, g: 100 };
     const hadRail = !H.classList.contains("railhide");
     /* the story is built from their own games */
@@ -13962,7 +13964,7 @@ function pnPowerUp(line) {
     await say("n", "And every ending makes me brighter. We'll be ready, {you}. Let's go finish something 💙");
     await say("s", "Grumble now lurks on the opposite side. Tap him for app updates. When you least expect it… they'll clash again.");
     /* wrap up */
-    if (window.pnPowerUp && pnPowerUp.end) pnPowerUp.end();
+    if (pnPuEnd) pnPuEnd();
     ["cine-hp", "cine-box", "cine-tap"].forEach(i => document.getElementById(i)?.remove());
     bg.style.transition = "opacity .6s ease"; bg.style.opacity = "0"; setTimeout(() => bg.remove(), 650);
     await tw(N, b0.x < W() / 2 ? 12 : W() - 74, b0.y, 600, "io");
@@ -13975,10 +13977,9 @@ function pnPowerUp(line) {
 
   /* keep Nexi's own chatter and wandering out of the way during the show, and notice the ⚡ */
   extend("pnBubSay", { before: () => { if (window.pnCine) return extend.skip(); } });
-  const _mood = pnBubMood; pnBubMood = function () { if (window.pnCine && !window.pnCineMood) return; return _mood.apply(this, arguments); };
-  const _pu = pnPowerUp; pnPowerUp = function () { const r = _pu.apply(this, arguments);
-    if (window.pnCineWaitPU) { const f = window.pnCineWaitPU; window.pnCineWaitPU = null; setTimeout(f, 0); } return r; };
-  pnPowerUp.end = null; Object.defineProperty(pnPowerUp, "end", { get: () => _pu.end, set: v => { _pu.end = v; } });
+  extend("pnBubMood", { before: () => { if (window.pnCine && !window.pnCineMood) return extend.skip(); } });
+  extend("pnPowerUp", { after: () => {
+    if (window.pnCineWaitPU) { const f = window.pnCineWaitPU; window.pnCineWaitPU = null; setTimeout(f, 0); } } });
 
   /* the odd rematch: every few minutes they meet in the middle, trade blows, and go back to their sides */
   async function spar() {
@@ -18058,14 +18059,14 @@ function ixWire(el) {
   ixIO = new IntersectionObserver((es, ob) => es.forEach(e => { if (e.isIntersecting) { show(e.target); ob.unobserve(e.target); } }), { threshold: .12 });
   items.filter(x => !x.classList.contains("in")).forEach(x => ixIO.observe(x));
 }
-{ const _rt5 = renderTaste; renderTaste = function () {
+extend("renderTaste", { before() {
   const view = subOf("taste");
-  if (view !== "insights") return _rt5.apply(this, arguments);
+  if (view !== "insights") return;
   /* the page is built by the old renderTaste's frame (header, pill chips, handlers), with the Insights body swapped in */
   const _tp = tastePsych; tastePsych = tasteInsightsPage;
-  let out; try { out = _rt5.apply(this, arguments); } finally { tastePsych = _tp; }
+  let out; try { out = EXT.renderTaste.base.apply(this, arguments); } finally { tastePsych = _tp; }
   const el = $("#p-taste"); if (el) { el.querySelectorAll(".tins").forEach(x => x.remove()); ixWire(el); }
-  return out; }; }
+  return extend.skip(out); } });
 /* leaving the tab lets the reveal play again next time you come back */
 onNav("after", k => { if (k === "tab" && curTab() !== "taste") ixShown.clear(); });
 try { renderTaste(); if (typeof renderPill === "function") renderPill(); } catch (e) {}
@@ -18776,9 +18777,9 @@ function wiAsk() {
   mark();
 }
 /* Nexi's chat knows where you are in the games you're playing */
-{ const _nc = nxContext; nxContext = function () { const c = _nc.apply(this, arguments);
+extend("nxContext", { after: c => {
   if (c && Array.isArray(c.playing)) c.playing = c.playing.map(t => { const g = S.games.find(x => x.title === t), n = g && wiLast(g); return n ? (t + " (they left off: " + n.x + ")").slice(0, 118) : t; });
-  return c; }; }
+  } });
 WHATS_NEW.push(
   { v: 212, go: () => { closeFull(); dyClose(); nxShut(); const g = wiPick() || onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); },
     at: () => $("#full .wi") || $("#full [data-wasi]"),
@@ -19463,7 +19464,7 @@ async function wiStoryGet(g) {
 /* on the New game page: the recap sits under the note card */
 { const _wc = wiCard; wiCard = function (g, force) { const c = _wc.apply(this, arguments); return force || !c ? c : c + wiStoryHtml(g); }; }
 { const _wr = wiRefresh; wiRefresh = function (g) { const o = _wr.apply(this, arguments); wiStoryPaint(g); return o; }; }
-{ const _wa = wiAdd; wiAdd = function (g) { const o = _wa.apply(this, arguments); if (g) setTimeout(() => wiStoryGet(g), 300); return o; }; }
+extend("wiAdd", { after: (o, [g]) => { if (g) setTimeout(() => wiStoryGet(g), 300); } });
 onNav("after", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]);
   if (g && wiLast(g)) { wiStoryFit(); setTimeout(() => wiStoryGet(g), 600); } });
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-wismore]"); if (!b) return; e.stopPropagation();
@@ -19702,7 +19703,7 @@ setTimeout(() => drRun(false), 25000);
   return o; }; }
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-drgo]"); if (!b) return; e.stopPropagation(); beep("tap"); window.open(`https://store.steampowered.com/app/${b.dataset.drgo}/`, "_blank", "noopener"); }, true);
 /* the deal-radar games ride along on a manual "check now" too */
-{ const _pr = pxRun; pxRun = async function (force, only) { const o = await _pr.apply(this, arguments); if (!only && o) drRun(!!force); return o; }; }
+extend("pxRun", { map: (p, [force, only]) => Promise.resolve(p).then(o => { if (!only && o) drRun(!!force); return o; }) });
 /* Settings: deal radar + release-date watcher, next to price alerts */
 { const _sh = pxSetHtml; pxSetHtml = function () { const log = (S.rdLog || []).slice(-5).reverse();
   return _sh.apply(this, arguments) + `<label>Deal radar</label>
@@ -19795,16 +19796,16 @@ function fnCheck() { if (document.hidden) return; const x = fnPick(); if (x) fnA
 setTimeout(fnCheck, 9000);
 { let away = 0; addEventListener("visibilitychange", () => { if (document.hidden) away = Date.now(); else if (away && Date.now() - away > 3 * 36e5) setTimeout(fnCheck, 6000); }); }
 /* a note that says you finished asks right away */
-{ const _wa = wiAdd; wiAdd = function (g, text) { const o = _wa.apply(this, arguments);
-  if (g && !S.fnOff && FN_END.test(String(text || "")) && (g.state || "") === "playing") fnAsk(g, { t: "your note sounds like you reached the end" }, true); return o; }; }
+extend("wiAdd", { after: (o, [g, text]) => {
+  if (g && !S.fnOff && FN_END.test(String(text || "")) && (g.state || "") === "playing") fnAsk(g, { t: "your note sounds like you reached the end" }, true); } });
 /* the notification: one "Did you finish X?" the next evening (with the "How's it going?" kind) */
-{ const _np = nxPlan; nxPlan = function (days) { const out = _np.apply(this, arguments);
+extend("nxPlan", { after: out => {
   try { const x = !S.fnOff && nxKinds().has("playing") ? fnPick() : null;
     if (x) { const [a, b] = nxWindow(), t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 1);
       const at = t.getTime() + Math.max(a, Math.min(20, b - 1)) * 36e5;
       out.push({ at, title: "🏁 Did you finish " + x[0].title.slice(0, 40) + "?", body: nxVoice((x[1].t.charAt(0).toUpperCase() + x[1].t.slice(1)) + ". Tap to mark it and give it a score."), tag: "finish-" + x[0].id, url: "./?nudge=finish&g=" + x[0].id });
       out.sort((p, q) => p.at - q.at); } } catch (e) {}
-  return out; }; }
+  } });
 { const qp = new URLSearchParams(location.search); if (qp.get("nudge") === "finish") { const g = S.games.find(x => x.id === qp.get("g")); if (g) setTimeout(() => { if (isPlayed(g)) qScore(g.id); else fnAsk(g, fnWhy(g), true); }, 2200); } }
 WHATS_NEW.push(
   { v: 218, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Extra features", text: "Finished it?" }); }, at: "#s-xfn",
@@ -19965,13 +19966,13 @@ onNav("after", (k, a) => { if (k !== "game") return;
 setTimeout(() => rvWatch(false), 30000);
 addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => rvWatch(false), 10000); });
 /* notification: the evening after a release, "⭐ Reviews for X" (with the Release days kind) */
-{ const _np = nxPlan; nxPlan = function (days) { const out = _np.apply(this, arguments);
+extend("nxPlan", { after: out => {
   try { if (!S.rvOff && nxKinds().has("release")) { const [a, b] = nxWindow();
     S.games.filter(g => rvWant(g) && !rvHas(g) && rvAge(g) >= -RV_SOON && rvAge(g) <= 1).slice(0, 3).forEach(g => {
       const t = new Date(g.date + "T00:00:00"); t.setDate(t.getDate() + 1); const at = t.getTime() + Math.max(a, Math.min(19, b - 1)) * 36e5;
       if (at > Date.now()) out.push({ at, title: "⭐ Reviews for " + g.title.slice(0, 40), body: nxVoice("Tap and I'll fetch what critics and players think, and what you'd probably give it."), tag: "rv-" + g.id, url: "./?nudge=reviews&g=" + g.id }); });
     out.sort((p, q) => p.at - q.at); } } catch (e) {}
-  return out; }; }
+  } });
 { const qp = new URLSearchParams(location.search); if (qp.get("nudge") === "reviews") { const g = S.games.find(x => x.id === qp.get("g")); if (g) setTimeout(() => { openFull(g.id); rvWatch(true, g); }, 2200); } }
 
 /* ---- hours to beat ---- */
@@ -20284,7 +20285,7 @@ function ssnLines(s) {
 }
 extend("pnBubLines", { map: L => { const s = ssnNow(), x = ssnLines(s);
   return x.length && Array.isArray(L) ? L.concat(x, x) : L; } });
-{ const _rx = pnBubReact; pnBubReact = function () { const o = _rx.apply(this, arguments); ssnHat(); return o; }; }
+extend("pnBubReact", { after: () => { ssnHat(); } });
 function ssnHat() { const b = document.getElementById("pnbub"), h = b && b.querySelector(".hat"), s = ssnNow(); if (!h || !s) return;
   const t = new Date().toLocaleDateString("en-CA"); if (S.bubBorn && S.bubBorn.slice(5) === t.slice(5) && S.bubBorn !== t) return; h.textContent = s.hat; }
 setTimeout(ssnHat, 1500);
@@ -20573,8 +20574,8 @@ function orcCard() {
       <div class="orc-l">${o.L.slice(0, 5).map(x => `<button type="button" data-opg="${x.g.id}"><span>${esc(x.g.title)}</span><em>guessed ${x.pr.toFixed(1)} · you ${x.v}</em></button>`).join("")}</div>`
       : `<p class="ix-s">Finish a game I've guessed (I guess every game you play) and I'll keep score here.</p>`}</div>`;
 }
-{ const _tp = tasteInsightsPage; tasteInsightsPage = function () { const o = _tp.apply(this, arguments);
-  return typeof o === "string" && o.endsWith("</div>") ? o.slice(0, -6) + orcCard() + "</div>" : o; }; }
+extend("tasteInsightsPage", { map: o =>
+  typeof o === "string" && o.endsWith("</div>") ? o.slice(0, -6) + orcCard() + "</div>" : o });
 /* Then & now also shows the finish forecast against the real finish */
 { const _cc = capCard; capCard = function (g) { const o = _cc.apply(this, arguments); const c = g && g.cap, p = g && playedRec(g);
   if (!o || !c || !c.e0 || !p || !p.t) return o;
@@ -21063,7 +21064,7 @@ function nxFacts() {
   const d = new Date(); add(`Now: ${d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}, ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`);
   return F.slice(0, 18);
 }
-{ const _nc = nxContext; nxContext = function () { const o = _nc.apply(this, arguments) || {}; try { o.facts = nxFacts(); } catch (e) {} return o; }; }
+extend("nxContext", { map: o => { o = o || {}; try { o.facts = nxFacts(); } catch (e) {} return o; } });
 WHATS_NEW.push(
   { v: 229, go: () => { closeFull(); dyClose(); nxShut(); const g = pxWatched().find(x => x.px && PX_S.some(s => x.px[s] && x.px[s].now != null)) || pxWatched()[0]; if (g) openFull(g.id); },
     at: () => $("#full .px") || $("#full [data-px]"),
@@ -21434,8 +21435,8 @@ function gtagFilter(t) {
   const c = allGames().filter(x => gdGenreSet(x).has(gdKey(t))).length;
   toast(`${c} ${c === 1 ? "game" : "games"} tagged ${t} · switch back in the Queue's filter menu`);
 }
-{ const _qc = qCounts; qCounts = function () { const c = _qc.apply(this, arguments); QFILTERS.forEach(([k]) => { if (/^G:/.test(k)) c[k] = allGames().filter(x => gdGenreSet(x).has(gdKey(k.slice(2)))).length; }); return c; }; }
-{ const _ql = queueList; queueList = function () { const f = qNow(); if (/^G:/.test(f)) return allGames().filter(x => gdGenreSet(x).has(gdKey(f.slice(2)))); return _ql.apply(this, arguments); }; }
+extend("qCounts", { after: c => { QFILTERS.forEach(([k]) => { if (/^G:/.test(k)) c[k] = allGames().filter(x => gdGenreSet(x).has(gdKey(k.slice(2)))).length; }); } });
+extend("queueList", { before: () => { const f = qNow(); if (/^G:/.test(f)) return extend.skip(allGames().filter(x => gdGenreSet(x).has(gdKey(f.slice(2))))); } });
 /* a reload keeps the genre view (QFILTERS starts without it) */
 if (/^G:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { QFILTERS.push([S.qFilter, S.qFilter.slice(2)]); QICON[S.qFilter] = "🏷️"; try { renderQueue(); } catch (e) {} }
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-gtag]"); if (!b) return; e.stopPropagation(); beep("tap"); gtagFilter(b.dataset.gtag); }, true);
@@ -21991,13 +21992,12 @@ const grumL = () => S.games.filter(g => !g.comp && !isPlayed(g) && g.state !== "
   after: c => { if (!c) return; window.pnSilentHP = c.was;
     S.fxBossMax = Math.max(grumL().reduce((a, x) => a + x.h, 0), (S.fxBossMax || 0) - c.quiet);
     c.fixed.forEach(g => { g.hpFix = 1; }); } }); }
-{ const _r = pnBubReact; pnBubReact = function () {
+extend("pnBubReact", { before() {
   const pl = S.played || [], old = S.bubSnap, last = pl[pl.length - 1], g = last && S.games.find(x => x.id === last.id);
-  if (old && pl.length > (old.p || 0) && g && g.hpFix) { old.p = pl.length; delete g.hpFix; save();
-    const o = _r.apply(this, arguments);
+  if (old && pl.length > (old.p || 0) && g && g.hpFix) { old.p = pl.length; delete g.hpFix; save(); return g; } },
+  after(o, args, g) { if (!g) return;
     try { pnBubSay([`Noted: ${g.title} was already played. That's not a hit, so Grumble keeps his HP. Fair's fair.`, g.id]); } catch (e) {}
-    return o; }
-  return _r.apply(this, arguments); }; }
+ } });
 
 /* ---- screenshots on a game's page: 4–5 from the stores (Steam, else PlayStation, else Nintendo; Nintendo first for a
    Switch-only game), RAWG's when the stores have none. Fetched by themselves when the page opens, and for a few games a day. ---- */
@@ -22197,7 +22197,7 @@ addEventListener("online", () => setTimeout(shotsSweep, 3000));
     if (g && !(g.shots || []).length) { const id = g.id; setTimeout(() => { if (hubAt === id) { clearTimeout(tm); tm = setTimeout(() => check(id), 15000); } }, 400); }
     } }); }
 /* a game you add gets its screenshots straight away */
-{ const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => shotsFetch(g, true), 3000); return o; }; }
+extend("sgdbFillOne", { after: (o, [g]) => { setTimeout(() => shotsFetch(g, true), 3000); } });
 /* the viewer: the small copy at once, the big one swapped in when it's ready */
 shotView = function (g, i) {
   const l = g.shots || []; if (!l.length) return;
@@ -22826,7 +22826,7 @@ setTimeout(() => hlRun(false), 20000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(() => hlRun(false), 9000); });
 addEventListener("online", () => setTimeout(() => hlRun(true), 3000));
 /* a game you add is looked up straight away */
-{ const _f = sgdbFillOne; sgdbFillOne = async function (g) { const o = _f.apply(this, arguments); setTimeout(() => { if (g && !g.hl) hlRun(true, g); }, 2500); return o; }; }
+extend("sgdbFillOne", { after: (o, [g]) => { setTimeout(() => { if (g && !g.hl) hlRun(true, g); }, 2500); } });
 
 /* ---- whose number: typing in Edit or the Add form makes it yours ---- */
 document.addEventListener("click", e => {
@@ -23342,7 +23342,7 @@ function smWatch(drops) {
   const d = (drops || []).map(x => [x.g, smBuy(x.g)]).find(x => x[1] && (x[1].k === "wait" || x[1].k === "later"));
   if (d) smSay(`💸 ${d[0].title} dropped to ${d[1].price}, but you won't get to it for ${smLong(d[1].reach)}${d[1].sale && !d[1].sale.now ? ` and the ${d[1].sale.n} comes first` : ""}. I'd wait. Tap me for your shopping plan.`, "buy");
 }
-{ const _pr = pxRun; pxRun = async function (force, only) { const o = await _pr.apply(this, arguments); if (!only && o) setTimeout(() => smWatch(o.drops), 1800); return o; }; }
+extend("pxRun", { map: (p, [force, only]) => Promise.resolve(p).then(o => { if (!only && o) setTimeout(() => smWatch(o.drops), 1800); return o; }) });
 setTimeout(() => { if (!smBusy()) smWatch([]); }, 32000);
 
 /* ---- 2. drifting games ---- */
@@ -24017,8 +24017,7 @@ extend("renderHome", { after: () => { dzPlay(); } });
 /* 3. Taste → Insights: the player type as a court card, with patterned card backs either side */
 const DZ_CROWN = '<svg class="dzc-crown" viewBox="0 0 120 52" fill="currentColor" aria-hidden="true"><path d="M8 40 Q60 26 112 40 L112 50 Q60 37 8 50 Z"/>'
   + [24, 60, 96].map(x => `<circle cx="${x}" cy="14" r="6"/><circle cx="${x - 6}" cy="22" r="6"/><circle cx="${x + 6}" cy="22" r="6"/><rect x="${x - 2}" y="22" width="4" height="12"/>`).join("") + "</svg>";
-{ const _tip = tasteInsightsPage; tasteInsightsPage = function () {
-  const o = _tip.apply(this, arguments);
+extend("tasteInsightsPage", { map(o) {
   if (!dzOn("court") || typeof o !== "string") return o;
   const main = ixType()[0]; if (!main) return o;
   const word = String(main.c || main.t).replace(/^The\s+/i, "").trim(), L = (word[0] || "?").toUpperCase(), ix = word.slice(0, 3).toLowerCase() + ".";
@@ -24029,7 +24028,7 @@ const DZ_CROWN = '<svg class="dzc-crown" viewBox="0 0 120 52" fill="currentColor
   /* the old medal and shine make way for the card; the words stay */
   return o.replace(/<section class="ix-hero ([^"]*)"([^>]*)>([\s\S]*?)<\/section>/, (m, cls, rest, inner) =>
     `<section class="ix-hero dzc ${cls}"${rest}>${card}${inner.replace(/<i class="ix-shine"><\/i>/, "").replace(/<div class="ix-medal">[\s\S]*?<\/div>/, "")}</section>`);
-}; }
+} });
 
 /* the first screens were drawn before this script existed: put the new looks in once */
 dzPlay();
@@ -24094,7 +24093,7 @@ onScrolled((e, first) => { if (REST.on) restWake(); else if (first) { clearTimeo
 document.addEventListener("visibilitychange", () => { if (!document.hidden) restWake(); });
 restWake();
 /* Nexi's power-up spawns a bolt and embers every 180ms (it ends itself after 6s): none start while resting */
-{ const _pu3 = pnPowerUp; pnPowerUp = function () { if (window.pnRest) return; return _pu3.apply(this, arguments); }; }
+extend("pnPowerUp", { before: () => { if (window.pnRest) return extend.skip(); } });
 document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest("#s-rest [data-v]"); if (!b) return;
   e.stopPropagation(); b.parentElement.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));

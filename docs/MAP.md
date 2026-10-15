@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25723 lines, 1915 KB, 112 scripts, 62 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 25722 lines, 1914 KB, 112 scripts, 62 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -8,55 +8,43 @@ How the file is built: one core style (line 15) and one core script (the biggest
 
 | function | defined | layers (line: block) |
 |---|---|---|
-| `renderTaste` | 10246 | 2: 12727 core, 18061 v205 |
-| `xFeatures` | 12395 | 2: 12795 core, 13210 core |
-| `qCounts` | 7061 | 2: 13031 core, 21437 v232 |
-| `queueList` | 7070 | 2: 13032 core, 21438 v232 |
-| `pnPowerUp` | 13529 | 2: 13979 core, 24097 v260 |
-| `nxContext` | 12855 | 2: 18779 v212, 21066 v229 |
-| `wiAdd` | 18697 | 2: 19466 v216, 19798 v218 |
-| `pxRun` | 18920 | 2: 19705 v217, 23345 v249 |
-| `nxPlan` | 13096 | 2: 19801 v218, 19968 v219 |
-| `pnBubReact` | 11551 | 2: 20287 v220, 21994 v237 |
-| `tasteInsightsPage` | 17916 | 2: 20576 v221, 24020 v259 |
-| `sgdbFillOne` | 4417 | 2: 22200 v238, 22829 v241 |
 
 ## Screen-change hooks (onNav / onSettings, since v269)
 
-goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSettings every `onSettings(...)` hook (one wrap each, defined at line 12433, in registration order below). New code registers here; `kit.mjs syntax` fails on a new wrap of those four.
+goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSettings every `onSettings(...)` hook (one wrap each, defined at line 12434, in registration order below). New code registers here; `kit.mjs syntax` fails on a new wrap of those four.
 
-- 12448: `onNav("after", (k, a) => { if (k === "sub") try { uVisit(a[0]); } catch (e) {} });`
-- 12449: `onNav("before", (k, a) => { if (k === "game" && (hubAt !== a[0] || !$("#full.on"))) uCount("o", "game"); });`
-- 12451: `onSettings("before", (k, a) => { const sc = a[0]; uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : ""`
-- 15316 v178: `onSettings("after", () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); });`
-- 15920 v187: `onSettings("after", () => setTimeout(helperCheck, 50));`
-- 16479 v194: `onSettings("after", () => shxSetWire());`
-- 16891 v196: `onNav("after", () => bugSeen());`
-- 16892 v196: `onSettings("after", () => { bugCrumb("screen settings"); bugLayoutSoon(); });`
-- 17386 v203: `onNav("before", k => { if (k === "game") openAt = performance.now(); });`
-- 18070 v205: `onNav("after", k => { if (k === "tab" && curTab() !== "taste") ixShown.clear(); });`
-- 18612 v211: `onSettings("after", () => cbSetWire());`
-- 19173 v213: `onSettings("after", () => pxSetWire());`
-- 19175 v213: `onNav("after", (k, a) => { if (k !== "game") return;`
-- 19467 v216: `onNav("after", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]);`
-- 19961 v219: `onNav("after", (k, a) => { if (k !== "game") return;`
-- 20192 v220: `onSettings("before", () => { const el = document.getElementById("sheet"); if (el) el._flkOpen = performance.no`
-- 20489 v221: `onNav("after", k => { if (k === "tab" && !lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); })`
-- 20492 v221: `onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]), d = g ? dust`
-- 20689 v225: `onNav("before", k => { if (k !== "game") return;`
+- 12449: `onNav("after", (k, a) => { if (k === "sub") try { uVisit(a[0]); } catch (e) {} });`
+- 12450: `onNav("before", (k, a) => { if (k === "game" && (hubAt !== a[0] || !$("#full.on"))) uCount("o", "game"); });`
+- 12452: `onSettings("before", (k, a) => { const sc = a[0]; uCount("o", "settings" + (sc && sc !== "app" ? "/" + sc : ""`
+- 15317 v178: `onSettings("after", () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); });`
+- 15921 v187: `onSettings("after", () => setTimeout(helperCheck, 50));`
+- 16480 v194: `onSettings("after", () => shxSetWire());`
+- 16892 v196: `onNav("after", () => bugSeen());`
+- 16893 v196: `onSettings("after", () => { bugCrumb("screen settings"); bugLayoutSoon(); });`
+- 17387 v203: `onNav("before", k => { if (k === "game") openAt = performance.now(); });`
+- 18071 v205: `onNav("after", k => { if (k === "tab" && curTab() !== "taste") ixShown.clear(); });`
+- 18613 v211: `onSettings("after", () => cbSetWire());`
+- 19174 v213: `onSettings("after", () => pxSetWire());`
+- 19176 v213: `onNav("after", (k, a) => { if (k !== "game") return;`
+- 19468 v216: `onNav("after", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]);`
+- 19962 v219: `onNav("after", (k, a) => { if (k !== "game") return;`
+- 20193 v220: `onSettings("before", () => { const el = document.getElementById("sheet"); if (el) el._flkOpen = performance.no`
+- 20490 v221: `onNav("after", k => { if (k === "tab" && !lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); })`
+- 20493 v221: `onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]), d = g ? dust`
+- 20690 v225: `onNav("before", k => { if (k !== "game") return;`
 - 22030 v237: `onNav("after", (k, a) => { if (k !== "game") return;`
 - 23590 v249: `onNav("after", k => { if (k === "tab") lagWatch(() => "Switching to " + lagWhere()); else if (k === "game") la`
 - 23592 v249: `onSettings("after", () => lagWatch("Opening Settings"));`
-- 24389 v264: `onNav("after", k => { if (k === "tab") { STACK.go = null; stackArm(3500); } });`
-- 24512 v265: `onNav("before", k => prbStart(k === "game" ? "open" : "switch", 1000));`
-- 24906 v267: `onNav("after", () => requestAnimationFrame(fitRetry));`
-- 24951 v267: `onNav("after", k => { if (k !== "sub") picArm(4000); });`
-- 24992 v267: `onNav("after", k => { if (k !== "sub") picWait(); });`
-- 25098 v271: `onNav("after", (k, a) => {`
-- 25276 v278: `onSettings("before", (k, a) => { lvpScope = SCOPE_NAME[a[0]] ? a[0] : "app"; });`
-- 25277 v278: `onSettings("after", () => requestAnimationFrame(lvpSync));`
-- 25565 v281: `onSettings("after", () => spSetWire());`
-- 25701 v285: `onSettings("after", () => {`
+- 24388 v264: `onNav("after", k => { if (k === "tab") { STACK.go = null; stackArm(3500); } });`
+- 24511 v265: `onNav("before", k => prbStart(k === "game" ? "open" : "switch", 1000));`
+- 24905 v267: `onNav("after", () => requestAnimationFrame(fitRetry));`
+- 24950 v267: `onNav("after", k => { if (k !== "sub") picArm(4000); });`
+- 24991 v267: `onNav("after", k => { if (k !== "sub") picWait(); });`
+- 25097 v271: `onNav("after", (k, a) => {`
+- 25275 v278: `onSettings("before", (k, a) => { lvpScope = SCOPE_NAME[a[0]] ? a[0] : "app"; });`
+- 25276 v278: `onSettings("after", () => requestAnimationFrame(lvpSync));`
+- 25564 v281: `onSettings("after", () => spSetWire());`
+- 25700 v285: `onSettings("after", () => {`
 
 ## Blocks
 
@@ -64,111 +52,111 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 |---|---|---|---|
 | 15–2954 | style | 205 | **CORE** — — |
 | 2958–2993 | script | 3 | v252: the card's markup, here so the launch intro can use it before the rest of the page loads. o: k (speed), ar (width / height), word, rv (reveal… |
-| 3106–14028 | script | 703 | **CORE** — ===== v279: extend(name, hook) — how a feature adds to an app function, instead of wrapping it ===== The app grew by wrapping functions (const _f =… |
-| 14029–14047 | style | 1 | — |
-| 14047–14087 | script | 2 | — |
-| 14088–14124 | style | 3 | v147 Top board: ranked rows, big score, share as an image |
-| 14124–14214 | script | 7 | v147 Top board in Played, plus a share-as-image button |
-| 14215–14241 | style | 2 | v150 badges |
-| 14241–14310 | script | 4 | v150 badges: worked out from what you've done, saved with the date you earned them |
-| 14310–14316 | script | 0 | v151 art strength slider: live while dragging, saved when let go |
-| 14316–14317 | script | 0 | — |
-| 14317–14334 | style | 1 | v155 light board motion: only fade + slide, which the phone's graphics chip does for free |
-| 14334–14351 | script | 1 | — |
-| 14351–14377 | style | 2 | v156 scroll-driven motion: the browser ties these to your finger on its own graphics thread, so they stay at full refresh rate however fast you… |
-| 14377–14385 | style | 1 | v157 the real drag: a full-screen blurred picture sat behind every screen, slowly zooming forever, so the phone re-blurred the whole screen on every… |
-| 14385–14392 | script | 0 | — |
-| 14393–14412 | style | 1 | v163: Why you'll love it — one sheet, fades and slides in, nothing loops |
-| 14412–14482 | script | 4 | v163: "Why you'll love it" — sends your ratings and this game to your Cloudflare helper, which asks free Workers AI why it fits your taste (or… |
-| 14483–14514 | script | 2 | v166: reset scores — one game from its page, or everything from Settings → Your data. Games, art, hours and diary stay; played games stay played,… |
-| 14515–14525 | style | 1 | v167 Nexi's glow sometimes showed as a square box. Three stacked fixes (blur, clip-path, mask) each add a separate layer the phone can drop… |
-| 14526–14561 | style | 3 | v169 speed: these animations changed colours/sizes/positions, which makes the phone redraw on every frame. Same looks, now moved or faded instead,… |
-| 14562–14573 | style | 1 | v171 swipe a queue card left to delete the game. Only the card's contents slide (translate), the red button waits underneath. |
-| 14573–14634 | script | 3 | — |
-| 14635–14650 | style | 1 | v172 what's-new tour: a small card with Nexi's words, while Nexi points at the real button |
-| 14650–14852 | script | 18 | v172: after every update Nexi shows what's new — where it is, and a nudge to try it. HOW TO ADD ONE: push an entry to WHATS_NEW with the version it… |
-| 14852–15095 | style | 22 | ===== v174 Home dashboard (layout from the owner's reference, our black + blue colours) ===== |
-| 15095–15181 | style | 8 | ===== v177 play sessions ===== |
-| 15181–15321 | script | 9 | ===== v178 calmer settings and edit: search, most-used shortcuts, one section at a time, fewer knobs up front ===== |
-| 15321–15367 | style | 4 | ===== v178 calmer settings ===== |
-| 15367–15380 | style | 1 | ===== v180 finish month picker ===== |
-| 15380–15388 | style | 1 | ===== v181 theme picker ===== |
-| 15388–15535 | script | 13 | ===== v181 Game Shuffler: swipe through your games one at a time (right = tempted, left = not now). Styled after the owner's chess reference: a big… |
-| 15535–15616 | style | 8 | ===== v181 Game Shuffler (chess reference layout, our black + theme accent) ===== |
-| 15616–15642 | style | 2 | ===== v182 lists ===== |
-| 15642–15679 | style | 3 | ===== v183 extras off by default, quick duel / score sheets, usage table, quick add ===== |
-| 15679–15702 | script | 2 | ===== v183 what's new + settings extras ===== |
-| 15702–15747 | script | 3 | ---- badges that keep going as you duel ---- |
-| 15747–15824 | style | 7 | ===== v184 ranking: tiers, confidence dots, On deck, Nexi on Home, insights ===== |
-| 15824–15844 | script | 2 | ===== v185 what's new ===== |
-| 15844–15891 | style | 4 | ===== v185 Nexi chat, personalities, similar games ===== |
-| 15891–15899 | script | 0 | ===== v186 what's new ===== |
-| 15899–15927 | script | 3 | ===== v187: similar games picked by the AI and checked on RAWG; helper status in Settings → Nexi ===== |
-| 15927–16045 | style | 8 | ===== v188 "Clean" style: the rest of the app speaks Home's language ===== One layer, scoped to html.ui2 (Settings → Look of the app → Style →… |
-| 16045–16056 | script | 1 | ===== v188 what's new: the Clean style ===== |
-| 16056–16076 | style | 2 | ===== v189 tour: Nexi drops out of the notch / camera hole, then rides on the tour card ===== |
-| 16076–16177 | script | 8 | ===== v189 tour: Nexi comes out of the notch and stays with the tour card ===== |
-| 16177–16333 | style | 12 | ===== v194 "Sicker everywhere": Home's look on every screen (Clean style only) ===== Each screen's header is a card like Home's: a big title, live… |
-| 16333–16543 | script | 16 | ===== v194: every screen's header is a card like Home's ===== |
-| 16543–16659 | style | 12 | ===== v195: the Add screen and a game's page in Home's language (both switchable) ===== |
-| 16659–16709 | script | 4 | ===== v195: a game's page, New style ===== |
-| 16709–16714 | style | 0 | v196: on phones under ~400px the pick card was 352px wide whatever the screen (its 220px min-height through the 16:10 ratio set a minimum width) and… |
-| 16714–16979 | script | 21 | ===== v196: problem reports. The app notices when something breaks and files it (Settings → This build) ===== What it watches: script errors, a page… |
-| 16979–16997 | style | 2 | — |
-| 16997–17094 | script | 8 | ===== v197: Nexi says when he's spotted (and already reported) a problem, and the report sheet lists them ===== |
-| 17094–17186 | script | 8 | ===== v198: problem reports catch lag, not just freezes ===== The v196 check only saw 400ms+ freezes; the stutters you feel on a 120Hz screen are… |
-| 17186–17290 | script | 8 | ===== v199: Nexi's eyes see more: cut-off text, text on top of text, a blank screen ===== Runs with bugLayout (idle, once a screen settles). Only… |
-| 17290–17317 | script | 2 | ===== v200: the two lags the owner felt: Queue scrolling and a game page opening ===== |
-| 17317–17329 | script | 1 | ===== v201: every picture in the SteamGridDB and Steam pickers shows its real size (4K / HD / Low) before you pick; SteamGridDB lists sharpest first… |
-| 17329–17379 | script | 4 | ===== v202: 4K art really shows in 4K (the swap to the sharp copy was starved by the live countdown, see the liteUp kick), RAWG screenshots as… |
-| 17379–17403 | script | 2 | ===== v203: a game page is sharp as soon as it opens. warmGame (touch-down, and each neighbour for the swipe) already downloaded and decoded the… |
-| 17403–17477 | style | 7 | ===== v204: each personality has its own face, idle move and a signature move when it talks. Persona rules use :where() so they beat the plain face… |
-| 17477–17721 | script | 21 | ===== v204: Nexi's personalities get their own lines (context-aware, ~20 each), faces and moves; more everyday lines for everyone; double tap opens… |
-| 17721–17884 | style | 17 | ===== v205: Taste → Insights. Psychology, Patterns and Analytics in one page, ordered the way attention works: who you are (identity) → how good… |
-| 17884–18078 | script | 19 | ===== v205: Taste → Insights (see the style block above for the order and why) ===== |
-| 18078–18127 | script | 4 | ===== v206: lag fixes from the problem reports ===== render() rebuilt all seven screens on every save, add or delete (#58: a 260ms tap on Edit →… |
-| 18127–18139 | style | 1 | v208: found by Nexi's new checks on the first sweep: queue rank numbers were drawn in the border colour (1.9:1, hard to read) and the small icon… |
-| 18139–18399 | script | 21 | ===== v208: Nexi's new senses. The owner hit 10–15 problems he never saw: a page that flashed back while closing (#68), a description cut short with… |
-| 18399–18416 | script | 1 | ===== v209: #81 (4K art stayed low-res). The fix itself is in liteUp's go() (retries, decode() fallback, LITE_NOFULL) and warmGame; this is the tour… |
-| 18416–18671 | script | 19 | ===== v211: cloud backup ===== Everything on this phone is sealed here (AES-GCM, key made from the restore code) and sent to the helper, which only… |
-| 18671–18687 | style | 1 | — |
-| 18687–18792 | script | 8 | ===== v212: "Where was I?" notes ===== A game keeps short notes about where you stopped (g.wasI = [{t, x}], newest last, 20 kept). The newest shows… |
-| 18792–18832 | style | 4 | — |
-| 18832–19222 | script | 41 | ===== v213: price alerts (Steam + PlayStation Store) ===== Games you're waiting for (not played, not dropped, not competitive) are priced through… |
-| 19222–19278 | style | 4 | — |
-| 19278–19290 | style | 1 | ===== v215 fixes ===== |
-| 19290–19411 | script | 12 | ===== v215: the frozen game page (#99, #102, #103), Read more (#85, #100), Taste names (#86), Queue rows (#89), 4K pictures by default (#84), and… |
-| 19411–19426 | style | 1 | ===== v216: the story so far ===== |
-| 19426–19483 | script | 5 | ===== v216: "the story so far". Under your newest 📍 note on a game's page, Nexi writes a short recap of the plot up to where the note says you are… |
-| 19483–19583 | script | 9 | ===== v216: Steam's genres and "more like this". Steam's own tags are the genres players vote on ("Souls-like", "Metroidvania", "JRPG",… |
-| 19583–19602 | script | 2 | — |
-| 19602–19609 | style | 0 | ===== v217: release-date watcher + deal radar ===== |
-| 19609–19729 | script | 11 | ===== v217: two new things Nexi does on his own (the owner loves automatic features). 1. Release-date watcher (`rdWatch`): every game you're waiting… |
-| 19729–19733 | style | 0 | ===== v218: "Finished it?" (same card as Where was I?) ===== |
-| 19733–19815 | script | 7 | ===== v218: "Finished it?" — Nexi notices when a game you're playing is probably done and asks, by himself. Signals (`fnWhy(g)`, first that fits):… |
-| 19815–19833 | style | 1 | ===== v219: reviews are in (+ your score, predicted) ===== |
-| 19833–20075 | script | 20 | ===== v219: three more things Nexi does by himself, and smarter ones (the owner: "I need more smarter and useful auto things"). 1. Reviews are in… |
-| 20075–20106 | style | 3 | ===== v220: away report, finish forecast, time capsule, seasons ===== |
-| 20106–20349 | script | 22 | ===== v220: six more things that happen by themselves (the owner: "more auto, unique, rare and out of the box"). 1. While you were away (`aw*`):… |
-| 20349–20368 | style | 1 | ===== v221: logo fit, Nexi in the rail, dusty backlog, crystal ball ===== |
-| 20368–20605 | script | 22 | ===== v221: the owner's and their friend's reports (#118 prices stuck on "checking…", #114 "fit the logo in the queue automatically", #123 "the rail… |
-| 20605–20618 | script | 1 | ===== v222: #153 tour steps that point at things only there once you've scored games. The fixes are in the v184/v215 steps (fall back to the "What… |
-| 20618–20630 | script | 1 | ===== v224: prices in one line (pxCard, store logos PX_LOGO) + a tap on seated Nexi hides the rail (railHideNow) ===== |
-| 20630–20636 | style | 0 | ===== v225: the cover you tap flies into the game page ===== |
-| 20636–20702 | script | 5 | ===== v225: the cover you tap flies into the game page ===== Opening a game from anything that shows its cover (Home, queue, library, rail, deck,… |
-| 20702–20711 | script | 1 | ===== v226: platforms as logos on the game page (platChips / platHtml, next to platList) ===== |
-| 20711–20765 | script | 3 | ===== v227: prices for games the stores' title search can't find (the owner's GTA 6: the PS Store's old search doesn't list it, though its store… |
-| 20765–20774 | script | 1 | ===== v228: platform logos in one pill; price checks never skip a store for good (pxStale/pxGap, batches of 5); helper v13 ===== |
-| 20775–21080 | script | 33 | ===== v229: Nexi's brain. The owner wants Nexi "super smart", saying a lot more, all of it different and useful, and using their name much more.… |
-| 21080–21096 | style | 1 | v230: Browse and choose, every store |
-| 21096–21210 | script | 9 | ===== v230: pictures straight from the stores. Browse and choose (Edit → Look) now shows, next to SteamGridDB and RAWG, the official art of Steam… |
-| 21210–21219 | script | 1 | ===== v231 (daily fixer): #180/#181/#154 the tour's Next button answered slowly (it saved and opened the next screen inside the tap; now that waits… |
-| 21219–21327 | style | 10 | ===== v232: the same shape for every open queue card and every game page ===== |
-| 21327–21560 | script | 21 | ===== v232: the owner: "each queue card is a different size when open" and "the new game page lacks organisation: each game looks different because… |
-| 21560–21637 | style | 8 | ===== v236: game suggestions you can see (big cards, a preview with store screenshots), swipe to add, Discover, share to add ===== |
-| 21637–21950 | script | 28 | ===== v236: the owner: "adding Baldur's Gate 3 from Similar added the wrong game; the pictures are too small and I need more of a description; maybe… |
-| 21950–21965 | style | 1 | ===== v237: screenshots on every game page; Grumble only takes real hits ===== |
-| 21965–22084 | script | 11 | ===== v237: the owner: "I deleted Baldur's Gate and Grumble lost HP, which is wrong; and when I add a game, forget to say it's played and then say… |
+| 3106–14029 | script | 702 | **CORE** — ===== v279: extend(name, hook) — how a feature adds to an app function, instead of wrapping it ===== The app grew by wrapping functions (const _f =… |
+| 14030–14048 | style | 1 | — |
+| 14048–14088 | script | 2 | — |
+| 14089–14125 | style | 3 | v147 Top board: ranked rows, big score, share as an image |
+| 14125–14215 | script | 7 | v147 Top board in Played, plus a share-as-image button |
+| 14216–14242 | style | 2 | v150 badges |
+| 14242–14311 | script | 4 | v150 badges: worked out from what you've done, saved with the date you earned them |
+| 14311–14317 | script | 0 | v151 art strength slider: live while dragging, saved when let go |
+| 14317–14318 | script | 0 | — |
+| 14318–14335 | style | 1 | v155 light board motion: only fade + slide, which the phone's graphics chip does for free |
+| 14335–14352 | script | 1 | — |
+| 14352–14378 | style | 2 | v156 scroll-driven motion: the browser ties these to your finger on its own graphics thread, so they stay at full refresh rate however fast you… |
+| 14378–14386 | style | 1 | v157 the real drag: a full-screen blurred picture sat behind every screen, slowly zooming forever, so the phone re-blurred the whole screen on every… |
+| 14386–14393 | script | 0 | — |
+| 14394–14413 | style | 1 | v163: Why you'll love it — one sheet, fades and slides in, nothing loops |
+| 14413–14483 | script | 4 | v163: "Why you'll love it" — sends your ratings and this game to your Cloudflare helper, which asks free Workers AI why it fits your taste (or… |
+| 14484–14515 | script | 2 | v166: reset scores — one game from its page, or everything from Settings → Your data. Games, art, hours and diary stay; played games stay played,… |
+| 14516–14526 | style | 1 | v167 Nexi's glow sometimes showed as a square box. Three stacked fixes (blur, clip-path, mask) each add a separate layer the phone can drop… |
+| 14527–14562 | style | 3 | v169 speed: these animations changed colours/sizes/positions, which makes the phone redraw on every frame. Same looks, now moved or faded instead,… |
+| 14563–14574 | style | 1 | v171 swipe a queue card left to delete the game. Only the card's contents slide (translate), the red button waits underneath. |
+| 14574–14635 | script | 3 | — |
+| 14636–14651 | style | 1 | v172 what's-new tour: a small card with Nexi's words, while Nexi points at the real button |
+| 14651–14853 | script | 18 | v172: after every update Nexi shows what's new — where it is, and a nudge to try it. HOW TO ADD ONE: push an entry to WHATS_NEW with the version it… |
+| 14853–15096 | style | 22 | ===== v174 Home dashboard (layout from the owner's reference, our black + blue colours) ===== |
+| 15096–15182 | style | 8 | ===== v177 play sessions ===== |
+| 15182–15322 | script | 9 | ===== v178 calmer settings and edit: search, most-used shortcuts, one section at a time, fewer knobs up front ===== |
+| 15322–15368 | style | 4 | ===== v178 calmer settings ===== |
+| 15368–15381 | style | 1 | ===== v180 finish month picker ===== |
+| 15381–15389 | style | 1 | ===== v181 theme picker ===== |
+| 15389–15536 | script | 13 | ===== v181 Game Shuffler: swipe through your games one at a time (right = tempted, left = not now). Styled after the owner's chess reference: a big… |
+| 15536–15617 | style | 8 | ===== v181 Game Shuffler (chess reference layout, our black + theme accent) ===== |
+| 15617–15643 | style | 2 | ===== v182 lists ===== |
+| 15643–15680 | style | 3 | ===== v183 extras off by default, quick duel / score sheets, usage table, quick add ===== |
+| 15680–15703 | script | 2 | ===== v183 what's new + settings extras ===== |
+| 15703–15748 | script | 3 | ---- badges that keep going as you duel ---- |
+| 15748–15825 | style | 7 | ===== v184 ranking: tiers, confidence dots, On deck, Nexi on Home, insights ===== |
+| 15825–15845 | script | 2 | ===== v185 what's new ===== |
+| 15845–15892 | style | 4 | ===== v185 Nexi chat, personalities, similar games ===== |
+| 15892–15900 | script | 0 | ===== v186 what's new ===== |
+| 15900–15928 | script | 3 | ===== v187: similar games picked by the AI and checked on RAWG; helper status in Settings → Nexi ===== |
+| 15928–16046 | style | 8 | ===== v188 "Clean" style: the rest of the app speaks Home's language ===== One layer, scoped to html.ui2 (Settings → Look of the app → Style →… |
+| 16046–16057 | script | 1 | ===== v188 what's new: the Clean style ===== |
+| 16057–16077 | style | 2 | ===== v189 tour: Nexi drops out of the notch / camera hole, then rides on the tour card ===== |
+| 16077–16178 | script | 8 | ===== v189 tour: Nexi comes out of the notch and stays with the tour card ===== |
+| 16178–16334 | style | 12 | ===== v194 "Sicker everywhere": Home's look on every screen (Clean style only) ===== Each screen's header is a card like Home's: a big title, live… |
+| 16334–16544 | script | 16 | ===== v194: every screen's header is a card like Home's ===== |
+| 16544–16660 | style | 12 | ===== v195: the Add screen and a game's page in Home's language (both switchable) ===== |
+| 16660–16710 | script | 4 | ===== v195: a game's page, New style ===== |
+| 16710–16715 | style | 0 | v196: on phones under ~400px the pick card was 352px wide whatever the screen (its 220px min-height through the 16:10 ratio set a minimum width) and… |
+| 16715–16980 | script | 21 | ===== v196: problem reports. The app notices when something breaks and files it (Settings → This build) ===== What it watches: script errors, a page… |
+| 16980–16998 | style | 2 | — |
+| 16998–17095 | script | 8 | ===== v197: Nexi says when he's spotted (and already reported) a problem, and the report sheet lists them ===== |
+| 17095–17187 | script | 8 | ===== v198: problem reports catch lag, not just freezes ===== The v196 check only saw 400ms+ freezes; the stutters you feel on a 120Hz screen are… |
+| 17187–17291 | script | 8 | ===== v199: Nexi's eyes see more: cut-off text, text on top of text, a blank screen ===== Runs with bugLayout (idle, once a screen settles). Only… |
+| 17291–17318 | script | 2 | ===== v200: the two lags the owner felt: Queue scrolling and a game page opening ===== |
+| 17318–17330 | script | 1 | ===== v201: every picture in the SteamGridDB and Steam pickers shows its real size (4K / HD / Low) before you pick; SteamGridDB lists sharpest first… |
+| 17330–17380 | script | 4 | ===== v202: 4K art really shows in 4K (the swap to the sharp copy was starved by the live countdown, see the liteUp kick), RAWG screenshots as… |
+| 17380–17404 | script | 2 | ===== v203: a game page is sharp as soon as it opens. warmGame (touch-down, and each neighbour for the swipe) already downloaded and decoded the… |
+| 17404–17478 | style | 7 | ===== v204: each personality has its own face, idle move and a signature move when it talks. Persona rules use :where() so they beat the plain face… |
+| 17478–17722 | script | 21 | ===== v204: Nexi's personalities get their own lines (context-aware, ~20 each), faces and moves; more everyday lines for everyone; double tap opens… |
+| 17722–17885 | style | 17 | ===== v205: Taste → Insights. Psychology, Patterns and Analytics in one page, ordered the way attention works: who you are (identity) → how good… |
+| 17885–18079 | script | 19 | ===== v205: Taste → Insights (see the style block above for the order and why) ===== |
+| 18079–18128 | script | 4 | ===== v206: lag fixes from the problem reports ===== render() rebuilt all seven screens on every save, add or delete (#58: a 260ms tap on Edit →… |
+| 18128–18140 | style | 1 | v208: found by Nexi's new checks on the first sweep: queue rank numbers were drawn in the border colour (1.9:1, hard to read) and the small icon… |
+| 18140–18400 | script | 21 | ===== v208: Nexi's new senses. The owner hit 10–15 problems he never saw: a page that flashed back while closing (#68), a description cut short with… |
+| 18400–18417 | script | 1 | ===== v209: #81 (4K art stayed low-res). The fix itself is in liteUp's go() (retries, decode() fallback, LITE_NOFULL) and warmGame; this is the tour… |
+| 18417–18672 | script | 19 | ===== v211: cloud backup ===== Everything on this phone is sealed here (AES-GCM, key made from the restore code) and sent to the helper, which only… |
+| 18672–18688 | style | 1 | — |
+| 18688–18793 | script | 8 | ===== v212: "Where was I?" notes ===== A game keeps short notes about where you stopped (g.wasI = [{t, x}], newest last, 20 kept). The newest shows… |
+| 18793–18833 | style | 4 | — |
+| 18833–19223 | script | 41 | ===== v213: price alerts (Steam + PlayStation Store) ===== Games you're waiting for (not played, not dropped, not competitive) are priced through… |
+| 19223–19279 | style | 4 | — |
+| 19279–19291 | style | 1 | ===== v215 fixes ===== |
+| 19291–19412 | script | 12 | ===== v215: the frozen game page (#99, #102, #103), Read more (#85, #100), Taste names (#86), Queue rows (#89), 4K pictures by default (#84), and… |
+| 19412–19427 | style | 1 | ===== v216: the story so far ===== |
+| 19427–19484 | script | 5 | ===== v216: "the story so far". Under your newest 📍 note on a game's page, Nexi writes a short recap of the plot up to where the note says you are… |
+| 19484–19584 | script | 9 | ===== v216: Steam's genres and "more like this". Steam's own tags are the genres players vote on ("Souls-like", "Metroidvania", "JRPG",… |
+| 19584–19603 | script | 2 | — |
+| 19603–19610 | style | 0 | ===== v217: release-date watcher + deal radar ===== |
+| 19610–19730 | script | 11 | ===== v217: two new things Nexi does on his own (the owner loves automatic features). 1. Release-date watcher (`rdWatch`): every game you're waiting… |
+| 19730–19734 | style | 0 | ===== v218: "Finished it?" (same card as Where was I?) ===== |
+| 19734–19816 | script | 7 | ===== v218: "Finished it?" — Nexi notices when a game you're playing is probably done and asks, by himself. Signals (`fnWhy(g)`, first that fits):… |
+| 19816–19834 | style | 1 | ===== v219: reviews are in (+ your score, predicted) ===== |
+| 19834–20076 | script | 20 | ===== v219: three more things Nexi does by himself, and smarter ones (the owner: "I need more smarter and useful auto things"). 1. Reviews are in… |
+| 20076–20107 | style | 3 | ===== v220: away report, finish forecast, time capsule, seasons ===== |
+| 20107–20350 | script | 22 | ===== v220: six more things that happen by themselves (the owner: "more auto, unique, rare and out of the box"). 1. While you were away (`aw*`):… |
+| 20350–20369 | style | 1 | ===== v221: logo fit, Nexi in the rail, dusty backlog, crystal ball ===== |
+| 20369–20606 | script | 21 | ===== v221: the owner's and their friend's reports (#118 prices stuck on "checking…", #114 "fit the logo in the queue automatically", #123 "the rail… |
+| 20606–20619 | script | 1 | ===== v222: #153 tour steps that point at things only there once you've scored games. The fixes are in the v184/v215 steps (fall back to the "What… |
+| 20619–20631 | script | 1 | ===== v224: prices in one line (pxCard, store logos PX_LOGO) + a tap on seated Nexi hides the rail (railHideNow) ===== |
+| 20631–20637 | style | 0 | ===== v225: the cover you tap flies into the game page ===== |
+| 20637–20703 | script | 5 | ===== v225: the cover you tap flies into the game page ===== Opening a game from anything that shows its cover (Home, queue, library, rail, deck,… |
+| 20703–20712 | script | 1 | ===== v226: platforms as logos on the game page (platChips / platHtml, next to platList) ===== |
+| 20712–20766 | script | 3 | ===== v227: prices for games the stores' title search can't find (the owner's GTA 6: the PS Store's old search doesn't list it, though its store… |
+| 20766–20775 | script | 1 | ===== v228: platform logos in one pill; price checks never skip a store for good (pxStale/pxGap, batches of 5); helper v13 ===== |
+| 20776–21081 | script | 33 | ===== v229: Nexi's brain. The owner wants Nexi "super smart", saying a lot more, all of it different and useful, and using their name much more.… |
+| 21081–21097 | style | 1 | v230: Browse and choose, every store |
+| 21097–21211 | script | 9 | ===== v230: pictures straight from the stores. Browse and choose (Edit → Look) now shows, next to SteamGridDB and RAWG, the official art of Steam… |
+| 21211–21220 | script | 1 | ===== v231 (daily fixer): #180/#181/#154 the tour's Next button answered slowly (it saved and opened the next screen inside the tap; now that waits… |
+| 21220–21328 | style | 10 | ===== v232: the same shape for every open queue card and every game page ===== |
+| 21328–21561 | script | 21 | ===== v232: the owner: "each queue card is a different size when open" and "the new game page lacks organisation: each game looks different because… |
+| 21561–21638 | style | 8 | ===== v236: game suggestions you can see (big cards, a preview with store screenshots), swipe to add, Discover, share to add ===== |
+| 21638–21951 | script | 28 | ===== v236: the owner: "adding Baldur's Gate 3 from Similar added the wrong game; the pictures are too small and I need more of a description; maybe… |
+| 21951–21966 | style | 1 | ===== v237: screenshots on every game page; Grumble only takes real hits ===== |
+| 21966–22084 | script | 11 | ===== v237: the owner: "I deleted Baldur's Gate and Grumble lost HP, which is wrong; and when I add a game, forget to say it's played and then say… |
 | 22084–22229 | script | 12 | ===== v238: the owner: "only a few games got screenshots, and the ones that did took time to load. I want them instant and always ready, not fetched… |
 | 22229–22333 | style | 12 | ===== v239/v242: Game room — a little 3D room built from your games (owner's isometric "B" room reference: layout and style, our colours). Plain CSS… |
 | 22333–22702 | script | 31 | ===== v239: Game room. The owner sent an isometric illustration (a room built around a giant book-letter) and asked for something like it in 3D that… |
@@ -191,48 +179,48 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 23874–23888 | script | 1 | after v255 (#354 #355 #358): the lag checks skip frames that overlap a resize (fold/unfold, 0.8s after) or the time the app was hidden (asleep, in… |
 | 23888–23899 | script | 1 | v256 (#352): the calling card is drawn in steps (callingCard, yf) |
 | 23899–23974 | style | 8 | v259 three new card looks, from the owner's references (layout and style copied, our colours): dzp = Home "Playing now" colour cards, dzd = On deck… |
-| 23974–24069 | script | 8 | v259 three new card looks (switch: S.dzX) |
-| 24069–24111 | script | 3 | v260 rest: 12s without a touch, every looping animation holds still (no frames to draw, nothing for the GPU to do); the first touch, key, scroll or… |
-| 24112–24116 | style | 0 | v261: the view pill's highlight slides on the GPU: it used to animate width (a layout every frame for .28s) |
-| 24116–24132 | script | 1 | v261: smooth at the screen's own refresh rate. The highlight takes its new width at once and a transform animation (scaleX from the old width) makes… |
-| 24133–24172 | script | 3 | v261: Nexi learned (the owner: "still lags a lot, I want 120 fps"): an animation the phone can't hand to its GPU makes the main thread draw every… |
-| 24172–24179 | script | 1 | — |
-| 24180–24187 | style | 0 | v263 (120 fps): Nexi's face: a mood used to morph his eyes and mouth (height, top, width, borders: main-thread transitions), and a blink restarted… |
-| 24187–24332 | script | 11 | v263 (120 fps): a looping animation on something that isn't drawn (a hidden screen; a list row scrolled far enough that the browser skips drawing… |
-| 24332–24397 | script | 5 | v264: Nexi learned (the owner's fifth "still lags", with nothing in his own reports since v263): the lag he couldn't see was the GPU blending a pile… |
-| 24397–24403 | style | 1 | v265 smoothness check (prb*, last script): while it tests a suspect, that suspect is switched off for a little while |
-| 24403–24527 | script | 9 | v265: the smoothness check (the owner, after five rounds: "it lags everywhere, as if it's too much: a fast scroll up or down on the Queue, sideways… |
-| 24527–24541 | script | 1 | v265 (the owner: "if I scroll fast it lags, up or down on the Queue"): touch scrolling no longer waits for the app. Every screen but Home and every… |
-| 24541–24545 | script | 0 | the smoothness check counts swiping a game's page to the next game as a sideways moment (it's not a scroll) |
-| 24545–24586 | script | 4 | v265: Nexi learned (the blocking touchmove above sat on every screen for months and nothing noticed: it doesn't throw, doesn't look wrong, and the… |
-| 24586–24746 | script | 12 | v266: the self-test (step 1 of the plan the owner agreed: "measure first, on the phone, before changing anything"). Settings → This build → "Run the… |
-| 24746–24755 | style | 1 | v266 self-test result card (inside the diary sheet's box) |
-| 24755–24765 | style | 1 | v271: the progress line draws itself to the step a game just reached. While it runs, the segment's own lines go transparent and .gd-fill (a dim… |
-| 24765–24772 | script | 0 | — |
-| 24772–24912 | script | 10 | v267 picture fit, layer 2 (layer 1 is sw.js: nothing bigger than the screen). Lists show pictures far smaller than the screen: a Queue row's faded… |
-| 24912–25007 | script | 8 | v267: Nexi learned (the phone's self-test: 372 MP of pictures on the Queue for 14 MP on screen, one picture 70 MP; none of his checks looked at… |
-| 25007–25016 | script | 1 | v269: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change hooks in one place), dead… |
-| 25016–25060 | script | 3 | v270: buzzes on the iPhone too. Safari has no navigator.vibrate, but iOS 18+ gives a light tap each time an <input type="checkbox" switch> flips,… |
-| 25060–25117 | script | 4 | v271: two moments that used to jump now move (the owner: "smoothness is rule number one, but I do like animations"). Picked with the… |
-| 25117–25126 | script | 1 | #432: Settings (#sheet) let a sideways swipe through to the game page behind it; the other sheets already stop it (noHub) |
-| 25126–25139 | script | 1 | v273 (the owner: "return the background to a solid gradient color, I hate how it looks"): the live background (v257 lights, specks and drifting art;… |
-| 25139–25145 | style | 0 | v274 (the owner, #447): one Nexi per screen. Unfolded, Home's own Nexi (the face beside your greeting) and the rail's seated Nexi showed at once:… |
-| 25145–25158 | script | 1 | — |
-| 25158–25166 | style | 0 | #201 (the friend, iPhone/iPad: "Restore a code is not working"): while a keyboard (or a zoom) hides the bottom of the screen, the open sheet sits on… |
-| 25166–25221 | script | 4 | #201: Safari's keyboard doesn't shrink the page, it slides over it. Sheets (#diary) sit at the bottom of the screen, so a short one (Restore from a… |
-| 25221–25228 | script | 1 | — |
-| 25228–25241 | script | 1 | v276 (the owner: "black with a little blue gradient, mostly black, with the option to edit how much gradient and the background colour"): the… |
-| 25241–25248 | script | 0 | — |
-| 25248–25262 | style | 1 | v278 (#171, the friend: "a live preview when I'm editing the looks of all features, the same look everywhere, smart, off by default"): with Settings… |
-| 25262–25294 | script | 3 | v278 (#171): when the sheet docks for Live preview. A screen's Customise always does; Settings itself only while one of the look groups is the one… |
-| 25294–25319 | script | 2 | Nexi learned (#174, the friend, iPad v228: "Nexi disappeared while the rail was open"): with the rail open he sits at its foot (html.nxseat). A… |
-| 25319–25341 | style | 2 | v278 (#130, the owner: "Radar needs a makeover, looks kinda ugly and doesn't match our theme"): Radar in the Clean style. Its words are sentence… |
-| 25341–25363 | script | 2 | Nexi learned (#130, the owner: "Radar looks kinda ugly and doesn't match our theme"): Radar kept the old Arcade look (slanted, all-caps heading)… |
-| 25363–25407 | script | 4 | v279 usage counts (the owner: "remove any junk or things that are not used"). Every tap and switch change counts once under the nearest name it has:… |
-| 25407–25415 | script | 0 | v280's scroll hold (mvh*: every endless loop paused from the first move until the scroll stopped) was removed in v282 |
-| 25415–25447 | style | 3 | v281 (#7) cards rising in by the browser itself (timeline-trigger) was removed in v284: in Chrome it left cards stuck invisible (More for you, the… |
-| 25447–25597 | script | 11 | ===== v281 (#8): the bar on a game's page (styles above). Tapping the name scrolls back to the top. ===== |
-| 25597–25617 | script | 2 | v282 (the owner: "App freezes a lot when I move or scroll and nexi animation and rail stops ... I dont want animation to stop while scrolling").… |
-| 25617–25632 | script | 1 | v283 (#134 Month, #136 Insights, #416/#333/#367 switching to Library/Queue, all back after being closed): a Chromium trace of each scroll… |
-| 25632–25676 | script | 3 | v284 (the owner, a screenshot: "Fix this empty space it should have 2 stuff"): Home's "More for you" was an empty band on the Fold. v281's reveal by… |
-| 25676–25723 | script | 3 | v285 (#177, the friend: "all the sounds in the app are not working" on an iPhone 11 and an iPad 9th gen): on iPhone/iPad a web app's sounds follow… |
+| 23974–24068 | script | 8 | v259 three new card looks (switch: S.dzX) |
+| 24068–24110 | script | 3 | v260 rest: 12s without a touch, every looping animation holds still (no frames to draw, nothing for the GPU to do); the first touch, key, scroll or… |
+| 24111–24115 | style | 0 | v261: the view pill's highlight slides on the GPU: it used to animate width (a layout every frame for .28s) |
+| 24115–24131 | script | 1 | v261: smooth at the screen's own refresh rate. The highlight takes its new width at once and a transform animation (scaleX from the old width) makes… |
+| 24132–24171 | script | 3 | v261: Nexi learned (the owner: "still lags a lot, I want 120 fps"): an animation the phone can't hand to its GPU makes the main thread draw every… |
+| 24171–24178 | script | 1 | — |
+| 24179–24186 | style | 0 | v263 (120 fps): Nexi's face: a mood used to morph his eyes and mouth (height, top, width, borders: main-thread transitions), and a blink restarted… |
+| 24186–24331 | script | 11 | v263 (120 fps): a looping animation on something that isn't drawn (a hidden screen; a list row scrolled far enough that the browser skips drawing… |
+| 24331–24396 | script | 5 | v264: Nexi learned (the owner's fifth "still lags", with nothing in his own reports since v263): the lag he couldn't see was the GPU blending a pile… |
+| 24396–24402 | style | 1 | v265 smoothness check (prb*, last script): while it tests a suspect, that suspect is switched off for a little while |
+| 24402–24526 | script | 9 | v265: the smoothness check (the owner, after five rounds: "it lags everywhere, as if it's too much: a fast scroll up or down on the Queue, sideways… |
+| 24526–24540 | script | 1 | v265 (the owner: "if I scroll fast it lags, up or down on the Queue"): touch scrolling no longer waits for the app. Every screen but Home and every… |
+| 24540–24544 | script | 0 | the smoothness check counts swiping a game's page to the next game as a sideways moment (it's not a scroll) |
+| 24544–24585 | script | 4 | v265: Nexi learned (the blocking touchmove above sat on every screen for months and nothing noticed: it doesn't throw, doesn't look wrong, and the… |
+| 24585–24745 | script | 12 | v266: the self-test (step 1 of the plan the owner agreed: "measure first, on the phone, before changing anything"). Settings → This build → "Run the… |
+| 24745–24754 | style | 1 | v266 self-test result card (inside the diary sheet's box) |
+| 24754–24764 | style | 1 | v271: the progress line draws itself to the step a game just reached. While it runs, the segment's own lines go transparent and .gd-fill (a dim… |
+| 24764–24771 | script | 0 | — |
+| 24771–24911 | script | 10 | v267 picture fit, layer 2 (layer 1 is sw.js: nothing bigger than the screen). Lists show pictures far smaller than the screen: a Queue row's faded… |
+| 24911–25006 | script | 8 | v267: Nexi learned (the phone's self-test: 372 MP of pictures on the Queue for 14 MP on screen, one picture 70 MP; none of his checks looked at… |
+| 25006–25015 | script | 1 | v269: the tidy-up (the owner: "organise the code, merge it, cut what isn't needed"). No new feature: onNav (screen-change hooks in one place), dead… |
+| 25015–25059 | script | 3 | v270: buzzes on the iPhone too. Safari has no navigator.vibrate, but iOS 18+ gives a light tap each time an <input type="checkbox" switch> flips,… |
+| 25059–25116 | script | 4 | v271: two moments that used to jump now move (the owner: "smoothness is rule number one, but I do like animations"). Picked with the… |
+| 25116–25125 | script | 1 | #432: Settings (#sheet) let a sideways swipe through to the game page behind it; the other sheets already stop it (noHub) |
+| 25125–25138 | script | 1 | v273 (the owner: "return the background to a solid gradient color, I hate how it looks"): the live background (v257 lights, specks and drifting art;… |
+| 25138–25144 | style | 0 | v274 (the owner, #447): one Nexi per screen. Unfolded, Home's own Nexi (the face beside your greeting) and the rail's seated Nexi showed at once:… |
+| 25144–25157 | script | 1 | — |
+| 25157–25165 | style | 0 | #201 (the friend, iPhone/iPad: "Restore a code is not working"): while a keyboard (or a zoom) hides the bottom of the screen, the open sheet sits on… |
+| 25165–25220 | script | 4 | #201: Safari's keyboard doesn't shrink the page, it slides over it. Sheets (#diary) sit at the bottom of the screen, so a short one (Restore from a… |
+| 25220–25227 | script | 1 | — |
+| 25227–25240 | script | 1 | v276 (the owner: "black with a little blue gradient, mostly black, with the option to edit how much gradient and the background colour"): the… |
+| 25240–25247 | script | 0 | — |
+| 25247–25261 | style | 1 | v278 (#171, the friend: "a live preview when I'm editing the looks of all features, the same look everywhere, smart, off by default"): with Settings… |
+| 25261–25293 | script | 3 | v278 (#171): when the sheet docks for Live preview. A screen's Customise always does; Settings itself only while one of the look groups is the one… |
+| 25293–25318 | script | 2 | Nexi learned (#174, the friend, iPad v228: "Nexi disappeared while the rail was open"): with the rail open he sits at its foot (html.nxseat). A… |
+| 25318–25340 | style | 2 | v278 (#130, the owner: "Radar needs a makeover, looks kinda ugly and doesn't match our theme"): Radar in the Clean style. Its words are sentence… |
+| 25340–25362 | script | 2 | Nexi learned (#130, the owner: "Radar looks kinda ugly and doesn't match our theme"): Radar kept the old Arcade look (slanted, all-caps heading)… |
+| 25362–25406 | script | 4 | v279 usage counts (the owner: "remove any junk or things that are not used"). Every tap and switch change counts once under the nearest name it has:… |
+| 25406–25414 | script | 0 | v280's scroll hold (mvh*: every endless loop paused from the first move until the scroll stopped) was removed in v282 |
+| 25414–25446 | style | 3 | v281 (#7) cards rising in by the browser itself (timeline-trigger) was removed in v284: in Chrome it left cards stuck invisible (More for you, the… |
+| 25446–25596 | script | 11 | ===== v281 (#8): the bar on a game's page (styles above). Tapping the name scrolls back to the top. ===== |
+| 25596–25616 | script | 2 | v282 (the owner: "App freezes a lot when I move or scroll and nexi animation and rail stops ... I dont want animation to stop while scrolling").… |
+| 25616–25631 | script | 1 | v283 (#134 Month, #136 Insights, #416/#333/#367 switching to Library/Queue, all back after being closed): a Chromium trace of each scroll… |
+| 25631–25675 | script | 3 | v284 (the owner, a screenshot: "Fix this empty space it should have 2 stuff"): Home's "More for you" was an empty band on the Fold. v281's reveal by… |
+| 25675–25722 | script | 3 | v285 (#177, the friend: "all the sounds in the app are not working" on an iPhone 11 and an iPad 9th gen): on iPhone/iPad a web app's sounds follow… |
