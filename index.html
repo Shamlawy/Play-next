@@ -4016,7 +4016,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "282";
+const APP_V = "283";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -17095,8 +17095,32 @@ const LAG = { boot: performance.now(), rz: -1e9, wk: /AppleWebKit/.test(navigato
 addEventListener("resize", () => { LAG.rz = performance.now(); }, { passive: true });
 const lagOk = () => bugOn() && !document.hidden && performance.now() - LAG.boot > 8000;
 const lagWhere = () => { const s = bugScreen(); return typeof bugPlace === "function" ? bugPlace(s) : s; };
+/* v283 (M11): the field stutter reports (110-310ms on the Fold) couldn't be reproduced here, so the phone now says what the
+   frames in a stutter spent their time on. LAG.lo keeps the last 40 long frames (Chrome's long-animation-frame, 50ms+);
+   lagSplit(t0, t1) sums those in a time window into one line: script (and the function that ran longest), forced
+   style/layout inside scripts, style+layout, rendering. A hitch with no long frame at all means the main thread was free:
+   the time went to drawing on the GPU side (pictures, layers), not the app's code. Safari has no such entries: "". */
+LAG.lo = [];
+const LAG_LOAF = !!(window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("long-animation-frame"));
+function lagSplit(t0, t1) {
+  if (!LAG_LOAF) return "";
+  const fs = LAG.lo.filter(f => f.startTime + f.duration >= t0 && f.startTime <= t1);
+  if (!fs.length) return "no long frame (50ms+) in this time: the app's code was free, so the hitches were drawing (GPU, pictures, layers)";
+  let sc = 0, fsl = 0, sl = 0, rd = 0, top = null;
+  for (const f of fs) { const end = f.startTime + f.duration;
+    let inRender = 0;
+    for (const s of f.scripts || []) { sc += s.duration; fsl += s.forcedStyleAndLayoutDuration || 0; if (!top || s.duration > top.duration) top = s; if (f.renderStart && s.startTime >= f.renderStart) inRender += s.duration; }
+    if (f.styleAndLayoutStart) sl += end - f.styleAndLayoutStart;
+    /* render = the rendering steps besides scripts (scroll/resize/animation-frame handlers run in there and count as script) */
+    if (f.renderStart) rd += Math.max(0, (f.styleAndLayoutStart || end) - f.renderStart - inRender); }
+  const fn = top ? [top.sourceFunctionName || "(anonymous)", top.invoker || top.invokerType || ""].filter(Boolean).join(" ← ").replace(/https?:\/\/[^\s]+\//g, "").slice(0, 90) : "";
+  const r = Math.round;
+  return `${fs.length} long frame${fs.length === 1 ? "" : "s"}, ${r(fs.reduce((a, f) => a + f.duration, 0))}ms: script ${r(sc)}ms (forced style/layout ${r(fsl)}ms), style+layout ${r(sl)}ms, render ${r(rd)}ms`
+    + (top ? `\nlongest script ${r(top.duration)}ms: ${fn}` : "");
+}
 try {
   new PerformanceObserver(list => {
+    if (LAG_LOAF) { LAG.lo.push(...list.getEntries()); if (LAG.lo.length > 40) LAG.lo.splice(0, LAG.lo.length - 40); }
     if (!lagOk()) return;
     for (const f of list.getEntries()) {
       if (f.duration < LAG_MIN || bugModal(f.startTime, f.duration) || (f.startTime + f.duration > LAG.rz && f.startTime < LAG.rz + 800)) continue;
@@ -17131,16 +17155,16 @@ try {
 } catch (e) {}
 /* scroll stutter: only runs while a finger moves (plus 400ms), so it costs nothing at rest */
 (() => {
-  let on = false, last = 0, lastMove = 0, hitches = 0, worst = 0;
+  let on = false, last = 0, lastMove = 0, hitches = 0, worst = 0, t0 = 0;
   const tick = t => {
     if (last) { const d = t - last; if (d > 40) { hitches++; worst = Math.max(worst, d); } }   /* v249: 40ms, was 60 */
     last = t;
     if (performance.now() - lastMove < 400) return requestAnimationFrame(tick);
     on = false; last = 0;
-    if ((hitches >= 3 || worst >= 90) && lagOk()) bugReport("slow", "Scrolling stutters on " + lagWhere() + " (" + hitches + " hitches, worst " + Math.round(worst / 10) * 10 + "ms)", { screen: bugScreen() });
+    if ((hitches >= 3 || worst >= 90) && lagOk()) bugReport("slow", "Scrolling stutters on " + lagWhere() + " (" + hitches + " hitches, worst " + Math.round(worst / 10) * 10 + "ms)", { screen: bugScreen(), stack: lagSplit(t0, performance.now()) });
     hitches = 0; worst = 0;
   };
-  addEventListener("touchmove", () => { lastMove = performance.now(); if (!on) { on = true; last = 0; requestAnimationFrame(tick); } }, { passive: true, capture: true });
+  addEventListener("touchmove", () => { lastMove = performance.now(); if (!on) { on = true; last = 0; t0 = lastMove; requestAnimationFrame(tick); } }, { passive: true, capture: true });
 })();
 WHATS_NEW.push(
   { v: 198, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
@@ -18154,12 +18178,17 @@ function flickWatch(el, name, opening) {
 
 /* 2. stuck taps: nothing on screen changed after a tap on something that looks tappable, and you tried again */
 { const IGN = "#pnbub, #pnbubmsg, .cdb, #pnfps, #fx, #nxring, #hintbub, #grum, #loadbar, #nxbug";
-  let watch = null; const dead = new Map();
+  let watch = null, cand = [], pend = 0; const dead = new Map();
+  /* only changes you could see count as the app answering the tap. v283 (#367): judged after the frame is drawn, not inside
+     the observer: asking "is it visible?" right after a tap's redraw forced a style pass of its own (22ms at 4x CPU on the
+     Queue/Library pill) */
+  const judge = () => { pend = 0; const c = cand; cand = []; if (!watch) return;
+    if (c.some(t => t.isConnected && t.getClientRects().length && !(t.checkVisibility && !t.checkVisibility({ visibilityProperty: true })))) { watch.changed = true; mo.disconnect(); } };
   const mo = new MutationObserver(ms => { if (!watch) return;
     for (const m of ms) { const t = m.target.nodeType === 1 ? m.target : m.target.parentElement; if (!t || !t.closest || t.closest(IGN)) continue;
-      /* only changes you could see count as the app answering the tap */
-      if (!t.isConnected || !t.getClientRects().length || (t.checkVisibility && !t.checkVisibility({ visibilityProperty: true }))) { if (m.type !== "childList" || ![...m.removedNodes].some(n => n.nodeType === 1)) continue; }
-      watch.changed = true; mo.disconnect(); return; } });
+      if (m.type === "childList" && [...m.removedNodes].some(n => n.nodeType === 1)) { watch.changed = true; mo.disconnect(); cand = []; return; }
+      if (cand.length < 60 && !cand.includes(t)) cand.push(t); }
+    if (cand.length && !pend) pend = requestAnimationFrame(() => setTimeout(judge)); });
   const onScroll = () => { if (watch) watch.changed = true; };
   const _open = window.open; window.open = function () { if (watch) watch.changed = true; return _open.apply(this, arguments); };
   let down = null;
@@ -18173,12 +18202,12 @@ function flickWatch(el, name, opening) {
     if (!el) { for (let x = t, i = 0; x && i < 4 && x !== document.body; x = x.parentElement, i++) if (getComputedStyle(x).cursor === "pointer") { el = x; break; } }
     if (!el || el.disabled || el.getAttribute("aria-disabled") === "true" || el.closest("a[target=_blank], [data-trailer], [download]")) return;
     if (watch) { mo.disconnect(); removeEventListener("scroll", onScroll, true); }
-    watch = { el, changed: false };
+    watch = { el, changed: false }; cand = [];
     mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     addEventListener("scroll", onScroll, { capture: true, passive: true });
     const w = watch;
     setTimeout(() => {
-      if (watch === w) { mo.disconnect(); removeEventListener("scroll", onScroll, true); watch = null; }
+      if (watch === w) { if (cand.length) judge(); mo.disconnect(); removeEventListener("scroll", onScroll, true); watch = null; }
       if (w.changed || !el.isConnected || document.hidden) return;
       const key = bugPath(el), now = performance.now(), prev = dead.get(key);
       dead.set(key, now);
@@ -18335,7 +18364,9 @@ BUG_AFTER.push(() => {
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   /* only after the screen has been on for 3s untouched, so it reviews what you actually look at */
   const scr = bugScreen(); clearTimeout(BUG.rvT);
-  if (root) BUG.rvT = setTimeout(() => { if (bugScreen() === scr && lookOk()) lookReview(root, scr).catch(() => {}); }, 3000);
+  /* v283: "untouched" was never checked, so its one big look (~20ms on a phone) could land mid-scroll: wait for 3s with no finger */
+  const go = () => { if (bugScreen() !== scr || !lookOk()) return; if (performance.now() - bugLastIn < 3000) { BUG.rvT = setTimeout(go, 3000); return; } lookReview(root, scr).catch(() => {}); };
+  if (root) BUG.rvT = setTimeout(go, 3000);
 });
 WHATS_NEW.push(
   { v: 208, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
@@ -19293,21 +19324,29 @@ addEventListener("pointerdown", e => {
 /* ---- Nexi learned (2): blank while scrolling. Anything that skips drawing off screen (content-visibility: auto) tells us when
    it does; if one is still skipped while it's well inside the screen on three checks in a row during a scroll, part of the
    screen came up blank (#89). */
-{ const SK = new Set(), seen = new Map(); let q = 0;
+{ const SK = new Set(), seen = new Map(); let q = 0, last = 0;
   document.addEventListener("contentvisibilityautostatechange", e => { if (e.skipped) SK.add(e.target); else { SK.delete(e.target); seen.delete(e.target); } }, true);
-  const check = () => { q = 0; if (!SK.size || !lookOk()) return; const H = innerHeight, now = performance.now();
+  /* v283 (#134, #136): this was the biggest job of every scroll frame on Month and Insights (a trace: 360-460ms of script plus
+     150ms of forced style per few swipes at 4x CPU, more than all the rest together). It measured every skipped row in the
+     whole app on every frame, hundreds of them in the hidden Library and Queue screens, before asking whether that screen
+     was even showing. Now what can't be seen is passed over without measuring (a hidden screen, or a screen under a game
+     page or sheet), and it looks at most every 100ms (three sightings 90ms apart were needed anyway). */
+  const check = () => { q = 0; last = performance.now(); if (!SK.size || !lookOk()) return; let H = 0; const now = last;   /* innerHeight forces a style update too: read only once something needs measuring */
+    const over = document.querySelector("#full.on, #sheet.on, #diary.on");
     for (const el of SK) { if (!el.isConnected) { SK.delete(el); continue; }
+      if (el.closest(".panel:not(.on)") || (over && !over.contains(el))) { seen.delete(el); continue; }
+      H ||= innerHeight;
       const r = el.getBoundingClientRect(), vis = Math.min(r.bottom, H) - Math.max(r.top, 0);
       if (r.width < 40 || vis < Math.min(40, r.height * .4)) { seen.delete(el); continue; }
-      /* only what you could see: not inside a hidden screen, and not under a page/sheet on top of it (v216: the Played board's
-         rows in the hidden Played panel were reported from Plan) */
-      if (el.closest(".panel:not(.on)") || (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))) { seen.delete(el); continue; }
+      /* only what you could see (v216: the Played board's rows in the hidden Played panel were reported from Plan; the hidden
+         screen test is above now, before measuring) */
+      if (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) { seen.delete(el); continue; }
       { const cx = Math.max(1, Math.min(innerWidth - 2, r.left + r.width / 2)), cy = Math.max(1, Math.min(H - 2, Math.max(r.top, 0) + vis / 2)), top = document.elementFromPoint(cx, cy);
         if (!top || (!el.contains(top) && !top.contains(el))) { seen.delete(el); continue; } }
       const s = seen.get(el) || { n: 0, t: 0 }; if (now - s.t < 90) continue;
       s.n++; s.t = now; seen.set(el, s);
       if (s.n >= 3) { seen.delete(el); SK.delete(el); bugReport("layout", "Part of the screen stayed blank while scrolling", { at: bugPath(el) + " skipped while " + Math.round(vis) + "px of it was on screen", screen: bugScreen() }); return; } } };
-  addEventListener("scroll", () => { if (!q && SK.size) q = requestAnimationFrame(check); }, { capture: true, passive: true });
+  addEventListener("scroll", () => { if (!q && SK.size && performance.now() - last > 100) q = requestAnimationFrame(check); }, { capture: true, passive: true });
 }
 
 /* ---- the design reviewer checks its facts (v215). Its first 7 reports all claimed something the numbers it was given
@@ -23533,7 +23572,7 @@ function lagWatch(what) {
     ob.observe({ type: "long-animation-frame" });
     setTimeout(() => { ob.takeRecords().forEach(f => { if (f.startTime >= t0 && f.startTime - t0 < 900) { n++; worst = Math.max(worst, f.duration); } }); ob.disconnect(); lagTr = 0;
       if (((n >= 3 && worst >= 60) || worst >= 90) && lagOk() && !nxTouring() && !(LAG.rz > t0 - 800))
-        bugReport("slow", `${typeof what === "function" ? what() : what} stuttered (${n} hitch${n === 1 ? "" : "es"}, worst ${Math.round(worst / 10) * 10}ms)`, { screen: bugScreen(), sigAt: "" }); }, 1000);
+        bugReport("slow", `${typeof what === "function" ? what() : what} stuttered (${n} hitch${n === 1 ? "" : "es"}, worst ${Math.round(worst / 10) * 10}ms)`, { screen: bugScreen(), sigAt: "", stack: lagSplit(t0, t0 + 900) }); }, 1000);
     return;
   }
   const tick = t => {
@@ -25578,5 +25617,20 @@ WHATS_NEW.push(
   { v: 282, go: () => { closeFull(); dyClose(); nxShut(); goTab("lib"); }, at: null,
     say: "Library cards no longer tilt and shrink under your finger when you touch them to scroll.",
     tryIt: "Put your finger on a card and scroll: the card stays still." }
+);
+</script>
+<script>
+/* v283 (#134 Month, #136 Insights, #416/#333/#367 switching to Library/Queue, all back after being closed): a Chromium trace of
+   each scroll (tools/scenarios/trace-stutter.mjs, Edge 155 = the owner's engine, 60 games, 4x CPU) showed the biggest job of
+   every scroll frame was one of my own problem checks ("blank while scrolling", the v216 scope): 360-460ms of script and
+   150-200ms of forced style per few swipes on Insights, measuring hundreds of rows in hidden screens. Fixed in place (its own
+   script, v216 block), with two smaller ones: the AI design look waits until no finger for 3s, and the stuck-tap check asks
+   "is it visible?" after the frame instead of forcing a style pass right after a tap's redraw. And (M11) scroll and screen
+   switch stutter reports now say what the long frames spent their time on (lagSplit, v198 block), so a stutter seen only on
+   the phone names its cause. Proof: tools/scenarios/stutter-detectors.mjs. */
+WHATS_NEW.push(
+  { v: 283, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: null,
+    say: "<b>Smoother scrolling on Month and Insights</b>: one of my own problem checks was measuring hundreds of hidden rows on every frame you scrolled. It now skips what you can't see, and my design look waits until you stop touching the screen.",
+    tryIt: "Scroll Insights and Month quickly: it should glide. If anything still stutters, my report now says exactly what caused it." }
 );
 </script>

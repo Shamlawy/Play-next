@@ -74,7 +74,7 @@ for (const b of bugs) {
       if (!old) await gh(`/repos/${REPO}/issues/${i.number}`, "PATCH", { state: "open" });
     }
     await gh(`/repos/${REPO}/issues/${i.number}/comments`, "POST", { body:
-      `${old ? `**Seen on an older version (v${s.v}) than the fix (v${old}), so it stays closed.** ` : i.state === "closed" ? "**Happened again after it was closed.** " : ""}Seen ${more} more time${more === 1 ? "" : "s"} (${b.n} in total). Latest: v${s.v} on ${s.dev}, ${s.screen}, ${s.w}×${s.h}.${s.note ? `\n\n> ${s.note}` : ""}` });
+      `${old ? `**Seen on an older version (v${s.v}) than the fix (v${old}), so it stays closed.** ` : i.state === "closed" ? "**Happened again after it was closed.** " : ""}Seen ${more} more time${more === 1 ? "" : "s"} (${b.n} in total). Latest: v${s.v} on ${s.dev}, ${s.screen}, ${s.w}×${s.h}.${s.note ? `\n\n> ${s.note}` : ""}${b.kind === "slow" && s.stack ? "\n\nTiming:\n" + fence(s.stack) : ""}` });   /* v283 (M11): what the latest stutter spent its time on */
     console.log("updated #" + i.number);
   }
   acked[b.sig] = b.n;
