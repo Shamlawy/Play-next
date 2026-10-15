@@ -13,3 +13,4 @@ intervals          10     # setInterval timers
 endlessAnimations  57     # animations that never stop (CSS `infinite`, Web Animations `Infinity`)
 subtreeObservers   6      # MutationObservers watching a whole subtree (not getAnimations({ subtree: true }), v280)
 orphanSettings     0      # Settings keys listed in GROUP_KEYS that nothing reads
+lint               0      # bug finder findings (node tools/lint.mjs: undefined names, unused values, duplicate keys, unreachable code…)

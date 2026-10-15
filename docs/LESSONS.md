@@ -34,6 +34,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L26** · 2026-10-14 · v281 · `spSetWire`, `spLast`, `/steam/me` — After linking Steam I set spLast from the link answer, which made spSetWire skip the first sync, so nothing was logged until the next open; the scenario caught it → after a link/connect, clear the cached state and sync at once
 - **L27** · 2026-10-14 · v281 · `APP_V`, `git merge origin/main`, `WHATS_NEW` — Main shipped its own v280 while I built mine on the same number; the merge only showed it at the end → git fetch + check main's APP_V before picking the version, and again right before the release commit
 - **L28** · 2026-10-14 · v281 · `app-check.yml`, `create_pull_request`, `actions_run_trigger` — PR #500 opened through the GitHub MCP got no App check run (pull_request event never fired, only the push-triggered probes ran) → after opening a PR, list app-check.yml runs for the branch; if none within a minute, run it by hand (actions_run_trigger run_workflow, ref = the branch) before merging
+- **L29** · 2026-10-15 · v281 · `tools/audit.mjs`, `--lower`, `tools/audit-budget.txt` — audit.mjs --lower without ESLint installed dropped the lint budget line (the lint step was skipped, so its row vanished): install eslint first (npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0) or check git diff tools/audit-budget.txt shows only the numbers you meant to lower
 
 ## Missed opportunities
 
