@@ -42,6 +42,14 @@ describe('blast-radius', () => {
     expect(risks('git push -u origin claude/x && git checkout -b y && git restore --staged a.txt', '/repo')).toEqual([])
   })
 
+  test('heredoc bodies are text, not commands', () => {
+    const log = "cat >> docs/LOG.md <<'EOF'\n- tidied; rm old.html and friends | rm -rf x && git reset --hard\nEOF\nrm -rf tools/old"
+    expect(risks(log, '/repo')).toEqual([{ kind: 'rm', cwd: '/repo', targets: ['tools/old'] }])
+    expect(risks('cat <<EOF > a.txt && rm b\r\n; rm x\r\nEOF\r\n', '/repo')).toEqual([{ kind: 'rm', cwd: '/repo', targets: ['b'] }])
+    expect(risks('git commit -F - <<-"MSG"\n\t; rm x\n\tMSG\ncat <<A <<B\n; rm y\nA\n; rm z\nB\n', '/repo')).toEqual([])
+    expect(risks('cat <<EOF\n; rm x', '/repo')).toEqual([])
+  })
+
   test('reads PowerShell deletes and Windows paths', () => {
     const r = risks('Set-Location tools; Remove-Item -Recurse -Force scenarios\\old, "my dir"; ri -LiteralPath a.txt; git reset --hard; Get-ChildItem', '/repo', '/root', true)
     expect(r.map(x => x.kind)).toEqual(['rm', 'rm', 'reset'])
