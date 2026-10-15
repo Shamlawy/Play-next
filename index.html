@@ -8308,13 +8308,6 @@ function artBlock(g, morph) {
     style="--as:${size};--ah:${h};--ax:${ax}%;--ay:${ay}%;${vt}"><img src="${esc(g.art)}" alt=""></div>`;
 }
 
-/* View Transitions: the browser snapshots before and after and animates between them
-   on the compositor. Cheaper than the animations we removed, and it can morph a cover
-   from a row into the hero because both carry the same view-transition-name. */
-function withTransition(fn) {
-  if (S.motion === false || S.vt === false || !document.startViewTransition) { fn(); return null; }
-  try { return document.startViewTransition(fn); } catch (e) { fn(); return null; }
-}
 /* two elements can never share a transition name, or the browser skips the
    transition and leaves the old snapshot on screen */
 function clearHubName() {
@@ -11290,9 +11283,6 @@ extend("syncPlayed", { before: g => isPlayed(g),
 
 
 /* ---- v68: buttery transitions between things ---- */
-let pnVT = false;
-{ const _wt = withTransition; withTransition = function (fn) {
-  const r = _wt(fn); if (r && r.finished) { pnVT = true; r.finished.finally(() => { pnVT = false; }); } return r; }; }
 
 /* tabs slide in from the side you're heading to.
    v261: the slide itself is CSS now (slashin / cut / smR / smL on .panel.on): this second one on the same panel made both
@@ -11301,7 +11291,7 @@ let pnVT = false;
 extend("paintTab", {
   before: () => { const cb = document.querySelector('nav button[aria-current="true"]'); return cb && cb.dataset.tab; },
   after: (out, [tab], from) => {
-    if (calm() || pnVT || !from || from === tab) return;
+    if (calm() || !from || from === tab) return;
     requestAnimationFrame(() => { if (scrollY > 0) scrollTo(0, 0); });
   } });
 
@@ -11316,7 +11306,7 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
     /* v215 (#102): never let an old close's "stay faded" frame outlive it (it hid the next page while it still caught every tap) */
     if (box && !wasOn) box.getAnimations().forEach(x => x.cancel());
     _of.apply(this, arguments);
-    if (calm() || pnVT || wasOn || pnNoGrow || !box || !box.classList.contains("on")) return;
+    if (calm() || wasOn || pnNoGrow || !box || !box.classList.contains("on")) return;
     box.style.transformOrigin = pnTap.x + "px " + pnTap.y + "px";
     /* v200: transform + opacity only (border-radius kept this off the GPU, so every frame repainted the whole page),
        shorter, and it starts part-visible so the page is there at once instead of ~200ms of nothing */
@@ -11325,7 +11315,7 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
   };
   closeFull = function () {
     const box = $("#full");
-    if (calm() || pnVT || !box || !box.classList.contains("on") || pnClosing) {
+    if (calm() || !box || !box.classList.contains("on") || pnClosing) {
       /* a second close while the first one fades (the tour does closeFull() then nxShut()): drop the fade too, or its
          fill-forwards opacity 0 stays on #full and the next page vanishes 300ms after opening (#99, #102, #103) */
       if (pnClosing) pnClosing.cancel(); pnClosing = null; return _cf.apply(this, arguments); }
@@ -11342,6 +11332,7 @@ document.body.insertAdjacentHTML("afterbegin", '<div id="pnorbs" aria-hidden="tr
 
 function railHideNow() { S.railHide = true; save(); document.documentElement.classList.add("railhide"); pnBubShow(); }
 /* the tall rail on the right of Home: your ranked games as round covers, plus quick actions */
+let pnRailShown = false;
 function pnRail(ranked) {
   let r = $("#hrail");
   if (!r) { r = document.createElement("aside"); r.id = "hrail"; r.className = "first"; document.body.appendChild(r);
@@ -11362,7 +11353,7 @@ function pnRail(ranked) {
   document.documentElement.classList.add("pnrail");
   document.documentElement.classList.toggle("railhide", !!S.railHide);
   document.documentElement.classList.toggle("railleft", S.railSide === "left");
-  if (S.railHide && !pnRail.shown) { pnRail.shown = true; setTimeout(pnBubShow, 300); }
+  if (S.railHide && !pnRailShown) { pnRailShown = true; setTimeout(pnBubShow, 300); }
   const tabs = ["home", "games", "plan", "taste"].map(t => { const nb = document.querySelector('nav button[data-tab="' + t + '"]');
     if (!nb) return ""; const sv = nb.querySelector("svg"), lb = (nb.querySelector("span") || {}).textContent || t;
     return `<button class="tb" data-rt="${t}" title="${esc(lb)}">${sv ? sv.outerHTML : esc(lb[0])}</button>`; }).join("");
@@ -12056,13 +12047,13 @@ function sessAdd(id, s, e) {
   if (S.sessions.length > 4000) S.sessions.splice(0, S.sessions.length - 4000);
 }
 /* the timer already writes the hours onto the game; now it also keeps the session, and asks how it felt */
-{ const _st = stopTimer; stopTimer = function (quiet) {
+extend("stopTimer", { before() {
   const t = S.timer && S.timer.id ? { id: S.timer.id, from: S.timer.from } : null, h = liveTimerHours();
-  if (t && h > 1 / 120) sessAdd(t.id, t.from, Date.now());      /* before the timer screen redraws, so it lists this one */
-  const out = _st.apply(this, arguments);
+  if (t && h > 1 / 120) sessAdd(t.id, t.from, Date.now()); return { t, h };      /* before the timer screen redraws, so it lists this one */
+  }, after(out, [quiet], th) { if (!th) return; const { t, h } = th;
   if (t && h > 1 / 120) {
     if (!quiet && h >= 1 / 6 && S.diaryOn) setTimeout(() => { if (!$("#diary.on")) openDiary(t.id, Math.round(h * 60)); }, 700); }
-  return out; }; }
+  } });
 
 /* a small grid, one square per day, columns are weeks (oldest on the left) */
 function sessHeat(list, colour, weeks) {
@@ -12479,7 +12470,7 @@ document.addEventListener("click", e => { if (e.target.closest("#s-usage")) { e.
 const SCORE_LO = 0, SCORE_STEP = 0.5;
 let qdFocus = null, qdToday = 0;
 /* close the sheet: the screens behind it catch up once */
-{ const _dc = dyClose; dyClose = function () { const had = qdToday; qdToday = 0; const out = _dc.apply(this, arguments); if (had) setTimeout(() => { renderHome(); if (hubAt && $("#full.on")) openFull(hubAt); }, 320); return out; }; }
+extend("dyClose", { before: () => { const had = qdToday; qdToday = 0; return had; }, after: (out, a, had) => { if (had) setTimeout(() => { renderHome(); if (hubAt && $("#full.on")) openFull(hubAt); }, 320); } });
 
 /* which game? unscored ones you've played first, then what you're playing, then the rest to re-score */
 function qScorePick() {
@@ -13210,12 +13201,12 @@ document.addEventListener("click", async e => { if (!e.target.closest("#s-nudget
 
 extend("xFeatures", { before: () => { try { simRestore(); } catch (e) {} } });
 /* Home: Nexi's line in the chosen voice; tapping Nexi opens the chat */
-{ const _nl = nxHomeLine; nxHomeLine = function () {
-  const pick = onDeck(1)[0], out = _nl.apply(this, arguments); if (!out || !pick) return out;
+extend("nxHomeLine", { before: () => onDeck(1)[0], map(out, a, pick) {
+  if (!out || !pick) return out;
   const G = `<button class="nxl-g" data-home-open="${pick.id}">${esc(pick.title)}</button>`, why = deckWhy(pick), nm = S.userName ? esc(S.userName) : "";
   const W = { hype: `${nm ? nm + ", p" : "P"}lay ${G} next!`, butler: `May I suggest ${G} next${nm ? ", " + nm : ""}.`, coach: `Next up, no pressure: ${G}.`,
     rival: `Obviously it's ${G} next. Try to keep up${nm ? ", " + nm : ""}.`, bard: `Your next quest${nm ? ", " + nm : ""}: ${G}.`, nerd: `Best match for you next: ${G}.` }[nxP()];
-  return out.replace(/<p>[\s\S]*?<\/p>/, `<p>${W}${why ? ` <small>(${esc(why)})</small>` : ""}</p>`).replace('data-qduel="" aria-label="Duel with Nexi"', 'data-nxchat="" aria-label="Chat with Nexi"'); }; }
+  return out.replace(/<p>[\s\S]*?<\/p>/, `<p>${W}${why ? ` <small>(${esc(why)})</small>` : ""}</p>`).replace('data-qduel="" aria-label="Duel with Nexi"', 'data-nxchat="" aria-label="Chat with Nexi"'); } });
 load();
 /* FX pack */
 (()=>{
@@ -15317,7 +15308,7 @@ document.addEventListener("toggle", e => {
 onSettings("after", () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(true); });
 extend("openEdit", { after: () => { $("#sheet-in").classList.remove("drill", "ssearch"); calmSheet(false); } });
 /* the tour and search can point into a folded "More options" */
-{ const _n = nxOpenSettings; nxOpenSettings = function (sel) { _n.apply(this, arguments); setMoreOpen($(sel)); }; }
+extend("nxOpenSettings", { after: (o, [sel]) => { setMoreOpen($(sel)); } });
 </script>
 <style>
 /* ===== v178 calmer settings ===== */
@@ -15710,11 +15701,11 @@ PN_BADGES.push(
   ["duelday7", "📆", "Regular", "Duel on 7 different days", s => s.dDays, 7],
   ["edge10", "🤏", "Fine margins", "Call a slight edge 10 times", s => s.edge, 10],
   ["settled3", "🔒", "Podium locked", "Your top 3 each have 6+ duels", s => s.top3, 3]);
-{ const _bs = pnBadgeStats; pnBadgeStats = function () {
-  const s = _bs.apply(this, arguments), t = rankTable();
+extend("pnBadgeStats", { after(s) {
+  const t = rankTable();
   s.duels = (S.duels || []).filter(d => d.w).length; s.climb = S.climbMax || 0; s.dDays = (S.duelDays || []).length; s.edge = S.edgeN || 0;
   s.top3 = t.order.slice(0, 3).filter(id => t.n[id] >= 6).length;
-  return s; }; }
+  } });
 
 /* ---- the Top board and the duel standings read the ranking ---- */
 pnBoardRows = function (done) {
@@ -16909,10 +16900,9 @@ try {
 } catch (e) {}
 
 /* 4. Nexi's helper failing while you're online */
-{ const _np = nxPost; nxPost = async function (path) {
-  try { return await _np.apply(this, arguments); }
-  catch (e) { const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(/^\/(review|reviews|hours|prices|recap|steam)$/.test(path) && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
-}; }
+extend("nxPost", { map: (p, [path]) => Promise.resolve(p).catch(e => {
+  const m = String(e && e.message || e); if (navigator.onLine && !BUG_NOISE.test(m) && !(/^\/(review|reviews|hours|prices|recap|steam)$/.test(path) && m === "helper-old")) bugReport("helper", "Helper " + path + " failed: " + m); throw e; }
+) });
 
 /* 5. you spotted something: a few words, and the app adds the rest */
 function bugAsk() {
@@ -17281,12 +17271,11 @@ WHATS_NEW.push(
     say: "I see more glitches on my own now: text that gets cut off, text drawn on top of other text, and a screen that comes up blank. When I spot one, I report it and tell you.",
     tryIt: "Just use the app. If I miss something, hold me and tap 🐞." }
 );
-{ const _bl = bugLayoutPass; bugLayoutPass = function () {
-  _bl.apply(this, arguments);
+extend("bugLayoutPass", { after() {
   if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (root) try { bugLook(root, bugScreen()); } catch (e) {}
-}; }
+} });
 </script>
 <script>
 /* ===== v200: the two lags the owner felt: Queue scrolling and a game page opening ===== */
@@ -17687,7 +17676,7 @@ function nxPersonaLine() {
   const x = pool[Math.floor(Math.random() * pool.length)]; seen.push(set.indexOf(x)); if (seen.length > 6) seen.shift();
   try { return [NX_RAW + x[1](c), x[2](c) || ""]; } catch (e) { return null; }
 }
-{ const _nv = nxVoice; nxVoice = function (t) { t = String(t || ""); return t.charAt(0) === NX_RAW ? t.slice(1) : _nv.apply(this, arguments); }; }
+extend("nxVoice", { before: (t, ...more) => { t = String(t || ""); if (t.charAt(0) === NX_RAW) return extend.skip(t.slice(1)); return extend.args([t, ...more]); } });
 extend("pnBubSay", { before: line => {
   if (!line && Math.random() < .6) { const pl = nxPersonaLine(); if (pl) line = pl; }
   nxPDress();
@@ -18238,9 +18227,9 @@ document.addEventListener("click", e => { const b = e.target.closest("[data-desc
   const d = b.previousElementSibling; if (!d || !d.classList.contains("gd-desc")) return;
   const open = d.classList.toggle("open"); b.textContent = open ? "Read less" : "Read more"; b.setAttribute("aria-expanded", String(open)); beep("tap"); });
 /* bugLook and lookDesign run back to back on the same screen: they share one list of the text that's drawn */
-{ const _lt = lookText; let memo = null;
-  lookText = function (root) { const now = performance.now(); if (memo && memo.root === root && now - memo.t < 400) return memo.T;
-    const T = _lt.apply(this, arguments); memo = { root, t: now, T }; return T; }; }
+{ let memo = null;
+  extend("lookText", { before(root) { const now = performance.now(); if (memo && memo.root === root && now - memo.t < 400) return extend.skip(memo.T); return now; },
+    after(T, [root], now) { memo = { root, t: now, T }; } }); }
 /* one pass asks each element for its style once (the contrast check walks the same cards for every piece of text) */
 let LOOK_CS = null;
 const lookCS = a => { if (!LOOK_CS) return getComputedStyle(a); let c = LOOK_CS.get(a); if (!c) { c = getComputedStyle(a); LOOK_CS.set(a, c); } return c; };
@@ -18657,11 +18646,11 @@ function cbRestoreSheet() {
 }
 /* the Queue's backup reminder: with the cloud working and the code saved there's nothing to nag about;
    with the cloud working but the code unsaved, it asks for that instead */
-{ const _nb = nudgeBar; nudgeBar = function () {
+extend("nudgeBar", { before() {
   if (cbOn() && CB.at && !CB.saved && !(S.nudgeSnooze && Date.now() - S.nudgeSnooze < 3 * 864e5))
-    return `<div class="nudge"><span><b>Your games are backed up to the cloud.</b> Save your restore code so you can get them back on any phone.</span>
-      <span class="nudge-acts"><button class="chip" id="nudge-cbsave"><span>🔑 Save code</span></button><button class="chip" id="nudge-later"><span>Later</span></button></span></div>`;
-  return _nb.apply(this, arguments); }; }
+    return extend.skip(`<div class="nudge"><span><b>Your games are backed up to the cloud.</b> Save your restore code so you can get them back on any phone.</span>
+      <span class="nudge-acts"><button class="chip" id="nudge-cbsave"><span>🔑 Save code</span></button><button class="chip" id="nudge-later"><span>Later</span></button></span></div>`);
+  } });
 document.addEventListener("click", async e => { if (!e.target.closest("#nudge-cbsave")) return; beep("tap"); if (await cbSaveCode()) renderQueue(); });
 WHATS_NEW.push(
   { v: 211, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Cloud backup", text: "Your restore code" }); }, at: "#s-cbcode",
@@ -18744,6 +18733,7 @@ function wiPick() {
   const pl = playingNow().filter(g => !g.comp);
   return pl.sort((a, b) => ((wiLast(b) || {}).t || 0) - ((wiLast(a) || {}).t || 0))[0] || null;
 }
+let wiAskT = 0;
 function wiAsk() {
   if (S.wiAskOff || document.hidden) return;
   const g = wiPick(); if (!g) return;
@@ -18761,7 +18751,7 @@ function wiAsk() {
     requestAnimationFrame(() => el.classList.add("on"));
     const hide = () => el.classList.remove("on");
     el.onclick = e => { if (e.target.closest(".wa-no")) beep("back"); hide(); };
-    clearTimeout(wiAsk.t); wiAsk.t = setTimeout(hide, 15000);
+    clearTimeout(wiAskT); wiAskT = setTimeout(hide, 15000);
   };
   setTimeout(go, 2500);
 }
@@ -19462,8 +19452,8 @@ async function wiStoryGet(g) {
   save(); wiStoryPaint(g);
 }
 /* on the New game page: the recap sits under the note card */
-{ const _wc = wiCard; wiCard = function (g, force) { const c = _wc.apply(this, arguments); return force || !c ? c : c + wiStoryHtml(g); }; }
-{ const _wr = wiRefresh; wiRefresh = function (g) { const o = _wr.apply(this, arguments); wiStoryPaint(g); return o; }; }
+extend("wiCard", { map: (c, [g, force]) => force || !c ? c : c + wiStoryHtml(g) });
+extend("wiRefresh", { after: (o, [g]) => { wiStoryPaint(g); } });
 extend("wiAdd", { after: (o, [g]) => { if (g) setTimeout(() => wiStoryGet(g), 300); } });
 onNav("after", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]);
   if (g && wiLast(g)) { wiStoryFit(); setTimeout(() => wiStoryGet(g), 600); } });
@@ -19475,11 +19465,11 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
   below.forEach(x => x.animate([{ transform: `translateY(${-dh}px)` }, { transform: "none" }], { duration: 420, easing: PN_EASE }));
   if (open) t.animate([{ opacity: .45 }, { opacity: 1 }], { duration: 420, easing: "ease-out" }); }, true);
 /* the "Played X since last time?" card carries the first line of the recap, and asking also gets one ready */
-{ const _ask = wiAsk; wiAsk = function () { const g = typeof wiPick === "function" ? wiPick() : null; if (g) wiStoryGet(g);
-  const o = _ask.apply(this, arguments);
+extend("wiAsk", { before: () => { const g = typeof wiPick === "function" ? wiPick() : null; if (g) wiStoryGet(g); return g; },
+  after: (o, a, g) => {
   setTimeout(() => { const el = $("#wiask"), gg = g && g.wiStory && wiLast(g) && g.wiStory.t === wiLast(g).t ? g.wiStory : null;
     if (el && gg && gg.x && !el.querySelector(".wa-st")) { const sp = el.querySelector("span"); if (sp) sp.insertAdjacentHTML("beforeend", `<small class="wa-st">📖 ${esc(gg.x.split(/(?<=[.!?])\s/)[0].slice(0, 160))}</small>`); } }, 2700);
-  return o; }; }
+  } });
 </script>
 <script>
 /* ===== v216: Steam's genres and "more like this". Steam's own tags are the genres players vote on ("Souls-like",
@@ -19554,22 +19544,6 @@ async function stMore(g) {
   const rec = { id, t: Date.now(), l }; if (l.length) { S.stMore[g.id] = rec; const k = Object.keys(S.stMore); if (k.length > 40) delete S.stMore[k[0]]; save(); }
   return rec;
 }
-{ const _os = openSimilar; openSimilar = function (id) { const o = _os.apply(this, arguments); const g = S.games.find(x => x.id === id), box = dyBox();
-  if (!g || !stIdOf(g)) return o;
-  const anchor = box.querySelector(".sim-new"); if (!anchor) return o;
-  anchor.insertAdjacentHTML("afterend", `<p class="dy-q" style="margin-top:14px"><b>Steam players also like</b> <small>Steam's own "More like this"</small></p><div class="st-more"><p class="dy-empty">Asking Steam…</p></div>`);
-  const mine = S.games.map(x => [normT(x.title), x]);
-  const myTags = new Set((g.stTags || []).map(x => x.toLowerCase()));
-  stMore(g).then(rec => { const el = box.querySelector(".st-more"); if (!el) return;
-    const l = (rec && rec.l) || []; box._st = l;
-    el.innerHTML = l.length ? `<div class="dy-gl">${l.map((x, i) => { const have = (mine.find(([t]) => simSame(t, normT(x.name)) >= .9) || [])[1];
-      const why = x.tags.filter(t => myTags.has(t.toLowerCase()) && (!ST_GENERIC.has(t.toLowerCase()) || ST_BROAD.has(t.toLowerCase()))).slice(0, 3);
-      return `<div class="dy-g sim-h"><img decoding="async" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${x.id}/header.jpg" alt="" onerror="this.style.visibility='hidden'">
-        <span><b>${esc(x.name)}</b><small>${esc(why.length ? "Both: " + why.join(", ") : x.tags.slice(0, 3).join(", "))}</small></span>
-        ${have ? `<button class="sim-yt" data-opg="${have.id}" aria-label="Open">›</button>` : `<button class="sim-yt" data-ytq="${esc(x.name)}" aria-label="Trailer">▶</button><button class="hitadd" data-stadd="${i}" aria-label="Add ${esc(x.name)}">＋</button>`}</div>`; }).join("")}</div>`
-      : `<p class="dy-empty">Steam had nothing to add.</p>`; })
-    .catch(e => { const el = box.querySelector(".st-more"); if (el) el.innerHTML = `<p class="dy-empty">${e && e.message === "helper-old" ? "This switches on once Nexi's helper is updated." : "Couldn't reach Steam right now."}</p>`; });
-  return o; }; }
 document.addEventListener("click", async e => { const a = e.target.closest && e.target.closest("[data-stadd]"); if (!a) return; e.stopPropagation();
   const box = dyBox(), x = (box._st || [])[+a.dataset.stadd]; if (!x) return;
   if (!rawgKey) { toast("Add your RAWG key in Settings first (it fills in the cover and dates)"); return; }
@@ -19697,27 +19671,27 @@ async function drRun(force) {
 }
 setTimeout(() => drRun(false), 25000);
 /* Deals shows them under your own list */
-{ const _pd = pxDeals; pxDeals = function () { const o = _pd.apply(this, arguments); const box = dyBox(), l = drOn() ? (S.drList || []).filter(x => x.pct >= 30).sort((a, b) => b.pct - a.pct) : [];
+extend("pxDeals", { after(o) { const box = dyBox(), l = drOn() ? (S.drList || []).filter(x => x.pct >= 30).sort((a, b) => b.pct - a.pct) : [];
   const btn = box.querySelector("[data-pxnow]"); if (!btn || !l.length) return o;
   btn.insertAdjacentHTML("beforebegin", `<p class="pxd-h">🔭 You'd probably like these · on sale</p><div class="dy-gl">${l.slice(0, 8).map(x => `<div class="dy-g pxd drd"><img decoding="async" src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${x.id}/header.jpg" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(x.name)}</b><small>Fans of ${esc(x.by)} love it · Steam ${esc(pxM("st", x, x.now, x.nowF || ""))} <s>${esc(pxM("st", x, x.base, x.baseF || ""))}</s></small></span><button class="sim-yt" data-drgo="${x.id}" aria-label="Open on Steam">↗</button><em class="pxd-p">−${x.pct}%</em></div>`).join("")}</div>`);
-  return o; }; }
+  } });
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-drgo]"); if (!b) return; e.stopPropagation(); beep("tap"); window.open(`https://store.steampowered.com/app/${b.dataset.drgo}/`, "_blank", "noopener"); }, true);
 /* the deal-radar games ride along on a manual "check now" too */
 extend("pxRun", { map: (p, [force, only]) => Promise.resolve(p).then(o => { if (!only && o) drRun(!!force); return o; }) });
 /* Settings: deal radar + release-date watcher, next to price alerts */
-{ const _sh = pxSetHtml; pxSetHtml = function () { const log = (S.rdLog || []).slice(-5).reverse();
-  return _sh.apply(this, arguments) + `<label>Deal radar</label>
+extend("pxSetHtml", { before: () => (S.rdLog || []).slice(-5).reverse(),
+  map: (o, a, log) => o + `<label>Deal radar</label>
     <div class="chips" id="s-dr">${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.drOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}</div>
     <p class="note">Nexi also keeps an eye on games you don't have yet but would probably love (what Steam players who love your top games play), and tells you when one is half price or less. ${S.drList && S.drList.length ? `Watching ${S.drList.length} right now.` : ""}</p>
     <label>Release dates</label>
     <div class="chips" id="s-rd">${[["on", "Keep them up to date"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.rdOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}</div>
     <p class="note">Every few days Nexi re-checks the games you're waiting for and fixes their dates himself when they're delayed, moved up or finally announced${rawgKey ? "" : " (needs your RAWG key)"}.</p>
-    ${log.length ? `<div class="rdlog">${log.map(x => { const g = S.games.find(y => y.id === x.id); return `<div><small>${esc(wiAgo(x.t))}</small><span>${esc(g ? g.title : "A game")}: ${esc(rdNice(x.from))} → ${esc(rdNice(x.to))}</span></div>`; }).join("")}</div>` : ""}`; }; }
-{ const _sw = pxSetWire; pxSetWire = function () { const o = _sw.apply(this, arguments);
+    ${log.length ? `<div class="rdlog">${log.map(x => { const g = S.games.find(y => y.id === x.id); return `<div><small>${esc(wiAgo(x.t))}</small><span>${esc(g ? g.title : "A game")}: ${esc(rdNice(x.from))} → ${esc(rdNice(x.to))}</span></div>`; }).join("")}</div>` : ""}` });
+extend("pxSetWire", { after() {
   const tg = (sel, fn) => { const el = $(sel); if (el) el.onclick = e => { const c = e.target.closest(".chip"); if (!c) return; [...el.children].forEach(x => x.setAttribute("aria-pressed", String(x === c))); fn(c.dataset.v); save(); beep("tap"); }; };
   tg("#s-dr", v => { S.drOff = v === "off"; if (!S.drOff) drRun(true); });
   tg("#s-rd", v => { S.rdOff = v === "off"; if (!S.rdOff) rdWatch(true); });
-  return o; }; }
+  } });
 WHATS_NEW.push(
   { v: 217, go: () => { closeFull(); dyClose(); nxShut(); setJump({ scope: "app", group: "Price alerts", text: "Release dates" }); }, at: "#s-rd",
     say: "New, and fully automatic: I now re-check every game you're waiting for and fix its release date myself when it's delayed, moved up or finally announced, then tell you (and your release-day pings follow).",
@@ -20294,7 +20268,7 @@ setTimeout(() => { const s = ssnNow(); if (!s || document.documentElement.classL
   const k = s.k + new Date().getFullYear(); if ((S.ssnSaid || {})[k]) return; (S.ssnSaid ||= {})[k] = Date.now(); save();
   const L = ssnLines(s); if (!L.length || typeof pnBubSay !== "function") return;
   try { if (typeof pnBubBurst === "function") pnBubBurst(); pnBubSay(L[0]); } catch (e) {} }, 12000);
-{ const _nw = nxWindow; nxWindow = function () { const w = _nw.apply(this, arguments); const s = ssnNow(); return s && s.k === "ramadan" ? [Math.max(w[0], 20), 23] : w; }; }
+extend("nxWindow", { map: w => { const s = ssnNow(); return s && s.k === "ramadan" ? [Math.max(w[0], 20), 23] : w; } });
 
 /* ---- 5. battery saver ---- */
 let batLow = false;
@@ -20555,14 +20529,14 @@ setTimeout(() => seatSync(true), 900);
 
 /* ---- Nexi's crystal ball ---- */
 /* the first finish forecast for a game is kept, so Then & now can say how it went */
-{ const _eo = etaOf; etaOf = function (g) { const e = _eo.apply(this, arguments); if (e && g && !g.eta0 && e.left > 0) { g.eta0 = { d: e.date, at: Date.now() }; } return e; }; }
+extend("etaOf", { after: (e, [g]) => { if (e && g && !g.eta0 && e.left > 0) { g.eta0 = { d: e.date, at: Date.now() }; } } });
 extend("syncPlayed", { after: (out, [g]) => { try { if (g && g.cap && g.eta0 && !g.cap.e0) g.cap.e0 = g.eta0.d; } catch (e) {} } });
-{ const _sw = scoreWrite; scoreWrite = function (rec, v) { const o = _sw.apply(this, arguments);
+extend("scoreWrite", { after(o, [rec, v]) {
   try { const g = rec && S.games.find(x => x.id === rec.id);
     if (g && g.cap && g.cap.pr > 0 && typeof v === "number" && g.cap.got == null) { g.cap.got = v; const d = v - g.cap.pr, pr = g.cap.pr.toFixed(1);
       const line = Math.abs(d) <= .5 ? `Called it! 🔮 I guessed ${pr}, you gave it ${v}.` : Math.abs(d) <= 1.5 ? `Close: I guessed ${pr}, you said ${v}. My crystal ball's getting warm 🔮` : `You surprised me: I guessed ${pr}, you gave it ${v}. Noted for next time 📝`;
       setTimeout(() => { if (typeof pnBubSay === "function" && !document.documentElement.classList.contains("nxtouring")) try { pnBubSay([line, "taste"]); } catch (e) {} }, 1400); } } catch (e) {}
-  return o; }; }
+  } });
 function orcStats() {
   const L = S.games.filter(g => g.cap && g.cap.pr > 0 && isPlayed(g)).map(g => { const p = playedRec(g); return p && scored(p) ? { g, pr: g.cap.pr, v: p.real, d: Math.abs(p.real - g.cap.pr) } : null; }).filter(Boolean);
   return { n: L.length, hits: L.filter(x => x.d <= 1).length, mae: L.length ? L.reduce((s, x) => s + x.d, 0) / L.length : 0, L: L.sort((a, b) => (b.g.cap.at || 0) - (a.g.cap.at || 0)) };
@@ -20577,11 +20551,11 @@ function orcCard() {
 extend("tasteInsightsPage", { map: o =>
   typeof o === "string" && o.endsWith("</div>") ? o.slice(0, -6) + orcCard() + "</div>" : o });
 /* Then & now also shows the finish forecast against the real finish */
-{ const _cc = capCard; capCard = function (g) { const o = _cc.apply(this, arguments); const c = g && g.cap, p = g && playedRec(g);
+extend("capCard", { map(o, [g]) { const c = g && g.cap, p = g && playedRec(g);
   if (!o || !c || !c.e0 || !p || !p.t) return o;
   const dd = Math.round((Date.parse(p.t + "T12:00:00") - Date.parse(c.e0 + "T12:00:00")) / 864e5);
   const cell = `<span class="cap-c"><b>${dd === 0 ? "On the day" : Math.abs(dd) + " days " + (dd < 0 ? "early" : "late")}</b><small>vs my finish forecast (${esc(rdNice(c.e0))})</small></span>`;
-  return o.includes('<div class="cap-r">') ? o.replace('<div class="cap-r">', '<div class="cap-r">' + cell) : o; }; }
+  return o.includes('<div class="cap-r">') ? o.replace('<div class="cap-r">', '<div class="cap-r">' + cell) : o; } });
 WHATS_NEW.push(
   { v: 221, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => [...document.querySelectorAll("#p-queue [data-row]")].find(r => { const g = S.games.find(x => x.id === r.dataset.row); return g && dustLvl(g); }) || $("#p-queue .row"),
     say: "Your backlog gathers dust now: games that came out and sat untouched for months get dustier in your queue (cobwebs after 8 months). Open one and the dust blows off.",
@@ -20752,9 +20726,9 @@ async function pxRawgFix(ids) {
     if (fixed.length) pxPaint();
   } finally { pxRwBusy = false; }
 }
-{ const _pt = pxTake; pxTake = function (res) { const o = _pt.apply(this, arguments);
+extend("pxTake", { after(o, [res]) {
   try { const ids = Object.keys(res || {}).filter(id => pxRwNeed(S.games.find(x => x.id === id))); if (ids.length) setTimeout(() => pxRawgFix(ids), 1500); } catch (e) {}
-  return o; }; }
+  } });
 /* games already stuck on "not found" from earlier checks */
 setTimeout(() => { try { const ids = (typeof pxWatched === "function" ? pxWatched() : []).filter(pxRwNeed).map(g => g.id); if (ids.length) pxRawgFix(ids); } catch (e) {} }, 25000);
 WHATS_NEW.push(
@@ -21178,10 +21152,9 @@ sgdbFind = async function (title) {
 
 /* SteamGridDB's top picks (sgdbTop) plus the stores: a store fills whatever SteamGridDB has none of, and its clean backdrop
    wins when it has at least 1.5× the pixels of SteamGridDB's */
-{ const _top = sgdbTop;
-  sgdbTop = async function (title) {
+extend("sgdbTop", { map: (p, [title]) => (async () => {
     let t = null, err = null, a = null;
-    try { t = await _top.apply(this, arguments); } catch (e) { err = e; }
+    try { t = await p; } catch (e) { err = e; }
     try { a = await artStores(title); } catch (e) {}
     const pics = (a && a.pics) || [];
     if (!pics.length) { if (err) throw err; return t; }
@@ -21192,7 +21165,7 @@ sgdbFind = async function (title) {
     if (h && (!t.hero || artArea(h) >= 1.5 * (t.heroA || 0))) t.hero = h.u;
     if (!t.art && l) t.art = l.u;
     return t;
-  }; }
+  })() });
 WHATS_NEW.push(
   { v: 230, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (!g) return; openEdit(g.id);
       setTimeout(() => { const t = $('[data-etab="look"]'); if (t) t.click();
@@ -22035,9 +22008,9 @@ setTimeout(() => { if (document.hidden || Date.now() - (S.shotsRun || 0) < 20 * 
   const l = [...playingNow(), ...(typeof onDeck === "function" ? onDeck(6) : []), ...S.games].filter((g, i, a) => a.indexOf(g) === i && !g.shots && !g.shotsNo).slice(0, 6);
   l.reduce((p, g) => p.then(() => shotsFetch(g)).then(() => new Promise(r => setTimeout(r, 1500))), Promise.resolve()); }, 70000);
 /* screenshots seen in a preview come along when the game is added */
-{ const _a = sgAdd; sgAdd = async function (it) { const g = await _a.apply(this, arguments);
+extend("sgAdd", { map: (p, [it]) => Promise.resolve(p).then(g => {
   if (g && it && it._shots && it._shots.length && !g.shots) { g.shots = it._shots.slice(0, 5).map(x => ({ u: x.u, b: x.big || x.u, t: "", s: x.s })); g.shotsSrc = it._src || ""; g.shotsAt = Date.now(); save(); }
-  return g; }; }
+  return g; }) });
 /* tap one: full screen, swipe through, ✕ or a tap outside closes */
 function shotView(g, i) {
   const l = g.shots || []; if (!l.length) return;
@@ -22057,8 +22030,8 @@ document.addEventListener("click", e => { const b = e.target.closest && e.target
 /* Nexi learned: the game page swiping to another game while a sheet, preview or screenshot viewer is open on top of it */
 { const over = () => !!document.querySelector("#gprev.on, #diary.on, #shv, #sheet.on");
   const rep = () => { if (over()) bugReport("layout", "The game page swiped behind an open sheet", { at: ["#gprev.on", "#diary.on", "#shv", "#sheet.on"].filter(x => document.querySelector(x)).join(", "), screen: bugScreen() }); };
-  const _hs = hubStep; hubStep = function () { rep(); return _hs.apply(this, arguments); };
-  const _hd = hubDragStart; hubDragStart = function () { rep(); return _hd.apply(this, arguments); }; }
+  extend("hubStep", { before: () => { rep(); } });
+  extend("hubDragStart", { before: () => { rep(); } }); }
 /* the owner: "2 times Story Rich?": Steam's "Story Rich" sat next to RAWG's "Story-rich". One-time clean of every game's genres
    (same name ignoring case, spaces and hyphens = one genre, the first one kept); stApply now compares the same way */
 if (!S.genDedup) { S.games.forEach(g => { const l = platList(g.genres), u = l.filter((t, i) => l.findIndex(x => gdKey(x) === gdKey(t)) === i);
@@ -22068,8 +22041,8 @@ if (!S.genDedup) { S.games.forEach(g => { const l = platList(g.genres), u = l.fi
    viewer also moved the page behind. Touches now stay inside those layers, and inside the page's own screenshot strip. */
 const NO_HUB = ["touchstart", "touchmove", "touchend", "touchcancel"];
 function noHub(el) { if (!el || el._noHub) return; el._noHub = 1; NO_HUB.forEach(t => el.addEventListener(t, e => e.stopPropagation(), { passive: true })); }
-{ const _gb = gpBox; gpBox = function () { const b = _gb.apply(this, arguments); noHub(b); return b; }; }
-{ const _db = dyBox; dyBox = function () { const b = _db.apply(this, arguments); noHub(b); return b; }; }
+extend("gpBox", { after: b => { noHub(b); } });
+extend("dyBox", { after: b => { noHub(b); } });
 { const f = $("#full"); if (f) NO_HUB.forEach(t => f.addEventListener(t, e => { if (e.target.closest && e.target.closest(".gd-shots, .gd-tags")) e.stopPropagation(); }, { passive: true })); }
 WHATS_NEW.push(
   { v: 237, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => (x.shots || []).length) || onDeck(1)[0] || S.games[0]; if (g) { openFull(g.id); shotsFetch(g); } },
@@ -22843,14 +22816,14 @@ document.addEventListener("click", e => {
   }
 }, true);
 /* RAWG's "playtime" is what its users logged, not the time to beat: it no longer fills the Add form or Edit's RAWG pull */
-{ const _fill = fill; fill = function (h) { const o = _fill.apply(this, arguments); try { if (h && +$("#f-hours").value === +h.playtime) $("#f-hours").value = ""; } catch (e) {} return o; }; }
-{ const _rp = rawgLookup; rawgLookup = async function () { const d = await _rp.apply(this, arguments); if (d && !d.err && d.hoursFrom === "RAWG players") { d.hours = 0; d.hoursFrom = ""; } return d; }; }
+extend("fill", { after: (o, [h]) => { try { if (h && +$("#f-hours").value === +h.playtime) $("#f-hours").value = ""; } catch (e) {} } });
+extend("rawgLookup", { map: p => Promise.resolve(p).then(d => { if (d && !d.err && d.hoursFrom === "RAWG players") { d.hours = 0; d.hoursFrom = ""; } return d; }) });
 
 /* ---- the game page: the Length tile opens HowLongToBeat's numbers ---- */
-{ const _gg = gdGlance; gdGlance = function (g) { const o = _gg.apply(this, arguments);
+extend("gdGlance", { map(o, [g]) {
   if (!g || g.comp) return o;
   const i = o.indexOf("</div>") + 6;
-  return o.slice(0, i) + o.slice(i).replace(/^<div>/, `<div class="gd-hl${hlSrc(g) === "hltb" ? " src" : ""}" role="button" tabindex="0" data-hltb="${esc(g.id)}" aria-label="How long to beat">`); }; }
+  return o.slice(0, i) + o.slice(i).replace(/^<div>/, `<div class="gd-hl${hlSrc(g) === "hltb" ? " src" : ""}" role="button" tabindex="0" data-hltb="${esc(g.id)}" aria-label="How long to beat">`); } });
 function hlRepaint() { const f = $("#full .gd-glance"); if (!f || typeof hubAt === "undefined") return; const g = S.games.find(x => x.id === hubAt); if (g) f.innerHTML = gdGlance(g); }
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-hltb]"); if (!b) return; e.stopPropagation(); beep("tap"); hlSheet(b.dataset.hltb); }, true);
 document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest("[data-hltb]")) { e.preventDefault(); hlSheet(e.target.closest("[data-hltb]").dataset.hltb); } });
@@ -23288,13 +23261,13 @@ function smLine(g) {
   return `<div class="smv k-${v.k}" data-g="${g.id}"><button type="button" data-smplan="${g.id}"><b>${SM_ICON[v.k]} ${esc(v.head)}</b><small>${esc(v.why)}</small></button>
     <button type="button" class="smv-own" data-smown="${g.id}">I own it</button></div>`;
 }
-{ const _pc = pxCard; pxCard = function (g) {
-  if (g && g.own && !isPlayed(g) && !isDropped(g) && pxOn()) return `<div class="px" data-g="${g.id}"><button type="button" class="smv-o" data-smown="${g.id}">✓ <b>You own it</b> · no price checks. Tap if you don't.</button></div>`;
-  const o = _pc.apply(this, arguments); if (!o) return o;
+extend("pxCard", { before(g) {
+  if (g && g.own && !isPlayed(g) && !isDropped(g) && pxOn()) return extend.skip(`<div class="px" data-g="${g.id}"><button type="button" class="smv-o" data-smown="${g.id}">✓ <b>You own it</b> · no price checks. Tap if you don't.</button></div>`); },
+  map(o, [g]) { if (!o) return o;
   const l = smLine(g); if (!l) return o;
-  const at = o.lastIndexOf("</div>"); return at < 0 ? o : o.slice(0, at) + l + o.slice(at); }; }
+  const at = o.lastIndexOf("</div>"); return at < 0 ? o : o.slice(0, at) + l + o.slice(at); } });
 /* a game you own isn't priced any more */
-{ const _pi = pxItem; pxItem = function (g) { const o = _pi.apply(this, arguments); return g && g.own ? Object.assign(o, { st: -1, ps: "-", ns: "-" }) : o; }; }
+extend("pxItem", { map: (o, [g]) => g && g.own ? Object.assign(o, { st: -1, ps: "-", ns: "-" }) : o });
 function smPlan() {
   const R = smReach(), L = smQueue().map(g => [g, smBuy(g)]).filter(x => x[1]);
   const grp = [["Buy now", L.filter(x => x[1].k === "buy" || x[1].k === "deal")], ["Wait for a sale", L.filter(x => x[1].k === "wait")], ["No rush", L.filter(x => x[1].k === "later" || x[1].k === "soon")]];
@@ -23406,8 +23379,8 @@ function dwCard(g) {
     <div class="dwc-b"><button type="button" class="go" data-dw="short:${g.id}">Something short in between</button><button type="button" data-dw="park:${g.id}">Park it</button><button type="button" data-dw="ok:${g.id}">I'm into it</button></div></div>`;
 }
 /* on the game page: at the end of Your progress, under the finish forecast */
-{ const _gp = gdProgress; gdProgress = function (g) { const o = _gp.apply(this, arguments); let add = ""; try { add = dwCard(g); } catch (e) {} if (!add) return o;
-  const at = o.lastIndexOf("</section>"); return at < 0 ? o + add : o.slice(0, at) + add + o.slice(at); }; }
+extend("gdProgress", { map(o, [g]) { let add = ""; try { add = dwCard(g); } catch (e) {} if (!add) return o;
+  const at = o.lastIndexOf("</section>"); return at < 0 ? o + add : o.slice(0, at) + add + o.slice(at); } });
 function dwAct(a, g) {
   if (!g) return;
   if (a === "ok") { (S.dwAsked ||= {})[g.id] = Date.now(); g.sgOk = Date.now(); save(); beep("tap"); toast(`Good to hear. Enjoy ${g.title}!`); }
@@ -23774,7 +23747,7 @@ function rlvBind(v) {
   v.addEventListener("click", e => { if (RLV.moved) { RLV.moved = false; e.stopPropagation(); e.preventDefault(); return; }
     const b = e.target.closest("[data-rlt]"); if (b) { e.stopPropagation(); goTab(b.dataset.rlt); } }, true);
 }
-{ const _pr = pnRail; pnRail = function () { const o = _pr.apply(this, arguments); try { rlvPaint(); } catch (e) {} return o; }; }
+extend("pnRail", { after: () => { try { rlvPaint(); } catch (e) {} } });
 new MutationObserver(() => { const c = rlvCalm(); if (c !== RLV.calm) { RLV.calm = c; rlvFill(); } })
   .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 setInterval(() => { if (!document.hidden && !rlvCalm()) try { rlvPaint(); } catch (e) {} }, 60000);
@@ -23999,11 +23972,11 @@ function dzPlay() {
 extend("renderHome", { after: () => { dzPlay(); } });
 
 /* 2. On deck: photo cards (#1 full picture, #2 and #3 picture on top) */
-{ const _ods = onDeckStrip; onDeckStrip = function () {
-  if (!dzOn("deck") || S.deckOff) return _ods.apply(this, arguments);
-  const d = onDeck(3); if (!d.length) return "";
+extend("onDeckStrip", { before() {
+  if (!dzOn("deck") || S.deckOff) return;
+  const d = onDeck(3); if (!d.length) return extend.skip("");
   const art = g => esc(bgSource(g) || cover(g)), why = g => esc(deckWhy(g) || platList(g.genres).slice(0, 2).join(" · "));
-  return `<div class="deck dzd"><span class="deck-h">On deck</span><div class="dzd-row">${d.map((g, i) => i === 0
+  return extend.skip(`<div class="deck dzd"><span class="deck-h">On deck</span><div class="dzd-row">${d.map((g, i) => i === 0
     ? `<button type="button" class="dzd-a" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
         <img class="dzd-img" decoding="async" src="${art(g)}" alt=""><img class="dzd-blur" decoding="async" src="${esc(liteFor(bgSource(g) || cover(g), 1) || bgSource(g) || cover(g))}" alt="" aria-hidden="true">
         <span class="dzd-n">#1</span>
@@ -24011,8 +23984,8 @@ extend("renderHome", { after: () => { dzPlay(); } });
     : `<button type="button" class="dzd-s" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
         <span class="dzd-ph"><img decoding="async" src="${art(g)}" alt=""></span>
         <span class="dzd-t"><b>${esc(g.title)}</b><small>${why(g)}</small><span class="dzd-m">${dzMeta(g)}</span></span>
-        <span class="dzd-row2"><span class="dzd-btn2">Open</span><span class="dzd-n2">#${i + 1}</span></span></button>`).join("")}</div></div>`;
-}; }
+        <span class="dzd-row2"><span class="dzd-btn2">Open</span><span class="dzd-n2">#${i + 1}</span></span></button>`).join("")}</div></div>`);
+} });
 
 /* 3. Taste → Insights: the player type as a court card, with patterned card backs either side */
 const DZ_CROWN = '<svg class="dzc-crown" viewBox="0 0 120 52" fill="currentColor" aria-hidden="true"><path d="M8 40 Q60 26 112 40 L112 50 Q60 37 8 50 Z"/>'
@@ -24160,7 +24133,7 @@ function gpuCheck(what) {
     bugReport("slow", `${where}: a piece animates its ${slow.p} (${name(slow.a)}), which redraws the page every frame instead of moving it on the GPU`,
       { at: bugPath(slow.el), screen: bugScreen(), sigAt: "" });
 }
-{ const _lw = lagWatch; lagWatch = function (what) { const ok = !lagTr; const o = _lw.apply(this, arguments); if (ok) setTimeout(() => gpuCheck(what), 160); return o; }; }
+extend("lagWatch", { before: () => !lagTr, after: (o, [what], ok) => { if (ok) setTimeout(() => gpuCheck(what), 160); } });
 
 WHATS_NEW.push(
   { v: 261, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
@@ -24533,13 +24506,13 @@ function dragBlock(e) {
   if (!drag) { removeEventListener("touchmove", dragBlock, true); return; }
   if (e.cancelable) e.preventDefault();
 }
-{ const _sd2 = startDrag; startDrag = function () { const o = _sd2.apply(this, arguments);
-  if (drag) addEventListener("touchmove", dragBlock, { capture: true, passive: false }); return o; }; }
+extend("startDrag", { after() {
+  if (drag) addEventListener("touchmove", dragBlock, { capture: true, passive: false }); } });
 ["touchend", "touchcancel"].forEach(t => addEventListener(t, () => setTimeout(() => { if (!drag) removeEventListener("touchmove", dragBlock, true); }, 0), { capture: true, passive: true }));
 </script>
 <script>
 /* the smoothness check counts swiping a game's page to the next game as a sideways moment (it's not a scroll) */
-{ const _hp = hubPaint; hubPaint = function () { prbStart("h", 300); return _hp.apply(this, arguments); }; }
+extend("hubPaint", { before: () => { prbStart("h", 300); } });
 </script>
 <script>
 /* v265: Nexi learned (the blocking touchmove above sat on every screen for months and nothing noticed: it doesn't throw,
@@ -24737,9 +24710,9 @@ function stReport(o) {
     <p class="st-n">Sent to Claude with the details.</p>`, () => {});
 }
 /* the test's own flings, swipes and page closes aren't lag to report (lagWatch doesn't look at BUG_MODAL) */
-{ const _br = bugReport; bugReport = function (kind, msg, x) {
-  if (window.pnSelfTest && kind === "slow" && !(x && /^selftest/.test(x.at || ""))) return;
-  return _br.apply(this, arguments); }; }
+extend("bugReport", { before(kind, msg, x) {
+  if (window.pnSelfTest && kind === "slow" && !(x && /^selftest/.test(x.at || ""))) return extend.skip();
+  } });
 document.addEventListener("click", e => { if (!e.target.closest("#s-stest")) return; e.stopPropagation(); beep("tap"); setTimeout(stRun, 200); }, true);
 </script>
 <style>
