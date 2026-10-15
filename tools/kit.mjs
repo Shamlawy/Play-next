@@ -346,7 +346,7 @@ async function smooth(browser, base) {
       await p.page.waitForTimeout(100); await p.page.evaluate(() => pnPowerUp(false));
       await p.page.waitForTimeout(1250);
       const mid = await flame(); await go; await p.page.waitForTimeout(600);
-      await p.page.evaluate(() => pnPowerUp.end && pnPowerUp.end()); await p.page.waitForTimeout(400);
+      await p.page.evaluate(() => { const end = typeof pnPuEnd !== "undefined" ? pnPuEnd : pnPowerUp.end; if (end) end(); }); await p.page.waitForTimeout(400);
       const end = await flame();
       const n = (l, st) => l.filter(x => x === st).length;
       if (!n(mid, "running")) fail(`${w}px power-up mid-swipe: the flame isn't running mid-swipe (${mid.join(",") || "none"})`);
