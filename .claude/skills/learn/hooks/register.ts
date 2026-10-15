@@ -116,7 +116,7 @@ export const register: Register = on => {
       notes.push(reflection(sessionSignals.length ? sessionSignals : [{ kind: 'release', text: 'asked for a retrospective of the whole chat' }])
         .replace('Before you finish: a short retrospective, since this turn had', 'The person asked for a retrospective of this chat. What it had so far'))
       asked = true
-    } else promptSignals(e.text).forEach(signal)
+    } else promptSignals(e.text, e.origin?.kind).forEach(signal)
     return notes.length ? next({ ...e, context: [...(e.context ?? []), notes.join('\n')] }) : next(e)
   }).catch(($, e, next) => next(e))
 
