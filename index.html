@@ -3143,6 +3143,17 @@ function extend(name, hook) {
 }
 extend.skip = value => ({ [EXT_SKIP]: true, value });
 extend.args = args => ({ [EXT_ARGS]: true, args });
+/* v284: one scroll listener for the app's small "you scrolled" jobs. There were 11 listeners on window, each its own call into
+   the page on every scroll frame of every scroller (30-140ms each per swipe set at 4x CPU: together the biggest script cost
+   left while scrolling, v283), and most also cleared and set a timer on every frame. onScrolled(fn): fn(e, first, now) on
+   every scroll event, capture phase; first = a new scroll (nothing scrolled for 250ms). Keep each job to a check and an
+   assignment. A job that waits for scrolling to stop arms its timer once (on first) and, when it fires, waits on for
+   scrollWait(ms) if the scroll went on: one timer per scroll instead of one per frame. */
+const SCROLLED = { last: 0, fns: [] };
+function onScrolled(fn) { SCROLLED.fns.push(fn); }
+function scrollWait(ms) { return Math.max(0, SCROLLED.last + ms - performance.now()); }
+addEventListener("scroll", e => { const now = performance.now(), first = now - SCROLLED.last > 250; SCROLLED.last = now;
+  for (const f of SCROLLED.fns) try { f(e, first, now); } catch (x) { setTimeout(() => { throw x; }); } }, { capture: true, passive: true });
 
 /* v169 speed: building a date/number formatter is slow, and the app formats dates for every card on
    every redraw. Keep one formatter per locale+options and reuse it — same output, a fraction of the cost. */
@@ -3877,7 +3888,7 @@ function liteUp() {
   const pic = n => n.nodeType === 1 && (n.tagName === "IMG" || (n.getAttribute("style") || "").indexOf("url(") >= 0 || (!!n.firstElementChild && !!n.querySelector("img, [style*='url(']")));
   new MutationObserver(ms => { if (!LITE_FULL.size) return; for (const m of ms) for (const n of m.addedNodes) if (pic(n)) return kick(); }).observe(document.documentElement, { childList: true, subtree: true });
   addEventListener("pointerup", () => { if (LITE_FULL.size) kick(); }, { passive: true, capture: true });
-  addEventListener("scroll", e => { if (LITE_FULL.size) kick(e); }, { passive: true, capture: true }); addEventListener("resize", kick);
+  onScrolled(e => { if (LITE_FULL.size) kick(e); }); addEventListener("resize", kick);
   /* v189: a light copy that finished loading after the last pass was skipped for good (still loading then) and stayed soft */
   document.addEventListener("load", e => { if (LITE_FULL.size && e.target.tagName === "IMG") kick(); }, true);
   /* a light copy that stops loading falls back to the real picture; a remote picture that fails gets one more try */
@@ -9321,14 +9332,16 @@ function wireLx(list, redraw) {
   }, { passive: true });
 }
 
-let bubTimer = null;
-addEventListener("scroll", () => {
+let bubTimer = 0, bubLast = 0, bubEl = null;
+const bubOff = () => { const w = bubLast + 550 - performance.now(); if (w > 8) { bubTimer = setTimeout(bubOff, w); return; } bubTimer = 0; if (bubEl) bubEl.classList.remove("mini"); bubEl = null; };
+onScrolled((e, first, now) => {
+  if (e.target !== document) return;   /* the page itself (a bubbling listener on window never heard a box scroll) */
+  bubLast = now;
   const b = $("#hintbub");
-  if (!b) return;
-  b.classList.add("mini");
-  clearTimeout(bubTimer);
-  bubTimer = setTimeout(() => b.classList.remove("mini"), 550);
-}, { passive: true });
+  if (!b || (bubTimer && b === bubEl)) return;
+  bubEl = b; b.classList.add("mini");
+  if (!bubTimer) bubTimer = setTimeout(bubOff, 550);
+});
 
 function applyHubAnim() {
   const box = $("#full");
@@ -13444,9 +13457,9 @@ function pnShelf() {
 /* v245: the shelf was skipped while its screen was hidden, so place it when that screen opens */
 document.querySelectorAll(".panel").forEach(pnl => new MutationObserver(() => { if (pnl.classList.contains("on") && pnl.querySelector("#shelf-row") && !pnShelfRaf) pnShelfRaf = requestAnimationFrame(pnShelf); })
   .observe(pnl, { attributes: true, attributeFilter: ["class"] }));
-document.addEventListener("scroll", e => {
+onScrolled(e => {
   if (e.target && e.target.id === "shelf-row" && !pnShelfRaf) pnShelfRaf = requestAnimationFrame(pnShelf);
-}, { capture: true, passive: true });
+});
 addEventListener("resize", () => { if (!pnShelfRaf) pnShelfRaf = requestAnimationFrame(pnShelf); });
 
 /* v129: when a screen opens, mark it for 0.9s so its pieces cascade in */
@@ -16822,7 +16835,8 @@ function bugPath(el) {
 /* v278: bugLayout had 6 wraps (v199–v208); folded into this: one input tracker (there were 3, 12 listeners) and BUG_AFTER,
    the checks that run after every layout pass (each still lives in its own script). New checks push to BUG_AFTER. */
 let bugLastIn = 0;
-["pointerdown", "touchmove", "wheel", "scroll"].forEach(t => addEventListener(t, () => { bugLastIn = performance.now(); }, { capture: true, passive: true }));
+["pointerdown", "touchmove", "wheel"].forEach(t => addEventListener(t, () => { bugLastIn = performance.now(); }, { capture: true, passive: true }));
+onScrolled((e, first, now) => { bugLastIn = now; });
 const BUG_AFTER = [];
 let bugBusyTries = 0;
 function bugLayout() {
@@ -18189,7 +18203,7 @@ function flickWatch(el, name, opening) {
       if (m.type === "childList" && [...m.removedNodes].some(n => n.nodeType === 1)) { watch.changed = true; mo.disconnect(); cand = []; return; }
       if (cand.length < 60 && !cand.includes(t)) cand.push(t); }
     if (cand.length && !pend) pend = requestAnimationFrame(() => setTimeout(judge)); });
-  const onScroll = () => { if (watch) watch.changed = true; };
+  onScrolled(() => { if (watch) watch.changed = true; });
   const _open = window.open; window.open = function () { if (watch) watch.changed = true; return _open.apply(this, arguments); };
   let down = null;
   addEventListener("pointerdown", e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { capture: true, passive: true });
@@ -18201,13 +18215,12 @@ function flickWatch(el, name, opening) {
     let el = t.closest(LOOK_TAP);
     if (!el) { for (let x = t, i = 0; x && i < 4 && x !== document.body; x = x.parentElement, i++) if (getComputedStyle(x).cursor === "pointer") { el = x; break; } }
     if (!el || el.disabled || el.getAttribute("aria-disabled") === "true" || el.closest("a[target=_blank], [data-trailer], [download]")) return;
-    if (watch) { mo.disconnect(); removeEventListener("scroll", onScroll, true); }
+    if (watch) mo.disconnect();
     watch = { el, changed: false }; cand = [];
     mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
-    addEventListener("scroll", onScroll, { capture: true, passive: true });
     const w = watch;
     setTimeout(() => {
-      if (watch === w) { if (cand.length) judge(); mo.disconnect(); removeEventListener("scroll", onScroll, true); watch = null; }
+      if (watch === w) { if (cand.length) judge(); mo.disconnect(); watch = null; }
       if (w.changed || !el.isConnected || document.hidden) return;
       const key = bugPath(el), now = performance.now(), prev = dead.get(key);
       dead.set(key, now);
@@ -19346,7 +19359,7 @@ addEventListener("pointerdown", e => {
       const s = seen.get(el) || { n: 0, t: 0 }; if (now - s.t < 90) continue;
       s.n++; s.t = now; seen.set(el, s);
       if (s.n >= 3) { seen.delete(el); SK.delete(el); bugReport("layout", "Part of the screen stayed blank while scrolling", { at: bugPath(el) + " skipped while " + Math.round(vis) + "px of it was on screen", screen: bugScreen() }); return; } } };
-  addEventListener("scroll", () => { if (!q && SK.size && performance.now() - last > 100) q = requestAnimationFrame(check); }, { capture: true, passive: true });
+  onScrolled((e, first, now) => { if (!q && SK.size && now - last > 100) q = requestAnimationFrame(check); });
 }
 
 /* ---- the design reviewer checks its facts (v215). Its first 7 reports all claimed something the numbers it was given
@@ -24079,7 +24092,8 @@ function restHold() {
   }
   REST.t = setTimeout(restHold, 5000);   /* loops started while resting (a redraw) hold still too */
 }
-function restGo() { if (S.restOff || document.hidden) return; REST.on = true; window.pnRest = true; restHold(); }
+function restGo() { const w = scrollWait(REST_AFTER); if (w > 8) { REST.t = setTimeout(restGo, w); return; }
+  if (S.restOff || document.hidden) return; REST.on = true; window.pnRest = true; restHold(); }
 function restWake() {
   clearTimeout(REST.t);
   window.pnRest = false;
@@ -24087,7 +24101,7 @@ function restWake() {
   REST.t = setTimeout(restGo, REST_AFTER);
 }
 ["pointerdown", "keydown", "wheel", "touchstart"].forEach(t => addEventListener(t, restWake, { capture: true, passive: true }));
-addEventListener("scroll", () => { if (REST.on) restWake(); else { clearTimeout(REST.t); REST.t = setTimeout(restGo, REST_AFTER); } }, { capture: true, passive: true });
+onScrolled((e, first) => { if (REST.on) restWake(); else if (first) { clearTimeout(REST.t); REST.t = setTimeout(restGo, REST_AFTER); } });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) restWake(); });
 restWake();
 /* Nexi's power-up spawns a bolt and embers every 180ms (it ends itself after 6s): none start while resting */
@@ -24296,6 +24310,7 @@ async function drawLook() {
 function drawArm(ms) { clearTimeout(DRAW.t); DRAW.t = setTimeout(drawCheck, ms); }
 async function drawCheck() {
   clearTimeout(DRAW.t);
+  { const w = scrollWait(3000); if (w > 8) { drawArm(w); return; } }   /* v284: still scrolling */
   if (!lagOk() || nxTouring() || calm() || window.pnRest || DRAW.n >= 6 ||
       document.documentElement.classList.contains("dragging-now")) { if (DRAW.n < 6) drawArm(20000); return; }
   const go = DRAW.go = Symbol(), scr = bugScreen();
@@ -24313,7 +24328,7 @@ async function drawCheck() {
   drawArm(60000);
 }
 ["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => { DRAW.go = null; drawArm(3000); }, { capture: true, passive: true }));
-addEventListener("scroll", () => { DRAW.go = null; drawArm(3000); }, { capture: true, passive: true });
+onScrolled((e, first) => { DRAW.go = null; if (first) drawArm(3000); });
 drawArm(15000);
 
 WHATS_NEW.push(
@@ -24366,6 +24381,7 @@ function stackLook() {
 function stackArm(ms) { clearTimeout(STACK.t); STACK.t = setTimeout(stackCheck, ms); }
 async function stackCheck() {
   clearTimeout(STACK.t);
+  { const w = scrollWait(3500); if (w > 8) { stackArm(w); return; } }   /* v284: still scrolling */
   if (STACK.n >= 6) return;
   const r = document.documentElement, sh = document.getElementById("sheet");
   /* a sheet (Settings, Add…) is a passing overlay over the screen, not the screen */
@@ -24380,7 +24396,7 @@ async function stackCheck() {
     { at: two.who.join(", "), screen: scr, sigAt: "" });
 }
 ["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => { STACK.go = null; stackArm(3500); }, { capture: true, passive: true }));
-addEventListener("scroll", () => { STACK.go = null; stackArm(3500); }, { capture: true, passive: true });
+onScrolled((e, first) => { STACK.go = null; if (first) stackArm(3500); });
 onNav("after", k => { if (k === "tab") { STACK.go = null; stackArm(3500); } });
 stackArm(16000);
 WHATS_NEW.push(
@@ -24496,13 +24512,13 @@ function prbSend() {
 }
 /* the moments */
 { const pos = new WeakMap();
-  addEventListener("scroll", e => {
+  onScrolled(e => {
     if (!PRB.st || PRB.st.done) return;
     const t = e.target === document ? document.scrollingElement : e.target; if (!t || t.nodeType !== 1) return;
     const was = pos.get(t), now = [t.scrollLeft, t.scrollTop]; pos.set(t, now);
     if (!was) return;
     prbStart(Math.abs(now[0] - was[0]) > Math.abs(now[1] - was[1]) ? "h" : "v", 250);
-  }, { capture: true, passive: true });
+  });
 }
 onNav("before", k => prbStart(k === "game" ? "open" : "switch", 1000));
 if (window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("long-animation-frame")) {
@@ -24899,7 +24915,8 @@ document.addEventListener("error", e => { const im = e.target; if (!im || im.tag
   FIT.bad.add(im._fitFrom); const s = im._fitFrom; im._fitTo = s; im.setAttribute("src", s); }, true);
 document.addEventListener("contentvisibilityautostatechange", e => { if (!e.skipped) fitRetry(); }, true);
 onNav("after", () => requestAnimationFrame(fitRetry));
-{ let t = 0; addEventListener("scroll", () => { clearTimeout(t); t = setTimeout(fitRetry, 150); }, { capture: true, passive: true }); }
+{ let t = 0; const go = () => { const w = scrollWait(150); if (w > 8) { t = setTimeout(go, w); return; } t = 0; fitRetry(); };
+  onScrolled(() => { if (!t && FIT.wait.size) t = setTimeout(go, 150); }); }
 addEventListener("resize", () => { clearTimeout(FIT.rt); FIT.rt = setTimeout(() => fitScan(document.body), 400); });   /* fitImg/fitBg refit only where a box grew */
 fitScan(document.body);
 </script>
@@ -24933,6 +24950,7 @@ function picWhy(im) {
 function picArm(ms) { clearTimeout(PIC.t); PIC.t = setTimeout(picCheck, ms); }
 function picCheck() {
   if (PIC.n >= 6 || !bugOn()) return;
+  { const w = scrollWait(4000); if (w > 8) { picArm(w); return; } }   /* v284: still scrolling */
   if (!lagOk() || nxTouring() || window.pnSelfTest) { picArm(20000); return; }
   const scr = bugScreen(), key = scr + "|" + innerWidth + "x" + innerHeight; if (PIC.seen.has(key)) return; PIC.seen.add(key);
   const o = picLook(), mp = x => Math.round(x / 1e5) / 10;
@@ -24940,7 +24958,7 @@ function picCheck() {
   if (o.held > 6e7 && o.held > 4 * o.need) { PIC.n++; bugReport("slow", `The pictures on ${lagWhere()} hold ${mp(o.held)} MP to show ${mp(o.need)} MP: the phone unpacks all of it`, { screen: scr, sigAt: "" }); }
 }
 ["pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => picArm(4000), { capture: true, passive: true }));
-addEventListener("scroll", () => picArm(4000), { capture: true, passive: true });
+onScrolled((e, first) => { if (first) picArm(4000); });
 onNav("after", k => { if (k !== "sub") picArm(4000); });
 picArm(16000);
 
