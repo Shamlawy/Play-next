@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { MAX_LINES, asText, hasAny, openCount, parse, pick, pickText } from '../hooks/sift.ts'
+import { MAX_LINES, asText, fallback, hasAny, opening, openCount, parse, pick, pickText } from '../hooks/sift.ts'
 
 const LONG = `I fixed the layout bug and pushed it. ${'Details of everything I checked along the way. '.repeat(12)} One thing failed: the iPhone check timed out. Could you open the app on your phone and tell me if the list scrolls? We could also add a dark-mode toggle later.`
 const SIFTED = '```json\n{"gist":"Fixed the layout bug","attention":["iPhone check timed out"],"actions":["Check the list scrolls on your phone"],"ideas":["Add a dark-mode toggle"]}\n```'
@@ -19,11 +19,18 @@ function world(on: any, answer = SIFTED, placed = true, mode: 'panel' | 'box' | 
   on('ui.status', ($: unknown, e: any) => { statuses.push(e.text); return { value: undefined } })
   on('model.complete', ($: unknown, e: any) => { calls.push(e); return { value: { isAnswered: true, text: answer, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } } })
   on('turn.complete', ($: unknown, e: any) => ({ text: e.answer }))
+  // The turn's steps: each one the test queues is what the model "said" in that step.
+  const steps: { answer: string; toolUses?: any[] }[] = []
+  on('turn.start', ($: unknown, e: any) => ({ turnId: e.turnId }))
+  on('turn.step', async function* ($: unknown, e: any) {
+    const s = steps.shift() ?? { answer: '' }
+    return { turnId: e.turnId, index: e.index, answer: s.answer, toolUses: s.toolUses ?? [], stopReason: 'end_turn', usage: null }
+  })
   const sent: string[] = []
   on('prompt.submit', ($: unknown, e: any) => { if (e.origin?.kind === 'plugin' || e.asUser) sent.push(e.text); return { text: e.text } })
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'engine', scope: 'shared' }] }))
   on('ui.render', ($: any, e: any) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
-  return { calls, toasts, statuses, clock, opens, sent }
+  return { calls, toasts, statuses, clock, opens, sent, steps }
 }
 
 async function reply($: any, clock: any, answer = LONG, extra: any = {}) {
@@ -42,7 +49,8 @@ describe('heads-up', () => {
   test('parse reads fenced JSON, keeps 3 lines in all (a choice is one), and keeps no explanations', () => {
     expect(parse(SIFTED)?.actions).toEqual(['Check the list scrolls on your phone'])
     expect(parse('no json here')).toBeUndefined()
-    expect(parse('{"gist": 3, "attention": "x", "actions": [1, " a  b ", {"why": "no line"}], "ideas": []}')).toEqual({ gist: '', attention: [], actions: ['a b'], ideas: [] })
+    expect(parse('{"gist": 3, "attention": "x", "actions": [1, " a  b ", {"why": "no line"}], "ideas": []}')).toEqual({ gist: '', attention: [], actions: ['a b'], points: [], ideas: [] })
+    expect(parse('{"gist": "", "attention": []}')).toBeUndefined()
     // Three in all, attention first, then actions, then ideas; an older {line, why} answer keeps only the line.
     const many = parse(JSON.stringify({ attention: [{ line: 'n1', why: 'w1' }, 'n2'], actions: ['a1', 'a2'], ideas: ['i1'] }))!
     expect([many.attention, many.actions, many.ideas]).toEqual([['n1', 'n2'], ['a1'], []])
@@ -151,11 +159,60 @@ describe('heads-up', () => {
     expect(calls.length).toBe(0)
   })
 
+  test('the whole turn is read, not just its last message, and the closing recap rides along', async ($, on) => {
+    const { calls, clock, steps } = world(on, '{"gist":"Fixed the scroll stutter on Library","attention":[],"actions":[],"points":["Cause: a layout read after every redraw","Checked at 412 and 859 widths"],"ideas":[]}')
+    await $.prompt.submit({ text: 'fix the library stutter' } as any)
+    await $.turn.start({ text: 'fix the library stutter', turnId: 't1' } as any)
+    steps.push({ answer: `Found it: the library reads layout right after each redraw. ${'More detail. '.repeat(30)}` })
+    steps.push({ answer: '', toolUses: [{ name: 'mcp__ccd_turn__wrap_up', input: { recap: 'Library scroll fixed and checked at two widths; nothing merged yet.', ask: 'Merge it?' } }] })
+    steps.push({ answer: 'Done.' })
+    for (let i = 0; i < 3; i++) for await (const _ of $.turn.step({ turnId: 't1', index: i, model: 'm', messageCount: 1 } as any)) { /* stream */ }
+    // The final message alone ("Done.") would be too short to sum up: the turn's earlier text and the recap make it.
+    await reply($, clock, 'Done.', { turnId: 't1' })
+    expect(calls.length).toBe(1)
+    expect(calls[0].prompt).toContain('reads layout right after each redraw')
+    expect(calls[0].prompt).toContain('Library scroll fixed')
+    expect(calls[0].prompt).toContain('Question for the user: Merge it?')
+    const ui = await $.ui.mount(pane('desktop'))
+    expect(await ui.find({ type: 'Text', text: 'Fixed the scroll stutter on Library' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Cause: a layout read/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Nothing needs you/ })).toBeDefined()
+    expect(JSON.stringify(await ui.drawn())).toContain('#1c1d20')
+    await ui.unmount()
+    // A helper's steps never count as the main loop's words.
+    await $.turn.start({ text: 'next', turnId: 't2' } as any)
+    steps.push({ answer: 'helper chatter' })
+    for await (const _ of $.turn.step({ turnId: 't2', index: 0, model: 'm', messageCount: 1, agentId: 'a1' } as any)) { /* stream */ }
+    await reply($, clock, LONG, { turnId: 't2' })
+    expect(calls[1].prompt).not.toContain('helper chatter')
+  })
+
+  test('a short reply is its own summary, with no model call', async ($, on) => {
+    const { calls, clock } = world(on)
+    await $.prompt.submit({ text: 'did it push?' } as any)
+    await reply($, clock, 'Yes, **pushed** to `main` as v285.')
+    expect(calls.length).toBe(0)
+    const ui = await $.ui.mount(pane('desktop'))
+    expect(await ui.find({ type: 'Text', text: 'Yes, pushed to main as v285.' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a model that fails or answers junk still leaves a summary: the opening and the last question', async ($, on) => {
+    const { clock } = world(on, 'sorry, no json')
+    await reply($, clock)
+    const ui = await $.ui.mount(pane('desktop'))
+    expect(await ui.find({ type: 'Text', text: /^I fixed the layout bug and pushed it\./ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Could you open the app on your phone/ })).toBeDefined()
+    await ui.unmount()
+    expect(opening('# Title\n\nFirst one. Second one. ' + 'x'.repeat(400))).toBe('Title')
+    expect(fallback('Did a thing.\nWant me to merge?').attention).toEqual(['Want me to merge?'])
+  })
+
   test('a reply with nothing for the person shows one green tile', async ($, on) => {
     const { clock } = world(on, '{"gist":"Renamed the files","attention":[],"actions":[],"ideas":[]}')
     await reply($, clock)
     const ui = await $.ui.mount(pane('desktop'))
-    expect(await ui.find({ type: 'Text', text: 'Nothing needs you' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Nothing needs you/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Renamed the files/ })).toBeDefined()
     await ui.unmount()
   })
@@ -192,7 +249,8 @@ describe('heads-up', () => {
     const composed: any = await compose($)
     const box = composed.sections.find((x: any) => x.id === 'heads-up:box')
     expect(box?.text).toContain('**Heads-up**')
-    expect(box?.text).toContain('at most 8 words')
+    expect(box?.text).toContain('at most 12 words')
+    expect(box?.text).toContain('at most 25 words: what was done or found')
     expect(box?.text).not.toContain('↳')
     expect(box?.scope).toBe('session')
     await $.prompt.submit({ text: 'fix the queue' } as any)
