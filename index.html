@@ -25769,19 +25769,24 @@ const LMK_PROPS = /^(transform|opacity|filter|translate|scale|rotate|offset)/;
 let lmkWill = null;   /* selectors that set will-change: transform/opacity, read once from the style sheets */
 function layerMakers() {
   const W = innerWidth, H = innerHeight, out = new Map();
+  /* only the screen on top counts: an open game page (#full, fixed above the page) covers the screen under it, so
+     everything there would look "drawn over"; a sheet (Settings, Add…) is a passing overlay, so nothing is measured */
+  const sh = document.getElementById("sheet");
+  if (sh && sh.checkVisibility && sh.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return { list: [], score: 0 };
+  const top = document.querySelector("#full.on"), stop = top || document.body;
   const add = (el, why, host) => {
-    if (!el || !el.isConnected || out.has(el) || el.closest("#pnbub, #pnbubmsg, #toast, #nxbug, #nxtour, .nxtour")) return;
+    if (!el || !el.isConnected || out.has(el) || (top && !top.contains(el)) || el.closest("#pnbub, #pnbubmsg, #toast, #nxbug, #nxtour, .nxtour")) return;
     if (el.checkVisibility && !el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })) return;
     /* a fixed piece stacked above the page (a full-screen effect, Nexi's flash, the rail) is drawn over the page, not
        under it: only pieces in the page's own flow or behind it count */
-    for (let a = el; a && a !== document.body; a = a.parentElement) { const cs = getComputedStyle(a);
+    for (let a = el; a && a !== stop; a = a.parentElement) { const cs = getComputedStyle(a);
       if (cs.position === "fixed") { if (cs.zIndex !== "auto" && +cs.zIndex > 0) return; break; } }
     const r = el.getBoundingClientRect(), vw = Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0)), vh = Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0));
     if (vw * vh < W * H * .01) return;
     /* drawn over: the top thing at the middle of its visible part is something else, not inside it */
-    const x = Math.max(r.left, 0) + vw / 2, y = Math.max(r.top, 0) + vh / 2, top = document.elementFromPoint(x, y);
-    const over = !!top && top !== el && !el.contains(top) && !(host && top === host);
-    out.set(el, { el, why, share: vw * vh / (W * H), over, at: (typeof bugPath === "function" ? bugPath(el) : el.tagName) + (host ? "::" + host : "") });
+    const x = Math.max(r.left, 0) + vw / 2, y = Math.max(r.top, 0) + vh / 2;
+    const hit = document.elementFromPoint(x, y), over = !!hit && hit !== el && !el.contains(hit);
+    out.set(el, { el, why, share: vw * vh / (W * H), over, at: (typeof bugPath === "function" ? bugPath(el) : el.tagName) + (host || "") });
   };
   for (const a of document.getAnimations()) { try {
     const ef = a.effect; if (!ef || !ef.target) continue;
