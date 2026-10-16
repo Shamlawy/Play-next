@@ -11,7 +11,8 @@ export default async ({ p, w }) => {
   const gone = await p.page.evaluate(() => !document.getElementById("bgart") && !document.getElementById("bgtint") && typeof applyBg === "undefined" && typeof bgBake === "undefined");
   if (!gone) bad.push("backdrop still there");
   /* 3: the seed's bubDay isn't today, so the first open had the daily brief: open again the same day → silence */
-  await p.page.evaluate(() => { S.bubDay = new Date().toLocaleDateString("en-CA"); S.nxPartyDay = S.bubDay; S.bubMet = 1; saveNow ? saveNow() : save(); });
+  /* v288: the tea break is the one idle bit the owner asked for (tea-break.mjs checks it); off here so it can't pass for random life */
+  await p.page.evaluate(() => { S.bubDay = new Date().toLocaleDateString("en-CA"); S.nxPartyDay = S.bubDay; S.bubMet = 1; S.teaOff = true; saveNow ? saveNow() : save(); });
   await p.page.reload(); await p.page.waitForTimeout(400);
   await p.page.evaluate(() => { window._said = []; const t0 = performance.now(), o = pnBubSay; pnBubSay = function (l) { window._said.push(l ? l[0] : "(random)"); return o.apply(this, arguments); }; });
   /* the greeting runs when he (re)appears (pnBubShow): ask for it directly too, the way floating Nexi starts up */
