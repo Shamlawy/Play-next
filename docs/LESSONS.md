@@ -64,6 +64,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L59** · 2026-10-16 · v291 · `pnreelPaint`, `#pnboot`, `resize` — The opening reel's waiting screen paints frame 0 once and never again, so folding/unfolding the Fold or rotating while it waits stretches the canvas (second-look caught it after merge) -> any canvas that can sit still on screen needs a resize repaint; test a waiting canvas with a viewport change in its scenario
 - **L60** · 2026-10-16 · v293 · `tools/eye.mjs`, `pkill -f` — pkill -f <pattern> inside a background Bash command matched its own shell (the pattern is in its command line) and killed the new run too → stop a background run with TaskStop / its task id, never pkill -f on a pattern the same command contains
 - **L61** · 2026-10-16 · v293 · `tools/eye.mjs`, `document.getAnimations` — The first design-eye run paused every animation before measuring, freezing entrances mid-way: paused fade-ins read as faint words (1.0:1) and paused slides as spills → before measuring a screen, wait until no finite animation is running, then pause only the endless loops
+- **L62** · 2026-10-16 · v293 · `.claude/skills/release-guard/hooks/register.ts`, `plugin.json`, `second-look` — v293 changed release-guard's hook without bumping its plugin.json version; only second-look caught it after the merge → when a diff touches .claude/skills/<mod> or mods/<mod>, bump its version in the same commit (M12 would make this a check)
 
 ## Missed opportunities
 
