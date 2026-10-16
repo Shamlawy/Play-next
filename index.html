@@ -25770,9 +25770,9 @@ let lmkWill = null;   /* selectors that set will-change: transform/opacity, read
 function layerMakers() {
   const W = innerWidth, H = innerHeight, out = new Map();
   /* only the screen on top counts: an open game page (#full, fixed above the page) covers the screen under it, so
-     everything there would look "drawn over"; a sheet (Settings, Add…) is a passing overlay, so nothing is measured */
-  const sh = document.getElementById("sheet");
-  if (sh && sh.checkVisibility && sh.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return { list: [], score: 0 };
+     everything there would look "drawn over"; a sheet (Settings, Add…) or the diary is a passing overlay, so nothing is
+     measured (a class test, as the other checks do: checkVisibility is missing before Safari 17.4) */
+  if (document.querySelector("#sheet.on, #diary.on")) return { list: [], score: 0 };
   const top = document.querySelector("#full.on"), stop = top || document.body;
   const add = (el, why, host) => {
     if (!el || !el.isConnected || out.has(el) || (top && !top.contains(el)) || el.closest("#pnbub, #pnbubmsg, #toast, #nxbug, #nxtour, .nxtour")) return;
