@@ -2,6 +2,9 @@
    removed), no queue art backdrop (removed in v274), nothing animating in the background layers.
    v276: mostly black by default (base #000, a 30% blue glow), the old wash's settings gone, and Settings' background
    colour / how much gradient really change it (0% = no glow layer at all).
+   v287: nothing else lies under the screens: v68's drifting glows (#pnorbs, a fixed full-screen layer at z-index -1) were
+   still there, a second background that split every screen's content into extra GPU layers. Any element drawn under the
+   page (negative z-index) covering half the screen or more fails it.
      node tools/kit.mjs run tools/scenarios/bg-gradient.mjs --widths 412,859
      SHOTS=dir node tools/kit.mjs run tools/scenarios/bg-gradient.mjs   (also saves a screenshot per screen) */
 import fs from "node:fs";
@@ -15,10 +18,14 @@ export default async ({ p, w }) => {
       const vis = id => { const e = document.getElementById(id); if (!e) return 0; const c = getComputedStyle(e);
         return c.display !== "none" && c.visibility !== "hidden" && +c.opacity > .02 ? 1 : 0; };
       const moving = ["bgart", "bgart2", "pnorbs"].flatMap(id => { const e = document.getElementById(id); return e && vis(id) ? e.getAnimations({ subtree: true }) : []; }).length;
-      return { hlv: !!document.querySelector("#hlv, #hlvg, .hlv-s"), hlvon: H.classList.contains("hlvon"), grad: b.content !== "none" && b.display !== "none" && /gradient/.test(b.backgroundImage),
+      const under = [...document.querySelectorAll("body *")].filter(e => { const c = getComputedStyle(e); if (!(+c.zIndex < 0) || c.display === "none" || c.visibility === "hidden") return false;
+        if (e.closest("#full, .panel:not(.on)")) return false;   /* inside a page: under that page's own content, not under the app */
+        const q = e.getBoundingClientRect(); return q.width * q.height >= innerWidth * innerHeight * .5 && (c.position === "fixed" || e.parentElement === document.body); })
+        .map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (e.classList[0] ? "." + e.classList[0] : ""));
+      return { under, hlv: !!document.querySelector("#hlv, #hlvg, .hlv-s"), hlvon: H.classList.contains("hlvon"), grad: b.content !== "none" && b.display !== "none" && /gradient/.test(b.backgroundImage),
         art: vis("bgart") || vis("bgart2"), moving, bgOff: !("bgOff" in S) };
     });
-    if (r.hlv || r.hlvon || !r.grad || r.art || r.moving || !r.bgOff) bad.push(`${name}: ${JSON.stringify(r)}`);
+    if (r.under.length || r.hlv || r.hlvon || !r.grad || r.art || r.moving || !r.bgOff) bad.push(`${name}: ${JSON.stringify(r)}`);
     if (shots) await p.page.screenshot({ path: `${shots}/${w}-${name}.png` });
     if (name === "game") await p.step("close", `closeFull()`, 700);
   }

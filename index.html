@@ -2149,15 +2149,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   .tile, .chip, .btn, nav button { position: relative; overflow: hidden; }
   html:not(.dragging-now) .row { transition: scale .3s var(--ease); }
   html:not(.dragging-now) .row:active { transition-duration: .1s; }
-  #pnorbs { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
-  #pnorbs i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; opacity: .16;
-    background: radial-gradient(circle, var(--volt2), transparent 65%); will-change: transform; }
-  #pnorbs i:nth-child(1) { left: -20vmax; top: -15vmax; animation: pnOrbA 26s ease-in-out infinite alternate; }
-  #pnorbs i:nth-child(2) { right: -25vmax; bottom: -20vmax; opacity: .12; background: radial-gradient(circle, #7B6CFF, transparent 65%);
-    animation: pnOrbB 32s ease-in-out infinite alternate; }
-  @keyframes pnOrbA { to { transform: translate(18vmax, 22vmax) scale(1.15); } }
-  @keyframes pnOrbB { to { transform: translate(-20vmax, -16vmax) scale(.9); } }
-  html.still #pnorbs i { animation: none; }
   html.first .un { animation: pnRise .6s var(--ease) both; }
   html.first .un:nth-child(3) { animation-delay: .08s } html.first .un:nth-child(4) { animation-delay: .16s }
 
@@ -11314,8 +11305,8 @@ document.addEventListener("pointerdown", e => { pnTap = { x: e.clientX, y: e.cli
 
 /* (v68's touch glow under the finger was removed in v280: the owner, "remove the touch glow and any touch effects") */
 
-/* two slow glows drifting behind everything */
-document.body.insertAdjacentHTML("afterbegin", '<div id="pnorbs" aria-hidden="true"><i></i><i></i></div>');
+/* (v68's two glows drifting behind everything (#pnorbs) were removed in v287: a full-screen layer under every screen that
+   split each screen's content into extra GPU layers, and a second background besides the still gradient, v273) */
 
 function railHideNow() { S.railHide = true; save(); document.documentElement.classList.add("railhide"); pnBubShow(); }
 /* the tall rail on the right of Home: your ranked games as round covers, plus quick actions */
@@ -14364,8 +14355,7 @@ html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{an
 <style>
 /* v157 the real drag: a full-screen blurred picture sat behind every screen, slowly zooming forever,
    so the phone re-blurred the whole screen on every single frame. Speed boost now draws it at a quarter
-   size and stretches it up (it's blurry anyway, looks the same) and holds it still. The two giant glow orbs hold still too. */
-html.fast #pnorbs i{animation:none!important;will-change:auto}
+   size and stretches it up (it's blurry anyway, looks the same) and holds it still. */
 /* the board art no longer holds eight oversized layers in memory between scrolls */
 @supports (animation-timeline: view()){html.fast .pnb-row::before{will-change:auto}}
 </style>
@@ -25735,4 +25725,43 @@ WHATS_NEW.push(
     say: "<b>Calmer screens</b>: the Out now tags shine three times when you open a screen, then rest, Nexi only sweats for a moment when your backlog grows, and Grumble's HP bar shows only while Grumble is switched on (CLEAR! still cheers when you finish a game).",
     tryIt: "Open the Queue and watch an Out now tag shine, then stop. Add a game when your backlog is over 15 and look at Nexi." }
 );
+</script>
+<style>
+/* ===== v287: fewer GPU layers (#60 Home, #62 game page, #207 Played, #116 blank on Queue). The phone's own timing of a
+   Played stutter: "1 long frame, 128ms: script 0ms, style+layout 1ms, render 5ms", so the app's code was idle and the
+   time went to drawing. A census of the GPU layers (tools/scenarios/layers.mjs) found screens drawn as 7-15 screens' worth
+   of layers: a piece that gets its own layer (a side-scrolling row, a loop, a finished entry animation still holding its
+   last frame, will-change) and sits UNDER later content makes the browser cut everything drawn after it that touches
+   its box into more layers ("overlap"): on Played a 747×4714 copy of the lower page, on the Queue a 781×5753 one. Nothing
+   here changes what you see: */
+/* 1. side-scrolling rows and looping pieces are drawn after the content around them, so nothing is drawn on top of them
+   (they never overlap that content; only their boxes do) */
+#shelf-row, .pbd-row { position: relative; z-index: 1; }
+.hero { z-index: 2; }
+.nxh-face, .dxq .box { z-index: 2; }
+/* 2. entry animations that only say where they start end on the normal look anyway: "both" kept them alive after the end,
+   each holding a layer forever (the Queue's top card, Home's bars, the shelf cards); "backwards" lets them go */
+.hero, .pb, .sb { animation-fill-mode: backwards; }
+/* 3. the finished shelf's covers move only while the shelf is swiped (pnShelf): their own layers only then */
+.sb img { will-change: auto; }
+#shelf-row.moving .sb img { will-change: transform, opacity; }
+/* 4. a game's page covers the whole screen: the screen under it (and its layers, pictures and loops) is set aside while
+   the page is fully open, and back the moment it starts to close (html.fullup, script below) */
+html.fullup .wrap:has(> #full.on) > :not(#full) { visibility: hidden; }
+</style>
+<script>
+/* v287: the screen under a game's page is hidden once the page has finished growing in (so the grow still shows it), and
+   shown again as the first thing a close does (so the shrink shows it); a token keeps a late "grown" from hiding it again
+   during a close. The CSS also checks #full.on, so any other way the page goes away shows the screen. */
+let fullTok = 0;
+onNav("after", k => { if (k !== "game") return;
+  const box = $("#full"), t = ++fullTok; if (!box || !box.classList.contains("on")) return;
+  Promise.all(box.getAnimations().map(a => a.finished.catch(() => {}))).then(() => {
+    if (t === fullTok && box.classList.contains("on")) document.documentElement.classList.add("fullup"); }); });
+extend("closeFull", { before() { fullTok++; document.documentElement.classList.remove("fullup"); } });
+/* the shelf's covers get their own layers while it's swiped, and give them back 400ms after it stops */
+{ let t = 0;
+  onScrolled(e => { const r = e.target; if (!r || r.id !== "shelf-row") return;
+    if (!r.classList.contains("moving")) r.classList.add("moving");
+    clearTimeout(t); t = setTimeout(() => r.classList.remove("moving"), 400); }); }
 </script>
