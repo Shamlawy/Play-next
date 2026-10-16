@@ -10,7 +10,9 @@
      node tools/kit.mjs smooth          mid-swipe (Queue, Library, a game page) Nexi's and the rail's loops keep running, GPU only (v282)
      node tools/kit.mjs sw              sw.js shrinks pictures right (.github/scripts/swcheck.mjs, in Chromium here; WebKit on GitHub)
      node tools/kit.mjs audit           code health (tools/audit.mjs --check): nothing piled up past tools/audit-budget.txt
-     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth
+     node tools/kit.mjs layers          GPU layers per screen (Home, Queue, Library, Played, a game page) at 412 / 859, in screens'
+                                        worth: fails over tools/layers-budget.txt (--lower writes the new numbers) (v287)
+     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers
      node tools/kit.mjs samecss --before old.html   the browser applies exactly the same CSS (after a CSS tidy)
      node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
                                         with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
@@ -31,6 +33,7 @@ import { createRequire } from "module";
 import { fileURLToPath, pathToFileURL } from "url";
 import { spawnSync } from "child_process";
 import { seed, TITLES } from "./seed.mjs";
+import { countLayers, LAYER_SCREENS } from "./layercount.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2), mode = args.find(a => !a.startsWith("--")) || "all";
@@ -392,6 +395,38 @@ async function scenario(browser, base) {
 }
 
 /* ---------- samecss: the browser applies exactly the same CSS in two copies (after audit.mjs --fix-css or any CSS tidy) ---------- */
+/* ---------- layers: how much the GPU draws per screen (v287) ----------
+   The stutters that kept coming back (#60 Home, #62 game page, #207 Played) were drawing, not code: the phone timed a 128ms
+   frame at "script 0, style+layout 1, render 5". A piece with its own GPU layer under later content (a side scroller, a loop,
+   a finished entry animation still holding its last frame, will-change) cuts everything above it into more layers; Played
+   was 14.5 screens of layers. tools/layers-budget.txt holds each screen's number; this fails when one grows by more than
+   LAYER_SLACK (headless jitter) and prints the biggest layers with their reasons. --lower writes today's numbers. */
+const LAYER_BUDGET = path.join(ROOT, "tools/layers-budget.txt"), LAYER_SLACK = 0.6;
+async function layers(browser, base) {
+  console.log(`\n== layers: GPU layers per screen, in screens' worth (${FILE}) ==`);
+  const budget = {};
+  if (fs.existsSync(LAYER_BUDGET)) for (const l of fs.readFileSync(LAYER_BUDGET, "utf8").split("\n")) { const m = l.match(/^(\d+)\s+(\w+)\s+([\d.]+)/); if (m) budget[m[1] + " " + m[2]] = +m[3]; }
+  const now = {};
+  for (const w of opt("widths") ? WIDTHS : [412, 859]) {
+    const p = await phone(browser, base, w, { ...seed(APP_V, 60), nxEvo: 99 });
+    await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } });
+    for (const [name, js] of Object.entries(LAYER_SCREENS)) {
+      await p.step(name, js, 2600);
+      const c = await countLayers(p), k = w + " " + name, b = budget[k]; now[k] = c.screens;
+      const big = [...c.rows].sort((a, b) => b.scr - a.scr).slice(0, 3).map(r => `${r.d.slice(0, 40)} ${r.w}×${r.h} (${r.why.split("+")[0]})`).join(", ");
+      if (b != null && c.screens > b + LAYER_SLACK) fail(`${k}: ${c.screens} screens of GPU layers, budget ${b} (biggest: ${big}; see SCREENS=${name} node tools/kit.mjs run tools/scenarios/layers.mjs --widths ${w})`);
+      else console.log(`  ✓ ${k}: ${c.screens} screens, ${c.n} layers${b != null ? ` (budget ${b})` : " (no budget yet)"}`);
+    }
+    verdict(`layers ${w}`, p); await p.ctx.close();
+  }
+  if (args.includes("--lower")) {
+    for (const k in now) if (budget[k] == null || now[k] < budget[k] || args.includes("--reset")) budget[k] = now[k];
+    fs.writeFileSync(LAYER_BUDGET, "# GPU layers per screen, in screens' worth (node tools/kit.mjs layers). Only lower these (--lower);\n# raising one is a hand edit with the reason in the commit.\n" +
+      Object.entries(budget).map(([k, v]) => `${k} ${v}`).join("\n") + "\n");
+    console.log("  wrote " + path.relative(ROOT, LAYER_BUDGET));
+  }
+}
+
 async function samecss(browser) {
   const old = opt("before"); if (!old) return fail("usage: node tools/kit.mjs samecss --before old.html [--file index.html]");
   const dump = async file => {
@@ -417,12 +452,13 @@ async function samecss(browser) {
 }
 
 if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
-if (["sweep", "tour", "perf", "smooth", "all", "run"].includes(mode)) {
+if (["sweep", "tour", "perf", "smooth", "layers", "all", "run"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
     if (mode === "tour" || mode === "all") await tour(browser, base);
     if (mode === "smooth" || mode === "all") await smooth(browser, base);
+    if (mode === "layers" || mode === "all") await layers(browser, base);
     if (mode === "perf") await perf(browser, base);
     if (mode === "run") await scenario(browser, base);
   } finally { await browser.close(); srv.close(); }

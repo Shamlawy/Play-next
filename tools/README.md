@@ -11,7 +11,8 @@ Shared checks for Play next, used by every chat and by GitHub. Run the commands 
 | `node tools/kit.mjs perf` | Measures main-thread ms per step (script / layout / style) with a 4x slower CPU. Use it to compare before and after a change | 30 s |
 | `node tools/kit.mjs smooth` | Mid-swipe on Queue, Library and a game page (412 / 859): Nexi's and the rail's loops keep running, every loop running mid-swipe is transform/opacity only, and what the finger landed on doesn't move (v282; v280's hold that paused them is gone) | 40 s |
 | `node tools/kit.mjs audit` | Code health (`tools/audit.mjs --check`): fails when anything piled up past `tools/audit-budget.txt` | 2 s |
-| `node tools/kit.mjs all` | Runs syntax + audit + sw + sweep + tour + smooth. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
+| `node tools/kit.mjs layers` | GPU layers per screen (Home, Queue, Library, Played, a game page) at 412 / 859, in screens' worth, from Chromium's own layer tree (CDP). Fails when a screen grows past `tools/layers-budget.txt` (+0.6), naming the biggest layers and why they exist; `--lower` writes lower numbers. Details per screen: `SCREENS=played node tools/kit.mjs run tools/scenarios/layers.mjs --widths 859` (v287) | 1 min |
+| `node tools/kit.mjs all` | Runs syntax + audit + sw + sweep + tour + smooth + layers. GitHub runs this on every PR (`.github/workflows/app-check.yml`) | 4 min |
 | `node tools/kit.mjs sweep --plant x.js --expect` | Runs `x.js` in every test phone, then sweeps. Fails unless the app reports it: the proof that a new detector catches its problem | 1 min per width |
 | `node tools/kit.mjs run tools/scenarios/x.mjs` | Runs a saved scenario: `export default async ({ p, w, fail }) => …` with `p.step`, `p.scroll`, `p.flush` and real touch (`p.tap`, `p.swipe` through CDP). Returning `false` fails it | — |
 | `node tools/map.mjs` | Rewrites `docs/MAP.md`: every block, every wrapped function with its layers, and the onNav hooks | 1 s |
@@ -34,7 +35,7 @@ Options for kit.mjs:
 - `CHROME=<path>` (environment) runs another Chrome, e.g. a newer Chrome for Testing for features the bundled Chromium lacks (v280's scroll triggers need 145+).
 - `--shots dir` makes `tour` save a screenshot of each step.
 
-Saved scenarios live in `tools/scenarios/` (the scratchpad is lost with the chat). The sweep waits 2.6s on each screen because the app's layout check runs 1.6s after a screen change, when idle: with 1.4s, a planted cut-off button was reported on 3 screens instead of 10. The test browser has swipe-back turned off, because a right swipe on a game page otherwise "goes back" to about:blank.
+Saved scenarios live in `tools/scenarios/` (the scratchpad is lost with the chat); plants for `sweep --plant … --expect` live in `tools/plants/` (`layer-pile.js`: main's old drifting glows, for Nexi's layer-pile check). `tools/scenarios/look-same.mjs` proves a speed change changes nothing visible (stable old vs old since v287); `trace-close-game.mjs` times closing a game page. The sweep waits 2.6s on each screen because the app's layout check runs 1.6s after a screen change, when idle: with 1.4s, a planted cut-off button was reported on 3 screens instead of 10. The test browser has swipe-back turned off, because a right swipe on a game page otherwise "goes back" to about:blank.
 
 The test phones use made-up games from `tools/seed.mjs`. Their pictures are files already in the repo, and every other site is blocked. Problem reports (`/bug`) are caught by the kit and never sent.
 

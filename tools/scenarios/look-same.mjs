@@ -30,14 +30,24 @@ export default async ({ p, w, seed }) => {
   }
   const out = process.env.OUT || "shots"; fs.mkdirSync(out, { recursive: true });
   const v = await p.page.evaluate(() => APP_V);
-  await p.page.evaluate(d => localStorage.setItem("gq:data", d), JSON.stringify(seed(v, 60)));
+  await p.page.evaluate(d => localStorage.setItem("gq:data", d), JSON.stringify({ ...seed(v, 60), nxEvo: 99 }));
+  /* one fixed time for both copies: countdowns and "N days to go" read the clock (timers still run) */
+  await p.page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 16, 12, 0, 0)));
   await p.page.reload(); await p.page.waitForTimeout(3000);
   await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } });
   if (process.env.CSS) await p.page.evaluate(c => { const s = document.createElement("style"); s.textContent = c; document.head.appendChild(s); }, process.env.CSS);
   const freeze = () => p.page.evaluate(() => { for (const a of document.getAnimations()) { try {
     if (a.timeline && a.timeline.constructor && /Scroll|View/.test(a.timeline.constructor.name)) continue;
     const t = a.effect.getComputedTiming(); if (t.endTime === Infinity) { a.pause(); a.currentTime = 0; } else a.finish(); } catch (e) {} } });
-  const shot = async name => { await p.page.waitForTimeout(400); await freeze(); await p.page.waitForTimeout(150); await freeze();
+  /* what changes between two runs of the same copy: Nexi's bubble and its message, his problem card, toasts, his power-up sparks (also off in the seed: nxEvo); and
+     pictures still loading (lazy ones load as the scroll reaches them) */
+  await p.page.addStyleTag({ content: `#pnbub, #pnbubmsg, #nxbug, #toast, .toast, #pnwake, #nxtour, .nxtour, .ssjdot, .ssjbolt, .ssjember, .ssjwave, #ssjflash { visibility: hidden !important; }
+    html { scroll-behavior: auto !important; } * { caret-color: transparent !important; }` });
+  const pics = () => p.page.evaluate(async () => { const t0 = performance.now();
+    for (const i of document.images) i.loading = "eager";
+    while (performance.now() - t0 < 4000) { const left = [...document.images].filter(i => i.src && !i.complete); if (!left.length) break; await new Promise(r => setTimeout(r, 100)); }
+    await Promise.all([...document.images].filter(i => i.complete && i.naturalWidth).map(i => i.decode().catch(() => {}))); });
+  const shot = async name => { await p.page.waitForTimeout(400); await pics(); await freeze(); await p.page.waitForTimeout(150); await freeze();
     await p.page.screenshot({ path: `${out}/${w}-${name}.png`, animations: "disabled", caret: "hide" }); };
   const SCR = [["home", `closeFull(); goTab("home")`], ["queue", `closeFull(); goTab("games"); goSub("games", "queue")`], ["lib", `closeFull(); goTab("games"); goSub("games", "lib")`],
     ["played", `closeFull(); goTab("games"); goSub("games", "played")`], ["plan", `closeFull(); goTab("plan")`], ["taste", `closeFull(); goTab("taste")`]];
