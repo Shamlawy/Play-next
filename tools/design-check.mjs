@@ -8,6 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { scanLines, scanBlock } from "../.claude/skills/release-guard/hooks/rules.ts";
+import { forText } from "./taste.mjs";
 
 const arg = process.argv.find(a => a.startsWith("--base="));
 const git = (...a) => execFileSync("git", a, { encoding: "utf8", maxBuffer: 64 << 20 });
@@ -79,5 +80,8 @@ if (must.length) console.log(`\nmust change (${uniq(must).length}):\n${uniq(must
 if (syntax) console.log(`\nkit.mjs syntax failed:\n${syntax.split("\n").map(l => "  " + l).join("\n")}`);
 if (note.length) console.log(`\nnotes (${uniq(note).length}):\n${uniq(note).join("\n")}`);
 if (!must.length && !syntax && !note.length) console.log("nothing against the house style");
-console.log("\nThen look at it: screenshots at 412 and 859, touch-empty.mjs, kit.mjs perf (see the skill's step 7).");
+/* the owner's past calls about the screens this change touches (taste.md): read them before calling it done */
+const taste = added.length ? forText(added.map(a => a.t).join("\n")) : [];
+if (taste.length) console.log(`\nthe owner said this about these screens (node tools/taste.mjs list):\n${taste.map(t => `  ${t.id} ${t.screen}: ${t.rule}${t.check && !/^none/.test(t.check) ? ` [${t.check}]` : ""}`).join("\n")}`);
+console.log("\nThen look at it: node tools/kit.mjs eye (the design eye on every screen), screenshots at 412 and 859, touch-empty.mjs, kit.mjs perf (see the skill's step 7).");
 process.exit(must.length || syntax ? 1 : 0);
