@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "287";
+const APP_V = "288";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6390,6 +6390,12 @@ function openSettings(scope) {
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.nxSeatOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
+      <label>Tea breaks</label>
+      <p class="note">Now and then, when the app sits still for a while, Nexi tries to have a sip of something. Something always gets in the way.</p>
+      <div class="chips" id="s-xtea">
+        ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.teaOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Animation everywhere, and the parts that cost the most.">Motion</h4>
@@ -6755,6 +6761,7 @@ function openSettings(scope) {
   pick("#s-xeta", v => S.etaOff = v === "off");
   pick("#s-xcap", v => S.capOff = v === "off");
   pick("#s-xssn", v => S.ssnOff = v === "off", () => { if (typeof ssnHat === "function") { try { pnBubReact(); } catch (e) {} } });
+  pick("#s-xtea", v => S.teaOff = v === "off", () => { if (S.teaOff && typeof teaStop === "function") teaStop(); });
   pick("#s-xbat", v => S.batOff = v === "off", () => { if (typeof batApply === "function") batApply(); });
   pick("#s-lfit", v => S.lfOff = v === "off", () => renderQueue());
   pick("#s-xdust", v => S.dustOff = v === "off", () => renderQueue());
@@ -25846,5 +25853,155 @@ WHATS_NEW.push(
   { v: 287, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: when part of a screen sits on top of something moving behind it (what made scrolling heavy), I report it on my own, and a stutter report now says what there was to draw.",
     tryIt: "Nothing to do: if it ever happens, I file it on my own." }
+);
+</script>
+<style>
+/* ===== v288: Nexi's tea break. The owner (after a Spy x Family ending where the family never gets to drink their tea):
+   now and then, when the app sits still, Nexi tries to have a sip of something, and something always gets in the way.
+   Only transform/opacity animate (Web Animations, no fill, the cup is removed at the end of every path). ===== */
+.nxtea { position: absolute; right: -14px; bottom: -2px; z-index: 3; font: 20px/1 sans-serif; font-style: normal;
+  pointer-events: none; transform-origin: 50% 80%; }
+.nxh-face .nxtea { right: -12px; bottom: -4px; font-size: 17px; }
+.nxtea-fx { position: absolute; z-index: 3; font: 14px/1 sans-serif; font-style: normal; pointer-events: none; }
+.nxh-face.nxtea-sip .eyes i { animation: none; transform: scaleY(.25); }
+.nxh-face.nxtea-oh .eyes i { animation: none; transform: scale(1.3); }
+</style>
+<script>
+/* ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s
+   (no touch, scroll or screen change), Nexi is on screen (the floating bubble, else Home's face), motion is on, no tour,
+   not his sleeping hours, and the last try was 30+ min ago. Then he brings out a drink, closes his eyes, lifts it… and
+   something happens: you touch or scroll (the real interruption), a sneeze, a bug lands in it, it's too hot, it's empty,
+   it slips (no hands), a hiccup, he remembers a game that needs you, or real news arrives (any other pnBubSay). He never
+   gets the sip. Tries are counted in localStorage `gq:tea` (bookkeeping, kept out of S). Off: Settings › Extra features
+   › Tea breaks (`S.teaOff`). ===== */
+const TEA_CUPS = [["🍵", "tea"], ["☕", "coffee"], ["🧃", "juice"], ["🧪", "Elixir"], ["🥤", "soda"]];
+const TEA = { on: false, kind: "", cup: null, host: null, timers: [], self: false, nav: 0, fx: [] };
+function teaBook() { try { return JSON.parse(localStorage.getItem("gq:tea") || "{}") || {}; } catch (e) { return {}; } }
+function teaHost() {
+  const b = document.getElementById("pnbub");
+  if (b && b.getClientRects().length && getComputedStyle(b).display !== "none" && !b.classList.contains("sleep")) return { el: b, bub: true };
+  const f = document.querySelector("#p-home.on .nxh-face");
+  if (f && document.documentElement.classList.contains("onhome")) { const r = f.getBoundingClientRect();
+    if (r.width && r.bottom > 0 && r.top < innerHeight) return { el: f, bub: false }; }
+  return null;
+}
+function teaLater(fn, ms) { TEA.timers.push(setTimeout(fn, ms)); }
+function teaStop() {
+  TEA.timers.forEach(clearTimeout); TEA.timers = [];
+  if (TEA.cup) TEA.cup.remove(); TEA.fx.forEach(x => x.remove()); TEA.fx = [];
+  if (TEA.host) TEA.host.el.classList.remove("nxtea-sip", "nxtea-oh");
+  TEA.on = false; TEA.kind = ""; TEA.cup = TEA.host = null;
+}
+/* the cup moves between poses: its style holds the end pose, the animation plays from the old one (no fill to cancel) */
+const TEA_REST = "translate(0px,0px) rotate(0deg)", TEA_LIP = "translate(-19px,-11px) rotate(-32deg)";
+function teaMove(to, ms, ease, from) { const c = TEA.cup; if (!c) return;
+  const was = from || c.style.transform || TEA_REST; c.style.transform = to;
+  c.animate([{ transform: was }, { transform: to }], { duration: ms, easing: ease || "ease-in-out" }); }
+function teaFx(txt, x, y, frames, ms) { const h = TEA.host; if (!h) return;
+  const i = document.createElement("i"); i.className = "nxtea-fx"; i.setAttribute("aria-hidden", "true"); i.textContent = txt;
+  i.style.left = x + "px"; i.style.top = y + "px"; i.style.opacity = "0"; h.el.appendChild(i); TEA.fx.push(i);
+  i.animate(frames, { duration: ms, easing: "ease-out" }); }
+function teaTry(force) {
+  if (TEA.on) return false;
+  const host = teaHost(); if (!host) return false;
+  const book = teaBook(), cup = TEA_CUPS[Math.floor(Math.random() * TEA_CUPS.length)];
+  book.n = (book.n || 0) + 1; book.t = Date.now();
+  try { localStorage.setItem("gq:tea", JSON.stringify(book)); } catch (e) {}
+  Object.assign(TEA, { on: true, host, drink: cup, n: book.n, since: performance.now(), last: book.k, quiet: !!force && nxTouring() });
+  const c = document.createElement("i"); c.className = "nxtea"; c.setAttribute("aria-hidden", "true"); c.textContent = cup[0];
+  c.style.transform = TEA_REST; host.el.appendChild(c); TEA.cup = c;
+  c.animate([{ transform: "translate(0px,8px) scale(.3)", opacity: 0 }, { transform: TEA_REST, opacity: 1 }], { duration: 380, easing: "cubic-bezier(.34,1.56,.64,1)" });
+  if (host.bub) pnBubMood("happy", 3400);
+  /* a little wait (steam for the hot ones), then eyes closed and the long, careful lift… */
+  if (cup[1] === "tea" || cup[1] === "coffee") teaLater(() => teaFx("~", 54, 30, [{ opacity: 0, transform: "translateY(4px)" }, { opacity: .8, offset: .4 }, { opacity: 0, transform: "translateY(-14px)" }], 1100), 450);
+  teaLater(() => { if (!host.bub) host.el.classList.add("nxtea-sip"); teaMove(TEA_LIP, 1400, "cubic-bezier(.45,0,.3,1)"); }, 1000);
+  /* …and right before the sip, something happens */
+  teaLater(() => teaFail(teaPick()), 2450);
+  return true;
+}
+function teaPick() {
+  const un = (S.played || []).find(p => !scored(p)), nx = pnNext(), last = TEA.last;
+  const k = [["sneeze", 2], ["bug", 2], ["hot", 2], ["empty", 1], ["slip", 2], ["hiccup", 1], ["remember", (un || (nx && nx.days <= 14)) ? 2 : 0]]
+    .filter(([n, w]) => w && n !== last);
+  let r = Math.random() * k.reduce((a, x) => a + x[1], 0);
+  for (const [n, w] of k) { if ((r -= w) < 0) return n; }
+  return "slip";
+}
+const teaAny = a => a[Math.floor(Math.random() * a.length)];
+function teaLine(kind) {
+  const d = TEA.drink[1], my = d === "Elixir" ? "my Elixir" : "my " + d, n = TEA.n;
+  const un = (S.played || []).find(p => !scored(p)), ug = un && S.games.find(g => g.id === un.id), nx = pnNext();
+  let L;
+  if (kind === "user") L = teaAny([`You touched the screen and I spilled ${my}. Every. Single. Time. 😭`, `I was SO close. One sip. You moved, and now ${my} is on the floor.`,
+    `No no, it's fine. I didn't want ${my} anyway. (I did.) 🥲`, `You scrolled. ${my[0].toUpperCase() + my.slice(1)} scrolled too. Right off the table.`]);
+  else if (kind === "sneeze") L = `Ah… ah… ACHOO. …And there goes ${my}.`;
+  else if (kind === "bug") L = `A bug landed in ${my}. Now I have to file a report on it 🐞`;
+  else if (kind === "hot") L = d === "Elixir" ? "Never mind. I'll save the Elixir for the final boss. Like in every RPG ever 🧪" : teaAny([`Too hot. I'll let it cool. (It never cools.) ♨️`, `Ow. Hot. I'll try again later. I always say that.`]);
+  else if (kind === "empty") L = S.grum ? `…It's empty. Who drank ${my}? Grumble. It was Grumble 👀` : `…It's empty. Who drank ${my}? 👀`;
+  else if (kind === "slip") L = `It slipped. I don't have hands. I've never had hands. Why do I keep trying? 🫠`;
+  else if (kind === "hiccup") L = `*hic* …that's ${my} gone. *hic*`;
+  else if (kind === "remember") L = ug ? [`Wait! ${ug.title} still needs your score. ${my[0].toUpperCase() + my.slice(1)} can wait ✍️`, "played"]
+    : nx ? [`Hold on: ${nx.g.title} is out in ${nx.days} day${nx.days === 1 ? "" : "s"}. ${d === "Elixir" ? "Elixir" : d[0].toUpperCase() + d.slice(1)} later, hype now ⏳`, nx.g.id] : `Wait, I forgot what I was going to say. And ${my} went cold.`;
+  const [txt, act] = Array.isArray(L) ? L : [L, ""];
+  return [txt + (n % 5 === 0 ? ` (Try #${n}. Still zero sips.)` : ""), act];
+}
+function teaFail(kind) {
+  if (!TEA.on || TEA.kind) return; TEA.kind = kind;
+  TEA.timers.forEach(clearTimeout); TEA.timers = [];
+  const h = TEA.host, c = TEA.cup, bub = h.bub;
+  if (kind !== "news") { const b = teaBook(); b.k = kind; try { localStorage.setItem("gq:tea", JSON.stringify(b)); } catch (e) {} }
+  h.el.classList.remove("nxtea-sip");
+  const now = c && (getComputedStyle(c).transform || TEA_REST);   /* the lift may still be going: fly from where the cup is */
+  const fly = (dx, ms) => { if (!c) return; c.animate([{ transform: now, opacity: 1 }, { transform: `translate(${dx}px,46px) rotate(${dx > 0 ? 220 : -220}deg)`, opacity: 0 }],
+    { duration: ms || 700, easing: "cubic-bezier(.5,0,.75,.3)" }); c.style.opacity = "0"; };
+  const down = () => { if (!c) return; teaMove(TEA_REST, 450, "ease-out", now); teaLater(() => { c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300 }); c.style.opacity = "0"; }, 600); };
+  const oh = () => { if (!bub) { h.el.classList.add("nxtea-oh"); teaLater(() => h.el.classList.remove("nxtea-oh"), 900); } };
+  const mood = (m, ms) => { if (bub) pnBubMood(m, ms); };
+  if (kind === "user") { oh(); mood("sad", 2600); fly(26); teaFx("💦", 46, 34, [{ opacity: 0, transform: "scale(.4)" }, { opacity: 1, transform: "scale(1)", offset: .3 }, { opacity: 0, transform: "translateY(12px)" }], 800); }
+  else if (kind === "sneeze") { mood("sneeze", 900); if (!bub) h.el.animate([{ transform: "none" }, { transform: "scale(1.08,.9) translateY(2px)" }, { transform: "scale(.92,1.1) translateY(-5px)" }, { transform: "none" }], { duration: 700 });
+    fly(32, 650); teaLater(() => mood("sad", 2200), 900); }
+  else if (kind === "bug") { teaFx("🐞", 52, -26, [{ opacity: 0, transform: "translate(18px,-10px) rotate(30deg)" }, { opacity: 1, offset: .2 }, { opacity: 1, transform: "translate(-4px,26px) rotate(-10deg)", offset: .85 }, { opacity: 0, transform: "translate(-4px,30px)" }], 1000);
+    teaLater(() => { oh(); mood("angry", 1600); down(); }, 850); }
+  else if (kind === "hot") { teaFx("♨️", 40, 18, [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, offset: .3 }, { opacity: 0, transform: "translateY(-14px)" }], 900); oh(); mood("dizzy", 1300); down(); }
+  else if (kind === "empty") { if (c) teaMove("translate(-17px,-14px) rotate(-120deg)", 500, "ease-in-out", now); teaLater(() => { mood("bored", 2600); down(); }, 900); }
+  else if (kind === "slip") { if (c) { c.animate([{ transform: now, opacity: 1 }, { transform: "translate(-6px,60px) rotate(-20deg)", opacity: 0 }], { duration: 600, easing: "cubic-bezier(.55,0,1,.45)" }); c.style.opacity = "0"; }
+    oh(); teaLater(() => mood("faint", 1800), 300); }
+  else if (kind === "hiccup") { if (bub) { h.el.querySelector(".core").animate([{ transform: "none" }, { transform: "translateY(-7px)" }, { transform: "none" }], { duration: 260 }); }
+    else h.el.animate([{ transform: "none" }, { transform: "translateY(-5px)" }, { transform: "none" }], { duration: 260 });
+    fly(-28, 650); teaLater(() => mood("dizzy", 1500), 300); }
+  else if (kind === "remember") { oh(); mood("happy", 1500); down(); }
+  else down();   /* news: put it down and listen */
+  teaLater(() => { if (kind !== "news" && !TEA.quiet && !nxTouring()) teaSay(teaLine(kind)); }, kind === "bug" ? 1050 : kind === "empty" ? 1000 : 650);
+  teaLater(teaStop, 3200);
+}
+/* he says it in his bubble when it's out; on Home his face's speech box says it for a few seconds */
+function teaSay(line) {
+  if (TEA.host && TEA.host.bub) { TEA.self = true; try { pnBubSay(line); } finally { TEA.self = false; } return; }
+  const p = document.querySelector("#p-home .nxhome .nxh-say p"); if (!p) return;
+  const was = p.innerHTML, mine = esc(line[0]); p.innerHTML = mine; p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 });
+  setTimeout(() => { if (p.isConnected && p.innerHTML === mine) { p.innerHTML = was; p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 }); } }, 4800);
+}
+/* real interruptions: your finger, a scroll, a screen change, real news */
+addEventListener("pointerdown", () => { if (TEA.on && !TEA.kind) teaFail("user"); }, { capture: true, passive: true });
+onScrolled(() => { if (TEA.on && !TEA.kind) teaFail("user"); });
+onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });
+extend("pnBubSay", { before() { if (TEA.on && !TEA.kind && !TEA.self) teaFail("news"); } });
+function teaTick() {
+  setTimeout(teaTick, 6000);
+  if (TEA.on || S.teaOff || document.hidden || nxTouring() || document.documentElement.classList.contains("still")
+    || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const now = performance.now(), quiet = now - Math.max(bugLastIn, TEA.nav);
+  if (now < 25000 || quiet < 25000) return;
+  const h = new Date().getHours(); if (h >= 1 && h < 6) return;
+  if (Date.now() - (teaBook().t || 0) < 30 * 6e4) return;
+  if (document.querySelector("#sheet.on, #diary.on, #pnbubmsg.on")) return;
+  teaTry();
+}
+setTimeout(teaTick, 6000);
+WHATS_NEW.push(
+  { v: 288, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); setTimeout(() => teaTry(true), 900); },
+    at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : $("#p-home .nxh-face") || null; },
+    say: "<b>Tea break</b>: when the app sits still for a while, I try to have a sip of tea (or juice, or that Elixir I've been saving). Something always gets in the way. Always.",
+    tryIt: "Leave the app still for half a minute and watch me. Touch the screen at the worst moment if you're feeling mean." }
 );
 </script>
