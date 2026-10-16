@@ -2,7 +2,7 @@
 # code health audit and the bug finder (tools/audit.mjs, tools/lint.mjs) stay within their budget, sw.js shrinks pictures right, every screen
 # at 412 / 859 / 360 in Chromium with the app's own problem checks listening, and the what's-new tour. Fails on a script
 # error, a real problem report or a broken tour step (timing notes are printed only: GitHub's machines have no GPU).
-# Since v291 also the design eye (kit.mjs eye, in `all`), its plant (a blind eye fails), and the design check on what the PR adds.
+# Since v292 also the design eye (kit.mjs eye, in `all`), its plant (a blind eye fails), and the design check on what the PR adds.
 name: App check
 on:
   workflow_dispatch:
