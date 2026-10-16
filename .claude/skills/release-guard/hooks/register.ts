@@ -31,7 +31,7 @@ const TO_MAIN = /\bgit\s+(?:-C\s+\S+\s+)?push\b[^&;|]*(?:\s(?:\S+:)?(?:refs\/hea
 const HTML_WRITE = /index\.html/
 // Shell commands that change index.html (a script only when it writes files).
 const WRITER = /\bsed\s+-[a-zA-Z]*i|\bperl\s+-[a-zA-Z]*i|>\s*\S*index\.html|\btee\b|\bpatch\b|\bgit\s+apply\b|\b(?:python3?|node)\b[\s\S]*(?:writeFileSync|\.write\(|open\([^)]*["'][wa]\+?["'])/
-const TESTED = /playwright|chromium|pw-browsers|webkit|tools\/kit\.mjs\s+(?:sweep|tour|perf|all|run)\b|scratchpad\/\S+\.(?:m?js|py)\b/i
+const TESTED = /playwright|chromium|pw-browsers|webkit|tools\/kit\.mjs\s+(?:sweep|tour|perf|all|run|eye)\b|scratchpad\/\S+\.(?:m?js|py)\b/i
 
 const bullet = (xs: readonly string[]) => xs.map(x => `- ${x}`).join('\n')
 
