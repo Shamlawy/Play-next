@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 26623 lines, 1986 KB, 118 scripts, 64 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 26631 lines, 1987 KB, 118 scripts, 64 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -46,7 +46,7 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 26084 v281: `onSettings("after", () => spSetWire());`
 - 26220 v285: `onSettings("after", () => {`
 - 26260 : `onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {} }));`
-- 26517 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
+- 26520 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
 
 ## Blocks
 
@@ -231,6 +231,6 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 26269–26289 | style | 2 | ===== v287: fewer GPU layers (#60 Home, #62 game page, #207 Played, #116 blank on Queue). The phone's own timing of a Played stutter: "1 long frame,… |
 | 26289–26296 | script | 0 | the shelf's covers get their own layers while it's swiped, and give them back 400ms after it stops |
 | 26296–26388 | script | 7 | v287: Nexi spots GPU layers piling up on the screen you're on. The stutters that kept coming back (#60, #62, #207) were drawing, not code (the… |
-| 26388–26399 | style | 1 | ===== v288: Nexi's tea break. The owner (after a Spy x Family ending where the family never gets to drink their tea): now and then, when the app… |
-| 26399–26554 | script | 14 | ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s (no touch, scroll or screen… |
-| 26554–26623 | script | 7 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |
+| 26388–26402 | style | 1 | ===== v288: Nexi's tea break. The owner (after a Spy x Family ending where the family never gets to drink their tea): now and then, when the app… |
+| 26402–26557 | script | 14 | ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s (no touch, scroll or screen… |
+| 26557–26631 | script | 7 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |

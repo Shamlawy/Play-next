@@ -2,6 +2,7 @@
 # code health audit and the bug finder (tools/audit.mjs, tools/lint.mjs) stay within their budget, sw.js shrinks pictures right, every screen
 # at 412 / 859 / 360 in Chromium with the app's own problem checks listening, and the what's-new tour. Fails on a script
 # error, a real problem report or a broken tour step (timing notes are printed only: GitHub's machines have no GPU).
+# Since v293 also the release number check (tools/appv-check.mjs), the design eye (kit.mjs eye, in `all`), its plant (a blind eye fails), and the design check on what the PR adds.
 name: App check
 on:
   workflow_dispatch:
@@ -18,15 +19,34 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+      - name: "The release number is above main's (two chats on the same vN merge with no conflict, L27)"
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/appv-check.mjs "--base=origin/$BASE" "--head=$HEAD_SHA"
       - name: "Install Chromium and the bug finder (one npm call, since a second one would remove the first one's packages)"
         run: npm i --no-save playwright@1.56.1 eslint@9.36.0 globals@16.4.0 acorn@8.15.0 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
       - name: Check the app
         env:
           CI: "1"
         run: node tools/kit.mjs all
+      - name: "The design eye still sees (its plant must be flagged)"
+        env:
+          CI: "1"
+          PLANT: tools/plants/eye-broken.css
+          SCREENS: lib,played
+        run: node tools/kit.mjs run tools/scenarios/design-eye.mjs --widths 412
+      - name: "The design check on what this PR adds to index.html"
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: node tools/design-check.mjs "--base=origin/$BASE"

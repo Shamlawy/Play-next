@@ -12,7 +12,10 @@
      node tools/kit.mjs audit           code health (tools/audit.mjs --check): nothing piled up past tools/audit-budget.txt
      node tools/kit.mjs layers          GPU layers per screen (Home, Queue, Library, Played, a game page) at 412 / 859, in screens'
                                         worth: fails over tools/layers-budget.txt (--lower writes the new numbers) (v287)
-     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers
+     node tools/kit.mjs eye             the design eye (tools/eye.mjs) on every screen, 3 game pages and Settings at 412 / 859 / 360:
+                                        repeated things that spill, overlap, run off the screen, break short words, squash
+                                        pictures or barely show; tools/eye-ok.txt excuses what's meant to look that way
+     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers + eye
      node tools/kit.mjs samecss --before old.html   the browser applies exactly the same CSS (after a CSS tidy)
      node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
                                         with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
@@ -395,6 +398,22 @@ async function scenario(browser, base) {
   }
 }
 
+/* ---------- eye: what looks broken on every screen (tools/eye.mjs, Oct 2026: the design skill that keeps learning) ---------- */
+async function eyeCheck(browser, base) {
+  console.log(`\n== eye: what looks broken (${FILE}) at ${WIDTHS.join(", ")} ==`);
+  const before = failed;
+  const { eyeWalk } = await import(pathToFileURL(path.join(ROOT, "tools/scenarios/design-eye.mjs")).href);
+  for (const w of WIDTHS) {
+    const p = await phone(browser, base, w, seed(APP_V));
+    const found = await eyeWalk({ p, w });
+    if (found.length) found.forEach(f => fail(`${w}px ${f}`));
+    else console.log(`  ✓ ${w}px: nothing looks wrong`);
+    [...new Set(p.errors)].forEach(e => fail(`${w}px: script error: ${e}`));
+    await p.ctx.close();
+  }
+  if (failed > before) console.log("  (a real problem: fix it; meant to look that way: a line in tools/eye-ok.txt with the reason)");
+}
+
 /* ---------- samecss: the browser applies exactly the same CSS in two copies (after audit.mjs --fix-css or any CSS tidy) ---------- */
 /* ---------- layers: how much the GPU draws per screen (v287) ----------
    The stutters that kept coming back (#60 Home, #62 game page, #207 Played) were drawing, not code: the phone timed a 128ms
@@ -453,13 +472,14 @@ async function samecss(browser) {
 }
 
 if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
-if (["sweep", "tour", "perf", "smooth", "layers", "all", "run"].includes(mode)) {
+if (["sweep", "tour", "perf", "smooth", "layers", "eye", "all", "run"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
     if (mode === "tour" || mode === "all") await tour(browser, base);
     if (mode === "smooth" || mode === "all") await smooth(browser, base);
     if (mode === "layers" || mode === "all") await layers(browser, base);
+    if (mode === "eye" || mode === "all") await eyeCheck(browser, base);
     if (mode === "perf") await perf(browser, base);
     if (mode === "run") await scenario(browser, base);
   } finally { await browser.close(); srv.close(); }

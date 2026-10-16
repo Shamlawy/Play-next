@@ -4393,7 +4393,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "293";
+const APP_V = "294";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -16823,7 +16823,7 @@ function shxData(kind) {
   if (kind === "lib") return { c: recent(), st: [[S.games.length, "games"], [S.played.length, "played"], [S.games.filter(g => !isPlayed(g) && isUpcoming(g)).length, "coming"]] };
   if (kind === "played") {
     const sc = S.played.filter(scored).map(p => p.real), avg = sc.length ? (sc.reduce((a, b) => a + b, 0) / sc.length).toFixed(1) : "–";
-    return { c: ranked().slice(0, 4), st: [[S.played.length, "finished"], [sTier, "S-tier"], [avg, "average score"]] };
+    return { c: ranked().slice(0, 4), st: [[S.played.length, "finished"], [sTier, "S\u2011tier"], [avg, "average score"]] };
   }
   if (kind === "replay") {
     const again = S.played.filter(p => p.again).map(p => S.games.find(g => g.id === p.id)).filter(Boolean);
@@ -16835,7 +16835,7 @@ function shxData(kind) {
     return { c: next.slice(0, 4), st: [[dd == null ? "–" : dd === 0 ? "Today" : dd + "<em>d</em>", next[0] ? "to " + next[0].title : "nothing dated"],
       [next.filter(g => new Date(g.date + "T00:00:00") - day0 < 31 * 864e5).length, "in 30 days"]] };
   }
-  if (kind === "taste") return { c: ranked().slice(0, 4), st: [[t.order.length, "ranked"], [S.duels.length, "duels"], [sTier, "S-tier"]] };
+  if (kind === "taste") return { c: ranked().slice(0, 4), st: [[t.order.length, "ranked"], [S.duels.length, "duels"], [sTier, "S\u2011tier"]] };
   const ym = new Date().toLocaleDateString("en-CA").slice(0, 7);
   return { c: recent(), st: [[S.games.length, "in your library"], [S.games.filter(g => String(g.added || "").startsWith(ym)).length, "added this month"]] };
 }
@@ -26395,6 +26395,9 @@ WHATS_NEW.push(
 .nxtea-fx { position: absolute; z-index: 3; font: 14px/1 sans-serif; font-style: normal; pointer-events: none; }
 .nxh-face.nxtea-sip .eyes i { animation: none; transform: scaleY(.25); }
 .nxh-face.nxtea-oh .eyes i { animation: none; transform: scale(1.3); }
+/* v292: Played's top board chips ("⏱ 32h", "Hype 9 → 8.5") stay on one line; the design eye (tools/eye.mjs) found them
+   broken in two on rows whose name column is narrow */
+.pnb-p span { white-space: nowrap; }
 </style>
 <script>
 /* ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s
@@ -26546,7 +26549,7 @@ WHATS_NEW.push(
   { v: 292, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
     say: "<b>The opening pixel fits any screen</b>: fold, unfold or turn the phone while the reel waits and the glowing pixel redraws in the middle at the new size, instead of a stretched first frame.",
     tryIt: "Open the app with the phone folded, unfold it before you tap the glow: the pixel stays sharp and centred." },
-  { v: 293, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
+  { v: 294, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
     say: "<b>Your games star in the opening reel</b>: the 3D shelf now holds your real covers, with the game you're playing (or the top of your Queue) in the middle, and its card turns into a page with its name and hours.",
     tryIt: "Close the app fully, open it again and tap the glow: watch for your own covers when the shelf stands up." }
 );
@@ -26619,4 +26622,9 @@ WHATS_NEW.push(
 );
 /* v291: the what's-new tour waits for the opening reel to finish (it starts 2.2s after load, the reel runs 15s) */
 extend("nxTour", { before(...a) { if (document.getElementById("pnboot")) { setTimeout(() => nxTour(...a), 800); return extend.skip(); } } });
+WHATS_NEW.push(
+  { v: 293, go: () => { closeFull(); dyClose(); nxShut(); goTab("played"); }, at: () => $("#p-played .pnb-p") || $("#p-played .tabbar"),
+    say: "<b>Tidier Played board</b>: the hours and hype chips on your top board stay on one line now, and \"S-tier\" no longer splits in two on a narrow screen. A new design eye checks every screen for things like this before each update.",
+    tryIt: "Open Played and look at your top board, folded and unfolded." }
+);
 </script>
