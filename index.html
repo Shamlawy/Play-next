@@ -3997,7 +3997,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "288";
+const APP_V = "289";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -7803,9 +7803,14 @@ async function frPull(force) {
 }
 setTimeout(() => { frPublish(); frPull(); }, 4000);
 /* v143: shimmer stops the moment an image loads or fails */
+/* v263: and the shimmer really stops, even on a hidden screen the browser doesn't restyle. v289 (#334): one look at the
+   page's animations per frame, not i.getAnimations() per picture: each one forced a style pass right after the attribute
+   write, so a sweep of 60 covers held the start for 260-420ms (4x) */
+let pnShimQ = 0;
+const pnShimOff = () => { pnShimQ = 0; if (!document.getAnimations) return;
+  for (const a of document.getAnimations()) if (a.animationName === "pnShim" && a.effect && a.effect.target && a.effect.target.hasAttribute("data-ld")) a.cancel(); };
 const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") { i.setAttribute("data-ld", "");
-  /* v263: and the shimmer really stops, even on a hidden screen the browser doesn't restyle */
-  if (i.getAnimations) i.getAnimations().forEach(a => { if (a.animationName === "pnShim") a.cancel(); }); } };
+  if (!pnShimQ) pnShimQ = requestAnimationFrame(pnShimOff); } };
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) pnLd({ target: i }); });
 pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.tagName === "I" && n.parentElement && n.parentElement.closest(".cdb"))))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
@@ -13202,13 +13207,15 @@ load();
 const still=()=>document.documentElement.classList.contains('still')||matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* v170: the full-screen sparks canvas only exists on screen while sparks fly; the rest of the time it was one more full-screen layer to blend every frame */
 const cv=document.createElement('canvas');cv.id='fx';cv.style.display='none';document.body.appendChild(cv);
-const g=cv.getContext('2d'),D=Math.min(devicePixelRatio||1,2);let W,H;
+const g=cv.getContext('2d'),D=Math.min(devicePixelRatio||1,2);let W=0,H=0;
 const size=()=>{W=innerWidth;H=innerHeight;cv.width=W*D;cv.height=H*D;g.setTransform(D,0,0,D,0,0)};
-size();addEventListener('resize',size);
+/* v289 (#334): sized when sparks first fly, not at start (reading the screen size there forced a style+layout pass, ~70ms at 4x),
+   and emptied again after, so the ~12MB full-screen canvas isn't held while nothing flies */
+addEventListener('resize',()=>{if(run)size();else W=0});
 const P=[],R=[];let run=false;
 function burst(x,y,n,sp,c){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=sp*(.4+Math.random());
 P.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:Math.random()*6.283,vr:(Math.random()-.5)*.4,s:3+Math.random()*5,l:1,c})}
-R.push({x,y,r:4,l:1,c});if(!run){run=true;cv.style.display='';requestAnimationFrame(tick)}}
+R.push({x,y,r:4,l:1,c});if(!run){run=true;if(!W)size();cv.style.display='';requestAnimationFrame(tick)}}
 function tick(){g.clearRect(0,0,W,H);
 for(let i=P.length;i--;){const p=P[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.92;p.vy=p.vy*.92+.15;p.r+=p.vr;p.l-=.028;
 if(p.l<=0){P.splice(i,1);continue}
@@ -13216,7 +13223,7 @@ g.save();g.translate(p.x,p.y);g.rotate(p.r);g.globalAlpha=p.l;g.fillStyle=p.c;
 g.beginPath();g.moveTo(0,-p.s);g.lineTo(p.s*.45,p.s);g.lineTo(-p.s*.45,p.s*.4);g.fill();g.restore()}
 for(let i=R.length;i--;){const r=R[i];r.r+=(60-r.r)*.18;r.l-=.05;if(r.l<=0){R.splice(i,1);continue}
 g.globalAlpha=r.l;g.strokeStyle=r.c;g.lineWidth=2.5;g.beginPath();g.arc(r.x,r.y,r.r,0,6.283);g.stroke()}
-g.globalAlpha=1;if(P.length||R.length)requestAnimationFrame(tick);else{run=false;g.clearRect(0,0,W,H);cv.style.display='none'}}
+g.globalAlpha=1;if(P.length||R.length)requestAnimationFrame(tick);else{run=false;cv.width=cv.height=0;W=0;cv.style.display='none'}}
 let AC;
 /* v141: wake this effects engine too on the first tap after coming back to the app */
 const _fxKick=()=>{if(AC&&AC.state!=='running'){try{AC.resume()}catch(_){}setTimeout(()=>{if(AC&&AC.state!=='running'){try{AC.close()}catch(_){}AC=null}},400)}};
@@ -13659,14 +13666,16 @@ function pnPowerUp(line) {
   const raw = (x, y) => { gx = x; gy = y; g.style.transform = `translate3d(${x}px,${y}px,0)`; };
   const sideX = () => { const nL = typeof pnBubX === "number" ? pnBubX + 31 < innerWidth / 2 : true; return nL ? innerWidth - 74 : 10; };
   const place = (x, y) => raw(sideX(), Math.max(20, Math.min(innerHeight - 160, y)));
-  const p0 = S.grumPos || { y: innerHeight * .62 }; place(0, p0.y);
+  /* v289 (#334): placed when he's switched on; hidden (the default) the screen-size read at start forced a style pass */
+  let placed = 0; const place0 = () => { if (placed) return; placed = 1; const p0 = S.grumPos || { y: innerHeight * .62 }; place(0, p0.y); };
+  if (S.grum) place0();
   /* glide over when Nexi switches sides */
   let busy = false;
   const glide = (tx, ty, ms) => new Promise(res => { const fx = gx, fy = gy, t0 = performance.now();
     const st = t => { const k = Math.min(1, (t - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       raw(fx + (tx - fx) * e, fy + (ty - fy) * e); if (k < 1) requestAnimationFrame(st); else res(); }; requestAnimationFrame(st); });
   /* Oct 2026 clean-up: the side check runs only while he's switched on (hidden by default, it ticked every 0.8s all day) */
-  let gTick = 0; const gOn = () => { if (S.grum && !gTick) gTick = setInterval(() => { if (!S.grum || document.hidden || busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
+  let gTick = 0; const gOn = () => { if (S.grum) place0(); if (S.grum && !gTick) gTick = setInterval(() => { if (!S.grum || document.hidden || busy || down || window.pnSpar || document.documentElement.classList.contains("cine")) return;
     const tx = sideX(); if (Math.abs(tx - gx) > 4) { busy = true; glide(tx, gy, 900).then(() => busy = false); } }, 800);
     else if (!S.grum && gTick) { clearInterval(gTick); gTick = 0; } };
   gOn(); extend("applyLook", { after: gOn });
@@ -24769,7 +24778,29 @@ const fitSized = (u, w, h) => "https://wsrv.nl/?url=" + encodeURIComponent(u) + 
    check), and one retry before giving up. */
 FIT.chain = Promise.resolve(); FIT.fails = new Map(); FIT.base = new Map();
 const fitQueue = job => { const p = FIT.chain.then(job); FIT.chain = p.then(() => {}, () => {}); return p; };
+/* v289 (#334): the copy is drawn and packed in a worker (OffscreenCanvas). On the page, packing a 1536 px copy held the
+   page's thread for ~400ms (4x) while the canvas was read back, at every start: your own pictures are made again on
+   each open. A phone without it (or a worker that fails) uses the page's canvas below, as before */
+FIT.wk = null; FIT.wkN = 0; FIT.wkJobs = new Map();
+function fitWorker(src, W, H) {
+  if (FIT.wk === false || typeof OffscreenCanvas !== "function" || typeof Worker !== "function") return Promise.reject(new Error("no worker"));
+  if (!FIT.wk) try {
+    FIT.wk = new Worker(URL.createObjectURL(new Blob([`onmessage = async e => { const { id, src, W, H } = e.data;
+      try { let pic; try { pic = await createImageBitmap(src, { resizeWidth: W, resizeHeight: H, resizeQuality: "high" }); } catch (x) { pic = await createImageBitmap(src); }
+        const c = new OffscreenCanvas(W, H); c.getContext("2d").drawImage(pic, 0, 0, W, H); pic.close && pic.close();
+        let out = null; try { out = await c.convertToBlob({ type: "image/webp", quality: .88 }); } catch (x) {}
+        if (!out) out = await c.convertToBlob();
+        postMessage({ id, out }); } catch (x) { postMessage({ id, err: String(x && x.message || x) }); } };`], { type: "text/javascript" })));
+    FIT.wk.onmessage = e => { const j = FIT.wkJobs.get(e.data.id); if (!j) return; FIT.wkJobs.delete(e.data.id); clearTimeout(j.t);
+      if (e.data.out) j.ok(e.data.out); else j.no(new Error(e.data.err || "worker")); };
+    FIT.wk.onerror = () => { FIT.wk = false; FIT.wkJobs.forEach(j => { clearTimeout(j.t); j.no(new Error("worker")); }); FIT.wkJobs.clear(); };
+  } catch (e) { FIT.wk = false; return Promise.reject(e); }
+  return new Promise((ok, no) => { const id = ++FIT.wkN;
+    FIT.wkJobs.set(id, { ok, no, t: setTimeout(() => { FIT.wkJobs.delete(id); no(new Error("worker slow")); }, 15000) });
+    FIT.wk.postMessage({ id, src, W, H }); });
+}
 async function fitDraw(src, W, H) {
+  try { return await fitWorker(src, W, H); } catch (e) {}
   /* three ways to unpack, best first: shrunk while unpacking, whole off the page's thread (Safari before 17 has no resize
      options), or through an ordinary <img> (what every Safari can do) */
   let pic = null, done = () => {};
@@ -25784,12 +25815,13 @@ function layerMakers() {
   const add = (el, why, host) => {
     if (!el || !el.isConnected || out.has(el) || (top && !top.contains(el)) || el.closest("#pnbub, #pnbubmsg, #toast, #nxbug, #nxtour, .nxtour")) return;
     if (el.checkVisibility && !el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })) return;
+    /* v289: the size first (cheap), so pieces out of view or tiny skip the walk up their parents' styles below */
+    const r = el.getBoundingClientRect(), vw = Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0)), vh = Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0));
+    if (vw * vh < W * H * .01) return;
     /* a fixed piece stacked above the page (a full-screen effect, Nexi's flash, the rail) is drawn over the page, not
        under it: only pieces in the page's own flow or behind it count */
     for (let a = el; a && a !== stop; a = a.parentElement) { const cs = getComputedStyle(a);
       if (cs.position === "fixed") { if (cs.zIndex !== "auto" && +cs.zIndex > 0) return; break; } }
-    const r = el.getBoundingClientRect(), vw = Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0)), vh = Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0));
-    if (vw * vh < W * H * .01) return;
     /* drawn over: the top thing at the middle of its visible part is something else, not inside it */
     const x = Math.max(r.left, 0) + vw / 2, y = Math.max(r.top, 0) + vh / 2;
     const hit = document.elementFromPoint(x, y), over = !!hit && hit !== el && !el.contains(hit);
@@ -26004,6 +26036,9 @@ WHATS_NEW.push(
   { v: 288, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); setTimeout(() => teaTry(true), 900); },
     at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : $("#p-home .nxh-face") || null; },
     say: "<b>Tea break</b>: when the app sits still for a while, I try to have a sip of tea (or juice, or that Elixir I've been saving). Something always gets in the way. Always.",
-    tryIt: "Leave the app still for half a minute and watch me. Touch the screen at the worst moment if you're feeling mean." }
+    tryIt: "Leave the app still for half a minute and watch me. Touch the screen at the worst moment if you're feeling mean." },
+  { v: 289, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>The app opens smoother</b>: I found what made it freeze for a moment at start. Pictures finishing loading made the phone redo the whole screen's styles once per picture, and your own pictures were being shrunk on the main thread. Both are fixed: about a third less work in the first seconds.",
+    tryIt: "Close the app fully and open it again: the first seconds should feel steady, even while the covers pop in." }
 );
 </script>
