@@ -4373,7 +4373,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "293";
+const APP_V = "294";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -15575,16 +15575,6 @@ html.still .wr-in > *, html.still .wr-say.on p { animation: none; opacity: 1; tr
 </style>
 <script>
 /* ===== v178 calmer settings and edit: search, most-used shortcuts, one section at a time, fewer knobs up front ===== */
-const GROUP_ICON = {
-  "Sound and reactions": "🔊", "Motion": "🎞️", "Look of the app": "🎨", "Getting around": "🧭", "Games database": "🗂️",
-  "Dates that look wrong": "📅", "This build": "ℹ️", "Your data": "💾", "Tiles on Home": "🧩", "How tiles look": "🖌️",
-  "The standings tile": "🏆", "Queue cards": "🃏", "Character art": "🧍", "The backdrop": "🖼️", "Opening a card": "✨",
-  "Top board": "🥇", "Library": "📚", "A game's own page": "📄", "Timeline board": "🗓️", "Labels on the board": "🏷️",
-  "Your evening": "🌙", "Header cards": "🪪", "Cloud backup": "☁️", "Price alerts": "💸", "The web": "🕸️", "The big number": "🔢", "Conclusions": "🧠",
-  "Name": "✏️", "Release": "📅", "Where it stands": "📍", "Platforms": "🎮", "Genres and tags": "🏷️", "Notes": "📝",
-  "Hype": "🔥", "Critics": "⭐", "My rating": "💯", "Played": "✅", "Art from SteamGridDB": "🖼️", "Cover and colour": "🎨",
-  "Backdrop": "🌄", "Hub page figure": "🧍", "Logo / character art": "🔤"
-};
 const SET_MORE_AT = 5, SET_MORE_IF = 7;   /* groups with more than 7 settings show the first 5, the rest behind "More options" */
 const SET_QUICK = [
   ["🔊", "Sound", "Sound and reactions", "Sounds"], ["😤", "Grumble", "Sound and reactions", "Grumble"],
@@ -15652,7 +15642,7 @@ function calmSheet(settings) {
   const root = $("#sheet-in"); if (!root) return;
   root.querySelectorAll("details.grp").forEach(d => {
     const sum = d.querySelector("summary"), title = clean((sum.querySelector("b") || {}).textContent);
-    if (!sum.querySelector(".gi")) { const i = document.createElement("span"); i.className = "gi"; i.textContent = GROUP_ICON[title] || "⚙️"; sum.insertBefore(i, sum.firstChild); }
+    if (!sum.querySelector(".gi")) { const i = document.createElement("span"); i.className = "gi"; i.innerHTML = gIcon(title); sum.insertBefore(i, sum.firstChild); }
     if (d.querySelector(".more-opts")) return;
     const labs = [...d.children].filter(x => x.tagName === "LABEL" || x.tagName === "H5");
     if (labs.length <= SET_MORE_IF) return;
@@ -15670,7 +15660,7 @@ function calmSheet(settings) {
   bar.innerHTML = `<label class="ssch"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <input type="search" placeholder="Search every setting…" autocomplete="off" enterkeyhint="search" aria-label="Search settings"></label>
     <div class="ssres" hidden></div>
-    ${app ? `<div class="squick"><small>Most used</small><div>${SET_QUICK.map(([ic, l], i) => `<button type="button" data-sq="${i}"><span>${ic}</span>${esc(l)}</button>`).join("")}</div></div>` : ""}<small class="sall">${app ? "All settings" : "On this screen"}</small>`;
+    ${app ? `<div class="squick"><small>Most used</small><div>${SET_QUICK.map(([, l, g], i) => `<button type="button" data-sq="${i}"><span>${gIcon(GICON[l] ? l : g)}</span>${esc(l)}</button>`).join("")}</div></div>` : ""}<small class="sall">${app ? "All settings" : "On this screen"}</small>`;
   if (head) head.after(bar); else root.prepend(bar);
   const inp = bar.querySelector("input"), res = bar.querySelector(".ssres");
   const paint = () => {
@@ -15678,7 +15668,7 @@ function calmSheet(settings) {
     bar.classList.toggle("searching", !!clean(q)); $("#sheet-in").classList.toggle("ssearch", !!clean(q));
     if (!clean(q)) { res.hidden = true; res.innerHTML = ""; return; }
     res.hidden = false;
-    res.innerHTML = hits.length ? hits.map((r, i) => `<button type="button" data-sr="${i}"><span class="gi">${GROUP_ICON[r.group] || "⚙️"}</span>
+    res.innerHTML = hits.length ? hits.map((r, i) => `<button type="button" data-sr="${i}"><span class="gi">${gIcon(r.group)}</span>
       <span><b>${esc(r.text)}</b><small>${esc(r.head ? setWhere(r) : r.group + " · " + setWhere(r))}</small></span><em>›</em></button>`).join("")
       : `<p>Nothing called that. Try a word like <b>colour</b>, <b>sound</b>, <b>cover</b> or <b>backup</b>.</p>`;
     res._hits = hits;
@@ -15696,6 +15686,7 @@ let setListY = 0;
 document.addEventListener("toggle", e => {
   const d = e.target, root = $("#sheet-in");
   if (!root || !(d instanceof HTMLDetailsElement) || !d.classList.contains("grp") || !root.contains(d)) return;
+  if (root.classList.contains("srl")) return;   /* v294: Settings is one scroll of open groups (the rail), no drilling in */
   const sh = $("#sheet");
   if (d.open) {
     if (!root.classList.contains("drill")) setListY = sh ? sh.scrollTop : 0;
@@ -16073,7 +16064,6 @@ html.nodiary [data-diary], html.notimer [data-sess], html.notimer .dy-s[data-sta
 </style>
 <script>
 /* ===== v183 what's new + settings extras ===== */
-GROUP_ICON["Extra features"] = "🧪";
 GROUP_KEYS["Extra features"] = ["diaryOn", "timerOn", "wiAskOff", "wiStoryOff", "fnOff", "rvOff", "hbOff", "sgOff", "awOff", "etaOff", "capOff", "ssnOff", "batOff", "dustOff", "bdgOff", "nxSeatOff"];
 SET_QUICK.push(["🧪", "Diary & Timer", "Extra features", ""]);
 WHATS_NEW.push(
@@ -16116,7 +16106,6 @@ pnBoardRows = function (done) {
   return (done || []).filter(x => t.pos[x.id] != null).sort((a, b) => t.pos[a.id] - t.pos[b.id]);
 };
 try { renderPlayed(); } catch (e) {}
-GROUP_ICON["On deck"] = "🎯";
 GROUP_KEYS["On deck"] = ["curPlat", "deckOff"];
 WHATS_NEW.push(
   { v: 184, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); qScore(g.id); } }, at: () => $("#diary .qs-grid"),
@@ -16218,7 +16207,6 @@ html.still .nxh-face .eyes i { animation: none; }
 </style>
 <script>
 /* ===== v185 what's new ===== */
-GROUP_ICON["Nexi"] = "🤖";
 GROUP_KEYS["Nexi"] = ["nxPersona"];
 SET_QUICK.push(["🤖", "Nexi's personality", "Nexi", "Personality"]);
 WHATS_NEW.push(
@@ -25706,6 +25694,7 @@ function lvpSync() {
   let on = false;
   if (S.livePrev && lvpScope && !editing && sh.classList.contains("on")) {
     if (lvpScope !== "app") on = true;
+    else if (inn.classList.contains("srl")) on = !!inn.dataset.srlLvp;   /* v294: docked once you change a look group's setting */
     else { const g = inn.classList.contains("drill") && inn.querySelector("details.grp[open] > summary"); on = !!g && LVP_GROUPS.some(n => g.textContent.includes(n)); }
   }
   document.documentElement.classList.toggle("lvp", on);
@@ -25998,7 +25987,6 @@ function spSetWire() {
   };
   if (spOn() && !spLast) spSync();
 }
-GROUP_ICON["Steam"] = "🎮";
 onSettings("after", () => spSetWire());
 /* on open, and on coming back after 10+ minutes */
 { const due = () => { let t = 0; try { t = +localStorage.getItem(SP_SYNC) || 0; } catch (e) {} return Date.now() - t > 10 * 60e3; };
@@ -26541,5 +26529,258 @@ WHATS_NEW.push(
   { v: 293, go: () => { closeFull(); dyClose(); nxShut(); goTab("played"); }, at: () => $("#p-played .pnb-p") || $("#p-played .tabbar"),
     say: "<b>Tidier Played board</b>: the hours and hype chips on your top board stay on one line now, and \"S-tier\" no longer splits in two on a narrow screen. A new design eye checks every screen for things like this before each update.",
     tryIt: "Open Played and look at your top board, folded and unfolded." }
+);
+</script>
+<style>
+/* ===== v294: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise
+   are one scroll of open groups with an "On this page" column of group icons kept beside them (position: sticky). The group
+   just under the sticky title is the lit one: a blue bar and a lit tile follow it (transform only), and its name shows
+   beside the icon for a moment each time it changes. The icons are drawn (gIcon, the v247 menu style), not emoji. ===== */
+.gi svg, .squick button > span svg { width: 19px; height: 19px; fill: currentColor; display: block; }
+details.grp > summary > .gi, .ssres .gi { color: var(--volt); }
+.squick button > span { color: var(--volt); display: grid; place-items: center; }
+#sheet-in.srl .srlwrap { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 10px; align-items: start; }
+#sheet-in.srl .srlbody { min-width: 0; }
+/* every group open costs drawing them all when Settings opens (562 → 1134ms at 4x CPU): the browser skips the ones off screen */
+#sheet-in.srl .srlbody > .setgroup { content-visibility: auto; contain-intrinsic-size: auto 560px; }
+#sheet-in.srl .srlwrap.solo { display: block; }
+#sheet-in.srl .solo .srlnav { display: none; }
+.srlnav { position: sticky; top: calc(var(--srl-top, 35px) + 10px); margin-top: 8px; max-height: var(--srl-room, 70vh);
+  overflow-y: auto; overflow-x: visible; scrollbar-width: none; z-index: 2; }
+.srlnav::-webkit-scrollbar { display: none; }
+.srlnav ol { list-style: none; margin: 0; padding: 0 0 0 6px; position: relative; display: flex; flex-direction: column; gap: 3px; }
+.srlnav a { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; color: var(--mute); text-decoration: none;
+  -webkit-tap-highlight-color: transparent; }
+.srlnav a svg { width: 21px; height: 21px; fill: currentColor; display: block; }
+.srlnav a[aria-current="location"] { color: var(--ice); background: var(--u-card2, var(--ink)); box-shadow: inset 0 0 0 1px var(--u-line2, var(--edge)); }
+.srlnav a:focus-visible { outline: 2px solid var(--volt); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .srlnav a:not([aria-current]):hover { color: var(--ice); } }
+.srlbar { position: absolute; left: 0; top: 0; width: 4px; height: 20px; border-radius: 3px; background: var(--volt); pointer-events: none;
+  transform-origin: 0 0; transition: transform .32s var(--ease, cubic-bezier(.2,.8,.2,1)); }
+.srltag { position: fixed; left: 0; top: 0; z-index: 10; pointer-events: none; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis;
+  background: var(--u-card2, var(--ink)); color: var(--ice); font-size: 13px; font-weight: 700; letter-spacing: -.01em; padding: 6px 12px;
+  border: 1px solid var(--u-line2, var(--edge)); border-left: 4px solid var(--volt); border-radius: 0 12px 12px 0; box-shadow: 0 8px 22px rgba(0,0,0,.55);
+  opacity: 0; transition: opacity .22s ease; }
+.srltag.on { opacity: 1; }
+.srlnt .srlbar { transition: none; }
+html.still .srlbar, html.still .srltag { transition: none; }
+@media (prefers-reduced-motion: reduce) { .srlbar, .srltag { transition: none; } }
+#sheet-in.ssearch .srlnav { display: none; }
+#sheet-in.srl details.grp[open] > summary { cursor: default; }
+#sheet-in.srl details.grp[open] > summary > em { display: none; }
+.srlend { height: 1px; }
+</style>
+<script>
+/* ===== v294: Settings rail (look B) and drawn group icons =====
+   GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used shortcut, fill-only (currentColor) with one
+   part at 35%, like the v247 menu icons. "_" (the menu's gear) is for a group that has none yet. */
+const GICON = {
+  "Sound and reactions": "<path d='M3.5 9.2a1.2 1.2 0 0 1 1.2-1.2H7.6l4.6-3.9a.9.9 0 0 1 1.5.7v14.4a.9.9 0 0 1-1.5.7L7.6 16H4.7a1.2 1.2 0 0 1-1.2-1.2z'/><path d='M17.22 8.18A5.4 5.4 0 0 1 17.22 15.82A1 1 0 0 1 15.8 14.4A3.4 3.4 0 0 0 15.8 9.6A1 1 0 0 1 17.22 8.18z'/><g opacity='.35'><path d='M18.93 5.41A8.6 8.6 0 0 1 18.93 18.59A1 1 0 0 1 17.64 17.06A6.6 6.6 0 0 0 17.64 6.94A1 1 0 0 1 18.93 5.41z'/></g>",
+  "Nexi": "<g opacity='.35'><circle cx='12' cy='12.6' r='9.4'/></g><rect x='7.4' y='8.4' width='3.2' height='6.8' rx='1.6'/><rect x='13.4' y='8.4' width='3.2' height='6.8' rx='1.6'/><circle cx='12' cy='2.6' r='1.5'/><rect x='11.25' y='3' width='1.5' height='2.6' rx='0.5'/>",
+  "Extra features": "<g opacity='.35'><path d='M9.2 2.6h5.6a1 1 0 0 1 0 2h-.6v4.1l5.3 8.9a2.6 2.6 0 0 1-2.2 3.9H6.7a2.6 2.6 0 0 1-2.2-3.9l5.3-8.9V4.6h-.6a1 1 0 0 1 0-2z'/></g><path d='M6.9 14.4h10.2l2.4 3.9a1.6 1.6 0 0 1-1.4 2.4H5.9a1.6 1.6 0 0 1-1.4-2.4z'/><circle cx='11' cy='11.6' r='1.1'/><circle cx='13.6' cy='9.4' r='0.8'/>",
+  "Motion": "<circle cx='15.6' cy='12' r='5.6'/><g opacity='.35'><rect x='2' y='6.4' width='7.6' height='2.4' rx='1.2'/><rect x='1' y='10.8' width='7' height='2.4' rx='1.2'/><rect x='2' y='15.2' width='7.6' height='2.4' rx='1.2'/></g>",
+  "Header cards": "<g opacity='.35'><rect x='2.5' y='3.5' width='19' height='17' rx='3'/></g><path d='M5.5 3.5h13a3 3 0 0 1 3 3v3.5h-19V6.5a3 3 0 0 1 3-3z'/><rect x='5.5' y='13' width='8' height='2' rx='1'/><rect x='5.5' y='16.4' width='5' height='2' rx='1'/>",
+  "Look of the app": "<g opacity='.35'><path d='M12 2.5c5.5 0 9.5 3.7 9.5 8.2 0 3-2.3 4.6-4.7 4.6h-1.6a1.7 1.7 0 0 0-1.2 2.9 1.9 1.9 0 0 1-1.4 3.3C6.9 21.5 2.5 17.3 2.5 12S6.7 2.5 12 2.5z'/></g><circle cx='7.4' cy='11.6' r='1.8'/><circle cx='10' cy='7' r='1.8'/><circle cx='15.2' cy='7.2' r='1.8'/>",
+  "Getting around": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><g transform='rotate(45 12 12)'><path d='M12 4.6l2.9 7.4H9.1z'/><g opacity='.35'><path d='M9.1 12h5.8L12 19.4z'/></g></g>",
+  "Games database": "<g opacity='.35'><path d='M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6c0 1.7-3.4 3-7.5 3S4.5 7.7 4.5 6z'/></g><ellipse cx='12' cy='6' rx='7.5' ry='3'/><path d='M4.5 11.2c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v2c0 1.7-3.4 3-7.5 3s-7.5-1.3-7.5-3z'/>",
+  "This build": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><circle cx='12' cy='7.4' r='1.6'/><rect x='10.6' y='10.2' width='2.8' height='7.6' rx='1.4'/>",
+  "Price alerts": "<path fill-rule='evenodd' d='M3.6 6.4h5.6a1.8 1.8 0 0 1 1.27.53l7.3 7.3a1.8 1.8 0 0 1 0 2.54l-4.1 4.1a1.8 1.8 0 0 1-2.54 0l-7.3-7.3A1.8 1.8 0 0 1 2.3 13.3V7.7a1.3 1.3 0 0 1 1.3-1.3zm3.1 2.6a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z'/><g opacity='.35'><path d='M15.4 4.4A4.2 4.2 0 0 1 19.6 8.6A0.9 0.9 0 0 1 17.8 8.6A2.4 2.4 0 0 0 15.4 6.2A0.9 0.9 0 0 1 15.4 4.4z'/><path d='M15.4 1.2A7.4 7.4 0 0 1 22.8 8.6A0.9 0.9 0 0 1 21 8.6A5.6 5.6 0 0 0 15.4 3A0.9 0.9 0 0 1 15.4 1.2z'/></g>",
+  "Steam": "<g opacity='.35'><path d='M7.2 6.5h9.6a5 5 0 0 1 4.9 4.1l.9 5.1a2.9 2.9 0 0 1-5 2.4l-2-2.2H8.4l-2 2.2a2.9 2.9 0 0 1-5-2.4l.9-5.1a5 5 0 0 1 4.9-4.1z'/></g><rect x='6.2' y='8.4' width='1.8' height='5.6' rx='0.6'/><rect x='4.3' y='10.3' width='5.6' height='1.8' rx='0.6'/><circle cx='16.6' cy='9.6' r='1.25'/><circle cx='18.6' cy='12.2' r='1.25'/>",
+  "Cloud backup": "<g opacity='.35'><path d='M7 19.5a4.6 4.6 0 0 1-.7-9.15A6.2 6.2 0 0 1 18.2 8.9a5.3 5.3 0 0 1-.5 10.6z'/></g><path d='M12 8.6l3.9 3.9-1.5 1.5-1.35-1.35v4.6h-2.1v-4.6L9.6 14l-1.5-1.5z'/>",
+  "Your data": "<g opacity='.35'><path d='M4 9h16v9.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5z'/></g><rect x='2.5' y='3.5' width='19' height='5' rx='2'/><rect x='9' y='11.6' width='6' height='2.2' rx='1.1'/>",
+  "Tiles on Home": "<rect x='3' y='3' width='8' height='8' rx='2.4'/><g opacity='.35'><rect x='13' y='3' width='8' height='8' rx='2.4'/><rect x='3' y='13' width='8' height='8' rx='2.4'/></g><rect x='13' y='13' width='8' height='8' rx='2.4'/>",
+  "How tiles look": "<g opacity='.35'><rect x='2.5' y='2.5' width='19' height='19' rx='5'/></g><path d='M12 6.2c2.7 3.1 4.2 5.4 4.2 7.4a4.2 4.2 0 0 1-8.4 0c0-2 1.5-4.3 4.2-7.4z'/>",
+  "Playing now cards": "<g opacity='.35'><rect x='2.5' y='4' width='19' height='16' rx='4'/></g><path d='M10 8.3a.8.8 0 0 1 1.2-.7l5.6 3.7a.8.8 0 0 1 0 1.4l-5.6 3.7a.8.8 0 0 1-1.2-.7z'/>",
+  "The standings tile": "<rect x='8.8' y='4' width='6.4' height='17' rx='1.6'/><g opacity='.35'><rect x='2' y='9.5' width='6' height='11.5' rx='1.6'/><rect x='16' y='12.5' width='6' height='8.5' rx='1.6'/></g><path d='M12 6.1L12.59 7.59L14.19 7.69L12.95 8.71L13.35 10.26L12 9.4L10.65 10.26L11.05 8.71L9.81 7.69L11.41 7.59z'/>",
+  "On deck cards": "<g opacity='.35'><rect x='9' y='2.5' width='12.5' height='15.5' rx='2.6'/></g><rect x='2.5' y='6' width='12.5' height='15.5' rx='2.6'/>",
+  "On deck": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><path fill-rule='evenodd' d='M5.2 12a6.8 6.8 0 1 0 13.6 0a6.8 6.8 0 1 0 -13.6 0zM7.4 12a4.6 4.6 0 1 0 9.2 0a4.6 4.6 0 1 0 -9.2 0z'/><circle cx='12' cy='12' r='2.2'/>",
+  "Queue cards": "<rect x='2.5' y='3.5' width='5' height='5' rx='1.6'/><rect x='2.5' y='9.5' width='5' height='5' rx='1.6'/><rect x='2.5' y='15.5' width='5' height='5' rx='1.6'/><g opacity='.35'><rect x='9' y='4.3' width='12.5' height='3.4' rx='1.7'/><rect x='9' y='10.3' width='12.5' height='3.4' rx='1.7'/><rect x='9' y='16.3' width='12.5' height='3.4' rx='1.7'/></g>",
+  "Character art": "<circle cx='12' cy='6.6' r='4'/><g opacity='.35'><path d='M4 20.2c0-4.3 3.6-7.4 8-7.4s8 3.1 8 7.4a1.3 1.3 0 0 1-1.3 1.3H5.3A1.3 1.3 0 0 1 4 20.2z'/></g>",
+  "Opening a card": "<g opacity='.35'><rect x='6.5' y='6.5' width='11' height='11' rx='2.4'/></g><path d='M3 4.2A1.2 1.2 0 0 1 4.2 3H9v2.4H5.4V9H3zM21 4.2A1.2 1.2 0 0 0 19.8 3H15v2.4h3.6V9H21zM3 19.8A1.2 1.2 0 0 0 4.2 21H9v-2.4H5.4V15H3zM21 19.8a1.2 1.2 0 0 1-1.2 1.2H15v-2.4h3.6V15H21z'/>",
+  "Top board": "<path d='M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0z'/><g opacity='.35'><path d='M6.5 5H3.6v1.8a4 4 0 0 0 3.6 4M17.5 5h2.9v1.8a4 4 0 0 1-3.6 4z'/><rect x='10.6' y='13.5' width='2.8' height='4' rx='0.6'/></g><rect x='7' y='17.6' width='10' height='3.4' rx='1.2'/>",
+  "Library": "<rect x='3' y='4' width='4.6' height='17' rx='1.4'/><rect x='8.6' y='2.5' width='4.6' height='18.5' rx='1.4'/><g opacity='.35'><g transform='rotate(-16 17.5 20)'><rect x='14.6' y='4.2' width='4.6' height='16.6' rx='1.4'/></g></g>",
+  "A game's own page": "<g opacity='.35'><path d='M6 2.5h8.2l5.3 5.3v11.2a2.5 2.5 0 0 1-2.5 2.5H6a2.5 2.5 0 0 1-2.5-2.5v-14A2.5 2.5 0 0 1 6 2.5z'/></g><path d='M14.2 2.5l5.3 5.3h-3.6a1.7 1.7 0 0 1-1.7-1.7z'/><rect x='6.6' y='11.6' width='9.8' height='2' rx='1'/><rect x='6.6' y='15.4' width='7' height='2' rx='1'/>",
+  "Timeline board": "<g opacity='.35'><rect x='2.5' y='3.5' width='11' height='4' rx='2'/><rect x='6.5' y='10' width='15' height='4' rx='2'/></g><rect x='4.5' y='16.5' width='10' height='4' rx='2'/><rect x='16.4' y='2' width='2' height='20' rx='1'/>",
+  "Labels on the board": "<g opacity='.35'><rect x='8.5' y='11' width='13' height='7.5' rx='3.75'/></g><path d='M2.5 5.4A2.4 2.4 0 0 1 4.9 3h7.4a2.4 2.4 0 0 1 1.9.9l2.4 3.1-2.4 3.1a2.4 2.4 0 0 1-1.9.9H4.9a2.4 2.4 0 0 1-2.4-2.4z'/><g opacity='.35'><circle cx='17.6' cy='14.75' r='1.5'/></g>",
+  "Your evening": "<path d='M14.6 2.8a8.8 8.8 0 1 0 6.6 12.6A7 7 0 0 1 14.6 2.8z'/><g opacity='.35'><path d='M18.6 2.4C19.18 5.02 19.18 5.02 21.8 5.6C19.18 6.18 19.18 6.18 18.6 8.8C18.02 6.18 18.02 6.18 15.4 5.6C18.02 5.02 18.02 5.02 18.6 2.4z'/><circle cx='21' cy='10.4' r='1'/></g>",
+  "Player type card": "<g opacity='.35'><rect x='2.5' y='4' width='19' height='16' rx='3.5'/></g><circle cx='8.6' cy='10.2' r='2.5'/><path d='M4.8 16.6c0-2.1 1.7-3.4 3.8-3.4s3.8 1.3 3.8 3.4z'/><rect x='14' y='8.6' width='5' height='2' rx='1'/><rect x='14' y='12.6' width='3.6' height='2' rx='1'/>",
+  "The web": "<g opacity='.35'><path d='M12 2L20.66 7L20.66 17L12 22L3.34 17L3.34 7z'/></g><path d='M12 5.4L17.6 9.6L15.3 16.4L8.4 15.6L7.2 9.4z'/>",
+  "The big number": "<g opacity='.35'><rect x='2.5' y='2.5' width='19' height='19' rx='5'/></g><path d='M11.2 6.6h2.6v10.8h-2.6V9.7l-2 1.1-1.1-2z'/><rect x='8.4' y='15.4' width='7.2' height='2' rx='1'/>",
+  "Conclusions": "<g opacity='.35'><path d='M12 2.2a7 7 0 0 1 4.2 12.6 2.4 2.4 0 0 0-1 1.9v.5H8.8v-.5a2.4 2.4 0 0 0-1-1.9A7 7 0 0 1 12 2.2z'/></g><rect x='8.6' y='18.2' width='6.8' height='1.8' rx='0.9'/><path d='M9.6 21h4.8a2.4 2.4 0 0 1-4.8 0z'/><path d='M12 5C12.79 8.61 12.79 8.61 16.4 9.4C12.79 10.19 12.79 10.19 12 13.8C11.21 10.19 11.21 10.19 7.6 9.4C11.21 8.61 11.21 8.61 12 5z'/>",
+  "Name": "<g transform='rotate(45 12 12)'><rect x='9.6' y='1.2' width='4.8' height='15' rx='1.2'/><path d='M9.6 17.6h4.8L12 21.6z'/></g><g opacity='.35'><rect x='13' y='19.4' width='8.5' height='2.2' rx='1.1'/></g>",
+  "Release": "<g opacity='.35'><rect x='2.5' y='4.5' width='19' height='17' rx='3'/></g><path d='M5.5 4.5h13a3 3 0 0 1 3 3v2h-19v-2a3 3 0 0 1 3-3z'/><rect x='6.6' y='2' width='2.2' height='5' rx='1.1'/><rect x='15.2' y='2' width='2.2' height='5' rx='1.1'/><rect x='13.4' y='13.4' width='4.6' height='4.6' rx='1.2'/>",
+  "Where it stands": "<g opacity='.35'><ellipse cx='12' cy='20.6' rx='6' ry='1.6'/></g><path fill-rule='evenodd' d='M12 2a7 7 0 0 1 7 7c0 4.6-5 9.4-6.4 10.6a.9.9 0 0 1-1.2 0C10 18.4 5 13.6 5 9a7 7 0 0 1 7-7zm0 4.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z'/>",
+  "Platforms": "<g opacity='.35'><rect x='6.5' y='5' width='11' height='14' rx='1.4'/></g><path d='M5.5 5v14H4.2A2.7 2.7 0 0 1 1.5 16.3V7.7A2.7 2.7 0 0 1 4.2 5z'/><path d='M18.5 5h1.3a2.7 2.7 0 0 1 2.7 2.7v8.6a2.7 2.7 0 0 1-2.7 2.7h-1.3z'/><g opacity='.35'><circle cx='3.5' cy='9' r='1'/></g><g opacity='.35'><circle cx='20.5' cy='14.6' r='1'/></g>",
+  "Genres and tags": "<circle cx='7.2' cy='7.2' r='4.4'/><g opacity='.35'><rect x='13' y='3' width='8.4' height='8.4' rx='2'/></g><g opacity='.35'><circle cx='7.2' cy='16.8' r='4.4'/></g><path d='M17.2 12.6L21.6 20.6L12.8 20.6z'/>",
+  "Notes": "<g opacity='.35'><path d='M5 2.5h14A2.5 2.5 0 0 1 21.5 5v10.5l-6 6H5A2.5 2.5 0 0 1 2.5 19V5A2.5 2.5 0 0 1 5 2.5z'/></g><path d='M21.5 15.5h-4a2 2 0 0 0-2 2v4z'/><rect x='6.4' y='7' width='11.2' height='2' rx='1'/><rect x='6.4' y='11' width='8' height='2' rx='1'/>",
+  "Hype": "<g opacity='.35'><path d='M12.4 1.8c.6 3.6 6.6 6.2 6.6 12.2a7 7 0 0 1-14 0c0-2.8 1.4-4.6 2.8-5.8.2 1.8 1 2.8 2 3.4-.3-4.2.8-7.4 2.6-9.8z'/></g><path d='M12.3 10.6c.4 2.2 3.7 3.6 3.7 7.1a4 4 0 0 1-8 0c0-1.7.8-2.8 1.7-3.5.2 1 .6 1.6 1.2 2-.2-2.5.4-4.2 1.4-5.6z'/>",
+  "Critics": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><path d='M12 5.8L13.65 10.13L18.28 10.36L14.66 13.27L15.88 17.74L12 15.2L8.12 17.74L9.34 13.27L5.72 10.36L10.35 10.13z'/>",
+  "My rating": "<g opacity='.35'><path fill-rule='evenodd' d='M2.4 12a9.6 9.6 0 1 0 19.2 0a9.6 9.6 0 1 0 -19.2 0zM5.4 12a6.6 6.6 0 1 0 13.2 0a6.6 6.6 0 1 0 -13.2 0z'/></g><path d='M12 2.4A9.6 9.6 0 1 1 2.98 15.28A1.5 1.5 0 0 1 5.8 14.26A6.6 6.6 0 1 0 12 5.4A1.5 1.5 0 0 1 12 2.4z'/><circle cx='12' cy='12' r='2.6'/>",
+  "Played": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><path d='M16.3 7.9l1.8 1.7-7.3 7.6-4.9-4.7 1.8-1.8 3 2.9z'/>",
+  "Art from SteamGridDB and the stores": "<g opacity='.35'><rect x='6.5' y='2.5' width='15' height='12' rx='2.6'/></g><path fill-rule='evenodd' d='M5 6.5h11.5A2.5 2.5 0 0 1 19 9v10a2.5 2.5 0 0 1-2.5 2.5H5A2.5 2.5 0 0 1 2.5 19V9A2.5 2.5 0 0 1 5 6.5zm1.6 12h9.6l-3.3-4.7-2.3 2.9-1.5-1.6zm1.9-7.6a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z'/>",
+  "Cover and colour": "<g opacity='.35'><rect x='4' y='2.5' width='16' height='19' rx='3'/></g><path d='M7 2.5h10a3 3 0 0 1 3 3v2.3L4 19.6V5.5a3 3 0 0 1 3-3z'/>",
+  "Backdrop": "<g opacity='.35'><rect x='1.5' y='5' width='21' height='14' rx='3'/></g><path d='M1.5 15.2l5.6-5.5 4.4 4.3 3.2-2.9 6.8 6.1A3 3 0 0 1 19.5 19h-15a3 3 0 0 1-3-3z'/><circle cx='16.8' cy='8.8' r='1.7'/>",
+  "Hub page figure": "<g opacity='.35'><rect x='3' y='2.5' width='18' height='19' rx='3'/></g><circle cx='12' cy='7.6' r='2.7'/><path d='M7.4 19.4v-2.8c0-2.6 2-4.6 4.6-4.6s4.6 2 4.6 4.6v2.8z'/>",
+  "Logo / character art": "<path fill-rule='evenodd' d='M10.3 3.5h3.4l5.6 16h-3.3l-1.2-3.6H9.2L8 19.5H4.7zm-.2 9.6h3.8L12 7.4z'/><g opacity='.35'><rect x='2.5' y='20.4' width='19' height='1.8' rx='0.9'/></g>",
+  "Grumble": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><g transform='rotate(18 8.4 9)'><rect x='5.6' y='8' width='5.6' height='2' rx='1'/></g><g transform='rotate(-18 15.6 9)'><rect x='12.8' y='8' width='5.6' height='2' rx='1'/></g><circle cx='8.6' cy='12.6' r='1.4'/><circle cx='15.4' cy='12.6' r='1.4'/><path d='M8.4 17.6a3.9 3.9 0 0 1 7.2 0l-1.7.9a2 2 0 0 0-3.8 0z'/>",
+  "Speed boost": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><path d='M13.6 2.8 6.4 13.1h4.8l-1.4 8.1 7.4-10.6h-4.9z'/>",
+  "What's new": "<path d='M10 4.6C11.55 11.65 11.55 11.65 18.6 13.2C11.55 14.75 11.55 14.75 10 21.8C8.45 14.75 8.45 14.75 1.4 13.2C8.45 11.65 8.45 11.65 10 4.6z'/><g opacity='.35'><path d='M18.4 1.8C19.05 4.75 19.05 4.75 22 5.4C19.05 6.05 19.05 6.05 18.4 9C17.75 6.05 17.75 6.05 14.8 5.4C17.75 4.75 17.75 4.75 18.4 1.8z'/><circle cx='19' cy='18.8' r='1.6'/></g>",
+  "Play style": "<g opacity='.35'><path d='M4.5 15h15a2 2 0 0 1 2 2v1.8a2.7 2.7 0 0 1-2.7 2.7H5.2a2.7 2.7 0 0 1-2.7-2.7V17a2 2 0 0 1 2-2z'/></g><rect x='10.8' y='8' width='2.4' height='8' rx='1.2'/><circle cx='12' cy='6.8' r='4.3'/><g opacity='.35'><circle cx='17.6' cy='18.2' r='1.3'/></g>",
+  "Diary & Timer": "<g opacity='.35'><circle cx='12' cy='13.4' r='8.4'/></g><rect x='9.6' y='1.6' width='4.8' height='2.4' rx='1.2'/><rect x='11' y='3' width='2' height='3' rx='0.6'/><path d='M11 8.4h2v4.8l3 2.2-1.2 1.6-3.8-2.8z'/>",
+  "_": "<g opacity='.35'><path d='M19.25 9.11 21.92 9.62v4.76l-2.67.51-.08.19 1.52 2.25-3.36 3.36-2.25-1.52-.19.08-.51 2.67H9.62l-.51-2.67-.19-.08-2.25 1.52-3.36-3.36 1.52-2.25-.08-.19-2.67-.51V9.62l2.67-.51.08-.19-1.52-2.25 3.36-3.36 2.25 1.52.19-.08.51-2.67h4.76l.51 2.67.19.08 2.25-1.52 3.36 3.36-1.52 2.25z'/></g><circle cx='12' cy='12' r='3.4'/>"
+};
+GICON["Dates that look wrong"] = GICON["Release"];
+function gIcon(name) { return `<svg viewBox="0 0 24 24" aria-hidden="true">${GICON[name] || GICON._}</svg>`; }
+/* The rail. srlBuild runs after Settings (or a Customise) is drawn: every group opens, the groups move into .srlbody beside a
+   navigation landmark "On this page" of #sg-… links, and an IntersectionObserver on the sheet watches the groups. Its rootMargin
+   cuts off the sticky title at the top (measured, so the zone follows it) and keeps the next 40% of the sheet: the first group
+   in that zone is the lit one (aria-current="location", exactly one). A tap scrolls the sheet there. At the very bottom the
+   last group lights, even when it's short. Nothing runs per scroll frame. */
+const SRL = { io: null, end: null, ro: null, cur: -1, lock: 0, tagT: 0, hits: new Set(), atEnd: false, links: [], groups: [] };
+/* groups off screen aren't drawn (content-visibility), so their height is a guess until they are: each group's last real
+   height (per sheet width) is kept for the next time Settings opens, and a jump checks where it landed once it stops */
+const SRL_H = new Map();
+const srlKey = g => srlName(g) + "@" + ((document.getElementById("sheet-in") || {}).clientWidth || 0);
+function srlOff() {
+  SRL.groups.forEach(g => { if (g.isConnected && g.offsetHeight > 40) SRL_H.set(srlKey(g), g.offsetHeight); });
+  ["io", "end", "ro"].forEach(k => { if (SRL[k]) SRL[k].disconnect(); SRL[k] = null; });
+  clearTimeout(SRL.tagT); clearTimeout(SRL.lock); SRL.lock = 0;
+  SRL.hits.clear(); SRL.links = []; SRL.groups = []; SRL.cur = -1; SRL.atEnd = false;
+  const t = document.getElementById("srltag"); if (t) t.remove();
+  const inn = document.getElementById("sheet-in"); if (inn) { inn.classList.remove("srl"); delete inn.dataset.srlLvp; }
+}
+const srlName = g => clean((g.querySelector("details.grp > summary > b") || {}).textContent);
+function srlPlace() {
+  const a = SRL.links[SRL.cur], nav = a && a.closest(".srlnav"); if (!nav) return;
+  nav.querySelector(".srlbar").style.transform = `translateY(${a.offsetTop}px) scaleY(${a.offsetHeight / 20})`;
+}
+function srlTag(i) {
+  const a = SRL.links[i]; if (!a) return;
+  let t = document.getElementById("srltag");
+  if (!t) { t = document.createElement("span"); t.id = "srltag"; t.className = "srltag"; t.setAttribute("aria-hidden", "true"); document.body.appendChild(t); }
+  t.textContent = srlName(SRL.groups[i]);
+  const r = a.getBoundingClientRect();
+  t.style.transform = `translate(${Math.round(r.right + 8)}px, ${Math.round(r.top + (r.height - 31) / 2)}px)`;
+  t.classList.add("on"); clearTimeout(SRL.tagT);
+  SRL.tagT = setTimeout(() => t.classList.remove("on"), 1500);
+}
+function srlSet(i, quiet) {
+  if (i === SRL.cur || !SRL.links[i]) return;
+  SRL.cur = i;
+  SRL.links.forEach((a, j) => j === i ? a.setAttribute("aria-current", "location") : a.removeAttribute("aria-current"));
+  srlPlace();
+  if (!quiet) srlTag(i);
+  /* keep the lit tile inside the rail when the rail itself has to scroll (a short screen) */
+  const a = SRL.links[i], nav = a.closest(".srlnav");
+  if (nav.scrollHeight > nav.clientHeight + 2 && (a.offsetTop < nav.scrollTop || a.offsetTop + a.offsetHeight > nav.scrollTop + nav.clientHeight))
+    nav.scrollTop = a.offsetTop - nav.clientHeight / 3;
+}
+function srlPick() {
+  if (SRL.lock) return;
+  let i = SRL.atEnd ? SRL.groups.length - 1 : SRL.groups.findIndex(g => SRL.hits.has(g));
+  if (i >= 0) srlSet(i);
+}
+function srlMeasure() {
+  const sh = document.getElementById("sheet"), inn = document.getElementById("sheet-in"); if (!sh || !inn || !SRL.groups.length) return;
+  const head = inn.querySelector(".ehead"), foot = inn.querySelector(".efoot");
+  const top = head ? (parseFloat(getComputedStyle(head).top) || 0) + head.offsetHeight : 0, bot = foot ? foot.offsetHeight : 0;
+  const H = sh.clientHeight, zone = Math.max(40, Math.round((H - top - bot) * .4));
+  inn.style.setProperty("--srl-top", top + "px");
+  inn.style.setProperty("--srl-room", Math.max(160, H - top - bot - 24) + "px");
+  if (SRL.io) SRL.io.disconnect();
+  SRL.hits.clear();
+  SRL.io = new IntersectionObserver(es => {
+    es.forEach(e => e.isIntersecting ? SRL.hits.add(e.target) : SRL.hits.delete(e.target));
+    srlPick();
+  }, { root: sh, rootMargin: `-${Math.round(top)}px 0px -${Math.max(0, H - Math.round(top) - zone)}px 0px`, threshold: 0 });
+  SRL.groups.forEach(g => SRL.io.observe(g));
+  if (SRL.end) SRL.end.disconnect();
+  SRL.end = new IntersectionObserver(([e]) => { SRL.atEnd = e.isIntersecting && sh.scrollTop > 0; srlPick(); },
+    { root: sh, rootMargin: `0px 0px -${bot}px 0px`, threshold: 0 });
+  const end = inn.querySelector(".srlend"); if (end) SRL.end.observe(end);
+  requestAnimationFrame(srlPlace);
+}
+function srlGo(i) {
+  const sh = document.getElementById("sheet"), g = SRL.groups[i]; if (!sh || !g) return;
+  const top = parseFloat(document.getElementById("sheet-in").style.getPropertyValue("--srl-top")) || 0;
+  const want = () => Math.max(0, Math.min(sh.scrollHeight - sh.clientHeight, Math.round(sh.scrollTop + g.getBoundingClientRect().top - sh.getBoundingClientRect().top - top - 8)));
+  const still = document.documentElement.classList.contains("still") || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let fixes = 3, landed = false;
+  const tok = SRL.go = {};   /* a newer jump wins */
+  const land = () => {
+    if (landed || SRL.go !== tok || SRL.groups[i] !== g) return; landed = true; sh.removeEventListener("scrollend", land);
+    const fix = () => { const y = want(); if (fixes-- > 0 && Math.abs(y - sh.scrollTop) > 3) { sh.scrollTo({ top: y }); requestAnimationFrame(fix); } else { clearTimeout(SRL.lock); SRL.lock = 0; } };
+    requestAnimationFrame(fix);
+  };
+  clearTimeout(SRL.lock);
+  SRL.lock = setTimeout(land, 1000);
+  srlSet(i);
+  sh.scrollTo({ top: want(), behavior: still ? "auto" : "smooth" });
+  if ("onscrollend" in window) sh.addEventListener("scrollend", land, { once: true });
+  if (still) land();
+}
+function srlBuild() {
+  srlOff();
+  const inn = document.getElementById("sheet-in"); if (!inn) return;
+  const groups = [...inn.querySelectorAll(".setgroup")].filter(g => g.querySelector("details.grp") && !g.closest(".srlwrap"));
+  if (!groups.length) return;
+  inn.classList.add("srl");
+  const seen = {};
+  groups.forEach(g => {
+    g.querySelector("details.grp").open = true;
+    let id = "sg-" + (srlName(g).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "group");
+    if (seen[id]) id += "-" + ++seen[id]; else seen[id] = 1;
+    g.id = id;
+    const h = SRL_H.get(srlKey(g)); g.style.containIntrinsicSize = h ? `auto ${h}px` : "";
+  });
+  /* a div with role="navigation", not a <nav>: the tab bar is styled as bare "nav" in 20+ rules (fixed, hidden in the rail…) */
+  const wrap = document.createElement("div"), body = document.createElement("div"), nav = document.createElement("div");
+  wrap.className = "srlwrap" + (groups.length < 2 ? " solo" : ""); body.className = "srlbody"; nav.className = "srlnav";
+  nav.setAttribute("role", "navigation"); nav.setAttribute("aria-label", "On this page");
+  nav.innerHTML = `<ol>${groups.map(g => { const nm = srlName(g);
+    return `<li><a href="#${g.id}" data-srl="${esc(g.id.slice(3))}" aria-label="${esc(nm)}">${gIcon(nm)}</a></li>`; }).join("")}<span class="srlbar" aria-hidden="true"></span></ol>`;
+  groups[0].before(wrap);
+  /* everything from the first group to the last one moves, in order (notes between groups stay with them) */
+  const last = groups[groups.length - 1];
+  for (let n = wrap.nextSibling; n; ) { const nx = n.nextSibling; body.appendChild(n); if (n === last) break; n = nx; }
+  const end = document.createElement("div"); end.className = "srlend"; end.setAttribute("aria-hidden", "true"); body.appendChild(end);
+  wrap.append(nav, body);
+  SRL.groups = groups; SRL.links = [...nav.querySelectorAll("a")];
+  SRL.links.forEach((a, i) => a.addEventListener("click", e => { e.preventDefault(); beep("tap"); srlGo(i); }));
+  wrap.classList.add("srlnt");
+  srlSet(0, true);
+  SRL.ro = new ResizeObserver(() => srlMeasure());
+  SRL.ro.observe(document.getElementById("sheet"));
+  const head = inn.querySelector(".ehead"); if (head) SRL.ro.observe(head);
+  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.remove("srlnt")));
+}
+onSettings("before", () => srlOff());
+onSettings("after", () => srlBuild());
+/* search and Most used: a whole group (no setting named) used to open its page; in the one scroll it's scrolled to */
+extend("setJump", { after: (o, [r]) => {
+  if (!r || (!r.head && r.text)) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => { const i = SRL.groups.findIndex(g => srlName(g) === r.group); if (i >= 0) srlGo(i); }));
+} });
+extend("openEdit", { before: () => { srlOff(); } });
+extend("closeEdit", { after: () => { srlOff(); } });
+/* open groups stay open: a tap on a group's title does nothing in the rail's scroll */
+document.addEventListener("click", e => {
+  const s = e.target.closest && e.target.closest("#sheet-in.srl details.grp > summary");
+  if (s && s.parentElement.open) e.preventDefault();
+}, true);
+/* Live preview in Settings itself (the look groups): the sheet docks once you change something in one of them, and stays
+   docked until Settings is drawn again, so it never docks and undocks while you scroll (lvpSync reads #sheet-in's data-srl-lvp). */
+["click", "input"].forEach(t => document.addEventListener(t, e => {
+  const inn = document.getElementById("sheet-in");
+  if (!inn || !inn.classList.contains("srl") || !e.target.closest || !inn.contains(e.target) || e.target.closest(".srlnav, summary")) return;
+  const g = e.target.closest(".setgroup"); if (!g || !e.target.closest("button, input, select, textarea")) return;
+  const nm = srlName(g); if (!LVP_GROUPS.includes(nm) || inn.dataset.srlLvp) return;
+  inn.dataset.srlLvp = nm; requestAnimationFrame(lvpSync);
+}, true));
+WHATS_NEW.push(
+  { v: 294, go: () => { closeFull(); dyClose(); nxShut(); openSettings("app"); requestAnimationFrame(() => { const i = SRL.groups.findIndex(g => srlName(g) === "Look of the app"); if (i >= 0) srlGo(i); }); },
+    at: () => document.querySelector(".srlnav"),
+    say: "Settings is <b>one scroll</b> now, with an <b>On this page</b> rail of icons beside it: the group you're in lights up as you scroll, and its name pops out for a moment. Every group has its own <b>drawn icon</b> instead of an emoji.",
+    tryIt: "Scroll Settings and watch the lit icon follow you, or tap an icon to jump to that group." }
 );
 </script>
