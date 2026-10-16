@@ -208,7 +208,8 @@ async function sweep(browser, base) {
       /* the layout check runs 1.6s after a screen change, when idle: leave sooner and most of it is missed
          (a planted cut-off button was reported on 3 screens with 1.4s here, on 11 with 2.6s) */
       await p.step("goTab " + s, `goTab(${JSON.stringify(s)})`, 2600);
-      await p.scroll(900); await p.page.waitForTimeout(700);
+      /* 1.1s: the app's smooth scroll takes ~0.5s and checks that run when a scroll comes to rest (v290's Queue logos) wait 350ms more */
+      await p.scroll(900); await p.page.waitForTimeout(1100);
       await p.scroll(-900); await p.page.waitForTimeout(400);
     }
     for (const id of ["g1", "g9", "g5"]) {

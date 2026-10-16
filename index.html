@@ -1456,9 +1456,9 @@
   .row img { width: 46px; aspect-ratio: 3/4; object-fit: cover; flex: none; }
   .rank { font-weight: 900; font-style: italic; color: var(--edge); font-size: 19px; width: 26px; flex: none; }
   html.rowtint .row .rank { color: color-mix(in srgb, var(--accent, var(--volt)) 35%, #fff); text-shadow: 0 2px 6px rgba(0,0,0,.55); }
-  /* the cut-out hangs off the row the way the boats hang off their cards in the
-     design this came from — over the top edge, past the right edge, tilted. It
-     sits under the text so nothing becomes unreadable or untappable. */
+  /* v290 (the owner picked look A of four demos): the logo has its own upright slot inside the row, on the right.
+     It used to hang over the next row and past the screen edge, tilted. It sits under the text so nothing
+     becomes unreadable or untappable. */
   .row { position: relative; }
   html.rowtint .row:not(.artrow), html.rowtint .row.artrow > .rowbg { background: linear-gradient(100deg,
     color-mix(in srgb, var(--accent, var(--volt)) var(--rtp, 20%), var(--ink)) 0%,
@@ -1477,32 +1477,43 @@
   @media (hover: hover) and (pointer: fine) { .row.artrow:hover > .rowbg { background: var(--steel); } }
   /* the art has a column of its own on the right; the row's own content stops
      before it, so a badge is never underneath it */
-  .row.artrow > div { position: relative; z-index: 1; padding-right: calc(var(--raw, 96px) + var(--rax, -14px) + 12px); }
+  /* the slot's width (a % of the row): narrower on small phones so the name keeps room */
+  .row.artrow { --rslot: min(36%, var(--raw, 150px) * 1.6); }
+  @media (max-width: 500px) { .row.artrow { --rslot: min(28%, var(--raw, 150px) * 1.6); } }
+  @media (max-width: 380px) { .row.artrow { --rslot: min(26%, var(--raw, 150px) * 1.6); } }
+  .row.artrow > div { position: relative; z-index: 1; padding-right: calc(var(--rslot) + 22px); }
+  /* the slot: 8px in from the row's top and bottom, 14px from its right side; lfRule sizes each logo inside it */
   .rowart {
-    position: absolute; right: var(--rax, -14px); bottom: var(--ray, -18px); top: calc(var(--ray, -18px) * 1.3);
-    width: var(--raw, 96px);
-    z-index: 2; pointer-events: none; opacity: var(--rao, .72);
-    transition: opacity .18s ease, transform .18s cubic-bezier(.2,.9,.25,1);
+    position: absolute; right: 14px; top: 8px; bottom: 8px; width: var(--rslot);
+    z-index: 2; pointer-events: none; opacity: var(--rao, .95); overflow: hidden;
+    display: flex; justify-content: flex-end; align-items: flex-start;
+    transition: opacity .18s ease;
   }
   .rowart img {
     width: 100% !important; height: 100%; aspect-ratio: auto !important; object-fit: contain;
-    object-position: center; clip-path: none !important;
-    transform: rotate(var(--rat, -7deg)); transform-origin: 62% 62%;
-    /* a lot of logos are near-black and vanish on a dark row, and the app can't
-       see what colour an image is — so everything gets a faint pale edge */
+    object-position: right center; clip-path: none !important;
+    /* a faint pale edge for a logo not measured yet; a measured near-black one is turned light (lfRule) */
     filter: brightness(var(--apun, 1)) contrast(var(--acon, 1))
             drop-shadow(0 0 1.5px rgba(226,238,255,.8));
   }
-  /* fill the row's height and let wide logos run off the right edge, GTA-style */
-  .row .rowart img { object-position: left center; }
+  /* folded (and the iPhone): the name on its own line, date, hours and tag under it. On one line they squeezed the
+     name to nothing and broke "Playing now" in two */
+  .rowin { display: flex; gap: 12px; align-items: center; width: 100%; }
+  .rowmeta { display: contents; }
+  /* line 2 wraps onto a third line rather than run under the logo */
+  @media (max-width: 500px) {
+    .rowin { display: grid; grid-template-columns: auto auto minmax(0, 1fr); column-gap: 10px; row-gap: 3px; }
+    .rowin > .rank, .rowin > img { grid-row: 1 / span 2; }
+    .rowin > img { max-width: none; }
+    .rowmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+    /* a long name takes two lines instead of being cut short */
+    .rowin > .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.2; }
+    .rowmeta > .when, .rowmeta > .tag { white-space: nowrap; }
+  }
   
   html.still .rowart { transition: none; }
   /* v200: the blurred glow is opt-in (Customise → Queue cards), it made scrolling redraw heavy */
   html.rowglow .rowart img { filter: brightness(var(--apun, 1)) contrast(var(--acon, 1)) drop-shadow(0 0 1.5px rgba(226,238,255,.8)) drop-shadow(0 0 var(--rag, 7px) rgba(150,190,255,.45)); }
-  @media (max-width: 430px) {
-    .row.artrow > div { padding-right: calc(var(--raw, 96px) * .78 + var(--rax, -14px) + 12px); }
-    .rowart { width: calc(var(--raw, 96px) * .78); }
-  }
   /* lifted off the list, and see-through so the row underneath still reads */
   .row.dragging {
     pointer-events: none; z-index: 5; position: relative;
@@ -2897,11 +2908,11 @@ html.still :where(img[src]:not([data-ld])){animation:none}
 @keyframes pcdShine{0%{opacity:1;transform:translateX(-120%) skewX(-20deg)}100%{opacity:1;transform:translateX(420%) skewX(-20deg)}}
 @keyframes pcdOut{to{opacity:0}}
 @keyframes pcdUp{from{opacity:0;transform:translate3d(0,14px,0)}}
-/* v290: the opening reel (pnReel draws it on a canvas), then fades out */
+/* v291: the opening reel (pnReel draws it on a canvas), then fades out */
 #pnboot{position:fixed;inset:0;z-index:10000;background:var(--bgb,#000);overflow:hidden;cursor:pointer;touch-action:none}
 #pnboot canvas{display:block;width:100%;height:100%}
 #pnboot.out{animation:pcdOut .3s ease-in forwards}
-/* v290: it waits for a tap (sound needs one): the pixel breathes a soft glow, "Tap to play" under it, Skip at the bottom */
+/* v291: it waits for a tap (sound needs one): the pixel breathes a soft glow, "Tap to play" under it, Skip at the bottom */
 .pnreel-go{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;border:0;padding:0;border-radius:50%;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pnreel-go::before{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(closest-side,rgba(var(--vrgb),.6),rgba(var(--vrgb),.2) 45%,rgba(var(--vrgb),0));animation:pnreelGlow 2.4s ease-in-out infinite}
 @keyframes pnreelGlow{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1.08)}}
@@ -3322,7 +3333,7 @@ const pnReel = (() => {
   return { draw, audio, LEN, BPM: 120 };
 })();
 /* REEL-END */
-/* v290: the opening screen paints the reel's first frame (the pixel) right away; the clock starts in the boot script */
+/* v291: the opening screen paints the reel's first frame (the pixel) right away; the clock starts in the boot script */
 const PNREEL = { t0: 0, raf: 0 };   /* the opening reel's clock, its sound, and where it is (wait / play) */
 function pnreelPaint(t) {
   const b = document.getElementById("pnboot"), c = b && b.querySelector("canvas"); if (!c) return;
@@ -3844,11 +3855,8 @@ function applyLook() {
   r.style.setProperty("--apun", (1 + punch).toFixed(2));
   r.style.setProperty("--acon", (1 + punch * 0.7).toFixed(2));
   r.style.setProperty("--raw", num(S.rowArtW, 150, 40, 200) + "px");
-  r.style.setProperty("--rao", num(S.rowArtOp, 72, 10, 100) / 100);
+  r.style.setProperty("--rao", num(S.rowArtOp, 95, 10, 100) / 100);
   r.style.setProperty("--rag", num(S.rowArtGlow, 7, 0, 30) + "px");
-  r.style.setProperty("--rat", num(S.rowArtTilt, -14, -55, 55) + "deg");
-  r.style.setProperty("--rax", num(S.rowArtOut, -30, -60, 10) + "px");
-  r.style.setProperty("--ray", num(S.rowArtOver, -18, -50, 0) + "px");
   r.classList.toggle("still", S.motion === false);
   if (S.tabFade === undefined) S.tabFade = "slash";
   r.classList.toggle("tabfade", S.tabFade === true);
@@ -4365,7 +4373,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "290";
+const APP_V = "291";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6314,10 +6322,10 @@ function openSettings(scope) {
       </div>
       <label>Show it on queue rows too</label>
       <div class="chips" id="s-rowart">
-        ${[["yes", "Let it hang off the row"], ["no", "Off"]].map(([v, l]) =>
+        ${[["yes", "In its own spot on the row"], ["no", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.rowArt === false ? "no" : "yes") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <p class="note">A game with character art set shows a small cut-out breaking out of the top and right of its row — and that same cut-out is what travels across and grows when you open the game.</p>
+      <p class="note">A game with character art set shows it upright in its own spot on the right of its row, every logo the same visual size and a dark one turned light so you can see it. That same art is what travels across and grows when you open the game.</p>
       <p class="note">Pinned anchors every logo to the bottom right and ignores the left/right choice in a game's Edit. Across and up still nudge it from that corner.</p>
       <label for="s-asize">Default width</label>
       <div class="rowline"><input id="s-asize" type="range" min="12" max="100" value="${num(S.artSize, 34, 12, 100)}">
@@ -6338,32 +6346,16 @@ function openSettings(scope) {
       <div class="rowline"><input id="s-apunch" type="range" min="-40" max="80" value="${num(S.artPunch, 0, -40, 80)}">
         <span class="v" id="s-apunch-v">${num(S.artPunch, 0, -40, 80)}</span></div>
       <p class="note">Lifts a washed-out logo off the card. Push it too far and a bright one blows out — the preview above moves with the slider, so stop where it still looks like art.</p>
-      <label>Fit each logo automatically</label>
-      <div class="chips" id="s-lfit">
-        ${[["on", "Yes"], ["off", "No, same box for all"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.lfOff !== false ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-      <p class="note">Off by default: every logo uses the same box (the classic look). On: Nexi measures each logo once (its real shape, without the see-through edges) and sizes it so wide logos get room and tall ones don't tower.</p>
       <label for="s-raw">On a row — how big</label>
       <div class="rowline"><input id="s-raw" type="range" min="40" max="200" value="${num(S.rowArtW, 150, 40, 200)}">
         <span class="v" id="s-raw-v">${num(S.rowArtW, 150, 40, 200)}px</span></div>
       <label for="s-rao">On a row — how strong</label>
-      <div class="rowline"><input id="s-rao" type="range" min="10" max="100" value="${num(S.rowArtOp, 72, 10, 100)}">
-        <span class="v" id="s-rao-v">${num(S.rowArtOp, 72, 10, 100)}%</span></div>
+      <div class="rowline"><input id="s-rao" type="range" min="10" max="100" value="${num(S.rowArtOp, 95, 10, 100)}">
+        <span class="v" id="s-rao-v">${num(S.rowArtOp, 95, 10, 100)}%</span></div>
       <label for="s-rag">On a row — halo behind dark art</label>
       <div class="rowline"><input id="s-rag" type="range" min="0" max="30" value="${num(S.rowArtGlow, 0, 0, 30)}">
         <span class="v" id="s-rag-v">${num(S.rowArtGlow, 0, 0, 30)}px</span></div>
       <p class="note">Off by default: a halo on every row makes the Queue heavier to scroll.</p>
-      <label for="s-rat">On a row — tilt</label>
-      <div class="rowline"><input id="s-rat" type="range" min="-55" max="55" value="${num(S.rowArtTilt, -14, -55, 55)}">
-        <span class="v" id="s-rat-v">${num(S.rowArtTilt, -14, -55, 55)}°</span></div>
-      <label for="s-rax">On a row — how far past the right edge</label>
-      <div class="rowline"><input id="s-rax" type="range" min="-60" max="10" value="${num(S.rowArtOut, -30, -60, 10)}">
-        <span class="v" id="s-rax-v">${-num(S.rowArtOut, -30, -60, 10)}px</span></div>
-      <label for="s-ray">On a row — how far above and below</label>
-      <div class="rowline"><input id="s-ray" type="range" min="-50" max="0" value="${num(S.rowArtOver, -18, -50, 0)}">
-        <span class="v" id="s-ray-v">${-num(S.rowArtOver, -18, -50, 0)}px</span></div>
-      <p class="note">Push these and the cut-out climbs out of its row and over the one above — the row keeps its shape, the art stops obeying it.</p>
     </div>
 
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="The ticks and the sweep when a card reveals itself.">Opening a card</h4>
@@ -7133,7 +7125,6 @@ function openSettings(scope) {
   pick("#s-xssn", v => S.ssnOff = v === "off", () => { if (typeof ssnHat === "function") { try { pnBubReact(); } catch (e) {} } });
   pick("#s-xtea", v => S.teaOff = v === "off", () => { if (typeof teaStop !== "function") return; if (S.teaOff) teaStop(); else if (!teaT) teaTick(); });
   pick("#s-xbat", v => S.batOff = v === "off", () => { if (typeof batApply === "function") batApply(); });
-  pick("#s-lfit", v => S.lfOff = v === "off", () => renderQueue());
   pick("#s-xdust", v => S.dustOff = v === "off", () => renderQueue());
   pick("#s-xbdg", v => S.bdgOff = v === "off", () => { if (S.bdgOff && navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); });
   pick("#s-xseat", v => S.nxSeatOff = v === "off", () => { if (typeof seatSync === "function") seatSync(true); });
@@ -7231,9 +7222,6 @@ function openSettings(scope) {
   slide("#s-raw", "#s-raw-v", "px", "rowArtW");
   slide("#s-rao", "#s-rao-v", "%", "rowArtOp");
   slide("#s-rag", "#s-rag-v", "px", "rowArtGlow");
-  slide("#s-rat", "#s-rat-v", "\u00B0", "rowArtTilt");
-  slide("#s-rax", "#s-rax-v", "px", "rowArtOut", null, v => -v);
-  slide("#s-ray", "#s-ray-v", "px", "rowArtOver", null, v => -v);
   slide("#s-tickvol", "#s-tickvol-v", "%", "tickVol");
   slide("#s-tickpitch", "#s-tickpitch-v", "Hz", "tickPitch");
   slide("#s-pace", "#s-pace-v", "%", "pace", () => renderQueue());
@@ -8187,11 +8175,11 @@ const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") { i.setAtt
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) pnLd({ target: i }); });
 pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.tagName === "I" && n.parentElement && n.parentElement.closest(".cdb"))))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
-/* v290 (the owner: "i want this as the loading screen when we open the app also remove what loading screen we had"):
+/* v291 (the owner: "i want this as the loading screen when we open the app also remove what loading screen we had"):
    the opening reel replaces v252's card intro. It plays once through (15s) and a tap skips it. Off with motion off,
    Settings › This build › Opening reel (S.reelOff), and under automation (the test kit taps the screens below it;
    localStorage gq:reel = "1" forces it for tools/scenarios/opening-reel.mjs). */
-/* v290, second part (the owner: "how about a soft glowing tap me button and then it starts the video and the sound"): it waits on
+/* v291, second part (the owner: "how about a soft glowing tap me button and then it starts the video and the sound"): it waits on
    the first frame, the pixel breathing a soft glow, "Tap to play" under it. A tap anywhere unlocks sound (browsers
    only allow it after a tap) and starts the reel with its soundtrack (made by pnReel.audio while it waits, only with
    Sound on); a tap while it plays, or Skip, ends it. */
@@ -8881,14 +8869,14 @@ function renderQueue() {
       (g.art && S.rowArt !== false) ? `<i class="rowbg" aria-hidden="true"></i><span class="rowart"${
         g.id === morphId ? ` style="view-transition-name:ar-${esc(g.id)}"` : ""}
         ><img decoding="async" src="${esc(g.art)}" alt=""></span>` : ""
-    }<div style="display:flex;gap:12px;align-items:center;width:100%">
+    }<div class="rowin">
       <span class="rank">${String(n).padStart(2, "0")}</span>
       <img decoding="async" style="${g.id === morphId ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt="">
       <span class="name">${esc(g.title)}</span>
-      ${g.date ? `<span class="when${(g.state || "upcoming") === "upcoming" && new Date(g.date) < new Date(new Date().toDateString()) ? " bad" : ""}">${shortDate(g.date)}</span>` : ""}
+      <span class="rowmeta">${g.date ? `<span class="when${(g.state || "upcoming") === "upcoming" && new Date(g.date) < new Date(new Date().toDateString()) ? " bad" : ""}">${shortDate(g.date)}</span>` : ""}
       ${g.hours ? `<span class="score">${g.hours}h</span>` : ""}
       ${sortTag(g)}
-      <span class="tag st-${isFresh(g) ? "fresh" : g.state || "upcoming"}">${isFresh(g) ? "Out now" : ((STATES.find(s => s[0] === (g.state || "upcoming")) || [, ""])[1] || "").split(",")[0]}</span>
+      <span class="tag st-${isFresh(g) ? "fresh" : g.state || "upcoming"}">${isFresh(g) ? "Out now" : ((STATES.find(s => s[0] === (g.state || "upcoming")) || [, ""])[1] || "").split(",")[0]}</span></span>
     </div></div>`;
 
   const head = `
@@ -18709,7 +18697,10 @@ function lookDesign2(root, scr) {
     const cs = getComputedStyle(im); if (cs.visibility === "hidden" || +cs.opacity < .3) continue;
     if (!bugVisible(im, r, root)) continue;
     if (nSq < 1 && im.complete && im.naturalWidth && cs.objectFit === "fill") {
-      const nat = im.naturalWidth / im.naturalHeight, got = r.width / r.height;
+      let nat = im.naturalWidth / im.naturalHeight; const got = r.width / r.height;
+      /* v290: a logo cropped to its ink (object-view-box) is measured against the cropped part's shape */
+      const vb = /inset\(([^)]+)\)/.exec(cs.objectViewBox || "");
+      if (vb) { const [T, R = T, B = T, L = R] = vb[1].trim().split(/\s+/).map(parseFloat); nat *= (100 - L - R) / Math.max(1, 100 - T - B); }
       if (Math.abs(got / nat - 1) > .15) { nSq++; bugReport("look", "A picture is squashed out of shape", { at: bugPath(im) + " " + im.naturalWidth + "×" + im.naturalHeight + " shown " + Math.round(r.width) + "×" + Math.round(r.height), screen: scr }); }
     }
     const src = im.getAttribute("src") || "";
@@ -20762,26 +20753,30 @@ html.still .dustpuff { display: none; }
    pixels (CORS), the box of its non-transparent pixels, so see-through padding doesn't count. lfApply sizes every logo
    to about the same visual area in its tile (wide ones run long and thin, square ones stay short), content centred
    vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size is read once in rAF. */
-/* v223: off unless you turn it on (the owner preferred the logos as they were); S.lfOff === false = on */
-const LF_OFF = () => S.lfOff !== false;
+/* v223 made this a switch, off by default; v290 (the owner picked look A: same visual size, upright, inside the row)
+   makes it always on and drops the switch */
+const LF_OFF = () => false;
 let LF = {}; try { LF = JSON.parse(localStorage.getItem("gq:logofit") || "{}"); } catch (e) {}
 const lfSave = () => { try { localStorage.setItem("gq:logofit", JSON.stringify(LF)); } catch (e) {} };
-let lfBox = null, lfQ = [], lfBusy = false;
+let lfBox = null, lfQ = [], lfBusy = false, lfVer = 0;
 function lfMeasure(url) {
   return new Promise(res => {
-    const done = v => { LF[url] = v; lfSave(); res(v); };
-    const plain = () => { const p = new Image(); p.onload = () => done(p.naturalWidth && p.naturalHeight ? [+(p.naturalWidth / p.naturalHeight).toFixed(3), 0, 0, 1, 1] : null); p.onerror = () => res(null); p.src = url; };
+    const done = v => { LF[url] = v; lfVer++; lfSave(); res(v); };
+    const plain = () => { const p = new Image(); p.onload = () => done(p.naturalWidth && p.naturalHeight ? [+(p.naturalWidth / p.naturalHeight).toFixed(3), 0, 0, 1, 1, -1] : null); p.onerror = () => res(null); p.src = url; };
     const im = new Image(); im.crossOrigin = "anonymous"; im.decoding = "async";
     im.onload = () => {
       const W = im.naturalWidth, H = im.naturalHeight; if (!W || !H) return res(null);
       try {
         const k = Math.min(1, 200 / Math.max(W, H)), w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
         const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h);
-        const d = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = -1, y1 = -1;
-        for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) if (d[(y * w + xx) * 4 + 3] > 24) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-        if (x1 < 0) return done([+(W / H).toFixed(3), 0, 0, 1, 1]);
-        done([+(W / H).toFixed(3), +(x0 / w).toFixed(3), +(y0 / h).toFixed(3), +((x1 + 1) / w).toFixed(3), +((y1 + 1) / h).toFixed(3)]);
-      } catch (e) { done([+(W / H).toFixed(3), 0, 0, 1, 1]); }
+        const d = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = -1, y1 = -1, ls = 0, ln = 0;
+        for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) { const i = (y * w + xx) * 4; if (d[i + 3] > 24) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          if (d[i + 3] > 128) { ls += .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]; ln++; } }
+        /* v290: the 6th number is how bright its solid pixels are (0-255, -1 = unknown): under 50 it's drawn light */
+        const lum = ln ? Math.round(ls / ln) : -1;
+        if (x1 < 0) return done([+(W / H).toFixed(3), 0, 0, 1, 1, lum]);
+        done([+(W / H).toFixed(3), +(x0 / w).toFixed(3), +(y0 / h).toFixed(3), +((x1 + 1) / w).toFixed(3), +((y1 + 1) / h).toFixed(3), lum]);
+      } catch (e) { done([+(W / H).toFixed(3), 0, 0, 1, 1, -1]); }
     };
     im.onerror = plain; im.src = url;
   });
@@ -20789,22 +20784,27 @@ function lfMeasure(url) {
 /* the fit lives in one stylesheet (#lfcss), a rule per game: a redraw of the queue needs no work at all, and the sheet
    is only rewritten when a logo is measured, the tile changes size, or fitting is switched */
 function lfRule(id, m) {
-  const [a, x0, y0, x1, y1] = m, cw = Math.max(.05, x1 - x0), ch = Math.max(.05, y1 - y0), ca = a * cw / ch;
-  const A = lfBox.w * lfBox.h * .36, Hm = lfBox.h * .8, Wm = lfBox.w;
-  let hc = Math.sqrt(A / ca), wc = ca * hc;
+  const [a, x0, y0, x1, y1, lum] = m, cw = Math.max(.05, x1 - x0), ch = Math.max(.05, y1 - y0), ca = a * cw / ch;
+  /* v290 optical sizing: every logo gets the same area of real ink (wide ones run long and thin, square ones stay
+     compact), a long one-liner keeps a readable height, and nothing passes 86% of the slot's height or its width */
+  const A = lfBox.w * lfBox.h * .26, Hm = lfBox.h * .86, Wm = lfBox.w;
+  let hc = Math.max(Math.sqrt(A / ca), lfBox.h * .3), wc = ca * hc;
   if (hc > Hm) { hc = Hm; wc = ca * hc; } if (wc > Wm) { wc = Wm; hc = wc / ca; }
   const ih = hc / ch, iw = ih * a, sel = `#p-queue [data-row="${CSS.escape(id)}"] .rowart img`, pc = v => (v * 100).toFixed(2) + "%";
-  /* Safari: the whole picture, padding and all, placed so its content sits right. Chrome: cropped to the content with
-     object-view-box, so the (filtered, rotated) picture is only as big as what you see: cheaper to draw than before */
-  /* in normal flow with margins (absolute positioning gave every rotated logo its own layer: layerize ×5 per redraw) */
-  return `${sel}{display:block;max-width:none;max-height:none;object-fit:fill;object-position:0 0;width:${iw.toFixed(1)}px!important;height:${ih.toFixed(1)}px;margin:${(lfBox.h / 2 - (y0 + y1) / 2 * ih).toFixed(1)}px 0 0 ${(-x0 * iw).toFixed(1)}px}
-@supports (object-view-box: inset(0%)) { ${sel}{object-view-box:inset(${pc(y0)} ${pc(1 - x1)} ${pc(1 - y1)} ${pc(x0)});width:${wc.toFixed(1)}px!important;height:${hc.toFixed(1)}px;margin:${((lfBox.h - hc) / 2).toFixed(1)}px 0 0 0} }`;
+  /* a near-black logo vanished on a dark row: drawn as a light silhouette instead */
+  const dark = lum >= 0 && lum < 50 ? "filter:brightness(0) invert(.9);" : "";
+  /* Chrome: cropped to the ink (plus 2%, so a thin edge the 200px sample missed isn't cut) with object-view-box, right
+     edge on the slot's right, centred up and down. Safari (no object-view-box): the whole picture, padding and all,
+     moved so its ink sits the same way (the slot clips the see-through rest) */
+  const g = .02, X0 = Math.max(0, x0 - g), Y0 = Math.max(0, y0 - g), X1 = Math.min(1, x1 + g), Y1 = Math.min(1, y1 + g);
+  return `${sel}{display:block;flex:none;max-width:none;max-height:none;object-fit:fill;object-position:0 0;${dark}width:${iw.toFixed(1)}px!important;height:${ih.toFixed(1)}px;margin:${(lfBox.h / 2 - (y0 + y1) / 2 * ih).toFixed(1)}px ${(-(1 - x1) * iw).toFixed(1)}px 0 0}
+@supports (object-view-box: inset(0%)) { ${sel}{object-view-box:inset(${pc(Y0)} ${pc(1 - X1)} ${pc(1 - Y1)} ${pc(X0)});width:${((X1 - X0) * iw).toFixed(1)}px!important;height:${((Y1 - Y0) * ih).toFixed(1)}px;margin:${((lfBox.h - (Y1 - Y0) * ih) / 2).toFixed(1)}px 0 0 0} }`;
 }
 let lfCss = "", lfKey = "";
 function lfSheet() {
   let el = document.getElementById("lfcss"); if (!el) { el = document.createElement("style"); el.id = "lfcss"; document.head.appendChild(el); }
   /* rebuilt only when something it depends on changed (the games' logos, what's measured, the tile, the switch) */
-  const key = LF_OFF() || !lfBox ? "off" : lfBox.w + "x" + lfBox.h + "|" + Object.keys(LF).length + "|" + S.games.map(g => g.art ? g.id + g.art.length : "").join();
+  const key = LF_OFF() || !lfBox ? "off" : lfBox.w + "x" + lfBox.h + "|" + Object.keys(LF).length + "|" + lfVer + "|" + S.games.map(g => g.art ? g.id + g.art.length : "").join();
   if (key === lfKey && lfCss != null) return; lfKey = key;
   const css = LF_OFF() || !lfBox ? "" : S.games.filter(g => g.art && LF[g.art]).map(g => lfRule(g.id, LF[g.art])).join("\n");
   if (css !== lfCss) { lfCss = css; el.textContent = css; }
@@ -20813,7 +20813,8 @@ const lfFitted = img => { const row = img.closest("[data-row]"), g = row && S.ga
 
 function lfApply() {
   if (LF_OFF()) { lfSheet(); return; }
-  const missing = S.games.filter(g => g.art && !(g.art in LF) && !lfQ.includes(g.art)).map(g => g.art);
+  /* v290: measured before v290 (5 numbers, no brightness) counts as not measured */
+  const missing = S.games.filter(g => g.art && (!(g.art in LF) || (LF[g.art] && LF[g.art].length < 6)) && !lfQ.includes(g.art)).map(g => g.art);
   lfQ.push(...missing);
   /* the tile's size is read once, in a frame (never right after a redraw) */
   if (lfBox) { lfSheet(); lfNext(); return; }
@@ -26453,11 +26454,78 @@ WHATS_NEW.push(
     say: "<b>The app opens smoother</b>: I found what made it freeze for a moment at start. Pictures finishing loading made the phone redo the whole screen's styles once per picture, and your own pictures were being shrunk on the main thread. Both are fixed: about a third less work in the first seconds.",
     tryIt: "Close the app fully and open it again: the first seconds should feel steady, even while the covers pop in." }
 );
-/* v290: the what's-new tour waits for the opening reel to finish (it starts 2.2s after load, the reel runs 15s) */
+/* v291: the what's-new tour waits for the opening reel to finish (it starts 2.2s after load, the reel runs 15s) */
 extend("nxTour", { before(...a) { if (document.getElementById("pnboot")) { setTimeout(() => nxTour(...a), 800); return extend.skip(); } } });
 WHATS_NEW.push(
-  { v: 290, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
+  { v: 291, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
     say: "<b>A brand new opening</b>: the app now opens on a glowing pixel. Tap it and a 15-second motion reel plays with its own soundtrack: the pixel turns into words, shapes, a 3D shelf of games, your week in numbers and a field of columns that spells the play button, all on the beat.",
     tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." }
+);
+</script>
+<script>
+/* ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") =====
+   The row logo has its own upright slot inside the row (CSS at .rowart), every logo the same visual weight and near-black
+   ones drawn light (lfRule, lfMeasure's brightness), folded rows on two lines (.rowin). Its old knobs are gone. */
+["rowArtTilt", "rowArtOut", "rowArtOver", "lfOff"].forEach(k => { if (k in S) { delete S[k]; save(); } });
+/* Nexi learned the owner's "the logos look ugly" by itself: what tools/scenarios/logo-look.mjs measures by pixels, he
+   measures by boxes on the phone, with the owner's real logos. A logo spilling out of its row or off the screen, cut by its
+   spot, sitting on the words, still near-black, or 5x the size of another one; a name squeezed out, a squashed cover, a
+   date or tag broken over two lines. */
+function lfLook(root, scr) {
+  try {
+    /* only when the Queue is the screen on top (root is whatever is: a game page, a sheet, or the tab's panel) */
+    const q = document.getElementById("p-queue"); if (!q || !root || !root.contains(q) || !q.getClientRects().length) return;
+    const vw = document.documentElement.clientWidth, crop = CSS.supports("object-view-box", "inset(0%)"), seen = new Set(), areas = [];
+    const say = (k, msg, el) => { if (seen.has(k)) return; seen.add(k); bugReport("look", msg, { at: bugPath(el), screen: scr }); };
+    const over = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
+    for (const r of q.querySelectorAll("[data-row]")) {
+      const b = r.getBoundingClientRect(); if (!b.height || b.bottom < 0 || b.top > innerHeight) continue;
+      const n = r.querySelector(".name");
+      if (n && n.clientWidth < 60 && n.scrollWidth > n.clientWidth + 2) say("name", "A game's name is squeezed out of its row", n);
+      for (const im of r.querySelectorAll(".rowin > img")) { const c = im.getBoundingClientRect(); if (c.width < 24 || c.height < 24) say("cover", "A cover picture is squashed on its row", im); }
+      for (const e of r.querySelectorAll(".rowmeta > .when, .rowmeta > .tag, .rowmeta > .score")) {
+        const c = getComputedStyle(e), lh = parseFloat(c.lineHeight) || parseFloat(c.fontSize) * 1.25;
+        if (e.getBoundingClientRect().height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom) > lh * 1.6) say("wrap", "A date or tag breaks onto two lines", e); }
+      const img = r.querySelector(".rowart img"); if (!img || !img.complete || !img.naturalWidth || !img.getClientRects().length) continue;
+      const slot = img.parentElement.getBoundingClientRect(), ib = img.getBoundingClientRect();
+      /* the spot itself (no measuring needed): inside its row, inside the screen */
+      /* a spot that doesn't clip (overflow visible): the picture's own box counts too (Safari's whole picture is clipped by the spot) */
+      const open = getComputedStyle(img.parentElement).overflow === "visible", vis = open ? ib : slot;
+      if (vis.top < b.top - 3 || vis.bottom > b.bottom + 3 || vis.left < b.left - 3 || vis.right > b.right + 3) say("spill", "A logo spills out of its row", img);
+      if (vis.right > vw + 1) say("edge", "A logo runs off the screen", img);
+      const g = S.games.find(x => x.id === r.dataset.row), m = g && LF[g.art]; if (!m) continue;
+      /* the ink: Chrome draws only the ink (object-view-box), Safari the whole picture with the ink at its measured spot */
+      const k = crop ? ib : { left: ib.left + m[1] * ib.width, top: ib.top + m[2] * ib.height, right: ib.left + m[3] * ib.width, bottom: ib.top + m[4] * ib.height };
+      if (k.left < slot.left - 4 || k.right > slot.right + 4 || k.top < slot.top - 4 || k.bottom > slot.bottom + 4) say("cut", "A logo is cut off by its spot on the row", img);
+      const v = { left: Math.max(k.left, slot.left), right: Math.min(k.right, slot.right), top: Math.max(k.top, slot.top), bottom: Math.min(k.bottom, slot.bottom) };
+      if ([...r.querySelectorAll(".rowin > .name, .rowmeta > *")].some(e => over(v, e.getBoundingClientRect()))) say("words", "A logo sits on a row's words", img);
+      if (m[5] >= 0 && m[5] < 50 && !/invert/.test(getComputedStyle(img).filter)) say("dark", "A dark logo is hard to see on its row", img);
+      if (v.right > v.left && v.bottom > v.top) areas.push([(v.right - v.left) * (v.bottom - v.top), img]);
+    }
+    if (areas.length > 1) { areas.sort((x, y) => x[0] - y[0]); if (areas[areas.length - 1][0] / areas[0][0] >= 5) say("sizes", "Queue logos are very different sizes", areas[areas.length - 1][1]); }
+  } catch (e) {}
+}
+/* with the other look checks when a screen settles, and again when a scroll on it comes to rest: the logo rows are often
+   below the first screen (under the hero card and On deck) */
+extend("lookDesign", { after(o, [root, scr]) { lfLook(root, scr); } });
+let lfLookT = 0;
+onScrolled((e, first) => {
+  if (!first || lfLookT) return;
+  lfLookT = setTimeout(function again() {
+    const w = scrollWait(350); if (w > 0) { lfLookT = setTimeout(again, w); return; }
+    lfLookT = 0; if (!lookOk()) return;
+    const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+    if (root) lfLook(root, bugScreen());
+  }, 350);
+});
+BUG_NICE.push(["look", /logo spills out of its row|logo runs off the screen|logo is cut off by its spot/, () => "A logo on your Queue didn't fit in its spot on the row."]);
+BUG_NICE.push(["look", /logo sits on a row's words/, () => "A logo on your Queue was sitting on top of a game's name or date."]);
+BUG_NICE.push(["look", /dark logo is hard to see/, () => "A dark logo on your Queue was hard to see against its row."]);
+BUG_NICE.push(["look", /logos are very different sizes/, () => "The logos on your Queue weren't the same size, one towered over the others."]);
+BUG_NICE.push(["look", /name is squeezed out|cover picture is squashed|date or tag breaks/, () => "A row on your Queue was too crowded: something got squeezed."]);
+WHATS_NEW.push(
+  { v: 290, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .rowart") || $("#p-queue .row"),
+    say: "<b>Your Queue logos got a makeover</b>: each one now sits upright in its own spot inside the row, all the same visual size, and dark logos turn light so you can see them. Folded, rows use two lines so the names fit again. And I now spot a logo that spills, hides or towers by myself.",
+    tryIt: "Scroll the Queue, then fold the phone and scroll it again." }
 );
 </script>

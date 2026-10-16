@@ -2,6 +2,7 @@
    has to come from the network. seed(APP_V) = 14 games; seed(APP_V, 60) for the perf walk. */
 export const TITLES = ["Starfall Odyssey", "Crimson Tactics", "Neon Drift", "Echoes of the Deep", "Moonlit Farm", "Iron Saga II", "Pixel Quest", "The Long Night",
   "Skyward Blades", "Ocean Tales", "Shadow Protocol", "Ember Knight", "Garden Story", "Rift Runner"];
+import { LOGOS } from "./standin-logos.mjs";
 const ART = ["fefw-key-art.jpg", "logo-512.png", "FEFT_cast.webp"];
 const day = 864e5, iso = d => new Date(Date.now() + d * day).toISOString().slice(0, 10);
 
@@ -10,6 +11,8 @@ export function seed(APP_V, n = TITLES.length) {
   const games = Array.from({ length: n }, (_, i) => ({
     id: "g" + i, title: TITLES[i % TITLES.length] + (i >= TITLES.length ? " " + (1 + Math.floor(i / TITLES.length)) : ""),
     desc: "A long description of the game. ".repeat(6), img: ART[i % 3], key: i % 4 === 0 ? ART[0] : "",
+    /* v290: queue row logos (made-up, tools/standin-logos.mjs), so every sweep checks them too */
+    art: i >= 1 && i <= LOGOS.length && i < 9 ? LOGOS[i - 1].url : "",
     colour: ["#4DA3FF", "#7C5CFF", "#3FD9A4", "#F0A63C", "#FF5470", "#5AE0FF"][i % 6],
     date: iso(i < out ? -400 + i * (360 / out) : (i - out + 1) * 9), hours: 12 + (i % 14) * 4,
     status: i < out ? "out" : "upcoming", state: i === 1 || i === 4 ? "playing" : "backlog", hype: 4 + (i % 6), ord: i + 1,

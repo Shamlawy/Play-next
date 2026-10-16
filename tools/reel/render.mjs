@@ -1,4 +1,4 @@
-/* v290: renders the opening reel ("One pixel plays everything") to a 1920x1080 60fps MP4 with its soundtrack.
+/* v291: renders the opening reel ("One pixel plays everything") to a 1920x1080 60fps MP4 with its soundtrack.
    The reel's code is read from index.html (between REEL-START and REEL-END), so the video and the app's opening
    screen are the same drawing. Each frame blends 3 subframes (ffmpeg tmix), each with a short in-page shutter blur;
    the soundtrack (pnReel.audio, the same code the app plays: a Web Audio OfflineAudioContext) is rendered to WAV and muxed in.

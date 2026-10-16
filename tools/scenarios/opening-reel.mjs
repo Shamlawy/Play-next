@@ -1,4 +1,4 @@
-/* v290 the opening reel ("One pixel plays everything", pnReel on #pnboot's canvas):
+/* v291 the opening reel ("One pixel plays everything", pnReel on #pnboot's canvas):
    1. under automation it stays away (the kit taps the screens below); gq:reel = "1" brings it back
    2. it paints the opening pixel at once, and every beat of the 15s draws something (no blank beat)
    3. drawing one frame stays cheap with the CPU 4x slower (it runs every frame for 15s on the phone)
