@@ -55,6 +55,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L49** · 2026-10-16 · v288 · `still()`, `teaTick`, `tools/lint.mjs` — New v288 code called still(), a const inside another script's block scope: a ReferenceError every tick, found only when a scenario printed it → before calling a helper from a new block, grep that it's top-level (node tools/where.mjs <name>) and run node tools/lint.mjs right after writing the block, not only in kit.mjs all
 - **L50** · 2026-10-16 · v288 · `teaSay`, `innerHTML`, `esc` — Restore-if-unchanged compared p.innerHTML to esc(text); the browser reads quotes back unescaped, so lines with an apostrophe never matched (second-look caught it) → after assigning, read innerHTML back and compare to that, or compare textContent
 - **L51** · 2026-10-16 · v289 · `trace-start.mjs`, `fitDraw`, `trace-stutter.mjs` — A 410ms start task showed no JS at all in the usual trace categories (only RunTask), and the CPU profile missed it too → when a long task has no children, rerun with ALLCAT=1 NAMES=1 (all trace categories): it named CanvasResourceProviderBitmap::Snapshot (canvas toBlob) in one run
+- **L52** · 2026-10-16 · v289 · `fitWorker`, `fitDraw` — v289's worker timeout fell back to the page path while the worker kept unpacking the same picture (two full-size unpacks at once, the iPad memory problem of v267); second-look caught it after the merge → when a timeout hands work to a fallback, cancel or terminate the slow path first
 
 ## Missed opportunities
 
