@@ -4,6 +4,8 @@
       contentvisibilityautostatechange) is reported; one in a hidden screen is passed over without measuring.
    3. M11: a scroll stutter report says what the long frames spent their time on, and the slow handler (a "named" function
       run through page.evaluate shows up as (anonymous) ← DOMWindow.onscroll; the app's own functions keep their names).
+   4. v287: when the main thread was free in a stutter (no long frame), the report adds what there was to draw: pictures in
+      view and the layer makers (here the planted drifting glows of tools/plants/layer-pile.js are named).
      node tools/kit.mjs run tools/scenarios/stutter-detectors.mjs --widths 412,859 */
 export default async ({ p, w }) => {
   let ok = true;
@@ -50,5 +52,10 @@ export default async ({ p, w }) => {
   const sc = got(/Scrolling stutters/);
   if (!lo) say(sc.length >= 1, `scroll stutter reported (no long-animation-frame here: no split)`);
   else say(sc.length >= 1 && /script \d+ms/.test(sc[0].stack) && /longest script 1\d\dms: .*onscroll/.test(sc[0].stack), `the scroll stutter report says why: ${(sc[0] && sc[0].stack || "none").replace(/\n/g, " | ")}`);
+  /* 4. v287: a free main thread → the drawing load is in the report */
+  await p.page.evaluate((await import("node:fs")).readFileSync("tools/plants/layer-pile.js", "utf8"));
+  await p.page.waitForTimeout(400);
+  const d = await p.page.evaluate(() => { const t = performance.now() + 1e6; return lagSplit(t, t + 1); });
+  say(/^no long frame/.test(d) && /drawing on screen: \d+ pictures .* MP decoded\); layer makers 2 loops/.test(d) && /pnorbsx/.test(d), `a free-main-thread stutter says what there was to draw: ${d.replace(/\n/g, " | ")}`);
   return ok;
 };
