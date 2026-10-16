@@ -2909,7 +2909,7 @@ html.still :where(img[src]:not([data-ld])){animation:none}
 @keyframes pcdOut{to{opacity:0}}
 @keyframes pcdUp{from{opacity:0;transform:translate3d(0,14px,0)}}
 /* v291: the opening reel (pnReel draws it on a canvas), then fades out */
-#pnboot{position:fixed;inset:0;z-index:10000;background:var(--bgb,#000);overflow:hidden;cursor:pointer;touch-action:none}
+#pnboot{position:fixed;inset:0;z-index:10000;background:var(--bgb,black);overflow:hidden;cursor:pointer;touch-action:none}
 #pnboot canvas{display:block;width:100%;height:100%}
 #pnboot.out{animation:pcdOut .3s ease-in forwards}
 /* v291: it waits for a tap (sound needs one): the pixel breathes a soft glow, "Tap to play" under it, Skip at the bottom */
@@ -4373,7 +4373,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "292";
+const APP_V = "293";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8192,7 +8192,10 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
   const R = PNREEL;
   const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; cancelAnimationFrame(R.raf);
     if (R.out) { try { const ac = R.out.context, g = R.out.gain; g.cancelScheduledValues(ac.currentTime); g.setValueAtTime(g.value, ac.currentTime); g.linearRampToValueAtTime(0, ac.currentTime + .25); R.src.stop(ac.currentTime + .3); } catch (e) {} }
-    b.classList.add("out"); setTimeout(() => b.remove(), 320); };
+    removeEventListener("resize", fit); b.classList.add("out"); setTimeout(() => b.remove(), 320); };
+  /* v292: a fold, unfold or turn while it waits repaints the pixel at the new size (playing frames repaint themselves) */
+  const fit = () => { if (!R.playing && !b.dataset.gone) requestAnimationFrame(() => { if (!R.playing && !b.dataset.gone) pnreelPaint(0); }); };
+  addEventListener("resize", fit);
   const tick = now => { if (b.dataset.gone) return; const t = (now - R.t0) / 1000;
     if (t >= pnReel.LEN) { pnreelPaint(0); go(); return; } pnreelPaint(Math.max(0, t)); R.raf = requestAnimationFrame(tick); };
   const play = async () => {
@@ -8212,7 +8215,7 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
   b.onclick = e => { if (e.target.closest(".pnreel-skip") || R.playing) go(); else if (R.ready) play(); else R.want = 1; };
   /* load() has read the settings by now (this script runs before it, so S is still empty above) */
   const start = () => {
-    if (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { b.remove(); return; }
+    if (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { removeEventListener("resize", fit); b.remove(); return; }
     R.ready = 1;
     if (S.sound) R.buf = new Promise(res => setTimeout(() => { try { pnReel.audio().then(res, () => res(null)); } catch (e) { res(null); } }, 300));
     if (R.want) play();
@@ -26457,12 +26460,13 @@ WHATS_NEW.push(
     say: "<b>The app opens smoother</b>: I found what made it freeze for a moment at start. Pictures finishing loading made the phone redo the whole screen's styles once per picture, and your own pictures were being shrunk on the main thread. Both are fixed: about a third less work in the first seconds.",
     tryIt: "Close the app fully and open it again: the first seconds should feel steady, even while the covers pop in." }
 );
-/* v291: the what's-new tour waits for the opening reel to finish (it starts 2.2s after load, the reel runs 15s) */
-extend("nxTour", { before(...a) { if (document.getElementById("pnboot")) { setTimeout(() => nxTour(...a), 800); return extend.skip(); } } });
 WHATS_NEW.push(
   { v: 291, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
     say: "<b>A brand new opening</b>: the app now opens on a glowing pixel. Tap it and a 15-second motion reel plays with its own soundtrack: the pixel turns into words, shapes, a 3D shelf of games, your week in numbers and a field of columns that spells the play button, all on the beat.",
-    tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." }
+    tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." },
+  { v: 292, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
+    say: "<b>The opening pixel fits any screen</b>: fold, unfold or turn the phone while the reel waits and the glowing pixel redraws in the middle at the new size, instead of a stretched first frame.",
+    tryIt: "Open the app with the phone folded, unfold it before you tap the glow: the pixel stays sharp and centred." }
 );
 </script>
 <script>
@@ -26531,8 +26535,10 @@ WHATS_NEW.push(
     say: "<b>Your Queue logos got a makeover</b>: each one now sits upright in its own spot inside the row, all the same visual size, and dark logos turn light so you can see them. Folded, rows use two lines so the names fit again. And I now spot a logo that spills, hides or towers by myself.",
     tryIt: "Scroll the Queue, then fold the phone and scroll it again." }
 );
+/* v291: the what's-new tour waits for the opening reel to finish (it starts 2.2s after load, the reel runs 15s) */
+extend("nxTour", { before(...a) { if (document.getElementById("pnboot")) { setTimeout(() => nxTour(...a), 800); return extend.skip(); } } });
 WHATS_NEW.push(
-  { v: 292, go: () => { closeFull(); dyClose(); nxShut(); goTab("played"); }, at: () => $("#p-played .pnb-p") || $("#p-played .tabbar"),
+  { v: 293, go: () => { closeFull(); dyClose(); nxShut(); goTab("played"); }, at: () => $("#p-played .pnb-p") || $("#p-played .tabbar"),
     say: "<b>Tidier Played board</b>: the hours and hype chips on your top board stay on one line now, and \"S-tier\" no longer splits in two on a narrow screen. A new design eye checks every screen for things like this before each update.",
     tryIt: "Open Played and look at your top board, folded and unfolded." }
 );

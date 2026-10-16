@@ -3,7 +3,7 @@
    must be flagged (app-check runs it, so a blind eye fails the PR). */
 /* Library cards pushed past the screen edge */
 #libgridbox > .libcard { transform: translateX(70px); }
-/* Played's top board chips broken in two (v292 fixed this) */
+/* Played's top board chips broken in two (v293 fixed this) */
 .pnb-p span { white-space: normal !important; max-width: 34px; }
 /* a cover squashed out of its shape */
 #libgridbox > .libcard img { object-fit: fill !important; height: 40px !important; }

@@ -145,7 +145,7 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - check: logo-look.mjs, Nexi's lfLook, kit.mjs eye
 - shot: references/queue-logos/after.jpg
 
-### T29 · v292 · whole app · rule
+### T29 · v293 · whole app · rule
 - said: the design skill that keeps learning (Oct 2026)
 - rule: Repeated things on any screen never spill, overlap, break short words, squash pictures or barely show.
 - check: node tools/kit.mjs eye

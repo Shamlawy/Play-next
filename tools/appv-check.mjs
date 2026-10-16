@@ -1,4 +1,4 @@
-// Release number clash check (L27, v292): a PR that bumps APP_V must end up above main's APP_V, not on the same number.
+// Release number clash check (L27, v293): a PR that bumps APP_V must end up above main's APP_V, not on the same number.
 // Two chats can both turn 290 into 291; the lines are identical, so git merges them with no conflict and one release is lost.
 // Usage: node tools/appv-check.mjs --base=origin/main [--head=<sha>]   (exit 1 on a clash)
 import { execFileSync } from "node:child_process";
