@@ -81,5 +81,5 @@ if (cmd === "list") {
 /* the taste calls whose screen the text touches (whole-app rules always come along) */
 export function forText(text) {
   const hit = new Set(Object.entries(SCREEN_WORDS).filter(([s, res]) => s !== "whole app" && res.some(r => r.test(text))).map(([s]) => s.toLowerCase()));
-  return read().filter(t => hit.has(t.screen.toLowerCase()) || [...hit].some(s => t.screen.toLowerCase().includes(s)));
+  return read().filter(t => t.screen === "whole app" || hit.has(t.screen.toLowerCase()) || [...hit].some(s => t.screen.toLowerCase().includes(s)));
 }

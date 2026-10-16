@@ -1,6 +1,7 @@
 /* The design eye on every screen (tools/eye.mjs; `node tools/kit.mjs eye` runs it at 412 / 859 / 360 in `all`).
      node tools/kit.mjs run tools/scenarios/design-eye.mjs --widths 412,859
-     SCREENS=home,queue   only these     PLANT=tools/plants/x.css   put a broken look on first (must then be flagged)
+     SCREENS=home,queue   only these     PLANT=tools/plants/x.css   put a broken look on first (must then be flagged
+                          at every EXPECT=a,b path part; default for eye-broken.css: libcard,pnb-p)
      SHOTS=dir   a screenshot of each place it looked
    Each screen at the top and one screen down, three game pages, Settings. Fails on anything tools/eye-ok.txt doesn't excuse. */
 import fs from "node:fs";
@@ -36,7 +37,10 @@ export default async ({ p, w }) => {
   const only = process.env.SCREENS && process.env.SCREENS.split(",");
   const found = await eyeWalk({ p, w }, only);
   const planted = !!process.env.PLANT;
-  const ok = planted ? found.length > 0 : found.length === 0;
+  /* a plant counts only when each of its looks is named where it was put (eye-broken.css: libcard pictures, pnb-p chips) */
+  const want = (process.env.EXPECT || (planted ? "libcard,pnb-p" : "")).split(",").filter(Boolean), missed = want.filter(k => !found.some(f => f.includes(k)));
+  if (missed.length) console.log(`  ✗ the plant was not flagged at: ${missed.join(", ")}`);
+  const ok = planted ? found.length > 0 && !missed.length : found.length === 0;
   console.log(`  ${ok ? "✓" : "✗"} ${w}px: ${found.length ? found.length + " thing(s) look wrong" + (planted ? " (planted)" : "") + ":\n      " + found.join("\n      ") : "nothing looks wrong"}`);
   if (p.errors.length) { console.log("  errors: " + [...new Set(p.errors)].join("; ")); return false; }
   return ok;

@@ -102,12 +102,12 @@ function boxEye(ok) {
   }
   /* the pictures the pixel eye should look at: one per repeated item, on screen */
   const pics = [];
-  for (const g of groups) for (const e of g) { const q = e.getBoundingClientRect(); if (!onScreen(q) || q.top < 0 || q.bottom > H - 60) continue;
+  caps: for (const g of groups) for (const e of g) { const q = e.getBoundingClientRect(); if (!onScreen(q) || q.top < 0 || q.bottom > H - 60) continue;
     const im = [...e.querySelectorAll("img")].find(vis); if (!im || !im.complete || !im.naturalWidth) continue;
     const r = im.getBoundingClientRect(); if (r.width < 20 || r.height < 12) continue;
     const words = [...e.querySelectorAll("*")].filter(d => d.childElementCount === 0 && d.textContent.trim() && vis(d) && !d.contains(im)).map(d => d.getBoundingClientRect()).filter(w => w.width).map(w => [w.left, w.top, w.right, w.bottom]);
     pics.push({ id: "eye" + pics.length, at: pathOf(im), box: [q.left, q.top, q.right, q.bottom], ib: [r.left - 40, r.top - 40, r.right + 40, r.bottom + 40], words });
-    im.setAttribute("data-eyepic", "eye" + (pics.length - 1)); if (pics.length >= 14) break; }
+    im.setAttribute("data-eyepic", "eye" + (pics.length - 1)); if (pics.length >= 14) break caps; }
   return { issues, pics, groups: groups.length };
 }
 
@@ -115,7 +115,7 @@ function boxEye(ok) {
 async function snap(page, show) {
   await page.evaluate(show => {
     for (const e of document.querySelectorAll("body *")) { const c = getComputedStyle(e); if ((c.position === "fixed" || c.position === "sticky") && !e.closest("#full.on, .sheet.on, #sheet.on, #edit.on, #set.on, .dy.on") && !e.matches("#full.on, .sheet.on, #sheet.on, #edit.on, #set.on, .dy.on")) e.setAttribute("data-eyehide", ""); }
-    document.getAnimations().forEach(a => a.pause());
+    eyeHold();
     let s = document.getElementById("eyehide"); if (!s) { s = document.createElement("style"); s.id = "eyehide"; document.head.appendChild(s); }
     s.textContent = `[data-eyehide], [data-eyehide] * { visibility: hidden !important; } [data-eyepic] { visibility: hidden !important; } ${show ? `[data-eyepic="${show}"] { visibility: visible !important; }` : ""}`;
   }, show);
@@ -127,21 +127,23 @@ async function snap(page, show) {
 export async function look(page) {
   /* entrances and fades first finish (a paused fade-in reads as faint words, a paused slide as a spill); endless loops pause */
   await page.waitForFunction(() => !document.getAnimations().some(a => a.playState === "running" && a.effect && a.effect.getComputedTiming().iterations !== Infinity), null, { timeout: 4000 }).catch(() => {});
-  await page.evaluate(() => document.getAnimations().forEach(a => a.pause()));
+  /* pause only what is running, and later play only those: play() on a finished or CSS-paused animation would restart it */
+  await page.evaluate(() => { const held = window.eyeHeld = new Set();
+    window.eyeHold = () => document.getAnimations().forEach(a => { if (a.playState === "running") { held.add(a); a.pause(); } }); eyeHold(); });
   const { issues, pics, groups } = await page.evaluate(boxEye, OK);
   if (pics.length) {
-    const base = await snap(page, null), each = [];
-    for (const p of pics) each.push(await snap(page, p.id));
-    const base2 = await snap(page, null);
+    let base, base2; const each = [];
+    try { base = await snap(page, null); for (const p of pics) each.push(await snap(page, p.id)); base2 = await snap(page, null); }
+    finally { await page.evaluate(() => { document.getElementById("eyehide")?.remove(); document.querySelectorAll("[data-eyehide]").forEach(e => e.removeAttribute("data-eyehide")); }); }
     const px = await page.evaluate(async ([base, base2, each, pics]) => {
       const load = async u => { const im = new Image(); im.src = u; await im.decode(); const c = document.createElement("canvas"); c.width = im.width; c.height = im.height;
-        const x = c.getContext("2d"); x.drawImage(im, 0, 0); return { w: c.width, d: x.getImageData(0, 0, c.width, c.height).data }; };
+        const x = c.getContext("2d"); x.drawImage(im, 0, 0); return { w: c.width, h: c.height, d: x.getImageData(0, 0, c.width, c.height).data }; };
       const B = await load(base), B2 = await load(base2), L = (d, i) => (.2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]) / 255, lin = v => v <= .04 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
       const out = [];
       for (let k = 0; k < pics.length; k++) {
         const r = pics[k], A = await load(each[k]), a = A.d, b = B.d; let n = 0, spill = 0, edge = 0, words = 0, far = 0, bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1; const con = [];
         const [x0, y0, x1, y1] = r.ib.map(Math.round);
-        for (let y = Math.max(0, y0); y < y1; y++) for (let x = Math.max(0, x0); x < Math.min(A.w, x1); x++) {
+        for (let y = Math.max(0, y0); y < Math.min(y1, A.h); y++) for (let x = Math.max(0, x0); x < Math.min(A.w, x1); x++) {
           const i = (y * A.w + x) * 4;
           if (Math.abs(b[i] - B2.d[i]) + Math.abs(b[i + 1] - B2.d[i + 1]) + Math.abs(b[i + 2] - B2.d[i + 2]) >= 40) continue;
           if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) < 24) continue;
@@ -166,7 +168,7 @@ export async function look(page) {
     await page.evaluate(() => { document.getElementById("eyehide")?.remove(); document.querySelectorAll("[data-eyehide]").forEach(e => e.removeAttribute("data-eyehide")); });
     for (const i of px) if (!OK.some(([k, s]) => k === i.kind && i.at.includes(s))) issues.push(i);
   }
-  await page.evaluate(() => { document.querySelectorAll("[data-eyepic]").forEach(e => e.removeAttribute("data-eyepic")); document.getAnimations().forEach(a => a.play()); });
+  await page.evaluate(() => { document.querySelectorAll("[data-eyepic]").forEach(e => e.removeAttribute("data-eyepic")); (window.eyeHeld || []).forEach(a => a.play()); window.eyeHeld = null; });
   const uniq = new Map(); for (const i of issues) uniq.set(i.kind + i.at + i.msg, i);
   return { issues: [...uniq.values()], pics: pics.length, groups };
 }
