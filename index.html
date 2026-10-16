@@ -6761,7 +6761,7 @@ function openSettings(scope) {
   pick("#s-xeta", v => S.etaOff = v === "off");
   pick("#s-xcap", v => S.capOff = v === "off");
   pick("#s-xssn", v => S.ssnOff = v === "off", () => { if (typeof ssnHat === "function") { try { pnBubReact(); } catch (e) {} } });
-  pick("#s-xtea", v => S.teaOff = v === "off", () => { if (S.teaOff && typeof teaStop === "function") teaStop(); });
+  pick("#s-xtea", v => S.teaOff = v === "off", () => { if (typeof teaStop !== "function") return; if (S.teaOff) teaStop(); else if (!teaT) teaTick(); });
   pick("#s-xbat", v => S.batOff = v === "off", () => { if (typeof batApply === "function") batApply(); });
   pick("#s-lfit", v => S.lfOff = v === "off", () => renderQueue());
   pick("#s-xdust", v => S.dustOff = v === "off", () => renderQueue());
@@ -25966,7 +25966,7 @@ function teaFail(kind) {
   else if (kind === "empty") { if (c) teaMove("translate(-17px,-14px) rotate(-120deg)", 500, "ease-in-out", now); teaLater(() => { mood("bored", 2600); down(); }, 900); }
   else if (kind === "slip") { if (c) { c.animate([{ transform: now, opacity: 1 }, { transform: "translate(-6px,60px) rotate(-20deg)", opacity: 0 }], { duration: 600, easing: "cubic-bezier(.55,0,1,.45)" }); c.style.opacity = "0"; }
     oh(); teaLater(() => mood("faint", 1800), 300); }
-  else if (kind === "hiccup") { if (bub) { h.el.querySelector(".core").animate([{ transform: "none" }, { transform: "translateY(-7px)" }, { transform: "none" }], { duration: 260 }); }
+  else if (kind === "hiccup") { if (bub && h.el.querySelector(".core")) { h.el.querySelector(".core").animate([{ transform: "none" }, { transform: "translateY(-7px)" }, { transform: "none" }], { duration: 260 }); }
     else h.el.animate([{ transform: "none" }, { transform: "translateY(-5px)" }, { transform: "none" }], { duration: 260 });
     fly(-28, 650); teaLater(() => mood("dizzy", 1500), 300); }
   else if (kind === "remember") { oh(); mood("happy", 1500); down(); }
@@ -25978,7 +25978,7 @@ function teaFail(kind) {
 function teaSay(line) {
   if (TEA.host && TEA.host.bub) { TEA.self = true; try { pnBubSay(line); } finally { TEA.self = false; } return; }
   const p = document.querySelector("#p-home .nxhome .nxh-say p"); if (!p) return;
-  const was = p.innerHTML, mine = esc(line[0]); p.innerHTML = mine; p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 });
+  const was = p.innerHTML; p.textContent = line[0]; const mine = p.innerHTML; p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 });
   setTimeout(() => { if (p.isConnected && p.innerHTML === mine) { p.innerHTML = was; p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 }); } }, 4800);
 }
 /* real interruptions: your finger, a scroll, a screen change, real news */
@@ -25986,9 +25986,11 @@ addEventListener("pointerdown", () => { if (TEA.on && !TEA.kind) teaFail("user")
 onScrolled(() => { if (TEA.on && !TEA.kind) teaFail("user"); });
 onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });
 extend("pnBubSay", { before() { if (TEA.on && !TEA.kind && !TEA.self) teaFail("news"); } });
+let teaT = 0;   /* the 6s look-around runs only while Tea breaks is on */
 function teaTick() {
-  setTimeout(teaTick, 6000);
-  if (TEA.on || S.teaOff || document.hidden || nxTouring() || document.documentElement.classList.contains("still")
+  teaT = 0; if (S.teaOff) return;
+  teaT = setTimeout(teaTick, 6000);
+  if (TEA.on || document.hidden || nxTouring() || document.documentElement.classList.contains("still")
     || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const now = performance.now(), quiet = now - Math.max(bugLastIn, TEA.nav);
   if (now < 25000 || quiet < 25000) return;
@@ -25997,7 +25999,7 @@ function teaTick() {
   if (document.querySelector("#sheet.on, #diary.on, #pnbubmsg.on")) return;
   teaTry();
 }
-setTimeout(teaTick, 6000);
+teaT = setTimeout(teaTick, 6000);
 WHATS_NEW.push(
   { v: 288, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); setTimeout(() => teaTry(true), 900); },
     at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : $("#p-home .nxh-face") || null; },
