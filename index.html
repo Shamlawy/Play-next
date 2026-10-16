@@ -2908,11 +2908,19 @@ html.still :where(img[src]:not([data-ld])){animation:none}
 @keyframes pcdShine{0%{opacity:1;transform:translateX(-120%) skewX(-20deg)}100%{opacity:1;transform:translateX(420%) skewX(-20deg)}}
 @keyframes pcdOut{to{opacity:0}}
 @keyframes pcdUp{from{opacity:0;transform:translate3d(0,14px,0)}}
-/* the launch intro plays it at .62 speed (no reveal), then fades out */
-#pnboot{position:fixed;inset:0;z-index:10000;background:#000;display:grid;place-items:center;overflow:hidden;cursor:pointer}
+/* v291: the opening reel (pnReel draws it on a canvas), then fades out */
+#pnboot{position:fixed;inset:0;z-index:10000;background:var(--bgb,#000);overflow:hidden;cursor:pointer;touch-action:none}
+#pnboot canvas{display:block;width:100%;height:100%}
 #pnboot.out{animation:pcdOut .3s ease-in forwards}
-#pnboot.out .pcd{animation:pbOutC .3s ease-in forwards}
-@keyframes pbOutC{to{transform:scale(1.15)}}
+/* v291: it waits for a tap (sound needs one): the pixel breathes a soft glow, "Tap to play" under it, Skip at the bottom */
+.pnreel-go{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;border:0;padding:0;border-radius:50%;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pnreel-go::before{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(closest-side,rgba(var(--vrgb),.6),rgba(var(--vrgb),.2) 45%,rgba(var(--vrgb),0));animation:pnreelGlow 2.4s ease-in-out infinite}
+@keyframes pnreelGlow{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1.08)}}
+.pnreel-say{position:absolute;left:0;right:0;top:calc(50% + 70px);text-align:center;font:600 15px "Poppins",system-ui,sans-serif;color:var(--ice);opacity:0;animation:pnreelIn .5s ease-out .3s forwards;pointer-events:none}
+.pnreel-skip{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);min-height:44px;padding:0 22px;border:0;border-radius:999px;background:none;font:600 13px "Poppins",system-ui,sans-serif;color:var(--mute);cursor:pointer}
+@keyframes pnreelIn{to{opacity:1}}
+#pnboot.on .pnreel-go,#pnboot.on .pnreel-say{display:none}
+#pnboot.on .pnreel-skip{opacity:0;animation:pnreelIn .4s ease-out 2s forwards}
 /* the release-day card: the game's art is the world it flies out of */
 .pcdov{position:fixed;inset:0;z-index:9000;overflow:hidden;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);animation:ccIn .3s ease-out}
 .pcdov-bg{position:absolute;inset:-6%;background:center/cover no-repeat;opacity:.3;animation:pcdCam 4s cubic-bezier(.2,.7,.3,1) both}
@@ -2939,7 +2947,7 @@ html.still .ccov,html.still .ccov img{animation:none}
 
 <div id="toast" role="status" aria-live="polite"></div>
 
-<div id="pnboot" aria-hidden="true"></div>
+<div id="pnboot"></div>
 <script>
 /* v252: the card's markup, here so the launch intro can use it before the rest of the page loads.
    o: k (speed), ar (width / height), word, rv (reveal what's on it), still (no animation),
@@ -2973,7 +2981,367 @@ function pcdHTML(o) {
     + `<div class="pcd-tri" aria-hidden="true" style="--cw:${100 / C}%;--rh:${100 / R}%">${tri}</div><span class="pcd-sl" aria-hidden="true"></span><span class="pcd-sl s2" aria-hidden="true"></span>`
     + `<span class="pcd-scan" aria-hidden="true"></span><span class="pcd-shine" aria-hidden="true"></span></div></div></div></div></div>`;
 }
-{ const b = document.getElementById("pnboot"); if (b) b.innerHTML = pcdHTML({ k: .55 }); }
+</script>
+<script>
+/* REEL-START: "One pixel plays everything", the 15s opening reel (120 BPM, 30 beats). Every pixel is computed from t
+   alone (no timers, no state between frames): pnReel.draw(ctx, t, W, H, n) paints the frame at t seconds on a W x H
+   canvas (CSS px, ctx already scaled); n > 1 averages n samples over a 1/120s shutter (motion blur, video only).
+   tools/reel/ renders the same code to a 1920x1080 MP4. */
+const pnReel = (() => {
+  const C = { B: [77, 163, 255], D: [47, 107, 255], P: [255, 84, 112], W: [255, 255, 255], K: [0, 0, 0] };
+  const LEN = 15, FONT = '"Poppins", system-ui, sans-serif';
+  const cl = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const seg = (t, a, d) => cl((t - a) / d);
+  /* exponential ease out / in / in-out (normalised so they reach exactly 1) */
+  const eo = x => x <= 0 ? 0 : x >= 1 ? 1 : (1 - Math.pow(2, -10 * x)) / (1 - Math.pow(2, -10));
+  const ei = x => x <= 0 ? 0 : x >= 1 ? 1 : (Math.pow(2, 10 * x - 10) - Math.pow(2, -10)) / (1 - Math.pow(2, -10));
+  const eio = x => x < .5 ? ei(x * 2) / 2 : .5 + eo(x * 2 - 1) / 2;
+  /* critically damped spring from rest at time a (no overshoot: nothing bounces) */
+  const spr = (t, a, w = 16) => { const x = t - a; return x <= 0 ? 0 : 1 - (1 + w * x) * Math.exp(-w * x); };
+  const mix = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+  const rgb = (c, al = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${al})`;
+  const poly = (x, pts, c, al = 1) => { x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.closePath(); x.fillStyle = rgb(c, al); x.fill(); };
+  const lp = (A, B, k) => A.map((p, i) => [lerp(p[0], B[i][0], k), lerp(p[1], B[i][1], k)]);
+  const rect5 = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, (y0 + y1) / 2], [x1, y1], [x0, y1]];
+  const rot = (pts, a, cx = 0, cy = 0) => { const c = Math.cos(a), s = Math.sin(a); return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]); };
+  const font = (x, F) => { x.font = `700 ${F}px ${FONT}`; };
+  const rr = (x, x0, y0, w, h, r, c, al = 1) => { r = Math.max(0, Math.min(r, w / 2, h / 2)); x.beginPath(); x.moveTo(x0 + r, y0); x.arcTo(x0 + w, y0, x0 + w, y0 + h, r); x.arcTo(x0 + w, y0 + h, x0, y0 + h, r); x.arcTo(x0, y0 + h, x0, y0, r); x.arcTo(x0, y0, x0 + w, y0, r); x.closePath(); x.fillStyle = rgb(c, al); x.fill(); };
+
+  /* the ▶ in three slices (so the three queue lines can fold into it), 5 points each: TL TR RM BR BL */
+  const TRI = [[[-170, -200], [-170, -200], [-37, -133.5], [96, -67], [-170, -67]],
+    [[-170, -67], [96, -67], [230, 0], [96, 67], [-170, 67]],
+    [[-170, 67], [96, 67], [-37, 133.5], [-170, 200], [-170, 200]]];
+  const PIX = 22;   /* half the opening pixel */
+
+  /* radial shapes for the morph bar: r(θ) */
+  const N = 120;
+  const rBox = (hx, hy, a) => Math.min(hx / Math.max(1e-6, Math.abs(Math.cos(a))), hy / Math.max(1e-6, Math.abs(Math.sin(a))));
+  const SH = {
+    circ: (R) => () => R,
+    box: (s) => a => rBox(s, s, a),
+    plus: (L, w) => a => Math.max(rBox(L, w, a), rBox(w, L, a))
+  };
+  const radial = (f, g, k, spin, cx, cy) => { const out = []; for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2; const r = lerp(f(a), g(a), k); out.push([cx + r * Math.cos(a + spin), cy + r * Math.sin(a + spin)]); } return out; };
+
+  /* layout that depends on the screen (units: the short side is 1000) */
+  const lay = (hw, hh) => {
+    const pw0 = 200, ph0 = 260, ar = pw0 / ph0;
+    const ph = Math.min(hh * 2 * .8, hw * 2 * .86 / ar), pw = ph * ar;
+    return { ph, pw, px: -pw / 2, py: -ph / 2 };
+  };
+
+  /* the UI card (bar 5): where everything sits, in units */
+  const ui = L => {
+    const { pw, ph, px, py } = L, p = pw * .09;
+    const cw = pw - 2 * p, bw = cw / 9 * .62, base = py + ph * .70;
+    const bars = []; const HS = [.42, .7, .5, .95, .62, .36, .8, .55, .66];
+    for (let i = 0; i < 9; i++) bars.push({ x: px + p + cw / 9 * (i + .5), h: HS[i] * ph * .3 });
+    return { p, cw, bw, base, bars, pitch: cw / 9, top: py + p };
+  };
+
+  const words = ["What", "do I", "play", "next?"];
+  /* x of each letter of a word drawn centred, size F */
+  const letters = (x, w, F) => { font(x, F); const full = x.measureText(w).width; const out = []; for (let i = 0; i < w.length; i++) out.push({ ch: w[i], x: -full / 2 + x.measureText(w.slice(0, i)).width, w: x.measureText(w[i]).width }); return { full, out }; };
+  const wordF = (x, hw, hh) => { font(x, 100); let m = 0; for (const w of words) m = Math.max(m, x.measureText(w).width / 100); return Math.min(hh * .76, hw * 2 * .84 / m); };
+
+  /* ---------- 3D ---------- */
+  const F3 = 1500;   /* focal length: a point at z = 0 is drawn 1:1 */
+  const proj = (p, dz = 0) => { const z = p[2] + F3 - dz; return z < 40 ? null : [p[0] * F3 / z, p[1] * F3 / z, z]; };
+  const rx = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c]; };
+  const ry = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c + p[2] * s, p[1], -p[0] * s + p[2] * c]; };
+  const rz = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; };
+  const CARDC = [[C.B, C.W, C.P], [C.P, C.D, C.B], [C.D, C.W, C.P]];
+
+  function frame(x, t, W, H) {
+    t = ((t % LEN) + LEN) % LEN;
+    const u = Math.min(W, H) / 1000, hw = W / 2 / u, hh = H / 2 / u, L = lay(hw, hh);
+    x.save();
+    x.fillStyle = rgb(C.K); x.fillRect(0, 0, W, H);
+    x.translate(W / 2, H / 2); x.scale(u, u);
+    x.textBaseline = "alphabetic"; x.textAlign = "left";
+
+    /* ===== bar 1 (0-2): the pixel → a bar → three queue lines → ▶ ===== */
+    if (t < 2.2) {
+      const a = eo(seg(t, 0, .4)) * Math.PI / 2;
+      const s1 = eo(seg(t, .5, .32)), s2 = eo(seg(t, 1, .32)), s3 = eio(seg(t, 1.5, .36)), s4 = eo(seg(t, 2, .16));
+      const col = s3 > 0 ? mix(C.W, C.B, s3) : mix(C.B, C.W, s1);
+      const bars = [[-380, 380, -1], [-380, 220, 0], [-380, 60, 1]];
+      const F = wordF(x, hw, hh), lw = letters(x, words[0], F);
+      const cur = [-lw.full / 2 - F * .16, -lw.full / 2 - F * .1, F * .44];
+      bars.forEach(([x0, x1, k], i) => {
+        const h = lerp(PIX * 2, 26, s1), y = lerp(0, k * 70, s2);
+        const L0 = lerp(-PIX, x0, s1), R0 = lerp(PIX, 380, s1), R1 = lerp(R0, x1, s2);
+        let q = rect5(L0, y - h / 2, R1, y + h / 2);
+        if (s1 === 0) q = rot(rect5(-PIX, -PIX, PIX, PIX), a);
+        q = lp(q, TRI[i], s3);
+        if (s4 > 0) { const third = cur[2] * 2 / 3; q = lp(q, rect5(cur[0], -cur[2] + third * i, cur[1], -cur[2] + third * (i + 1)), s4); }
+        if (i === 0 || s2 > 0) poly(x, q, s4 > 0 ? mix(col, C.B, s4) : col);
+      });
+    }
+
+    /* ===== bar 2 (2-4): kinetic type. The ▶ flattens into a cursor that wipes in "What", then a word a beat ===== */
+    if (t >= 2.1 && t < 4.35) {
+      const F = wordF(x, hw, hh), base = F * .35;
+      const cols = [C.W, C.W, C.B, C.W];
+      for (let wi = 0; wi < 4; wi++) {
+        const t0 = 2 + wi * .5, wd = words[wi], lw = letters(x, wd, F);
+        if (t < t0 - .02) continue;
+        const outT = t0 + .5;
+        lw.out.forEach((l, li) => {
+          let dx = 0, dy = 0, al = 1;
+          if (wi > 0) { const k = eo(seg(t, t0 + .04 + li * .025, .28)); dy = (1 - k) * F * 1.3; }
+          if (t >= outT - .08) { const k = ei(seg(t, outT - .08 + li * .015, .16)); dy -= k * F * 1.3; }
+                    if (dy < -F * 1.3 + 1) return;
+          x.save(); x.beginPath(); x.rect(-hw * 2, base - F * 1.02, hw * 4, F * 1.3); x.clip();
+          if (wi === 0) { const wipe = eo(seg(t, 2.1, .26)); x.beginPath(); x.rect(-lw.full / 2 - 10, -F, (lw.full + 20) * wipe, F * 2); x.clip(); }
+          if (l.ch === "?") { x.beginPath(); x.rect(-hw * 2, -hh * 2, hw * 4, hh * 2 + base - F * .2); x.clip(); }
+          font(x, F); x.fillStyle = rgb(l.ch === "?" ? C.P : cols[wi], al); x.fillText(l.ch, l.x + dx, base + dy);
+          x.restore();
+        });
+        if (wi === 0) {   /* the cursor rides the wipe, then folds away */
+          const wipe = eo(seg(t, 2.1, .26)), g = eo(seg(t, 2.36, .12));
+          if (t > 2.16 && g < 1) { const cx = -lw.full / 2 - F * .13 + (lw.full + F * .2) * wipe; poly(x, rect5(cx, -F * .44 * (1 - g), cx + F * .06, F * .44 * (1 - g)), C.B); }
+        }
+      }
+    }
+
+    /* the ?'s dot (bar 2) → square → circle → plus (bar 3) */
+    const F = wordF(x, hw, hh);
+    font(x, F);
+    const nw = x.measureText("next?").width, qx = -nw / 2 + x.measureText("next").width, qw = x.measureText("?").width;
+    const dot = { x: qx + qw * .43, y: F * .35 - F * .065, r: F * .07 };
+    if (t >= 3.5 && t < 6.1) {
+      const into = eo(seg(t, 3.5 + .04 + 4 * .025, .28));
+      const k1 = eo(seg(t, 4, .34)), k2 = eio(seg(t, 4.5, .34)), k3 = eio(seg(t, 5, .34));
+      const cx = lerp(dot.x, 0, k1), cy = lerp(dot.y, 0, k1) + (1 - into) * F * 1.3;
+      let pts, col;
+      if (t < 4.5) { pts = radial(SH.circ(dot.r), SH.box(lerp(dot.r, 150, k1)), k1, k1 * Math.PI / 4, cx, cy); col = C.P; }
+      else if (t < 5) { pts = radial(SH.box(150), SH.circ(190), k2, Math.PI / 4 + k2 * Math.PI / 4, cx, cy); col = mix(C.P, C.B, k2); }
+      else pts = radial(SH.circ(190), SH.plus(195, 65), k3, Math.PI / 2 + k3 * Math.PI / 2, cx, cy), col = mix(C.B, C.W, k3);
+      if (t < 5.5) poly(x, pts, col);
+    }
+
+    /* ===== bar 3 → 4: the plus splits into four tiles that become the corner cards; the grid tilts into 3D ===== */
+    const GX = 230, GY = 290, CW = 100, CH = 130;
+    if (t >= 5.5 && t < 8.1) {
+      const k = eio(seg(t, 5.5, .36));
+      if (t < 6) {
+        /* the centre square shrinks away; the arms (N E S W) slide to the corners and become cards */
+        poly(x, rect5(-65 * (1 - k), -65 * (1 - k), 65 * (1 - k), 65 * (1 - k)), C.W);
+        [[0, -130, 0, 0], [130, 0, 2, 0], [0, 130, 2, 2], [-130, 0, 0, 2]].forEach(([ax, ay, cc, r0]) => {
+          const X = lerp(ax, (cc - 1) * GX, k), Y = lerp(ay, (r0 - 1) * GY, k), hx = lerp(65, CW, k), hy = lerp(65, CH, k);
+          poly(x, rect5(X - hx, Y - hy, X + hx, Y + hy), mix(C.W, CARDC[r0][cc], k));
+        });
+      } else {
+        const tilt = eio(seg(t, 6, .4)) * 1.1, grow = eo(seg(t, 6, .3));
+        const stand = r => eio(seg(t, 6.5 + (2 - r) * .07, .36)) * 1.1;
+        const dolly = eio(seg(t, 7, .45)) * 700 + ei(seg(t, 7.5, .5)) * 1000;
+        const drop = eio(seg(t, 6, .4)) * 150 - eio(seg(t, 7, .45)) * 60;
+        const land = eio(seg(t, 7.5, .5));
+        const tgt = [[L.px, L.py], [L.px + L.pw, L.py], [L.px + L.pw, L.py + L.ph], [L.px, L.py + L.ph]];
+        const draw = [];
+        for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+          const corner = r !== 1 && c !== 1, centre = r === 1 && c === 1, s = corner ? 1 : grow, col = CARDC[r][c];
+          const st = stand(r), ox = (c - 1) * GX, oy = (r - 1) * GY;
+          const w3 = (lx, ly) => { const dy = ly - CH; let p = [lx * s + ox, (CH + dy * Math.cos(st)) * s + oy, dy * Math.sin(st) * s]; p = rx(p, -tilt); return proj([p[0], p[1] + drop, p[2]], dolly); };
+          const pr = [[-CW, -CH], [CW, -CH], [CW, CH], [-CW, CH]].map(([a, b]) => w3(a, b));
+          if (pr.some(p => !p) || s <= 0) continue;
+          draw.push({ centre, col, pr, w3, depth: pr.reduce((a, p) => a + p[2], 0) / 4, face: Math.cos(tilt - st) });
+        }
+        draw.sort((a, b) => b.depth - a.depth);
+        draw.forEach(d => {
+          let q = d.pr.map(p => [p[0], p[1]]), al = 1;
+          if (d.centre) q = lp(q, tgt, land); else al = 1 - ei(seg(t, 7.6, .3));
+          if (al <= 0) return;
+          const shade = mix(C.K, d.col, .4 + .6 * Math.max(0, d.face));
+          poly(x, q, d.centre ? mix(shade, C.D, land) : shade, al);
+          const bar = [[-70, 70], [30, 70], [30, 90], [-70, 90]].map(([a, b]) => d.w3(a, b));
+          if (!bar.some(p => !p) && !(d.centre && land > 0)) poly(x, bar.map(p => [p[0], p[1]]), d.col === C.W ? C.K : C.W, al * .9);
+        });
+      }
+    }
+
+    /* ===== bar 5 (8-10): the card is a game page: hours, a week of play, progress, a list ===== */
+    const U5 = ui(L);
+    if (t >= 7.98 && t < 10.5) {
+      const { pw, ph, px, py } = L, out = eio(seg(t, 10, .34)), fall = ei(seg(t, 10, .3));
+      /* the panel sinks into the floor line under the bars */
+      if (out < 1) { const top = lerp(py, U5.base, out), bot = lerp(py + ph, U5.base + 4, out); poly(x, rect5(px, top, px + pw, bot), C.D); }
+      const dx = -fall * (hw * 2 + pw);
+      /* hours */
+      const kc = eo(seg(t, 8, .45)), hrs = Math.round(38 * kc);
+      const Fs = ph * .062, Fb = ph * .16;
+      const enter = k => (1 - k) * 200;
+      font(x, Fs); x.fillStyle = rgb(C.W, .72); x.fillText("This week", px + U5.p + dx, U5.top + Fs + enter(eo(seg(t, 8, .25))));
+      font(x, Fb); x.fillStyle = rgb(C.W); x.fillText(hrs + "h", px + U5.p + dx, U5.top + Fs * 1.4 + Fb * .9 + enter(eo(seg(t, 8.03, .3))));
+      /* progress ring */
+      const kr = eo(seg(t, 9, .4)), R = ph * .1, rcx = px + pw - U5.p - R + dx, rcy = U5.top + R + Fs * .3;
+      if (t >= 9) {
+        const g = spr(t, 9, 22);
+        x.lineWidth = R * .26; x.lineCap = "butt";
+        x.beginPath(); x.arc(rcx, rcy, R * g, 0, Math.PI * 2); x.strokeStyle = rgb(C.K, .28); x.stroke();
+        x.beginPath(); x.arc(rcx, rcy, R * g, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * .72 * kr); x.strokeStyle = rgb(C.W); x.stroke();
+        font(x, R * .5 * g); x.textAlign = "center"; x.fillStyle = rgb(C.W); x.fillText(Math.round(72 * kr) + "%", rcx, rcy + R * .18 * g); x.textAlign = "left";
+      }
+      /* list rows */
+      for (let i = 0; i < 3; i++) {
+        const k = eo(seg(t, 9.5 + i * .05, .3)); if (k <= 0) continue;
+        const ry0 = U5.base + ph * .06 + i * ph * .075, rh = ph * .055, ox = (1 - k) * (pw + hw) + dx;
+        rr(x, px + U5.p + ox, ry0, rh, rh, rh * .22, i === 1 ? C.P : C.B);
+        rr(x, px + U5.p + rh * 1.35 + ox, ry0 + rh * .14, U5.cw * [.52, .4, .6][i], rh * .3, rh * .15, C.W, .92);
+        rr(x, px + U5.p + rh * 1.35 + ox, ry0 + rh * .6, U5.cw * [.3, .36, .24][i], rh * .22, rh * .11, C.W, .45);
+      }
+    }
+    /* the week's bars (bar 5), drawn flat until the field takes them over at 10 */
+    if (t >= 8.5 && t < 10) {
+      U5.bars.forEach((b, i) => {
+        const g = spr(t, 8.5 + i * .035, 15), h = b.h * g;
+        poly(x, rect5(b.x - U5.bw / 2, U5.base - h, b.x + U5.bw / 2, U5.base), i === 3 ? C.P : C.W);
+      });
+    }
+
+    /* ===== bars 6-7 (10-14): the bars become a 9 x 9 field of columns; the camera climbs; the tops spell ▶ ===== */
+    if (t >= 10 && t < 14.2) {
+      const pit = U5.pitch, bw = U5.bw, fieldD = pit * 9;
+      /* camera: pitch φ (look from above), yaw ψ, dolly */
+      const phi = eio(seg(t, 10, .4)) * .42 + eio(seg(t, 11, .5)) * .3 + eio(seg(t, 12, .5)) * .25 + eio(seg(t, 12.5, .7)) * (Math.PI / 2 - .97);
+      const psi = -eio(seg(t, 11, .5)) * .5 + eio(seg(t, 12, .9)) * .5;
+      const roll = eio(seg(t, 12.5, .7)) * 0;
+      const sz = Math.min(hw * 2 * .86, hh * 2 * .86) / (pit * 9);
+      const zoom = lerp(lerp(1, Math.min(1.2, hw * 2 * .62 / (pit * 9)), eio(seg(t, 10, 1.6))), sz, eio(seg(t, 12.5, 1)));
+      const flat = eio(seg(t, 13.5, .33));   /* everything slams flat, the gaps close */
+      const cx0 = U5.bars[4].x, pivot = [cx0, U5.base, fieldD / 2];
+      const lift = eio(seg(t, 10, .4));
+      const inTri = (c, r) => { const xm = 9 * (1 - Math.abs(r + .5 - 4.5) / 4.5); return c + .5 < xm; };
+      const cols = [];
+      for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+        const b = U5.bars[c];
+        let h, col = r === 0 ? (c === 3 ? C.P : C.W) : C.W, al = 1;
+        const data = U5.bars[(c + r * 4) % 9].h * (.55 + .45 * Math.sin(r * 1.7 + c * .9) ** 2);
+        if (r === 0) h = b.h; else h = data * eo(seg(t, 10.5 + r * .06, .4));
+        /* 11.5: a wave runs through the field on the beat */
+        h *= 1 + .35 * Math.sin(cl((t - 11.5 - (r + c) * .025) / .45) * Math.PI);
+        /* 12: they re-height into the ▶ */
+        const kk = spr(t, 12 + (Math.abs(r - 4) + (8 - c)) * .022, 14);
+        const tri = inTri(c, r);
+        h = lerp(h, tri ? pit * (1.8 + (c / 8) * 1.2) : 0, kk);
+        col = mix(r === 0 && t < 10.5 ? col : mix(col, C.B, eo(seg(t, 10.3, .4)) * .0 + 0), tri ? (c >= 7 - Math.abs(r - 4) * 2 + 1 ? C.P : C.B) : mix(C.K, C.W, .16), kk);
+        if (r > 0 && t < 12) col = (r * 3 + c) % 5 === 0 ? C.W : (r + c) % 3 === 0 ? C.D : C.B;
+        h = lerp(h, 0, flat);
+        if (!tri) al = 1 - eo(seg(t, 13.5, .25));
+        const w = lerp(bw, pit, flat * (tri ? 1 : 0)) * (1 - eo(seg(t, 14 + (8 - c) * .008, .14)));
+        cols.push({ x: b.x, z: r * pit + (pit - bw) / 2 * 0, w, h, col, al, tri });
+      }
+      const tf = p => {
+        let q = [p[0] - pivot[0], p[1] - pivot[1], p[2] - pivot[2]];
+        q = ry(q, psi); q = rx(q, phi); q = rz(q, roll);
+        q = [q[0] * zoom + pivot[0] * (1 - eio(seg(t, 10, .6))) , q[1] * zoom + lerp(pivot[1], 70, eio(seg(t, 10, .6))) - 70 * eio(seg(t, 12.3, 1.1)), q[2] * zoom + lerp(pivot[2], 0, lift)];
+        return q;
+      };
+      const items = [];
+      cols.forEach(cd => {
+        if (cd.al <= .01) return;
+        const x0 = cd.x - cd.w / 2, x1 = cd.x + cd.w / 2, z0 = cd.z + (pit - cd.w) / 2 - (pit - bw) / 2, z1 = z0 + cd.w, y0 = U5.base, y1 = U5.base - Math.max(cd.h, .5);
+        const V = [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]].map(tf);
+        const P = V.map(v => proj(v)); if (P.some(p => !p)) return;
+        const faces = [[[0, 1, 2, 3], .88], [[4, 5, 1, 0], 1], [[1, 5, 6, 2], .5], [[3, 2, 6, 7], .35], [[7, 4, 0, 3], .5]];
+        const dep = V.reduce((a, v) => a + v[2], 0) / 8;
+        const bc = [0, 1, 2].map(j => V.reduce((a, v) => a + v[j], 0) / 8);
+        items.push({ cd, P, V, bc, faces: faces.filter(([f]) => { const fc = [0, 1, 2].map(j => f.reduce((a, i) => a + V[i][j], 0) / 4);
+          return (fc[0] - bc[0]) * -fc[0] + (fc[1] - bc[1]) * -fc[1] + (fc[2] - bc[2]) * (-F3 - fc[2]) > 0; }), dep });
+      });
+      items.sort((a, b) => b.dep - a.dep);
+      items.forEach(({ cd, P, faces }) => faces.forEach(([f, sh]) => {
+        const q = f.map(i => [P[i][0], P[i][1]]);
+                poly(x, q, mix(C.K, cd.col, sh), cd.al);
+      }));
+    }
+
+    /* ===== the end (14-15): the pixel ▶ becomes the title, then the title folds back into the pixel ===== */
+    if (t >= 14) {
+      const s = Math.min(hw * 2 * .86, hh * 2 * .86) / (U5.pitch * 9) * U5.pitch * 9 / 400 * (1);   /* the field's size → ▶ scale */
+      font(x, 100); const Ft = Math.min(hh * .36, hw * 2 * .84 / ((x.measureText("Play next").width + 110) / 100));
+      font(x, Ft); const tw = x.measureText("Play next").width, mark = Ft * .78, gap = Ft * .32, tot = mark + gap + tw;
+      const k = eio(seg(t, 14.1, .3)), back = eio(seg(t, 14.5, .32)), g0 = lerp(.6, 1, eo(seg(t, 14, .16)));
+      const ms = lerp(s * g0, mark / 400, k), mx = lerp(0, -tot / 2 + mark * .5, k);
+      /* the ▶ (in its three slices) → the pixel */
+      const thirds = [rect5(-PIX, -PIX, PIX, -PIX / 3), rect5(-PIX, -PIX / 3, PIX, PIX / 3), rect5(-PIX, PIX / 3, PIX, PIX)];
+      TRI.forEach((sl, i) => {
+        let q = sl.map(([a, b]) => [mx + (a - 30) * ms, b * ms]);
+        q = lp(q, thirds[i], back);
+        poly(x, q, C.B);
+      });
+      /* the letters come in from the right like bar 2, and leave into the mark */
+      font(x, Ft);
+      const word = "Play next", x0 = -tot / 2 + mark + gap;
+      for (let i = 0; i < word.length; i++) {
+        if (word[i] === " ") continue;
+        const lx = x0 + x.measureText(word.slice(0, i)).width;
+        const kin = eo(seg(t, 14.14 + i * .022, .26)), kout = eio(seg(t, 14.5 + (word.length - i) * .012, .26));
+        const X = lx + (1 - kin) * (hw + 300) - kout * (lx - (-PIX)), sc = 1 - kout;
+        if (sc <= .01) continue;
+        x.save(); x.translate(X, Ft * .35); x.scale(sc, sc); x.fillStyle = rgb(i < 4 ? C.W : C.B); x.fillText(word[i], 0, 0); x.restore();
+      }
+    }
+    x.restore();
+  }
+
+  let off = null;
+  function draw(ctx, t, W, H, n = 1, shutter = 1 / 120) {
+    if (n <= 1) return frame(ctx, t, W, H);
+    const cv = ctx.canvas;
+    if (!off || off.width !== cv.width || off.height !== cv.height) { off = document.createElement("canvas"); off.width = cv.width; off.height = cv.height; }
+    const o = off.getContext("2d"), m = ctx.getTransform();
+    for (let i = 0; i < n; i++) {
+      o.setTransform(m); frame(o, t - shutter * i / (n - 1), W, H);
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 / (i + 1); ctx.drawImage(off, 0, 0); ctx.restore();
+    }
+  }
+  /* the soundtrack (an AudioBuffer, made without a tap): 120 BPM, a kick on every beat, hats between, a hit on every
+     scene change, a riser into the last full bar, a drop as the title folds into the pixel */
+  async function audio() {
+    const SR = 44100, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ac = new OAC(2, SR * LEN, SR), out = ac.createGain(); out.gain.value = .8;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; out.connect(comp); comp.connect(ac.destination);
+    const noise = (() => { const b = ac.createBuffer(1, SR * 3, SR), d = b.getChannelData(0); let s = 7; for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = s / 1073741823.5 - 1; } return b; })();
+    const env = (g, t, a, peak, dec) => { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + a + dec); };
+    const kick = t => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + .12); env(g, t, .002, 1, .38); o.connect(g); g.connect(out); o.start(t); o.stop(t + .5);
+      const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g2 = ac.createGain(); n.buffer = noise; f.type = "highpass"; f.frequency.value = 2500; env(g2, t, .001, .18, .02); n.connect(f); f.connect(g2); g2.connect(out); n.start(t, .3, .05); };
+    const hat = (t, v) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = "highpass"; f.frequency.value = 8000; env(g, t, .001, v, .05); n.connect(f); f.connect(g); g.connect(out); n.start(t, Math.random() * 2, .1); };
+    const bass = (t, hz, d) => { const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(); o.type = "sawtooth"; o.frequency.value = hz; f.type = "lowpass"; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(140, t + d); env(g, t + .02, .01, .22, d); o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + d + .1); };
+    const hit = (t, root) => {
+      const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = .7; env(g, t, .001, .55, .28); n.connect(f); f.connect(g); g.connect(out); n.start(t, 1, .4);
+      [1, 1.5, 2, 2.52].forEach((m, i) => { const o = ac.createOscillator(), lf = ac.createBiquadFilter(), g2 = ac.createGain(); o.type = i % 2 ? "square" : "sawtooth"; o.frequency.value = root * m * 2; lf.type = "lowpass"; lf.frequency.setValueAtTime(4000, t); lf.frequency.exponentialRampToValueAtTime(300, t + .3); env(g2, t, .003, .07, .34); o.connect(lf); lf.connect(g2); g2.connect(out); o.start(t); o.stop(t + .5); });
+  };
+    const roots = [55, 43.65, 65.41, 49];   /* A F C G, a bar each */
+    for (let b = 0; b < 30; b++) {
+      const t = b * .5, bar = Math.floor(b / 4), root = roots[bar % 4];
+      if (t < 14.5) kick(t);
+      hat(t + .25, b % 4 === 3 ? .16 : .1);
+      if (b >= 24 && b < 28) hat(t + .125, .07), hat(t + .375, .07);   /* double time in the last full bar */
+      if (t < 14.5) bass(t, root, .42);
+      if (b % 4 === 0) hit(t, root);
+  }
+    /* riser into the last full bar (10 → 12) */
+    { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; n.loop = true; f.type = "bandpass"; f.Q.value = 2; f.frequency.setValueAtTime(300, 10); f.frequency.exponentialRampToValueAtTime(7000, 12); g.gain.setValueAtTime(0, 10); g.gain.linearRampToValueAtTime(.32, 11.96); g.gain.linearRampToValueAtTime(0, 12.01); n.connect(f); f.connect(g); g.connect(out); n.start(10); n.stop(12.05);
+      const o = ac.createOscillator(), g2 = ac.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(110, 10); o.frequency.exponentialRampToValueAtTime(880, 12); g2.gain.setValueAtTime(0, 10); g2.gain.linearRampToValueAtTime(.06, 11.96); g2.gain.linearRampToValueAtTime(0, 12.01); o.connect(g2); g2.connect(out); o.start(10); o.stop(12.05); }
+    /* the end: a bigger hit on the title, a short drop as it folds back into the pixel */
+    hit(14, 110); kick(14);
+    { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(600, 14.5); o.frequency.exponentialRampToValueAtTime(60, 14.85); env(g, 14.5, .01, .25, .35); o.connect(g); g.connect(out); o.start(14.5); o.stop(15); }
+    return ac.startRendering();
+  }
+  return { draw, audio, LEN, BPM: 120 };
+})();
+/* REEL-END */
+/* v291: the opening screen paints the reel's first frame (the pixel) right away; the clock starts in the boot script */
+const PNREEL = { t0: 0, raf: 0 };   /* the opening reel's clock, its sound, and where it is (wait / play) */
+function pnreelPaint(t) {
+  const b = document.getElementById("pnboot"), c = b && b.querySelector("canvas"); if (!c) return;
+  const W = innerWidth, H = innerHeight, d = Math.min(devicePixelRatio || 1, 2), cw = Math.round(W * d), ch = Math.round(H * d);
+  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); pnReel.draw(x, t, W, H);
+}
+{ const b = document.getElementById("pnboot"); if (b) { b.innerHTML = '<canvas aria-hidden="true"></canvas><button class="pnreel-go" aria-label="Play the opening reel"></button><span class="pnreel-say">Tap to play</span><button class="pnreel-skip">Skip</button>'; pnreelPaint(0); } }
 </script>
 <div class="wrap">
   <nav>
@@ -4005,7 +4373,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "290";
+const APP_V = "291";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6535,8 +6903,10 @@ function openSettings(scope) {
     </div>` : ""}
     </div>
 
-    <div class="setgroup" data-scope="app"><h4 data-sum="${APP_V}" data-desc="Version and intro cutscene.">This build</h4>
+    <div class="setgroup" data-scope="app"><h4 data-sum="${APP_V}" data-desc="Version, opening reel and intro cutscene.">This build</h4>
       <p class="note">Running version ${APP_V}. Updates arrive on their own.</p>
+      <label>Opening reel</label>
+      <div class="chips" id="s-reel"><button class="chip" data-v="on" aria-pressed="${!S.reelOff}"><span>Every launch</span></button><button class="chip" data-v="off" aria-pressed="${!!S.reelOff}"><span>Off</span></button></div>
       <label>Intro cutscene on launch</label>
       <div class="chips" id="s-cine"><button class="chip" data-v="on" aria-pressed="${!S.cineOff}"><span>Play every time</span></button><button class="chip" data-v="off" aria-pressed="${!!S.cineOff}"><span>Off</span></button></div>
       <button class="btn ghost" id="s-cine-now"><span>Play it now</span></button>
@@ -6909,6 +7279,9 @@ function openSettings(scope) {
   if ($("#s-cine")) $("#s-cine").onclick = e => { const b = e.target.closest(".chip"); if (!b) return;
     S.cineOff = b.dataset.v === "off"; save(); [...$("#s-cine").children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
     toast(S.cineOff ? "Intro cutscene off" : "Intro plays every launch"); };
+  if ($("#s-reel")) $("#s-reel").onclick = e => { const b = e.target.closest(".chip"); if (!b) return;
+    S.reelOff = b.dataset.v === "off"; save(); [...$("#s-reel").children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+    toast(S.reelOff ? "Opening reel off" : "The reel plays every launch"); };
   if ($("#s-cine-now")) $("#s-cine-now").onclick = () => { closeEdit();   /* v279: called closeSettings, which never existed, so the intro played behind the open sheet */ setTimeout(() => window.pnCinema && pnCinema(), 300); };
   if ($("#s-full") && installed()) {
     $("#s-full").closest(".setgroup") && $("#s-full").remove();
@@ -7802,13 +8175,49 @@ const pnLd = e => { const i = e.target; if (i && i.tagName === "IMG") { i.setAtt
 addEventListener("load", pnLd, true); addEventListener("error", pnLd, true);
 const pnSweep = () => document.querySelectorAll("img:not([data-ld])").forEach(i => { if (i.complete) pnLd({ target: i }); });
 pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.tagName === "I" && n.parentElement && n.parentElement.closest(".cdb"))))) q = setTimeout(() => { q = 0; pnSweep(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); }
-/* v144: launch intro (v252: the card), skipped by a tap, off when motion is off */
+/* v291 (the owner: "i want this as the loading screen when we open the app also remove what loading screen we had"):
+   the opening reel replaces v252's card intro. It plays once through (15s) and a tap skips it. Off with motion off,
+   Settings › This build › Opening reel (S.reelOff), and under automation (the test kit taps the screens below it;
+   localStorage gq:reel = "1" forces it for tools/scenarios/opening-reel.mjs). */
+/* v291, second part (the owner: "how about a soft glowing tap me button and then it starts the video and the sound"): it waits on
+   the first frame, the pixel breathing a soft glow, "Tap to play" under it. A tap anywhere unlocks sound (browsers
+   only allow it after a tap) and starts the reel with its soundtrack (made by pnReel.audio while it waits, only with
+   Sound on); a tap while it plays, or Skip, ends it. */
 (function () {
   const b = document.getElementById("pnboot");
   if (!b) return;
-  if (S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { b.remove(); return; }
-  const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; b.classList.add("out"); setTimeout(() => b.remove(), 320); };
-  b.onclick = go; setTimeout(go, 1850);   /* v252/v255: the card intro (pcdHTML at .55 speed: it flies in from far, lands, plays) is done by ~1.85s */
+  let force = false; try { force = localStorage.getItem("gq:reel") === "1"; } catch (e) {}
+  if (navigator.webdriver && !force) { b.remove(); return; }
+  try { document.fonts.load('700 100px "Poppins"'); } catch (e) {}
+  const R = PNREEL;
+  const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; cancelAnimationFrame(R.raf);
+    if (R.out) { try { const ac = R.out.context, g = R.out.gain; g.cancelScheduledValues(ac.currentTime); g.setValueAtTime(g.value, ac.currentTime); g.linearRampToValueAtTime(0, ac.currentTime + .25); R.src.stop(ac.currentTime + .3); } catch (e) {} }
+    b.classList.add("out"); setTimeout(() => b.remove(), 320); };
+  const tick = now => { if (b.dataset.gone) return; const t = (now - R.t0) / 1000;
+    if (t >= pnReel.LEN) { pnreelPaint(0); go(); return; } pnreelPaint(Math.max(0, t)); R.raf = requestAnimationFrame(tick); };
+  const play = async () => {
+    R.playing = 1; b.classList.add("on");
+    const ac = audio();   /* inside the tap: the app's one sound context (null with Sound off) */
+    let buf = null;
+    if (ac && R.buf) try { buf = await Promise.race([R.buf, new Promise(r => setTimeout(() => r(null), 1500))]); } catch (e) {}
+    if (b.dataset.gone) return;
+    let lead = 0;
+    if (ac && buf) try {
+      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = buf; g.gain.value = .75; src.connect(g).connect(ac.destination);
+      src.start(ac.currentTime + .06); R.src = src; R.out = g;
+      lead = 60 + ((ac.outputLatency || ac.baseLatency || 0) * 1000);   /* the picture waits for the sound to come out */
+    } catch (e) {}
+    R.t0 = performance.now() + lead; R.raf = requestAnimationFrame(tick);
+  };
+  b.onclick = e => { if (e.target.closest(".pnreel-skip") || R.playing) go(); else if (R.ready) play(); else R.want = 1; };
+  /* load() has read the settings by now (this script runs before it, so S is still empty above) */
+  const start = () => {
+    if (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { b.remove(); return; }
+    R.ready = 1;
+    if (S.sound) R.buf = new Promise(res => setTimeout(() => { try { pnReel.audio().then(res, () => res(null)); } catch (e) { res(null); } }, 300));
+    if (R.want) play();
+  };
+  if (document.readyState === "loading") addEventListener("DOMContentLoaded", start, { once: true }); else start();
 })();
 /* v144: Persona-style calling card for any game */
 async function callingCard(id, seed) {
@@ -26044,6 +26453,13 @@ WHATS_NEW.push(
   { v: 289, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "<b>The app opens smoother</b>: I found what made it freeze for a moment at start. Pictures finishing loading made the phone redo the whole screen's styles once per picture, and your own pictures were being shrunk on the main thread. Both are fixed: about a third less work in the first seconds.",
     tryIt: "Close the app fully and open it again: the first seconds should feel steady, even while the covers pop in." }
+);
+/* v291: the what's-new tour waits for the opening reel to finish (it starts 2.2s after load, the reel runs 15s) */
+extend("nxTour", { before(...a) { if (document.getElementById("pnboot")) { setTimeout(() => nxTour(...a), 800); return extend.skip(); } } });
+WHATS_NEW.push(
+  { v: 291, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
+    say: "<b>A brand new opening</b>: the app now opens on a glowing pixel. Tap it and a 15-second motion reel plays with its own soundtrack: the pixel turns into words, shapes, a 3D shelf of games, your week in numbers and a field of columns that spells the play button, all on the beat.",
+    tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." }
 );
 </script>
 <script>
