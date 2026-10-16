@@ -24796,7 +24796,9 @@ function fitWorker(src, W, H) {
     FIT.wk.onerror = () => { FIT.wk = false; FIT.wkJobs.forEach(j => { clearTimeout(j.t); j.no(new Error("worker")); }); FIT.wkJobs.clear(); };
   } catch (e) { FIT.wk = false; return Promise.reject(e); }
   return new Promise((ok, no) => { const id = ++FIT.wkN;
-    FIT.wkJobs.set(id, { ok, no, t: setTimeout(() => { FIT.wkJobs.delete(id); no(new Error("worker slow")); }, 15000) });
+    FIT.wkJobs.set(id, { ok, no, t: setTimeout(() => { FIT.wkJobs.delete(id); no(new Error("worker slow"));
+      /* stop it, so the page's fallback never unpacks next to a worker still unpacking (two at once ran Safari out of memory) */
+      if (FIT.wk) { try { FIT.wk.terminate(); } catch (e) {} FIT.wk = false; FIT.wkJobs.forEach(j => { clearTimeout(j.t); j.no(new Error("worker")); }); FIT.wkJobs.clear(); } }, 15000) });
     FIT.wk.postMessage({ id, src, W, H }); });
 }
 async function fitDraw(src, W, H) {
