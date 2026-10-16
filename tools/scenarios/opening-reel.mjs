@@ -4,6 +4,7 @@
    3. drawing one frame stays cheap with the CPU 4x slower (it runs every frame for 15s on the phone)
    4. it waits on the glowing pixel; a real tap starts it with its sound; a tap while it plays skips it;
       Skip on the waiting screen goes straight in; left alone after the tap it ends by itself after 15s; the tour waits
+   also: a resize while it waits repaints the pixel in the middle
    5. Settings › This build › Opening reel = Off stops it
      node tools/kit.mjs run tools/scenarios/opening-reel.mjs --widths 412,859 */
 export default async ({ p, w }) => {
@@ -31,6 +32,15 @@ export default async ({ p, w }) => {
   console.log(`  ${w}px: canvas ${st && st.w}x${st && st.h}, one frame at 4x slower CPU: avg ${avg.toFixed(1)}ms, worst ${worst.toFixed(1)}ms`);
   if (r.blank.length) bad.push("blank beats at " + r.blank.join(", "));
   if (worst > 16) bad.push(`a frame took ${worst.toFixed(1)}ms at 4x (budget 16)`);
+  /* a fold / unfold / turn while it waits repaints the pixel at the new size */
+  const vp = pg.viewportSize();
+  await pg.setViewportSize({ width: vp.height > vp.width ? 859 : 412, height: vp.height }); await pg.waitForTimeout(300);
+  const rs = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"), d = Math.min(devicePixelRatio || 1, 2);
+    const x = c.getContext("2d"), m = x.getImageData(c.width / 2 - 2, c.height / 2 - 2, 4, 4).data;
+    return { fit: c.width === Math.round(innerWidth * d) && c.height === Math.round(innerHeight * d), mid: m[2] }; });
+  await pg.setViewportSize(vp); await pg.waitForTimeout(300);
+  if (!rs.fit) bad.push("the waiting canvas didn't resize with the screen");
+  else if (rs.mid < 120) bad.push("the opening pixel left the middle after a resize");
   /* 4: it waits for a tap */
   await pg.waitForTimeout(900);
   const wait = await pg.evaluate(() => ({ t0: PNREEL.t0, go: !!document.querySelector("#pnboot .pnreel-go"), say: getComputedStyle(document.querySelector(".pnreel-say")).opacity,
