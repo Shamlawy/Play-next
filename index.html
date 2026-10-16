@@ -2901,8 +2901,15 @@ html.still :where(img[src]:not([data-ld])){animation:none}
 #pnboot{position:fixed;inset:0;z-index:10000;background:var(--bgb,#000);overflow:hidden;cursor:pointer;touch-action:none}
 #pnboot canvas{display:block;width:100%;height:100%}
 #pnboot.out{animation:pcdOut .3s ease-in forwards}
-.pnreel-skip{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);text-align:center;font:600 12.5px "Poppins",system-ui,sans-serif;color:var(--mute);opacity:0;animation:pnreelHint .4s ease-out 2s forwards}
-@keyframes pnreelHint{to{opacity:.8}}
+/* v290: it waits for a tap (sound needs one): the pixel breathes a soft glow, "Tap to play" under it, Skip at the bottom */
+.pnreel-go{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;border:0;padding:0;border-radius:50%;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pnreel-go::before{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(closest-side,rgba(var(--vrgb),.6),rgba(var(--vrgb),.2) 45%,rgba(var(--vrgb),0));animation:pnreelGlow 2.4s ease-in-out infinite}
+@keyframes pnreelGlow{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1.08)}}
+.pnreel-say{position:absolute;left:0;right:0;top:calc(50% + 70px);text-align:center;font:600 15px "Poppins",system-ui,sans-serif;color:var(--ice);opacity:0;animation:pnreelIn .5s ease-out .3s forwards;pointer-events:none}
+.pnreel-skip{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);min-height:44px;padding:0 22px;border:0;border-radius:999px;background:none;font:600 13px "Poppins",system-ui,sans-serif;color:var(--mute);cursor:pointer}
+@keyframes pnreelIn{to{opacity:1}}
+#pnboot.on .pnreel-go,#pnboot.on .pnreel-say{display:none}
+#pnboot.on .pnreel-skip{opacity:0;animation:pnreelIn .4s ease-out 2s forwards}
 /* the release-day card: the game's art is the world it flies out of */
 .pcdov{position:fixed;inset:0;z-index:9000;overflow:hidden;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);animation:ccIn .3s ease-out}
 .pcdov-bg{position:absolute;inset:-6%;background:center/cover no-repeat;opacity:.3;animation:pcdCam 4s cubic-bezier(.2,.7,.3,1) both}
@@ -2929,7 +2936,7 @@ html.still .ccov,html.still .ccov img{animation:none}
 
 <div id="toast" role="status" aria-live="polite"></div>
 
-<div id="pnboot" aria-hidden="true"></div>
+<div id="pnboot"></div>
 <script>
 /* v252: the card's markup, here so the launch intro can use it before the rest of the page loads.
    o: k (speed), ar (width / height), word, rv (reveal what's on it), still (no animation),
@@ -3280,18 +3287,50 @@ const pnReel = (() => {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 / (i + 1); ctx.drawImage(off, 0, 0); ctx.restore();
     }
   }
-  return { draw, LEN, BPM: 120 };
+  /* the soundtrack (an AudioBuffer, made without a tap): 120 BPM, a kick on every beat, hats between, a hit on every
+     scene change, a riser into the last full bar, a drop as the title folds into the pixel */
+  async function audio() {
+    const SR = 44100, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ac = new OAC(2, SR * LEN, SR), out = ac.createGain(); out.gain.value = .8;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; out.connect(comp); comp.connect(ac.destination);
+    const noise = (() => { const b = ac.createBuffer(1, SR * 3, SR), d = b.getChannelData(0); let s = 7; for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = s / 1073741823.5 - 1; } return b; })();
+    const env = (g, t, a, peak, dec) => { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + a + dec); };
+    const kick = t => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + .12); env(g, t, .002, 1, .38); o.connect(g); g.connect(out); o.start(t); o.stop(t + .5);
+      const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g2 = ac.createGain(); n.buffer = noise; f.type = "highpass"; f.frequency.value = 2500; env(g2, t, .001, .18, .02); n.connect(f); f.connect(g2); g2.connect(out); n.start(t, .3, .05); };
+    const hat = (t, v) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = "highpass"; f.frequency.value = 8000; env(g, t, .001, v, .05); n.connect(f); f.connect(g); g.connect(out); n.start(t, Math.random() * 2, .1); };
+    const bass = (t, hz, d) => { const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(); o.type = "sawtooth"; o.frequency.value = hz; f.type = "lowpass"; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(140, t + d); env(g, t + .02, .01, .22, d); o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + d + .1); };
+    const hit = (t, root) => {
+      const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = .7; env(g, t, .001, .55, .28); n.connect(f); f.connect(g); g.connect(out); n.start(t, 1, .4);
+      [1, 1.5, 2, 2.52].forEach((m, i) => { const o = ac.createOscillator(), lf = ac.createBiquadFilter(), g2 = ac.createGain(); o.type = i % 2 ? "square" : "sawtooth"; o.frequency.value = root * m * 2; lf.type = "lowpass"; lf.frequency.setValueAtTime(4000, t); lf.frequency.exponentialRampToValueAtTime(300, t + .3); env(g2, t, .003, .07, .34); o.connect(lf); lf.connect(g2); g2.connect(out); o.start(t); o.stop(t + .5); });
+  };
+    const roots = [55, 43.65, 65.41, 49];   /* A F C G, a bar each */
+    for (let b = 0; b < 30; b++) {
+      const t = b * .5, bar = Math.floor(b / 4), root = roots[bar % 4];
+      if (t < 14.5) kick(t);
+      hat(t + .25, b % 4 === 3 ? .16 : .1);
+      if (b >= 24 && b < 28) hat(t + .125, .07), hat(t + .375, .07);   /* double time in the last full bar */
+      if (t < 14.5) bass(t, root, .42);
+      if (b % 4 === 0) hit(t, root);
+  }
+    /* riser into the last full bar (10 → 12) */
+    { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; n.loop = true; f.type = "bandpass"; f.Q.value = 2; f.frequency.setValueAtTime(300, 10); f.frequency.exponentialRampToValueAtTime(7000, 12); g.gain.setValueAtTime(0, 10); g.gain.linearRampToValueAtTime(.32, 11.96); g.gain.linearRampToValueAtTime(0, 12.01); n.connect(f); f.connect(g); g.connect(out); n.start(10); n.stop(12.05);
+      const o = ac.createOscillator(), g2 = ac.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(110, 10); o.frequency.exponentialRampToValueAtTime(880, 12); g2.gain.setValueAtTime(0, 10); g2.gain.linearRampToValueAtTime(.06, 11.96); g2.gain.linearRampToValueAtTime(0, 12.01); o.connect(g2); g2.connect(out); o.start(10); o.stop(12.05); }
+    /* the end: a bigger hit on the title, a short drop as it folds back into the pixel */
+    hit(14, 110); kick(14);
+    { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(600, 14.5); o.frequency.exponentialRampToValueAtTime(60, 14.85); env(g, 14.5, .01, .25, .35); o.connect(g); g.connect(out); o.start(14.5); o.stop(15); }
+    return ac.startRendering();
+  }
+  return { draw, audio, LEN, BPM: 120 };
 })();
 /* REEL-END */
 /* v290: the opening screen paints the reel's first frame (the pixel) right away; the clock starts in the boot script */
-const PNREEL = { t0: 0, raf: 0 };
+const PNREEL = { t0: 0, raf: 0 };   /* the opening reel's clock, its sound, and where it is (wait / play) */
 function pnreelPaint(t) {
   const b = document.getElementById("pnboot"), c = b && b.querySelector("canvas"); if (!c) return;
   const W = innerWidth, H = innerHeight, d = Math.min(devicePixelRatio || 1, 2), cw = Math.round(W * d), ch = Math.round(H * d);
   if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
   const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); pnReel.draw(x, t, W, H);
 }
-{ const b = document.getElementById("pnboot"); if (b) { b.innerHTML = '<canvas></canvas><span class="pnreel-skip">Tap to skip</span>'; pnreelPaint(0); } }
+{ const b = document.getElementById("pnboot"); if (b) { b.innerHTML = '<canvas aria-hidden="true"></canvas><button class="pnreel-go" aria-label="Play the opening reel"></button><span class="pnreel-say">Tap to play</span><button class="pnreel-skip">Skip</button>'; pnreelPaint(0); } }
 </script>
 <div class="wrap">
   <nav>
@@ -8152,19 +8191,44 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
    the opening reel replaces v252's card intro. It plays once through (15s) and a tap skips it. Off with motion off,
    Settings › This build › Opening reel (S.reelOff), and under automation (the test kit taps the screens below it;
    localStorage gq:reel = "1" forces it for tools/scenarios/opening-reel.mjs). */
+/* v290, second part (the owner: "how about a soft glowing tap me button and then it starts the video and the sound"): it waits on
+   the first frame, the pixel breathing a soft glow, "Tap to play" under it. A tap anywhere unlocks sound (browsers
+   only allow it after a tap) and starts the reel with its soundtrack (made by pnReel.audio while it waits, only with
+   Sound on); a tap while it plays, or Skip, ends it. */
 (function () {
   const b = document.getElementById("pnboot");
   if (!b) return;
   let force = false; try { force = localStorage.getItem("gq:reel") === "1"; } catch (e) {}
   if (navigator.webdriver && !force) { b.remove(); return; }
   try { document.fonts.load('700 100px "Poppins"'); } catch (e) {}
-  const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; cancelAnimationFrame(PNREEL.raf); b.classList.add("out"); setTimeout(() => b.remove(), 320); };
-  const tick = now => { if (b.dataset.gone) return; if (!PNREEL.t0) PNREEL.t0 = now; const t = (now - PNREEL.t0) / 1000;
-    if (t >= pnReel.LEN) { pnreelPaint(0); go(); return; } pnreelPaint(t); PNREEL.raf = requestAnimationFrame(tick); };
-  b.onclick = go;
-  /* the pixel waits until the page has done its first heavy work (and load() has read the settings: this script runs
-     before it, so S is still empty here), then the clock starts */
-  const start = () => (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) ? b.remove() : setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(tick)), 120);
+  const R = PNREEL;
+  const go = () => { if (b.dataset.gone) return; b.dataset.gone = 1; cancelAnimationFrame(R.raf);
+    if (R.out) { try { const ac = R.out.context, g = R.out.gain; g.cancelScheduledValues(ac.currentTime); g.setValueAtTime(g.value, ac.currentTime); g.linearRampToValueAtTime(0, ac.currentTime + .25); R.src.stop(ac.currentTime + .3); } catch (e) {} }
+    b.classList.add("out"); setTimeout(() => b.remove(), 320); };
+  const tick = now => { if (b.dataset.gone) return; const t = (now - R.t0) / 1000;
+    if (t >= pnReel.LEN) { pnreelPaint(0); go(); return; } pnreelPaint(Math.max(0, t)); R.raf = requestAnimationFrame(tick); };
+  const play = async () => {
+    R.playing = 1; b.classList.add("on");
+    const ac = audio();   /* inside the tap: the app's one sound context (null with Sound off) */
+    let buf = null;
+    if (ac && R.buf) try { buf = await Promise.race([R.buf, new Promise(r => setTimeout(() => r(null), 1500))]); } catch (e) {}
+    if (b.dataset.gone) return;
+    let lead = 0;
+    if (ac && buf) try {
+      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = buf; g.gain.value = .75; src.connect(g).connect(ac.destination);
+      src.start(ac.currentTime + .06); R.src = src; R.out = g;
+      lead = 60 + ((ac.outputLatency || ac.baseLatency || 0) * 1000);   /* the picture waits for the sound to come out */
+    } catch (e) {}
+    R.t0 = performance.now() + lead; R.raf = requestAnimationFrame(tick);
+  };
+  b.onclick = e => { if (e.target.closest(".pnreel-skip") || R.playing) go(); else if (R.ready) play(); else R.want = 1; };
+  /* load() has read the settings by now (this script runs before it, so S is still empty above) */
+  const start = () => {
+    if (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { b.remove(); return; }
+    R.ready = 1;
+    if (S.sound) R.buf = new Promise(res => setTimeout(() => { try { pnReel.audio().then(res, () => res(null)); } catch (e) { res(null); } }, 300));
+    if (R.want) play();
+  };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", start, { once: true }); else start();
 })();
 /* v144: Persona-style calling card for any game */
@@ -26393,7 +26457,7 @@ WHATS_NEW.push(
 extend("nxTour", { before(...a) { if (document.getElementById("pnboot")) { setTimeout(() => nxTour(...a), 800); return extend.skip(); } } });
 WHATS_NEW.push(
   { v: 290, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
-    say: "<b>A brand new opening</b>: the app now starts with a 15-second motion reel. One pixel turns into words, shapes, a 3D shelf of games, your week in numbers and a field of columns that spells the play button, all on the beat. Tap anywhere to skip it.",
-    tryIt: "Close the app fully and open it again to watch it. Turn it off here if you ever want the app to open straight away." }
+    say: "<b>A brand new opening</b>: the app now opens on a glowing pixel. Tap it and a 15-second motion reel plays with its own soundtrack: the pixel turns into words, shapes, a 3D shelf of games, your week in numbers and a field of columns that spells the play button, all on the beat.",
+    tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." }
 );
 </script>
