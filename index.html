@@ -4361,7 +4361,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "301";
+const APP_V = "302";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8858,7 +8858,7 @@ const QD_GROUPS = [["Order", ["manual", "date", "hype", "ondeck", "shortest", "l
    Shuffle (a tap picks tonight's game in place, a hold opens the shuffler) and Boss as the Shadow's live HP */
 function qdDeck(manual) {
   const c = qCounts(), on = qNow(), nm = k => k === "manual" ? "My order" : (SORTS.find(x => x[0] === k) || ["", "Sorted"])[1];
-  const hp = typeof window.bossHP === "function" ? window.bossHP() : null;
+  const hp = S.grum && typeof window.bossHP === "function" ? window.bossHP() : null;   /* v302: HP only while Grumble is on (v286), else a plain "Boss" */
   const tabs = QFILTERS.map(([v]) => `<button class="qdtab" data-qfilter="${v}" aria-pressed="${on === v}" aria-label="${QD_TAB[v]}, ${c[v]}">${QICON[v]}<span class="qdtl">${QD_TAB[v]}</span><small>${c[v]}</small></button>`).join("")
     + (S.lists || []).map(l => `<button class="qdtab" data-qfilter="L:${l.id}" aria-pressed="${on === "L:" + l.id}" aria-label="${esc(l.n)}, ${c["L:" + l.id]}"><i class="qle">${esc(l.e)}</i><span class="qdtl">${esc(l.n)}</span><small>${c["L:" + l.id]}</small></button>`).join("")
     + `<button class="qdtab qdlist" data-lists="" aria-label="${(S.lists || []).length ? "Manage lists" : "Make a list"}">${qdIc("list")}</button>`;
@@ -27295,7 +27295,7 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
 #p-queue .row.qs .rowart { z-index: 2; }
 #p-queue .row.qs.artrow { --rslot: min(28%, var(--raw, 150px) * 1.4); }
 /* Shuffle's pick lights up where it sits */
-#p-queue .qslit::before { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; pointer-events: none;
+#p-queue .qslit:not(.qfc)::before, #p-queue .qfc.qslit::after { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; pointer-events: none;
   box-shadow: inset 0 0 0 2px var(--ice), inset 0 0 0 6px color-mix(in srgb, var(--accent, var(--volt)) 60%, transparent); animation: qslit 2.3s var(--ease) both; }
 @keyframes qslit { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (max-width: 500px) {
@@ -27452,5 +27452,10 @@ WHATS_NEW.push(
     at: () => $("#s-qlook") || null,
     say: "<b>Prefer covers?</b> Switch the Queue to <b>Character select</b>: the game you pick fills a big panel with its logo and bars for hype, length and progress, and every game sits below it as a cover.",
     tryIt: "Tap Character select, go back to the Queue and tap a few covers." }
+);
+WHATS_NEW.push(
+  { v: 302, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue [data-qshuf]"),
+    say: "<b>Shuffle lights its pick cleanly</b>, in the list and on Character select covers, and <b>Boss</b> in the Queue's bar only shows the Shadow's HP while Grumble is switched on.",
+    tryIt: "Tap Shuffle and watch the game it picks light up." }
 );
 </script>

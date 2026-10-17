@@ -80,8 +80,8 @@ export default async ({ p, w, fail }) => {
   /* Shuffle and Boss */
   await pg.evaluate(() => { collapsed = true; focusId = null; renderQueue(); scrollTo(0, 0); });
   await tapOn("#p-queue [data-qshuf]", 350);
-  const lit = await pg.evaluate(() => { const r = document.querySelector("#p-queue .qslit"), g = r && S.games.find(x => x.id === r.dataset.row); return r ? { out: !!g && isOutNow(g) && !isPlayed(g), t: g && g.title } : null; });
-  if (!lit) fail("Shuffle didn't light up a game"); else if (!lit.out) fail(`Shuffle picked ${lit.t}, which isn't out or is played`);
+  const lit = await pg.evaluate(() => { const r = document.querySelector("#p-queue .qslit"), g = r && S.games.find(x => x.id === r.dataset.row); return r ? { out: !!g && isOutNow(g) && !isPlayed(g), t: g && g.title, ring: getComputedStyle(r, "::before").animationName === "qslit" } : null; });
+  if (!lit) fail("Shuffle didn't light up a game"); else if (!lit.out) fail(`Shuffle picked ${lit.t}, which isn't out or is played`); else if (!lit.ring) fail("Shuffle's picked row has no light ring");
   await shot("shuffle");
   await pg.waitForTimeout(2400);
   const sh = await center("#p-queue [data-qshuf]");
@@ -91,8 +91,15 @@ export default async ({ p, w, fail }) => {
   await p.cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); await pg.waitForTimeout(700);
   if (!(await pg.evaluate(() => !!document.getElementById("shuf")))) fail("holding Shuffle didn't open the shuffler");
   await pg.evaluate(() => { const o = document.getElementById("shuf"); if (o) o.remove(); document.documentElement.classList.remove("shuffling"); });
-  const hp = await pg.evaluate(() => (document.querySelector("#fx-boss .qdhp b") || {}).textContent);
-  if (!/^\d+$/.test(hp || "")) fail(`Boss shows "${hp}" instead of the HP`);
+  /* v286: the HP only while Grumble is on; off (the default) it's a plain "Boss" */
+  const bossTxt = () => pg.evaluate(() => (document.querySelector("#fx-boss .qdhp b") || {}).textContent);
+  await pg.evaluate(() => { S.grum = false; renderQueue(); });
+  const off = await bossTxt(), bar = await pg.evaluate(() => !!document.querySelector("#fx-boss .qdbar"));
+  if (off !== "Boss" || bar) fail(`with Grumble off Boss shows "${off}"${bar ? " and an HP bar" : ""}`);
+  await pg.evaluate(() => { S.grum = true; renderQueue(); });
+  const hp = await bossTxt();
+  if (!/^\d+$/.test(hp || "")) fail(`with Grumble on Boss shows "${hp}" instead of the HP`);
+  await pg.evaluate(() => { S.grum = false; renderQueue(); });
   await tapOn("#fx-boss", 700);
   if (!(await pg.evaluate(() => !!document.getElementById("fxboss")))) fail("Boss didn't open the boss screen");
   await pg.evaluate(() => { const o = document.getElementById("fxboss"); if (o) o.remove(); });
@@ -121,5 +128,13 @@ export default async ({ p, w, fail }) => {
     const closed = await pg.evaluate(() => ({ hero: !!document.querySelector("#p-queue .qfwrap > .hero"), panel: (document.querySelector("#p-queue .qfsel .qft") || {}).textContent }));
     if (closed.hero || !closed.panel) fail(`one tap on the open card: card still open ${closed.hero}, panel ${closed.panel}`);
   }
+  /* v302: Shuffle lights a cover on its own ::after; the cover's ::before (the dark foot under its number) stays put */
+  await pg.evaluate(() => { collapsed = true; focusId = null; renderQueue(); qdShuffle(); });
+  await pg.waitForTimeout(300);
+  const lc = await pg.evaluate(() => { const c = document.querySelector("#p-queue .qfc.qslit"); if (!c) return null;
+    const b = getComputedStyle(c, "::before"), a = getComputedStyle(c, "::after");
+    return { foot: b.backgroundImage.includes("gradient") && b.animationName === "none", ring: a.animationName === "qslit" && a.boxShadow !== "none" }; });
+  if (!lc) fail("Character select: Shuffle didn't light a cover");
+  else if (!lc.foot || !lc.ring) fail(`Character select: Shuffle's light — foot shading kept ${lc.foot}, ring on ::after ${lc.ring}`);
   await pg.evaluate(() => { delete S.qLook; saveNow(); collapsed = false; focusId = null; renderQueue(); });
 };
