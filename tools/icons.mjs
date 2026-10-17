@@ -1,4 +1,4 @@
-/* Draws Play next's icons in the v247 menu style (v296, the owner: "I hate the icons … default ugly icons"): 24x24,
+/* Draws Play next's icons in the v247 menu style (v297, the owner: "I hate the icons … default ugly icons"): 24x24,
    fill-only (currentColor), one part at 35% (F(...)). These are the drawings behind index.html's GICON (Settings,
    Customise and Edit groups, Most used); add a new one here, look at the contact sheet, then paste its markup into GICON.
      node tools/icons.mjs <out dir>     → <out>/icons.json (name → inner svg) + <out>/sheet.html (open it, or screenshot it)

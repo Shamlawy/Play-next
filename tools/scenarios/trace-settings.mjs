@@ -1,5 +1,5 @@
 /* What opening Settings costs, by function (Chromium trace, CPU 4x slower): FunctionCall totals with name:line, plus
-   style / layout totals. v296 (Settings rail: every group open in one scroll) was measured with it.
+   style / layout totals. v297 (Settings rail: every group open in one scroll) was measured with it.
      node tools/kit.mjs run tools/scenarios/trace-settings.mjs --widths 412      (--file old.html for the before; SCOPE=games) */
 export default async ({ p, w }) => {
   await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } });
