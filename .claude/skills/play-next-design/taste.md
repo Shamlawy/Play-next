@@ -219,3 +219,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: I really don't like how the queue looks when the cards are closed, looks kinda ugly and meh for my unfold; I like the header card
 - rule: Closed Queue rows must use the unfolded width (no long empty gap between the facts and the logo); keep the header card and chips as they are; round 1 offers A Strap, B Cartridge, C Save slots, D Console shelf.
 - check: none
+
+### T44 · v299 · Queue · pick
+- said: Upgrade A make it better with the colour and design and keep D make 2 new ones also in all upgrade the things on top … the everything and sort by and my order and boss and stuff so make it better
+- rule: Round 2: A (Strap) gets more of the game's colour and design, D (Console shelf) stays an option, two new looks (E Quest line, F Character select); the chips under the header become one control deck in every look (filter tabs with counts, one Order button with a grouped menu, Shuffle that picks in place, Boss as a live HP meter).
+- check: none

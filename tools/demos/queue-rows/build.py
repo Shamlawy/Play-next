@@ -20,7 +20,7 @@ def col(im):
     a = np.asarray(im.resize((48, 64))).reshape(-1, 3).astype(float) / 255; mx, mn = a.max(1), a.min(1); s_ = (mx - mn) / (mx + 1e-6)
     ok = (s_ > .3) & (mx > .25) & (mx < .97); p = a[ok] if ok.sum() > 20 else a; wt = s_[ok] ** 2 if ok.sum() > 20 else None
     h = np.array([colorsys.rgb_to_hsv(*x)[0] for x in p]); b = np.bincount((h * 18).astype(int) % 18, weights=wt, minlength=18).argmax()
-    c = p[((h * 18).astype(int) % 18) == b].mean(0); hh, ss, vv = colorsys.rgb_to_hsv(*c); c = colorsys.hsv_to_rgb(hh, max(ss, .55), min(max(vv, .55), .8))
+    c = p[((h * 18).astype(int) % 18) == b].mean(0); hh, ss, vv = colorsys.rgb_to_hsv(*c); c = colorsys.hsv_to_rgb(hh, max(ss, .68), min(max(vv, .66), .86))  # round 2: livelier, like real g.colour
     return "#%02x%02x%02x" % tuple(int(x * 255) for x in c)
 # (hero crop, cover crop, hue turn) for 8 made-up games
 SRC = [
@@ -45,10 +45,10 @@ VB = {4: "0 22 640 100", 5: "236 332 400 206"}
 from urllib.parse import unquote, quote
 for i, u in enumerate(logos):
     if i in VB:
-        s = unquote(u.split(",", 1)[1]); s = re.sub(r'width="\d+" height="\d+" viewBox="[^"]+"', 'width="%s" height="%s" viewBox="%s"' % (VB[i].split()[2], VB[i].split()[3], VB[i]), s, 1)
+        s = unquote(u.split(",", 1)[1]); s = re.sub(r'width="\d+" height="\d+" viewBox="[^"]+"', 'width="%s" height="%s" viewBox="%s"' % (VB[i].split()[2], VB[i].split()[3], VB[i]), s, count=1)
         u = "data:image/svg+xml;charset=utf-8," + quote(s)
     m["l%d" % i] = u
 print({k: v for k, v in m.items() if k.startswith("col")})
-s = open(__file__.rsplit("/", 1)[0] + "/" + (sys.argv[2] if len(sys.argv) > 2 else "round1.html")).read()
+s = open(__file__.rsplit("/", 1)[0] + "/" + (sys.argv[2] if len(sys.argv) > 2 else "round2.html")).read()
 for k, v in m.items(): s = s.replace("{{%s}}" % k, v)
 open(sys.argv[1], "w").write(s)
