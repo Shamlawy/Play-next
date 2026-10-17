@@ -149,3 +149,13 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: the design skill that keeps learning (Oct 2026)
 - rule: Repeated things on any screen never spill, overlap, break short words, squash pictures or barely show.
 - check: node tools/kit.mjs eye
+
+### T30 · v296 · Queue · hate
+- said: I hated sharp corners; the info is kinda blocking the back drop art
+- rule: The open Queue card has rounded corners everywhere (cover, slab, stat blocks, pills) and the backdrop picture fills the whole card, darkened only near the bottom.
+- check: none
+
+### T31 · v296 · Queue · pick
+- said: D and make the pressing on the card flips it no need for a switch button; pressing on the art cover should take us to the game pages so remove the button
+- rule: Open Queue card = round 6 look D (Stamp): full picture, A's blue slab + cover drop, a round status stamp on the cover corner; the front shows only status, logo, platform, genres, no buttons; tapping the cover opens the game page, tapping anywhere else turns the card; dates, numbers, scores, Edit and More live on the back.
+- check: none
