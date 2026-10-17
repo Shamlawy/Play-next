@@ -1,6 +1,6 @@
 /* v296 (the owner: "double tapping on nexi shows emoji and other commands, remove the emoji and shorten them and organise them better",
    "return nexi on the home", #469 "drop 2"): Nexi's menu is one card in three groups of plain words, fully on screen, every
-   button works; unfolded, he sits in the rail on Home (Home's own face steps aside) and rests with no endless loop.
+   button works; unfolded, he sits in the rail on Home (Home's own face steps aside) and rests with no endless loop but his blink (kept since #447).
      node tools/kit.mjs run tools/scenarios/nexi-wheel.mjs --widths 412,859   (SHOTS=dir saves pictures) */
 export default async ({ p, w }) => {
   const bad = [], D = process.env.SHOTS;
@@ -9,7 +9,7 @@ export default async ({ p, w }) => {
   if (w >= 620) {
     const r = await p.page.evaluate(() => { const H = document.documentElement, b = document.getElementById("pnbub"), f = document.querySelector("#p-home .nxh-face");
       const loops = document.getAnimations().filter(a => { const t = a.effect && a.effect.target, tm = a.effect && a.effect.getComputedTiming();
-        return t && b.contains(t) && a.playState === "running" && tm && tm.iterations === Infinity; }).map(a => a.animationName || "script");
+        return t && b.contains(t) && a.playState === "running" && tm && tm.iterations === Infinity && a.animationName !== "pnBlink"; }).map(a => a.animationName || "script");
       return { seat: H.classList.contains("nxseat"), shown: !!b && b.checkVisibility(), face: !!f && f.checkVisibility(), loops }; });
     if (!r.seat || !r.shown) bad.push("Nexi isn't in the rail on Home");
     if (r.face) bad.push("two Nexis on Home (the face is still shown)");
