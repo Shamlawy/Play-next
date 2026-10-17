@@ -4396,7 +4396,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "295";
+const APP_V = "296";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -26754,6 +26754,9 @@ colJobSoon(5000);
 WHATS_NEW.push(
   { v: 294, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row"),
     say: "<b>Every game now wears its own colour</b>: I read it from the game's art by myself (the main colour, not one stray speck), so your Queue isn't all blue any more. There are 32 colours to pick from now, and ✨ in Edit hands a colour back to the art.",
-    tryIt: "Scroll the Queue, then open a game's Edit › Colour." }
+    tryIt: "Scroll the Queue, then open a game's Edit › Colour." },
+  { v: 296, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row"),
+    say: "<b>Art colours stick now</b>: a game whose Edit was open while I read its art no longer slips back to blue, each cover is read only once, and ✨ in Edit ignores a late answer after you've moved on.",
+    tryIt: "Open a game's Edit › Colour, tap ✨, then close Edit: the Queue row keeps the art's colour." }
 );
 </script>
