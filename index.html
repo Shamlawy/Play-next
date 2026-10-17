@@ -3053,7 +3053,19 @@ const pnReel = (() => {
   const rz = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; };
   const CARDC = [[C.B, C.W, C.P], [C.P, C.D, C.B], [C.D, C.W, C.P]];
 
-  function frame(x, t, W, H) {
+  /* v293: a picture drawn onto a card's projected quad q (TL TR BR BL): two affine halves, the first clipped to the whole quad
+     and the second on top of it clipped to its own triangle, so the seam is picture over picture (canvas 2D has no perspective) */
+  const tex = (x, im, q, al) => {
+    const w = im.width, h = im.height, [a, b, c, d] = q;
+    x.save(); x.globalAlpha = al;
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.lineTo(c[0], c[1]); x.lineTo(d[0], d[1]); x.closePath(); x.clip();
+    x.save(); x.transform((b[0] - a[0]) / w, (b[1] - a[1]) / w, (d[0] - a[0]) / h, (d[1] - a[1]) / h, a[0], a[1]); x.drawImage(im, 0, 0); x.restore();
+    x.beginPath(); x.moveTo(b[0], b[1]); x.lineTo(c[0], c[1]); x.lineTo(d[0], d[1]); x.closePath(); x.clip();
+    x.transform((c[0] - d[0]) / w, (c[1] - d[1]) / w, (c[0] - b[0]) / h, (c[1] - b[1]) / h, b[0] + d[0] - c[0], b[1] + d[1] - c[1]); x.drawImage(im, 0, 0);
+    x.restore();
+  };
+  /* A (optional, the app passes it): { covers: [9 small pictures or null, card by card, 4 = the centre], title, hours } */
+  function frame(x, t, W, H, A) {
     t = ((t % LEN) + LEN) % LEN;
     const u = Math.min(W, H) / 1000, hw = W / 2 / u, hh = H / 2 / u, L = lay(hw, hh);
     x.save();
@@ -3147,7 +3159,7 @@ const pnReel = (() => {
           const w3 = (lx, ly) => { const dy = ly - CH; let p = [lx * s + ox, (CH + dy * Math.cos(st)) * s + oy, dy * Math.sin(st) * s]; p = rx(p, -tilt); return proj([p[0], p[1] + drop, p[2]], dolly); };
           const pr = [[-CW, -CH], [CW, -CH], [CW, CH], [-CW, CH]].map(([a, b]) => w3(a, b));
           if (pr.some(p => !p) || s <= 0) continue;
-          draw.push({ centre, col, pr, w3, depth: pr.reduce((a, p) => a + p[2], 0) / 4, face: Math.cos(tilt - st) });
+          draw.push({ centre, col, pr, w3, im: A && A.covers && A.covers[r * 3 + c], depth: pr.reduce((a, p) => a + p[2], 0) / 4, face: Math.cos(tilt - st) });
         }
         draw.sort((a, b) => b.depth - a.depth);
         draw.forEach(d => {
@@ -3156,6 +3168,11 @@ const pnReel = (() => {
           if (al <= 0) return;
           const shade = mix(C.K, d.col, .4 + .6 * Math.max(0, d.face));
           poly(x, q, d.centre ? mix(shade, C.D, land) : shade, al);
+          if (d.im) {   /* v293: a real cover, shaded like the card it sits on; the centre one fades as the card becomes the page */
+            const ca = al * (d.centre ? 1 - land : 1);
+            if (ca > 0) { tex(x, d.im, q, ca); poly(x, q, C.K, ca * (.6 - .6 * Math.max(0, d.face))); }
+            return;
+          }
           const bar = [[-70, 70], [30, 70], [30, 90], [-70, 90]].map(([a, b]) => d.w3(a, b));
           if (!bar.some(p => !p) && !(d.centre && land > 0)) poly(x, bar.map(p => [p[0], p[1]]), d.col === C.W ? C.K : C.W, al * .9);
         });
@@ -3170,10 +3187,13 @@ const pnReel = (() => {
       if (out < 1) { const top = lerp(py, U5.base, out), bot = lerp(py + ph, U5.base + 4, out); poly(x, rect5(px, top, px + pw, bot), C.D); }
       const dx = -fall * (hw * 2 + pw);
       /* hours */
-      const kc = eo(seg(t, 8, .45)), hrs = Math.round(38 * kc);
+      const real = A && A.title, kc = eo(seg(t, 8, .45)), hrs = Math.round((real && A.hours > 0 ? A.hours : 38) * kc);
       const Fs = ph * .062, Fb = ph * .16;
       const enter = k => (1 - k) * 200;
-      font(x, Fs); x.fillStyle = rgb(C.W, .72); x.fillText("This week", px + U5.p + dx, U5.top + Fs + enter(eo(seg(t, 8, .25))));
+      /* v293: the game to play next, cut to fit beside the ring, and its hours played */
+      font(x, Fs); let lab = real ? String(A.title) : "This week";
+      if (real) { const room = pw - 2 * U5.p - ph * .24; if (x.measureText(lab).width > room) { while (lab.length > 1 && x.measureText(lab + "…").width > room) lab = lab.slice(0, -1); lab = lab.trimEnd() + "…"; } }
+      x.fillStyle = rgb(C.W, .72); x.fillText(lab, px + U5.p + dx, U5.top + Fs + enter(eo(seg(t, 8, .25))));
       font(x, Fb); x.fillStyle = rgb(C.W); x.fillText(hrs + "h", px + U5.p + dx, U5.top + Fs * 1.4 + Fb * .9 + enter(eo(seg(t, 8.03, .3))));
       /* progress ring */
       const kr = eo(seg(t, 9, .4)), R = ph * .1, rcx = px + pw - U5.p - R + dx, rcy = U5.top + R + Fs * .3;
@@ -3288,13 +3308,13 @@ const pnReel = (() => {
   }
 
   let off = null;
-  function draw(ctx, t, W, H, n = 1, shutter = 1 / 120) {
-    if (n <= 1) return frame(ctx, t, W, H);
+  function draw(ctx, t, W, H, n = 1, shutter = 1 / 120, A = null) {
+    if (n <= 1) return frame(ctx, t, W, H, A);
     const cv = ctx.canvas;
     if (!off || off.width !== cv.width || off.height !== cv.height) { off = document.createElement("canvas"); off.width = cv.width; off.height = cv.height; }
     const o = off.getContext("2d"), m = ctx.getTransform();
     for (let i = 0; i < n; i++) {
-      o.setTransform(m); frame(o, t - shutter * i / (n - 1), W, H);
+      o.setTransform(m); frame(o, t - shutter * i / (n - 1), W, H, A);
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 / (i + 1); ctx.drawImage(off, 0, 0); ctx.restore();
     }
   }
@@ -3339,7 +3359,7 @@ function pnreelPaint(t) {
   const b = document.getElementById("pnboot"), c = b && b.querySelector("canvas"); if (!c) return;
   const W = innerWidth, H = innerHeight, d = Math.min(devicePixelRatio || 1, 2), cw = Math.round(W * d), ch = Math.round(H * d);
   if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
-  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); pnReel.draw(x, t, W, H);
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); pnReel.draw(x, t, W, H, 1, 1 / 120, PNREEL.use);
 }
 { const b = document.getElementById("pnboot"); if (b) { b.innerHTML = '<canvas aria-hidden="true"></canvas><button class="pnreel-go" aria-label="Play the opening reel"></button><span class="pnreel-say">Tap to play</span><button class="pnreel-skip">Skip</button>'; pnreelPaint(0); } }
 </script>
@@ -4376,7 +4396,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "294";
+const APP_V = "295";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8257,6 +8277,8 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
     if (t >= pnReel.LEN) { pnreelPaint(0); go(); return; } pnreelPaint(Math.max(0, t)); R.raf = requestAnimationFrame(tick); };
   const play = async () => {
     R.playing = 1; b.classList.add("on");
+    /* v293: the covers ready at the tap play; the loader stops, so it never works (or collects garbage) under the reel */
+    if (R.art) R.use = { title: R.art.title, hours: R.art.hours, covers: R.art.covers.slice() };
     const ac = audio();   /* inside the tap: the app's one sound context (null with Sound off) */
     let buf = null;
     if (ac && R.buf) try { buf = await Promise.race([R.buf, new Promise(r => setTimeout(() => r(null), 1500))]); } catch (e) {}
@@ -8274,11 +8296,71 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
   const start = () => {
     if (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { removeEventListener("resize", fit); b.remove(); return; }
     R.ready = 1;
+    setTimeout(pnreelArt, 500);
     if (S.sound) R.buf = new Promise(res => setTimeout(() => { try { pnReel.audio().then(res, () => res(null)); } catch (e) { res(null); } }, 300));
     if (R.want) play();
   };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", start, { once: true }); else start();
 })();
+/* v293 (the owner: "Can it show some of the games in the library?"): the reel's 3x3 shelf shows real covers, the centre one
+   the game to play next (Playing now, else the top of the Queue), which then becomes the game page with its name and hours.
+   Small copies (120x156, cropped like a card) are made one at a time only while the pixel waits (what's ready at the tap
+   plays, so nothing pops in and nothing loads under the reel); remote pictures go through wsrv with CORS, so the canvas never gets tainted, and one that fails just stays a plain colour card. */
+async function pnreelArt() {
+  const R = PNREEL, b = document.getElementById("pnboot"); if (!b || b.dataset.gone) return;
+  let list = [];
+  try {
+    const ok = g => g && typeof g.img === "string" && g.img && !/^data:image\/svg/.test(g.img);
+    let q = []; try { q = sortGames(qWaiting().filter(isOutNow)); } catch (e) {}
+    const seen = new Set();
+    for (const g of [...S.games.filter(g => g.state === "playing"), ...q, ...S.games]) if (ok(g) && !seen.has(g.id)) { seen.add(g.id); list.push(g); if (list.length >= 9) break; }
+  } catch (e) { return; }
+  if (!list.length) return;
+  const top = list[0];
+  R.art = { title: top.title || "", hours: +top.hours || 0, covers: Array(9).fill(null) };
+  const SLOT = [4, 0, 2, 6, 8, 1, 3, 5, 7];   /* the centre first, then the corners (they're on screen longest) */
+  /* your own pictures (a file in the app, a photo you added) can be 12 MP: on the page, shrinking one held it ~400ms
+     and left garbage collected later (mid-reel). A small worker fetches, unpacks and crops each one and hands back a
+     120x156 bitmap, so the page never holds the big picture; one at a time with the app's other picture work
+     (fitQueue: two 12 MP unpacks at once ran Safari out of memory). A phone without OffscreenCanvas keeps colour cards. */
+  let wk = null, n = 0; const jobs = new Map();
+  const own = u => new Promise((ok, no) => {
+    if (!wk) {
+      if (typeof OffscreenCanvas !== "function" || typeof Worker !== "function") return no(0);
+      wk = new Worker(URL.createObjectURL(new Blob([`onmessage = async e => { const { id, url } = e.data;
+        try { const bm = await createImageBitmap(await (await fetch(url)).blob()), W = 120, H = 156, k = Math.max(W / bm.width, H / bm.height);
+          let src = bm, w = bm.width, h = bm.height; const tw = w * k;   /* halve until close, so a 12 MP picture shrinks smooth instead of grainy */
+          while (tw < w / 2) { const nw = Math.ceil(w / 2), nh = Math.ceil(h / 2), o = new OffscreenCanvas(nw, nh), g = o.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(src, 0, 0, nw, nh); if (src !== bm) src.width = 0; src = o; w = nw; h = nh; }
+          const f = Math.max(W / w, H / h), sw = W / f, sh = H / f, c = new OffscreenCanvas(W, H), x = c.getContext("2d"); x.imageSmoothingQuality = "high";
+          x.drawImage(src, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, W, H); bm.close();
+          const out = c.transferToImageBitmap(); postMessage({ id, out }, [out]); } catch (x) { postMessage({ id }); } };`], { type: "text/javascript" })));
+      wk.onmessage = e => { const j = jobs.get(e.data.id); if (j) { jobs.delete(e.data.id); clearTimeout(j.t); e.data.out ? j.ok(e.data.out) : j.no(0); } };
+      wk.onerror = () => { jobs.forEach(j => { clearTimeout(j.t); j.no(0); }); jobs.clear(); };
+    }
+    const id = ++n; jobs.set(id, { ok, no, t: setTimeout(() => { jobs.delete(id); no(0); }, 8000) });
+    wk.postMessage({ id, url: new URL(u, location.href).href });
+  });
+  try {
+    for (let i = 0; i < list.length; i++) {
+      if (b.dataset.gone || R.playing) return;
+      const u = list[i].img;
+      try {
+        let pic;
+        if (/^https?:/.test(u) && new URL(u).origin !== location.origin) {
+          /* someone else's picture: a 240px copy from wsrv (CORS, so the canvas stays clean), cropped on the page (tiny) */
+          const im = new Image(); im.crossOrigin = "anonymous"; im.decoding = "async";
+          im.src = "https://wsrv.nl/?w=240&h=312&fit=cover&output=webp&url=" + encodeURIComponent(u); await im.decode();
+          const c = document.createElement("canvas"), iw = im.naturalWidth, ih = im.naturalHeight, k = Math.max(120 / iw, 156 / ih);
+          c.width = 120; c.height = 156; c.getContext("2d").drawImage(im, (iw - 120 / k) / 2, (ih - 156 / k) / 2, 120 / k, 156 / k, 0, 0, 120, 156); pic = c;
+        } else pic = await (typeof fitQueue === "function" ? fitQueue(() => own(u)) : own(u));
+        if (b.dataset.gone || R.playing) return;
+        R.art.covers[SLOT[i]] = pic;
+      } catch (e) {}
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));   /* one picture per frame */
+    }
+    R.art.done = 1;
+  } finally { if (wk) wk.terminate(); }
+}
 /* v144: Persona-style calling card for any game */
 async function callingCard(id, seed) {
   const g = S.games.find(x => x.id === id); if (!g) return;
@@ -26525,7 +26607,10 @@ WHATS_NEW.push(
     tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." },
   { v: 292, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
     say: "<b>The opening pixel fits any screen</b>: fold, unfold or turn the phone while the reel waits and the glowing pixel redraws in the middle at the new size, instead of a stretched first frame.",
-    tryIt: "Open the app with the phone folded, unfold it before you tap the glow: the pixel stays sharp and centred." }
+    tryIt: "Open the app with the phone folded, unfold it before you tap the glow: the pixel stays sharp and centred." },
+  { v: 295, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
+    say: "<b>Your games star in the opening reel</b>: the 3D shelf now holds your real covers, with the game you're playing (or the top of your Queue) in the middle, and its card turns into a page with its name and hours.",
+    tryIt: "Close the app fully, open it again and tap the glow: watch for your own covers when the shelf stands up." }
 );
 </script>
 <script>
