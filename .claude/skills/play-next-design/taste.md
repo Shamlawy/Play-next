@@ -154,3 +154,13 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: double tapping on nexi shows emoji and other commands, remove the emoji and the commands shorten them and organise them better
 - rule: Nexi's menu is one small card in a few named groups of short plain-word buttons; no emoji buttons, no rings of icons
 - check: tools/scenarios/nexi-wheel.mjs
+
+### T31 · v297 · Settings · pick
+- said: B looks very sick (the icon rail of four Settings rail demos)
+- rule: Settings and Customise are one scroll of open groups with a sticky On this page rail of group icons: the lit icon (bar + tile) follows the group under the title and its name pops out for a moment.
+- check: tools/scenarios/settings-rail.mjs
+
+### T32 · v297 · whole app · hate
+- said: I hate the icons they look like default ugly icons I actually hate them across the app
+- rule: No emoji as icons: draw them in the v247 menu style (24x24, fill-only currentColor, one part at 35% opacity); Settings groups use gIcon / GICON.
+- check: none
