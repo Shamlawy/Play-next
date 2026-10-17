@@ -27263,7 +27263,7 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
 #p-queue .row.qs > .qsstrap { position: absolute; top: 0; bottom: 0; left: -44px; width: 220px; z-index: 1; pointer-events: none; --qsk: -15deg; }
 #p-queue .qsstrap::before { content: ""; position: absolute; inset: 0; transform: skewX(var(--qsk)); transform-origin: 0 0;
   background: linear-gradient(100deg, color-mix(in oklab, var(--accent, var(--volt)) 60%, black) 20%, color-mix(in oklab, var(--accent, var(--volt)) 88%, black) 92%); }
-#p-queue .qsstrap::after { content: ""; position: absolute; top: 0; bottom: 0; right: -13px; width: 6px; transform: skewX(var(--qsk)); transform-origin: 0 0;
+#p-queue .qsstrap::after { content: ""; position: absolute; top: 0; bottom: 0; right: 3px; width: 6px; transform: skewX(var(--qsk)); transform-origin: 0 0;
   background: color-mix(in oklab, var(--accent, var(--volt)) 55%, white); opacity: .85; }
 #p-queue .row.qs > .rowin { position: relative; z-index: 2; display: grid; grid-template-columns: 44px 58px 30px minmax(0, 1fr) auto; grid-template-rows: auto auto auto;
   column-gap: 12px; align-items: center; align-content: center; min-height: 112px; padding-top: 10px; padding-bottom: 12px; padding-left: 20px; }
@@ -27302,7 +27302,7 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
   #p-queue .row.qs { min-height: 104px; border-radius: 20px; }
   #p-queue .qsbg { left: 34%; } #p-queue .qsbg::before { left: -51.5%; }
   #p-queue .row.qs > .qsstrap { left: -30px; width: 140px; --qsk: -9deg; }
-  #p-queue .qsstrap::after { right: -8px; width: 4px; }
+  #p-queue .qsstrap::after { right: 3px; width: 4px; }
   #p-queue .row.qs > .rowin { grid-template-columns: 26px 46px 18px minmax(0, 1fr); column-gap: 8px; min-height: 104px; padding-left: 12px; padding-top: 9px; padding-bottom: 10px; }
   #p-queue .qs .rowin > .rank { font-size: 19px; }
   #p-queue .qs .rowin > img { width: 46px; height: 68px; border-radius: 8px; }
@@ -27316,8 +27316,8 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
 
 /* the control bar */
 #p-queue .qdeck { display: flex; align-items: center; gap: 8px; margin: 6px 0 16px; }
-#p-queue .qdtabs { display: flex; gap: 4px; padding: 4px; border-radius: 18px; background: var(--u-pan); border: 1px solid var(--u-line2); flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-#p-queue .qdtabs::-webkit-scrollbar { display: none; }
+/* never a side scroller: a scroller gets its own GPU layer and pulled every row after it onto layers (kit.mjs layers); many lists wrap */
+#p-queue .qdtabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 18px; background: var(--u-pan); border: 1px solid var(--u-line2); flex: 1 1 auto; min-width: 0; }
 #p-queue .qdtab { display: flex; align-items: center; justify-content: center; gap: 7px; height: 44px; padding: 0 14px; border: 0; border-radius: 14px; background: none;
   font: inherit; font-size: 14.5px; font-weight: 600; color: var(--mute); white-space: nowrap; flex: 1 0 auto; cursor: pointer; }
 #p-queue .qdtab[aria-pressed="true"] { color: var(--ice); background: linear-gradient(180deg, rgba(var(--vrgb), .3), rgba(var(--vrgb), .16)); box-shadow: inset 0 0 0 1px rgba(var(--vrgb), .55); }
@@ -27448,7 +27448,8 @@ WHATS_NEW.push(
   { v: 301, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .qdeck"),
     say: "<b>One bar for everything under the header</b>: All, Out, Coming and Played are tabs with their counts, <b>Order</b> keeps every way to sort in three groups (and can make a sort your own order), <b>Shuffle</b> picks tonight's game right in the list (hold it for the full shuffler), and <b>Boss</b> shows the Shadow's HP.",
     tryIt: "Tap Coming, then Order › Most hyped, then Shuffle." },
-  { v: 301, go: () => nxOpenSettings("#s-qlook"), at: "#s-qlook",
+  { v: 301, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); openSettings("games"); const el = $("#s-qlook"), d = el && el.closest("details"); if (d) d.open = true; if (el) setTimeout(() => el.scrollIntoView({ block: "center" }), 120); },
+    at: () => $("#s-qlook") || null,
     say: "<b>Prefer covers?</b> Switch the Queue to <b>Character select</b>: the game you pick fills a big panel with its logo and bars for hype, length and progress, and every game sits below it as a cover.",
     tryIt: "Tap Character select, go back to the Queue and tap a few covers." }
 );

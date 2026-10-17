@@ -55,7 +55,13 @@ function boxEye(ok) {
     for (const c of par.children) { if (!(c instanceof HTMLElement) || !vis(c) || /^(SCRIPT|STYLE|BR|svg|path)$/i.test(c.tagName)) continue; (by[kindOf(c)] ||= []).push(c); }
     for (const k in by) if (by[k].length >= 3 && k !== "SPAN." && k !== "B." && k !== "I.") groups.push(by[k]);
   }
-  const lum = s => { const m = s.match(/[\d.]+/g); if (!m) return null; const v = m.slice(0, 3).map(x => { x = +x / 255; return x <= .04 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return { L: .2126 * v[0] + .7152 * v[1] + .0722 * v[2], a: m[3] == null ? 1 : +m[3] }; };
+  /* colour-mix() leaves oklab(…) / oklch(…) / color(srgb …) in computed styles (v301's rows): read those too, or a light word
+     on a dark row reads as black (1.0:1); oklab's L cubed is close to relative luminance */
+  const lum = s => { const ok = s.match(/^okl(?:ab|ch)\(\s*([\d.]+)(%?)[^/)]*(?:\/\s*([\d.]+))?/);
+    if (ok) { const L = +ok[1] / (ok[2] ? 100 : 1); return { L: L ** 3, a: ok[3] == null ? 1 : +ok[3] }; }
+    const cs = s.match(/^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?/);
+    if (cs) { const v = cs.slice(1, 4).map(x => { x = +x; return x <= .04 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return { L: .2126 * v[0] + .7152 * v[1] + .0722 * v[2], a: cs[4] == null ? 1 : +cs[4] }; }
+    const m = s.match(/[\d.]+/g); if (!m) return null; const v = m.slice(0, 3).map(x => { x = +x / 255; return x <= .04 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return { L: .2126 * v[0] + .7152 * v[1] + .0722 * v[2], a: m[3] == null ? 1 : +m[3] }; };
   const bgUnder = e => { for (let x = e; x; x = x.parentElement) { const c = getComputedStyle(x); if (c.backgroundImage !== "none") return null; const l = lum(c.backgroundColor); if (l && l.a > .9) return l.L; } return 0; };
   const opUp = e => { let o = 1; for (let x = e; x; x = x.parentElement) o *= +getComputedStyle(x).opacity; return o; };
   const seen = new Set();
