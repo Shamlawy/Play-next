@@ -234,3 +234,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: Upgrade A make it better with the colour and design and keep D make 2 new ones also in all upgrade the things on top … the everything and sort by and my order and boss and stuff so make it better
 - rule: Round 2: A (Strap) gets more of the game's colour and design, D (Console shelf) stays an option, two new looks (E Quest line, F Character select); the chips under the header become one control deck in every look (filter tabs with counts, one Order button with a grouped menu, Shuffle that picks in place, Boss as a live HP meter).
 - check: none
+
+### T47 · v301 · Queue · pick
+- said: A and the new bar, make it and F too as a second option if we want to switch to it
+- rule: Closed Queue rows are round 2 A (Strap: spot + box art on a slanted strap in the game's colour, picture behind, kicker, name, headline, torn ticket, progress line, logo slot) with one control bar (tabs with counts, Order menu in groups, Shuffle picks in place / hold for the shuffler, Boss HP); Character select is the second look in Settings › Queue cards.
+- check: tools/scenarios/queue-rows.mjs
