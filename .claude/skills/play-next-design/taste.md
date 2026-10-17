@@ -214,3 +214,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: C is very very sick but it doesn't match our theme cuz its a game app
 - rule: Card back: keep round 12 C's idea (each area fills with the game's colour, bubbles, the score in a big vessel), but the vessels must be gaming things (controller and buttons, cartridges, energy cells), not fantasy props like potions.
 - check: none
+
+### T43 · v299 · Queue · hate
+- said: I really don't like how the queue looks when the cards are closed, looks kinda ugly and meh for my unfold; I like the header card
+- rule: Closed Queue rows must use the unfolded width (no long empty gap between the facts and the logo); keep the header card and chips as they are; round 1 offers A Strap, B Cartridge, C Save slots, D Console shelf.
+- check: none

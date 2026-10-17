@@ -1,0 +1,392 @@
+<title>Queue row demos</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap">
+<style>
+/* Round 1 of the closed Queue rows (the owner, Oct 2026: "I really don't like how the queue looks when the cards are closed … kinda ugly
+   and meh for my unfold … I like the header card"). The header card and chips stay as they are; four new rows, all from things in
+   games (L81): A Strap (a slim copy of the open card's language), B Cartridge, C Save slots, D Console shelf. Made-up titles (L78),
+   pictures from repo-root art, logos from tools/standin-logos.mjs (the same awkward shapes the kit tests). */
+:root {
+  color-scheme: dark;
+  --bg: #000; --pan: #0a0e1b; --card: #131a32; --card2: #19213d; --deep: #070a14;
+  --line: rgba(234,242,255,.08); --line2: rgba(234,242,255,.16);
+  --volt: #4DA3FF; --volt2: #2F6BFF; --vrgb: 77,163,255;
+  --ice: #EAF2FF; --mute: #7C92C4; --ink: #06101f;
+  --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 20px; --rs: 14px; --ease: cubic-bezier(.16,1,.3,1);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { background: radial-gradient(120% 50% at 50% -10%, rgba(var(--vrgb), .13), transparent 60%), var(--bg);
+  color: var(--ice); font-family: var(--font); font-weight: 500; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 80px; -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; text-align: inherit; padding: 0; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+.page { max-width: 940px; margin: 0 auto; }
+.intro h1 { font-size: 30px; font-weight: 700; letter-spacing: -.015em; margin: 6px 0 8px; }
+.intro p { color: var(--mute); margin: 0 0 6px; line-height: 1.55; max-width: 64ch; font-size: 14.5px; }
+.intro p b { color: var(--ice); font-weight: 600; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  margin: 14px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 6px; padding: 10px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(0,0,0,.9); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font-size: 12.5px; font-weight: 600; color: var(--mute); }
+.seg { display: flex; gap: 4px; padding: 4px; background: var(--pan); border: 1px solid var(--line); border-radius: 999px; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+#demoSeg button { min-width: 44px; font-size: 15px; font-weight: 700; text-align: center; }
+.seg button[aria-pressed="true"] { background: var(--volt); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .seg button:not([aria-pressed="true"]):hover { color: var(--ice); } }
+.dh { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; margin: 18px 0 14px; }
+.letter { grid-row: span 2; width: 38px; height: 38px; border-radius: 12px; background: var(--volt); color: var(--ink); display: grid; place-items: center; font-weight: 700; font-size: 18px; align-self: start; }
+.dh h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.015em; }
+.dh p { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 70ch; }
+.stage { position: relative; overflow: hidden; }
+.stage.fixed .screen { position: absolute; top: 0; left: 0; }
+.stage:not(.fixed) { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); }
+.screen { background: var(--bg); border-radius: 24px; border: 1px solid var(--line); padding: 14px; transform-origin: 0 0; container-type: inline-size; }
+.stage:not(.fixed) .screen { border-radius: 0; border-left: 0; border-right: 0; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px; }
+.notes div { background: var(--pan); border: 1px solid var(--line); border-radius: var(--rs); padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--mute); }
+.notes h3 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ice); }
+.notes b { color: var(--ice); font-weight: 600; }
+#toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); opacity: 0; transition: transform .3s var(--ease), opacity .3s;
+  background: var(--card2); border: 1px solid var(--line2); border-radius: 999px; padding: 9px 16px; font-size: 13.5px; font-weight: 600; z-index: 20; pointer-events: none; white-space: nowrap; }
+#toast.on { transform: translate(-50%, 0); opacity: 1; }
+
+/* ---------- the header card + chips (kept: the owner likes them) ---------- */
+.qh { position: relative; border-radius: 26px; overflow: hidden; background: var(--pan); border: 1px solid var(--line2); padding: 26px 28px 24px; min-height: 212px; isolation: isolate; }
+.qh::before { content: ""; position: absolute; inset: 0 0 0 34%; z-index: -2; background: var(--hdr) center 20% / cover; opacity: .5;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%); mask-image: linear-gradient(90deg, transparent, #000 40%); }
+.qh h4 { margin: 0; font-size: 44px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.qstat { display: flex; gap: 34px; margin-top: 34px; }
+.qstat div b { display: block; font-size: 46px; font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.qstat div b small { font-size: 22px; color: var(--mute); font-weight: 600; letter-spacing: 0; }
+.qstat div:first-child b { color: var(--volt); }
+.qstat div span { display: block; margin-top: 8px; font-size: 15px; color: var(--mute); }
+.qcus { position: absolute; top: 22px; right: 22px; display: flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 999px; border: 1.5px solid rgba(var(--vrgb), .55); background: rgba(6,10,22,.7); color: var(--volt); font-size: 16px; font-weight: 600; }
+.qcus svg { width: 19px; height: 19px; fill: currentColor; }
+.qfan { position: absolute; right: 64px; bottom: -22px; width: 300px; height: 150px; }
+.qfan i { position: absolute; bottom: 0; width: 98px; height: 140px; border-radius: 14px; background: var(--c) center / cover; box-shadow: 0 10px 24px rgba(0,0,0,.55); outline: 1.5px solid rgba(255,255,255,.2); transform-origin: 50% 120%; }
+.qfan i:nth-child(1) { left: 0; transform: rotate(-14deg); } .qfan i:nth-child(2) { left: 66px; transform: rotate(-5deg); }
+.qfan i:nth-child(3) { left: 132px; transform: rotate(4deg); } .qfan i:nth-child(4) { left: 198px; transform: rotate(13deg); }
+.chips { display: flex; align-items: center; gap: 8px; margin: 16px 0 16px; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 11px 20px; border-radius: 999px; background: var(--pan); border: 1px solid var(--line2); font-size: 16px; font-weight: 600; white-space: nowrap; flex: none; }
+.chip[aria-pressed="true"] { background: var(--volt); color: var(--ink); border-color: transparent; }
+.chip small { background: rgba(6,16,31,.18); border-radius: 999px; padding: 1px 9px; font-size: 13px; font-weight: 700; }
+.chip svg { width: 18px; height: 18px; fill: currentColor; }
+.qsplit { width: 2px; height: 30px; background: rgba(var(--vrgb), .45); border-radius: 2px; flex: none; }
+@container (max-width: 560px) {
+  .qh { padding: 18px 18px 16px; min-height: 168px; }
+  .qh h4 { font-size: 30px; }
+  .qstat { gap: 20px; margin-top: 22px; }
+  .qstat div b { font-size: 30px; } .qstat div b small { font-size: 16px; }
+  .qstat div span { font-size: 12.5px; margin-top: 5px; }
+  .qcus { top: 14px; right: 14px; font-size: 13.5px; padding: 6px 12px; } .qcus svg { width: 15px; height: 15px; }
+  .qfan { right: 4px; bottom: -40px; transform: scale(.55); transform-origin: 100% 100%; }
+  .chip { padding: 8px 14px; font-size: 14px; }
+}
+
+/* ---------- shared row bits ---------- */
+.qlist { display: grid; gap: 12px; }
+.row { position: relative; width: 100%; display: block; color: var(--ice); }
+.anim .qlist > * { animation: rin .5s var(--ease) both; animation-delay: calc(var(--i) * 40ms); }
+@keyframes rin { from { opacity: 0; transform: translateY(14px); } }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sc); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc) 24%, transparent); }
+.lg { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
+.lg img { display: block; width: auto; max-width: 100%; object-fit: contain; }
+.lg img.dk { filter: brightness(0) invert(.92); }
+.nw { white-space: nowrap; }
+.st-playing { --sc: #4fd18b; } .st-fresh { --sc: #ffc65c; } .st-ready { --sc: #4DA3FF; }
+.st-coming { --sc: #6fd6ff; } .st-tba { --sc: #7C92C4; } .st-played { --sc: #c7a3ff; }
+@media (hover: hover) and (pointer: fine) { .row:hover { filter: brightness(1.08); } }
+
+/* ---------- Now (today's rows, for comparing) ---------- */
+.rn { display: grid; grid-template-columns: 56px 64px minmax(0, 1fr) auto auto auto 230px; align-items: center; gap: 0 14px; height: 92px; padding: 0 18px 0 22px; border-radius: 22px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 42%, var(--card)), var(--card) 75%); border: 1px solid var(--line); border-left: 3px solid var(--gc); }
+.rn .n { font-size: 26px; font-weight: 700; } .rn .cv { width: 56px; height: 74px; border-radius: 8px; background: var(--c) center / cover; }
+.rn .t { font-size: 19px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rn .d { color: var(--volt); font-size: 14px; font-weight: 700; white-space: nowrap; } .rn .h { color: var(--mute); font-size: 15px; white-space: nowrap; }
+.rn .tg { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 4px 12px; border-radius: 999px; background: rgba(var(--vrgb), .3); white-space: nowrap; }
+.rn .tg.st-playing { background: #3fd9a4; color: #052; } .rn .lg { height: 72px; }
+@container (max-width: 560px) {
+  .rn { grid-template-columns: 30px 44px minmax(0, 1fr) 96px; grid-template-rows: auto auto; height: 92px; padding: 0 10px 0 12px; gap: 2px 10px; align-content: center; }
+  .rn .n { font-size: 17px; grid-row: 1 / 3; } .rn .cv { width: 42px; height: 60px; grid-row: 1 / 3; }
+  .rn .t { font-size: 15px; grid-column: 3; } .rn .lg { grid-column: 4; grid-row: 1 / 3; height: 56px; }
+  .rn .mm { grid-column: 3; display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .rn .tg { font-size: 10px; padding: 2px 8px; }
+}
+@container (min-width: 561px) { .rn .mm { display: contents; } }
+
+/* ---------- A · Strap: a slim copy of the open card ---------- */
+.ra { display: grid; grid-template-columns: 172px minmax(0, 1fr) auto 214px; align-items: center; height: 104px; border-radius: 20px; overflow: hidden;
+  background: var(--deep); border: 1px solid var(--line); isolation: isolate; }
+.ra .bg { position: absolute; inset: 0 0 0 28%; z-index: -2; background: var(--h) center 30% / cover; }
+.ra::before { content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(90deg, var(--deep) 27%, rgba(7,10,20,.82) 48%, rgba(7,10,20,.5) 74%, rgba(7,10,20,.62)); }
+.ra .strap { position: relative; height: 100%; display: flex; align-items: center; gap: 14px; padding-left: 20px; }
+.ra .strap::before { content: ""; position: absolute; inset: 0 14px 0 -40px; z-index: -1; transform: skewX(-14deg); transform-origin: 0 100%;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--gc) 64%, #000), color-mix(in srgb, var(--gc) 40%, #000)); box-shadow: 8px 0 22px rgba(0,0,0,.4); }
+.ra .n { width: 40px; font-size: 27px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.ra .cv { width: 56px; height: 82px; border-radius: 10px; background: var(--c) center / cover; box-shadow: 0 8px 18px rgba(0,0,0,.55); outline: 1.5px solid rgba(255,255,255,.2); outline-offset: -1.5px; }
+.ra .tx { padding: 0 16px 0 22px; min-width: 0; }
+.ra .t { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ra .hd { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 14px; font-weight: 600; min-width: 0; }
+.ra .hd .mm { color: var(--mute); display: none; }
+.ra .tk { display: flex; height: 60px; border-radius: 12px; background: rgba(5,8,16,.74); border: 1px solid var(--line2); margin-right: 18px;
+  -webkit-mask: radial-gradient(circle 6px at var(--px) 0, transparent 97%, #000) , radial-gradient(circle 6px at var(--px) 100%, transparent 97%, #000);
+  -webkit-mask-composite: source-in; mask: radial-gradient(circle 6px at var(--px) 0, transparent 97%, #000), radial-gradient(circle 6px at var(--px) 100%, transparent 97%, #000);
+  mask-composite: intersect; --px: 50%; }
+.ra .tk > span { flex: 1 1 0; display: flex; flex-direction: column; justify-content: center; padding: 0 16px; min-width: 76px; }
+.ra .tk > span + span { border-left: 2px dashed rgba(234,242,255,.22); }
+.ra .tk b { font-size: 16px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ra .tk small { font-size: 11.5px; color: var(--mute); font-weight: 600; white-space: nowrap; }
+.ra .lg { height: 76px; padding-right: 20px; }
+@container (max-width: 560px) {
+  .ra { grid-template-columns: 112px minmax(0, 1fr) 98px; height: 96px; border-radius: 18px; }
+  .ra .bg { left: 34%; }
+  .ra .strap { gap: 9px; padding-left: 12px; } .ra .strap::before { right: 8px; }
+  .ra .n { width: 26px; font-size: 18px; } .ra .cv { width: 46px; height: 68px; border-radius: 8px; }
+  .ra .tx { padding: 0 6px 0 14px; }
+  .ra .t { font-size: 15.5px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+  .ra .hd { font-size: 12.5px; margin-top: 4px; flex-wrap: wrap; gap: 2px 7px; } .ra .hd .mm { display: inline; }
+  .ra .tk { display: none; } .ra .lg { height: 58px; padding-right: 12px; }
+}
+
+/* ---------- B · Cartridge ---------- */
+.rb { display: grid; grid-template-columns: 64px 300px minmax(0, 1fr) 30px; align-items: center; height: 108px; border-radius: 16px 10px 10px 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gc) 30%, #12172d), color-mix(in srgb, var(--gc) 12%, #0a0d1c));
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.14), inset 0 -3px 0 rgba(0,0,0,.45);
+  clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 26px, 100% 100%, 0 100%); }
+.rb .grip { height: 100%; display: grid; place-items: center; position: relative;
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,.34) 0 2px, rgba(255,255,255,.07) 2px 3px, transparent 3px 9px); }
+.rb .grip b { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: rgba(234,242,255,.82); background: color-mix(in srgb, var(--gc) 22%, #0b0f20); padding: 3px 7px; border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 0 rgba(0,0,0,.6); font-variant-numeric: tabular-nums; }
+.rb .lab { position: relative; height: 84px; border-radius: 10px; overflow: hidden; background: var(--h) center 30% / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.5); }
+.rb .lab::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(4,6,14,.72), rgba(4,6,14,.18) 70%); }
+.rb .lab::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 7px; background: color-mix(in srgb, var(--gc) 75%, #fff 10%); opacity: .9; }
+.rb .lab .lg { position: absolute; inset: 14px 14px 8px 14px; justify-content: flex-start; }
+.rb .tx { padding: 0 14px 0 20px; min-width: 0; }
+.rb .t { display: block; font-size: 18.5px; font-weight: 700; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb .led { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 14px; font-weight: 600; }
+.rb .led .dot { box-shadow: 0 0 10px 1px var(--sc), 0 0 0 2px rgba(0,0,0,.5); }
+.rb .eng { display: block; margin-top: 6px; font-size: 12.5px; color: rgba(234,242,255,.42); font-weight: 600; letter-spacing: .04em; text-shadow: 0 1px 0 rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb .pins { height: 72%; margin: 0 9px 0 5px; border-radius: 3px; align-self: center;
+  background: repeating-linear-gradient(180deg, #d4ae58 0 7px, transparent 7px 11px); opacity: .8; }
+@container (max-width: 560px) {
+  .rb { grid-template-columns: 40px 124px minmax(0, 1fr) 18px; height: 100px; clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%); }
+  .rb .grip b { font-size: 15px; padding: 2px 5px; }
+  .rb .lab { height: 78px; } .rb .lab .lg { inset: 12px 8px 6px 8px; justify-content: center; }
+  .rb .tx { padding: 0 6px 0 12px; }
+  .rb .t { font-size: 15px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+  .rb .led { font-size: 12.5px; margin-top: 4px; } .rb .eng { font-size: 11px; margin-top: 3px; }
+  .rb .pins { margin: 0 6px 0 2px; }
+}
+
+/* ---------- C · Save slots ---------- */
+.qlist.c { padding-left: 22px; gap: 10px; }
+.rc { display: grid; grid-template-columns: 66px 56px minmax(0, 1fr) 118px 196px; align-items: center; gap: 0 16px; height: 98px; padding: 0 18px 0 14px; border-radius: 14px;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,.016) 0 1px, transparent 1px 3px), linear-gradient(180deg, #121a35, #0a0f22);
+  border: 1px solid rgba(var(--vrgb), .2); box-shadow: inset 0 0 0 3px #070a16, inset 0 0 0 4px rgba(var(--vrgb), .12); }
+.rc.sel { border-color: color-mix(in srgb, var(--gc) 80%, #fff 10%);
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,.02) 0 1px, transparent 1px 3px), linear-gradient(90deg, color-mix(in srgb, var(--gc) 34%, #0c1228), #0c1228 62%);
+  box-shadow: inset 0 0 0 3px #070a16, inset 0 0 0 4px color-mix(in srgb, var(--gc) 45%, transparent), 0 0 0 4px color-mix(in srgb, var(--gc) 16%, transparent); }
+.rc .cur { position: absolute; left: -24px; top: 50%; width: 20px; height: 24px; margin-top: -12px; color: var(--ice); display: none; }
+.rc.sel .cur { display: block; }
+.rc .cur svg { width: 100%; height: 100%; fill: currentColor; }
+.rc .slot { text-align: center; border-radius: 10px; padding: 6px 0; background: rgba(var(--vrgb), .08); border: 1px solid var(--line); }
+.rc.sel .slot { background: color-mix(in srgb, var(--gc) 30%, transparent); border-color: color-mix(in srgb, var(--gc) 50%, transparent); }
+.rc .slot small { display: block; font-size: 11px; color: var(--mute); font-weight: 600; }
+.rc .slot b { display: block; font-size: 24px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rc .cv { width: 56px; height: 80px; border-radius: 8px; background: var(--c) center / cover; box-shadow: 0 0 0 1px rgba(255,255,255,.16), 0 0 0 4px #070a16, 0 0 0 5px rgba(var(--vrgb), .2); }
+.rc .tx { min-width: 0; }
+.rc .t { display: block; font-size: 18.5px; font-weight: 700; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc .ch { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 13.5px; font-weight: 600; white-space: nowrap; min-width: 0; }
+.rc .ch .mm { color: var(--mute); display: none; }
+.rc .meter { display: block; margin-top: 8px; height: 7px; border-radius: 99px; background: rgba(234,242,255,.08); overflow: hidden; max-width: 260px; }
+.rc .meter i { display: block; height: 100%; width: 100%; border-radius: inherit; transform-origin: 0 50%; transform: scaleX(var(--p)); background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 70%, #fff 15%), var(--sc)); }
+.rc .meter.wait i { background: repeating-linear-gradient(90deg, var(--sc) 0 6px, transparent 6px 10px); opacity: .75; }
+.rc .time { text-align: right; }
+.rc .time small { display: block; font-size: 11.5px; color: var(--mute); font-weight: 600; white-space: nowrap; }
+.rc .time b { display: block; font-size: 25px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc .time span { display: block; font-size: 12px; color: var(--mute); white-space: nowrap; }
+.rc .lg { height: 70px; }
+@container (max-width: 560px) {
+  .qlist.c { padding-left: 16px; }
+  .rc { grid-template-columns: 34px 46px minmax(0, 1fr) 88px; gap: 0 10px; height: 96px; padding: 0 10px 0 8px; }
+  .rc .cur { left: -18px; width: 14px; }
+  .rc .slot small { display: none; } .rc .slot b { font-size: 16px; } .rc .slot { padding: 4px 0; }
+  .rc .cv { width: 44px; height: 64px; }
+  .rc .t { font-size: 15px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+  .rc .ch { font-size: 12px; gap: 6px; } .rc .ch .mm { display: inline; }
+  .rc .meter { margin-top: 6px; height: 5px; }
+  .rc .time { display: none; } .rc .lg { height: 56px; }
+}
+
+/* ---------- D · Console shelf ---------- */
+.qlist.d { grid-template-columns: 1fr 1fr; gap: 12px; }
+.rd { height: 180px; border-radius: 22px; overflow: hidden; isolation: isolate; border: 1px solid var(--line); background: var(--deep); }
+.rd .bg { position: absolute; inset: 0; z-index: -2; background: var(--h) center 30% / cover; }
+.rd::before { content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(180deg, rgba(4,6,12,.38), rgba(4,6,12,.06) 30%, rgba(4,6,12,.55) 62%, rgba(4,6,12,.93)),
+              linear-gradient(0deg, color-mix(in srgb, var(--gc) 42%, transparent), transparent 45%); }
+.rd .top { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 6px; align-items: center; }
+.rd .pill { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; background: rgba(4,6,12,.66); border: 1px solid rgba(255,255,255,.12); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.rd .pill.n { font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 10px; }
+.rd .lg { position: absolute; left: 16px; bottom: 14px; width: 54%; height: 38%; justify-content: flex-start; align-items: flex-end; }
+.rd .meta { position: absolute; right: 16px; bottom: 14px; text-align: right; max-width: 42%; }
+.rd .meta b { display: block; font-size: 15px; font-weight: 700; white-space: nowrap; }
+.rd .meta small { display: block; font-size: 12.5px; color: rgba(234,242,255,.68); font-weight: 600; white-space: nowrap; margin-top: 2px; }
+.rd.big { grid-column: 1 / -1; height: 250px; }
+.rd:not(.big):last-child:nth-child(even) { grid-column: 1 / -1; }
+.rd.big .lg { width: 46%; height: 44%; left: 22px; bottom: 20px; }
+.rd.big .meta { right: 22px; bottom: 20px; } .rd.big .meta b { font-size: 20px; } .rd.big .meta small { font-size: 13.5px; }
+.rd.big .top { left: 18px; top: 18px; }
+.rd .up { font-size: 13px; color: var(--ice); font-weight: 700; }
+@container (max-width: 560px) {
+  .qlist.d { grid-template-columns: 1fr; gap: 10px; }
+  .rd { height: 150px; border-radius: 18px; } .rd.big { height: 190px; }
+  .rd .lg, .rd.big .lg { width: 52%; height: 40%; left: 14px; bottom: 12px; }
+  .rd .meta, .rd.big .meta { right: 14px; bottom: 12px; } .rd.big .meta b { font-size: 16px; }
+  .rd .pill { height: 27px; font-size: 12px; padding: 0 10px; }
+}
+</style>
+
+<div class="page">
+  <div class="intro">
+    <h1>Closed Queue rows: 4 looks</h1>
+    <p>The header card and the chips stay as they are. Only the closed rows change. Each look starts from something in games, and each one uses the wide <b>unfolded</b> screen properly instead of leaving a big gap in the middle.</p>
+    <p>Switch <b>Screen</b> to see folded and unfolded. Tap a row: in the app it opens the card.</p>
+  </div>
+  <nav class="bar" aria-label="Demo controls">
+    <div class="ctl"><span>Look</span><div class="seg" id="demoSeg">
+      <button data-pick="N" aria-label="Today's rows">Now</button><button data-pick="A" aria-label="A, Strap">A</button><button data-pick="B" aria-label="B, Cartridge">B</button><button data-pick="C" aria-label="C, Save slots">C</button><button data-pick="D" aria-label="D, Console shelf">D</button>
+    </div></div>
+    <div class="ctl"><span>Screen</span><div class="seg" id="sizeSeg">
+      <button data-size="fit">This screen</button><button data-size="412">Folded</button><button data-size="860">Unfolded</button>
+    </div></div>
+  </nav>
+  <div class="dh"><span class="letter" id="dLetter">A</span><h2 id="dName"></h2><p id="dDesc"></p></div>
+  <div class="stage"><div class="screen" id="screen"></div></div>
+  <div class="notes" id="notes"></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const IMG = { hdr: "{{hdr}}" };
+for (let i = 0; i < 8; i++) Object.assign(IMG, { ["h" + i]: ["{{h0}}", "{{h1}}", "{{h2}}", "{{h3}}", "{{h4}}", "{{h5}}", "{{h6}}", "{{h7}}"][i],
+  ["c" + i]: ["{{c0}}", "{{c1}}", "{{c2}}", "{{c3}}", "{{c4}}", "{{c5}}", "{{c6}}", "{{c7}}"][i],
+  ["l" + i]: ["{{l0}}", "{{l1}}", "{{l2}}", "{{l3}}", "{{l4}}", "{{l5}}", "{{l6}}", "{{l7}}"][i] });
+const COL = ["{{col0}}", "{{col1}}", "{{col2}}", "{{col3}}", "{{col4}}", "{{col5}}", "{{col6}}", "{{col7}}"];
+/* ink shape of each stand-in logo (width / height of what is really drawn), for the app's optical sizing (lfRule) */
+const INK = [2.7, 1, 1.6, 1.25, 6.4, 1.95, 2.8, .38];
+/* made-up games (tools/seed.mjs titles), today = 17 Oct 2026 */
+const GAMES = [
+  { t: "Starfall Odyssey", st: "playing", head: "23 h left", d: "20 Jan 23", dl: "20 Jan 2023", hrs: 41, p: .44, clock: "18:04", cap: "Played", say: "Playing" },
+  { t: "Crimson Tactics", st: "played", head: "Played twice", d: "12 Jan 17", dl: "12 Jan 2017", hrs: 39, p: 1, clock: "78:20", cap: "Played", say: "Played · 85" },
+  { t: "Neon Drift", st: "fresh", head: "Out now", d: "17 Sept", dl: "17 Sept 2026", hrs: 73, p: 0, clock: "73:00", cap: "To beat", say: "Out now" },
+  { t: "Echoes of the Deep", st: "played", head: "Played", d: "20 Feb 20", dl: "20 Feb 2020", hrs: 35, p: 1, clock: "36:41", cap: "Played", say: "Played · 78" },
+  { t: "Moonlit Farm", st: "coming", head: "Out in 118 days", d: "12 Feb 27", dl: "12 Feb 2027", hrs: 100, p: .2, clock: "118", cap: "Days to go", say: "Coming", wait: 1 },
+  { t: "Iron Saga II", st: "coming", head: "Out in 13 days", d: "30 Oct", dl: "30 Oct 2026", hrs: 60, p: .82, clock: "13", cap: "Days to go", say: "Coming", wait: 1 },
+  { t: "Pixel Quest", st: "ready", head: "Ready to play", d: "3 Mar 25", dl: "3 Mar 2025", hrs: 22, p: 0, clock: "22:00", cap: "To beat", say: "Ready" },
+  { t: "The Long Night", st: "tba", head: "Date to be announced", d: "TBA", dl: "Date TBA", hrs: 50, p: 0, clock: "TBA", cap: "Release", say: "TBA", wait: 1 }
+].map((g, i) => Object.assign(g, { i, h: IMG["h" + i], c: IMG["c" + i], l: IMG["l" + i], gc: COL[i] }));
+/* the queue order the demo shows (playing first, like the owner's) */
+const ORDER = [0, 2, 1, 6, 5, 3, 4, 7];
+const DESC = {
+  N: ["Today's rows", "What the owner's unfolded screen shows now: number, cover, name, date, hours and a tag in the middle, then a long empty stretch before the logo."],
+  A: ["Strap", "A slim copy of the open card, so opening a row feels like it just unfolds: the game's colour as a skewed strap holding the spot and the box art, the game's picture fading in behind, one plain headline, a small ticket with the date and hours (a released game's stub has torn), the logo in its fixed slot."],
+  B: ["Cartridge", "Every game is a cartridge lying on the shelf: a ridged grip with the queue spot, a label with the game's picture and its logo, the plastic tinted in the game's colour, a status light, the date and hours pressed into the plastic and gold contacts at the end."],
+  C: ["Save slots", "The Queue as an RPG save screen: numbered slots with double frames, the box art in its own frame, a status line and a play bar (how far you are, or how close the release is), the play time big on the right like a save file, and a cursor on the game you're playing."],
+  D: ["Console shelf", "A console home screen: the unfolded screen shows two tiles side by side, the next game as one big tile across the top. The picture fills each tile, the logo is the name, the spot and status sit on top, the one number that matters bottom-right. Folded: one column."]
+};
+const NOTES = {
+  N: [["What's wrong", "Most of the row is empty at 859px; the facts sit in a narrow band; every row is a different colour slab with a thick edge."]],
+  A: [["Unfolded", "Strap 172px, words, ticket, logo slot 214px. Nothing floats in the middle: the ticket fills it."], ["Folded", "Strap with spot + box art, name on two lines, headline + date under it, logo slot. The ticket hides."], ["Ties in", "Same strap, ticket and logo slot as the open card (round 9), so the row and the card look like one thing."]],
+  B: [["Unfolded", "Grip 64px, label 300px with the logo on it, then name, status light, engraving, contacts."], ["Folded", "Smaller grip and label (logo centred on it), name on two lines, the light and engraving under it."], ["Detail", "The cut corner, the label's colour band and the pressed-in text are all drawn in CSS, nothing heavy."]],
+  C: [["Unfolded", "Slot number, framed box art, name + status + play bar, play time like a save file (or days to go), logo slot."], ["Folded", "Slot number, box art, name on two lines, status + date, play bar, logo. Play time folds into the status line."], ["The cursor", "Sits on the game you're playing. Still (no bobbing), so nothing moves at rest."]],
+  D: [["Unfolded", "Two tiles side by side, the next game across the top: half the scrolling of today's rows."], ["Folded", "One tile per row, the next game taller."], ["Trade-off", "The names are only in the logos (the title shows when a game has no logo). The biggest change of the four."]]
+};
+const GEAR = '<path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm0 5a1.6 1.6 0 1 1 0-3.2 1.6 1.6 0 0 1 0 3.2z"/><path opacity=".35" d="M19.4 13.1l1.7 1.3-1.9 3.3-2-.8a7 7 0 0 1-1.7 1l-.3 2.1h-3.8l-.3-2.1a7 7 0 0 1-1.7-1l-2 .8-1.9-3.3 1.7-1.3a7 7 0 0 1 0-2.2L3.5 9.6l1.9-3.3 2 .8a7 7 0 0 1 1.7-1l.3-2.1h3.8l.3 2.1a7 7 0 0 1 1.7 1l2-.8 1.9 3.3-1.7 1.3a7 7 0 0 1 0 2.2z"/>';
+const LIST = '<path d="M4 6h16v2.4H4z"/><path opacity=".35" d="M4 10.8h16v2.4H4z"/><path d="M4 15.6h16V18H4z"/>';
+const SHUF = '<path opacity=".35" d="M3 6.5h4.2l9 11H21v-2.4h-3.6l-9-11H3z"/><path d="M16.2 4.1h3.6L21 2.6v6l-1.2-1.4h-3.6l-2.6 3.1-1.6-1.9zM3 15.1h4.2l2.6-3.1 1.6 1.9-3.2 3.6H3z"/>';
+const CUR = '<path d="M3 2l17 10L3 22l4-10z"/>';
+const sv = (p, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
+let pick = "A", size = "fit";
+try { pick = localStorage.getItem("qr:pick") || pick; size = localStorage.getItem("qr:size") || size; } catch (x) {}
+
+/* lfRule's idea: every logo gets the same area of ink in its slot, never past 86% of the slot's height or 96% of its width */
+function logo(g, r, fill = .42) {
+  const a = INK[g.i]; let h = Math.sqrt(fill * r / a); h = Math.min(h, .86); if (h * a / r > .96) h = .96 * r / a;
+  return `<span class="lg"><img src="${g.l}" alt="${g.t}" style="height:${(h * 100).toFixed(1)}%"${g.i === 2 ? ' class="dk"' : ""}></span>`;
+}
+const v = g => `--i:${g.k};--h:url('${g.h}');--c:url('${g.c}');--gc:${g.gc}`;
+const nn = n => String(n).padStart(2, "0");
+const ROW = {
+  N: (g, n, f) => `<button class="row rn" style="${v(g)}" aria-label="${g.t}"><span class="n">${nn(n)}</span><span class="cv"></span><span class="t">${g.t}</span>
+    <span class="mm"><span class="d">${g.d}</span><span class="h">${g.hrs}h</span><span class="tg st-${g.st}">${g.st === "playing" ? "Playing now" : g.st === "played" ? "Played it" : g.st === "fresh" ? "Out now" : "Upcoming"}</span></span>${logo(g, f ? 96 / 56 : 212 / 72)}</button>`,
+  A: (g, n, f) => `<button class="row ra st-${g.st}" style="${v(g)}" aria-label="${g.t}"><i class="bg"></i>
+    <span class="strap"><b class="n">${nn(n)}</b><span class="cv"></span></span>
+    <span class="tx"><b class="t">${g.t}</b><span class="hd"><i class="dot"></i><span class="nw">${g.head}</span><span class="mm nw">${g.d} · ${g.hrs} h</span></span></span>
+    <span class="tk"><span class="stub"><b>${g.d}</b><small>${g.st === "coming" || g.st === "tba" ? "out" : "released"}</small></span><span><b>${g.hrs} h</b><small>to beat</small></span></span>
+    ${logo(g, f ? 86 / 58 : 194 / 76)}</button>`,
+  B: (g, n, f) => `<button class="row rb st-${g.st}" style="${v(g)}" aria-label="${g.t}"><span class="grip"><b>${nn(n)}</b></span>
+    <span class="lab">${logo(g, f ? 108 / 60 : 272 / 62, .5)}</span>
+    <span class="tx"><b class="t">${g.t}</b><span class="led"><i class="dot"></i><span class="nw">${g.head}</span></span><span class="eng">${g.dl} · ${g.hrs} h to beat</span></span>
+    <span class="pins"></span></button>`,
+  C: (g, n, f) => `<button class="row rc st-${g.st}${g.st === "playing" ? " sel" : ""}" style="${v(g)};--p:${g.p}" aria-label="${g.t}"><span class="cur">${sv(CUR)}</span>
+    <span class="slot"><small>Slot</small><b>${nn(n)}</b></span><span class="cv"></span>
+    <span class="tx"><b class="t">${g.t}</b><span class="ch"><i class="dot"></i><span>${g.say === "Played · 85" || g.say === "Played · 78" ? g.say : g.head}</span><span class="mm">· ${g.d}</span></span>
+      <span class="meter${g.wait ? " wait" : ""}"><i></i></span></span>
+    <span class="time"><small>${g.cap}</small><b>${g.clock}</b><span>${g.dl}</span></span>${logo(g, f ? 88 / 56 : 196 / 70)}</button>`,
+  D: (g, n, f, big) => `<button class="row rd st-${g.st}${big ? " big" : ""}" style="${v(g)}" aria-label="${g.t}"><i class="bg"></i>
+    <span class="top"><span class="pill n">${nn(n)}</span><span class="pill"><i class="dot"></i>${big ? "Up next · " : ""}${g.say}</span></span>
+    ${big ? logo(g, f ? (.52 * 380) / (.4 * 190) : (.46 * 800) / (.44 * 250), .4) : logo(g, f ? (.52 * 380) / (.4 * 150) : (.54 * 400) / (.38 * 180), .42)}
+    <span class="meta"><b>${g.head}</b><small>${g.hrs} h · ${g.d}</small></span></button>`
+};
+function screenW() { const st = document.querySelector(".stage"); return size === "fit" ? st.clientWidth : +size; }
+function render(anim) {
+  const sc = document.getElementById("screen"), f = screenW() < 560;
+  const games = ORDER.map(i => GAMES[i]), waiting = games.filter(g => g.st !== "played");
+  const hrs = waiting.reduce((s, g) => s + g.hrs, 0), out = waiting.filter(g => ["playing", "fresh", "ready"].includes(g.st)).length;
+  sc.innerHTML = `<div class="qh" style="--hdr:url('${IMG.hdr}')"><h4>Queue</h4>
+      <div class="qstat"><div><b>${waiting.length}</b><span>waiting</span></div><div><b>${hrs}<small>h</small></b><span>to beat</span></div><div><b>${out}</b><span>out now</span></div></div>
+      <span class="qcus">${sv(GEAR)}Customise</span>
+      <div class="qfan">${[6, 2, 0, 4].map(i => `<i style="--c:url('${GAMES[i].c}')"></i>`).join("")}</div></div>
+    <div class="chips"><span class="chip" aria-pressed="true">My order</span><span class="chip">Sort by… ▾</span><span class="qsplit"></span>
+      <span class="chip" aria-pressed="true">${sv(LIST)}Everything <small>${games.length}</small> ▾</span><span class="chip">${sv(SHUF)}Shuffle</span><span class="chip">Boss</span></div>
+    <div class="qlist ${pick.toLowerCase()}">${games.map((g, k) => (g.k = k, ROW[pick](g, k + 1, f, pick === "D" && k === 0))).join("")}</div>`;
+  sc.classList.toggle("anim", !!anim);
+  mark(); requestAnimationFrame(fit);
+}
+function fit() {
+  const st = document.querySelector(".stage"), sc = document.getElementById("screen");
+  if (size === "fit") { st.classList.remove("fixed"); sc.style.width = ""; sc.style.transform = ""; st.style.height = ""; return; }
+  const w = +size, k = Math.min(1, st.clientWidth / w);
+  st.classList.add("fixed"); sc.style.width = w + "px"; sc.style.transform = k < 1 ? `scale(${k})` : "";
+  st.style.height = Math.ceil(sc.offsetHeight * k) + "px";
+}
+function mark() {
+  document.querySelectorAll("#demoSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.pick === pick));
+  document.querySelectorAll("#sizeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.size === size));
+  document.getElementById("dLetter").textContent = pick === "N" ? "–" : pick;
+  document.getElementById("dName").textContent = DESC[pick][0]; document.getElementById("dDesc").textContent = DESC[pick][1];
+  document.getElementById("notes").innerHTML = NOTES[pick].map(([h, t]) => `<div><h3>${h}</h3>${t}</div>`).join("");
+}
+const keep = (k, x) => { try { localStorage.setItem(k, x); } catch (e) {} };
+let toastT;
+function toast(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("on"), 1500); }
+document.addEventListener("click", e => {
+  const p = e.target.closest("[data-pick]"); if (p) { pick = p.dataset.pick; keep("qr:pick", pick); render(true); return; }
+  const s = e.target.closest("[data-size]"); if (s) { size = s.dataset.size; keep("qr:size", size); render(false); return; }
+  const r = e.target.closest(".row"); if (r) toast("Opens " + r.getAttribute("aria-label") + "'s card (demo)");
+});
+let lastW = 0;
+new ResizeObserver(() => { const w = document.querySelector(".stage").clientWidth; if (Math.abs(w - lastW) > 2) { const was = lastW < 560; lastW = w; if (size === "fit" && (w < 560) !== was) render(false); else fit(); } }).observe(document.querySelector(".stage"));
+render(true);
+</script>
