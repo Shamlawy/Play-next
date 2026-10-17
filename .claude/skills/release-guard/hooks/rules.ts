@@ -142,6 +142,7 @@ export type Range = {
   changes: Change[]
   baseHtml?: string
   headHtml?: string
+  mainHtml?: string // origin/main's index.html now: main can ship a release while the branch is being built
   logAdded: string
   baseHelper?: string
   headHelper?: string
@@ -166,6 +167,8 @@ export function releaseProblems(r: Range): { block: string[]; notes: string[] } 
       notes.push(`APP_V is still ${head}: right only for a detector-only fix. Anything the owner can see needs a bump (it triggers the update popup and the auto-reload) and a WHATS_NEW entry.`)
     } else if (base && Number(head) <= Number(base)) {
       block.push(`APP_V went from ${base} to ${head}: it must go up`)
+    } else if (appV(r.mainHtml) && Number(head) <= Number(appV(r.mainHtml))) {
+      block.push(`main already shipped v${appV(r.mainHtml)} while this branch was built (it has v${head}): merge origin/main, bump APP_V above it and move the WHATS_NEW entry and LOG line to the new number`)
     } else {
       const wn = whatsNew(r.headHtml, head)
       if (!wn.count) block.push(`no WHATS_NEW entry with v: ${head}: every user-facing change gets one (go, at, say, tryIt) or the tour skips it`)

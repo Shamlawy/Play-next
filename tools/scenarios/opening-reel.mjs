@@ -7,6 +7,7 @@
    also: a resize while it waits repaints the pixel in the middle; real covers (v293) load while it waits, the centre
    one the game being played, a shelf frame with them stays under budget; the tap takes what's ready and loading stops
    5. Settings › This build › Opening reel = Off stops it
+   In WebKit (the friend's iPhone, webkit-check.yml's scenario input) there is no CDP: no 4x CPU, taps via Playwright's touchscreen.
      node tools/kit.mjs run tools/scenarios/opening-reel.mjs --widths 412,859 */
 export default async ({ p, w }) => {
   const bad = [], pg = p.page;
@@ -20,7 +21,9 @@ export default async ({ p, w }) => {
   /* the covers load while it waits (v293); on the phone that stops at the tap, so time frames after it, not under it */
   await pg.waitForFunction(() => PNREEL.art && PNREEL.art.done, null, { timeout: 8000 }).catch(() => {});
   /* 2 + 3: every beat, drawn on its own (the clock is paused by drawing at fixed times) */
-  const cdp = await pg.context().newCDPSession(pg);
+  const wk = pg.context().browser().browserType().name() === "webkit";
+  const cdp = wk ? { send: async () => {} } : await pg.context().newCDPSession(pg);
+  const tap = (x, y) => wk ? pg.touchscreen.tap(x, y) : p.tap(x, y);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   const r = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"), x = c.getContext("2d"), out = { blank: [], ms: [] };
     for (let i = 0; i < 30; i++) pnreelPaint(i * .5 + .3);   /* warm-up: the first pass loads the font and compiles */
@@ -37,12 +40,15 @@ export default async ({ p, w }) => {
   if (worst > 16) bad.push(`a frame took ${worst.toFixed(1)}ms at 4x (budget 16)`);
   /* a fold / unfold / turn while it waits repaints the pixel at the new size */
   const vp = pg.viewportSize();
-  await pg.setViewportSize({ width: vp.height > vp.width ? 859 : 412, height: vp.height }); await pg.waitForTimeout(300);
+  await pg.setViewportSize({ width: vp.width < 600 ? 859 : 412, height: vp.height });
+  /* Playwright's WebKit changes the size without a window resize event (ResizeObserver and visualViewport do fire); Safari fires it on a turn */
+  if (wk) { await pg.waitForTimeout(300); await pg.evaluate(() => dispatchEvent(new Event("resize"))); }   /* after WebKit has the new innerWidth */
+  await pg.waitForTimeout(300);
   const rs = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"), d = Math.min(devicePixelRatio || 1, 2);
     const x = c.getContext("2d"), m = x.getImageData(c.width / 2 - 2, c.height / 2 - 2, 4, 4).data;
-    return { fit: c.width === Math.round(innerWidth * d) && c.height === Math.round(innerHeight * d), mid: m[2] }; });
-  await pg.setViewportSize(vp); await pg.waitForTimeout(300);
-  if (!rs.fit) bad.push("the waiting canvas didn't resize with the screen");
+    return { fit: c.width === Math.round(innerWidth * d) && c.height === Math.round(innerHeight * d), mid: m[2], at: `canvas ${c.width}x${c.height}, page ${innerWidth}x${innerHeight} @${d}` }; });
+  await pg.setViewportSize(vp); if (wk) { await pg.waitForTimeout(300); await pg.evaluate(() => dispatchEvent(new Event("resize"))); } await pg.waitForTimeout(300);
+  if (!rs.fit) bad.push("the waiting canvas didn't resize with the screen (" + rs.at + ")");
   else if (rs.mid < 120) bad.push("the opening pixel left the middle after a resize");
   /* 4: it waits for a tap */
   await pg.waitForTimeout(900);
@@ -80,25 +86,25 @@ export default async ({ p, w }) => {
   const waits = await pg.evaluate(() => { let ran = false; extend("nxTour", { after() { ran = true; } }); S.tourFrom = +APP_V - 1; nxTour(null); return new Promise(res => setTimeout(() => res(!document.getElementById("nxtour")), 300)); });
   if (!waits) bad.push("the tour started over the reel");
   await pg.evaluate(() => { S.tourFrom = +APP_V; });
-  await p.tap(w / 2, 300); await pg.waitForTimeout(1200);
+  await tap(w / 2, 300); await pg.waitForTimeout(1200);
   const on = await pg.evaluate(() => ({ playing: !!PNREEL.playing, t0: PNREEL.t0, sound: PNREEL.src ? PNREEL.src.buffer.duration : 0, ac: AC && AC.state }));
   if (!on.playing || !on.t0) bad.push("a tap didn't start it");
   if (await pg.evaluate(() => !PNREEL.use || PNREEL.use.covers === PNREEL.art.covers)) bad.push("the tap didn't take the covers ready by then");
   if (Math.abs(on.sound - 15) > .1) bad.push("no 15s soundtrack with Sound on (" + on.sound + ")");
   console.log(`  ${w}px: tapped: playing, sound ${on.sound.toFixed(1)}s, audio context ${on.ac}`);
-  await p.tap(w / 2, 300); await pg.waitForTimeout(500);
+  await tap(w / 2, 300); await pg.waitForTimeout(500);
   if (await pg.evaluate(() => !!document.getElementById("pnboot"))) bad.push("a tap while playing didn't skip it");
   await pg.evaluate(() => { const t = document.getElementById("nxtour"); if (t) t.remove(); });
   /* left alone it ends */
   await pg.evaluate(() => saveNow()); await pg.reload(); await pg.waitForTimeout(600);
-  await p.tap(w / 2, 300); await pg.waitForFunction(() => PNREEL.t0 > 0, null, { timeout: 3000 }).catch(() => bad.push("never started after the tap"));
+  await tap(w / 2, 300); await pg.waitForFunction(() => PNREEL.t0 > 0, null, { timeout: 3000 }).catch(() => bad.push("never started after the tap"));
   await pg.evaluate(() => { PNREEL.t0 -= 14600; });
   await pg.waitForTimeout(1200);
   if (await pg.evaluate(() => !!document.getElementById("pnboot"))) bad.push("didn't end by itself after 15s");
   /* Skip on the waiting screen */
   await pg.reload(); await pg.waitForTimeout(600);
   const sk = await pg.evaluate(() => { const r = document.querySelector(".pnreel-skip").getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
-  await p.tap(sk[0], sk[1]); await pg.waitForTimeout(500);
+  await tap(sk[0], sk[1]); await pg.waitForTimeout(500);
   if (await pg.evaluate(() => !!document.getElementById("pnboot") || !!PNREEL.playing)) bad.push("Skip didn't go straight in");
   /* 5 */
   await pg.evaluate(() => { S.reelOff = true; saveNow(); }); await pg.reload(); await pg.waitForTimeout(400);
