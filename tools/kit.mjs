@@ -153,7 +153,8 @@ async function phone(browser, base, w, data) {
       : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1")
       : "Mozilla/5.0 (Linux; Android 16; SM-F9800) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36" });
   const reports = [], errors = [];
-  await ctx.route(u => !u.href.startsWith(base), async r => {
+  /* blob:/data: stay local: WebKit routes them too (Chromium doesn't), and blocking them stopped workers made from a blob */
+  await ctx.route(u => !u.href.startsWith(base) && !/^(blob|data):/.test(u.href), async r => {
     const u = r.request().url();
     if (/\/bug$/.test(u) && r.request().method() === "POST") {
       try { reports.push(...(JSON.parse(r.request().postData() || "{}").reports || [])); } catch (e) {}

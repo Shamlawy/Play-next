@@ -22,9 +22,10 @@ export default async ({ p, w }) => {
     return out; });
   console.log("  covers: " + JSON.stringify(a));
   const vp = pg.viewportSize();
+  await pg.evaluate(() => { window.__rs = 0; addEventListener("resize", () => __rs++); window.__ro = 0; new ResizeObserver(() => __ro++).observe(document.getElementById("pnboot")); window.__vv = 0; visualViewport && visualViewport.addEventListener("resize", () => __vv++); });
   const r0 = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"); return { iw: innerWidth, ih: innerHeight, cw: c.width, ch: c.height, dpr: devicePixelRatio, vv: visualViewport && visualViewport.width }; });
   await pg.setViewportSize({ width: 859, height: vp.height }); await pg.waitForTimeout(600);
-  const r1 = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"); return { iw: innerWidth, ih: innerHeight, cw: c.width, ch: c.height, dpr: devicePixelRatio, vv: visualViewport && visualViewport.width }; });
+  const r1 = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"); return { rs: __rs, ro: __ro, vv2: __vv, iw: innerWidth, ih: innerHeight, cw: c.width, ch: c.height, dpr: devicePixelRatio, vv: visualViewport && visualViewport.width }; });
   console.log("  resize: before " + JSON.stringify(r0) + " after " + JSON.stringify(r1));
   await pg.setViewportSize(vp); await pg.waitForTimeout(600);
   await pg.reload(); await pg.waitForTimeout(800);
