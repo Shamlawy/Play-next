@@ -2488,7 +2488,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   @keyframes pnShake { from { transform: translateX(-1.5px); } to { transform: translateX(1.5px); } }
   @keyframes pnRoll { from { transform: translateY(-6px) scaleY(.5); opacity: .3; } to { transform: translateY(6px) scaleY(.5); opacity: 1; } }
   @keyframes pnWob { 20% { transform: rotate(-18deg); } 40% { transform: rotate(15deg); } 60% { transform: rotate(-10deg); } 80% { transform: rotate(6deg); } }
-  @keyframes pnWheel { from { transform: translate(var(--sx), var(--sy)) scale(.2); opacity: 0; } }
   #pnbub.happy .eye, #pnbub.laugh .eye, #pnbub.wink .eye.l { height: 8px; background: transparent; box-shadow: none; border: 3px solid #EAF2FF; border-bottom: 0;
     border-radius: 10px 10px 0 0; animation: none; }
   #pnbub.love .mouth, #pnbub.wink .mouth { width: 16px; height: 9px; margin-left: -8px; background: #8FD0FF; }
@@ -2520,9 +2519,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnbub.talk .mouth { width: 11px; height: 8px; margin-left: -5.5px; border: 0; border-radius: 50%; background: #8FD0FF;
     animation: pnTalk .16s ease-in-out infinite alternate; }
   #bubwheel { position: fixed; inset: 0; z-index: 61; }
-  #bubwheel button { position: fixed; left: 0; top: 0; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--edge);
-    background: var(--ink); font-size: 22px; box-shadow: 0 8px 20px rgba(0,0,0,.5); cursor: pointer;
-    animation: pnWheel .35s cubic-bezier(.34,1.56,.64,1) both; animation-delay: calc(var(--i) * 35ms); }
   /* v87 fixes: no colour ring when it shakes, eyes stay clear of the mouth; plus idle antics, peeking, confetti */
   #pnbub.face .core { background: #070a14; } #pnbub.angry .core { background: #14070a; }
   #pnbub.laugh .face, #pnbub.angry .face { animation: none; }
@@ -2610,7 +2606,6 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
   #pnstory .list button { display: flex; gap: 12px; align-items: center; text-align: left; padding: 10px 12px; border-radius: 12px;
     border: 1px solid #1b2a4a; background: #0b1224; color: #EAF2FF; font: inherit; font-weight: 700; cursor: pointer; }
   #pnstory .list b { color: #8FD0FF; min-width: 18px; } #pnstory .lk { min-height: 0; margin-top: 12px; font-size: 13px; color: var(--mute); }
-  #bubwheel button.act { background: #12204a; border-color: var(--volt2); }
 
 /* v110 smoothness pass */
 html{scroll-behavior:smooth}
@@ -4396,7 +4391,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "295";
+const APP_V = "296";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -12365,31 +12360,32 @@ function nxFlyTo(el) {
     const e = pnBubEdge(); b.animate([{ transform: `translate3d(${pnBubX}px,${pnBubY}px,0)` }, { transform: `translate3d(${e.x}px,${e.y}px,0)` }], { duration: 600, easing: "ease-in-out" }); pnBubPlace(e.x, e.y); }, 7000);
 }
 /* now and then it wanders to a new spot, sometimes hopping to the other side */
-/* hold it: a wheel of faces, plus the look changer */
+/* hold it / double tap: his menu. v296 (the owner: "remove the emoji, and the commands shorten them and organise them better"):
+   the two rings of 18 emoji buttons (9 shortcuts + 9 faces) are one small card beside him, short words in three groups;
+   the faces and the power-up button are gone (he still makes those faces on his own) */
 function pnBubWheel() {
   const ov = document.createElement("div"); ov.id = "bubwheel";
-  const it = [["⚡", "power"], ["😂", "laugh"], ["😉", "wink"], ["😎", "cool"], ["😍", "love"], ["😴", "nap"], ["🥱", "yawn"], ["🔥", "take"], ["🎨", "edit"]];
   const cx = pnBubX + 31, cy = pnBubY + 31, right = cx > innerWidth / 2;
-  const acts = [["🎲", "pick"], ["⚔️", "duel"], S.diaryOn ? ["📓", "diary"] : ["⭐", "score"], ["➕", "add"], ["📅", "next"], ["📖", "story"], ["💬", "ask"], ["⚙️", "nxset"], ["🐞", "bug"]];
-  const btn = (e, a, i, ang, r, c) => { ang = ang * Math.PI / 180;
-    const x = Math.max(6, Math.min(innerWidth - 52, cx - 23 + r * Math.cos(ang))), y = Math.max(6, Math.min(innerHeight - 52, cy - 23 + r * Math.sin(ang)));
-    return `<button class="${c}" data-a="${a}" style="--i:${i};--sx:${cx - 23}px;--sy:${cy - 23}px;transform:translate(${x}px,${y}px)">${e}</button>`; };
-  /* v204: 9 shortcuts now (⚙ settings): both rings stay on the open side (a half circle) so none get squeezed against the screen edge */
-  ov.innerHTML = acts.map(([e, a], i) => btn(e, a, i, (right ? 95 : -85) + i * 22.5, 122, "act")).join("")
-    + it.map(([e, a], i) => btn(e, a, i + acts.length, (right ? 99 : -81) + i * 20.25, 178, "")).join("");
+  const G = [["Play", [["pick", "Pick for me"], ["next", "Up next"], ["duel", "Duel"], S.diaryOn ? ["diary", "Diary"] : ["score", "Score"], ["add", "Add game"]]],
+    ["Nexi", [["ask", "Ask"], ["story", "Story"], ["take", "Hot take"], ["edit", "His look"]]],
+    ["More", [["nxset", "Settings"], ["bug", "Report"]]]];
+  const W = Math.min(264, innerWidth - 24), x = right ? Math.max(12, cx - 40 - W) : Math.min(innerWidth - W - 12, cx + 40);
+  ov.innerHTML = `<div class="nxm${right ? " r" : ""}" role="menu" style="width:${W}px;transform:translate(${x}px,0)">` + G.map(([h, l]) =>
+    `<div class="nxm-g"><b>${h}</b><div>${l.map(([a, t]) => `<button data-a="${a}" role="menuitem">${t}</button>`).join("")}</div></div>`).join("") + "</div>";
   document.body.appendChild(ov);
+  /* centred on him, kept on screen (read after it's in the page: one small box, not a redraw of the screen) */
+  requestAnimationFrame(() => { const m = ov.firstChild, h = m.offsetHeight;
+    m.style.transform = `translate(${x}px,${Math.max(12, Math.min(innerHeight - h - 12, cy - h / 2))}px)`; m.classList.add("on"); });
   /* v207: a double tap opens the wheel on its second pointerup, and the phone's click that follows ~6ms later
      landed on this full-screen backdrop and closed it at once (#69). Clicks in the first 350ms are ignored. */
   const born = performance.now();
   ov.onclick = e => { if (performance.now() - born < 350) return; const a = e.target.closest("button")?.dataset.a; ov.remove(); if (!a) return;
-    if (a === "power") pnPowerUp();
-    else if (a === "take") pnBubSay(["🔥 Today's hot take: " + pnTake(), ""]);
+    if (a === "take") pnBubSay(["🔥 Today's hot take: " + pnTake(), ""]);
     else if (a === "edit") pnBubEdit();
     else if (a === "story") pnLore(); else if (a === "ask") nxChat();
     else if (a === "nxset") setJump({ scope: "app", group: "Nexi", text: "Personality" }); else if (a === "bug") { if (typeof bugAsk === "function") bugAsk(); }
     else if (a === "pick") pnBubPick(); else if (a === "diary") openDiaryPicker(); else if (a === "duel") qDuel(); else if (a === "score") qScorePick(); else if (a === "add") goTab("add");
-    else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); }
-    else { pnBubMood(a, a === "nap" ? 4000 : 2600); if (a === "love") pnBubBurst(); } };
+    else if (a === "next") { const n = pnNext(); if (n) { hubReturn = null; pnTap = { x: cx, y: cy }; openFull(n.g.id); } else pnBubSay(["Nothing's coming up yet. Add a game? ➕", "add"]); } };
 }
 function pnBubLines() {
   const L = [], R = pnLastRanked, top = R[0], two = R[1], now = new Date();
@@ -25717,11 +25713,13 @@ WHATS_NEW.push(
 /* v274 (the owner, #447): one Nexi per screen. Unfolded, Home's own Nexi (the face beside your greeting) and the rail's seated
    Nexi showed at once: the rail one steps out while you're on Home, unless he's speaking (his words hang off him), touring
    or on a cinematic (those use !important and win). */
-@media (min-width: 620px) { html.nxseat.onhome:not(:has(#pnbubmsg.on)) #pnbub { display: none; } }
+/* v296 (the owner: "return nexi on the home cuz its the only way to close the rail"): the other way round now: the rail's
+   Nexi stays in his seat on Home too (a tap on him hides the rail) and Home's own face steps aside while he's seated */
+@media (min-width: 620px) { html.nxseat.onhome #p-home .nxh-face { display: none; } }
 </style>
 <script>
 WHATS_NEW.push(
-  { v: 274, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#p-home .nxh-face") || null,
+  { v: 274, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => { const f = $("#p-home .nxh-face"); return f && f.getClientRects().length ? f : $("#pnbub") || null; },
     say: "<b>Calmer Nexi, cleaner screens</b>: one Nexi on Home instead of two, no more random yawns, sneezes or wandering, and he only speaks up when there's real news.",
     tryIt: "Open Home on your unfolded phone: just the one Nexi beside your greeting. He still blinks, follows your finger and tells you when a game is out or delayed." },
   { v: 274, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); }, at: null,
@@ -26458,6 +26456,24 @@ WHATS_NEW.push(
 .pnb-p span { white-space: nowrap; }
   /* v294: the ✨ "from the art" swatch in a game's colour row */
   .swauto { display: grid; place-items: center; font-size: 15px; line-height: 1; background: var(--u-card2, var(--ink)); color: var(--ice); }
+/* v296 (#469 item 2, the owner: "drop 2 if it makes the app better"): Nexi rests still in the unfolded rail. Seated, his
+   breathing glow, the two drifting blobs, the "Zz" and his personality's loop stop (5 endless loops on every screen); he
+   still talks, reacts and powers up (those are short, or come with words: while he speaks he moves as before) */
+html.nxseat:not(:has(#pnbubmsg.on)) #pnbub::before, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .orb,
+html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .aura, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .zz,
+html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .nt, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub:not(.ssj-charge) .core { animation: none; }
+/* v296: his menu (double tap / hold): one small card beside him, short words in three groups, no emoji */
+#bubwheel .nxm { position: fixed; left: 0; top: 0; padding: 12px 12px 6px; border-radius: var(--u-r, 20px); background: var(--u-pan, var(--ink));
+  border: 1px solid var(--u-line2, var(--edge)); box-shadow: 0 18px 40px rgba(0,0,0,.55); opacity: 0; transition: opacity .16s var(--ease);
+  font-family: "Poppins", system-ui, sans-serif; }
+#bubwheel .nxm.on { opacity: 1; }
+#bubwheel .nxm-g { margin-bottom: 8px; }
+#bubwheel .nxm-g > b { display: block; margin: 0 4px 6px; font-size: 12.5px; font-weight: 600; color: var(--mute); }
+#bubwheel .nxm-g > div { display: flex; flex-wrap: wrap; gap: 6px; }
+#bubwheel .nxm button { flex: 1 1 auto; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--u-line, var(--edge));
+  background: var(--u-card, var(--ink)); color: var(--ice); font: 600 14px "Poppins", system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
+#bubwheel .nxm-g:first-child button:first-child { background: rgba(var(--vrgb), .18); border-color: rgba(var(--vrgb), .55); }
+@media (hover: hover) and (pointer: fine) { #bubwheel .nxm button:hover { border-color: var(--u-line2); background: var(--u-card2); } }
 </style>
 <script>
 /* ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s
@@ -26755,5 +26771,14 @@ WHATS_NEW.push(
   { v: 294, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row"),
     say: "<b>Every game now wears its own colour</b>: I read it from the game's art by myself (the main colour, not one stray speck), so your Queue isn't all blue any more. There are 32 colours to pick from now, and ✨ in Edit hands a colour back to the art.",
     tryIt: "Scroll the Queue, then open a game's Edit › Colour." }
+);
+WHATS_NEW.push(
+  { v: 296, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); setTimeout(() => { try { pnBubWheel(); } catch (e) {} }, 400); },
+    at: () => $("#bubwheel .nxm") || $("#pnbub") || null,
+    say: "<b>My menu is short and tidy now</b>: double-tap me for three small groups (Play, Nexi, More) in plain words, no wall of emoji.",
+    tryIt: "Double-tap Nexi (or hold him) and pick Pick for me." },
+  { v: 296, go: () => { document.getElementById("bubwheel")?.remove(); closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : null; },
+    say: "Unfolded, I'm back in the rail on Home too, so one tap on me hides the rail from any screen. I also sit still there now and only move when I talk or react.",
+    tryIt: "Open Home on your unfolded phone and tap Nexi at the bottom of the rail." }
 );
 </script>
