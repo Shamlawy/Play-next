@@ -214,3 +214,13 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: C is very very sick but it doesn't match our theme cuz its a game app
 - rule: Card back: keep round 12 C's idea (each area fills with the game's colour, bubbles, the score in a big vessel), but the vessels must be gaming things (controller and buttons, cartridges, energy cells), not fantasy props like potions.
 - check: none
+
+### T43 · v299 · Queue · pick
+- said: I like A so much so keep it but I want extra 3 demos for cards like yugioh cards and other
+- rule: Card back: round 13 A (controller fill) is the owner's pick so far; trading-card layouts (duel, monster, arcane) are being tried as extras, layout only, no real names or logos, the game's colour on black.
+- check: none
+
+### T44 · v300 · Queue · pick
+- said: Nah A it is but fix the numbers on the controller they're design is kinda off and build and merge
+- rule: The open card's back is round 13 A, the Controller: score on the controller's little screen (never over the D-pad), each area's number inside its round button, the four numbers underneath.
+- check: tools/scenarios/queue-card.mjs (score on the screen, numbers inside the buttons)

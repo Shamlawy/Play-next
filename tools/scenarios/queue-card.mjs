@@ -10,7 +10,11 @@
      - two taps turn the card, the back holds Edit + More + the four numbers, two taps on the back turn it back
      - one tap on the front (and on the back) closes the card into its row
      - a tap on the box art opens the game page (and does not turn or close the card)
-     - the back's ring captions never break inside a word (the owner's "ST OR Y") */
+     - the back (v300, round 13 "Controller"): the score on the controller's little screen, eight round buttons with their numbers inside,
+       the four numbers, drawn Edit / More icons (no emoji), nothing past the card's sides, no caption broken over two lines;
+       a scored game shows your own numbers, an unscored one Nexi's guess from the games you've scored
+     Taps on the back aim at the line under the logo: on a 360px phone the top middle sits near the move arrows (Chrome's touch
+     adjustment snaps a tap there onto the button) and the lower half is under the tab bar */
 import fs from "node:fs";
 import { LOGOS } from "../standin-logos.mjs";
 
@@ -18,11 +22,13 @@ export default async ({ p, w, fail }) => {
   const shots = process.env.SHOTS; if (shots) fs.mkdirSync(shots, { recursive: true });
   const pg = p.page;
   await pg.evaluate(L => { S.games.slice(0, 3).forEach((g, i) => { g.art = L[i].url; }); S.deckOff = true; saveNow(); }, LOGOS);
+  /* Nexi's speech bubble pops up on its own now and then (a power-up line) and can sit over the spot a tap aims at */
+  await pg.evaluate(() => { const m = document.getElementById("pnbubmsg"); if (m) m.style.display = "none"; });
   const STATES = {
     coming: g => { g.state = "upcoming"; g.date = new Date(Date.now() + 34 * 864e5).toLocaleDateString("en-CA"); S.played = S.played.filter(x => x.id !== g.id); },
     out: g => { g.state = "backlog"; g.date = new Date(Date.now() - 3 * 864e5).toLocaleDateString("en-CA"); S.played = S.played.filter(x => x.id !== g.id); },
     playing: g => { g.state = "playing"; S.played = S.played.filter(x => x.id !== g.id); },
-    played: g => { g.state = "played"; g.mine = { story: 8.3, music: 9.3, gameplay: 8.7, replay: 5, visuals: 8.3, world: 8.3, characters: 7.7, pacing: 8.7 };
+    played: g => { g.state = "played"; g.mine = { story: 8.3, music: 9.3, gameplay: 8.7, replay: 5, visuals: 8.3, world: 8.3, chars: 7.7, pace: 8.7 };
       if (!S.played.some(x => x.id === g.id)) S.played.push({ id: g.id, real: 8, runs: 2, date: "2026-09-01" }); }
   };
   const heights = [];
@@ -67,17 +73,29 @@ export default async ({ p, w, fail }) => {
       const back = await pg.evaluate(() => {
         const h = document.querySelector("#p-queue .hero .hflip");
         if (!h) return { gone: true };
-        const caps = [...h.querySelectorAll(".pback .sepone .cap")].map(c => ({ t: c.textContent, lines: Math.round(c.getBoundingClientRect().height / parseFloat(getComputedStyle(c).lineHeight)) }));
-        return { on: h.classList.contains("on"), edit: !!h.querySelector(".pback [data-edit]"), more: !!h.querySelector(".pback [data-more]"),
-          stats: h.querySelectorAll(".pback .stat").length, caps };
+        const bk = h.querySelector(".pback"), br = bk.getBoundingClientRect(), lines = c => Math.round(c.getBoundingClientRect().height / parseFloat(getComputedStyle(c).lineHeight));
+        const caps = [...bk.querySelectorAll(".qbb > span, .qbfour span, .qbfour b, .qbbig > span")].map(c => ({ t: c.textContent, lines: lines(c) }));
+        const out = [...bk.querySelectorAll(".qbin > *, .qbb, .qbbig, .qbi")].filter(x => { const r = x.getBoundingClientRect(); return r.width && (r.left < br.left - 1 || r.right > br.right + 1); }).map(x => x.className);
+        const inBtn = [...bk.querySelectorAll(".qbv")].every(v => { const a = v.getBoundingClientRect(), b = v.querySelector("b").getBoundingClientRect(); return b.width <= a.width + 1 && b.height <= a.height + 1; });
+        const sc = bk.querySelector(".qbscr").getBoundingClientRect(), num = bk.querySelector(".qbnum"), rng = document.createRange(); rng.selectNodeContents(num); const nr = rng.getBoundingClientRect();
+        const onScreen = nr.left >= sc.left - 2 && nr.right <= sc.right + 2 && nr.top >= sc.top - 2 && nr.bottom <= sc.bottom + 2;
+        const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(bk.querySelector(".qbh").textContent);
+        return { on: h.classList.contains("on"), edit: !!bk.querySelector("[data-edit]"), more: !!bk.querySelector("[data-more]"),
+          stats: bk.querySelectorAll(".qbfour > div").length, btns: bk.querySelectorAll(".qbb").length, pad: !!bk.querySelector(".qbbig"),
+          guess: bk.querySelector(".qbpad").classList.contains("qbg"), vals: [...bk.querySelectorAll(".qbv b")].map(b => b.textContent), big: num.textContent, caps, out, inBtn, onScreen, emoji };
       });
       if (back.gone) { fail(`${name}: two taps closed the card instead of turning it`); continue; }
       if (!back.on) fail(`${name}: two taps didn't turn the card`);
-      if (!back.edit || !back.more || back.stats !== 4) fail(`${name}: back lacks Edit/More/4 numbers (${JSON.stringify(back)})`);
-      for (const c of back.caps) if (c.lines > 1) fail(`${name}: ring caption "${c.t}" broke over ${c.lines} lines`);
+      if (!back.edit || !back.more || back.stats !== 4 || back.btns !== 8 || !back.pad) fail(`${name}: back lacks Edit/More/4 numbers/controller/8 buttons (${JSON.stringify(back)})`);
+      for (const c of back.caps) if (c.lines > 1) fail(`${name}: "${c.t}" on the back broke over ${c.lines} lines`);
+      if (back.out.length) fail(`${name}: runs past the back's sides: ${back.out.join(", ")}`);
+      if (!back.inBtn) fail(`${name}: a number spills out of its button`);
+      if (!back.onScreen) fail(`${name}: the score "${back.big}" isn't on the controller's screen`);
+      if (back.emoji) fail(`${name}: an emoji icon on the back's top row`);
+      if (name === "played" && (back.guess || back.vals.join() !== "8.3,9.3,8.7,5.0,8.3,8.3,7.7,8.7")) fail(`played: the buttons don't show your own scores (${back.vals.join()})`);
       if (shots) await pg.locator("#p-queue .hero").screenshot({ path: `${shots}/${w}-${name}-back.png` });
-      const bb = await pg.locator("#p-queue .hero .pback").boundingBox();
-      await p.tap(bb.x + bb.width / 2, bb.y + 12); await pg.waitForTimeout(60); await p.tap(bb.x + bb.width / 2, bb.y + 12);
+      const bb = await pg.locator("#p-queue .hero .pback .qbsub").boundingBox();
+      await p.tap(bb.x + 20, bb.y + bb.height / 2); await pg.waitForTimeout(60); await p.tap(bb.x + 20, bb.y + bb.height / 2);
       await pg.waitForTimeout(1200);
       if (await pg.evaluate(() => { const h = document.querySelector("#p-queue .hero .hflip"); return !h || h.classList.contains("on"); })) fail(`${name}: two taps on the back didn't turn it back`);
       /* one tap closes it; then one on the back closes it too */
@@ -87,8 +105,8 @@ export default async ({ p, w, fail }) => {
       if (name === "coming") {
         await pg.evaluate(() => { flipId = null; collapsed = false; renderQueue(); const w = document.querySelector("#p-queue .hero .hflip"); qkTurn(w); });
         await pg.waitForTimeout(1000);
-        const b2 = await pg.locator("#p-queue .hero .pback").boundingBox();
-        await p.tap(b2.x + b2.width / 2, b2.y + 12);
+        const b2 = await pg.locator("#p-queue .hero .pback .qbsub").boundingBox();
+        await p.tap(b2.x + 20, b2.y + b2.height / 2);
         await pg.waitForTimeout(800);
         if (await pg.evaluate(() => !!document.querySelector("#p-queue .hero"))) fail(`${name}: one tap on the back didn't close the card`);
       }
@@ -96,6 +114,19 @@ export default async ({ p, w, fail }) => {
     }
   }
   if (Math.max(...heights) - Math.min(...heights) > 2) fail(`open cards differ in height: ${heights.join(", ")}`);
+  /* an unscored game guesses its eight areas from the games you've scored (sharing a genre counts more) */
+  const guess = await pg.evaluate(() => {
+    goTab("games"); renderQueue();
+    const ids = [...document.querySelectorAll("#p-queue [data-row]")].map(r => r.dataset.row), g = S.games.find(x => String(x.id) === ids[0]);
+    S.played = S.played.filter(x => x.id !== g.id); g.mine = {}; g.state = "backlog";
+    S.games.forEach(x => { if (x.id !== g.id) x.mine = {}; });
+    const o = S.games.find(x => x.id !== g.id); o.mine = { story: 9, music: 7, gameplay: 8, replay: 6, visuals: 9, world: 8, chars: 7, pace: 6 };
+    saveNow(); flipId = g.id; focusId = g.id; collapsed = false; renderQueue();
+    const bk = document.querySelector(`#p-queue .hero[data-row="${CSS.escape(String(g.id))}"] .pback`);
+    const res = bk ? { g: bk.querySelector(".qbpad").classList.contains("qbg"), big: bk.querySelector(".qbnum").textContent, vals: [...bk.querySelectorAll(".qbv b")].map(b => b.textContent).join() } : { err: "no open card" };
+    flipId = null; renderQueue(); return res;
+  });
+  if (!guess.g || guess.vals !== "9.0,7.0,8.0,6.0,9.0,8.0,7.0,6.0" || guess.big !== "75") fail(`Nexi's guess on an unscored game: ${JSON.stringify(guess)}`);
   /* the cover opens the game page and leaves the card as it was */
   await pg.evaluate(() => { document.querySelector("#p-queue .hero").scrollIntoView({ block: "center", behavior: "instant" }); });
   await pg.waitForTimeout(400);

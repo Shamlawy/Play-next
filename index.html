@@ -3962,7 +3962,6 @@ function beep(kind) {
    every delay below is shared by the CSS and the audio, so they can't drift */
 const pace = () => num(S.pace, 100, 40, 250) / 100;
 const PD = i => Math.round((200 + i * 42) / pace());
-const PDUR = () => Math.round(300 / pace());
 /* the rings wait for the hype accent to land, so the two never collide */
 const PTAIL = g => PD(num(g && g.hype, 0, 0, 10)) + Math.round(110 / pace());
 const RD = (i, g) => PTAIL(g) + Math.round((60 + i * 95) / pace());
@@ -4392,7 +4391,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "299";
+const APP_V = "300";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5385,7 +5384,7 @@ const GROUP_KEYS = {
   "On deck cards": ["dzX"],
   "Player type card": ["dzX"],
   "The standings tile": ["standN"],
-  "Queue cards": ["ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
+  "Queue cards": ["cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
   "Labels on the board": ["flowTitle", "flowDate"],
   "Your evening": ["evening", "playStyle"],
@@ -6338,22 +6337,8 @@ function openSettings(scope) {
       </div>
     </div>
 
-    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges, rating rings and the art behind each row.">Queue cards</h4>
+    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges and the art behind each row.">Queue cards</h4>
       <div class="demohost" data-demo="card">${demoCard()}</div>
-      <label>Rating rings</label>
-      <div class="chips" id="s-ringstyle">
-        ${[["con", "Stacked"], ["sep", "Separate"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.ringStyle || "con") === v}"><span>${l}</span></button>`).join("")}
-      </div>
-      <label for="s-rsize">Size</label>
-      <div class="rowline"><input id="s-rsize" type="range" min="100" max="280" value="${num(S.ringSize, RING_D.size, 100, 280)}">
-        <span class="v" id="s-rsize-v">${num(S.ringSize, RING_D.size, 100, 280)}px</span></div>
-      <label for="s-rthick">Thickness</label>
-      <div class="rowline"><input id="s-rthick" type="range" min="3" max="16" value="${num(S.ringThick, RING_D.thick, 3, 16)}">
-        <span class="v" id="s-rthick-v">${num(S.ringThick, RING_D.thick, 3, 16)}</span></div>
-      <label for="s-rgap">Gap between rings</label>
-      <div class="rowline"><input id="s-rgap" type="range" min="0" max="12" value="${num(S.ringGap, RING_D.gap, 0, 12)}">
-        <span class="v" id="s-rgap-v">${num(S.ringGap, RING_D.gap, 0, 12)}</span></div>
       <label>Colour the closed rows with the game's colour</label>
       <div class="chips" id="s-rowtint">
         ${[["off", "Off"], ["soft", "Soft"], ["strong", "Strong"]].map(([v, l]) =>
@@ -7102,7 +7087,6 @@ function openSettings(scope) {
   pick("#s-motion", v => S.motion = v !== "off");
   pick("#s-hubanim", v => { S.hubAnim = v !== "off"; applyHubAnim(); });
   pick("#s-plattext", v => { S.platText = v === "text"; });
-  pick("#s-ringstyle", v => S.ringStyle = v, () => renderQueue());
   pick("#s-cardbg", v => S.cardBg = v, () => renderQueue());
   pick("#s-libtitle", v => S.libTitle = v === "on", () => renderLib());
   pick("#s-webgrid", v => S.webGrid = v, () => { renderTaste(); renderHome(); });
@@ -7265,9 +7249,6 @@ function openSettings(scope) {
     };
   };
   slide("#s-evening", "#s-evening-v", "h", "evening", () => renderQueue());
-  slide("#s-rsize", "#s-rsize-v", "px", "ringSize", () => renderQueue());
-  slide("#s-rthick", "#s-rthick-v", "", "ringThick", () => renderQueue());
-  slide("#s-rgap", "#s-rgap-v", "", "ringGap", () => renderQueue());
   slide("#s-asize", "#s-asize-v", "%", "artSize", () => renderQueue());
   slide("#s-ah", "#s-ah-v", "%", "artH", () => renderQueue());
   slide("#s-cardbgstr", "#s-cardbgstr-v", "%", "cardBgStr", () => renderQueue());
@@ -8513,24 +8494,6 @@ const num = (v, d, lo, hi) => {
   if (v == null || v === "" || !isFinite(n)) return d;
   return Math.min(hi, Math.max(lo, n));
 };
-const RING_D = { size: 160, thick: 8, gap: 3, style: "con" };
-function ringColours(g) {
-  const a = HEX.test(g.colour || "") ? g.colour : PALETTE[0];
-  return {
-    story: a,
-    music: mix(a, "#5AE0FF", .5),
-    gameplay: mix(a, "#EAF2FF", .42),
-    replay: mix(a, "#2E6BFF", .55),
-    visuals: mix(a, "#B45CFF", .5),
-    world: mix(a, "#3FD9A4", .5),
-    chars: mix(a, "#FF7AD9", .45),
-    pace: mix(a, "#F0A63C", .45)
-  };
-}
-function ringArc(i, thick, gap) {
-  const r = Math.max(3, 50 - thick / 2 - i * (thick + gap));
-  return { r, c: 2 * Math.PI * r };
-}
 /* one row: card art, what you thought, what it turned out to be, and a way in */
 function offerRow(g, was, now, cap) {
   return `<button class="orow" data-home-open="${esc(g.id)}" style="--accent:${esc(g.colour || PALETTE[0])}">
@@ -8715,64 +8678,6 @@ function radarBlock(scope) {
   </div>`;
 }
 
-function ringsBlock(g) {
-  const mine = g.mine || {};
-  const vals = RATINGS.map(([k, l]) => [k, l, num(mine[k], 0, 0, 10)]).filter(v => v[2] > 0);
-  if (!vals.length) return "";
-  const cols = ringColours(g);
-  const thick = num(S.ringThick, RING_D.thick, 3, 16);
-  const gap = num(S.ringGap, RING_D.gap, 0, 12);
-  const size = num(S.ringSize, RING_D.size, 100, 280);
-
-  /* the web lives on Home and in Taste now, not on the card: it reads a whole
-     profile at a glance, which is wasted on one game. Old saves fall back to stacked. */
-
-  if (S.ringStyle === "sep") {
-    /* four big rings read well; eight at that size is a wall */
-    const scale = vals.length > 6 ? 0.27 : vals.length > 4 ? 0.33 : 0.46;
-    const one = ([k, l, v], i) => {
-      const { c } = ringArc(0, thick, gap);
-      const r = 50 - thick / 2;
-      const off = c * (1 - v / 10);
-      return `<div class="sepone" style="--rs2:${Math.round(size * scale)}px">
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle class="ring-track" cx="50" cy="50" r="${r.toFixed(2)}" stroke-width="${thick}"></circle>
-          ${v > 0 ? `<circle class="ring-val" cx="50" cy="50" r="${r.toFixed(2)}" stroke="${cols[k]}"
-            stroke-width="${thick}" stroke-dasharray="${c.toFixed(2)}"
-            style="--full:${c.toFixed(2)};--rd:${RD(i, g)}ms;--rdur:${RDUR()}ms" stroke-dashoffset="${off.toFixed(2)}"
-            transform="rotate(-90 50 50)"></circle>` : ""}
-        </svg>
-        <span class="num">${v || "—"}</span><span class="cap">${esc(RING_CAP[k] || l)}</span>
-      </div>`;
-    };
-    return `<div class="sepgrid" role="img" aria-label="${esc(vals.map(v => v[1] + " " + (v[2] || "not rated")).join(", "))}">
-      ${vals.map(one).join("")}</div>`;
-  }
-
-  /* every ring has to fit between the edge and a hole in the middle, so the
-     thickness gives way as the count grows rather than the radius going negative */
-  const room = (50 - 9) / vals.length;
-  const thick2 = Math.max(2.5, Math.min(thick, room - gap));
-  const arcs = vals.map(([k, l, v], i) => {
-    const { r, c } = ringArc(i, thick2, gap);
-    const off = c * (1 - v / 10);
-    return `<circle class="ring-track" cx="50" cy="50" r="${r.toFixed(2)}" stroke-width="${thick2}"></circle>
-      ${v > 0 ? `<circle class="ring-val" cx="50" cy="50" r="${r.toFixed(2)}" stroke="${cols[k]}"
-        stroke-width="${thick2}" stroke-dasharray="${c.toFixed(2)}"
-        style="--full:${c.toFixed(2)};--rd:${RD(i, g)}ms;--rdur:${RDUR()}ms" stroke-dashoffset="${off.toFixed(2)}"
-        transform="rotate(-90 50 50)"></circle>` : ""}`;
-  }).join("");
-  const legend = vals.map(([k, l, v], i) =>
-    `<div class="rleg${v ? "" : " off"}" style="--rc:${cols[k]};--rd:${RD(i, g) + 60}ms">
-      <i></i><span>${l}</span><b>${v || "—"}</b></div>`).join("");
-  return `<div class="rings">
-    <div class="ringwrap" style="--rs:${size}px" role="img"
-      aria-label="${esc(vals.map(v => v[1] + " " + (v[2] || "not rated")).join(", "))}">
-      <svg viewBox="0 0 100 100" aria-hidden="true">${arcs}</svg>
-    </div>
-    <div class="rlegend">${legend}</div>
-  </div>`;
-}
 /* esc() guards html; a url inside css url() also has to survive quotes and parens */
 const cssUrl = u => String(u == null ? "" : liteFor(u) || (bigData(u) ? blobRef(u) : u))
   .replace(/[\r\n]/g, "").replace(/'/g, "%27").replace(/"/g, "%22")
@@ -8826,6 +8731,62 @@ function qkFront(g, n, cd, score, morph) {
         ${g.platforms ? `<div class="qkpl">${platHtml(g.platforms, "qkp")}</div>` : ""}${gen ? `<div class="qkgn">${gen}</div>` : ""}</div>
       <div class="qktk${st.snap ? " qksnap" : ""}"><div class="qkstub"><b>${esc(st.stub[0])}</b><span>${esc(st.stub[1])}</span></div><div class="qkbody"><b>${esc(st.body[0])}</b><span>${esc(st.body[1])}</span></div></div>
       <div class="qkt${dark ? " qkdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<h2>${esc(g.title)}</h2>`}</div></div>`;
+}
+/* ===== v300: the open Queue card's back (the owner picked round 13 "Controller" after rounds 10-14: "A it is").
+   Your score fills a controller in the game's colour, each of the eight areas fills one of its round buttons (your own scores,
+   else Nexi's guess from your scores on games like it), the four numbers under it; Edit, ⋯ and the move arrows are drawn icons. ===== */
+const QB_IC = { up: '<path d="M12 4.5l7 7.2h-4.4V19.5H9.4v-7.8H5z"/>', down: '<path d="M12 19.5l-7-7.2h4.4V4.5h5.2v7.8H19z"/>',
+  edit: '<path opacity=".35" d="M15.2 5.3l3.5 3.5L9 18.5 5.5 15z"/><path d="M17.3 3.2a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2l-1.4 1.4-3.5-3.5zM4.6 16.3l3.1 3.1-4.2 1.1z"/>',
+  more: '<circle cx="5" cy="12" r="2.1"/><circle cx="12" cy="12" r="2.1"/><circle cx="19" cy="12" r="2.1"/>',
+  diary: '<path opacity=".35" d="M6 3.5h11.5a1 1 0 0 1 1 1V17H7.5A1.5 1.5 0 0 0 6 18.5z"/><path d="M7.5 17h11v3.5h-11a1.75 1.75 0 0 1 0-3.5zM9 6.5h6.5v1.6H9z"/>',
+  comp: '<path opacity=".35" d="M4 4h3.2l7.4 7.4-1.6 1.6L4 7.2z"/><path d="M20 4h-3.2L9 11.8l-2.4-.8-1.4 1.4 2.4 2.4-3 3 1.6 1.6 3-3 2.4 2.4 1.4-1.4-.8-2.4L20 7.2z"/>' };
+const qbIc = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${QB_IC[k]}</svg>`;
+/* the eight areas: your own scores, else a guess from the games you've scored (games sharing a genre count three times), else none */
+function qbAreas(g) {
+  const own = RATINGS.map(([k]) => num((g.mine || {})[k], 0, 0, 10));
+  if (own.some(v => v > 0)) return { vals: own, guess: false };
+  const gs = platList(g.genres).map(x => x.toLowerCase());
+  const rated = S.games.filter(x => x.id !== g.id && x.mine && RATINGS.some(([k]) => x.mine[k] > 0));
+  if (!rated.length) return null;
+  const vals = RATINGS.map(([k]) => { let s = 0, w = 0;
+    rated.forEach(x => { const v = num(x.mine[k], 0, 0, 10); if (!v) return; const wt = platList(x.genres).some(n => gs.includes(n.toLowerCase())) ? 3 : 1; s += v * wt; w += wt; });
+    return w ? Math.round(s / w * 10) / 10 : 0; });
+  return vals.some(v => v > 0) ? { vals, guess: true } : null;
+}
+const QB_PAD = "M14 5h36c7 0 11 4 13 11l1 15c1 7-3 11-8 11-4 0-6-2-9-6l-2-3H19l-2 3c-3 4-5 6-9 6-5 0-9-4-8-11l1-15C3 9 7 5 14 5z", QB_BTN = "M16 2a14 14 0 1 1 0 28a14 14 0 1 1 0-28z";
+const QB_WAVE = "M-4 2q5-3 10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0V120H-4z";
+function qbVessel(id, v, big) {
+  const [vb, d, top, bot] = big ? ["0 0 64 44", QB_PAD, 7, 43] : ["0 0 32 32", QB_BTN, 3, 31], y = bot - v / 10 * (bot - top);
+  return `<svg viewBox="${vb}" aria-hidden="true"><defs><clipPath id="${id}"><path d="${d}"/></clipPath></defs><path class="qbgl" d="${d}"/>
+    <g clip-path="url(#${id})"><g class="qbliq" style="--y:${y.toFixed(1)}px;--bt:${bot + 4}px"><path d="${QB_WAVE}"/><circle class="qbbub" cx="${big ? 26 : 12}" cy="16" r="1.6"/><circle class="qbbub" cx="${big ? 40 : 20}" cy="22" r="1.1"/></g></g>
+    ${big ? '<path class="qbdeco" d="M9 17h4v-4h4v4h4v4h-4v4h-4v-4H9z"/><circle class="qbdeco" cx="49" cy="14" r="2.3"/><circle class="qbdeco" cx="54.5" cy="19.5" r="2.3"/><circle class="qbdeco" cx="43.5" cy="19.5" r="2.3"/><circle class="qbdeco" cx="49" cy="25" r="2.3"/><rect class="qbscr" x="23" y="10" width="18" height="15" rx="3"/>' : '<path class="qbshine" d="M8.5 11a9 9 0 0 1 5-4.5"/>'}</svg>`;
+}
+function qkBack(g, n, cd, score, manual) {
+  const A = qbAreas(g), played = isPlayed(g), p = playedRec(g), id = String(g.id).replace(/[^\w-]/g, "");
+  const mean = A ? A.vals.filter(v => v > 0).reduce((a, b, i, l) => a + b / l.length, 0) : 0;
+  const big = A ? (A.guess ? Math.round(mean * 10) : score || Math.round(mean * 10)) : null;
+  const src = (S.cardBg || "hero") === "plain" || g.bgOff ? "" : g.hero || (g.steamId ? STEAM_CDN + g.steamId + "/library_hero.jpg" : "") || g.bg || cover(g);
+  const m = g.art && typeof LF !== "undefined" ? LF[g.art] : null, dark = m && m[5] >= 0 && m[5] < 50;
+  const e = played ? null : expected(g), runs = p ? num(p.runs, 1, 1, 99) : 1, hrs = hrsOf(g), eve = S.evening || 2;
+  const four = played
+    ? [[score || "—", "", "my score"], [p && scored(p) ? p.real : "—", p && scored(p) ? "/10" : "", "it deserved"], [runs, "×", "played"], [g.critic || "—", "", "critics"]]
+    : [[cd.v === "OUT" ? "Out" : cd.v, "", cd.l], [hrs || "—", hrs ? "h" : "", "to beat"], [g.hype || "—", g.hype ? "/10" : "", "hype"],
+       e != null ? [e.toFixed(1), "/10", "we'd expect"] : [g.critic || "—", "", g.critic ? "critics" : "we'd expect"]];
+  const spot = n === 1 ? "Next up" : ord(n) + " in the queue", when = g.date ? (cd.v === "OUT" ? "released " : "out ") + shortDate(g.date) : "no date yet";
+  return `${src ? `<div class="qbbg" style="background-image:url('${esc(cssUrl(src))}')"></div>` : ""}<div class="qbin">
+    <div class="qbh"><img class="qbcv" decoding="async" src="${esc(cover(g))}" style="${coverPos(g)}" alt=""><div class="qblg${dark ? " qbdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<b>${esc(g.title)}</b>`}</div>
+      <div class="qbib">${manual ? `<button class="qbi qbmv" data-up="${g.id}" aria-label="Move up">${qbIc("up")}</button><button class="qbi qbmv" data-down="${g.id}" aria-label="Move down">${qbIc("down")}</button>` : ""}
+        <button class="qbi" data-edit="${g.id}" aria-label="Edit">${qbIc("edit")}</button><span class="hmore"><button class="qbi" data-more aria-label="More">${qbIc("more")}</button>
+          <span class="hmenu"><button data-diary="${g.id}">${qbIc("diary")}Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</button><button data-comp="${g.id}">${qbIc("comp")}${g.comp ? "Competitive ✓" : "Competitive"}</button></span></span></div></div>
+    <div class="qbsub"><b>${spot}</b> · ${esc(when)}</div>
+    <div class="qbpad${A && A.guess ? " qbg" : ""}"><div class="qbbig">${qbVessel("qbp" + id, big == null ? 0 : big / 10, true)}<b class="qbnum">${big == null ? "—" : big}</b><span>${A ? (A.guess ? "Nexi's guess" : "my score") : "no scores yet"}</span></div>
+      <div class="qbbtns">${RATINGS.map(([k, l], i) => { const v = A ? A.vals[i] : 0;
+        return `<div class="qbb" style="--i:${i}"><div class="qbv">${qbVessel("qbb" + id + i, v, false)}<b>${v ? v.toFixed(1) : "—"}</b></div><span>${esc(RING_CAP[k] || l)}</span></div>`; }).join("")}</div></div>
+    <div class="qbcap">${A ? (A.guess ? "Nexi's guess, area by area, from the games you've scored" : played && runs > 1 ? `Your scores · played ${runs}×` : "Your scores") : "Score a game you've played and Nexi starts guessing these"}</div>
+    <div class="qbfour">${four.map(([v, u, l], i) => `<div style="--i:${i}"><i></i><b>${esc(String(v))}${u ? `<small>${u}</small>` : ""}</b><span>${l}</span></div>`).join("")}</div>
+    ${g.platforms || hrs ? `<div class="qbpf">${g.platforms ? platHtml(g.platforms, "qbp") : ""}${hrs ? `<em>About ${Math.ceil(hrs / eve)} evenings at ${eve} hours a night</em>` : ""}</div>` : ""}
+    ${g.learn ? `<p class="note2"><b>Learn</b> ${esc(g.learn)}</p>` : ""}${g.tips ? `<p class="note2"><b>Play it</b> ${esc(g.tips)}</p>` : ""}
+    ${simBack(g)}</div>`;
 }
 function cardLayers(g) {
   const mode = S.cardBg || "hero";
@@ -8901,9 +8862,6 @@ function renderQueue() {
   const activeId = (collapsed || !sorted.length) ? null
     : (sorted.some(g => g.id === focusId) ? focusId : sorted[0].id);
   const manual = (S.sort || "manual") === "manual";
-  const arrows = g => manual
-    ? `<button class="icon" data-up="${g.id}" title="Move up">↑</button><button class="icon" data-down="${g.id}" title="Move down">↓</button>`
-    : "";
 
   const myScore = g => {
     const vals = RATINGS.map(([k]) => (g.mine || {})[k]).filter(v => v > 0);
@@ -8932,65 +8890,10 @@ function renderQueue() {
   };
   const big = (g, n) => {
     const cd = countdown(g);
-    const pips = Array.from({ length: 10 }, (_, i) =>
-      `<i class="${i < (g.hype || 0) ? "on" : ""}" style="animation-delay:${PD(i)}ms"></i>`).join("");
     return `
     <div class="hero" data-row="${g.id}" style="--accent:${esc(g.colour)}">
       <div class="hflip qkf${flipId === g.id ? " on" : ""}"><div class="plate slab pfront qk" data-flip="${g.id}">${qkFront(g, n, countdown(g), myScore(g), g.id === morphId)}</div>
-      <div class="plate slab pback" data-unflip>${cardLayers(g)}<div class="plate-in"><div class="meta">
-          <div class="toprow"><span class="kicker">${n === 1 ? "Next up" : ord(n) + " in the queue"}</span>${g.date ? `<span class="tag qkdate">${esc(shortDate(g.date))}</span>` : ""}</div>
-          <div class="stats">
-            <div class="stat" style="animation-delay:60ms"><b>${
-              typeof cd.v === "number" ? `<span data-count="${cd.v}">0</span>` : cd.v
-            }</b><span>${cd.l}</span></div>
-            <div class="stat" style="animation-delay:110ms"><b>${
-              hrsOf(g) ? `<span data-count="${hrsOf(g)}">0</span><i>h</i>` : "—"
-            }</b><span>to beat</span></div>
-            <div class="stat" style="animation-delay:160ms"><b>${
-              g.hype ? `<span data-count="${g.hype}">0</span>` : "—"
-            }<i>/10</i></b><span>hype</span>
-              <div class="pips" style="--pdur:${PDUR()}ms">${pips}</div></div>
-            ${(() => {
-              /* your own hype, corrected by how wrong you've been on this genre
-                 before. Only worth showing on something you haven't played. */
-              const e = isPlayed(g) ? null : expected(g);
-              if (e == null) { /* v232: always four tiles: your score, else the critics, else an empty one */
-                const p = playedRec(g), v = p && scored(p) ? [p.real, "/10", "my score"] : g.critic ? [g.critic, "", "critics"] : ["—", "", "we'd expect"];
-                return `<div class="stat" style="animation-delay:210ms"><b>${esc(String(v[0]))}${v[1] ? `<i>${v[1]}</i>` : ""}</b><span>${v[2]}</span></div>`; }
-              const d = e - (g.hype || 0);
-              return `<div class="stat" style="animation-delay:210ms"><b>${e.toFixed(1)}<i>/10</i></b>
-                <span>we'd expect${Math.abs(d) >= .3 ? (d > 0 ? " · +" : " · ") + d.toFixed(1) : ""}</span></div>`;
-            })()}
-          </div>
-          <div class="actions">
-            <button class="btn ghost" data-edit="${g.id}" style="margin:0"><span>Edit</span></button>
-            <span class="hmore"><button class="btn ghost" data-more style="margin:0" aria-label="More"><span>⋯</span></button>
-              <span class="hmenu"><button data-diary="${g.id}">📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</button><button data-comp="${g.id}">⚔️ ${g.comp ? "Competitive ✓" : "Competitive"}</button></span></span>
-            ${arrows(g)}
-          </div>
-          ${g.platforms ? `<div class="plats">${platList(g.platforms).map(x =>
-            `<span class="plat">${platGlyph(x)}${esc(x)}</span>`).join("")}</div>` : ""}
-          ${(() => { const p = S.played.find(x => x.id === g.id);
-            return myScore(g) || g.critic || (p && (p.real || num(p.runs, 1, 1, 99) > 1)); })() ? `
-          <div class="scores">
-            ${myScore(g) ? `<div class="sc"><b><span data-count="${myScore(g)}">0</span></b><span>my score</span></div>` : ""}
-            ${(() => {
-              const p = S.played.find(x => x.id === g.id);
-              return p && p.real ? `<div class="sc"><b>${p.real}<em>/10</em></b><span>what it deserved</span></div>` : "";
-            })()}
-            ${(() => {
-              const p = S.played.find(x => x.id === g.id);
-              const n = p ? num(p.runs, 1, 1, 99) : 0;
-              return n > 1 ? `<div class="sc"><b>${n}×</b><span>times through</span></div>` : "";
-            })()}
-            ${g.critic ? `<div class="sc"><b><span data-count="${g.critic}">0</span></b><span>critics</span></div>` : ""}
-          </div>
-          ${ringsBlock(g)}` : ""}
-          ${g.learn ? `<p class="note2"><b>Learn</b> ${esc(g.learn)}</p>` : ""}
-          ${g.tips ? `<p class="note2"><b>Play it</b> ${esc(g.tips)}</p>` : ""}
-          ${hrsOf(g) ? `<p class="evenings">About ${Math.ceil(hrsOf(g) / (S.evening || 2))} evenings at ${S.evening || 2} hours a night</p>` : ""}
-          ${simBack(g)}
-        </div></div></div></div>
+      <div class="plate slab pback qb" data-unflip>${qkBack(g, n, cd, myScore(g), manual)}</div></div>
     </div>`;
   };
 
@@ -10858,7 +10761,7 @@ document.addEventListener("click", e => {
      Edit, ⋯ and the rest on the back) does its own job */
   const qf = e.target.closest(".hflip.qkf");
   if (qf) {
-    if (e.target.closest("button,a,input,select,textarea,label,.hmenu")) { clearTimeout(qkTapT); qkTapT = 0; return; }
+    if (e.target.closest("button,a,input,select,textarea,label,.hmenu,.hmore,[data-more],[data-diary],[data-comp],[data-edit]")) { clearTimeout(qkTapT); qkTapT = 0; return; }
     e.stopPropagation(); e.preventDefault(); qkTap(qf); return;
   }
   const btn = e.target.closest("button,a"), f0 = e.target.closest("[data-flip]");
@@ -10884,7 +10787,7 @@ function qkTurn(w) {
   if (!fr || !bk || w.dataset.busy) return;
   const on = !w.classList.contains("on");
   document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on"));
-  w.classList.toggle("on", on); flipId = on ? fr.dataset.flip : null; sfx("qkflip", on);
+  w.classList.toggle("on", on); flipId = on ? fr.dataset.flip : null; sfx("qkflip", on); if (on) sfx("qkback");
   try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
   if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
   if (S.motion === false || calm() || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
@@ -11748,6 +11651,10 @@ function sfx(kind, x) {
       if (x) { noise("bandpass", 3200, 1200, 1.4, .3, t + 1.4, .16, .01); tone("triangle", 1568, 1175, .08, t + 1.56, .2, .003); } }
     if (kind === "qkflip") { noise("bandpass", 1200, 500, .8, .3, t, .4, .08); (x ? [784, 1047] : [1047, 784]).forEach((f, i) => tone("triangle", f, f, .08, t + .48 + i * .07, .3, .003)); }
     if (kind === "qkshut") [659, 494].forEach((f, i) => tone("triangle", f, f, .07, t + i * .06, .22, .003));
+    /* v300, the card's back: a button click, bubbles as the controller and its buttons fill, a tiny start jingle */
+    if (kind === "qkback") { noise("highpass", 2500, 3500, 1, .25, t + .3, .03, .001); tone("sine", 600, 400, .12, t + .3, .05);
+      for (let i = 0; i < 7; i++) { const f = 380 + Math.random() * 520; tone("sine", f, f * 1.9, .08, t + .55 + i * .09 + Math.random() * .04, .07, .002); }
+      [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f, .03, t + 1.45 + i * .07, .14, .003)); }
   } catch (e) {}
 }
 
@@ -27196,16 +27103,103 @@ html.still .hero.heroin .qk, html.still .hero.heroin .qk *, html.still .hero.her
 .hero .hflip.qkf > .plate { transition: none; }
 .hero .hflip.qkf.qkturn > .plate::after { animation: flShine .76s ease-in-out; }
 html.still .hero .hflip.qkf.qkturn > .plate::after { animation: none; }
+/* ===== v300: the open Queue card's back, round 13 "Controller" (the owner: "A it is"). The game's colour on black: your score fills
+   a controller (on its little screen), each area fills one of its round buttons, the four numbers sit under it. ===== */
+.hero .plate.qb { padding: 0; border: 0; clip-path: none; background: var(--void); box-shadow: inset 0 0 0 1px var(--u-line, rgba(234,242,255,.08)); isolation: isolate; cursor: pointer; }
+html.ui2 .hero .plate.qb::before { content: none; }
+.qbbg { position: absolute; inset: 0; z-index: -1; background-size: cover; background-position: 50% 30%; pointer-events: none; }
+.qbbg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--accent, var(--volt)) 26%, rgba(5,7,15,.93)) 0%, rgba(5,7,15,.96) 46%, rgba(5,7,15,.98) 100%); }
+.qbin { position: relative; display: grid; grid-auto-rows: max-content; gap: 12px; padding: 14px 14px 18px; }
+.qbh { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.qbh .qbcv { width: 30px; max-width: none; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; border: 1px solid rgba(234,242,255,.18); }
+.qblg { height: 28px; display: flex; align-items: center; min-width: 0; }
+.qblg img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; object-position: left center; }
+.qblg.qbdk img { filter: brightness(0) invert(.9); }
+.qblg b { font: 700 16px/1.1 "Poppins", system-ui, sans-serif; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qbib { display: flex; gap: 6px; align-items: center; }
+.qbi { width: 34px; height: 34px; padding: 0; border-radius: 12px; display: grid; place-items: center; color: var(--ice); background: rgba(234,242,255,.06); border: 1px solid rgba(234,242,255,.1); cursor: pointer; }
+.qbi svg { width: 18px; height: 18px; fill: currentColor; }
+.qbi.qbmv { background: none; border-color: transparent; color: color-mix(in srgb, var(--accent, var(--volt)) 45%, var(--ice)); }
+.qb .hmenu { top: calc(100% + 6px); bottom: auto; left: auto; right: 0; }
+.qb .hmenu button { display: flex; align-items: center; gap: 10px; }
+.qb .hmenu svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+.qbsub { font-size: 12px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qbsub b { font-weight: 600; color: color-mix(in srgb, var(--accent, var(--volt)) 40%, var(--ice)); }
+/* the controller and its eight buttons */
+.qbpad { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: center; }
+.qbbig { position: relative; display: grid; justify-items: center; gap: 2px; }
+.qbbig svg { display: block; width: 100%; overflow: visible; }
+.qbbig .qbnum { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 64 / 44; display: grid; place-items: center; padding-bottom: 13%;
+  font: 700 17px/1 "Poppins", system-ui, sans-serif; letter-spacing: -.03em; color: var(--ice); font-variant-numeric: tabular-nums; pointer-events: none; }
+.qbbig > span { font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.qbgl { fill: rgba(234,242,255,.05); stroke: rgba(234,242,255,.4); stroke-width: 1.2; }
+.qbliq { transform: translateY(var(--y)); }
+/* the buttons hold a white number, so their fill is the game's colour taken darker; the controller's score sits on its own dark screen */
+.qbliq path { fill: color-mix(in srgb, var(--accent, var(--volt)) 68%, var(--ink)); }
+.qbbig .qbliq path { fill: var(--accent, var(--volt)); }
+.qbpad.qbg .qbliq path { fill: color-mix(in srgb, var(--accent, var(--volt)) 42%, var(--ink)); }
+.qbpad.qbg .qbbig .qbliq path { fill: color-mix(in srgb, var(--accent, var(--volt)) 60%, var(--ink)); }
+.qbpad.qbg .qbgl { stroke-dasharray: 3 2.5; }
+.qbbub { fill: rgba(234,242,255,.7); opacity: 0; }
+.qbdeco { fill: none; stroke: rgba(234,242,255,.3); stroke-width: 1.2; stroke-linejoin: round; }
+.qbscr { fill: rgba(4,6,14,.72); stroke: rgba(234,242,255,.32); stroke-width: 1; }
+.qbshine { fill: none; stroke: rgba(234,242,255,.45); stroke-width: 1.4; stroke-linecap: round; }
+.qbbtns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 6px; }
+.qbb { display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.qbv { position: relative; width: 36px; }
+.qbv svg { display: block; width: 100%; }
+.qbv b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 11px/1 "Poppins", system-ui, sans-serif; color: var(--ice); font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(4,6,14,.85); pointer-events: none; }
+.qbb > span { font-size: 10px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.qbcap { font-size: 12px; font-weight: 600; color: var(--mute); }
+/* the four numbers */
+.qbfour { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.qbfour > div { display: grid; grid-template-columns: 4px minmax(0, 1fr); column-gap: 8px; min-width: 0; }
+.qbfour > div > i { grid-row: span 2; border-radius: 3px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent, var(--volt)) 45%, var(--ice)), var(--accent, var(--volt))); }
+.qbfour b { font: 700 18px/1.05 "Poppins", system-ui, sans-serif; letter-spacing: -.03em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.qbfour b small { font-size: 11px; font-weight: 600; color: var(--mute); letter-spacing: 0; margin-left: 1px; }
+.qbfour span { font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qbpf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12px; font-weight: 600; color: var(--mute); }
+.qbpf .pfms { display: flex; align-items: center; gap: 12px; }
+.qbpf .pfm { position: relative; display: block; width: 18px; height: 18px; font-style: normal; color: var(--ice); }
+.qbpf .pfm svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.qbpf .pfm small, .qbpf .pfm b { position: absolute; left: calc(100% + 1px); top: -6px; font: 700 9.5px/1 "Poppins", system-ui, sans-serif; text-transform: none; color: var(--ice); white-space: nowrap; }
+.qbpf em { font-style: normal; white-space: nowrap; }
+/* turning over: the controller and its buttons fill up, the numbers rise in */
+@media (prefers-reduced-motion: no-preference) {
+  .hero .hflip.qkf.on .qbliq { animation: qbfill 1s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.5s + var(--i, 0) * 80ms); }
+  .hero .hflip.qkf.on .qbb .qbliq { animation-delay: calc(.5s + var(--i) * 80ms); }
+  .hero .hflip.qkf.on .qbbig .qbliq { animation-delay: .35s; animation-duration: 1.3s; }
+  .hero .hflip.qkf.on .qbbub { animation: qbbub 1s ease-out both 1.2s; }
+  .hero .hflip.qkf.on .qbfour > div { animation: qbrise .45s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.9s + var(--i) * 70ms); }
+  @keyframes qbfill { from { transform: translateY(var(--bt)); } }
+  @keyframes qbbub { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+  @keyframes qbrise { from { opacity: 0; transform: translateY(12px); } }
+}
+html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: none; }
+@media (min-width: 620px) {
+  .qbin { gap: 18px; padding: 22px 26px 26px; }
+  .qbh { grid-template-columns: 44px minmax(0, 1fr) auto; } .qbh .qbcv { width: 44px; } .qblg { height: 40px; } .qblg b { font-size: 22px; }
+  .qbi { width: 40px; height: 40px; } .qbsub, .qbcap, .qbpf { font-size: 13.5px; }
+  .qbpad { grid-template-columns: 236px minmax(0, 1fr); gap: 28px; }
+  .qbbig .qbnum { font-size: 30px; } .qbbig > span { font-size: 12.5px; }
+  .qbbtns { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; } .qbv { width: 52px; } .qbv b { font-size: 13px; } .qbb > span { font-size: 12px; }
+  .qbfour { gap: 26px; } .qbfour b { font-size: 32px; } .qbfour span { font-size: 12.5px; }
+}
 </style>
 <script>
 WHATS_NEW.push(
-  { v: 298, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkst") || $("#p-queue .hero"),
-    say: "<b>Your open Queue card got a new look</b>: the game's picture fills the whole card, a stamp on the cover tells you where it stands (days to go, New, Now, or your score), and the logo, platforms and genres sit underneath. No more buttons on the front.",
-    tryIt: "Tap the cover to open the game's page. Tap anywhere else on the card to turn it over: the numbers, Edit and ⋯ are on the back." }
+  { v: 298, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkstrap") || $("#p-queue .hero"),
+    say: "<b>Your open Queue card got a new look</b>: the game's picture fills the whole card, with the logo, platforms and genres on it. No more buttons on the front.",
+    tryIt: "Tap the cover to open the game's page; the numbers, Edit and ⋯ are on the back." }
 );
 WHATS_NEW.push(
   { v: 299, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkstrap") || $("#p-queue .hero"),
     say: "<b>Your open Queue card got a new look, with sound</b>: the box art sits on a strap in the game's own colour with one plain line (Ready to play, Out in 34 days, 12 h left), its platform logos and genres; a ticket bottom-left holds the numbers, and once a game is out its stub tears off.",
-    tryIt: "Tap the box art to open the game's page. Tap the card twice to turn it over, or once to close it back into its row." }
+    tryIt: "Tap the box art to open the game's page. Tap the card twice to turn it over, or once to close it back into its row." },
+  { v: 300, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); setTimeout(() => { const w = document.querySelector("#p-queue .hero .hflip.qkf"); if (w && !w.classList.contains("on")) qkTurn(w); }, 350); },
+    at: () => $("#p-queue .hero .qbpad") || $("#p-queue .hero"),
+    say: "<b>The back of your Queue card fills up like a controller</b>: your score lights its little screen, each of your eight areas fills one of its buttons in the game's colour (Nexi guesses them from your scores until you've played it), and the four numbers sit underneath.",
+    tryIt: "Tap your top game's card twice to turn it over. Edit, ⋯ and the move arrows are along the top." }
 );
 </script>
