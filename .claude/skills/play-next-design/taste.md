@@ -204,3 +204,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: I like B idea but hate the hexogram or whatever so be creative again
 - rule: The card back keeps round 10 B's idea (one picture of the eight areas with the score in it, the four numbers beside), but never a radar/octagon chart; round 11 offers petals, a bezel and a constellation.
 - check: none
+
+### T41 · v299 · Queue · hate
+- said: Nah they are all good but didn't like, I liked the creativity though so try again
+- rule: Petals, bezel and constellation backs were good but not liked; round 12 tries game-world pictures (RPG status screen with a rank letter, mixing desk faders, potion flasks) for the eight areas.
+- check: none
