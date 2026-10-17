@@ -5727,7 +5727,8 @@ function openEdit(id) {
       /* v294: back to the art's colour, read now from the cover on the form */
       const src = editing.imgCleared ? "" : (($("#e-img") && $("#e-img").value.trim()) || editing.img || g.img || "");
       editing.colourHand = false; editing.colourOf = "";
-      artColour(src).then(c => { if (!editing) return; editing.colour = c || PALETTE[0]; if (c) editing.colourOf = colKey(src); eCol(); paintPrev(); });
+      const ed = editing;
+      artColour(src).then(c => { if (editing !== ed) return; editing.colour = c || PALETTE[0]; if (c) editing.colourOf = colKey(src); eCol(); paintPrev(); });
     } });
   eCol();
   const sayDate = () => {
@@ -26740,20 +26741,22 @@ function colTodo() {
 function colJobSoon(ms) { if (COLJOB.t || COLJOB.busy) return; COLJOB.t = setTimeout(colJob, ms); }
 async function colJob() {
   COLJOB.t = 0; if (COLJOB.busy || document.hidden) return; COLJOB.busy = true;
-  const changed = [];
+  const changed = []; let keyed = 0;
   try {
     for (const g of colTodo()) {
+      if (editing && editing.id === g.id) continue;                    /* Edit is open on it: its Save would undo us */
       const w = scrollWait(400); if (w > 0) await new Promise(r => setTimeout(r, w));
       const src = g.img, c = await artColour(src);
       if (src !== g.img || !colourAuto(g)) continue;                     /* edited meanwhile */
       const k = colKey(src);
       if (!c) { const f = colFails(); f[k] = (f[k] || 0) + 1; try { localStorage.setItem("gq:colfail", JSON.stringify(f)); } catch (e) {} continue; }
-      g.colourOf = k; if (g.colour !== c) { g.colour = c; changed.push(g); }
+      if (editing && editing.id === g.id) continue;
+      g.colourOf = k; keyed++; if (g.colour !== c) { g.colour = c; changed.push(g); }
       await new Promise(r => setTimeout(r, 60));
     }
   } finally { COLJOB.busy = false; }
+  if (keyed) save();                                                 /* the picture's key too, or a same-colour art is read again on every start */
   if (!changed.length) return;
-  save();
   /* recoloured where it already shows, no redraw: a whole render() here re-ran every screen's entrance and left extra
      GPU layers on Queue/Played (kit layers caught it); other spots take the colour on their next redraw */
   const paint = () => { const w = scrollWait(600); if (w > 0) return setTimeout(paint, w);
