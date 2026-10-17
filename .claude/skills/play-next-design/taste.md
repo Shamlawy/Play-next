@@ -215,12 +215,22 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - rule: Card back: keep round 12 C's idea (each area fills with the game's colour, bubbles, the score in a big vessel), but the vessels must be gaming things (controller and buttons, cartridges, energy cells), not fantasy props like potions.
 - check: none
 
-### T43 · v299 · Queue · hate
+### T43 · v299 · Queue · pick
+- said: I like A so much so keep it but I want extra 3 demos for cards like yugioh cards and other
+- rule: Card back: round 13 A (controller fill) is the owner's pick so far; trading-card layouts (duel, monster, arcane) are being tried as extras, layout only, no real names or logos, the game's colour on black.
+- check: none
+
+### T44 · v300 · Queue · pick
+- said: Nah A it is but fix the numbers on the controller they're design is kinda off and build and merge
+- rule: The open card's back is round 13 A, the Controller: score on the controller's little screen (never over the D-pad), each area's number inside its round button, the four numbers underneath.
+- check: tools/scenarios/queue-card.mjs (score on the screen, numbers inside the buttons)
+
+### T45 · v299 · Queue · hate
 - said: I really don't like how the queue looks when the cards are closed, looks kinda ugly and meh for my unfold; I like the header card
 - rule: Closed Queue rows must use the unfolded width (no long empty gap between the facts and the logo); keep the header card and chips as they are; round 1 offers A Strap, B Cartridge, C Save slots, D Console shelf.
 - check: none
 
-### T44 · v299 · Queue · pick
+### T46 · v299 · Queue · pick
 - said: Upgrade A make it better with the colour and design and keep D make 2 new ones also in all upgrade the things on top … the everything and sort by and my order and boss and stuff so make it better
 - rule: Round 2: A (Strap) gets more of the game's colour and design, D (Console shelf) stays an option, two new looks (E Quest line, F Character select); the chips under the header become one control deck in every look (filter tabs with counts, one Order button with a grouped menu, Shuffle that picks in place, Boss as a live HP meter).
 - check: none
