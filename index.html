@@ -259,7 +259,6 @@
   .sortsel { width: auto; flex: 0 1 auto; min-width: 118px; max-width: 190px; padding: 8px 10px;
     font-weight: 800; border-bottom-width: 2px; }
   /* the sort menu, built rather than native, so it looks like the rest of the app */
-  #sortrow { margin: 6px 0 18px; }
   .sortmenu { position: relative; display: inline-flex; }
   .sortpop {
     position: absolute; top: calc(100% + 7px); left: 0; z-index: 50; min-width: 200px;
@@ -1695,35 +1694,6 @@
   .sortv b { font-size: 13px; font-weight: 900; font-style: italic; color: var(--ice);
     font-variation-settings: "wdth" 70; font-variant-numeric: tabular-nums; }
   @media (max-width: 560px) { .sortv small { display: none; } }
-  .qsplit { width: 1px; align-self: stretch; background: var(--edge); margin: 2px 3px; flex: none; }
-  #sortrow .chip[data-qfilter] {
-    display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
-    padding: 8px 11px;
-  }
-  #sortrow .chip[data-qfilter] svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
-  #sortrow .chip[data-qfilter] span { font-size: 12px; }
-  #sortrow .chip[data-qfilter] small {
-    flex: 0 0 auto; width: auto; margin: 0; padding: 1px 6px; border-radius: 999px;
-    background: var(--steel); color: var(--mute); font-size: 10.5px; font-weight: 900;
-    font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0;
-  }
-  #sortrow .chip[data-qfilter][aria-pressed="true"] small { background: rgba(0,0,0,.22); color: inherit; }
-  /* the single view chip: icon, name, count, caret */
-  #sortrow #qview { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 8px 11px; }
-  #sortrow #qview svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
-  #sortrow #qview span { font-size: 12px; }
-  #sortrow #qview small { flex: none; width: auto; margin: 0; padding: 1px 6px; border-radius: 999px;
-    background: rgba(0,0,0,.22); color: inherit; font-size: 10.5px; font-weight: 900;
-    font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
-  #sortrow #qview .qcar { font-size: 10px; opacity: .8; }
-  .qpop button { display: flex; align-items: center; gap: 8px; }
-  .qpop button svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
-  .qpop button span { flex: 1 1 auto; }
-  .qpop button small { font-size: 10.5px; font-weight: 900; opacity: .75; font-variant-numeric: tabular-nums; }
-  @media (max-width: 430px) {
-    #sortrow .chip[data-qfilter] span { display: none; }
-    #sortrow .chip[data-qfilter][aria-pressed="true"] span { display: inline; }
-  }
 
   /* the in-panel fallback switcher, for when the floating pill is turned off */
   .subchips { margin: 0 0 10px; }
@@ -4391,7 +4361,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "300";
+const APP_V = "301";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5384,7 +5354,7 @@ const GROUP_KEYS = {
   "On deck cards": ["dzX"],
   "Player type card": ["dzX"],
   "The standings tile": ["standN"],
-  "Queue cards": ["cardBg", "cardBgStr"],
+  "Queue cards": ["qLook", "cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
   "Labels on the board": ["flowTitle", "flowDate"],
   "Your evening": ["evening", "playStyle"],
@@ -6339,6 +6309,12 @@ function openSettings(scope) {
 
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges and the art behind each row.">Queue cards</h4>
       <div class="demohost" data-demo="card">${demoCard()}</div>
+      <label>Closed games</label>
+      <div class="chips" id="s-qlook">
+        ${[["strap", "Rows"], ["select", "Character select"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${(S.qLook === "select" ? "select" : "strap") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+      <p class="note">Rows: each game on a strip in its colour, with a ticket and its logo. Character select: the picked game in a big panel over a grid of covers.</p>
       <label>Colour the closed rows with the game's colour</label>
       <div class="chips" id="s-rowtint">
         ${[["off", "Off"], ["soft", "Soft"], ["strong", "Strong"]].map(([v, l]) =>
@@ -7094,6 +7070,7 @@ function openSettings(scope) {
   pick("#s-fullstyle", v => S.fullStyle = v);
   pick("#s-artfix", v => S.artFix = v === "fix", () => renderQueue());
   pick("#s-rowart", v => S.rowArt = v === "yes", () => renderQueue());
+  pick("#s-qlook", v => { if (v === "select") S.qLook = "select"; else delete S.qLook; }, () => renderQueue());
   pick("#s-hubpaper", v => S.hubPaper = v);
   pick("#s-hubghost", v => S.hubGhost = v === "on");
   pick("#s-liblayout", v => S.libLayout = v, () => renderLib());
@@ -8851,6 +8828,104 @@ function qPatch(el, head, parts, empty) {
   }
   c.rows = new Map(parts);
 }
+/* ===== v301: the Queue's closed rows (round 2 A "Strap"), its control bar and the second look (round 2 F "Character select") ===== */
+let qfSel = null, qdLast = null;
+/* the row's picture: the open card's (qkFront), never the logo */
+function qsPic(g) {
+  return (S.cardBg || "hero") === "plain" || g.bgOff ? "" : g.hero || (g.steamId ? STEAM_CDN + g.steamId + "/library_hero.jpg" : "") || g.bg || cover(g);
+}
+/* the line along a row's foot: how far you are, played = full, coming = how close the release is (half a year out = empty) */
+function qsProg(g, st) {
+  const hrs = hrsOf(g);
+  if (st.k === "played") return 1;
+  if (st.k === "playing" || st.k === "dropped") return hrs ? Math.min(1, num(g.logged, 0, 0, 1e5) / hrs).toFixed(3) : 0;
+  if (st.k === "coming" && g.date) return Math.max(.04, Math.min(1, 1 - (new Date(g.date) - Date.now()) / (182 * 864e5))).toFixed(3);
+  return 0;
+}
+const QD_IC = {
+  order: '<path d="M4 5h16v2.4H4z"/><path opacity=".35" d="M4 10.8h11v2.4H4z"/><path d="M4 16.6h6.5V19H4z"/>',
+  car: '<path d="M6.5 9h11L12 15.5z"/>',
+  shuf: '<path opacity=".35" d="M3 6.5h4.2l9 11H21v-2.4h-3.6l-9-11H3z"/><path d="M16.2 4.1h3.6L21 2.6v6l-1.2-1.4h-3.6l-2.6 3.1-1.6-1.9zM3 15.1h4.2l2.6-3.1 1.6 1.9-3.2 3.6H3z"/>',
+  boss: '<path opacity=".35" d="M12 6.5c3.9 0 7 3 7 6.8v2.4c0 1.4-1.1 2.5-2.5 2.5H15v2.3H9v-2.3H7.5C6.1 18.2 5 17.1 5 15.7v-2.4c0-3.8 3.1-6.8 7-6.8z"/><path d="M3.6 2.8c-.6 3.3.4 5.7 3.3 6.8l-1 1.7C2.6 9.8 1.9 6.4 3.6 2.8zm16.8 0c1.7 3.6 1 7-2.3 8.5l-1-1.7c2.9-1.1 3.9-3.5 3.3-6.8zM8.2 12.4h3v2.6h-3zM12.8 12.4h3v2.6h-3z"/>',
+  list: '<path opacity=".35" d="M4 5h16v14H4z"/><path d="M11 8h2v3h3v2h-3v3h-2v-3H8v-2h3z"/>'
+};
+const qdIc = (k, c = "") => `<svg${c ? ` class="${c}"` : ""} viewBox="0 0 24 24" aria-hidden="true">${QD_IC[k]}</svg>`;
+const QD_TAB = { all: "All", out: "Out", soon: "Coming", done: "Played" };
+/* the orders, grouped (the menu was one long list of 17) */
+const QD_GROUPS = [["Order", ["manual", "date", "hype", "ondeck", "shortest", "longest"]], ["Your scores", ["overall", "expect", "duel"]],
+  ["One area", ["story", "music", "gameplay", "replay", "visuals", "world", "chars", "pace"]]];
+/* the bar under the Queue's header: filter tabs with counts (one tap, was a menu), one Order button with a grouped menu,
+   Shuffle (a tap picks tonight's game in place, a hold opens the shuffler) and Boss as the Shadow's live HP */
+function qdDeck(manual) {
+  const c = qCounts(), on = qNow(), nm = k => k === "manual" ? "My order" : (SORTS.find(x => x[0] === k) || ["", "Sorted"])[1];
+  const hp = typeof window.bossHP === "function" ? window.bossHP() : null;
+  const tabs = QFILTERS.map(([v]) => `<button class="qdtab" data-qfilter="${v}" aria-pressed="${on === v}" aria-label="${QD_TAB[v]}, ${c[v]}">${QICON[v]}<span class="qdtl">${QD_TAB[v]}</span><small>${c[v]}</small></button>`).join("")
+    + (S.lists || []).map(l => `<button class="qdtab" data-qfilter="L:${l.id}" aria-pressed="${on === "L:" + l.id}" aria-label="${esc(l.n)}, ${c["L:" + l.id]}"><i class="qle">${esc(l.e)}</i><span class="qdtl">${esc(l.n)}</span><small>${c["L:" + l.id]}</small></button>`).join("")
+    + `<button class="qdtab qdlist" data-lists="" aria-label="${(S.lists || []).length ? "Manage lists" : "Make a list"}">${qdIc("list")}</button>`;
+  return `<div class="qdeck" id="qdeck">
+    <div class="qdtabs" role="group" aria-label="Show">${tabs}</div>
+    <span class="sortmenu qdsortw"><button class="qdbtn qdsort" id="sortby" aria-haspopup="true" aria-expanded="false" aria-pressed="${!manual}">${qdIc("order")}<span class="qdlb"><small>Order</small><b>${esc(nm(S.sort || "manual"))}</b></span>${qdIc("car", "qdcar")}</button>
+      <div class="sortpop qdpop" id="sortpop" hidden>${QD_GROUPS.map(([h, ks]) => `<i class="qdgh">${h}</i><span class="qdg">${ks.filter(k => k === "manual" || SORTS.some(x => x[0] === k))
+        .map(k => `<button data-sort="${k}" aria-pressed="${(S.sort || "manual") === k}">${esc(nm(k))}</button>`).join("")}</span>`).join("")}
+        ${manual ? '<button class="act" id="byhype">Order my list by hype</button>' : `<button class="act" id="qkeep">Make this my order</button>`}</div></span>
+    <button class="qdbtn qdshuf" data-qshuf aria-label="Shuffle: pick tonight's game (hold for the shuffler)">${qdIc("shuf")}<span class="qdtl">Shuffle</span></button>
+    <button class="qdbtn qdboss" id="fx-boss" aria-label="Boss: the Shadow of the Backlog${hp ? ", " + hp[0] + " HP" : ""}"${hp ? ` style="--hp:${(hp[0] / hp[1]).toFixed(3)}"` : ""}>${qdIc("boss")}<span class="qdhp"><span><b>${hp ? hp[0] : "Boss"}</b>${hp ? "<small>HP</small>" : ""}</span>${hp ? '<span class="qdbar"><i></i></span>' : ""}</span></button>
+  </div>`;
+}
+/* Shuffle in the bar: a tap picks a game that's out (never the same twice running) and lights it up where it sits; a hold opens the full shuffler */
+function qdShufArm(el) {
+  const b = el.querySelector("[data-qshuf]"); if (!b || b._qa) return; b._qa = 1;
+  let t = 0, held = false;
+  b.addEventListener("pointerdown", () => { held = false; clearTimeout(t); t = setTimeout(() => { held = true; beep("tap"); openShuffle(); }, 480); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(k => b.addEventListener(k, () => clearTimeout(t)));
+  b.addEventListener("contextmenu", e => e.preventDefault());
+  b.onclick = () => { if (held) { held = false; return; } qdShuffle(); };
+}
+function qdShuffle() {
+  const live = allGames().filter(g => !isPlayed(g) && !isDropped(g)), out = live.filter(isOutNow);
+  const pool = (out.length ? out : live).filter(g => g.id !== qdLast || (out.length || live.length) < 2);
+  if (!pool.length) { toast("Nothing to pick from yet"); return; }
+  const g = pool[Math.floor(Math.random() * pool.length)]; qdLast = g.id;
+  if (!queueList().some(x => x.id === g.id)) { S.qFilter = "all"; save(); }
+  if (S.qLook === "select") { qfSel = g.id; collapsed = true; focusId = null; }
+  renderQueue(); beep("nudge");
+  const r = document.querySelector(`#p-queue [data-row="${CSS.escape(g.id)}"], #p-queue [data-qfpick="${CSS.escape(g.id)}"]`);
+  if (r) { r.classList.remove("qslit"); requestAnimationFrame(() => { r.classList.add("qslit"); r.scrollIntoView({ block: "center", behavior: calm() ? "auto" : "smooth" }); });
+    setTimeout(() => r.classList.remove("qslit"), 2400); }
+  toast("Tonight: " + g.title);
+}
+/* the second look: the picked game's panel (its logo, colour and three fighter-style bars) */
+function qfPanel(g, n, myScore) {
+  const st = qkStat(g, { v: g.date ? (Math.ceil((new Date(g.date) - new Date()) / 864e5) > 0 ? Math.ceil((new Date(g.date) - new Date()) / 864e5) : "OUT") : "TBA" }, myScore(g), n);
+  const src = qsPic(g), hrs = hrsOf(g), m = g.art && typeof LF !== "undefined" ? LF[g.art] : null, dark = m && m[5] >= 0 && m[5] < 50;
+  const bar = (l, v, t) => `<span>${l}</span><span class="qfseg">${Array.from({ length: 10 }, (_, k) => `<i${k < Math.round(v * 10) ? ' class="on"' : ""}></i>`).join("")}</span><b>${esc(t)}</b>`;
+  const third = st.k === "played" ? ["Score", myScore(g) / 100, myScore(g) ? String(myScore(g)) : "—"]
+    : st.k === "coming" ? ["Release", +qsProg(g, st), st.stub[0]]
+    : st.k === "playing" || st.k === "dropped" ? ["Done", +qsProg(g, st), Math.round(qsProg(g, st) * 100) + "%"]
+    : (() => { const e = expected(g); return ["Expect", e == null ? 0 : e / 10, e == null ? "—" : String(Math.round(e * 10) / 10)]; })();
+  return `<div class="qfsel qs-${st.k}" style="--accent:${esc(g.colour)}" role="button" tabindex="0" aria-label="Open ${esc(g.title)}">${
+      src ? `<i class="qfbg" aria-hidden="true" style="background-image:url('${esc(cssUrl(src))}');background-position:${num(g.bgX, 100, 0, 100)}% ${num(g.bgY, 50, 0, 100)}%"></i>` : ""}
+    <div class="qfin"><span class="qfkick"><b>${String(n).padStart(2, "0")}</b><i class="qsdot" aria-hidden="true"></i>${esc(st.word)} · ${esc(st.head)}</span>
+      <span class="qflg${dark ? " qfdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="">` : ""}</span><span class="qft">${esc(g.title)}</span>
+      <span class="qfst">${bar("Hype", num(g.hype, 0, 0, 10) / 10, g.hype ? g.hype + "/10" : "—")}${bar("Length", Math.min(1, (hrs || 0) / 100), hrs ? hrs + " h" : "—")}${bar(third[0], third[1], third[2])}</span></div>
+    <button class="qfcv" data-hub="${g.id}" title="Open ${esc(g.title)}'s own page"><img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt=""></button></div>`;
+}
+function qfGrid(list, on) {
+  return `<div class="qfgrid">${list.map((g, i) => { const st = isPlayed(g) ? "played" : isDropped(g) ? "dropped" : g.state === "playing" ? "playing" : isOutNow(g) ? "out" : "coming";
+    return `<button class="qfc qs-${st}${g.id === on ? " on" : ""}" data-qfpick="${g.id}" style="--accent:${esc(g.colour)}" aria-label="${esc(g.title)}" aria-pressed="${g.id === on}">
+      <img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt=""><span class="qfn">${String(i + 1).padStart(2, "0")}</span><i class="qsdot" aria-hidden="true"></i><span class="qfp1">P1</span></button>`; }).join("")}</div>`;
+}
+/* a tap on a cover picks it (the panel swaps); a tap on the picked one (or the panel) opens its card; with a card open, a tap opens that game's */
+function qfTap(id) {
+  const h = document.querySelector("#p-queue .qfwrap > .hero"), open = h ? h.dataset.row : null;
+  if (open === id) { collapsed = true; focusId = null; beep("back"); }
+  else if (open || id === qfSel) { collapsed = false; focusId = id; }
+  else beep("tap");
+  qfSel = id; renderQueue();
+  const now = document.querySelector("#p-queue .qfwrap > .hero");
+  if (now && now.dataset.row !== open) { if (S.motion !== false && !calm()) { now.classList.add("heroin"); setTimeout(() => now.classList.remove("heroin"), 2000); } sfx("qkopen", !!now.querySelector(".qksnap")); }
+  else { const p = !now && !calm() && document.querySelector("#p-queue .qfsel"); if (p) { p.classList.add("qfswap"); setTimeout(() => p.classList.remove("qfswap"), 500); } }
+}
 function renderQueue() {
   const el = $("#p-queue");
   const all = allGames();
@@ -8916,20 +8991,27 @@ function renderQueue() {
     return v == null ? "" : `<span class="sortv"><small>${esc(sortLabel)}</small><b>${esc(v)}</b></span>`;
   };
 
-  const row = (g, n) => `
-    <div class="row slab${(g.art && S.rowArt !== false) ? " artrow" : ""}" data-row="${g.id}" style="--accent:${esc(g.colour)};animation-delay:${Math.min(n, 6) * 28}ms">${
-      (g.art && S.rowArt !== false) ? `<i class="rowbg" aria-hidden="true"></i><span class="rowart"${
+  /* v301 (the owner picked round 2 A "Strap" for the closed rows: "A and the new bar"): the open card's language in one row:
+     the spot and box art on a skewed strap in the game's colour, the game's picture behind, a kicker, the name, the open card's
+     own headline (qkStat), its ticket (a released game's stub hangs torn), a progress line, the logo in its slot (lfRule) */
+  const row = (g, n) => {
+    const art = g.art && S.rowArt !== false, st = qkStat(g, countdown(g), myScore(g), n), src = qsPic(g);
+    return `
+    <div class="row slab qs qs-${st.k}${art ? " artrow" : ""}" data-row="${g.id}" style="--accent:${esc(g.colour)};--qp:${qsProg(g, st)};animation-delay:${Math.min(n, 6) * 28}ms">${
+      src ? `<i class="qsbg" aria-hidden="true" style="background-image:url('${esc(cssUrl(src))}');background-position:${num(g.bgX, 100, 0, 100)}% ${num(g.bgY, 50, 0, 100)}%"></i>` : ""
+    }<i class="qsstrap" aria-hidden="true"></i>${art ? `<span class="rowart"${
         g.id === morphId ? ` style="view-transition-name:ar-${esc(g.id)}"` : ""}
         ><img decoding="async" src="${esc(g.art)}" alt=""></span>` : ""
     }<div class="rowin">
       <span class="rank">${String(n).padStart(2, "0")}</span>
       <img decoding="async" style="${g.id === morphId ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt="">
+      <span class="qskick">${n === 1 && st.k !== "playing" && st.k !== "played" ? "Up next" : esc(st.word)}</span>
       <span class="name">${esc(g.title)}</span>
-      <span class="rowmeta">${g.date ? `<span class="when${(g.state || "upcoming") === "upcoming" && new Date(g.date) < new Date(new Date().toDateString()) ? " bad" : ""}">${shortDate(g.date)}</span>` : ""}
-      ${g.hours ? `<span class="score">${g.hours}h</span>` : ""}
-      ${sortTag(g)}
-      <span class="tag st-${isFresh(g) ? "fresh" : g.state || "upcoming"}">${isFresh(g) ? "Out now" : ((STATES.find(s => s[0] === (g.state || "upcoming")) || [, ""])[1] || "").split(",")[0]}</span></span>
-    </div></div>`;
+      <span class="rowmeta"><span class="qshd"><i class="qsdot" aria-hidden="true"></i>${esc(st.head)}</span>${g.date ? `<span class="when${(g.state || "upcoming") === "upcoming" && new Date(g.date) < new Date(new Date().toDateString()) ? " bad" : ""}">${shortDate(g.date)}</span>` : ""}
+      ${hrsOf(g) ? `<span class="score">${hrsOf(g)} h</span>` : ""}${sortTag(g)}</span>
+      <span class="qstk${st.snap ? " qssnap" : ""}" aria-hidden="true"><span class="qsstub"><b>${esc(st.stub[0])}</b><small>${esc(st.stub[1])}</small></span><span class="qsbody"><b>${esc(st.body[0])}</b><small>${esc(st.body[1])}</small></span></span>
+    </div><i class="qspg${st.k === "coming" ? " qswait" : ""}" aria-hidden="true"></i></div>`;
+  };
 
   const head = `
     ${nudgeBar()}
@@ -8938,34 +9020,15 @@ function renderQueue() {
     }</span>
       <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
     ${subChips("games")}
-    <div class="chips" id="sortrow">
-      <button class="chip" data-sort="manual" aria-pressed="${manual}"><span>My order</span></button>
-      <span class="sortmenu">
-        <button class="chip" id="sortby" aria-expanded="false" aria-pressed="${!manual}"><span>${
-          esc(manual ? "Sort by…" : (SORTS.find(x => x[0] === S.sort) || ["", "Sorted"])[1])} ▾</span></button>
-        <div class="sortpop" id="sortpop" hidden>
-          ${SORTS.map(([v, l]) => `<button data-sort="${v}" aria-pressed="${S.sort === v}">${esc(l)}</button>`).join("")}
-          <button class="act" id="byhype">↕ Reorder my order by hype</button>
-        </div>
-      </span>
-      <span class="qsplit" aria-hidden="true"></span>
-      ${(() => { const c = qCounts(), on = qNow();
-        const ol = on.startsWith("L:") ? (S.lists || []).find(l => "L:" + l.id === on) : null;
-        const lab = ol ? ol.n : (QFILTERS.find(x => x[0] === on) || QFILTERS[0])[1];
-        return `<span class="sortmenu">
-          <button class="chip" id="qview" data-qopen="1" aria-expanded="false" aria-pressed="true"
-            >${ol ? `<i class="qle">${esc(ol.e)}</i>` : QICON[on]}<span>${esc(lab)}</span><small>${c[on]}</small><b class="qcar">\u25BE</b></button>
-          <div class="sortpop qpop" id="qviewpop" hidden>${QFILTERS.map(([v, l]) =>
-            `<button data-qfilter="${v}" aria-pressed="${on === v}">${QICON[v]}<span>${esc(l)}</span><small>${c[v]}</small></button>`
-          ).join("")}${(S.lists || []).length ? '<i class="qsep">Your lists</i>' : ""}${(S.lists || []).map(l =>
-            `<button data-qfilter="L:${l.id}" aria-pressed="${on === "L:" + l.id}"><i class="qle">${esc(l.e)}</i><span>${esc(l.n)}</span><small>${c["L:" + l.id]}</small></button>`).join("")}
-            <button class="act" data-lists="">📋 ${(S.lists || []).length ? "Manage lists" : "Make a list"}</button></div></span>`;
-      })()}
-      <button class="chip" data-shuffle><span>🔀 Shuffle</span></button><button class="chip" id="fx-boss"><span>Boss</span></button>
-    </div>
+    ${qdDeck(manual)}
     ${onDeckStrip()}
     `;
-  qPatch(el, head, sorted.map((g, i) => [g.id, g.id === activeId ? big(g, i + 1) : row(g, i + 1)]),
+  /* v301: the second look (Settings › Queue cards): a picked game's panel (or its open card) over a grid of covers */
+  const sel = S.qLook === "select";
+  if (sel && sorted.length && !sorted.some(g => g.id === qfSel)) qfSel = sorted[0].id;
+  qPatch(el, head, sel && sorted.length ? [["qf", `<div class="qfwrap">${activeId ? big(sorted.find(g => g.id === activeId), sorted.findIndex(g => g.id === activeId) + 1)
+      : qfPanel(sorted.find(g => g.id === qfSel), sorted.findIndex(g => g.id === qfSel) + 1, myScore)}${qfGrid(sorted, activeId || qfSel)}</div>`]]
+    : sorted.map((g, i) => [g.id, g.id === activeId ? big(g, i + 1) : row(g, i + 1)]),
     sorted.length ? "" : '<p class="empty">Nothing here right now. Try another filter.</p>');
 
   countUp(el);
@@ -9044,19 +9107,16 @@ function renderQueue() {
       document.removeEventListener("click", off);
     }), 0);
   };
-  if ($("#qview")) $("#qview").onclick = e => {
-    e.stopPropagation();
-    const pop = $("#qviewpop");
-    const open = pop.hasAttribute("hidden");
-    pop.toggleAttribute("hidden", !open);
-    $("#qview").setAttribute("aria-expanded", String(open));
+  if ($("#qkeep")) $("#qkeep").onclick = () => {
     beep("tap");
-    if (open) setTimeout(() => document.addEventListener("click", function off() {
-      pop.setAttribute("hidden", "");
-      if ($("#qview")) $("#qview").setAttribute("aria-expanded", "false");
-      document.removeEventListener("click", off);
-    }), 0);
+    sortGames(liveGames()).forEach((g, k) => { S.games.find(x => x.id === g.id).ord = k + 1; });
+    const was = (SORTS.find(x => x[0] === S.sort) || ["", ""])[1];
+    S.sort = "manual"; save(); renderQueue();
+    toast("Your order is now " + was.toLowerCase());
   };
+  qdShufArm(el);
+  el.querySelectorAll("[data-qfpick]").forEach(b => b.onclick = () => qfTap(b.dataset.qfpick));
+  if ($("#p-queue .qfsel")) $("#p-queue .qfsel").onclick = e => { if (!e.target.closest("[data-hub]")) qfTap(qfSel); };
   el.querySelectorAll("[data-qfilter]").forEach(b => b.onclick = () => {
     S.qFilter = b.dataset.qfilter;
     focusId = null; save(); renderQueue(); beep("tap");
@@ -13866,6 +13926,8 @@ addEventListener('click',e=>{if(e.target.closest('#fx-radar'))radar()});
 function bossNow(){const L=S.games.filter(g=>!g.comp&&!isPlayed(g)&&g.state!=="played"&&!isDropped(g)&&(g.state==="backlog"||g.state==="playing"||isOutNow(g))).map(g=>({g,h:+g.hours||20,est:!(+g.hours)}));
 return{L,hp:L.reduce((a,x)=>a+x.h,0)}}
 function bossMax(hp){if(!S.fxBossMax||hp>S.fxBossMax||S.fxBossMax===0&&hp){S.fxBossMax=hp}return S.fxBossMax||1}
+/* v301: the Queue's control bar shows the Shadow's HP (this script's scope keeps bossNow to itself) */
+window.bossHP=()=>{const hp=bossNow().hp;return[hp,Math.max(hp,S.fxBossMax||0)||1]};
 let lastHP=bossNow().hp;bossMax(lastHP);
 onSave({after:()=>{const hp=bossNow().hp,df=hp-lastHP;if(!df)return;if(window.pnSilentHP){lastHP=hp;if(hp>S.fxBossMax)S.fxBossMax=hp;return}const old=lastHP;lastHP=hp;
 if(!hp)S.fxBossMax=0;const mx=hp?bossMax(hp):old||1;if(still()||!S.grum)return;/* v286 (the owner): the HP bar only while Grumble is switched on; CLEAR! stays */
@@ -16125,9 +16187,6 @@ html.still .sh-card { transition: none !important; }
 .ls-emo button { height: 40px; border-radius: 12px; border: 1px solid var(--steel); background: var(--void); font-size: 19px; cursor: pointer; }
 .ls-emo button.on { border-color: var(--volt); background: rgba(var(--vrgb), .16); }
 .ls-mk { display: flex; gap: 8px; }
-.qpop .qle { font-style: normal; font-size: 14px; width: 16px; text-align: center; }
-#qview .qle { font-style: normal; }
-.qpop .qsep { display: block; font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); padding: 10px 12px 4px; }
 </style>
 <style>
 /* ===== v183 extras off by default, quick duel / score sheets, usage table, quick add ===== */
@@ -27186,6 +27245,186 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
   .qbbtns { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; } .qbv { width: 52px; } .qbv b { font-size: 13px; } .qbb > span { font-size: 12px; }
   .qbfour { gap: 26px; } .qbfour b { font-size: 32px; } .qbfour span { font-size: 12.5px; }
 }
+
+/* ===== v301: the Queue's closed rows = round 2 A "Strap" (the owner: "A and the new bar"); the control bar; the second look
+   (round 2 F "Character select", Settings › Queue cards). Ids beat the older .row / html.ui2 .row / .artrow layers. ===== */
+#p-queue .row.qs { --qsc: var(--volt); display: block; padding: 0; min-height: 112px; margin-bottom: 12px; border: 0; border-radius: 22px; overflow: hidden;
+  isolation: isolate; filter: none; clip-path: none; transform: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--volt)) 34%, transparent); }
+#p-queue .row.qs-playing { --qsc: rgb(63 217 164); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent, var(--volt)) 80%, var(--ice)), 0 14px 34px -18px var(--accent, var(--volt)); }
+#p-queue .row.qs-coming { --qsc: rgb(111 214 255); }
+#p-queue .row.qs-played { --qsc: rgb(199 163 255); }
+#p-queue .row.qs-dropped { --qsc: var(--mute); }
+#p-queue .row.qs > * { transform: none; }
+#p-queue .qsbg { position: absolute; top: 0; bottom: 0; right: 0; left: 28%; z-index: 0; background-color: var(--void); background-size: cover; background-repeat: no-repeat; }
+#p-queue .qsbg::before { content: ""; position: absolute; top: 0; bottom: 0; right: 0; left: -38.9%;
+  background: linear-gradient(90deg, var(--void) 22%, color-mix(in srgb, var(--accent, var(--volt)) 34%, rgba(7,10,20,.9)) 40%, color-mix(in srgb, var(--accent, var(--volt)) 14%, rgba(7,10,20,.62)) 64%, rgba(7,10,20,.5) 78%, rgba(4,6,14,.66)); }
+#p-queue .qs-played .qsbg::before { background: linear-gradient(90deg, var(--void) 22%, color-mix(in srgb, var(--accent, var(--volt)) 18%, rgba(7,10,20,.93)) 40%, rgba(7,10,20,.74) 66%, rgba(7,10,20,.62)); }
+/* the slant lives on the strap's own layers: html.flat forces every direct child of a .slab row straight */
+#p-queue .row.qs > .qsstrap { position: absolute; top: 0; bottom: 0; left: -44px; width: 220px; z-index: 1; pointer-events: none; --qsk: -15deg; }
+#p-queue .qsstrap::before { content: ""; position: absolute; inset: 0; transform: skewX(var(--qsk)); transform-origin: 0 0;
+  background: linear-gradient(100deg, color-mix(in oklab, var(--accent, var(--volt)) 60%, black) 20%, color-mix(in oklab, var(--accent, var(--volt)) 88%, black) 92%); }
+#p-queue .qsstrap::after { content: ""; position: absolute; top: 0; bottom: 0; right: 3px; width: 6px; transform: skewX(var(--qsk)); transform-origin: 0 0;
+  background: color-mix(in oklab, var(--accent, var(--volt)) 55%, white); opacity: .85; }
+#p-queue .row.qs > .rowin { position: relative; z-index: 2; display: grid; grid-template-columns: 44px 58px 30px minmax(0, 1fr) auto; grid-template-rows: auto auto auto;
+  column-gap: 12px; align-items: center; align-content: center; min-height: 112px; padding-top: 10px; padding-bottom: 12px; padding-left: 20px; }
+#p-queue .row.qs:not(.artrow) > .rowin { padding-right: 16px; }
+#p-queue .qs .rowin > .rank { grid-area: 1 / 1 / 4 / 2; font-size: 30px; font-weight: 700; letter-spacing: -.04em; color: var(--ice); text-shadow: 0 2px 8px rgba(0,0,0,.45); font-variant-numeric: tabular-nums; min-width: 0; }
+#p-queue .qs .rowin > img { grid-area: 1 / 2 / 4 / 3; width: 58px; height: 86px; max-width: none; object-fit: cover; border-radius: 10px; box-shadow: 0 0 0 2px rgba(255,255,255,.22); }
+#p-queue .qskick { grid-area: 1 / 4; font-size: 12.5px; font-weight: 600; color: color-mix(in oklab, var(--accent, var(--volt)) 45%, white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#p-queue .qs .rowin > .name { grid-area: 2 / 4; margin-top: 2px; font-size: 19px; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; color: var(--ice);
+  white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; }
+#p-queue .qs .rowmeta { grid-area: 3 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; margin-top: 6px; min-width: 0; font-size: 14px; font-weight: 600; color: var(--ice); }
+#p-queue .qshd { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+#p-queue .qsdot { width: 8px; height: 8px; border-radius: 50%; background: var(--qsc); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--qsc) 24%, transparent); }
+#p-queue .qs .rowmeta > .when, #p-queue .qs .rowmeta > .score { display: none; }
+#p-queue .qs .rowmeta > .sortv { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 9px; border-radius: 999px; background: rgba(var(--vrgb), .18); white-space: nowrap; }
+#p-queue .qs .sortv b { font-style: normal; font-weight: 700; font-variation-settings: normal; }
+#p-queue .qs .sortv small { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 11.5px; }
+#p-queue .qstk { grid-area: 1 / 5 / 4 / 6; display: flex; height: 62px; margin-left: 6px; }
+#p-queue .qstk > span { display: flex; flex-direction: column; justify-content: center; padding: 0 13px; min-width: 72px;
+  background: color-mix(in srgb, var(--accent, var(--volt)) 26%, rgba(5,8,16,.88)); border: 1px solid color-mix(in srgb, var(--accent, var(--volt)) 55%, transparent); }
+#p-queue .qsstub { border-radius: 12px 0 0 12px; border-right: 0; }
+#p-queue .qsbody { border-radius: 0 12px 12px 0; border-left: 2px dashed color-mix(in srgb, var(--accent, var(--volt)) 50%, rgba(255,255,255,.35)); }
+#p-queue .qssnap .qsstub { transform: translate(-5px, 4px) rotate(-6deg); transform-origin: 100% 0; border-right: 1px solid color-mix(in srgb, var(--accent, var(--volt)) 55%, transparent); border-radius: 12px 2px 4px 12px; }
+#p-queue .qstk b { font-size: 16px; font-weight: 700; color: var(--ice); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#p-queue .qstk small { font-size: 11.5px; font-weight: 600; color: rgba(234,242,255,.62); white-space: nowrap; }
+#p-queue .qspg { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; z-index: 2; background: rgba(255,255,255,.07); }
+#p-queue .qspg::after { content: ""; position: absolute; inset: 0; transform-origin: 0 50%; transform: scaleX(var(--qp, 0));
+  background: linear-gradient(90deg, color-mix(in oklab, var(--accent, var(--volt)) 70%, white), var(--qsc)); }
+#p-queue .qspg.qswait::after { background: repeating-linear-gradient(90deg, var(--qsc) 0 8px, transparent 8px 13px); }
+#p-queue .row.qs .rowart { z-index: 2; }
+#p-queue .row.qs.artrow { --rslot: min(28%, var(--raw, 150px) * 1.4); }
+/* Shuffle's pick lights up where it sits */
+#p-queue .qslit::before { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--ice), inset 0 0 0 6px color-mix(in srgb, var(--accent, var(--volt)) 60%, transparent); animation: qslit 2.3s var(--ease) both; }
+@keyframes qslit { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+@media (max-width: 500px) {
+  #p-queue .row.qs { min-height: 104px; border-radius: 20px; }
+  #p-queue .qsbg { left: 34%; } #p-queue .qsbg::before { left: -51.5%; }
+  #p-queue .row.qs > .qsstrap { left: -30px; width: 140px; --qsk: -9deg; }
+  #p-queue .qsstrap::after { right: 3px; width: 4px; }
+  #p-queue .row.qs > .rowin { grid-template-columns: 26px 46px 18px minmax(0, 1fr); column-gap: 8px; min-height: 104px; padding-left: 12px; padding-top: 9px; padding-bottom: 10px; }
+  #p-queue .qs .rowin > .rank { font-size: 19px; }
+  #p-queue .qs .rowin > img { width: 46px; height: 68px; border-radius: 8px; }
+  #p-queue .qskick { display: none; }
+  #p-queue .qs .rowin > .name { grid-area: 1 / 4 / 3 / 5; font-size: 15.5px; align-self: end; margin-top: 0; }
+  #p-queue .qs .rowmeta { margin-top: 4px; font-size: 12.5px; gap: 2px 8px; }
+  #p-queue .qs .rowmeta > .when { display: inline; padding: 0; border: 0; background: none; font-size: 12.5px; font-weight: 600; color: rgba(234,242,255,.72); white-space: nowrap; }
+  #p-queue .qstk { display: none; }
+  #p-queue .row.qs.artrow { --rslot: min(27%, var(--raw, 150px) * 1.4); }
+}
+
+/* the control bar */
+#p-queue .qdeck { display: flex; align-items: center; gap: 8px; margin: 6px 0 16px; }
+/* never a side scroller: a scroller gets its own GPU layer and pulled every row after it onto layers (kit.mjs layers); many lists wrap */
+#p-queue .qdtabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 18px; background: var(--u-pan); border: 1px solid var(--u-line2); flex: 1 1 auto; min-width: 0; }
+#p-queue .qdtab { display: flex; align-items: center; justify-content: center; gap: 7px; height: 44px; padding: 0 14px; border: 0; border-radius: 14px; background: none;
+  font: inherit; font-size: 14.5px; font-weight: 600; color: var(--mute); white-space: nowrap; flex: 1 0 auto; cursor: pointer; }
+#p-queue .qdtab[aria-pressed="true"] { color: var(--ice); background: linear-gradient(180deg, rgba(var(--vrgb), .3), rgba(var(--vrgb), .16)); box-shadow: inset 0 0 0 1px rgba(var(--vrgb), .55); }
+#p-queue .qdtab svg { width: 17px; height: 17px; fill: currentColor; flex: none; }
+#p-queue .qdtab[aria-pressed="true"] svg, #p-queue .qdtab[aria-pressed="true"] small { color: var(--volt); }
+#p-queue .qdtab small { font-size: 12.5px; font-weight: 700; color: var(--mute); font-variant-numeric: tabular-nums; }
+#p-queue .qdtab .qle { font-style: normal; font-size: 15px; }
+#p-queue .qdtab.qdlist { flex: 0 0 auto; padding: 0 11px; }
+#p-queue .qdbtn { display: flex; align-items: center; gap: 9px; height: 54px; padding: 0 14px; border-radius: 18px; background: var(--u-pan); border: 1px solid var(--u-line2);
+  font: inherit; font-size: 14.5px; font-weight: 600; color: var(--ice); white-space: nowrap; flex: none; cursor: pointer; }
+#p-queue .qdbtn svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+#p-queue .qdsortw { flex: 0 1 auto; min-width: 0; }
+#p-queue .qdsort { min-width: 168px; width: 100%; text-align: left; }
+#p-queue .qdsort[aria-pressed="true"] { border-color: rgba(var(--vrgb), .6); }
+#p-queue .qdsort[aria-pressed="true"] > svg:first-child, #p-queue .qdshuf svg { color: var(--volt); }
+#p-queue .qdlb { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; flex: 1 1 auto; }
+#p-queue .qdlb small { font-size: 11.5px; font-weight: 600; color: var(--mute); }
+#p-queue .qdlb b { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+#p-queue .qdbtn .qdcar { width: 16px; height: 16px; color: var(--mute); transition: transform .25s var(--ease); }
+#p-queue .qdsort[aria-expanded="true"] .qdcar { transform: rotate(180deg); }
+#p-queue .qdboss { gap: 10px; padding: 0 14px 0 12px; border-color: color-mix(in srgb, var(--hot) 38%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--hot) 13%, transparent), color-mix(in srgb, var(--hot) 4%, transparent)), var(--u-pan); }
+#p-queue .qdboss > svg { width: 24px; height: 24px; color: var(--hot); }
+#p-queue .qdhp { display: flex; flex-direction: column; gap: 5px; min-width: 70px; }
+#p-queue .qdhp > span:first-child { display: flex; align-items: baseline; gap: 4px; line-height: 1; }
+#p-queue .qdhp b { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#p-queue .qdhp small { font-size: 11px; font-weight: 700; color: var(--mute); }
+#p-queue .qdbar { position: relative; height: 6px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+#p-queue .qdbar i { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; transform: scaleX(var(--hp, 1)); background: linear-gradient(90deg, var(--hot), color-mix(in srgb, var(--hot) 55%, white)); }
+#p-queue .qdpop { left: auto; right: 0; top: calc(100% + 8px); width: min(470px, calc(100vw - 32px)); max-height: 66vh; padding: 14px; border-radius: 20px; display: block;
+  background: var(--u-card); border: 1px solid var(--u-line2); box-shadow: 0 24px 60px rgba(0,0,0,.7); }
+#p-queue .qdpop[hidden] { display: none; }
+#p-queue .qdgh { display: block; font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--mute); margin: 2px 4px 8px; }
+#p-queue .qdg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+#p-queue .qdpop .qdg button { height: 38px; padding: 0 13px; border-radius: 12px; background: var(--u-card2); border: 1px solid var(--u-line); color: var(--ice);
+  font-size: 14px; font-weight: 600; font-variation-settings: normal; white-space: nowrap; }
+#p-queue .qdpop .qdg button[aria-pressed="true"] { background: var(--volt); color: var(--void); border-color: transparent; }
+#p-queue .qdpop .act { display: block; width: 100%; margin: 0; padding: 11px 14px; border-radius: 14px; border: 0; background: rgba(var(--vrgb), .12); color: var(--volt); font-size: 14px; font-weight: 700; text-align: left; }
+/* the unfolded Fold with Nexi's rail leaves ~740px: words only where they fit */
+@media (min-width: 501px) and (max-width: 1099px) {
+  #p-queue .qdtab { padding: 0 10px; gap: 6px; }
+  #p-queue .qdsort { min-width: 148px; }
+  #p-queue .qdshuf .qdtl { display: none; }
+  #p-queue .qdhp { min-width: 58px; }
+}
+@media (max-width: 500px) {
+  #p-queue .qdeck { flex-wrap: wrap; gap: 6px; }
+  #p-queue .qdtabs { flex: 1 1 100%; }
+  #p-queue .qdtab { height: 40px; padding: 0 9px; gap: 5px; font-size: 13.5px; }
+  #p-queue .qdtab:not([aria-pressed="true"]) .qdtl { display: none; }
+  #p-queue .qdbtn { height: 48px; padding: 0 12px; border-radius: 16px; }
+  #p-queue .qdsortw { flex: 1 1 auto; }
+  #p-queue .qdsort { min-width: 0; }
+  #p-queue .qdshuf .qdtl { display: none; }
+  #p-queue .qdhp { min-width: 60px; }
+  #p-queue .qdpop { left: 0; right: auto; }
+}
+
+/* the second look: Character select */
+#p-queue .qfwrap > .hero { margin-bottom: 14px; }
+#p-queue .qfsel { position: relative; display: block; height: 300px; margin-bottom: 14px; border-radius: 24px; overflow: hidden; isolation: isolate; cursor: pointer;
+  background: var(--void); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--volt)) 42%, transparent); }
+#p-queue .qfbg { position: absolute; inset: 0; z-index: -1; background-size: cover; background-repeat: no-repeat; }
+#p-queue .qfsel::before { content: ""; position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(90deg, var(--void) 18%, color-mix(in srgb, var(--accent, var(--volt)) 30%, rgba(7,10,20,.8)) 46%, rgba(7,10,20,.22) 80%), linear-gradient(0deg, rgba(4,6,12,.85), transparent 42%); }
+#p-queue .qfin { position: absolute; z-index: 1; left: 26px; top: 22px; bottom: 22px; width: 52%; display: flex; flex-direction: column; }
+#p-queue .qfkick { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; color: var(--ice); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#p-queue .qfkick b { padding: 3px 10px; border-radius: 8px; background: color-mix(in oklab, var(--accent, var(--volt)) 75%, black); font-variant-numeric: tabular-nums; }
+#p-queue .qfsel.qs-playing { --qsc: rgb(63 217 164); } #p-queue .qfsel.qs-coming { --qsc: rgb(111 214 255); } #p-queue .qfsel.qs-played { --qsc: rgb(199 163 255); }
+#p-queue .qfsel .qsdot { width: 8px; height: 8px; border-radius: 50%; background: var(--qsc, var(--volt)); flex: none; }
+#p-queue .qflg { display: flex; align-items: center; height: 92px; margin-top: 14px; min-height: 0; }
+#p-queue .qflg img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; object-position: left center; }
+#p-queue .qflg.qfdk img { filter: brightness(0) invert(.9); }
+#p-queue .qft { margin-top: 8px; font-size: 15px; font-weight: 600; color: rgba(234,242,255,.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#p-queue .qfst { margin-top: auto; display: grid; grid-template-columns: auto 1fr auto; gap: 7px 12px; align-items: center; max-width: 380px; }
+#p-queue .qfst > span:not(.qfseg) { font-size: 12.5px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+#p-queue .qfst b { font-size: 13px; font-weight: 700; color: var(--ice); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#p-queue .qfseg { display: flex; gap: 3px; }
+#p-queue .qfseg i { flex: 1; height: 10px; border-radius: 2px; transform: skewX(-14deg); background: rgba(255,255,255,.1); }
+#p-queue .qfseg i.on { background: color-mix(in oklab, var(--accent, var(--volt)) 70%, white 20%); }
+#p-queue .qfcv { position: absolute; z-index: 1; right: 26px; bottom: 22px; width: 132px; height: 190px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: none;
+  box-shadow: 0 16px 36px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.22); cursor: pointer; }
+#p-queue .qfcv img { width: 100%; height: 100%; max-width: none; object-fit: cover; display: block; border-radius: 0; }
+#p-queue .qfswap .qfin { animation: qfswap .42s var(--ease) both; }
+#p-queue .qfswap .qfcv { animation: qfcv .42s var(--ease) both; }
+@keyframes qfswap { from { opacity: 0; transform: translateX(-18px); } }
+@keyframes qfcv { from { opacity: 0; transform: translateY(14px); } }
+#p-queue .qfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 16px 10px; padding-top: 8px; }
+#p-queue .qfc { position: relative; display: block; aspect-ratio: 2 / 3; padding: 0; border: 0; border-radius: 14px; background: var(--u-pan); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--u-line2); color: var(--ice); font: inherit; }
+#p-queue .qfc img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; border-radius: inherit; }
+#p-queue .qfc::before { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; background: linear-gradient(180deg, transparent 55%, rgba(4,6,12,.85)); }
+#p-queue .qfn { position: absolute; z-index: 2; left: 7px; bottom: 6px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#p-queue .qfc .qsdot { position: absolute; z-index: 2; right: 8px; bottom: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--qsc, var(--volt)); }
+#p-queue .qfc.qs-playing { --qsc: rgb(63 217 164); } #p-queue .qfc.qs-coming { --qsc: rgb(111 214 255); } #p-queue .qfc.qs-played { --qsc: rgb(199 163 255); opacity: .62; }
+#p-queue .qfc.on { opacity: 1; box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent, var(--volt)) 70%, white 25%), 0 10px 26px -8px var(--accent, var(--volt)); }
+#p-queue .qfp1 { position: absolute; z-index: 3; left: 50%; top: -12px; transform: translateX(-50%); display: none; padding: 2px 8px; border-radius: 7px;
+  background: color-mix(in oklab, var(--accent, var(--volt)) 70%, white 20%); color: var(--void); font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+#p-queue .qfc.on .qfp1 { display: block; }
+@media (max-width: 500px) {
+  #p-queue .qfsel { height: 236px; border-radius: 20px; }
+  #p-queue .qfin { left: 16px; top: 16px; bottom: 16px; width: 60%; }
+  #p-queue .qflg { height: 62px; margin-top: 10px; }
+  #p-queue .qft { font-size: 13px; margin-top: 4px; }
+  #p-queue .qfst { gap: 5px 8px; } #p-queue .qfst > span:not(.qfseg), #p-queue .qfst b { font-size: 11px; } #p-queue .qfseg i { height: 8px; }
+  #p-queue .qfcv { right: 16px; bottom: 16px; width: 88px; height: 128px; }
+}
 </style>
 <script>
 WHATS_NEW.push(
@@ -27201,5 +27440,17 @@ WHATS_NEW.push(
     at: () => $("#p-queue .hero .qbpad") || $("#p-queue .hero"),
     say: "<b>The back of your Queue card fills up like a controller</b>: your score lights its little screen, each of your eight areas fills one of its buttons in the game's colour (Nexi guesses them from your scores until you've played it), and the four numbers sit underneath.",
     tryIt: "Tap your top game's card twice to turn it over. Edit, ⋯ and the move arrows are along the top." }
+);
+WHATS_NEW.push(
+  { v: 301, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row.qs") || $("#p-queue .row"),
+    say: "<b>Your Queue's closed games got a new look</b>: each one sits on a strap in its own colour with its picture behind, one plain line (Out in 13 days, 23 h left), a ticket with its numbers and a line along the bottom that fills as you play or as the release gets close.",
+    tryIt: "Scroll through your Queue, then tap a game to open its card." },
+  { v: 301, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .qdeck"),
+    say: "<b>One bar for everything under the header</b>: All, Out, Coming and Played are tabs with their counts, <b>Order</b> keeps every way to sort in three groups (and can make a sort your own order), <b>Shuffle</b> picks tonight's game right in the list (hold it for the full shuffler), and <b>Boss</b> shows the Shadow's HP.",
+    tryIt: "Tap Coming, then Order › Most hyped, then Shuffle." },
+  { v: 301, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "queue"); openSettings("games"); const el = $("#s-qlook"), d = el && el.closest("details"); if (d) d.open = true; if (el) setTimeout(() => el.scrollIntoView({ block: "center" }), 120); },
+    at: () => $("#s-qlook") || null,
+    say: "<b>Prefer covers?</b> Switch the Queue to <b>Character select</b>: the game you pick fills a big panel with its logo and bars for hype, length and progress, and every game sits below it as a cover.",
+    tryIt: "Tap Character select, go back to the Queue and tap a few covers." }
 );
 </script>
