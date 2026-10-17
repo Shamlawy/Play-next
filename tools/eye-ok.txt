@@ -1,0 +1,4 @@
+# What the design eye (tools/eye.mjs) is told is meant to look that way. One a line: <kind> <part of the element path> — <why>.
+# Add a line only for a deliberate look, with the reason; a real problem gets fixed instead.
+overlap shx-fan — the tab's game fan: covers fanned over each other on purpose
+faint shx-fan — the fan's back covers are dimmed on purpose, the front one is bright
