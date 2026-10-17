@@ -1,4 +1,4 @@
-/* The open Queue card, v296 look D "Stamp" (the owner picked it from four demos: the picture fills the card, the front shows
+/* The open Queue card, v297 look D "Stamp" (the owner picked it from four demos: the picture fills the card, the front shows
    the status, logo, platforms and genres; tap the cover = the game page, tap anywhere else = turn it over).
      node tools/kit.mjs run tools/scenarios/queue-card.mjs --widths 412,859      SHOTS=dir (front + back per state)
    Checks, for each state (coming, out now, playing, played):
