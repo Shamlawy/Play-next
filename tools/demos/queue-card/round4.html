@@ -1,0 +1,487 @@
+<title>Queue card demos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Cinzel:wght@700&family=Audiowide&family=Uncial+Antiqua&display=swap">
+<style>
+/* Layout: one design at a time (A–D) inside a live mini Queue; one game open as a card among the rows.
+   Colours are Play next's tokens (always black, one blue accent); a few scene colours for the game box and card foil. */
+:root {
+  color-scheme: dark;
+  --bg: #000; --pan: #0a0e1b; --card: #131a32; --card2: #19213d; --deep: #05070f;
+  --line: rgba(234,242,255,.08); --line2: rgba(234,242,255,.14);
+  --volt: #4DA3FF; --volt2: #2F6BFF; --vrgb: 77,163,255;
+  --ice: #EAF2FF; --mute: #7C92C4; --ink: #06101f; --good: #4fd18b;
+  --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 20px; --rs: 14px; --ease: cubic-bezier(.16,1,.3,1);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { background: radial-gradient(120% 50% at 50% -10%, rgba(var(--vrgb), .13), transparent 60%), var(--bg);
+  color: var(--ice); font-family: var(--font); font-weight: 500;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 80px; -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+.page { max-width: 940px; margin: 0 auto; }
+.intro h1 { font-size: 30px; font-weight: 700; letter-spacing: -.015em; margin: 6px 0 8px; }
+.intro p { color: var(--mute); margin: 0 0 6px; line-height: 1.55; max-width: 62ch; font-size: 14.5px; }
+.intro p b { color: var(--ice); font-weight: 600; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  margin: 14px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 6px; padding: 10px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(0,0,0,.9); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font-size: 12.5px; font-weight: 600; color: var(--mute); }
+.seg { display: flex; gap: 4px; padding: 4px; background: var(--pan); border: 1px solid var(--line); border-radius: 999px; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+#demoSeg button { min-width: 44px; font-size: 15px; font-weight: 700; text-align: center; }
+.seg button[aria-pressed="true"] { background: var(--volt); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .seg button:not([aria-pressed="true"]):hover { color: var(--ice); } }
+.demo { margin-top: 18px; }
+.demo[hidden] { display: none; }
+.dh { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; margin-bottom: 14px; }
+.letter { grid-row: span 2; width: 38px; height: 38px; border-radius: 12px; background: var(--volt); color: var(--ink); display: grid; place-items: center; font-weight: 700; font-size: 18px; align-self: start; }
+.dh h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.015em; }
+.dh p { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 64ch; }
+.stage { position: relative; overflow: hidden; }
+.stage.fixed .screen { position: absolute; top: 0; left: 0; }
+.stage:not(.fixed) { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); }
+.screen { background: var(--bg); border-radius: 24px; border: 1px solid var(--line); padding: 12px; transform-origin: 0 0; container-type: inline-size; }
+.stage:not(.fixed) .screen { border-radius: 0; border-left: 0; border-right: 0; }
+@container (min-width: 600px) { .wn { display: none !important; } }
+@container (max-width: 599px) { .ww { display: none !important; } }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px; }
+.notes div { background: var(--pan); border: 1px solid var(--line); border-radius: var(--rs); padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--mute); }
+.notes h3 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ice); }
+
+/* ---------- mini Queue ---------- */
+.qhd { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 10px; }
+.qhd h4 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.015em; }
+.qhd span { font-size: 12.5px; color: var(--mute); font-weight: 600; white-space: nowrap; }
+.qchips { display: flex; gap: 6px; overflow: hidden; padding: 0 0 12px; }
+.qchips i { font-style: normal; flex: none; height: 32px; padding: 0 13px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 600; background: var(--card); border: 1px solid var(--line); }
+.qchips i.on { background: var(--volt); color: var(--ink); border-color: transparent; }
+.qlist { display: grid; gap: 8px; }
+.qr { width: 100%; display: grid; grid-template-columns: 26px 40px minmax(0,1fr) 20px; gap: 12px; align-items: center; min-height: 76px; padding: 8px 14px 8px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+.qr .n { font-size: 16px; font-weight: 700; color: var(--mute); font-variant-numeric: tabular-nums; }
+.qr .cv { width: 40px; height: 60px; border-radius: 8px; background: var(--c) center / cover; border: 1px solid var(--line); }
+.qr .tx { min-width: 0; }
+.qr .tx b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr .tx small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--mute); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr .ic { color: var(--mute); width: 18px; height: 18px; }
+@media (hover: hover) and (pointer: fine) { .qr:hover { border-color: var(--line2); } }
+
+/* ---------- shared bits ---------- */
+.ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill .ic { width: 15px; height: 15px; }
+.pill.v { background: var(--volt); color: var(--ink); }
+.pill.o { background: rgba(5,7,15,.62); border: 1px solid var(--line2); color: var(--ice); }
+.pill.g { background: rgba(5,20,14,.75); border: 1px solid rgba(79,209,139,.4); color: var(--good); }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.prim { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px; background: var(--volt); color: var(--ink); font-weight: 600; font-size: 14.5px; white-space: nowrap; }
+.prim > span { overflow: hidden; text-overflow: ellipsis; }
+.icb { width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; background: var(--card2); border: 1px solid var(--line); color: var(--ice); flex: none; }
+@media (hover: hover) and (pointer: fine) { .prim:hover { background: #6db4ff; } .icb:hover { border-color: var(--line2); } }
+.acts { display: flex; gap: 8px; align-items: center; }
+.acts .prim { flex: 1; }
+.nexi { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--mute); }
+.nexi b { color: var(--ice); font-weight: 600; }
+.nexi .dot { flex: none; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px; background: radial-gradient(circle at 35% 35%, #9fd0ff, var(--volt) 45%, var(--volt2)); box-shadow: 0 0 0 3px rgba(var(--vrgb), .14); }
+.ss { display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap: 4px; }
+.ss .one { display: grid; gap: 3px; justify-items: center; min-width: 0; }
+.ss .one i { width: 100%; max-width: 22px; height: 22px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; }
+.ss .one i s { position: absolute; inset: 0; background: var(--c); transform-origin: 50% 100%; transform: scaleY(var(--v)); animation: growy .6s var(--ease) both; animation-delay: var(--d, 0ms); }
+.ss .one span { font-size: 9.5px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.ss .one b { font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pips { display: flex; gap: 3px; }
+.pips i { flex: 1; height: 5px; border-radius: 3px; background: var(--line2); }
+.pips i.on { background: var(--volt); }
+.logo { display: block; max-width: 100%; height: auto; object-fit: contain; object-position: left center; }
+.wm { display: block; line-height: 1.02; letter-spacing: .01em; text-wrap: balance; color: #f4ecdc; }
+.wm.w2 { font-family: "Audiowide", var(--font); color: #dff1ff; }
+.wm.w3 { font-family: "Cinzel", Georgia, serif; font-weight: 700; color: #f1d9a4; }
+.wm.w4 { font-family: "Uncial Antiqua", Georgia, serif; color: #e8f0e0; }
+.in { animation: rise .45s var(--ease) both; animation-delay: var(--d, 0ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes growy { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) { .in, .ss .one i s, .anim { animation: none !important; } }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0; background: var(--card2); border: 1px solid var(--line2); padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; transition: transform .3s var(--ease), opacity .3s var(--ease); pointer-events: none; z-index: 20; white-space: nowrap; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.num { font-variant-numeric: tabular-nums; }
+
+
+/* ================= Round 4: A's menu motion, rounded everywhere, the art kept clear, a back to turn to ================= */
+@keyframes settle { from { transform: scale(1.08); } }
+@keyframes slab { from { transform: skewY(-9deg) translateX(-110%); } }
+@keyframes drop { from { opacity: 0; transform: rotate(-14deg) translateY(-18px); } }
+@keyframes from-r { from { opacity: 0; transform: translateX(26px); } }
+@keyframes from-l { from { transform: translateX(-108%); } }
+@keyframes fillx { from { transform: scaleX(0); } }
+@keyframes unroll { from { transform: scaleX(0); } }
+@keyframes lit { from { opacity: .15; } }
+@keyframes popup { from { opacity: 0; transform: translateY(10px); } }
+.c4 { position: relative; perspective: 1600px; }
+.c4 .flip { display: grid; transform-style: preserve-3d; transition: transform .7s var(--ease); }
+.c4.turned .flip { transform: rotateY(180deg); }
+.c4 .face { grid-area: 1 / 1; position: relative; border-radius: 22px; overflow: hidden; background: var(--deep); border: 1px solid var(--line); isolation: isolate; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.c4 .back { transform: rotateY(180deg); }
+.c4:not(.turned) .back, .c4.turned .front { pointer-events: none; }
+.c4 .art { position: absolute; inset: 0; background: var(--h) 50% 30% / cover; animation: settle 1.1s var(--ease) both; }
+.c4 .cov { position: relative; z-index: 1; }
+.c4 .cvw { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; padding: 4px; border-radius: 14px; background: var(--ice); transform: rotate(-4deg); box-shadow: 0 16px 30px rgba(0,0,0,.55); animation: drop .55s var(--ease) both .1s; }
+.c4 .cvw > i { display: block; width: 100%; height: 100%; border-radius: 10px; background: var(--c) center / cover; }
+.c4 .slab { position: absolute; z-index: -1; border-radius: 20px; background: linear-gradient(100deg, var(--volt2), var(--volt)); transform: skewY(-9deg); animation: slab .6s var(--ease) both; }
+.c4 .pill.v { border-radius: 8px; transform: skewX(-10deg); }
+.c4 .pill.v > span { display: inline-block; transform: skewX(10deg); }
+.c4 .tags { flex-wrap: nowrap; }
+.c4 .logo { max-height: 50px; filter: drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
+.c4 .wm { font-size: 22px; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+.c4 .line { font-size: 12.5px; font-weight: 600; color: rgba(234,242,255,.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .line + .line { margin-top: -6px; }
+.c4 .blk { position: relative; z-index: 0; padding: 6px 10px 6px 15px; min-width: 0; animation: from-r .5s var(--ease) both; animation-delay: var(--d); }
+.c4 .blk::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 10px; background: rgba(19,26,50,.92); border-left: 4px solid var(--volt); transform: skewX(-10deg); }
+.c4 .blk b { display: block; font-size: 19px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c4 .blk b small { font-size: 11.5px; color: var(--mute); font-weight: 700; margin-left: 1px; letter-spacing: 0; }
+.c4 .blk span { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .acts { flex-wrap: nowrap; }
+
+/* the back: turn the card for everything else */
+.c4 .back { background: linear-gradient(180deg, rgba(5,7,15,.88), var(--deep) 72%), var(--h) 50% 30% / cover; }
+.c4 .bk { padding: 16px; display: grid; gap: 14px; align-content: start; }
+.c4 .bkh { display: grid; grid-template-columns: 40px minmax(0,1fr) 44px; gap: 12px; align-items: center; }
+.c4 .bkc { width: 40px; aspect-ratio: 2 / 3; border-radius: 8px; background: var(--c) center / cover; border: 1px solid var(--line2); }
+.c4 .bkt { min-width: 0; display: grid; gap: 4px; }
+.c4 .bkt .logo { max-height: 32px; } .c4 .bkt .wm { font-size: 17px; }
+.c4 h5 { margin: 0; font-size: 13px; font-weight: 600; }
+.c4 h5 span { color: var(--mute); font-weight: 500; }
+.c4 .bars { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px 18px; }
+.c4 .br { display: grid; grid-template-columns: 48px minmax(0,1fr) 26px; gap: 8px; align-items: center; font-size: 11.5px; font-weight: 600; min-width: 0; }
+.c4 .br span { color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .br b { text-align: right; font-variant-numeric: tabular-nums; }
+.c4 .br i { height: 7px; border-radius: 5px; background: rgba(234,242,255,.1); overflow: hidden; }
+.c4 .br s { display: block; height: 100%; border-radius: 5px; background: var(--volt); transform-origin: 0 50%; transform: scaleX(var(--v)); }
+.c4.turned .br s { animation: fillx .7s var(--ease) both; animation-delay: calc(280ms + var(--d)); }
+.c4 .facts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.c4 .facts div { background: rgba(19,26,50,.78); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.c4 .facts span { display: block; font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .facts b { display: block; margin-top: 1px; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container (min-width: 600px) {
+  .c4 .bk { padding: 20px 24px; }
+  .c4 .bars { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .c4 .facts { grid-template-columns: repeat(6, minmax(0,1fr)); }
+  .c4 .logo { max-height: 76px; } .c4 .wm { font-size: 32px; }
+  .c4 .blk b { font-size: 22px; }
+  .c4 .actsw { max-width: 520px; }
+}
+
+/* A · Window: the picture on top with nothing over it, numbers stacked under the cover */
+.va .band { position: relative; z-index: -2; aspect-ratio: 2 / 1; }
+.va .band::after, .vc .band::after { content: ""; position: absolute; inset: auto 0 0; height: 34%; background: linear-gradient(0deg, var(--deep), rgba(5,7,15,0)); }
+.va .body { display: grid; grid-template-columns: 112px minmax(0,1fr); gap: 0 16px; padding: 0 16px 16px; }
+.va .left { position: relative; margin-top: -78px; display: grid; gap: 14px; align-content: start; }
+.va .slab { left: -44px; right: -10px; top: 26px; height: 140px; }
+.va .tower { display: grid; gap: 6px; padding-left: 2px; }
+.va .right { min-width: 0; display: grid; gap: 8px; align-content: start; padding-top: 12px; }
+.va .actsw { grid-column: 1 / -1; margin-top: 14px; }
+@container (min-width: 600px) {
+  .va .band { aspect-ratio: 3 / 1; }
+  .va .body { grid-template-columns: 224px minmax(0,1fr); gap: 0 26px; padding: 0 24px 22px; }
+  .va .cov { width: 176px; }
+  .va .left { margin-top: -116px; grid-row: 1 / span 2; }
+  .va .slab { top: 34px; height: 200px; }
+  .va .tower { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 12px; }
+  .va .right { padding-top: 16px; gap: 10px; }
+  .va .actsw { grid-column: 2; margin-top: 16px; align-self: end; }
+}
+
+/* B · Side panel: the picture fills the card, everything rides one slanted panel on the left */
+.vb .art { z-index: -3; background-position: 78% 30%; }
+.vb .fade { position: absolute; inset: auto 0 0; height: 120px; z-index: -2; background: linear-gradient(0deg, rgba(5,7,15,.95), rgba(5,7,15,0)); }
+.vb .panel { position: relative; width: 66%; animation: from-l .65s var(--ease) both; }
+.vb .panel::before { content: ""; position: absolute; inset: -30px -6px 0 -60px; z-index: -1; border-radius: 0 26px 26px 0; background: rgba(5,7,15,.86); border-right: 3px solid var(--volt); transform: skewX(-6deg); transform-origin: 0 100%; }
+.vb .pin { display: grid; gap: 10px; padding: 16px 14px 14px 16px; }
+.vb .ptop { display: grid; grid-template-columns: 96px minmax(0,1fr); gap: 14px; align-items: start; }
+.vb .slab { left: -30px; right: -14px; top: 22px; height: 100px; }
+.vb .pside { min-width: 0; display: grid; gap: 10px; padding-top: 4px; }
+.vb .pside .tags { flex-direction: column; align-items: flex-start; gap: 6px; }
+.vb .pside .logo { max-height: 44px; } .vb .pside .wm { font-size: 19px; }
+.vb .lns .line + .line { margin-top: 2px; }
+.vb .duo { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px 10px; padding-left: 2px; }
+.vb .actsw { display: grid; gap: 12px; padding: 4px 16px 16px; }
+@container (min-width: 600px) {
+  .vb .panel { width: 46%; }
+  .vb .pin { padding: 22px 20px 16px 24px; gap: 12px; }
+  .vb .ptop { grid-template-columns: 132px minmax(0,1fr); gap: 18px; }
+  .vb .slab { height: 140px; }
+  .vb .pside .logo { max-height: 60px; } .vb .pside .wm { font-size: 24px; }
+  .vb .actsw { padding: 4px 24px 22px; max-width: 560px; }
+}
+
+/* C · On the cover: the cover carries the info (tab, ribbon, meter); Nexi talks from under it */
+.vc .band { position: relative; z-index: -2; aspect-ratio: 16 / 9; }
+.vc .body { display: grid; grid-template-columns: 124px minmax(0,1fr); gap: 0 18px; padding: 0 16px 16px; }
+.vc .left { position: relative; margin-top: -92px; display: grid; gap: 16px; align-content: start; }
+.vc .slab { left: -44px; right: -12px; top: 30px; height: 150px; }
+.vc .cov { margin: 0 10px 0 0; }
+.vc .tab { position: absolute; top: -17px; left: 14px; height: 21px; padding: 0 10px; border-radius: 8px 8px 0 0; background: var(--pc); color: #fff; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; white-space: nowrap; animation: popup .4s var(--ease) both .55s; }
+.vc .rib { position: absolute; left: -9px; bottom: 16px; max-width: calc(100% + 4px); padding: 5px 12px 5px 11px; border-radius: 4px 12px 12px 4px; background: var(--volt); color: var(--ink); font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 6px 14px rgba(0,0,0,.4); transform-origin: 0 50%; animation: unroll .5s var(--ease) both .62s; }
+.vc .rib b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.vc .meter { position: absolute; right: -13px; top: 12%; bottom: 12%; width: 8px; display: flex; flex-direction: column-reverse; gap: 3px; }
+.vc .meter i { flex: 1; border-radius: 3px; background: rgba(234,242,255,.16); }
+.vc .meter i.on { background: var(--volt); box-shadow: 0 0 0 1px rgba(5,7,15,.5); animation: lit .3s ease-out both; animation-delay: var(--d); }
+.vc .bub { position: relative; background: rgba(19,26,50,.92); border: 1px solid var(--line2); border-radius: 14px; padding: 9px 11px; font-size: 12px; line-height: 1.45; color: var(--mute); }
+.vc .bub::before { content: ""; position: absolute; top: -7px; left: 22px; width: 12px; height: 12px; border-radius: 3px; background: inherit; border: inherit; border-width: 1px 0 0 1px; transform: rotate(45deg); }
+.vc .bub b { color: var(--ice); font-weight: 600; }
+.vc .bub .who { display: flex; gap: 6px; align-items: center; margin-bottom: 3px; font-size: 11px; font-weight: 700; color: var(--volt); }
+.vc .bub .who .dot { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #9fd0ff, var(--volt) 45%, var(--volt2)); }
+.vc .right { min-width: 0; display: grid; gap: 8px; align-content: start; padding-top: 12px; }
+.vc .f3 { display: grid; gap: 5px; margin-top: 4px; }
+.vc .f3 div { display: flex; gap: 7px; align-items: baseline; min-width: 0; animation: from-r .45s var(--ease) both; animation-delay: var(--d); }
+.vc .f3 b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vc .f3 b small { font-size: 11px; color: var(--mute); margin-left: 1px; }
+.vc .f3 span { font-size: 12px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vc .actsw { grid-column: 1 / -1; margin-top: 14px; }
+@container (min-width: 600px) {
+  .vc .band { aspect-ratio: 3 / 1; }
+  .vc .body { grid-template-columns: 168px minmax(0,1fr); gap: 0 30px; padding: 0 24px 22px; }
+  .vc .left { margin-top: -120px; grid-row: 1 / span 2; }
+  .vc .slab { top: 40px; height: 200px; }
+  .vc .rib { font-size: 12px; } .vc .rib b { font-size: 18px; }
+  .vc .f3 { grid-template-columns: repeat(3, auto); justify-content: start; gap: 18px; }
+  .vc .right { padding-top: 16px; gap: 10px; }
+  .vc .actsw { grid-column: 2; align-self: end; }
+}
+
+/* D · Gauges: the picture fills the card, its top right stays clear; game gauges fill under the cover */
+.vd .art { z-index: -3; background-position: 70% 25%; }
+.vd .shade { position: absolute; inset: 0; z-index: -2; background: linear-gradient(90deg, rgba(5,7,15,.9) 0%, rgba(5,7,15,.62) 36%, rgba(5,7,15,0) 56%), linear-gradient(0deg, var(--deep) 0%, rgba(5,7,15,.9) 36%, rgba(5,7,15,0) 58%); }
+.vd .body { display: grid; grid-template-columns: 116px minmax(0,1fr); grid-template-areas: "left right" "say say" "acts acts"; gap: 14px 16px; padding: 16px; }
+.vd .left { grid-area: left; position: relative; display: grid; gap: 16px; align-content: start; }
+.vd .slab { left: -40px; right: -12px; top: 22px; height: 130px; }
+.vd .right { grid-area: right; min-width: 0; display: grid; gap: 8px; align-content: end; }
+.vd .say { grid-area: say; } .vd .actsw { grid-area: acts; }
+.vd .gau { display: grid; gap: 9px; padding-left: 2px; }
+.g4 { display: grid; gap: 3px; min-width: 0; }
+.g4 .gl { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; font-size: 10.5px; font-weight: 700; color: var(--mute); white-space: nowrap; }
+.g4 .gl span { overflow: hidden; text-overflow: ellipsis; }
+.g4 .gl b { color: var(--ice); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.g4 .gb { height: 10px; border-radius: 6px; background: rgba(234,242,255,.12); transform: skewX(-14deg); overflow: hidden; border: 1px solid rgba(234,242,255,.08); }
+.g4 .gb s { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--volt2), var(--volt) 70%, #9fd0ff); transform-origin: 0 50%; transform: scaleX(var(--v)); animation: fillx .8s var(--ease) both; animation-delay: var(--d); }
+@container (min-width: 600px) {
+  .vd .shade { background: linear-gradient(90deg, rgba(5,7,15,.92) 0%, rgba(5,7,15,.7) 30%, rgba(5,7,15,0) 52%), linear-gradient(0deg, var(--deep) 0%, rgba(5,7,15,.85) 30%, rgba(5,7,15,0) 55%); }
+  .vd .body { grid-template-columns: 168px minmax(0,1fr); grid-template-areas: "left right" "left say" "left acts"; gap: 14px 30px; padding: 22px 24px; min-height: 470px; }
+  .vd .slab { top: 30px; height: 190px; }
+  .vd .right { padding-top: 120px; }
+  .vd .say { max-width: 520px; }
+}
+@media (prefers-reduced-motion: reduce) { .c4 *, .c4 *::before { animation: none !important; } .c4 .flip { transition: none; } }
+</style>
+
+<div class="page">
+  <header class="intro">
+    <h1>Queue card demos · round 4</h1>
+    <p>All four are built on <b>A</b>: the blue slab slides in, the cover drops onto it and the numbers slide in as angled blocks. Now <b>every corner is rounded</b>, the picture stays clear, the space under the cover is used, and the card <b>turns over</b> for everything else (tap the cover or <b>⟲</b>). Tap <b>A B C D</b> to compare; tap any row to open that game.</p>
+  </header>
+
+  <nav class="bar" aria-label="Demo controls">
+    <div class="ctl"><span>Design</span><div class="seg" id="demoSeg">
+      <button data-demo-pick="A" aria-label="A, Window">A</button><button data-demo-pick="B" aria-label="B, Side panel">B</button><button data-demo-pick="C" aria-label="C, On the cover">C</button><button data-demo-pick="D" aria-label="D, Gauges">D</button>
+    </div></div>
+    <div class="ctl"><span>Game</span><div class="seg" id="stateSeg">
+      <button data-state="coming">Coming</button><button data-state="out">Out now</button><button data-state="playing">Playing</button><button data-state="played">Played</button>
+    </div></div>
+    <div class="ctl"><span>Screen</span><div class="seg" id="sizeSeg">
+      <button data-size="fit">This screen</button><button data-size="412">Folded</button><button data-size="860">Unfolded</button>
+    </div></div>
+  </nav>
+
+  <section class="demo" id="A">
+    <div class="dh"><span class="letter">A</span><h2>Window</h2>
+      <p>The wide picture sits on top with nothing over it. The cover hangs off its bottom edge on the blue slab, and the four numbers stack under the cover, sliding in one by one.</p></div>
+    <div class="stage"><div class="screen" data-demo="A"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Rounded corners everywhere · A’s motion (slab slides in, cover drops onto it, angled numbers slide in) · tap the cover or ⟲ to turn the card: the back has your 8 scores (or Nexi’s guess per area), hours, price watch and when you added it.</div></div>
+  </section>
+
+  <section class="demo" id="B" hidden>
+    <div class="dh"><span class="letter">B</span><h2>Side panel</h2>
+      <p>The picture fills the whole card. All the info rides one rounded, slanted panel that slides in from the left, so the right side of the picture stays clean. The cover sits in the panel with the numbers under it.</p></div>
+    <div class="stage"><div class="screen" data-demo="B"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Rounded corners everywhere · A’s motion (slab slides in, cover drops onto it, angled numbers slide in) · tap the cover or ⟲ to turn the card: the back has your 8 scores (or Nexi’s guess per area), hours, price watch and when you added it.</div></div>
+  </section>
+
+  <section class="demo" id="C" hidden>
+    <div class="dh"><span class="letter">C</span><h2>On the cover</h2>
+      <p>The info is part of the cover itself: a platform tab pops up on top, a ribbon unrolls with the countdown (or progress, or your score) and a meter down its edge lights up bar by bar (hype, or your score once played). Nexi talks from a bubble under the cover.</p></div>
+    <div class="stage"><div class="screen" data-demo="C"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Rounded corners everywhere · A’s motion (slab slides in, cover drops onto it, angled numbers slide in) · tap the cover or ⟲ to turn the card: the back has your 8 scores (or Nexi’s guess per area), hours, price watch and when you added it.</div></div>
+  </section>
+
+  <section class="demo" id="D" hidden>
+    <div class="dh"><span class="letter">D</span><h2>Gauges</h2>
+      <p>The picture fills the card like your original, and its top right stays clear. Under the cover, game-style gauges fill one by one (hype, how likely you’ll love it, length, countdown or progress); the title sits low on the right.</p></div>
+    <div class="stage"><div class="screen" data-demo="D"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Rounded corners everywhere · A’s motion (slab slides in, cover drops onto it, angled numbers slide in) · tap the cover or ⟲ to turn the card: the back has your 8 scores (or Nexi’s guess per area), hours, price watch and when you added it.</div></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const IMG = { h1: "{{h1}}", c1: "{{c1}}", h2: "{{h2}}", c2: "{{c2}}", h3: "{{h3}}", c3: "{{c3}}", h4: "{{h4}}", c4: "{{c4}}", logo1: "{{logo1}}" };
+const I = {
+  open: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  play: '<path F d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  replay: '<path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  more: '<circle F cx="5" cy="12" r="1.8"/><circle F cx="12" cy="12" r="1.8"/><circle F cx="19" cy="12" r="1.8"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>', down: '<path d="M12 5v14M6 13l6 6 6-6"/>', chev: '<path d="M6 9l6 6 6-6"/>',
+  sw: '<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M8 10v4M6 12h4"/><circle F cx="16.5" cy="11" r="1.2"/>',
+  cal: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  hour: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>',
+  flame: '<path d="M12 21c4 0 7-2.7 7-6.6 0-4.4-4-6.4-4.5-11.4C11 5 9 8 9.5 11 8 10.5 7.4 9 7.3 8 5.6 9.8 5 12 5 14.4 5 18.3 8 21 12 21z"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  starF: '<path F d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  queue: '<path d="M5 6h14M5 12h14M5 18h9"/>',
+  turn: '<path d="M4.5 10a7.5 7.5 0 0 1 13.3-3.6L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M19.5 14a7.5 7.5 0 0 1-13.3 3.6L4 15.5"/><path d="M4 20v-4.5h4.5"/>'
+};
+const ic = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${I[k].replace(/ F /g, ' fill="currentColor" stroke="none" ')}</svg>`;
+const TODAY = new Date(2026, 9, 16);
+const day = n => { const d = new Date(TODAY); d.setDate(d.getDate() + n); return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", ""); };
+const GAMES = [
+  { id: 1, t: "Crownbound Saga", short: "Crownbound", plat: "Switch 2", pc: "#e60012", gen: "Strategy · JRPG", hrs: 41, hype: 9, likely: 8.6, days: 34, h: "h1", c: "c1", logo: "logo1", mine: 80, deserved: 8 },
+  { id: 2, t: "Starfall Accord", short: "Starfall Accord", plat: "PS5", pc: "#0b4fc4", gen: "Action RPG", hrs: 58, hype: 8, likely: 7.9, days: 61, h: "h2", c: "c2", wm: "w2", mine: 74, deserved: 7 },
+  { id: 3, t: "The Ember Courts", short: "Ember Courts", plat: "PC", pc: "#2b3140", gen: "Tactics", hrs: 32, hype: 7, likely: 7.4, days: 118, h: "h3", c: "c3", wm: "w3", mine: 69, deserved: 7 },
+  { id: 4, t: "Hollow Lantern", short: "Hollow Lantern", plat: "Switch 2", pc: "#e60012", gen: "Adventure", hrs: 24, hype: 8, likely: 8.1, days: 9, h: "h4", c: "c4", wm: "w4", mine: 85, deserved: 9 }
+];
+const RAT = [["Story", 8.3, "#4DA3FF"], ["Music", 9.3, "#6FC3FF"], ["Play", 8.7, "#8FB8FF"], ["Replay", 5, "#2F6BFF"],
+             ["Look", 8.3, "#9B8CFF"], ["World", 8.3, "#3FC8C0"], ["Cast", 7.7, "#B48CFF"], ["Pace", 8.7, "#A9B4CF"]];
+const ord = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || Math.floor(n % 100 / 10) === 1 ? 0 : n % 10]);
+
+function info(g, st, pos) {
+  const done = Math.round(g.hrs * .44), left = g.hrs - done, fin = h => day(Math.ceil(h / 4));
+  const o = { pos, kick: pos === 1 ? "Next up" : ord(pos) + " in the queue" };
+  if (st === "coming") Object.assign(o, { tag: ["Coming", "o"], when: day(g.days), dial: [g.days, g.days === 1 ? "day to go" : "days to go", Math.max(.06, 1 - g.days / 120)],
+    cells: [[g.days, "", "days to go"], [g.hrs, "h", "to beat"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `Out <b>${day(g.days)}</b>. Games like this land at <b>${g.likely}</b> for you.`, prim: ["open", "Game page"], badge: [g.likely, "likely"] });
+  if (st === "out") Object.assign(o, { tag: ["Out now", "g"], when: "Out now", dial: ["Out", "ready to start", 1],
+    cells: [["Out", "", "available now"], [g.hrs, "h", "to beat"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `At 4 hours a night you'd see the credits around <b>${fin(g.hrs)}</b>.`, prim: ["play", "Start playing"], badge: [g.likely, "likely"] });
+  if (st === "playing") Object.assign(o, { tag: ["Playing", "v"], when: "Playing now", dial: ["44%", `${done} of ${g.hrs} h`, .44],
+    cells: [[44, "%", `${done} of ${g.hrs} h`], [left, "h", "left"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `<b>${done} of ${g.hrs} h</b> done. You finish around <b>${fin(left)}</b>.`, prim: ["clock", "Log tonight"], badge: [g.likely, "likely"] });
+  if (st === "played") Object.assign(o, { tag: ["Played it", "o"], when: "Played twice", dial: [g.mine, "my score", g.mine / 100], played: true,
+    cells: [[g.mine, "", "my score"], [g.deserved, "/10", "deserved"], [2, "×", "played"], [g.hrs, "h", "to beat"]],
+    nexi: `You gave it <b>${g.mine}</b>. Nexi had guessed <b>${g.likely * 10 | 0}</b>, so now he knows your taste a bit better.`, prim: ["replay", "Play it again"], badge: [g.mine, "my score"] });
+  o.minis = o.cells.slice(1);
+  return o;
+}
+const logo = g => g.logo ? `<img class="logo" src="${IMG[g.logo]}" alt="${g.t}">` : `<span class="wm ${g.wm}">${g.t}</span>`;
+const scores = () => `<div class="ss">${RAT.map(([l, v, c], i) => `<div class="one"><b>${v}</b><i><s style="--v:${v / 10};--c:${c};--d:${i * 40}ms"></s></i><span>${l}</span></div>`).join("")}</div>`;
+const say = o => o.played ? scores() : `<div class="nexi"><span class="dot"></span><span>${o.nexi}</span></div>`;
+const acts = (o, arrows = true) => `<div class="acts"><button class="prim" data-say="${o.prim[1]}">${ic(o.prim[0])}<span>${o.prim[1]}</span></button>${arrows ? `<button class="icb ww" aria-label="Move up" data-say="Move up">${ic("up")}</button><button class="icb ww" aria-label="Move down" data-say="Move down">${ic("down")}</button>` : ""}<button class="icb" aria-label="Edit" data-say="Edit">${ic("edit")}</button><button class="icb" aria-label="More" data-say="More: diary, competitive, trailer, more like it, move, remove">${ic("more")}</button></div>`;
+const val = ([v, u]) => `${v}${u ? `<small>${u}</small>` : ""}`;
+const dial = (o, cls = "") => `<div class="dial ${cls}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="tr" cx="50" cy="50" r="40"/><g class="spin"><circle class="vl" cx="50" cy="50" r="40" style="--v:${o.dial[2]}"/></g></svg><div class="dl"><b>${o.dial[0]}</b><span>${o.dial[1]}</span></div></div>`;
+const stars = n => Array.from({ length: 5 }, (_, i) => i < n ? ic("starF") : ic("star")).join("");
+const vars = g => `--h:url('${IMG[g.h]}');--c:url('${IMG[g.c]}');--pc:${g.pc}`;
+
+const pills = o => `<div class="tags"><span class="pill v"><span>${o.kick}</span></span><span class="pill ${o.tag[1]}">${o.tag[0]}</span></div>`;
+const lines = (g, o) => `<div class="line">${g.gen}</div><div class="line">${g.plat} · ${o.when}</div>`;
+const blk = (c, i, d0) => `<div class="blk" style="--d:${d0 + i * 70}ms"><b>${val(c)}</b><span>${c[2]}</span></div>`;
+const cover = (extra = "") => `<button class="cvw" data-turn aria-label="Turn the card">${extra}<i></i></button>`;
+const nexi4 = o => `<div class="nexi"><span class="dot"></span><span>${o.nexi}</span></div>`;
+const acts4 = o => `<div class="acts"><button class="prim" data-say="${o.prim[1]}">${ic(o.prim[0])}<span>${o.prim[1]}</span></button><button class="icb" data-turn aria-label="Turn the card">${ic("turn")}</button><button class="icb" aria-label="Edit" data-say="Edit">${ic("edit")}</button><button class="icb" aria-label="More" data-say="More: diary, trailer, more like it, move, remove">${ic("more")}</button></div>`;
+const gauges = (g, o) => {
+  const left = g.hrs - Math.round(g.hrs * .44), len = ["Length", Math.min(1, g.hrs / 60), g.hrs + " h"];
+  const G = { coming: [["Hype", g.hype / 10, g.hype + "/10"], ["Likely for you", g.likely / 10, g.likely], len, ["Countdown", Math.max(.06, 1 - g.days / 120), g.days + " days"]],
+    out: [["Hype", g.hype / 10, g.hype + "/10"], ["Likely for you", g.likely / 10, g.likely], len, ["Ready", 1, "Out now"]],
+    playing: [["Progress", .44, "44%"], ["Left", left / g.hrs, left + " h"], ["Hype", g.hype / 10, g.hype + "/10"], ["Likely for you", g.likely / 10, g.likely]],
+    played: [["My score", g.mine / 100, g.mine], ["Deserved", g.deserved / 10, g.deserved + "/10"], ["Played", .4, "2×"], len] }[state];
+  return `<div class="gau">${G.map(([l, v, t], i) => `<div class="g4"><div class="gl"><span>${l}</span><b>${t}</b></div><div class="gb"><s style="--v:${v};--d:${380 + i * 110}ms"></s></div></div>`).join("")}</div>`;
+};
+const back = (g, o) => {
+  const facts = [["Out", o.when], ["Main story", g.hrs + " h"], ["Everything", Math.round(g.hrs * 1.8) + " h"], ["Price watch", "Alert on"], ["In your queue", "since 3 Mar"], ["Last opened", "Today"]];
+  const bars = RAT.map(([l, v], i) => { const s = o.played ? v : Math.max(4, v - .6); return `<div class="br"><span>${l}</span><i><s style="--v:${s / 10};--d:${i * 45}ms"></s></i><b>${s.toFixed(1)}</b></div>`; }).join("");
+  return `<div class="face back"><div class="bk">
+    <div class="bkh"><span class="bkc"></span><div class="bkt">${logo(g)}<div class="line">${g.gen} · ${g.plat}</div></div><button class="icb" data-turn aria-label="Turn back">${ic("turn")}</button></div>
+    <h5>${o.played ? "Your 8 scores" : "Nexi’s guess, area by area"} <span>· ${o.played ? "played twice" : "from games like it"}</span></h5>
+    <div class="bars">${bars}</div>
+    <div class="facts">${facts.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
+    ${nexi4(o)}</div></div>`;
+};
+const wrap = (k, g, o, front) => `<div class="c4" style="${vars(g)}"><div class="flip"><div class="face front ${k}">${front}</div>${back(g, o)}</div></div>`;
+const CARD = {
+  A: (g, o) => wrap("va", g, o, `<div class="band"><div class="art"></div></div>
+    <div class="body"><div class="left"><div class="slab"></div><div class="cov">${cover()}</div><div class="tower">${o.cells.map((c, i) => blk(c, i, 300)).join("")}</div></div>
+    <div class="right in" style="--d:180ms">${pills(o)}${logo(g)}${lines(g, o)}${nexi4(o)}</div>
+    <div class="actsw in" style="--d:520ms">${acts4(o)}</div></div>`),
+  B: (g, o) => wrap("vb", g, o, `<div class="art"></div><div class="fade"></div>
+    <div class="panel"><div class="pin">
+      <div class="ptop"><div class="cov"><div class="slab"></div>${cover()}</div><div class="pside in" style="--d:360ms">${pills(o)}${logo(g)}</div></div>
+      <div class="lns in" style="--d:420ms">${lines(g, o)}</div>
+      <div class="duo">${o.cells.map((c, i) => blk(c, i, 480)).join("")}</div>
+      <div class="in" style="--d:660ms">${nexi4(o)}</div>
+    </div></div>
+    <div class="actsw in" style="--d:700ms">${acts4(o)}</div>`),
+  C: (g, o) => { const m = o.played ? Math.round(g.mine / 10) : g.hype;
+    const extra = `<span class="tab">${g.plat}</span><span class="meter" aria-label="${o.played ? "My score" : "Hype"} ${m} of 10">${Array.from({ length: 10 }, (_, i) => `<i class="${i < m ? "on" : ""}" style="--d:${620 + i * 55}ms"></i>`).join("")}</span><span class="rib"><b>${o.dial[0]}</b> ${o.dial[1]}</span>`;
+    return wrap("vc", g, o, `<div class="band"><div class="art"></div></div>
+    <div class="body"><div class="left"><div class="slab"></div><div class="cov">${cover(extra)}</div>
+      <div class="bub in" style="--d:820ms"><div class="who"><span class="dot"></span>Nexi</div>${o.nexi}</div></div>
+    <div class="right in" style="--d:180ms">${pills(o)}${logo(g)}${lines(g, o)}<div class="f3">${o.cells.slice(1).map((c, i) => `<div style="--d:${360 + i * 70}ms"><b>${val(c)}</b><span>${c[2]}</span></div>`).join("")}</div></div>
+    <div class="actsw in" style="--d:520ms">${acts4(o)}</div></div>`); },
+  D: (g, o) => wrap("vd", g, o, `<div class="art"></div><div class="shade"></div>
+    <div class="body"><div class="left"><div class="slab"></div><div class="cov">${cover()}</div>${gauges(g, o)}</div>
+    <div class="right in" style="--d:260ms">${pills(o)}${logo(g)}${lines(g, o)}</div>
+    <div class="say in" style="--d:600ms">${nexi4(o)}</div><div class="actsw in" style="--d:660ms">${acts4(o)}</div></div>`)
+};
+function row(g, pos) {
+  const meta = { coming: day(g.days), out: "Out now", playing: "Playing · 44%", played: "Played · " + g.mine }[state];
+  return `<button class="qr" data-open="${g.id}"><b class="n">${String(pos).padStart(2, "0")}</b><span class="cv" style="--c:url('${IMG[g.c]}')"></span>
+    <span class="tx"><b>${g.t}</b><small>${meta} · ${g.hrs} h · ${g.plat}</small></span>${ic("chev")}</button>`;
+}
+
+let state = "coming", size = "fit", pick = "A", openG = 1;
+try { state = localStorage.getItem("qcd5:state") || state; size = localStorage.getItem("qcd5:size") || size; pick = localStorage.getItem("qcd5:pick") || pick; } catch (e) {}
+if (!["coming", "out", "playing", "played"].includes(state)) state = "coming";
+if (!["fit", "412", "860"].includes(size)) size = "fit";
+if (!["A", "B", "C", "D"].includes(pick)) pick = "A";
+
+function render() {
+  const sc = document.querySelector(`.screen[data-demo="${pick}"]`);
+  const list = GAMES.map((g, i) => g.id === openG ? CARD[pick](g, info(g, state, i + 1)) : row(g, i + 1)).join("");
+  sc.innerHTML = `<div class="qhd"><h4>Queue</h4><span>926 h to beat · 26 out now</span></div>
+    <div class="qchips"><i class="on">My order</i><i>Sort by ▾</i><i class="on">Everything 50</i><i>Shuffle</i><i>Boss</i></div>
+    <div class="qlist">${list}</div>`;
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const st = document.querySelector(`#${pick} .stage`), sc = st.querySelector(".screen");
+  if (size === "fit") { st.classList.remove("fixed"); sc.style.width = ""; sc.style.transform = ""; st.style.height = ""; return; }
+  const w = +size, k = Math.min(1, st.clientWidth / w);
+  st.classList.add("fixed"); sc.style.width = w + "px"; sc.style.transform = k < 1 ? `scale(${k})` : "";
+  st.style.height = Math.ceil(sc.offsetHeight * k) + "px";
+}
+function mark() {
+  document.querySelectorAll("#stateSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.state === state));
+  document.querySelectorAll("#sizeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.size === size));
+  document.querySelectorAll("#demoSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.demoPick === pick));
+  document.querySelectorAll("section.demo").forEach(d => { d.hidden = d.id !== pick; });
+}
+const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (x) {} };
+let toastT;
+function toast(t) { const el = document.getElementById("toast"); el.textContent = t + " (demo)"; el.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("on"), 1500); }
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.state) { state = b.dataset.state; keep("qcd5:state", state); mark(); render(); return; }
+  if (b.dataset.size) { size = b.dataset.size; keep("qcd5:size", size); mark(); fit(); return; }
+  if (b.dataset.demoPick) { pick = b.dataset.demoPick; keep("qcd5:pick", pick); mark(); render(); return; }
+  if (b.hasAttribute("data-turn")) { b.closest(".c4").classList.toggle("turned"); return; }
+  if (b.dataset.open) { openG = +b.dataset.open; render(); return; }
+  if (b.dataset.say) toast(b.dataset.say);
+});
+new ResizeObserver(() => fit()).observe(document.querySelector(".page"));
+mark(); render();
+</script>

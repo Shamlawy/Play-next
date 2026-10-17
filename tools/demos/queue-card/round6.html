@@ -1,0 +1,491 @@
+<title>Queue card demos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Cinzel:wght@700&family=Audiowide&family=Uncial+Antiqua&display=swap">
+<style>
+/* Layout: one design at a time (A–D) inside a live mini Queue; one game open as a card among the rows.
+   Colours are Play next's tokens (always black, one blue accent); a few scene colours for the game box and card foil. */
+:root {
+  color-scheme: dark;
+  --bg: #000; --pan: #0a0e1b; --card: #131a32; --card2: #19213d; --deep: #05070f;
+  --line: rgba(234,242,255,.08); --line2: rgba(234,242,255,.14);
+  --volt: #4DA3FF; --volt2: #2F6BFF; --vrgb: 77,163,255;
+  --ice: #EAF2FF; --mute: #7C92C4; --ink: #06101f; --good: #4fd18b;
+  --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 20px; --rs: 14px; --ease: cubic-bezier(.16,1,.3,1);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { background: radial-gradient(120% 50% at 50% -10%, rgba(var(--vrgb), .13), transparent 60%), var(--bg);
+  color: var(--ice); font-family: var(--font); font-weight: 500;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 80px; -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+.page { max-width: 940px; margin: 0 auto; }
+.intro h1 { font-size: 30px; font-weight: 700; letter-spacing: -.015em; margin: 6px 0 8px; }
+.intro p { color: var(--mute); margin: 0 0 6px; line-height: 1.55; max-width: 62ch; font-size: 14.5px; }
+.intro p b { color: var(--ice); font-weight: 600; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  margin: 14px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 6px; padding: 10px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(0,0,0,.9); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font-size: 12.5px; font-weight: 600; color: var(--mute); }
+.seg { display: flex; gap: 4px; padding: 4px; background: var(--pan); border: 1px solid var(--line); border-radius: 999px; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+#demoSeg button { min-width: 44px; font-size: 15px; font-weight: 700; text-align: center; }
+.seg button[aria-pressed="true"] { background: var(--volt); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .seg button:not([aria-pressed="true"]):hover { color: var(--ice); } }
+.demo { margin-top: 18px; }
+.demo[hidden] { display: none; }
+.dh { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; margin-bottom: 14px; }
+.letter { grid-row: span 2; width: 38px; height: 38px; border-radius: 12px; background: var(--volt); color: var(--ink); display: grid; place-items: center; font-weight: 700; font-size: 18px; align-self: start; }
+.dh h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.015em; }
+.dh p { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 64ch; }
+.stage { position: relative; overflow: hidden; }
+.stage.fixed .screen { position: absolute; top: 0; left: 0; }
+.stage:not(.fixed) { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); }
+.screen { background: var(--bg); border-radius: 24px; border: 1px solid var(--line); padding: 12px; transform-origin: 0 0; container-type: inline-size; }
+.stage:not(.fixed) .screen { border-radius: 0; border-left: 0; border-right: 0; }
+@container (min-width: 600px) { .wn { display: none !important; } }
+@container (max-width: 599px) { .ww { display: none !important; } }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px; }
+.notes div { background: var(--pan); border: 1px solid var(--line); border-radius: var(--rs); padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--mute); }
+.notes h3 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ice); }
+
+/* ---------- mini Queue ---------- */
+.qhd { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 10px; }
+.qhd h4 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.015em; }
+.qhd span { font-size: 12.5px; color: var(--mute); font-weight: 600; white-space: nowrap; }
+.qchips { display: flex; gap: 6px; overflow: hidden; padding: 0 0 12px; }
+.qchips i { font-style: normal; flex: none; height: 32px; padding: 0 13px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 600; background: var(--card); border: 1px solid var(--line); }
+.qchips i.on { background: var(--volt); color: var(--ink); border-color: transparent; }
+.qlist { display: grid; gap: 8px; }
+.qr { width: 100%; display: grid; grid-template-columns: 26px 40px minmax(0,1fr) 20px; gap: 12px; align-items: center; min-height: 76px; padding: 8px 14px 8px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+.qr .n { font-size: 16px; font-weight: 700; color: var(--mute); font-variant-numeric: tabular-nums; }
+.qr .cv { width: 40px; height: 60px; border-radius: 8px; background: var(--c) center / cover; border: 1px solid var(--line); }
+.qr .tx { min-width: 0; }
+.qr .tx b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr .tx small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--mute); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr .ic { color: var(--mute); width: 18px; height: 18px; }
+@media (hover: hover) and (pointer: fine) { .qr:hover { border-color: var(--line2); } }
+
+/* ---------- shared bits ---------- */
+.ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill .ic { width: 15px; height: 15px; }
+.pill.v { background: var(--volt); color: var(--ink); }
+.pill.o { background: rgba(5,7,15,.62); border: 1px solid var(--line2); color: var(--ice); }
+.pill.g { background: rgba(5,20,14,.75); border: 1px solid rgba(79,209,139,.4); color: var(--good); }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.prim { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px; background: var(--volt); color: var(--ink); font-weight: 600; font-size: 14.5px; white-space: nowrap; }
+.prim > span { overflow: hidden; text-overflow: ellipsis; }
+.icb { width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; background: var(--card2); border: 1px solid var(--line); color: var(--ice); flex: none; }
+@media (hover: hover) and (pointer: fine) { .prim:hover { background: #6db4ff; } .icb:hover { border-color: var(--line2); } }
+.acts { display: flex; gap: 8px; align-items: center; }
+.acts .prim { flex: 1; }
+.nexi { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--mute); }
+.nexi b { color: var(--ice); font-weight: 600; }
+.nexi .dot { flex: none; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px; background: radial-gradient(circle at 35% 35%, #9fd0ff, var(--volt) 45%, var(--volt2)); box-shadow: 0 0 0 3px rgba(var(--vrgb), .14); }
+.ss { display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap: 4px; }
+.ss .one { display: grid; gap: 3px; justify-items: center; min-width: 0; }
+.ss .one i { width: 100%; max-width: 22px; height: 22px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; }
+.ss .one i s { position: absolute; inset: 0; background: var(--c); transform-origin: 50% 100%; transform: scaleY(var(--v)); animation: growy .6s var(--ease) both; animation-delay: var(--d, 0ms); }
+.ss .one span { font-size: 9.5px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.ss .one b { font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pips { display: flex; gap: 3px; }
+.pips i { flex: 1; height: 5px; border-radius: 3px; background: var(--line2); }
+.pips i.on { background: var(--volt); }
+.logo { display: block; max-width: 100%; height: auto; object-fit: contain; object-position: left center; }
+.wm { display: block; line-height: 1.02; letter-spacing: .01em; text-wrap: balance; color: #f4ecdc; }
+.wm.w2 { font-family: "Audiowide", var(--font); color: #dff1ff; }
+.wm.w3 { font-family: "Cinzel", Georgia, serif; font-weight: 700; color: #f1d9a4; }
+.wm.w4 { font-family: "Uncial Antiqua", Georgia, serif; color: #e8f0e0; }
+.in { animation: rise .45s var(--ease) both; animation-delay: var(--d, 0ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes growy { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) { .in, .ss .one i s, .anim { animation: none !important; } }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0; background: var(--card2); border: 1px solid var(--line2); padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; transition: transform .3s var(--ease), opacity .3s var(--ease); pointer-events: none; z-index: 20; white-space: nowrap; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.num { font-variant-numeric: tabular-nums; }
+
+
+/* ================= Round 4: A's menu motion, rounded everywhere, the art kept clear, a back to turn to ================= */
+@keyframes settle { from { transform: scale(1.08); } }
+@keyframes slab { from { transform: skewY(-9deg) translateX(-110%); } }
+@keyframes drop { from { opacity: 0; transform: rotate(-14deg) translateY(-18px); } }
+@keyframes from-r { from { opacity: 0; transform: translateX(26px); } }
+@keyframes from-l { from { transform: translateX(-108%); } }
+@keyframes fillx { from { transform: scaleX(0); } }
+@keyframes unroll { from { transform: scaleX(0); } }
+@keyframes lit { from { opacity: .15; } }
+@keyframes popup { from { opacity: 0; transform: translateY(10px); } }
+.c4 { position: relative; perspective: 1600px; }
+.c4 .flip { display: grid; transform-style: preserve-3d; transition: transform .7s var(--ease); }
+.c4.turned .flip { transform: rotateY(180deg); }
+.c4 .face { grid-area: 1 / 1; position: relative; border-radius: 22px; overflow: hidden; background: var(--deep); border: 1px solid var(--line); isolation: isolate; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.c4 .back { transform: rotateY(180deg); }
+.c4:not(.turned) .back, .c4.turned .front { pointer-events: none; }
+.c4 .art { position: absolute; inset: 0; background: var(--h) 50% 30% / cover; animation: settle 1.1s var(--ease) both; }
+.c4 .cov { position: relative; z-index: 1; }
+.c4 .cvw { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; padding: 4px; border-radius: 14px; background: var(--ice); transform: rotate(-4deg); box-shadow: 0 16px 30px rgba(0,0,0,.55); animation: drop .55s var(--ease) both .1s; }
+.c4 .cvw > i { display: block; width: 100%; height: 100%; border-radius: 10px; background: var(--c) center / cover; }
+.c4 .slab { position: absolute; z-index: -1; border-radius: 20px; background: linear-gradient(100deg, var(--volt2), var(--volt)); transform: skewY(-9deg); animation: slab .6s var(--ease) both; }
+.c4 .pill.v { border-radius: 8px; transform: skewX(-10deg); }
+.c4 .pill.v > span { display: inline-block; transform: skewX(10deg); }
+.c4 .tags { flex-wrap: nowrap; }
+.c4 .logo { max-height: 50px; filter: drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
+.c4 .wm { font-size: 22px; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+.c4 .line { font-size: 12.5px; font-weight: 600; color: rgba(234,242,255,.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .line + .line { margin-top: -6px; }
+.c4 .blk { position: relative; z-index: 0; padding: 6px 10px 6px 15px; min-width: 0; animation: from-r .5s var(--ease) both; animation-delay: var(--d); }
+.c4 .blk::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 10px; background: rgba(19,26,50,.92); border-left: 4px solid var(--volt); transform: skewX(-10deg); }
+.c4 .blk b { display: block; font-size: 19px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c4 .blk b small { font-size: 11.5px; color: var(--mute); font-weight: 700; margin-left: 1px; letter-spacing: 0; }
+.c4 .blk span { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .acts { flex-wrap: nowrap; }
+
+/* the back: turn the card for everything else */
+.c4 .back { background: linear-gradient(180deg, rgba(5,7,15,.88), var(--deep) 72%), var(--h) 50% 30% / cover; }
+.c4 .bk { padding: 16px; display: grid; gap: 14px; align-content: start; }
+.c4 .bkh { display: grid; grid-template-columns: 40px minmax(0,1fr) 44px; gap: 12px; align-items: center; }
+.c4 .bkc { width: 40px; aspect-ratio: 2 / 3; border-radius: 8px; background: var(--c) center / cover; border: 1px solid var(--line2); }
+.c4 .bkt { min-width: 0; display: grid; gap: 4px; }
+.c4 .bkt .logo { max-height: 32px; } .c4 .bkt .wm { font-size: 17px; }
+.c4 h5 { margin: 0; font-size: 13px; font-weight: 600; }
+.c4 h5 span { color: var(--mute); font-weight: 500; }
+.c4 .bars { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px 18px; }
+.c4 .br { display: grid; grid-template-columns: 48px minmax(0,1fr) 26px; gap: 8px; align-items: center; font-size: 11.5px; font-weight: 600; min-width: 0; }
+.c4 .br span { color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .br b { text-align: right; font-variant-numeric: tabular-nums; }
+.c4 .br i { height: 7px; border-radius: 5px; background: rgba(234,242,255,.1); overflow: hidden; }
+.c4 .br s { display: block; height: 100%; border-radius: 5px; background: var(--volt); transform-origin: 0 50%; transform: scaleX(var(--v)); }
+.c4.turned .br s { animation: fillx .7s var(--ease) both; animation-delay: calc(280ms + var(--d)); }
+.c4 .facts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.c4 .facts div { background: rgba(19,26,50,.78); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.c4 .facts span { display: block; font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4 .facts b { display: block; margin-top: 1px; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container (min-width: 600px) {
+  .c4 .bk { padding: 20px 24px; }
+  .c4 .bars { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .c4 .facts { grid-template-columns: repeat(6, minmax(0,1fr)); }
+  .c4 .logo { max-height: 76px; } .c4 .wm { font-size: 32px; }
+  .c4 .blk b { font-size: 22px; }
+  .c4 .actsw { max-width: 520px; }
+}
+
+/* ===== Round 6: the full picture, no buttons on the front (cover = game page, card = turn), four looks ===== */
+.c4 .front { display: flex; flex-direction: column; justify-content: flex-end; cursor: pointer; }
+.c4 .back { cursor: pointer; }
+.c4 .art { z-index: -3; background-position: 60% 25%; }
+.c4 .shade { position: absolute; inset: 0; z-index: -2; background: linear-gradient(180deg, rgba(5,7,15,0) 0%, rgba(5,7,15,0) 34%, rgba(5,7,15,.55) 62%, rgba(5,7,15,.92) 100%); }
+.c4 .bkh { grid-template-columns: 40px minmax(0,1fr) auto; }
+.c4 .bkh .acts { gap: 6px; }
+.c4 .bkh .icb { width: 40px; height: 40px; }
+.c4 .hint { position: absolute; left: 12px; top: 12px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(5,7,15,.5); border: 1px solid var(--line2); color: rgba(234,242,255,.8); pointer-events: none; }
+.c4 .hint .ic { width: 16px; height: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 28px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; white-space: nowrap; background: rgba(5,7,15,.66); border: 1px solid var(--line2); color: var(--ice); }
+.chip .ic { width: 15px; height: 15px; }
+.chip i, .meta i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 2px rgba(255,255,255,.16); }
+.c4 .bcells { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 12px; }
+.c4 .bcells .blk b { font-size: 17px; }
+@container (max-width: 599px) { .c4 .facts div:nth-child(n+4) { display: none; } .c4 .bars { gap: 7px 16px; } }
+/* status colours shared by every look */
+.st-coming { --sc: var(--ice); --sb: rgba(5,7,15,.72); --sl: rgba(234,242,255,.3); }
+.st-out { --sc: var(--good); --sb: rgba(5,20,14,.85); --sl: rgba(79,209,139,.5); }
+.st-playing { --sc: var(--volt); --sb: rgba(8,22,48,.9); --sl: rgba(var(--vrgb), .55); }
+.st-played { --sc: #f3d27a; --sb: rgba(30,22,6,.88); --sl: rgba(243,210,122,.5); }
+@keyframes zoomout { from { transform: scale(1.14); } }
+@keyframes barup { to { transform: translateY(-100%); } }
+@keyframes bardn { to { transform: translateY(100%); } }
+@keyframes rule { from { transform: scaleX(0); } }
+@keyframes fadein { from { opacity: 0; } }
+@keyframes logoin { from { opacity: 0; transform: scale(1.06); } }
+@keyframes plate { from { opacity: 0; transform: translateY(46px); } }
+@keyframes hop { 0% { opacity: 0; transform: translateY(26px) rotate(-12deg); } 70% { opacity: 1; transform: translateY(-4px) rotate(-3deg); } }
+@keyframes tilt { from { opacity: 0; transform: rotateY(-48deg) rotate(-2deg) translateX(-20px); } }
+@keyframes sheen { from { transform: translateX(-140%) skewX(-14deg); } to { transform: translateX(260%) skewX(-14deg); } }
+@keyframes ribbon { from { transform: translate(60px, -60px) rotate(45deg); } }
+@keyframes grow { from { transform: scaleY(0); } }
+@keyframes stamp { 0% { opacity: 0; transform: scale(1.7) rotate(-30deg); } 60% { opacity: 1; transform: scale(.94) rotate(-6deg); } }
+@keyframes ring { from { opacity: 0; transform: scale(.6); } }
+
+/* A · Cinema: letterbox bars open on the picture, a status line with a glowing dot, a light rule under the logo */
+.ca .art { animation: zoomout 1.6s var(--ease) both; }
+.ca .bar1, .ca .bar2 { position: absolute; left: 0; right: 0; height: 22%; background: #000; z-index: 2; pointer-events: none; }
+.ca .bar1 { top: 0; animation: barup .9s var(--ease) both .15s; }
+.ca .bar2 { bottom: 0; animation: bardn .9s var(--ease) both .15s; }
+.ca .body { display: grid; grid-template-columns: 100px minmax(0,1fr); gap: 16px; padding: 150px 16px 18px; align-items: end; }
+.ca .cvw { transform: rotate(0deg); border-radius: 12px; padding: 0; background: none; box-shadow: 0 0 0 1px rgba(234,242,255,.35), 0 18px 36px rgba(0,0,0,.6); animation: fadein .8s ease both .7s; }
+.ca .cvw > i { border-radius: 12px; }
+.ca .right { min-width: 0; display: grid; gap: 9px; }
+.ca .sline { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--sc); animation: fadein .6s ease both .8s; }
+.ca .sline .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc) 25%, transparent); }
+.ca .sline em { font-style: normal; color: rgba(234,242,255,.6); font-weight: 500; }
+.ca .logo, .ca .wm { animation: logoin 1s var(--ease) both .55s; }
+.ca .rule { height: 1px; background: linear-gradient(90deg, rgba(234,242,255,.55), rgba(234,242,255,0)); transform-origin: 0 50%; animation: rule .9s var(--ease) both 1s; }
+.ca .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; font-weight: 600; color: rgba(234,242,255,.78); animation: fadein .6s ease both 1.1s; }
+.ca .meta b { color: var(--ice); font-weight: 600; }
+.ca .meta s { text-decoration: none; color: rgba(234,242,255,.3); }
+
+/* B · Plate: a rounded plate rises from the bottom, the cover hops onto its edge */
+.cb .body { position: relative; margin: 150px 10px 10px; padding: 0 14px 14px 132px; min-height: 120px; }
+.cb .plate { position: absolute; inset: 0; z-index: -1; border-radius: 18px; background: rgba(10,14,27,.86); border: 1px solid var(--line2); animation: plate .6s var(--ease) both; }
+.cb .cov { position: absolute; left: 14px; bottom: 14px; width: 104px; }
+.cb .cvw { animation: hop .7s var(--ease) both .3s; }
+.cb .right { min-width: 0; display: grid; gap: 9px; padding-top: 14px; animation: rise .5s var(--ease) both .45s; }
+.cb .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cb .sp { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; color: var(--sc); background: var(--sb); border: 1px solid var(--sl); }
+.cb .sp .ic { width: 15px; height: 15px; }
+.cb .sp em { font-style: normal; font-weight: 500; opacity: .8; }
+
+/* C · Collector: the cover swings in like a card and catches the light once, a corner ribbon says the status */
+.cc .stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--pc); transform-origin: 50% 100%; animation: grow .8s var(--ease) both .2s; }
+.cc .body { display: grid; grid-template-columns: 116px minmax(0,1fr); gap: 16px; padding: 140px 16px 18px 20px; align-items: end; }
+.cc .cov { perspective: 700px; }
+.cc .cvw { position: relative; overflow: hidden; transform: rotateY(-10deg) rotate(-2deg); animation: tilt .9s var(--ease) both .1s; }
+.cc .cvw::after { content: ""; position: absolute; top: -10%; bottom: -10%; left: 0; width: 45%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.6), transparent); transform: translateX(-140%) skewX(-14deg); animation: sheen 1.1s ease-out both .9s; }
+.cc .rib { position: absolute; top: 22px; right: -46px; width: 190px; height: 32px; display: flex; align-items: center; justify-content: center; gap: 6px; transform: rotate(45deg); background: var(--sb); border-block: 1px solid var(--sl); color: var(--sc); font-size: 12.5px; font-weight: 700; white-space: nowrap; animation: ribbon .7s var(--ease) both .5s; z-index: 1; }
+.cc .rib .ic { width: 15px; height: 15px; }
+.cc .right { min-width: 0; display: grid; gap: 10px; animation: rise .5s var(--ease) both .4s; }
+.cc .gen { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; font-weight: 600; color: rgba(234,242,255,.8); }
+.cc .gen span + span::before { content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: rgba(234,242,255,.4); margin: 0 10px 2px 0; vertical-align: middle; }
+
+/* D · Stamp: A's blue slab sweeps in, the cover drops, a round status stamp lands on its corner */
+.cd4 .body { display: grid; grid-template-columns: 116px minmax(0,1fr); gap: 18px; padding: 150px 16px 18px; align-items: end; }
+.cd4 .left { position: relative; }
+.cd4 .slab { left: -44px; right: -14px; top: 26px; height: 120px; }
+.cd4 .stp { position: absolute; z-index: 2; top: -14px; right: -12px; width: 58px; height: 58px; border-radius: 50%; display: grid; place-content: center; justify-items: center; text-align: center; background: var(--sb); border: 2px solid var(--sc); color: var(--sc); box-shadow: 0 8px 18px rgba(0,0,0,.5); transform: rotate(-8deg); animation: stamp .6s var(--ease) both .75s; }
+.cd4 .stp .ic { width: 17px; height: 17px; }
+.cd4 .stp b { font-size: 12px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cd4 .stp.ring::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--sl); animation: ring .6s var(--ease) both .95s; }
+.cd4 .right { min-width: 0; display: grid; gap: 10px; animation: rise .5s var(--ease) both .4s; }
+.cd4 .sw { font-size: 13px; font-weight: 700; color: var(--sc); }
+.cd4 .sw em { font-style: normal; font-weight: 500; color: rgba(234,242,255,.6); }
+
+@container (min-width: 600px) {
+  .c4 .bcells { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .c4 .bcells .blk b { font-size: 20px; }
+  .ca .body { grid-template-columns: 150px minmax(0,1fr); gap: 26px; padding: 190px 28px 26px; }
+  .ca .right { max-width: 520px; }
+  .cb .body { margin: 200px 14px 14px; padding: 0 22px 18px 196px; min-height: 150px; }
+  .cb .cov { left: 20px; bottom: 18px; width: 150px; }
+  .cb .right { padding-top: 18px; max-width: 520px; }
+  .cc .body { grid-template-columns: 168px minmax(0,1fr); gap: 26px; padding: 190px 26px 24px 30px; }
+  .cc .rib { top: 30px; right: -50px; width: 220px; height: 36px; font-size: 13.5px; }
+  .cd4 .body { grid-template-columns: 168px minmax(0,1fr); gap: 28px; padding: 190px 24px 24px; }
+  .cd4 .slab { top: 34px; height: 180px; }
+  .cd4 .stp { width: 70px; height: 70px; } .cd4 .stp b { font-size: 13.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .c4 *, .c4 *::before, .c4 *::after { animation: none !important; } .c4 .flip { transition: none; } .ca .bar1, .ca .bar2 { display: none; } }
+
+</style>
+
+<div class="page">
+  <header class="intro">
+    <h1>Queue card demos · round 6</h1>
+    <p>The picture fills the whole card and the front has <b>no buttons</b>: tap the <b>cover</b> to open the game page, tap <b>anywhere else on the card</b> to turn it over (Edit and ⋯ live on the back). Each look shows only what matters (status, logo, platform, genres) and opens with its own animation. Tap <b>A B C D</b> to compare.</p>
+  </header>
+
+  <nav class="bar" aria-label="Demo controls">
+    <div class="ctl"><span>Design</span><div class="seg" id="demoSeg">
+      <button data-demo-pick="A" aria-label="A, Cinema">A</button><button data-demo-pick="B" aria-label="B, Plate">B</button><button data-demo-pick="C" aria-label="C, Collector">C</button><button data-demo-pick="D" aria-label="D, Stamp">D</button>
+    </div></div>
+    <div class="ctl"><span>Game</span><div class="seg" id="stateSeg">
+      <button data-state="coming">Coming</button><button data-state="out">Out now</button><button data-state="playing">Playing</button><button data-state="played">Played</button>
+    </div></div>
+    <div class="ctl"><span>Screen</span><div class="seg" id="sizeSeg">
+      <button data-size="fit">This screen</button><button data-size="412">Folded</button><button data-size="860">Unfolded</button>
+    </div></div>
+  </nav>
+
+  <section class="demo" id="A">
+    <div class="dh"><span class="letter">A</span><h2>Cinema</h2>
+      <p>Black letterbox bars open on the picture like a film starting, the art settles back, the logo fades up and a thin light line draws under it. Status is a glowing dot and a word; platform and genres sit on one quiet line.</p></div>
+    <div class="stage"><div class="screen" data-demo="A"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Full picture · cover = game page · tap the card to turn it (the small ⟲ in the corner says so) · back: release date, queue spot, the 4 numbers, your 8 scores or Nexi’s guess, hours, price watch, Nexi’s line, Edit and ⋯.</div></div>
+  </section>
+  <section class="demo" id="B" hidden>
+    <div class="dh"><span class="letter">B</span><h2>Plate</h2>
+      <p>A rounded dark plate rises from the bottom and the cover hops onto its edge with a little bounce. The status is a coloured pill, platform and genres are chips. The picture above is untouched.</p></div>
+    <div class="stage"><div class="screen" data-demo="B"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Full picture · cover = game page · tap the card to turn it (the small ⟲ in the corner says so) · back: release date, queue spot, the 4 numbers, your 8 scores or Nexi’s guess, hours, price watch, Nexi’s line, Edit and ⋯.</div></div>
+  </section>
+  <section class="demo" id="C" hidden>
+    <div class="dh"><span class="letter">C</span><h2>Collector</h2>
+      <p>The cover swings in like a card being turned toward you and catches the light once. A ribbon across the top corner carries the status, and a thin strip in the platform’s colour grows up the left edge.</p></div>
+    <div class="stage"><div class="screen" data-demo="C"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Full picture · cover = game page · tap the card to turn it (the small ⟲ in the corner says so) · back: release date, queue spot, the 4 numbers, your 8 scores or Nexi’s guess, hours, price watch, Nexi’s line, Edit and ⋯.</div></div>
+  </section>
+  <section class="demo" id="D" hidden>
+    <div class="dh"><span class="letter">D</span><h2>Stamp</h2>
+      <p>A’s blue slab sweeps in, the cover drops onto it, then a round stamp lands on its corner with the status (days to go, 44%, New, or your score with a ring).</p></div>
+    <div class="stage"><div class="screen" data-demo="D"></div></div>
+    <div class="notes"><div><h3>Same on all four</h3>Full picture · cover = game page · tap the card to turn it (the small ⟲ in the corner says so) · back: release date, queue spot, the 4 numbers, your 8 scores or Nexi’s guess, hours, price watch, Nexi’s line, Edit and ⋯.</div></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const IMG = { h1: "{{h1}}", c1: "{{c1}}", h2: "{{h2}}", c2: "{{c2}}", h3: "{{h3}}", c3: "{{c3}}", h4: "{{h4}}", c4: "{{c4}}", logo1: "{{logo1}}" };
+const I = {
+  open: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  play: '<path F d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  replay: '<path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  more: '<circle F cx="5" cy="12" r="1.8"/><circle F cx="12" cy="12" r="1.8"/><circle F cx="19" cy="12" r="1.8"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>', down: '<path d="M12 5v14M6 13l6 6 6-6"/>', chev: '<path d="M6 9l6 6 6-6"/>',
+  sw: '<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M8 10v4M6 12h4"/><circle F cx="16.5" cy="11" r="1.2"/>',
+  cal: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  hour: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>',
+  flame: '<path d="M12 21c4 0 7-2.7 7-6.6 0-4.4-4-6.4-4.5-11.4C11 5 9 8 9.5 11 8 10.5 7.4 9 7.3 8 5.6 9.8 5 12 5 14.4 5 18.3 8 21 12 21z"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  starF: '<path F d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  queue: '<path d="M5 6h14M5 12h14M5 18h9"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  tag: '<path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-6.9 6.9a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.4"/>',
+  turn: '<path d="M4.5 10a7.5 7.5 0 0 1 13.3-3.6L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M19.5 14a7.5 7.5 0 0 1-13.3 3.6L4 15.5"/><path d="M4 20v-4.5h4.5"/>'
+};
+const ic = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${I[k].replace(/ F /g, ' fill="currentColor" stroke="none" ')}</svg>`;
+const TODAY = new Date(2026, 9, 16);
+const day = n => { const d = new Date(TODAY); d.setDate(d.getDate() + n); return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", ""); };
+const GAMES = [
+  { id: 1, t: "Crownbound Saga", short: "Crownbound", plat: "Switch 2", pc: "#e60012", gen: "Strategy · JRPG", hrs: 41, hype: 9, likely: 8.6, days: 34, h: "h1", c: "c1", logo: "logo1", mine: 80, deserved: 8 },
+  { id: 2, t: "Starfall Accord", short: "Starfall Accord", plat: "PS5", pc: "#0b4fc4", gen: "Action RPG", hrs: 58, hype: 8, likely: 7.9, days: 61, h: "h2", c: "c2", wm: "w2", mine: 74, deserved: 7 },
+  { id: 3, t: "The Ember Courts", short: "Ember Courts", plat: "PC", pc: "#2b3140", gen: "Tactics", hrs: 32, hype: 7, likely: 7.4, days: 118, h: "h3", c: "c3", wm: "w3", mine: 69, deserved: 7 },
+  { id: 4, t: "Hollow Lantern", short: "Hollow Lantern", plat: "Switch 2", pc: "#e60012", gen: "Adventure", hrs: 24, hype: 8, likely: 8.1, days: 9, h: "h4", c: "c4", wm: "w4", mine: 85, deserved: 9 }
+];
+const RAT = [["Story", 8.3, "#4DA3FF"], ["Music", 9.3, "#6FC3FF"], ["Play", 8.7, "#8FB8FF"], ["Replay", 5, "#2F6BFF"],
+             ["Look", 8.3, "#9B8CFF"], ["World", 8.3, "#3FC8C0"], ["Cast", 7.7, "#B48CFF"], ["Pace", 8.7, "#A9B4CF"]];
+const ord = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || Math.floor(n % 100 / 10) === 1 ? 0 : n % 10]);
+
+function info(g, st, pos) {
+  const done = Math.round(g.hrs * .44), left = g.hrs - done, fin = h => day(Math.ceil(h / 4));
+  const o = { pos, kick: pos === 1 ? "Next up" : ord(pos) + " in the queue" };
+  if (st === "coming") Object.assign(o, { tag: ["Coming", "o"], when: day(g.days), dial: [g.days, g.days === 1 ? "day to go" : "days to go", Math.max(.06, 1 - g.days / 120)],
+    cells: [[g.days, "", "days to go"], [g.hrs, "h", "to beat"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `Out <b>${day(g.days)}</b>. Games like this land at <b>${g.likely}</b> for you.`, prim: ["open", "Game page"], badge: [g.likely, "likely"] });
+  if (st === "out") Object.assign(o, { tag: ["Out now", "g"], when: "Out now", dial: ["Out", "ready to start", 1],
+    cells: [["Out", "", "available now"], [g.hrs, "h", "to beat"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `At 4 hours a night you'd see the credits around <b>${fin(g.hrs)}</b>.`, prim: ["play", "Start playing"], badge: [g.likely, "likely"] });
+  if (st === "playing") Object.assign(o, { tag: ["Playing", "v"], when: "Playing now", dial: ["44%", `${done} of ${g.hrs} h`, .44],
+    cells: [[44, "%", `${done} of ${g.hrs} h`], [left, "h", "left"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `<b>${done} of ${g.hrs} h</b> done. You finish around <b>${fin(left)}</b>.`, prim: ["clock", "Log tonight"], badge: [g.likely, "likely"] });
+  if (st === "played") Object.assign(o, { tag: ["Played it", "o"], when: "Played twice", dial: [g.mine, "my score", g.mine / 100], played: true,
+    cells: [[g.mine, "", "my score"], [g.deserved, "/10", "deserved"], [2, "×", "played"], [g.hrs, "h", "to beat"]],
+    nexi: `You gave it <b>${g.mine}</b>. Nexi had guessed <b>${g.likely * 10 | 0}</b>, so now he knows your taste a bit better.`, prim: ["replay", "Play it again"], badge: [g.mine, "my score"] });
+  o.minis = o.cells.slice(1);
+  return o;
+}
+const logo = g => g.logo ? `<img class="logo" src="${IMG[g.logo]}" alt="${g.t}">` : `<span class="wm ${g.wm}">${g.t}</span>`;
+const scores = () => `<div class="ss">${RAT.map(([l, v, c], i) => `<div class="one"><b>${v}</b><i><s style="--v:${v / 10};--c:${c};--d:${i * 40}ms"></s></i><span>${l}</span></div>`).join("")}</div>`;
+const say = o => o.played ? scores() : `<div class="nexi"><span class="dot"></span><span>${o.nexi}</span></div>`;
+const acts = (o, arrows = true) => `<div class="acts"><button class="prim" data-say="${o.prim[1]}">${ic(o.prim[0])}<span>${o.prim[1]}</span></button>${arrows ? `<button class="icb ww" aria-label="Move up" data-say="Move up">${ic("up")}</button><button class="icb ww" aria-label="Move down" data-say="Move down">${ic("down")}</button>` : ""}<button class="icb" aria-label="Edit" data-say="Edit">${ic("edit")}</button><button class="icb" aria-label="More" data-say="More: diary, competitive, trailer, more like it, move, remove">${ic("more")}</button></div>`;
+const val = ([v, u]) => `${v}${u ? `<small>${u}</small>` : ""}`;
+const dial = (o, cls = "") => `<div class="dial ${cls}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="tr" cx="50" cy="50" r="40"/><g class="spin"><circle class="vl" cx="50" cy="50" r="40" style="--v:${o.dial[2]}"/></g></svg><div class="dl"><b>${o.dial[0]}</b><span>${o.dial[1]}</span></div></div>`;
+const stars = n => Array.from({ length: 5 }, (_, i) => i < n ? ic("starF") : ic("star")).join("");
+const vars = g => `--h:url('${IMG[g.h]}');--c:url('${IMG[g.c]}');--pc:${g.pc}`;
+
+const pills = o => `<div class="tags"><span class="pill v"><span>${o.kick}</span></span><span class="pill ${o.tag[1]}">${o.tag[0]}</span></div>`;
+const lines = (g, o) => `<div class="line">${g.gen}</div><div class="line">${g.plat} · ${o.when}</div>`;
+const blk = (c, i, d0) => `<div class="blk" style="--d:${d0 + i * 70}ms"><b>${val(c)}</b><span>${c[2]}</span></div>`;
+const cover = () => `<button class="cvw" data-say="Opening the game page" aria-label="Open the game page"><i></i></button>`;
+const nexi4 = o => `<div class="nexi"><span class="dot"></span><span>${o.nexi}</span></div>`;
+const acts4 = o => `<div class="acts"><button class="prim" data-say="${o.prim[1]}">${ic(o.prim[0])}<span>${o.prim[1]}</span></button><button class="icb" data-turn aria-label="Turn the card">${ic("turn")}</button><button class="icb" aria-label="Edit" data-say="Edit">${ic("edit")}</button><button class="icb" aria-label="More" data-say="More: diary, trailer, more like it, move, remove">${ic("more")}</button></div>`;
+const gauges = (g, o) => {
+  const left = g.hrs - Math.round(g.hrs * .44), len = ["Length", Math.min(1, g.hrs / 60), g.hrs + " h"];
+  const G = { coming: [["Hype", g.hype / 10, g.hype + "/10"], ["Likely for you", g.likely / 10, g.likely], len, ["Countdown", Math.max(.06, 1 - g.days / 120), g.days + " days"]],
+    out: [["Hype", g.hype / 10, g.hype + "/10"], ["Likely for you", g.likely / 10, g.likely], len, ["Ready", 1, "Out now"]],
+    playing: [["Progress", .44, "44%"], ["Left", left / g.hrs, left + " h"], ["Hype", g.hype / 10, g.hype + "/10"], ["Likely for you", g.likely / 10, g.likely]],
+    played: [["My score", g.mine / 100, g.mine], ["Deserved", g.deserved / 10, g.deserved + "/10"], ["Played", .4, "2×"], len] }[state];
+  return `<div class="gau">${G.map(([l, v, t], i) => `<div class="g4"><div class="gl"><span>${l}</span><b>${t}</b></div><div class="gb"><s style="--v:${v};--d:${380 + i * 110}ms"></s></div></div>`).join("")}</div>`;
+};
+const back = (g, o) => {
+  const facts = [["Release", state === "coming" ? day(g.days) : "Out now"], ["In your queue", o.kick], ["Main story", g.hrs + " h"], ["Everything", Math.round(g.hrs * 1.8) + " h"], ["Price watch", "Alert on"], ["Added", "3 Mar"]];
+  const bars = RAT.map(([l, v], i) => { const s = o.played ? v : Math.max(4, v - .6); return `<div class="br"><span>${l}</span><i><s style="--v:${s / 10};--d:${i * 45}ms"></s></i><b>${s.toFixed(1)}</b></div>`; }).join("");
+  return `<div class="face back"><div class="bk">
+    <div class="bkh"><span class="bkc"></span><div class="bkt">${logo(g)}<div class="line">${g.gen} · ${g.plat}</div></div><div class="acts"><button class="icb" aria-label="Edit" data-say="Edit">${ic("edit")}</button><button class="icb" aria-label="More" data-say="More: diary, trailer, more like it, move, remove">${ic("more")}</button></div></div>
+    <div class="bcells">${o.cells.map((c, i) => blk(c, i, 200)).join("")}</div>
+    <h5>${o.played ? "Your 8 scores" : "Nexi’s guess, area by area"} <span>· ${o.played ? "played twice" : "from games like it"}</span></h5>
+    <div class="bars">${bars}</div>
+    <div class="facts">${facts.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
+    ${nexi4(o)}</div></div>`;
+};
+const STAT = () => ({ coming: ["coming", "cal", "Coming", `in ${GAMES.find(g => g.id === openG).days} days`], out: ["out", "play", "Out now", ""], playing: ["playing", "play", "Playing", "44%"], played: ["played", "check", "Played", ""] })[state];
+const gchips = g => g.gen.split(" · ").map(x => `<span class="chip gn">${ic("tag")}${x}</span>`).join("");
+const pchip = g => `<span class="chip pf"><i></i>${g.plat}</span>`;
+const hint = `<span class="hint" aria-hidden="true">${ic("turn")}</span>`;
+const wrap = (k, g, o, front) => `<div class="c4 st-${state}" style="${vars(g)}"><div class="flip"><div class="face front ${k}" role="button" aria-label="Turn the card">${front}</div>${back(g, o)}</div></div>`;
+const CARD = {
+  A: (g, o) => { const s = STAT(); return wrap("ca", g, o, `<div class="art"></div><div class="shade"></div><div class="bar1"></div><div class="bar2"></div>${hint}
+    <div class="body"><div class="cov">${cover()}</div><div class="right">
+      <div class="sline"><span class="dot"></span>${s[2]}${s[3] ? ` <em>· ${s[3]}</em>` : ""}${o.played ? ` <em>· ${g.mine}</em>` : ""}</div>
+      ${logo(g)}<div class="rule"></div>
+      <div class="meta"><i></i><b>${g.plat}</b><s>|</s>${g.gen.split(" · ").join(" <s>·</s> ")}</div></div></div>`); },
+  B: (g, o) => { const s = STAT(); return wrap("cb", g, o, `<div class="art"></div><div class="shade"></div>${hint}
+    <div class="body"><div class="plate"></div><div class="cov">${cover()}</div><div class="right">
+      <div class="top"><span class="sp">${ic(s[1])}${s[2]}${s[3] ? ` <em>${s[3]}</em>` : ""}${o.played ? ` <em>${g.mine}</em>` : ""}</span></div>
+      ${logo(g)}<div class="chips">${pchip(g)}${gchips(g)}</div></div></div>`); },
+  C: (g, o) => { const s = STAT(); return wrap("cc", g, o, `<div class="art"></div><div class="shade"></div><div class="stripe"></div>
+    <div class="rib">${ic(s[1])}${{ coming: g.days + " days", out: "Out now", playing: "Playing 44%", played: "Played · " + g.mine }[state]}</div>
+    <div class="body"><div class="cov">${cover()}</div><div class="right">
+      ${logo(g)}<div class="gen">${g.gen.split(" · ").map(x => `<span>${x}</span>`).join("")}</div><div class="chips">${pchip(g)}</div></div></div>`); },
+  D: (g, o) => { const s = STAT(), t = { coming: `${g.days}<br>days`, out: "New", playing: "44%", played: String(g.mine) }[state];
+    return wrap("cd4", g, o, `<div class="art"></div><div class="shade"></div>${hint}
+    <div class="body"><div class="left"><div class="slab"></div><div class="cov">${cover()}</div><span class="stp${state === "played" ? " ring" : ""}">${ic(s[1])}<b>${t}</b></span></div>
+      <div class="right"><div class="sw">${s[2]}${s[3] ? ` <em>· ${s[3]}</em>` : ""}</div>${logo(g)}<div class="chips">${pchip(g)}${gchips(g)}</div></div></div>`); }
+};
+function row(g, pos) {
+  const meta = { coming: day(g.days), out: "Out now", playing: "Playing · 44%", played: "Played · " + g.mine }[state];
+  return `<button class="qr" data-open="${g.id}"><b class="n">${String(pos).padStart(2, "0")}</b><span class="cv" style="--c:url('${IMG[g.c]}')"></span>
+    <span class="tx"><b>${g.t}</b><small>${meta} · ${g.hrs} h · ${g.plat}</small></span>${ic("chev")}</button>`;
+}
+
+let state = "coming", size = "fit", pick = "A", openG = 1;
+try { state = localStorage.getItem("qcd7:state") || state; size = localStorage.getItem("qcd7:size") || size; pick = localStorage.getItem("qcd7:pick") || pick; } catch (e) {}
+if (!["coming", "out", "playing", "played"].includes(state)) state = "coming";
+if (!["fit", "412", "860"].includes(size)) size = "fit";
+if (!["A", "B", "C", "D"].includes(pick)) pick = "A";
+
+function render() {
+  const sc = document.querySelector(`.screen[data-demo="${pick}"]`);
+  const list = GAMES.map((g, i) => g.id === openG ? CARD[pick](g, info(g, state, i + 1)) : row(g, i + 1)).join("");
+  sc.innerHTML = `<div class="qhd"><h4>Queue</h4><span>926 h to beat · 26 out now</span></div>
+    <div class="qchips"><i class="on">My order</i><i>Sort by ▾</i><i class="on">Everything 50</i><i>Shuffle</i><i>Boss</i></div>
+    <div class="qlist">${list}</div>`;
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const st = document.querySelector(`#${pick} .stage`), sc = st.querySelector(".screen");
+  if (size === "fit") { st.classList.remove("fixed"); sc.style.width = ""; sc.style.transform = ""; st.style.height = ""; return; }
+  const w = +size, k = Math.min(1, st.clientWidth / w);
+  st.classList.add("fixed"); sc.style.width = w + "px"; sc.style.transform = k < 1 ? `scale(${k})` : "";
+  st.style.height = Math.ceil(sc.offsetHeight * k) + "px";
+}
+function mark() {
+  document.querySelectorAll("#stateSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.state === state));
+  document.querySelectorAll("#sizeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.size === size));
+  document.querySelectorAll("#demoSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.demoPick === pick));
+  document.querySelectorAll("section.demo").forEach(d => { d.hidden = d.id !== pick; });
+}
+const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (x) {} };
+let toastT;
+function toast(t) { const el = document.getElementById("toast"); el.textContent = t + " (demo)"; el.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("on"), 1500); }
+document.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) { const c = e.target.closest(".c4"); if (c) c.classList.toggle("turned"); return; }
+  if (b.dataset.state) { state = b.dataset.state; keep("qcd7:state", state); mark(); render(); return; }
+  if (b.dataset.size) { size = b.dataset.size; keep("qcd7:size", size); mark(); fit(); return; }
+  if (b.dataset.demoPick) { pick = b.dataset.demoPick; keep("qcd7:pick", pick); mark(); render(); return; }
+  if (b.hasAttribute("data-turn")) { b.closest(".c4").classList.toggle("turned"); return; }
+  if (b.dataset.open) { openG = +b.dataset.open; render(); return; }
+  if (b.dataset.say) toast(b.dataset.say);
+});
+new ResizeObserver(() => fit()).observe(document.querySelector(".page"));
+mark(); render();
+</script>

@@ -1366,9 +1366,11 @@
     .web-over { animation: webin .55s cubic-bezier(.16,1,.3,1) both; transform-origin: 50px 50px; }
     @keyframes webin { from { transform: scale(.25); opacity: 0; } }
   }
-  .sepone .cap { display: block; text-align: center; font-size: 9px; color: var(--mute);
-    font-weight: 800; text-transform: uppercase; letter-spacing: .02em; margin-top: 4px;
-    line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; }
+  /* v298: ring captions stay whole (they broke one letter pair per line, "ST OR Y") */
+  .sepone .cap { display: block; text-align: center; font-size: 10px; color: var(--mute);
+    font-weight: 600; margin-top: 4px; line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-transform: none; letter-spacing: 0; overflow-wrap: normal; hyphens: manual; }
   @media (prefers-reduced-motion: no-preference) {
     .ring-val { animation: ringin .95s cubic-bezier(.16,1,.3,1) both;
       animation-delay: var(--rd, 0ms); animation-duration: var(--rdur, .95s); }
@@ -2670,7 +2672,6 @@ html.still #diary,html.still .dy-in{transition:none}
 .hflip:not(.on)>.pback{pointer-events:none;visibility:hidden;transition:transform .85s cubic-bezier(.3,1.45,.45,1),visibility 0s .24s}
 .hflip.on>.pback{position:relative;z-index:2}
 .pback .kicker{font-size:13px}
-.fliphint{color:var(--mute);font-size:12px;text-align:center;margin:12px 0 0}
 .hmore{position:relative;display:inline-block}
 .hmenu{position:absolute;bottom:calc(100% + 6px);left:0;z-index:5;display:none;min-width:170px;background:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:6px}
 .hmore.on .hmenu{display:grid;animation:hmIn .22s cubic-bezier(.34,1.56,.64,1)}
@@ -4391,7 +4392,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "297";
+const APP_V = "298";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5384,7 +5385,7 @@ const GROUP_KEYS = {
   "On deck cards": ["dzX"],
   "Player type card": ["dzX"],
   "The standings tile": ["standN"],
-  "Queue cards": ["platPos", "ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
+  "Queue cards": ["ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
   "Labels on the board": ["flowTitle", "flowDate"],
   "Your evening": ["evening", "playStyle"],
@@ -6339,11 +6340,6 @@ function openSettings(scope) {
 
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges, rating rings and the art behind each row.">Queue cards</h4>
       <div class="demohost" data-demo="card">${demoCard()}</div>
-      <label>Platform badges</label>
-      <div class="chips" id="s-platpos">
-        ${[["inline", "In the card"], ["tr", "Top right"], ["br", "Bottom right"], ["tl", "Top left"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.platPos || "inline") === v}"><span>${l}</span></button>`).join("")}
-      </div>
       <label>Rating rings</label>
       <div class="chips" id="s-ringstyle">
         ${[["con", "Stacked"], ["sep", "Separate"]].map(([v, l]) =>
@@ -7107,7 +7103,6 @@ function openSettings(scope) {
   pick("#s-hubanim", v => { S.hubAnim = v !== "off"; applyHubAnim(); });
   pick("#s-plattext", v => { S.platText = v === "text"; });
   pick("#s-ringstyle", v => S.ringStyle = v, () => renderQueue());
-  pick("#s-platpos", v => S.platPos = v, () => renderQueue());
   pick("#s-cardbg", v => S.cardBg = v, () => renderQueue());
   pick("#s-libtitle", v => S.libTitle = v === "on", () => renderLib());
   pick("#s-webgrid", v => S.webGrid = v, () => { renderTaste(); renderHome(); });
@@ -8797,6 +8792,33 @@ const bgSource = g =>
   || g.bg
   || g.art
   || cover(g);
+/* ===== v298: the open Queue card's front (look D "Stamp"); big() in renderQueue calls it; it lives next to cardLayers because the
+   Queue is first drawn while the page is still loading, before the later scripts exist ===== */
+const QK_IC = { cal: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>', play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', stop: '<path d="M7 7l10 10M17 7L7 17"/>' };
+function qkStat(g, cd, score) {
+  if (isPlayed(g)) { const p = playedRec(g), runs = p ? num(p.runs, 1, 1, 99) : 1, v = score || (p && scored(p) ? p.real : "");
+    return { k: "played", ic: "check", stamp: v ? String(v) : "", word: "Played", sub: runs > 1 ? runs + "× through" : "" }; }
+  if (g.state === "playing") return { k: "playing", ic: "play", stamp: "Now", word: "Playing", sub: hrsOf(g) ? hrsOf(g) + " h to beat" : "" };
+  if (g.state === "dropped") return { k: "dropped", ic: "stop", stamp: "", word: "Dropped", sub: "" };
+  if (typeof cd.v === "number") return { k: "coming", ic: "cal", stamp: String(cd.v), unit: cd.v === 1 ? "day" : "days", word: "Coming", sub: cd.v === 1 ? "tomorrow" : "in " + cd.v + " days" };
+  if (cd.v === "TBA") return { k: "coming", ic: "cal", stamp: "TBA", word: "Coming", sub: "no date yet" };
+  return isFresh(g) ? { k: "out", ic: "star", stamp: "New", word: "Out now", sub: "just released" } : { k: "out", ic: "play", stamp: "Ready", word: "Out now", sub: "ready to play" };
+}
+function qkFront(g, n, cd, score, morph) {
+  /* the wide picture, never the logo (bgSource falls back to g.art, which blown up to the whole card is just big letters) */
+  const st = qkStat(g, cd, score), src = (S.cardBg || "hero") === "plain" || g.bgOff ? "" :
+    g.hero || (g.steamId ? STEAM_CDN + g.steamId + "/library_hero.jpg" : "") || g.bg || cover(g);
+  const m = g.art && typeof LF !== "undefined" ? LF[g.art] : null, dark = m && m[5] >= 0 && m[5] < 50;
+  const bg = src ? ` style="background-image:url('${esc(cssUrl(src))}');background-position:${num(g.bgX, 100, 0, 100)}% ${num(g.bgY, 50, 0, 100)}%"` : "";
+  return `<div class="qkbg${src ? "" : " none"}"${bg}></div>
+    <div class="qkin qk-${st.k}"><div class="qkl"><i class="qkslab" aria-hidden="true"></i>
+      <button class="qkcov" data-hub="${g.id}" title="Open ${esc(g.title)}'s own page"><img decoding="async" style="${morph ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt=""></button>
+      <span class="qkst" aria-label="${esc(st.word + (st.sub ? ", " + st.sub : ""))}"><svg viewBox="0 0 24 24" aria-hidden="true">${QK_IC[st.ic]}</svg>${st.stamp ? `<b>${esc(st.stamp)}</b>` : ""}${st.unit ? `<small>${st.unit}</small>` : ""}</span></div>
+    <div class="qkr"><div class="qksw">${st.word}${st.sub ? ` <em>· ${esc(st.sub)}</em>` : ""}</div>
+      <div class="qkt${dark ? " qkdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<h2>${esc(g.title)}</h2>`}</div>
+      <div class="qkch">${g.platforms ? platHtml(g.platforms, "qkc") : ""}${platList(g.genres).slice(0, 2).map(x => `<span class="qkc qkg">${esc(x)}</span>`).join("")}</div></div></div>`;
+}
 function cardLayers(g) {
   const mode = S.cardBg || "hero";
   if (mode === "plain") return "";
@@ -8906,19 +8928,9 @@ function renderQueue() {
       `<i class="${i < (g.hype || 0) ? "on" : ""}" style="animation-delay:${PD(i)}ms"></i>`).join("");
     return `
     <div class="hero" data-row="${g.id}" style="--accent:${esc(g.colour)}">
-      <div class="hflip${flipId === g.id ? " on" : ""}"><div class="plate slab pfront">${cardLayers(g)}<div class="plate-in">
-        <button class="cov" data-hub="${g.id}" title="Open ${esc(g.title)}'s own page"><img decoding="async" style="${
-          g.id === morphId ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt=""></button>
-        <div class="meta">
-          <div class="toprow">
-            <span class="kicker">${n === 1 ? "Next up" : ord(n) + " in the queue"}</span>
-            <span class="tag ${g.status}">${g.status}</span>
-            <span class="tag st-${isFresh(g) ? "fresh" : g.state || "upcoming"}">${isFresh(g) ? "Out now" : (STATES.find(s => s[0] === (g.state || "upcoming")) || [, ""])[1]}</span>
-          </div>
-          <div class="htitle">${S.cardLayout === "logo" && g.art ? `<h2 class="h2logo"><img src="${esc(g.art)}" alt="${esc(g.title)}"></h2>` : `<h2>${esc(g.title)}</h2>`}</div>
-          ${(() => { /* v232: every open card has the same slots, so the description always takes three lines (genres when there's none) */
-            const t = g.desc || platList(g.genres).slice(0, 3).join(" · ");
-            return `<p class="desc${g.desc ? "" : " none"}">${t ? esc(t) : "&nbsp;"}</p>`; })()}
+      <div class="hflip${flipId === g.id ? " on" : ""}"><div class="plate slab pfront qk" data-flip="${g.id}">${qkFront(g, n, countdown(g), myScore(g), g.id === morphId)}</div>
+      <div class="plate slab pback" data-unflip>${cardLayers(g)}<div class="plate-in"><div class="meta">
+          <div class="toprow"><span class="kicker">${n === 1 ? "Next up" : ord(n) + " in the queue"}</span>${g.date ? `<span class="tag qkdate">${esc(shortDate(g.date))}</span>` : ""}</div>
           <div class="stats">
             <div class="stat" style="animation-delay:60ms"><b>${
               typeof cd.v === "number" ? `<span data-count="${cd.v}">0</span>` : cd.v
@@ -8944,15 +8956,10 @@ function renderQueue() {
           </div>
           <div class="actions">
             <button class="btn ghost" data-edit="${g.id}" style="margin:0"><span>Edit</span></button>
-            <button class="btn ghost" data-flip="${g.id}" style="margin:0"><span>↻ Scores</span></button>
             <span class="hmore"><button class="btn ghost" data-more style="margin:0" aria-label="More"><span>⋯</span></button>
               <span class="hmenu"><button data-diary="${g.id}">📓 Diary${(g.diary || []).length ? " · " + g.diary.length : ""}</button><button data-comp="${g.id}">⚔️ ${g.comp ? "Competitive ✓" : "Competitive"}</button></span></span>
             ${arrows(g)}
           </div>
-        </div>
-      </div></div>
-      <div class="plate slab pback" data-unflip>${cardLayers(g)}<div class="plate-in"><div class="meta">
-          <div class="toprow"><span class="kicker">${esc(g.title)}</span></div>
           ${g.platforms ? `<div class="plats">${platList(g.platforms).map(x =>
             `<span class="plat">${platGlyph(x)}${esc(x)}</span>`).join("")}</div>` : ""}
           ${(() => { const p = S.played.find(x => x.id === g.id);
@@ -8975,11 +8982,7 @@ function renderQueue() {
           ${g.tips ? `<p class="note2"><b>Play it</b> ${esc(g.tips)}</p>` : ""}
           ${hrsOf(g) ? `<p class="evenings">About ${Math.ceil(hrsOf(g) / (S.evening || 2))} evenings at ${S.evening || 2} hours a night</p>` : ""}
           ${simBack(g)}
-          <button class="btn ghost fliphint" data-unflipbtn style="display:block;margin:12px auto 0"><span>↻ Tap to flip back</span></button>
         </div></div></div></div>
-      ${g.platforms && (S.platPos || "inline") !== "inline" ? `<div class="plats pos-${esc(S.platPos)}">${platList(g.platforms).map(x =>
-        `<span class="plat">${platGlyph(x)}${esc(x)}</span>`).join("")}</div>` : ""}
-      ${artBlock(g, true)}
     </div>`;
   };
 
@@ -9099,7 +9102,7 @@ function renderQueue() {
     morphId = null;
     renderQueue();
     const h = !collapsed && S.motion !== false && S.vt !== false && !calm() && $("#p-queue .hero");
-    if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 600); }
+    if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 1500); }   /* v298: the card's entrance runs ~1.4s */
    
   });
   if ($("#nudge-save")) $("#nudge-save").onclick = () => {
@@ -10842,14 +10845,16 @@ document.addEventListener("click", e => {
   const mo = e.target.closest("[data-more]");
   document.querySelectorAll(".hmore.on").forEach(m => { if (!mo || m !== mo.parentNode) m.classList.remove("on"); });
   if (mo) { e.stopPropagation(); mo.parentNode.classList.toggle("on"); beep("tap"); return; }
-  const f = e.target.closest("[data-flip]"), u = !f && e.target.closest("[data-unflip]");
+  /* v298: the whole card front carries data-flip (tap anywhere turns it); a button on either side (the cover = the game page) does its own job */
+  const btn = e.target.closest("button,a"), f0 = e.target.closest("[data-flip]");
+  const f = f0 && (!btn || btn === f0) ? f0 : null, u = !f && !btn && e.target.closest("[data-unflip]");
   if (!f && !u) return;
   e.stopPropagation(); e.preventDefault();
   const w = (f || u).closest(".hflip"); if (!w) return;
   const on = !!f; flLift(w); w.classList.toggle("on", on); flipId = on ? f.dataset.flip : null; beep(on ? "open" : "back");
   if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
 }, true);
-window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest("[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
+window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest("button,a,[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on")); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
 /* v117 competitive toggle, shared by diary, add form and queue */
 function compSet(g, on) {
   g.comp = on;
@@ -20943,10 +20948,13 @@ function lfApply() {
   /* v290: measured before v290 (5 numbers, no brightness) counts as not measured */
   const missing = S.games.filter(g => g.art && (!(g.art in LF) || (LF[g.art] && LF[g.art].length < 6)) && !lfQ.includes(g.art)).map(g => g.art);
   lfQ.push(...missing);
-  /* the tile's size is read once, in a frame (never right after a redraw) */
-  if (lfBox) { lfSheet(); lfNext(); return; }
+  /* the tile's size is read in a frame (never right after a redraw), and again on every call: v298 found it read once
+     while the rows were still settling (115px for a 106px slot), so a wide logo ran past its spot until a resize */
+  if (lfBox) { lfSheet(); lfNext(); }
   const im = document.querySelector("#p-queue .rowart"); if (!im) return;
-  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return; lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
+  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return;
+    if (lfBox && Math.abs(lfBox.w - r.width) < 1 && Math.abs(lfBox.h - r.height) < 1) return;
+    lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
 }
 function lfNext() {
   if (lfBusy || !lfQ.length) return; lfBusy = true;
@@ -21001,7 +21009,7 @@ extend("renderQueue", { after: () => { try { dustApply(); lfApply(); } catch (e)
 /* the queue is first drawn by load(), before this script exists, and isn't redrawn until something changes: apply both
    now, and measure the tile when the queue comes on screen (it can't be measured while its tab is hidden) */
 setTimeout(() => { try { dustApply(); lfApply(); } catch (e) {} }, 0);
-onNav("after", k => { if (k === "tab" && !lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); });
+onNav("after", k => { if (k === "tab") setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); });
 extend("setSub", { after: () => { if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); } });
 /* opening a dusty game blows the dust off */
 onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]), d = g ? dustDays(g) : 0, l = g ? dustLvl(g) : 0;
@@ -27028,5 +27036,77 @@ WHATS_NEW.push(
     at: () => document.querySelector(".srlnav"),
     say: "Settings is <b>one scroll</b> now, with an <b>On this page</b> rail of icons beside it: the group you're in lights up as you scroll, and its name pops out for a moment. Every group has its own <b>drawn icon</b> instead of an emoji.",
     tryIt: "Scroll Settings and watch the lit icon follow you, or tap an icon to jump to that group." }
+);
+</script>
+<style>
+/* ===== v298: the open Queue card, look D "Stamp" (the owner picked it from four demos, round 6: "D and make the pressing on
+   the card flips it no need for a switch button"). The picture fills the card; the front shows only the status, the logo, the
+   platforms and the genres; tap the cover = the game page, tap anywhere else = turn it over (numbers, Edit, ⋯ on the back). ===== */
+.hero .hflip > .plate { border-radius: var(--u-r, 20px); }
+.hero .plate.qk { padding: 0; border: 0; clip-path: none; background: var(--void); box-shadow: inset 0 0 0 1px var(--u-line, rgba(234,242,255,.08));
+  display: flex; flex-direction: column; justify-content: flex-end; isolation: isolate; cursor: pointer; }
+html.ui2 .hero .plate.qk::before { content: none; }
+.qkbg { position: absolute; inset: 0; z-index: -1; background-color: var(--ink); background-size: cover; background-repeat: no-repeat; pointer-events: none; }
+.qkbg.none { background: radial-gradient(120% 90% at 85% 0%, color-mix(in srgb, var(--accent, var(--volt)) 32%, transparent), transparent 62%), var(--ink); }
+.qkbg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,6,14,0) 0%, rgba(4,6,14,0) 32%, rgba(4,6,14,.55) 60%, rgba(4,6,14,.93) 100%); }
+.qkin { position: relative; display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 18px; padding: 150px 16px 18px; align-items: end; }
+.qk-coming { --qsc: var(--ice); --qsb: rgba(4,6,14,.85); }
+.qk-out { --qsc: rgb(79,209,139); --qsb: rgba(5,20,14,.9); }
+.qk-playing { --qsc: var(--volt); --qsb: rgba(8,22,48,.92); }
+.qk-played { --qsc: rgb(243,210,122); --qsb: rgba(30,22,6,.9); }
+.qk-dropped { --qsc: var(--mute); --qsb: rgba(4,6,14,.85); }
+.qkl { position: relative; }
+.qkslab { position: absolute; z-index: -1; left: -44px; right: -14px; top: 26px; height: 116px; border-radius: 20px; background: linear-gradient(100deg, var(--volt2), var(--volt)); transform: skewY(-9deg); }
+.qkcov { display: block; width: 100%; padding: 4px; margin: 0; border: 0; border-radius: 14px; background: var(--ice); transform: rotate(-4deg); box-shadow: 0 16px 30px rgba(0,0,0,.55); cursor: pointer; }
+.qkcov img { display: block; width: 100%; max-width: none; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; }
+.qkst { position: absolute; z-index: 2; top: -14px; right: -12px; width: 58px; height: 58px; border-radius: 50%; display: grid; place-content: center; justify-items: center; text-align: center;
+  background: var(--qsb); border: 2px solid var(--qsc); color: var(--qsc); box-shadow: 0 8px 18px rgba(0,0,0,.5); transform: rotate(-8deg); pointer-events: none; }
+.qkst svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.qkst b { font: 700 13px/1.05 "Poppins", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qkst small { font: 600 9.5px/1 "Poppins", system-ui, sans-serif; white-space: nowrap; }
+.qk-played .qkst::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--qsc); opacity: .5; }
+.qkr { min-width: 0; display: grid; gap: 10px; }
+.qksw { font: 700 13px/1.25 "Poppins", system-ui, sans-serif; color: var(--qsc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qksw em { font-style: normal; font-weight: 500; color: rgba(234,242,255,.66); }
+.qkt { height: 58px; display: flex; align-items: flex-end; min-width: 0; }
+.qkt img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
+.qkt.qkdk img { filter: brightness(0) invert(.9) drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
+.hero .qkt h2 { margin: 0; font: 700 22px/1.08 "Poppins", system-ui, sans-serif; letter-spacing: -.015em; font-style: normal; text-transform: none; color: var(--ice);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+.qkch { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; height: 62px; overflow: hidden; }
+.qkc { flex: none; height: 28px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font: 600 12.5px/1 "Poppins", system-ui, sans-serif; color: var(--ice); background: rgba(4,6,14,.66); border: 1px solid var(--u-line2, rgba(234,242,255,.14)); }
+.qkc.qkg { color: rgba(234,242,255,.82); }
+.qkc .pfm { display: inline-flex; align-items: center; gap: 3px; font-style: normal; color: var(--ice); }
+.qkc .pfm + .pfm { border-left: 1px solid var(--u-line2, rgba(234,242,255,.14)); padding-left: 8px; margin-left: 2px; }
+.qkc .pfm svg { width: 16px; height: 16px; flex: none; fill: currentColor; }
+.qkc .pfm small, .qkc .pfm b { font: 700 12px/1 "Poppins", system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
+@media (min-width: 620px) {
+  .qkin { grid-template-columns: 168px minmax(0, 1fr); gap: 28px; padding: 190px 26px 26px; }
+  .qkslab { top: 34px; height: 172px; }
+  .qkst { width: 70px; height: 70px; } .qkst b { font-size: 15px; }
+  .qkt { height: 84px; } .hero .qkt h2 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero.heroin .plate.qk { animation: none; }
+  .hero.heroin .qkbg { animation: qkzoom 1.2s var(--ease) backwards; }
+  .hero.heroin .qkslab { animation: qkslab .6s var(--ease) backwards; }
+  .hero.heroin .qkcov { animation: qkdrop .55s var(--ease) .1s backwards; }
+  .hero.heroin .qkst { animation: qkstamp .6s var(--ease) .75s backwards; }
+  .hero.heroin .qkr > * { animation: qkrise .45s var(--ease) backwards; }
+  .hero.heroin .qkr > :nth-child(1) { animation-delay: .3s; } .hero.heroin .qkr > :nth-child(2) { animation-delay: .36s; } .hero.heroin .qkr > :nth-child(3) { animation-delay: .42s; }
+  @keyframes qkzoom { from { transform: scale(1.08); } }
+  @keyframes qkslab { from { transform: skewY(-9deg) translateX(-110%); } }
+  @keyframes qkdrop { from { opacity: 0; transform: rotate(-14deg) translateY(-18px); } }
+  @keyframes qkstamp { 0% { opacity: 0; transform: scale(1.7) rotate(-30deg); } 60% { opacity: 1; transform: scale(.94) rotate(-6deg); } }
+  @keyframes qkrise { from { opacity: 0; transform: translateY(10px); } }
+}
+html.still .hero.heroin .qk, html.still .hero.heroin .qk * { animation: none; }
+</style>
+<script>
+WHATS_NEW.push(
+  { v: 298, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkst") || $("#p-queue .hero"),
+    say: "<b>Your open Queue card got a new look</b>: the game's picture fills the whole card, a stamp on the cover tells you where it stands (days to go, New, Now, or your score), and the logo, platforms and genres sit underneath. No more buttons on the front.",
+    tryIt: "Tap the cover to open the game's page. Tap anywhere else on the card to turn it over: the numbers, Edit and ⋯ are on the back." }
 );
 </script>
