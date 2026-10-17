@@ -7,7 +7,9 @@ export default async ({ p, w }) => {
   const bad = [], note = m => bad.push(m), shots = process.env.SHOTS;
   /* WebKit (webkit-check.yml's scenario input, the friend's iPhone) has no CDP touch: a click and a scroll instead */
   let touch = true;
-  const tap = async (x, y) => { if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; }
+  /* Nexi's power-up (15s after load) lays a full-screen "tap anywhere to end" catcher (#ssjcatch): end it first, as a finger would */
+  const tap = async (x, y) => { await p.page.evaluate(() => { try { if (typeof pnPuEnd === "function") pnPuEnd(); } catch (e) {} });
+    if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; }
     /* WebKit's emulated mouse dropped later clicks altogether (no click event at all): click what sits at the spot */
     /* what sits at the spot; when it isn't the link we meant, say what covers it and click the link itself (so the jump logic is
        still tested). An svg path has no .click() in WebKit: a real click event, as a finger's would bubble */
