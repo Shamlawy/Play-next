@@ -26446,10 +26446,11 @@ WHATS_NEW.push(
   .swauto { display: grid; place-items: center; font-size: 15px; line-height: 1; background: var(--u-card2, var(--ink)); color: var(--ice); }
 /* v296 (#469 item 2, the owner: "drop 2 if it makes the app better"): Nexi rests still in the unfolded rail. Seated, his
    breathing glow, the two drifting blobs, the "Zz" and his personality's loop stop (5 endless loops on every screen); he
-   still talks, reacts and powers up (those are short, or come with words: while he speaks he moves as before) */
+   still talks, reacts and powers up (those are short, or come with words: while he speaks he moves as before; his
+   reaction classes on .core (pop, wob, laugh, angry, sneeze, stretch, his signature move…) are left alone) */
 html.nxseat:not(:has(#pnbubmsg.on)) #pnbub::before, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .orb,
 html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .aura, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .zz,
-html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .nt, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub:not(.ssj-charge) .core { animation: none; }
+html.nxseat:not(:has(#pnbubmsg.on)) #pnbub .nt, html.nxseat:not(:has(#pnbubmsg.on)) #pnbub:not(.ssj-charge, .pop, .wob, .laugh, .angry, .sneeze, .stretch, .sig, .grab, .faint) .core { animation: none; }
 /* v296: his menu (double tap / hold): one small card beside him, short words in three groups, no emoji */
 #bubwheel .nxm { position: fixed; left: 0; top: 0; padding: 12px 12px 6px; border-radius: var(--u-r, 20px); background: var(--u-pan, var(--ink));
   border: 1px solid var(--u-line2, var(--edge)); box-shadow: 0 18px 40px rgba(0,0,0,.55); opacity: 0; transition: opacity .16s var(--ease);
@@ -26760,12 +26761,14 @@ WHATS_NEW.push(
     say: "<b>Every game now wears its own colour</b>: I read it from the game's art by myself (the main colour, not one stray speck), so your Queue isn't all blue any more. There are 32 colours to pick from now, and ✨ in Edit hands a colour back to the art.",
     tryIt: "Scroll the Queue, then open a game's Edit › Colour." }
 );
+/* the menu step opens Nexi's menu a beat after Home settles; the next step (or a quick Next) cancels a late open */
+let nxwTourT = 0;
 WHATS_NEW.push(
-  { v: 296, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); setTimeout(() => { try { pnBubWheel(); } catch (e) {} }, 400); },
+  { v: 296, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); clearTimeout(nxwTourT); nxwTourT = setTimeout(() => { try { if (!document.getElementById("bubwheel")) pnBubWheel(); } catch (e) {} }, 400); },
     at: () => $("#bubwheel .nxm") || $("#pnbub") || null,
     say: "<b>My menu is short and tidy now</b>: double-tap me for three small groups (Play, Nexi, More) in plain words, no wall of emoji.",
     tryIt: "Double-tap Nexi (or hold him) and pick Pick for me." },
-  { v: 296, go: () => { document.getElementById("bubwheel")?.remove(); closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : null; },
+  { v: 296, go: () => { clearTimeout(nxwTourT); document.getElementById("bubwheel")?.remove(); closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => { const b = $("#pnbub"); return b && b.getClientRects().length ? b : null; },
     say: "Unfolded, I'm back in the rail on Home too, so one tap on me hides the rail from any screen. I also sit still there now and only move when I talk or react.",
     tryIt: "Open Home on your unfolded phone and tap Nexi at the bottom of the rail." }
 );

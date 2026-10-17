@@ -80,6 +80,7 @@ async function gather($: $, rev: string): Promise<Range | string> {
   if (has('index.html')) {
     range.baseHtml = await show($, base, 'index.html')
     range.headHtml = await show($, rev, 'index.html')
+    range.mainHtml = await show($, 'origin/main', 'index.html')
   }
   if (has('worker/helper.js')) {
     range.baseHelper = await show($, base, 'worker/helper.js')
