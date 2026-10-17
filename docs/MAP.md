@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27028 lines, 2026 KB, 119 scripts, 65 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27030 lines, 2026 KB, 119 scripts, 65 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -47,8 +47,8 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 26264 v285: `onSettings("after", () => {`
 - 26304 : `onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {} }));`
 - 26584 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
-- 26998 v297: `onSettings("before", () => srlOff());`
-- 26999 v297: `onSettings("after", () => srlBuild());`
+- 27000 v297: `onSettings("before", () => srlOff());`
+- 27001 v297: `onSettings("after", () => srlBuild());`
 
 ## Blocks
 
@@ -237,4 +237,4 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 26466–26621 | script | 14 | ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s (no touch, scroll or screen… |
 | 26621–26773 | script | 13 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |
 | 26773–26814 | style | 4 | ===== v297: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise are one scroll of open… |
-| 26814–27028 | script | 25 | ===== v297: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |
+| 26814–27030 | script | 25 | ===== v297: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |

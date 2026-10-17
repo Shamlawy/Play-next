@@ -26909,8 +26909,10 @@ function srlSet(i, quiet) {
   if (i === SRL.cur || !SRL.links[i]) return;
   SRL.cur = i;
   SRL.links.forEach((a, j) => j === i ? a.setAttribute("aria-current", "location") : a.removeAttribute("aria-current"));
+  /* quiet = the first light while the sheet is being drawn: no layout reads here (v206), srlMeasure's rAF places the bar */
+  if (quiet) return;
   srlPlace();
-  if (!quiet) srlTag(i);
+  srlTag(i);
   /* keep the lit tile inside the rail when the rail itself has to scroll (a short screen) */
   const a = SRL.links[i], nav = a.closest(".srlnav");
   if (nav.scrollHeight > nav.clientHeight + 2 && (a.offsetTop < nav.scrollTop || a.offsetTop + a.offsetHeight > nav.scrollTop + nav.clientHeight))
