@@ -1366,9 +1366,11 @@
     .web-over { animation: webin .55s cubic-bezier(.16,1,.3,1) both; transform-origin: 50px 50px; }
     @keyframes webin { from { transform: scale(.25); opacity: 0; } }
   }
-  .sepone .cap { display: block; text-align: center; font-size: 9px; color: var(--mute);
-    font-weight: 800; text-transform: uppercase; letter-spacing: .02em; margin-top: 4px;
-    line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; }
+  /* v296: ring captions stay whole (they broke one letter pair per line, "ST OR Y") */
+  .sepone .cap { display: block; text-align: center; font-size: 10px; color: var(--mute);
+    font-weight: 600; margin-top: 4px; line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-transform: none; letter-spacing: 0; overflow-wrap: normal; hyphens: manual; }
   @media (prefers-reduced-motion: no-preference) {
     .ring-val { animation: ringin .95s cubic-bezier(.16,1,.3,1) both;
       animation-delay: var(--rd, 0ms); animation-duration: var(--rdur, .95s); }
@@ -5388,7 +5390,7 @@ const GROUP_KEYS = {
   "On deck cards": ["dzX"],
   "Player type card": ["dzX"],
   "The standings tile": ["standN"],
-  "Queue cards": ["platPos", "ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
+  "Queue cards": ["ringStyle", "ringSize", "ringThick", "ringGap", "cardBg", "cardBgStr"],
   "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
   "Labels on the board": ["flowTitle", "flowDate"],
   "Your evening": ["evening", "playStyle"],
@@ -6342,11 +6344,6 @@ function openSettings(scope) {
 
     <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="Badges, rating rings and the art behind each row.">Queue cards</h4>
       <div class="demohost" data-demo="card">${demoCard()}</div>
-      <label>Platform badges</label>
-      <div class="chips" id="s-platpos">
-        ${[["inline", "In the card"], ["tr", "Top right"], ["br", "Bottom right"], ["tl", "Top left"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.platPos || "inline") === v}"><span>${l}</span></button>`).join("")}
-      </div>
       <label>Rating rings</label>
       <div class="chips" id="s-ringstyle">
         ${[["con", "Stacked"], ["sep", "Separate"]].map(([v, l]) =>
@@ -7110,7 +7107,6 @@ function openSettings(scope) {
   pick("#s-hubanim", v => { S.hubAnim = v !== "off"; applyHubAnim(); });
   pick("#s-plattext", v => { S.platText = v === "text"; });
   pick("#s-ringstyle", v => S.ringStyle = v, () => renderQueue());
-  pick("#s-platpos", v => S.platPos = v, () => renderQueue());
   pick("#s-cardbg", v => S.cardBg = v, () => renderQueue());
   pick("#s-libtitle", v => S.libTitle = v === "on", () => renderLib());
   pick("#s-webgrid", v => S.webGrid = v, () => { renderTaste(); renderHome(); });
@@ -20967,10 +20963,13 @@ function lfApply() {
   /* v290: measured before v290 (5 numbers, no brightness) counts as not measured */
   const missing = S.games.filter(g => g.art && (!(g.art in LF) || (LF[g.art] && LF[g.art].length < 6)) && !lfQ.includes(g.art)).map(g => g.art);
   lfQ.push(...missing);
-  /* the tile's size is read once, in a frame (never right after a redraw) */
-  if (lfBox) { lfSheet(); lfNext(); return; }
+  /* the tile's size is read in a frame (never right after a redraw), and again on every call: v296 found it read once
+     while the rows were still settling (115px for a 106px slot), so a wide logo ran past its spot until a resize */
+  if (lfBox) { lfSheet(); lfNext(); }
   const im = document.querySelector("#p-queue .rowart"); if (!im) return;
-  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return; lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
+  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return;
+    if (lfBox && Math.abs(lfBox.w - r.width) < 1 && Math.abs(lfBox.h - r.height) < 1) return;
+    lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
 }
 function lfNext() {
   if (lfBusy || !lfQ.length) return; lfBusy = true;
@@ -21025,7 +21024,7 @@ extend("renderQueue", { after: () => { try { dustApply(); lfApply(); } catch (e)
 /* the queue is first drawn by load(), before this script exists, and isn't redrawn until something changes: apply both
    now, and measure the tile when the queue comes on screen (it can't be measured while its tab is hidden) */
 setTimeout(() => { try { dustApply(); lfApply(); } catch (e) {} }, 0);
-onNav("after", k => { if (k === "tab" && !lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); });
+onNav("after", k => { if (k === "tab") setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); });
 extend("setSub", { after: () => { if (!lfBox) setTimeout(() => { try { lfApply(); } catch (e) {} }, 60); } });
 /* opening a dusty game blows the dust off */
 onNav("before", (k, a) => { if (k !== "game") return; const g = S.games.find(x => x.id === a[0]), d = g ? dustDays(g) : 0, l = g ? dustLvl(g) : 0;
@@ -26827,8 +26826,6 @@ html.ui2 .hero .plate.qk::before { content: none; }
   @keyframes qkrise { from { opacity: 0; transform: translateY(10px); } }
 }
 html.still .hero.heroin .qk, html.still .hero.heroin .qk * { animation: none; }
-/* the owner's played card back: ring captions broke one letter pair per line ("ST OR Y"); they stay whole now */
-.sepone .cap { overflow-wrap: normal; hyphens: manual; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; font-size: 10px; font-weight: 600; }
 </style>
 <script>
 WHATS_NEW.push(
