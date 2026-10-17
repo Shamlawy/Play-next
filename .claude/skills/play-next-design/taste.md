@@ -174,3 +174,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: D and make the pressing on the card flips it no need for a switch button; pressing on the art cover should take us to the game pages so remove the button
 - rule: Open Queue card = round 6 look D (Stamp): full picture, A's blue slab + cover drop, a round status stamp on the cover corner; the front shows only status, logo, platform, genres, no buttons; tapping the cover opens the game page, tapping anywhere else turns the card; dates, numbers, scores, Edit and More live on the back.
 - check: none
+
+### T35 · v298 · Queue · hate
+- said: looks bad … the colour thing behind the cover art should have the game colour not fixed blue … super ugly … the logo I want it bottom right fixed … info should look artistic
+- rule: The open Queue card takes its colour from the game (g.colour / --accent), never a fixed blue; no round stamp that looks like a score when there is none; the logo lives in one fixed bottom-right slot on every game; info is set as designed type, not scattered chips.
+- check: none
