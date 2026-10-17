@@ -1,4 +1,4 @@
-/* v295 (the owner: "double tapping on nexi shows emoji and other commands, remove the emoji and shorten them and organise them better",
+/* v296 (the owner: "double tapping on nexi shows emoji and other commands, remove the emoji and shorten them and organise them better",
    "return nexi on the home", #469 "drop 2"): Nexi's menu is one card in three groups of plain words, fully on screen, every
    button works; unfolded, he sits in the rail on Home (Home's own face steps aside) and rests with no endless loop.
      node tools/kit.mjs run tools/scenarios/nexi-wheel.mjs --widths 412,859   (SHOTS=dir saves pictures) */

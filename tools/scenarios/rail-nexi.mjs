@@ -1,6 +1,6 @@
 /* #174 (the friend, iPad Safari, v228): "I was in the queue page and Nexi disappeared while the rail was open".
    With the rail open (wide screens) Nexi sits at its foot (html.nxseat). After every common action he must still be
-   there: shown, in the rail, on screen, not faded out. (v295: on Home too; Home's own face steps aside.)
+   there: shown, in the rail, on screen, not faded out. (v296: on Home too; Home's own face steps aside.)
      node tools/kit.mjs run tools/scenarios/rail-nexi.mjs --widths 859,1080 */
 export default async ({ p, w }) => {
   if (w < 620) { console.log(`  ✓ ${w}px: no rail at this width`); return true; }

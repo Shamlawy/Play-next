@@ -1,5 +1,5 @@
 /* v274 (#447, the owner: "remove all and fix 1 2 3"):
-   1. unfolded, Home shows one Nexi (v295: the rail's seated Nexi stays on Home and Home's own face steps aside; on other tabs he's seated too)
+   1. unfolded, Home shows one Nexi (v296: the rail's seated Nexi stays on Home and Home's own face steps aside; on other tabs he's seated too)
    2. no idle "life": 20s untouched with the rail hidden → no random moods (yawn/sneeze/whistle/stretch/happy), no wandering
    3. opening the app with no news → he says nothing; the hot take is on his wheel (🔥) and only there
    4. no queue art backdrop: #bgart/#bgart2/#bgtint and applyBg are gone
