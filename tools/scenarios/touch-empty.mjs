@@ -33,7 +33,9 @@ export default async ({ p, w }) => {
       const KEYS = ["backgroundColor", "opacity", "transform", "scale", "translate", "filter", "boxShadow", "outlineColor", "color"];
       const chain = []; for (let x2 = document.elementFromPoint(x, y); x2 && x2 !== document.documentElement; x2 = x2.parentElement) chain.push(x2);
       L.chain = chain.map(el => ({ el, was: KEYS.map(k => getComputedStyle(el)[k]).join("|") }));
-      L.on = e => L.anims.push(`${e.type.replace("start", "")} ${e.animationName || e.propertyName} on ${name(e.target)}${e.pseudoElement || ""}`);
+      /* Nexi's own parts (span.face, span.orb… inside #pnbub) don't carry his id in their names: skip them by where they sit.
+         Seated he wakes only when he talks, and that comes from timers (the "I evolved" power-up 15s after load, a heads-up line), not the touch */
+      L.on = e => e.target.closest && e.target.closest("#pnbub, #pnbubmsg") ? 0 : L.anims.push(`${e.type.replace("start", "")} ${e.animationName || e.propertyName} on ${name(e.target)}${e.pseudoElement || ""}`);
       ["animationstart", "transitionstart"].forEach(t => addEventListener(t, L.on, true));
       L.mo = new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) L.added.push(name(n) + " in " + name(m.target)); });
       L.mo.observe(document.body, { childList: true, subtree: true });
