@@ -8800,6 +8800,33 @@ const bgSource = g =>
   || g.bg
   || g.art
   || cover(g);
+/* ===== v296: the open Queue card's front (look D "Stamp"); big() in renderQueue calls it; it lives next to cardLayers because the
+   Queue is first drawn while the page is still loading, before the later scripts exist ===== */
+const QK_IC = { cal: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>', play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', stop: '<path d="M7 7l10 10M17 7L7 17"/>' };
+function qkStat(g, cd, score) {
+  if (isPlayed(g)) { const p = playedRec(g), runs = p ? num(p.runs, 1, 1, 99) : 1, v = score || (p && scored(p) ? p.real : "");
+    return { k: "played", ic: "check", stamp: v ? String(v) : "", word: "Played", sub: runs > 1 ? runs + "× through" : "" }; }
+  if (g.state === "playing") return { k: "playing", ic: "play", stamp: "Now", word: "Playing", sub: hrsOf(g) ? hrsOf(g) + " h to beat" : "" };
+  if (g.state === "dropped") return { k: "dropped", ic: "stop", stamp: "", word: "Dropped", sub: "" };
+  if (typeof cd.v === "number") return { k: "coming", ic: "cal", stamp: String(cd.v), unit: cd.v === 1 ? "day" : "days", word: "Coming", sub: cd.v === 1 ? "tomorrow" : "in " + cd.v + " days" };
+  if (cd.v === "TBA") return { k: "coming", ic: "cal", stamp: "TBA", word: "Coming", sub: "no date yet" };
+  return isFresh(g) ? { k: "out", ic: "star", stamp: "New", word: "Out now", sub: "just released" } : { k: "out", ic: "play", stamp: "Ready", word: "Out now", sub: "ready to play" };
+}
+function qkFront(g, n, cd, score, morph) {
+  /* the wide picture, never the logo (bgSource falls back to g.art, which blown up to the whole card is just big letters) */
+  const st = qkStat(g, cd, score), src = (S.cardBg || "hero") === "plain" || g.bgOff ? "" :
+    g.hero || (g.steamId ? STEAM_CDN + g.steamId + "/library_hero.jpg" : "") || g.bg || cover(g);
+  const m = g.art && typeof LF !== "undefined" ? LF[g.art] : null, dark = m && m[5] >= 0 && m[5] < 50;
+  const bg = src ? ` style="background-image:url('${esc(cssUrl(src))}');background-position:${num(g.bgX, 100, 0, 100)}% ${num(g.bgY, 50, 0, 100)}%"` : "";
+  return `<div class="qkbg${src ? "" : " none"}"${bg}></div>
+    <div class="qkin qk-${st.k}"><div class="qkl"><i class="qkslab" aria-hidden="true"></i>
+      <button class="qkcov" data-hub="${g.id}" title="Open ${esc(g.title)}'s own page"><img decoding="async" style="${morph ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt=""></button>
+      <span class="qkst" aria-label="${esc(st.word + (st.sub ? ", " + st.sub : ""))}"><svg viewBox="0 0 24 24" aria-hidden="true">${QK_IC[st.ic]}</svg>${st.stamp ? `<b>${esc(st.stamp)}</b>` : ""}${st.unit ? `<small>${st.unit}</small>` : ""}</span></div>
+    <div class="qkr"><div class="qksw">${st.word}${st.sub ? ` <em>· ${esc(st.sub)}</em>` : ""}</div>
+      <div class="qkt${dark ? " qkdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<h2>${esc(g.title)}</h2>`}</div>
+      <div class="qkch">${g.platforms ? platHtml(g.platforms, "qkc") : ""}${platList(g.genres).slice(0, 2).map(x => `<span class="qkc qkg">${esc(x)}</span>`).join("")}</div></div></div>`;
+}
 function cardLayers(g) {
   const mode = S.cardBg || "hero";
   if (mode === "plain") return "";
@@ -10835,7 +10862,7 @@ document.addEventListener("click", e => {
   const on = !!f; flLift(w); w.classList.toggle("on", on); flipId = on ? f.dataset.flip : null; beep(on ? "open" : "back");
   if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
 }, true);
-window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest("button,a,[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
+window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest("button,a,[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on")); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
 /* v117 competitive toggle, shared by diary, add form and queue */
 function compSet(g, on) {
   g.comp = on;
@@ -26804,32 +26831,6 @@ html.still .hero.heroin .qk, html.still .hero.heroin .qk * { animation: none; }
 .sepone .cap { overflow-wrap: normal; hyphens: manual; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; font-size: 10px; font-weight: 600; }
 </style>
 <script>
-/* ===== v296: the open Queue card's front (look D "Stamp"); big() in renderQueue calls it ===== */
-const QK_IC = { cal: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>', play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', stop: '<path d="M7 7l10 10M17 7L7 17"/>' };
-function qkStat(g, cd, score) {
-  if (isPlayed(g)) { const p = playedRec(g), runs = p ? num(p.runs, 1, 1, 99) : 1, v = score || (p && scored(p) ? p.real : "");
-    return { k: "played", ic: "check", stamp: v ? String(v) : "", word: "Played", sub: runs > 1 ? runs + "× through" : "" }; }
-  if (g.state === "playing") return { k: "playing", ic: "play", stamp: "Now", word: "Playing", sub: hrsOf(g) ? hrsOf(g) + " h to beat" : "" };
-  if (g.state === "dropped") return { k: "dropped", ic: "stop", stamp: "", word: "Dropped", sub: "" };
-  if (typeof cd.v === "number") return { k: "coming", ic: "cal", stamp: String(cd.v), unit: cd.v === 1 ? "day" : "days", word: "Coming", sub: cd.v === 1 ? "tomorrow" : "in " + cd.v + " days" };
-  if (cd.v === "TBA") return { k: "coming", ic: "cal", stamp: "TBA", word: "Coming", sub: "no date yet" };
-  return isFresh(g) ? { k: "out", ic: "star", stamp: "New", word: "Out now", sub: "just released" } : { k: "out", ic: "play", stamp: "Ready", word: "Out now", sub: "ready to play" };
-}
-function qkFront(g, n, cd, score, morph) {
-  /* the wide picture, never the logo (bgSource falls back to g.art, which blown up to the whole card is just big letters) */
-  const st = qkStat(g, cd, score), src = (S.cardBg || "hero") === "plain" || g.bgOff ? "" :
-    g.hero || (g.steamId ? STEAM_CDN + g.steamId + "/library_hero.jpg" : "") || g.bg || cover(g);
-  const m = g.art && typeof LF !== "undefined" ? LF[g.art] : null, dark = m && m[5] >= 0 && m[5] < 50;
-  const bg = src ? ` style="background-image:url('${esc(cssUrl(src))}');background-position:${num(g.bgX, 100, 0, 100)}% ${num(g.bgY, 50, 0, 100)}%"` : "";
-  return `<div class="qkbg${src ? "" : " none"}"${bg}></div>
-    <div class="qkin qk-${st.k}"><div class="qkl"><i class="qkslab" aria-hidden="true"></i>
-      <button class="qkcov" data-hub="${g.id}" title="Open ${esc(g.title)}'s own page"><img decoding="async" style="${morph ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt=""></button>
-      <span class="qkst" aria-label="${esc(st.word + (st.sub ? ", " + st.sub : ""))}"><svg viewBox="0 0 24 24" aria-hidden="true">${QK_IC[st.ic]}</svg>${st.stamp ? `<b>${esc(st.stamp)}</b>` : ""}${st.unit ? `<small>${st.unit}</small>` : ""}</span></div>
-    <div class="qkr"><div class="qksw">${st.word}${st.sub ? ` <em>· ${esc(st.sub)}</em>` : ""}</div>
-      <div class="qkt${dark ? " qkdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<h2>${esc(g.title)}</h2>`}</div>
-      <div class="qkch">${g.platforms ? platHtml(g.platforms, "qkc") : ""}${platList(g.genres).slice(0, 2).map(x => `<span class="qkc qkg">${esc(x)}</span>`).join("")}</div></div></div>`;
-}
 WHATS_NEW.push(
   { v: 296, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkst") || $("#p-queue .hero"),
     say: "<b>Your open Queue card got a new look</b>: the game's picture fills the whole card, a stamp on the cover tells you where it stands (days to go, New, Now, or your score), and the logo, platforms and genres sit underneath. No more buttons on the front.",
