@@ -179,3 +179,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: looks bad … the colour thing behind the cover art should have the game colour not fixed blue … super ugly … the logo I want it bottom right fixed … info should look artistic
 - rule: The open Queue card takes its colour from the game (g.colour / --accent), never a fixed blue; no round stamp that looks like a score when there is none; the logo lives in one fixed bottom-right slot on every game; info is set as designed type, not scattered chips.
 - check: none
+
+### T36 · v298 · Queue · pick
+- said: I like B so much but I liked the animations and style of the colour behind the box art … I want it top left … the ps5 or switch should be logo … add something bottom left … be creative with the animations and designs and sounds
+- rule: Open Queue card builds on round 7 B: box art top-left on v298's swept slab in the game's own colour, platforms as logos, the game logo fixed bottom-right, a designed element bottom-left; the entrance may carry its own quiet synthesised sounds (following Settings › Sounds).
+- check: none
