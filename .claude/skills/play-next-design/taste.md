@@ -184,3 +184,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: I like B so much but I liked the animations and style of the colour behind the box art … I want it top left … the ps5 or switch should be logo … add something bottom left … be creative with the animations and designs and sounds
 - rule: Open Queue card builds on round 7 B: box art top-left on v298's swept slab in the game's own colour, platforms as logos, the game logo fixed bottom-right, a designed element bottom-left; the entrance may carry its own quiet synthesised sounds (following Settings › Sounds).
 - check: none
+
+### T37 · v298 · Queue · pick
+- said: I like A so much but like the sound from C also the strap of colour behind the game art is so long shorten it … new better flip animation … double tap to flip and one tap to close … the info on the strap make it better looking
+- rule: Open Queue card = round 9: round 8 A (Sweep: game-colour strap behind top-left box art, ticket bottom-left, logo bottom-right) with C's ink sounds; strap ~72% folded / 54% unfolded carrying status dot + queue spot, one plain headline, platform logos, genres; double tap turns the card (same direction, slight overshoot, light sweep), one tap closes it into its row, the box art opens the game page.
+- check: none
