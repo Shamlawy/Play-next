@@ -209,3 +209,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: Nah they are all good but didn't like, I liked the creativity though so try again
 - rule: Petals, bezel and constellation backs were good but not liked; round 12 tries game-world pictures (RPG status screen with a rank letter, mixing desk faders, potion flasks) for the eight areas.
 - check: none
+
+### T42 · v299 · Queue · pick
+- said: C is very very sick but it doesn't match our theme cuz its a game app
+- rule: Card back: keep round 12 C's idea (each area fills with the game's colour, bubbles, the score in a big vessel), but the vessels must be gaming things (controller and buttons, cartridges, energy cells), not fantasy props like potions.
+- check: none
