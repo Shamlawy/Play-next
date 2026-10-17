@@ -4392,7 +4392,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "298";
+const APP_V = "299";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8792,32 +8792,40 @@ const bgSource = g =>
   || g.bg
   || g.art
   || cover(g);
-/* ===== v298: the open Queue card's front (look D "Stamp"); big() in renderQueue calls it; it lives next to cardLayers because the
-   Queue is first drawn while the page is still loading, before the later scripts exist ===== */
-const QK_IC = { cal: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>', play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', stop: '<path d="M7 7l10 10M17 7L7 17"/>' };
-function qkStat(g, cd, score) {
-  if (isPlayed(g)) { const p = playedRec(g), runs = p ? num(p.runs, 1, 1, 99) : 1, v = score || (p && scored(p) ? p.real : "");
-    return { k: "played", ic: "check", stamp: v ? String(v) : "", word: "Played", sub: runs > 1 ? runs + "× through" : "" }; }
-  if (g.state === "playing") return { k: "playing", ic: "play", stamp: "Now", word: "Playing", sub: hrsOf(g) ? hrsOf(g) + " h to beat" : "" };
-  if (g.state === "dropped") return { k: "dropped", ic: "stop", stamp: "", word: "Dropped", sub: "" };
-  if (typeof cd.v === "number") return { k: "coming", ic: "cal", stamp: String(cd.v), unit: cd.v === 1 ? "day" : "days", word: "Coming", sub: cd.v === 1 ? "tomorrow" : "in " + cd.v + " days" };
-  if (cd.v === "TBA") return { k: "coming", ic: "cal", stamp: "TBA", word: "Coming", sub: "no date yet" };
-  return isFresh(g) ? { k: "out", ic: "star", stamp: "New", word: "Out now", sub: "just released" } : { k: "out", ic: "play", stamp: "Ready", word: "Out now", sub: "ready to play" };
+/* ===== v299: the open Queue card's front, round 9 "Sweep" (the owner: "Perfect"). Box art top-left, straight, on a strap in the
+   game's own colour (--accent = g.colour); the strap holds the status + queue spot, one plain headline, the platform logos and
+   the genres; a ticket bottom-left (a released game's stub has torn off); the logo in its fixed bottom-right slot.
+   big() in renderQueue calls it; it lives next to cardLayers because the Queue is first drawn while the page is still loading ===== */
+function qkStat(g, cd, score, n) {
+  const spot = n === 1 ? "Next up" : ord(n) + " in queue", hrs = hrsOf(g), lg = num(g.logged, 0, 0, 1e5);
+  const day = shortDate(g.date), yr = g.date && !isNaN(new Date(g.date)) ? String(new Date(g.date).getFullYear()) : "";
+  const hb = hrs ? [hrs + " h", "to beat"] : ["—", "to beat"];
+  if (isPlayed(g)) { const p = playedRec(g), runs = p ? num(p.runs, 1, 1, 99) : 1, v = score || (p && scored(p) ? Math.round(p.real * 10) : 0);
+    return { k: "played", word: "Played", spot, head: runs === 1 ? "Finished" : runs === 2 ? "Played twice" : "Played " + runs + " times",
+      stub: [v ? String(v) : "—", "my score"], body: [runs + "×", "played"], snap: 1 }; }
+  if (g.state === "playing") { const pc = hrs ? Math.min(99, Math.round(lg / hrs * 100)) : 0, left = hrs ? Math.max(0, Math.round(hrs - lg)) : 0;
+    return { k: "playing", word: "Playing", spot, head: hrs ? (left ? left + " h left" : "Nearly done") : "Playing now",
+      stub: hrs ? [pc + "%", "done"] : [Math.round(lg) + " h", "played"], body: hrs ? [left + " h", "left"] : hb, snap: 1 }; }
+  if (g.state === "dropped") return { k: "dropped", word: "Dropped", spot, head: "Set aside", stub: [Math.round(lg) + " h", "played"], body: hb, snap: 1 };
+  if (typeof cd.v === "number") return { k: "coming", word: "Coming", spot, head: cd.v === 1 ? "Out tomorrow" : "Out in " + cd.v + " days",
+    stub: [day.replace(/ \d+$/, ""), yr], body: [cd.v + (cd.v === 1 ? " day" : " days"), "to go"] };
+  if (cd.v === "TBA") return { k: "coming", word: "Coming", spot, head: "No date yet", stub: ["TBA", "date"], body: hb };
+  return { k: "out", word: "Out now", spot, head: isFresh(g) ? "Just out" : "Ready to play", stub: day ? [day.replace(/ \d+$/, ""), yr] : ["Out", "now"], body: hb, snap: 1 };
 }
 function qkFront(g, n, cd, score, morph) {
   /* the wide picture, never the logo (bgSource falls back to g.art, which blown up to the whole card is just big letters) */
-  const st = qkStat(g, cd, score), src = (S.cardBg || "hero") === "plain" || g.bgOff ? "" :
+  const st = qkStat(g, cd, score, n), src = (S.cardBg || "hero") === "plain" || g.bgOff ? "" :
     g.hero || (g.steamId ? STEAM_CDN + g.steamId + "/library_hero.jpg" : "") || g.bg || cover(g);
   const m = g.art && typeof LF !== "undefined" ? LF[g.art] : null, dark = m && m[5] >= 0 && m[5] < 50;
   const bg = src ? ` style="background-image:url('${esc(cssUrl(src))}');background-position:${num(g.bgX, 100, 0, 100)}% ${num(g.bgY, 50, 0, 100)}%"` : "";
+  const gen = platList(g.genres).slice(0, 2).map(esc).join(" · ");
   return `<div class="qkbg${src ? "" : " none"}"${bg}></div>
-    <div class="qkin qk-${st.k}"><div class="qkl"><i class="qkslab" aria-hidden="true"></i>
+    <div class="qkin qk-${st.k}"><i class="qkstrap" aria-hidden="true"></i>
       <button class="qkcov" data-hub="${g.id}" title="Open ${esc(g.title)}'s own page"><img decoding="async" style="${morph ? `view-transition-name:cv-${esc(g.id)};` : ""}${coverPos(g)}" src="${esc(cover(g))}" alt=""></button>
-      <span class="qkst" aria-label="${esc(st.word + (st.sub ? ", " + st.sub : ""))}"><svg viewBox="0 0 24 24" aria-hidden="true">${QK_IC[st.ic]}</svg>${st.stamp ? `<b>${esc(st.stamp)}</b>` : ""}${st.unit ? `<small>${st.unit}</small>` : ""}</span></div>
-    <div class="qkr"><div class="qksw">${st.word}${st.sub ? ` <em>· ${esc(st.sub)}</em>` : ""}</div>
-      <div class="qkt${dark ? " qkdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<h2>${esc(g.title)}</h2>`}</div>
-      <div class="qkch">${g.platforms ? platHtml(g.platforms, "qkc") : ""}${platList(g.genres).slice(0, 2).map(x => `<span class="qkc qkg">${esc(x)}</span>`).join("")}</div></div></div>`;
+      <div class="qkinfo"><div class="qkkick"><i></i>${st.word} · ${st.spot}</div><div class="qkhead">${esc(st.head)}</div>
+        ${g.platforms ? `<div class="qkpl">${platHtml(g.platforms, "qkp")}</div>` : ""}${gen ? `<div class="qkgn">${gen}</div>` : ""}</div>
+      <div class="qktk${st.snap ? " qksnap" : ""}"><div class="qkstub"><b>${esc(st.stub[0])}</b><span>${esc(st.stub[1])}</span></div><div class="qkbody"><b>${esc(st.body[0])}</b><span>${esc(st.body[1])}</span></div></div>
+      <div class="qkt${dark ? " qkdk" : ""}">${g.art ? `<img src="${esc(g.art)}" alt="${esc(g.title)}">` : `<h2>${esc(g.title)}</h2>`}</div></div>`;
 }
 function cardLayers(g) {
   const mode = S.cardBg || "hero";
@@ -8928,7 +8936,7 @@ function renderQueue() {
       `<i class="${i < (g.hype || 0) ? "on" : ""}" style="animation-delay:${PD(i)}ms"></i>`).join("");
     return `
     <div class="hero" data-row="${g.id}" style="--accent:${esc(g.colour)}">
-      <div class="hflip${flipId === g.id ? " on" : ""}"><div class="plate slab pfront qk" data-flip="${g.id}">${qkFront(g, n, countdown(g), myScore(g), g.id === morphId)}</div>
+      <div class="hflip qkf${flipId === g.id ? " on" : ""}"><div class="plate slab pfront qk" data-flip="${g.id}">${qkFront(g, n, countdown(g), myScore(g), g.id === morphId)}</div>
       <div class="plate slab pback" data-unflip>${cardLayers(g)}<div class="plate-in"><div class="meta">
           <div class="toprow"><span class="kicker">${n === 1 ? "Next up" : ord(n) + " in the queue"}</span>${g.date ? `<span class="tag qkdate">${esc(shortDate(g.date))}</span>` : ""}</div>
           <div class="stats">
@@ -9097,12 +9105,13 @@ function renderQueue() {
     if (e.target.closest("button")) return;
     morphId = r.dataset.row;
     if (r.dataset.row === activeId) { collapsed = true; focusId = null; beep("back"); }
-    else { collapsed = false; focusId = r.dataset.row; beep("open"); }
+    else { collapsed = false; focusId = r.dataset.row; }
     /* the backdrop swap is its own slow fade — keep it out of the snapshot */
     morphId = null;
     renderQueue();
     const h = !collapsed && S.motion !== false && S.vt !== false && !calm() && $("#p-queue .hero");
-    if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 1500); }   /* v298: the card's entrance runs ~1.4s */
+    if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 2000); }   /* v299: the entrance runs ~1.9s (the stub tears at 1.4s) */
+    if (!collapsed) { if (h && h.querySelector(".qkin")) sfx("qkopen", !!h.querySelector(".qksnap")); else beep("open"); }
    
   });
   if ($("#nudge-save")) $("#nudge-save").onclick = () => {
@@ -10845,7 +10854,13 @@ document.addEventListener("click", e => {
   const mo = e.target.closest("[data-more]");
   document.querySelectorAll(".hmore.on").forEach(m => { if (!mo || m !== mo.parentNode) m.classList.remove("on"); });
   if (mo) { e.stopPropagation(); mo.parentNode.classList.toggle("on"); beep("tap"); return; }
-  /* v298: the whole card front carries data-flip (tap anywhere turns it); a button on either side (the cover = the game page) does its own job */
+  /* v299: on the open Queue card one tap closes it into its row and two quick taps turn it; a button (the cover = the game page,
+     Edit, ⋯ and the rest on the back) does its own job */
+  const qf = e.target.closest(".hflip.qkf");
+  if (qf) {
+    if (e.target.closest("button,a,input,select,textarea,label,.hmenu")) { clearTimeout(qkTapT); qkTapT = 0; return; }
+    e.stopPropagation(); e.preventDefault(); qkTap(qf); return;
+  }
   const btn = e.target.closest("button,a"), f0 = e.target.closest("[data-flip]");
   const f = f0 && (!btn || btn === f0) ? f0 : null, u = !f && !btn && e.target.closest("[data-unflip]");
   if (!f && !u) return;
@@ -10854,7 +10869,40 @@ document.addEventListener("click", e => {
   const on = !!f; flLift(w); w.classList.toggle("on", on); flipId = on ? f.dataset.flip : null; beep(on ? "open" : "back");
   if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
 }, true);
-window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest("button,a,[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on")); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
+window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest(".qkf") && !e.target.closest("button,a,[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on")); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
+/* v299: the open Queue card's taps. A single tap waits a moment to be sure no second one is coming */
+let qkTapT = 0, qkTapAt = 0;
+function qkTap(w) {
+  const now = performance.now();
+  if (qkTapT && now - qkTapAt < 320) { clearTimeout(qkTapT); qkTapT = 0; qkTurn(w); return; }
+  qkTapAt = now; clearTimeout(qkTapT);
+  qkTapT = setTimeout(() => { qkTapT = 0; qkShut(w); }, 320);
+}
+/* two taps: the card turns, always the same way round, a little past and back like a card flicked over on a table */
+function qkTurn(w) {
+  const fr = w.querySelector(":scope > .pfront"), bk = w.querySelector(":scope > .pback");
+  if (!fr || !bk || w.dataset.busy) return;
+  const on = !w.classList.contains("on");
+  document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on"));
+  w.classList.toggle("on", on); flipId = on ? fr.dataset.flip : null; sfx("qkflip", on);
+  try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
+  if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
+  if (S.motion === false || calm() || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  const a = on ? 0 : 180, o = { duration: 760, easing: "cubic-bezier(.45,0,.25,1)" };
+  const k = b => [{ transform: `rotateY(${b}deg)` }, { transform: `rotateY(${b + 100}deg)`, offset: .5 }, { transform: `rotateY(${b + 187}deg)`, offset: .82 }, { transform: `rotateY(${b + 180}deg)` }];
+  const away = on ? fr : bk;
+  w.dataset.busy = 1; w.classList.add("qkturn"); away.style.visibility = "visible";
+  const run = fr.animate(k(a), o); bk.animate(k(a - 180), o);
+  run.onfinish = run.oncancel = () => { delete w.dataset.busy; w.classList.remove("qkturn"); away.style.visibility = ""; };
+}
+/* one tap: the card folds up into its row */
+function qkShut(w) {
+  const h = w.closest(".hero"); if (!h || w.dataset.busy || !h.isConnected) return;
+  sfx("qkshut");
+  const done = () => { collapsed = true; focusId = null; flipId = null; renderQueue(); };
+  if (S.motion === false || calm()) return done();
+  h.classList.add("qkshut"); setTimeout(done, 220);
+}
 /* v117 competitive toggle, shared by diary, add form and queue */
 function compSet(g, on) {
   g.comp = on;
@@ -11672,15 +11720,15 @@ setInterval(cdTick, 1000);
 
 /* ---- synthesised sound effects (no files; follow the app's sound switch) ---- */
 let pnNoise = null;
-function sfx(kind) {
+function sfx(kind, x) {
   const a = audio(); if (!a) return;
   try {
     if (!pnNoise) { pnNoise = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = pnNoise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
     const t = a.currentTime + .005, out = a.createGain(); out.gain.value = .55; out.connect(a.destination);
     const env = (node, v, at, dur, attack = .004) => { const g = a.createGain(); g.gain.setValueAtTime(0, at);
       g.gain.linearRampToValueAtTime(v, at + attack); g.gain.exponentialRampToValueAtTime(.0001, at + dur); node.connect(g); g.connect(out); return g; };
-    const tone = (type, f0, f1, v, at, dur) => { const o = a.createOscillator(); o.type = type;
-      o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + dur); env(o, v, at, dur); o.start(at); o.stop(at + dur + .02); };
+    const tone = (type, f0, f1, v, at, dur, attack) => { const o = a.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + dur); env(o, v, at, dur, attack); o.start(at); o.stop(at + dur + .02); };
     const noise = (ftype, f0, f1, q, v, at, dur, attack) => { const n = a.createBufferSource(); n.buffer = pnNoise;
       const f = a.createBiquadFilter(); f.type = ftype; f.Q.value = q; f.frequency.setValueAtTime(f0, at); f.frequency.exponentialRampToValueAtTime(f1, at + dur);
       n.connect(f); env(f, v, at, dur, attack); n.start(at); n.stop(at + dur + .02); };
@@ -11692,6 +11740,14 @@ function sfx(kind) {
     if (kind === "shatter") { noise("highpass", 2500, 7000, .6, .8, t, .55, .002);
       for (let i = 0; i < 12; i++) tone("sine", 2600 + Math.random() * 3800, 2400 + Math.random() * 2000, .12, t + Math.random() * .35, .18); }
     if (kind === "cheer") [523, 659, 784, 1047].forEach((f, i) => tone("triangle", f, f, .22, t + i * .08, .3));
+    /* v299, the open Queue card: an ink-drop bloop and a soft chord as the strap sweeps in, plucks as the box art, platforms,
+       ticket and logo land, a paper tear when a released game's stub comes off (x = it tears); the turn is a page turn that settles */
+    if (kind === "qkopen") { tone("sine", 1100, 260, .45, t, .22, .003); noise("lowpass", 800, 200, .5, .12, t + .02, .5, .05);
+      [262, 330, 392, 494].forEach(f => tone("triangle", f, f, .05, t + .1, 1.4, .35));
+      [[.6, 523], [.7, 659], [.77, 784], [.84, 880], [.95, 1047], [1.06, 1319]].forEach(([d, f]) => tone("triangle", f, f, .09, t + d, .28, .003));
+      if (x) { noise("bandpass", 3200, 1200, 1.4, .3, t + 1.4, .16, .01); tone("triangle", 1568, 1175, .08, t + 1.56, .2, .003); } }
+    if (kind === "qkflip") { noise("bandpass", 1200, 500, .8, .3, t, .4, .08); (x ? [784, 1047] : [1047, 784]).forEach((f, i) => tone("triangle", f, f, .08, t + .48 + i * .07, .3, .003)); }
+    if (kind === "qkshut") [659, 494].forEach((f, i) => tone("triangle", f, f, .07, t + i * .06, .22, .003));
   } catch (e) {}
 }
 
@@ -27039,74 +27095,117 @@ WHATS_NEW.push(
 );
 </script>
 <style>
-/* ===== v298: the open Queue card, look D "Stamp" (the owner picked it from four demos, round 6: "D and make the pressing on
-   the card flips it no need for a switch button"). The picture fills the card; the front shows only the status, the logo, the
-   platforms and the genres; tap the cover = the game page, tap anywhere else = turn it over (numbers, Edit, ⋯ on the back). ===== */
+/* ===== v299: the open Queue card, round 9 "Sweep" (the owner, after rounds 7-9: "Perfect"; they hated v298's fixed blue slab, the
+   round stamp that read as a score, the tilted cover and the logo moving about). Box art top-left, straight, on a strap in the
+   game's own colour; status + spot, one headline, platform logos, genres on the strap; a ticket bottom-left (a released game's
+   stub has torn off at the perforation); the logo in a fixed bottom-right slot. One tap closes the card, two taps turn it. ===== */
 .hero .hflip > .plate { border-radius: var(--u-r, 20px); }
 .hero .plate.qk { padding: 0; border: 0; clip-path: none; background: var(--void); box-shadow: inset 0 0 0 1px var(--u-line, rgba(234,242,255,.08));
-  display: flex; flex-direction: column; justify-content: flex-end; isolation: isolate; cursor: pointer; }
+  min-height: 340px; isolation: isolate; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.hero .hflip.qkf > .pback { touch-action: manipulation; }
 html.ui2 .hero .plate.qk::before { content: none; }
 .qkbg { position: absolute; inset: 0; z-index: -1; background-color: var(--ink); background-size: cover; background-repeat: no-repeat; pointer-events: none; }
 .qkbg.none { background: radial-gradient(120% 90% at 85% 0%, color-mix(in srgb, var(--accent, var(--volt)) 32%, transparent), transparent 62%), var(--ink); }
-.qkbg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,6,14,0) 0%, rgba(4,6,14,0) 32%, rgba(4,6,14,.55) 60%, rgba(4,6,14,.93) 100%); }
-.qkin { position: relative; display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 18px; padding: 150px 16px 18px; align-items: end; }
-.qk-coming { --qsc: var(--ice); --qsb: rgba(4,6,14,.85); }
-.qk-out { --qsc: rgb(79,209,139); --qsb: rgba(5,20,14,.9); }
-.qk-playing { --qsc: var(--volt); --qsb: rgba(8,22,48,.92); }
-.qk-played { --qsc: rgb(243,210,122); --qsb: rgba(30,22,6,.9); }
-.qk-dropped { --qsc: var(--mute); --qsb: rgba(4,6,14,.85); }
-.qkl { position: relative; }
-.qkslab { position: absolute; z-index: -1; left: -44px; right: -14px; top: 26px; height: 116px; border-radius: 20px; background: linear-gradient(100deg, var(--volt2), var(--volt)); transform: skewY(-9deg); }
-.qkcov { display: block; width: 100%; padding: 4px; margin: 0; border: 0; border-radius: 14px; background: var(--ice); transform: rotate(-4deg); box-shadow: 0 16px 30px rgba(0,0,0,.55); cursor: pointer; }
-.qkcov img { display: block; width: 100%; max-width: none; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; }
-.qkst { position: absolute; z-index: 2; top: -14px; right: -12px; width: 58px; height: 58px; border-radius: 50%; display: grid; place-content: center; justify-items: center; text-align: center;
-  background: var(--qsb); border: 2px solid var(--qsc); color: var(--qsc); box-shadow: 0 8px 18px rgba(0,0,0,.5); transform: rotate(-8deg); pointer-events: none; }
-.qkst svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.qkst b { font: 700 13px/1.05 "Poppins", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.qkst small { font: 600 9.5px/1 "Poppins", system-ui, sans-serif; white-space: nowrap; }
-.qk-played .qkst::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--qsc); opacity: .5; }
-.qkr { min-width: 0; display: grid; gap: 10px; }
-.qksw { font: 700 13px/1.25 "Poppins", system-ui, sans-serif; color: var(--qsc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qksw em { font-style: normal; font-weight: 500; color: rgba(234,242,255,.66); }
-.qkt { height: 58px; display: flex; align-items: flex-end; min-width: 0; }
-.qkt img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
-.qkt.qkdk img { filter: brightness(0) invert(.9) drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
-.hero .qkt h2 { margin: 0; font: 700 22px/1.08 "Poppins", system-ui, sans-serif; letter-spacing: -.015em; font-style: normal; text-transform: none; color: var(--ice);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
-.qkch { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; height: 62px; overflow: hidden; }
-.qkc { flex: none; height: 28px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
-  font: 600 12.5px/1 "Poppins", system-ui, sans-serif; color: var(--ice); background: rgba(4,6,14,.66); border: 1px solid var(--u-line2, rgba(234,242,255,.14)); }
-.qkc.qkg { color: rgba(234,242,255,.82); }
-.qkc .pfm { display: inline-flex; align-items: center; gap: 3px; font-style: normal; color: var(--ice); }
-.qkc .pfm + .pfm { border-left: 1px solid var(--u-line2, rgba(234,242,255,.14)); padding-left: 8px; margin-left: 2px; }
-.qkc .pfm svg { width: 16px; height: 16px; flex: none; fill: currentColor; }
-.qkc .pfm small, .qkc .pfm b { font: 700 12px/1 "Poppins", system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
+.qkbg::after { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(100% 75% at 0% 0%, rgba(4,6,14,.78), rgba(4,6,14,.35) 50%, rgba(4,6,14,0) 78%),
+              linear-gradient(0deg, rgba(4,6,14,.94) 0%, rgba(4,6,14,.6) 26%, rgba(4,6,14,0) 52%); }
+.qkin { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; --qa: var(--accent, var(--volt)); }
+.qk-coming { --qsc: var(--ice); } .qk-out { --qsc: rgb(79,209,139); } .qk-playing { --qsc: rgb(140,196,255); } .qk-played { --qsc: rgb(243,210,122); } .qk-dropped { --qsc: var(--mute); }
+.qkstrap { position: absolute; left: 0; top: 36px; width: 72%; height: 108px; border-radius: 0 24px 24px 0; overflow: hidden; transform-origin: 0 50%; transform: skewY(-6deg); pointer-events: none;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--qa) 55%, rgb(5,7,15)), color-mix(in srgb, var(--qa) 76%, rgb(5,7,15)) 55%, var(--qa));
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--qa) 40%, transparent); }
+.qkstrap::after { content: ""; position: absolute; top: -20%; bottom: -20%; left: 0; width: 30%; opacity: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); transform: translateX(-120%) skewX(-20deg); }
+.qkcov { position: absolute; z-index: 2; left: 18px; top: 18px; width: 92px; padding: 0; margin: 0; border: 0; border-radius: 12px; background: none; cursor: pointer; }
+.qkcov img { display: block; width: 100%; max-width: none; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 12px; box-shadow: 0 14px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.14); }
+.qkinfo { position: absolute; z-index: 1; left: 124px; top: 26px; width: calc(72% - 136px); display: grid; gap: 4px; justify-items: start; pointer-events: none; }
+.qkinfo > * { max-width: 100%; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.qkkick { display: flex; align-items: center; gap: 7px; font: 600 11.5px/1.2 "Poppins", system-ui, sans-serif; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qkkick i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--qsc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--qsc) 30%, transparent); }
+.qkhead { font: 700 18px/1.1 "Poppins", system-ui, sans-serif; letter-spacing: -.02em; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qkpl { display: flex; margin-top: 3px; }
+.qkpl .pfms { display: flex; align-items: center; gap: 12px; }
+.qkpl .pfm { position: relative; display: block; width: 18px; height: 18px; font-style: normal; color: white; }
+.qkpl .pfm svg { display: block; width: 100%; height: 100%; fill: currentColor; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.qkpl .pfm small, .qkpl .pfm b { position: absolute; left: calc(100% + 1px); top: -6px; font: 700 9.5px/1 "Poppins", system-ui, sans-serif; letter-spacing: 0; text-transform: none; color: white; white-space: nowrap; }
+.qkpl .pfm b { position: static; font-size: 12px; }
+.qkpl > .qkp:not(.pfms) { font: 600 12px/18px "Poppins", system-ui, sans-serif; color: white; white-space: nowrap; margin-left: 10px; }
+.qkgn { font: 600 12px/1.3 "Poppins", system-ui, sans-serif; color: rgba(255,255,255,.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qktk { position: absolute; z-index: 1; left: 16px; bottom: 16px; display: flex; height: 60px; filter: drop-shadow(0 10px 20px rgba(0,0,0,.45)); transform-origin: 0 100%; pointer-events: none; }
+.qktk > div { display: grid; align-content: center; padding: 0 12px; background: color-mix(in srgb, var(--qa) 30%, rgb(11,15,30)); }
+.qktk b { display: block; font: 700 20px/1 "Poppins", system-ui, sans-serif; letter-spacing: -.03em; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ice); }
+.qktk span { display: block; margin-top: 3px; font: 600 10.5px/1.2 "Poppins", system-ui, sans-serif; white-space: nowrap; color: rgba(234,242,255,.72); }
+.qktk > .qkstub { border-radius: 12px 0 0 12px; background: linear-gradient(160deg, var(--qa), color-mix(in srgb, var(--qa) 68%, rgb(5,7,15)));
+  -webkit-mask: radial-gradient(circle 7px at 100% 0, transparent 6.5px, black 7px) 0 0 / 100% 51% no-repeat, radial-gradient(circle 7px at 100% 100%, transparent 6.5px, black 7px) 0 100% / 100% 51% no-repeat;
+          mask: radial-gradient(circle 7px at 100% 0, transparent 6.5px, black 7px) 0 0 / 100% 51% no-repeat, radial-gradient(circle 7px at 100% 100%, transparent 6.5px, black 7px) 0 100% / 100% 51% no-repeat; }
+.qktk .qkstub b { color: white; text-shadow: 0 1px 6px rgba(0,0,0,.35); }
+.qktk .qkstub span { color: rgba(255,255,255,.85); }
+.qkbody { border-radius: 0 12px 12px 0; border-left: 2px dashed color-mix(in srgb, var(--qa) 55%, rgba(234,242,255,.4));
+  -webkit-mask: radial-gradient(circle 7px at 0 0, transparent 6.5px, black 7px) 0 0 / 100% 51% no-repeat, radial-gradient(circle 7px at 0 100%, transparent 6.5px, black 7px) 0 100% / 100% 51% no-repeat;
+          mask: radial-gradient(circle 7px at 0 0, transparent 6.5px, black 7px) 0 0 / 100% 51% no-repeat, radial-gradient(circle 7px at 0 100%, transparent 6.5px, black 7px) 0 100% / 100% 51% no-repeat; }
+/* a released game's ticket is used: the stub has torn off at the perforation and droops */
+.qksnap .qkstub { transform-origin: 0 100%; transform: translate(-5px, 4px) rotate(8deg); }
+.qksnap .qkbody { transform: translateX(4px); }
+.qkt { position: absolute; z-index: 1; right: 16px; bottom: 16px; width: 40%; height: 60px; display: flex; align-items: flex-end; justify-content: flex-end; min-width: 0; pointer-events: none; }
+.qkt::before { content: ""; position: absolute; inset: -60px -40px -40px -50px; z-index: -1; background: radial-gradient(closest-side, rgba(4,6,14,.72), rgba(4,6,14,0)); }
+.qkt img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; object-position: right bottom; filter: drop-shadow(0 2px 12px rgba(0,0,0,.55)); }
+.qkt.qkdk img { filter: brightness(0) invert(.9) drop-shadow(0 2px 12px rgba(0,0,0,.55)); }
+.hero .qkt h2 { margin: 0; font: 700 20px/1.08 "Poppins", system-ui, sans-serif; letter-spacing: -.015em; font-style: normal; text-transform: none; color: var(--ice); text-align: right;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-shadow: 0 2px 14px rgba(0,0,0,.7); }
 @media (min-width: 620px) {
-  .qkin { grid-template-columns: 168px minmax(0, 1fr); gap: 28px; padding: 190px 26px 26px; }
-  .qkslab { top: 34px; height: 172px; }
-  .qkst { width: 70px; height: 70px; } .qkst b { font-size: 15px; }
-  .qkt { height: 84px; } .hero .qkt h2 { font-size: 30px; }
+  .qkstrap { top: 56px; width: 54%; height: 176px; border-radius: 0 30px 30px 0; }
+  .qkcov { left: 30px; top: 30px; width: 150px; }
+  .qkinfo { left: 214px; top: 64px; width: calc(54% - 226px); gap: 8px; }
+  .qkkick { font-size: 13px; } .qkhead { font-size: 26px; } .qkgn { font-size: 14px; }
+  .qkpl .pfms { gap: 16px; } .qkpl .pfm { width: 24px; height: 24px; } .qkpl .pfm small { font-size: 11px; top: -7px; }
+  .qktk { left: 28px; bottom: 26px; height: 88px; } .qktk > div { padding: 0 20px; } .qktk b { font-size: 32px; } .qktk span { font-size: 12.5px; }
+  .qkt { right: 28px; bottom: 26px; width: 40%; max-width: 340px; height: 100px; } .hero .qkt h2 { font-size: 30px; }
 }
+@media (max-width: 390px) {
+  .qktk { left: 12px; bottom: 14px; height: 54px; } .qktk > div { padding: 0 9px; } .qktk b { font-size: 17px; } .qktk span { font-size: 10px; }
+  .qkt { right: 12px; bottom: 14px; width: 36%; height: 52px; }
+}
+/* closing: the card folds up into its row */
+.hero.qkshut { animation: qkshut .22s ease-in both; pointer-events: none; }
+@keyframes qkshut { to { opacity: 0; transform: translateY(-10px); } }
 @media (prefers-reduced-motion: no-preference) {
   .hero.heroin .plate.qk { animation: none; }
   .hero.heroin .qkbg { animation: qkzoom 1.2s var(--ease) backwards; }
-  .hero.heroin .qkslab { animation: qkslab .6s var(--ease) backwards; }
-  .hero.heroin .qkcov { animation: qkdrop .55s var(--ease) .1s backwards; }
-  .hero.heroin .qkst { animation: qkstamp .6s var(--ease) .75s backwards; }
-  .hero.heroin .qkr > * { animation: qkrise .45s var(--ease) backwards; }
-  .hero.heroin .qkr > :nth-child(1) { animation-delay: .3s; } .hero.heroin .qkr > :nth-child(2) { animation-delay: .36s; } .hero.heroin .qkr > :nth-child(3) { animation-delay: .42s; }
-  @keyframes qkzoom { from { transform: scale(1.08); } }
-  @keyframes qkslab { from { transform: skewY(-9deg) translateX(-110%); } }
-  @keyframes qkdrop { from { opacity: 0; transform: rotate(-14deg) translateY(-18px); } }
-  @keyframes qkstamp { 0% { opacity: 0; transform: scale(1.7) rotate(-30deg); } 60% { opacity: 1; transform: scale(.94) rotate(-6deg); } }
+  .hero.heroin .qkstrap { animation: qksweep .6s var(--ease) backwards; }
+  .hero.heroin .qkstrap::after { animation: qkglint .9s ease-out 1.15s; }
+  .hero.heroin .qkcov { animation: qkdrop .6s var(--ease) .25s backwards; }
+  .hero.heroin .qkinfo > * { animation: qkrise .45s var(--ease) backwards; }
+  .hero.heroin .qkinfo > :nth-child(1) { animation-delay: .55s; } .hero.heroin .qkinfo > :nth-child(2) { animation-delay: .62s; }
+  .hero.heroin .qkinfo > :nth-child(3) { animation-delay: .7s; } .hero.heroin .qkinfo > :nth-child(4) { animation-delay: .76s; }
+  .hero.heroin .qktk { animation: qktear .6s cubic-bezier(.34,1.56,.64,1) .75s backwards; }
+  .hero.heroin .qksnap .qkstub { animation: qkstub .5s var(--ease) 1.4s backwards; }
+  .hero.heroin .qksnap .qkbody { animation: qkbody .5s var(--ease) 1.4s backwards; }
+  .hero.heroin .qkt { animation: qklogo .6s var(--ease) 1s backwards; }
+  @keyframes qkzoom { from { transform: scale(1.07); } }
+  @keyframes qksweep { from { transform: skewY(-6deg) translateX(-112%); } }
+  @keyframes qkglint { from { opacity: 1; transform: translateX(-120%) skewX(-20deg); } to { opacity: 1; transform: translateX(420%) skewX(-20deg); } }
+  @keyframes qkdrop { from { opacity: 0; transform: translateY(-30px); } 70% { opacity: 1; transform: translateY(3px); } }
   @keyframes qkrise { from { opacity: 0; transform: translateY(10px); } }
+  @keyframes qktear { from { opacity: 0; transform: translateY(40px) rotate(-6deg); } }
+  @keyframes qkstub { from { transform: none; } 35% { transform: translate(-1px, 0) rotate(-2deg); } 70% { transform: translate(-5px, 5px) rotate(10deg); } }
+  @keyframes qkbody { from { transform: none; } 35% { transform: translateX(1px); } }
+  @keyframes qklogo { from { opacity: 0; transform: translateY(8px) scale(.97); } }
 }
-html.still .hero.heroin .qk, html.still .hero.heroin .qk * { animation: none; }
+html.still .hero.heroin .qk, html.still .hero.heroin .qk *, html.still .hero.heroin .qk *::after, html.still .hero.qkshut { animation: none; }
+/* the turn (WAAPI in qkTurn) replaces the old transition; qkTurn keeps the side that goes away visible until the turn ends
+   (backface-visibility hides it once it has swung past edge-on) */
+.hero .hflip.qkf > .plate { transition: none; }
+.hero .hflip.qkf.qkturn > .plate::after { animation: flShine .76s ease-in-out; }
+html.still .hero .hflip.qkf.qkturn > .plate::after { animation: none; }
 </style>
 <script>
 WHATS_NEW.push(
   { v: 298, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkst") || $("#p-queue .hero"),
     say: "<b>Your open Queue card got a new look</b>: the game's picture fills the whole card, a stamp on the cover tells you where it stands (days to go, New, Now, or your score), and the logo, platforms and genres sit underneath. No more buttons on the front.",
     tryIt: "Tap the cover to open the game's page. Tap anywhere else on the card to turn it over: the numbers, Edit and ⋯ are on the back." }
+);
+WHATS_NEW.push(
+  { v: 299, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkstrap") || $("#p-queue .hero"),
+    say: "<b>Your open Queue card got a new look, with sound</b>: the box art sits on a strap in the game's own colour with one plain line (Ready to play, Out in 34 days, 12 h left), its platform logos and genres; a ticket bottom-left holds the numbers, and once a game is out its stub tears off.",
+    tryIt: "Tap the box art to open the game's page. Tap the card twice to turn it over, or once to close it back into its row." }
 );
 </script>

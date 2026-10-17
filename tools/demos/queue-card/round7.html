@@ -1,0 +1,390 @@
+<title>Queue card demos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Cinzel:wght@700&family=Audiowide&family=Uncial+Antiqua&display=swap">
+<style>
+/* Round 7: three new fronts for the open Queue card, inside a live mini Queue. Each game brings its own colour
+   (taken from its cover, like the app's g.colour); no round stamp; the logo always sits in one fixed bottom-right slot. */
+:root {
+  color-scheme: dark;
+  --bg: #000; --pan: #0a0e1b; --card: #131a32; --card2: #19213d; --deep: #05070f;
+  --line: rgba(234,242,255,.08); --line2: rgba(234,242,255,.14);
+  --volt: #4DA3FF; --volt2: #2F6BFF; --vrgb: 77,163,255;
+  --ice: #EAF2FF; --mute: #7C92C4; --ink: #06101f; --good: #4fd18b;
+  --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 20px; --rs: 14px; --ease: cubic-bezier(.16,1,.3,1);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { background: radial-gradient(120% 50% at 50% -10%, rgba(var(--vrgb), .13), transparent 60%), var(--bg);
+  color: var(--ice); font-family: var(--font); font-weight: 500; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 80px; -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; text-align: inherit; padding: 0; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+.page { max-width: 940px; margin: 0 auto; }
+.intro h1 { font-size: 30px; font-weight: 700; letter-spacing: -.015em; margin: 6px 0 8px; }
+.intro p { color: var(--mute); margin: 0 0 6px; line-height: 1.55; max-width: 64ch; font-size: 14.5px; }
+.intro p b { color: var(--ice); font-weight: 600; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  margin: 14px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 6px; padding: 10px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(0,0,0,.9); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font-size: 12.5px; font-weight: 600; color: var(--mute); }
+.seg { display: flex; gap: 4px; padding: 4px; background: var(--pan); border: 1px solid var(--line); border-radius: 999px; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { padding: 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+#demoSeg button { min-width: 44px; font-size: 15px; font-weight: 700; text-align: center; }
+.seg button[aria-pressed="true"] { background: var(--volt); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .seg button:not([aria-pressed="true"]):hover { color: var(--ice); } }
+.demo { margin-top: 18px; }
+.demo[hidden] { display: none; }
+.dh { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; margin-bottom: 14px; }
+.letter { grid-row: span 2; width: 38px; height: 38px; border-radius: 12px; background: var(--volt); color: var(--ink); display: grid; place-items: center; font-weight: 700; font-size: 18px; align-self: start; }
+.dh h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.015em; }
+.dh p { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 66ch; }
+.stage { position: relative; overflow: hidden; }
+.stage.fixed .screen { position: absolute; top: 0; left: 0; }
+.stage:not(.fixed) { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); }
+.screen { background: var(--bg); border-radius: 24px; border: 1px solid var(--line); padding: 12px; transform-origin: 0 0; container-type: inline-size; }
+.stage:not(.fixed) .screen { border-radius: 0; border-left: 0; border-right: 0; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px; }
+.notes div { background: var(--pan); border: 1px solid var(--line); border-radius: var(--rs); padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--mute); }
+.notes h3 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ice); }
+.notes b { color: var(--ice); font-weight: 600; }
+
+/* ---------- mini Queue ---------- */
+.qhd { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 10px; }
+.qhd h4 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.015em; }
+.qhd span { font-size: 12.5px; color: var(--mute); font-weight: 600; white-space: nowrap; }
+.qlist { display: grid; gap: 8px; }
+.qr { width: 100%; display: grid; grid-template-columns: 26px 40px minmax(0,1fr) 20px; gap: 12px; align-items: center; min-height: 76px; padding: 8px 14px 8px 12px; border-radius: 16px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--gc) 26%, var(--card)), var(--card) 70%); border: 1px solid var(--line); }
+.qr .n { font-size: 16px; font-weight: 700; color: var(--mute); font-variant-numeric: tabular-nums; }
+.qr .cv { width: 40px; height: 60px; border-radius: 8px; background: var(--c) center / cover; border: 1px solid var(--line); }
+.qr .tx { min-width: 0; }
+.qr .tx b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr .tx small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--mute); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr .ic { color: var(--mute); width: 18px; height: 18px; }
+@media (hover: hover) and (pointer: fine) { .qr:hover { border-color: var(--line2); } }
+
+/* ---------- shared bits ---------- */
+.ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icb { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; background: var(--card2); border: 1px solid var(--line); color: var(--ice); flex: none; }
+@media (hover: hover) and (pointer: fine) { .icb:hover { border-color: var(--line2); } }
+.acts { display: flex; gap: 6px; align-items: center; }
+.nexi { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--mute); }
+.nexi b { color: var(--ice); font-weight: 600; }
+.nexi .dot { flex: none; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px; background: radial-gradient(circle at 35% 35%, #9fd0ff, var(--volt) 45%, var(--volt2)); box-shadow: 0 0 0 3px rgba(var(--vrgb), .14); }
+.logo { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+.wm { display: block; line-height: 1.02; letter-spacing: .01em; text-wrap: balance; color: #f4ecdc; }
+.wm.w2 { font-family: "Audiowide", var(--font); color: #dff1ff; }
+.wm.w3 { font-family: "Cinzel", Georgia, serif; font-weight: 700; color: #f1d9a4; }
+.wm.w4 { font-family: "Uncial Antiqua", Georgia, serif; color: #e8f0e0; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0; background: var(--card2); border: 1px solid var(--line2); padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; transition: transform .3s var(--ease), opacity .3s var(--ease); pointer-events: none; z-index: 20; white-space: nowrap; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+/* platform marks (the app draws real platform logos here) */
+.pf { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pf i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 2px rgba(255,255,255,.18); }
+
+/* ---------- the card: front + back, one height per width (T8) ---------- */
+@keyframes settle { from { transform: scale(1.07); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes fromL { from { opacity: 0; transform: translateX(-22px); } }
+@keyframes draw { from { transform: scaleX(0); } }
+@keyframes drawY { from { transform: scaleY(0); } }
+@keyframes logoin { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+@keyframes fillx { from { transform: scaleX(0); } }
+@keyframes wash { from { opacity: 0; transform: translateX(-12%); } }
+.c7 { position: relative; perspective: 1600px; --h0: 324px; }
+.c7 .flip { display: grid; transform-style: preserve-3d; transition: transform .7s var(--ease); }
+.c7.turned .flip { transform: rotateY(180deg); }
+.c7 .face { grid-area: 1 / 1; position: relative; height: var(--h0); border-radius: 22px; overflow: hidden; background: var(--deep); border: 1px solid var(--line); isolation: isolate; backface-visibility: hidden; -webkit-backface-visibility: hidden; cursor: pointer; }
+.c7 .back { transform: rotateY(180deg); }
+.c7:not(.turned) .back, .c7.turned .front { pointer-events: none; }
+.c7 .art { position: absolute; inset: 0; z-index: -3; background: var(--h) 60% 25% / cover; animation: settle 1.2s var(--ease) both; }
+/* the logo's fixed home: bottom-right, same box on every game, a soft dark pool under it so a white logo reads on bright art */
+.c7 .lgs { position: absolute; right: 16px; bottom: 16px; width: 46%; height: 62px; display: flex; align-items: flex-end; justify-content: flex-end; z-index: 1; animation: logoin .6s var(--ease) both .45s; }
+.c7 .lgs::before { content: ""; position: absolute; inset: -60px -40px -40px -50px; z-index: -1; background: radial-gradient(closest-side, rgba(4,6,14,.72), rgba(4,6,14,0)); pointer-events: none; }
+.c7 .lgs .logo { object-position: right bottom; filter: drop-shadow(0 2px 12px rgba(0,0,0,.55)); }
+.c7 .lgs .wm { font-size: 22px; text-align: right; text-shadow: 0 2px 14px rgba(0,0,0,.7); }
+.c7 .cv { display: block; aspect-ratio: 2 / 3; border-radius: 12px; background: var(--c) center / cover; box-shadow: 0 14px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.14) inset; }
+/* status colours (the word only; the game's colour does the rest) */
+.st-coming { --sc: var(--ice); } .st-out { --sc: var(--good); } .st-playing { --sc: #8cc4ff; } .st-played { --sc: #f3d27a; }
+.nb { white-space: nowrap; }
+@container (min-width: 600px) {
+  .c7 { --h0: 555px; }
+  .c7 .lgs { right: 28px; bottom: 26px; width: 40%; max-width: 340px; height: 104px; }
+  .c7 .lgs .wm { font-size: 36px; }
+}
+
+/* the back: everything else (same for A, B and C; bars and lines in the game's colour) */
+.c7 .back { background: linear-gradient(180deg, color-mix(in srgb, var(--gc) 22%, rgba(5,7,15,.9)), var(--deep) 70%), var(--h) 50% 30% / cover; }
+.c7 .bk { padding: 14px 16px; display: grid; gap: 12px; align-content: start; height: 100%; }
+.c7 .bkh { display: grid; grid-template-columns: 36px minmax(0,1fr) auto; gap: 12px; align-items: center; }
+.c7 .bkh .cv { width: 36px; border-radius: 7px; box-shadow: none; border: 1px solid var(--line2); }
+.c7 .bkt { min-width: 0; height: 30px; display: flex; align-items: center; }
+.c7 .bkt .logo { object-position: left center; } .c7 .bkt .wm { font-size: 17px; }
+.c7 .bcells { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.c7 .bcells div { min-width: 0; padding: 7px 9px; border-radius: 12px; background: rgba(5,7,15,.6); border: 1px solid var(--line); }
+.c7 .bcells b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c7 .bcells b small { font-size: 11px; color: var(--mute); font-weight: 600; letter-spacing: 0; }
+.c7 .bcells span { display: block; font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c7 h5 { margin: 0; font-size: 12.5px; font-weight: 600; }
+.c7 h5 span { color: var(--mute); font-weight: 500; }
+.c7 .bars { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px 16px; }
+.c7 .br { display: grid; grid-template-columns: 44px minmax(0,1fr) 24px; gap: 8px; align-items: center; font-size: 11px; font-weight: 600; min-width: 0; }
+.c7 .br span { color: var(--mute); white-space: nowrap; }
+.c7 .br b { text-align: right; font-variant-numeric: tabular-nums; }
+.c7 .br i { height: 6px; border-radius: 5px; background: rgba(234,242,255,.1); overflow: hidden; }
+.c7 .br s { display: block; height: 100%; border-radius: 5px; background: color-mix(in srgb, var(--gc) 70%, white); transform-origin: 0 50%; transform: scaleX(var(--v)); }
+.c7.turned .br s { animation: fillx .7s var(--ease) both; animation-delay: calc(280ms + var(--d)); }
+.c7 .bk .nexi { font-size: 12.5px; }
+@container (max-width: 599px) { .c7 .bk .nexi { display: none; } }
+@container (min-width: 600px) {
+  .c7 .bk { padding: 22px 26px; gap: 18px; }
+  .c7 .bkh { grid-template-columns: 48px minmax(0,1fr) auto; } .c7 .bkh .cv { width: 48px; }
+  .c7 .bkt { height: 46px; } .c7 .bkt .wm { font-size: 24px; }
+  .c7 .bcells b { font-size: 24px; } .c7 .bcells div { padding: 10px 14px; }
+  .c7 .bars { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px 22px; }
+  .c7 .br { font-size: 12px; }
+}
+
+/* ================= A · Poster: no cover, the picture is the poster, one big number tells the story ================= */
+.pa .shade { position: absolute; inset: 0; z-index: -2;
+  background: linear-gradient(0deg, rgba(4,6,14,.94) 0%, rgba(4,6,14,.55) 30%, rgba(4,6,14,0) 62%),
+              radial-gradient(90% 75% at 0% 100%, color-mix(in srgb, var(--gc) 70%, transparent), transparent 70%);
+  animation: fade .9s ease both .1s; }
+.pa .kick { position: absolute; left: 16px; top: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px; border-radius: 999px; background: rgba(4,6,14,.55); border: 1px solid var(--line2);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap; animation: fade .5s ease both .5s; }
+.pa .kick i { width: 8px; height: 8px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc) 25%, transparent); }
+.pa .kick em { font-style: normal; color: rgba(234,242,255,.7); font-weight: 500; }
+.pa .big { position: absolute; left: 16px; bottom: 16px; max-width: 48%; display: grid; gap: 6px; z-index: 1; }
+.pa .num { display: flex; align-items: baseline; gap: 6px; line-height: .86; animation: rise .6s var(--ease) both .3s; }
+.pa .num b { font-size: 64px; font-weight: 700; letter-spacing: -.05em; font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 4px 24px rgba(0,0,0,.4); }
+.pa .num small { font-size: 15px; font-weight: 600; color: rgba(234,242,255,.82); white-space: nowrap; }
+.pa .cap { font-size: 12.5px; font-weight: 600; color: color-mix(in srgb, var(--gc) 55%, white); white-space: nowrap; animation: rise .5s var(--ease) both .4s; }
+.pa .rule { height: 2px; width: 56px; border-radius: 2px; background: color-mix(in srgb, var(--gc) 75%, white); transform-origin: 0 50%; animation: draw .6s var(--ease) both .55s; }
+.pa .meta { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: rgba(234,242,255,.78); animation: rise .5s var(--ease) both .6s; }
+.pa .meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pa .meta s { text-decoration: none; color: rgba(234,242,255,.35); }
+@container (min-width: 600px) {
+  .pa .kick { left: 26px; top: 22px; font-size: 13.5px; }
+  .pa .big { left: 28px; bottom: 26px; gap: 10px; }
+  .pa .num b { font-size: 112px; } .pa .num small { font-size: 28px; }
+  .pa .cap { font-size: 14px; } .pa .rule { width: 84px; height: 3px; } .pa .meta { font-size: 14px; gap: 5px; }
+}
+
+/* ================= B · Case: the layout you have, done right: a straight cover on a plate in the game's colour ================= */
+.pb .shade { position: absolute; inset: 0; z-index: -2;
+  background: linear-gradient(0deg, rgba(4,6,14,.96) 0%, rgba(4,6,14,.82) 38%, rgba(4,6,14,0) 72%),
+              radial-gradient(60% 60% at 0% 100%, color-mix(in srgb, var(--gc) 55%, transparent), transparent 75%); animation: fade .9s ease both .1s; }
+.pb .plate { position: absolute; left: 30px; bottom: 30px; width: 96px; aspect-ratio: 2 / 3; border-radius: 12px;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--gc) 80%, white), var(--gc) 45%, color-mix(in srgb, var(--gc) 60%, #05070f));
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--gc) 55%, transparent); animation: slip .6s var(--ease) both .3s; }
+@keyframes slip { from { transform: translate(-12px, 12px); } }
+.pb .cvb { position: absolute; left: 18px; bottom: 18px; width: 96px; animation: rise .55s var(--ease) both .1s; }
+.pb .right { position: absolute; left: 142px; right: 16px; bottom: 92px; display: grid; gap: 8px; }
+.pb .sw { font-size: 12.5px; font-weight: 600; color: var(--sc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: fromL .5s var(--ease) both .4s; }
+.pb .sw em { font-style: normal; color: rgba(234,242,255,.72); font-weight: 500; }
+.pb .facts { display: flex; animation: fromL .5s var(--ease) both .48s; }
+.pb .facts div { min-width: 0; padding: 0 14px; border-left: 1px solid color-mix(in srgb, var(--gc) 50%, rgba(234,242,255,.25)); }
+.pb .facts div:first-child { padding-left: 0; border-left: 0; }
+.pb .facts > div > span { display: block; font-size: 10.5px; font-weight: 600; color: rgba(234,242,255,.6); white-space: nowrap; }
+.pb .facts b { display: block; font-size: 15px; font-weight: 700; white-space: nowrap; letter-spacing: -.01em; }
+.pb .lgs { width: calc(100% - 158px); }
+@container (max-width: 599px) { .pb .facts div:nth-child(3) { display: none; } }
+@container (min-width: 600px) {
+  .pb .plate { left: 52px; bottom: 50px; width: 168px; border-radius: 16px; }
+  .pb .cvb { left: 30px; bottom: 28px; width: 168px; } .pb .cvb .cv { border-radius: 16px; }
+  .pb .right { left: 252px; right: 28px; bottom: 150px; gap: 12px; }
+  .pb .sw { font-size: 14px; }
+  .pb .facts div { padding: 0 22px; } .pb .facts > div > span { font-size: 12px; } .pb .facts b { font-size: 20px; }
+  .pb .lgs { width: 44%; }
+}
+
+/* ================= C · Colour field: the game's colour flows in from the left and carries the facts like a magazine sidebar ================= */
+.pc .shade { position: absolute; inset: 0; z-index: -2;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 42%, #05070f) 0%, color-mix(in srgb, var(--gc) 38%, #05070f) 44%, color-mix(in srgb, var(--gc) 30%, rgba(5,7,15,.6)) 54%, transparent 70%),
+              linear-gradient(0deg, rgba(4,6,14,.7), rgba(4,6,14,0) 40%);
+  animation: wash .8s var(--ease) both .05s; }
+.pc .side { position: absolute; left: 16px; top: 16px; bottom: 16px; width: calc(48% - 16px); display: flex; flex-direction: column; gap: 10px; }
+.pc .top { display: flex; gap: 12px; align-items: flex-end; animation: rise .55s var(--ease) both .2s; }
+.pc .top .cv { width: 52px; flex: none; border-radius: 9px; }
+.pc .sw { min-width: 0; }
+.pc .sw b { display: block; font-size: 24px; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; white-space: nowrap; }
+.pc .sw span { display: block; margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--sc); white-space: nowrap; }
+.pc .list { margin-top: auto; display: grid; }
+.pc .list div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; border-top: 1px solid color-mix(in srgb, var(--gc) 35%, rgba(234,242,255,.22)); min-width: 0; animation: fromL .45s var(--ease) both; animation-delay: var(--d); }
+.pc .list > div > span { font-size: 11.5px; font-weight: 600; color: rgba(234,242,255,.62); white-space: nowrap; }
+.pc .list b { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pc .lgs { width: 42%; }
+@container (max-width: 599px) { .pc .list div:nth-child(n+4) { display: none; } }
+@container (min-width: 600px) {
+  .pc .side { left: 28px; top: 28px; bottom: 28px; width: calc(46% - 28px); max-width: 340px; gap: 14px; }
+  .pc .top .cv { width: 88px; border-radius: 12px; }
+  .pc .sw b { font-size: 38px; } .pc .sw span { font-size: 14px; }
+  .pc .list div { padding: 11px 0; } .pc .list > div > span { font-size: 13px; } .pc .list b { font-size: 16px; }
+  .pc .lgs { width: 42%; }
+}
+@media (prefers-reduced-motion: reduce) { .c7 *, .c7 *::before, .c7 *::after { animation: none !important; } .c7 .flip { transition: none; } }
+</style>
+
+<div class="page">
+  <header class="intro">
+    <h1>Queue card demos · round 7</h1>
+    <p>Three new fronts for the open card. All three: <b>no round stamp</b>, the colour comes from <b>the game's own cover</b> (tap another game in the list to see it change), and the <b>logo always sits in the same bottom-right spot</b>. Still no buttons on the front: tap the cover (or in A the logo) for the game page, tap anywhere else to turn the card.</p>
+  </header>
+
+  <nav class="bar" aria-label="Demo controls">
+    <div class="ctl"><span>Design</span><div class="seg" id="demoSeg">
+      <button data-demo-pick="A" aria-label="A, Poster">A</button><button data-demo-pick="B" aria-label="B, Case">B</button><button data-demo-pick="C" aria-label="C, Colour field">C</button>
+    </div></div>
+    <div class="ctl"><span>Game</span><div class="seg" id="stateSeg">
+      <button data-state="coming">Coming</button><button data-state="out">Out now</button><button data-state="playing">Playing</button><button data-state="played">Played</button>
+    </div></div>
+    <div class="ctl"><span>Screen</span><div class="seg" id="sizeSeg">
+      <button data-size="fit">This screen</button><button data-size="412">Folded</button><button data-size="860">Unfolded</button>
+    </div></div>
+  </nav>
+
+  <section class="demo" id="A">
+    <div class="dh"><span class="letter">A</span><h2>Poster</h2>
+      <p>No cover on the front: the picture is the poster. The game's colour glows up from the bottom-left corner, and one big number tells the story: days to go, hours to beat, how far you are, or your score. Under it a thin line in the game's colour, then platform, genre and year.</p></div>
+    <div class="stage"><div class="screen" data-demo="A"></div></div>
+  </section>
+  <section class="demo" id="B" hidden>
+    <div class="dh"><span class="letter">B</span><h2>Case</h2>
+      <p>Today's layout, fixed: the cover stands straight (no tilt, no white frame) on a plate in the game's own colour, the stamp is gone, and the facts read like the back of a game box: released, length, genre.</p></div>
+    <div class="stage"><div class="screen" data-demo="B"></div></div>
+  </section>
+  <section class="demo" id="C" hidden>
+    <div class="dh"><span class="letter">C</span><h2>Colour field</h2>
+      <p>The game's colour flows in from the left like ink and holds the info as a magazine sidebar: the status in big type with a small straight cover, then release, length, platform and genre on thin lines. The right side of the picture stays clean.</p></div>
+    <div class="stage"><div class="screen" data-demo="C"></div></div>
+  </section>
+  <div class="notes">
+    <div><h3>Same on all three</h3>The card turns over for the rest: your queue spot, the 4 numbers, Nexi's guess or your 8 scores, Edit and ⋯. The back's bars use the game's colour too.</div>
+    <div><h3>The logo's spot</h3>One fixed box in the bottom-right corner, the same on every game, with a soft dark pool under it so a white logo still reads on a bright picture.</div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const IMG = { hk: "{{hk}}", h1: "{{h1}}", c1: "{{c1}}", h2: "{{h2}}", c2: "{{c2}}", c2x: "{{c2x}}", c3x: "{{c3x}}", c4x: "{{c4x}}", h3: "{{h3}}", c3: "{{c3}}", h4: "{{h4}}", c4: "{{c4}}", logo1: "{{logo1}}" };
+const COL = { c1: "{{col_c1}}", c2x: "{{col_c2}}", c3x: "{{col_c3}}", c4x: "{{col_c4}}" };
+const I = {
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  more: '<circle F cx="5" cy="12" r="1.8"/><circle F cx="12" cy="12" r="1.8"/><circle F cx="19" cy="12" r="1.8"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>'
+};
+const ic = k => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${I[k].replace(/ F /g, ' fill="currentColor" stroke="none" ')}</svg>`;
+const TODAY = new Date(2026, 9, 17);
+const day = (n, o = { weekday: "short", day: "numeric", month: "short" }) => { const d = new Date(TODAY); d.setDate(d.getDate() + n); return d.toLocaleDateString("en-GB", o).replace(",", ""); };
+const GAMES = [
+  { id: 1, t: "Crownbound Saga", plat: "Switch 2", pc: "#e60012", gen: ["Strategy", "JRPG"], hrs: 41, likely: 8.6, hype: 9, days: 34, out: "4 Mar 2025", h: "hk", c: "c1", logo: "logo1", mine: 80 },
+  { id: 2, t: "Starfall Accord", plat: "PS5", pc: "#0b4fc4", gen: ["Action RPG"], hrs: 58, likely: 7.9, hype: 8, days: 61, out: "12 Jun 2024", h: "h2", c: "c2x", wm: "w2", mine: 74 },
+  { id: 3, t: "The Ember Courts", plat: "PC", pc: "#9aa4b8", gen: ["Tactics", "Fantasy"], hrs: 32, likely: 7.4, hype: 7, days: 118, out: "1 Feb 2024", h: "h3", c: "c3x", wm: "w3", mine: 69 },
+  { id: 4, t: "Hollow Lantern", plat: "Switch 2", pc: "#e60012", gen: ["Adventure"], hrs: 24, likely: 8.1, hype: 8, days: 9, out: "22 Oct 2025", h: "h4", c: "c4x", wm: "w4", mine: 85 }
+];
+const RAT = [["Story", 8.3], ["Music", 9.3], ["Play", 8.7], ["Replay", 5], ["Look", 8.3], ["World", 8.3], ["Cast", 7.7], ["Pace", 8.7]];
+const ord = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || Math.floor(n % 100 / 10) === 1 ? 0 : n % 10]);
+
+/* what each state says, once, so all three looks tell the same story */
+function info(g, pos) {
+  const done = Math.round(g.hrs * .44), left = g.hrs - done;
+  const when = state === "coming" ? day(g.days) : g.out;
+  const o = { pos, kick: pos === 1 ? "Next up" : ord(pos) + " in queue", when, year: state === "coming" ? day(g.days, { year: "numeric" }) : g.out.slice(-4) };
+  if (state === "coming") Object.assign(o, { word: "Coming", sub: day(g.days), big: [g.days, g.days === 1 ? "day" : "days"], cap: "until it's out",
+    cells: [[g.days, "", "days to go"], [g.hrs, "h", "to beat"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `Out <b>${day(g.days)}</b>. Games like this land at <b>${g.likely}</b> for you.` });
+  if (state === "out") Object.assign(o, { word: "Out now", sub: "ready to play", big: [g.hrs, "h"], cap: "to beat the story",
+    cells: [[g.hrs, "h", "to beat"], [Math.round(g.hrs * 1.8), "h", "everything"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `At 4 hours a night you'd see the credits around <b>${day(Math.ceil(g.hrs / 4))}</b>.` });
+  if (state === "playing") Object.assign(o, { word: "Playing", sub: left + " h left", big: [44, "%"], cap: `${done} of ${g.hrs} h played`,
+    cells: [[44, "%", "done"], [left, "h", "left"], [g.hype, "/10", "hype"], [g.likely, "", "likely for you"]],
+    nexi: `<b>${done} of ${g.hrs} h</b> done. You finish around <b>${day(Math.ceil(left / 4))}</b>.` });
+  if (state === "played") Object.assign(o, { word: "Played", sub: "twice", big: [g.mine, ""], cap: "your score", played: true,
+    cells: [[g.mine, "", "my score"], [Math.round(g.likely * 10), "", "Nexi guessed"], [2, "×", "played"], [g.hrs, "h", "to beat"]],
+    nexi: `You gave it <b>${g.mine}</b>; Nexi had guessed <b>${Math.round(g.likely * 10)}</b>.` });
+  return o;
+}
+const logo = g => g.logo ? `<img class="logo" src="${IMG[g.logo]}" alt="${g.t}">` : `<span class="wm ${g.wm}">${g.t}</span>`;
+const plat = g => `<span class="pf"><i></i>${g.plat}</span>`;
+const vars = g => `--h:url('${IMG[g.h]}');--c:url('${IMG[g.c]}');--pc:${g.pc};--gc:${COL[g.c]}`;
+const back = (g, o) => {
+  const bars = RAT.map(([l, v], i) => { const s = o.played ? v : Math.max(4, v - .6); return `<div class="br"><span>${l}</span><i><s style="--v:${s / 10};--d:${i * 45}ms"></s></i><b>${s.toFixed(1)}</b></div>`; }).join("");
+  return `<div class="face back"><div class="bk">
+    <div class="bkh"><span class="cv"></span><div class="bkt">${logo(g)}</div><div class="acts"><button class="icb" aria-label="Edit" data-say="Edit">${ic("edit")}</button><button class="icb" aria-label="More" data-say="More: diary, competitive, move, remove">${ic("more")}</button></div></div>
+    <div class="bcells">${o.cells.map(([v, u, l]) => `<div><b>${v}${u ? `<small>${u}</small>` : ""}</b><span>${l}</span></div>`).join("")}</div>
+    <h5>${o.played ? "Your 8 scores" : "Nexi's guess, area by area"} <span>· ${o.kick} · ${o.when}</span></h5>
+    <div class="bars">${bars}</div>
+    <div class="nexi"><span class="dot"></span><span>${o.nexi}</span></div></div></div>`;
+};
+const wrap = (k, g, o, front) => `<div class="c7 st-${state}" style="${vars(g)}"><div class="flip"><div class="face front ${k}" role="button" aria-label="Turn the card">${front}</div>${back(g, o)}</div></div>`;
+const CARD = {
+  A: (g, o) => wrap("pa", g, o, `<div class="art"></div><div class="shade"></div>
+    <div class="kick"><i></i>${o.word}<em>· ${o.kick}</em></div>
+    <div class="big"><div class="num"><b>${o.big[0]}</b>${o.big[1] ? `<small>${o.big[1]}</small>` : ""}</div><div class="cap">${o.cap}</div><div class="rule"></div>
+      <div class="meta">${plat(g)}<span>${g.gen.join(" · ")} <s>·</s> ${o.year}</span></div></div>
+    <button class="lgs" data-say="Opening the game page" aria-label="Open the game page">${logo(g)}</button>`),
+  B: (g, o) => wrap("pb", g, o, `<div class="art"></div><div class="shade"></div><div class="plate"></div>
+    <button class="cvb" data-say="Opening the game page" aria-label="Open the game page"><span class="cv"></span></button>
+    <div class="right"><div class="sw">${o.word} <em>· ${o.sub}</em></div>
+      <div class="facts"><div><span>${state === "coming" ? "Out" : "Released"}</span><b>${state === "coming" ? day(g.days, { day: "numeric", month: "short" }) : g.out.replace(/ 20(\d\d)$/, " $1")}</b></div><div><span>Length</span><b>${g.hrs} h</b></div><div><span>Plays on</span><b>${plat(g)}</b></div></div></div>
+    <div class="lgs">${logo(g)}</div>`),
+  C: (g, o) => wrap("pc", g, o, `<div class="art"></div><div class="shade"></div>
+    <div class="side"><div class="top"><button data-say="Opening the game page" aria-label="Open the game page"><span class="cv"></span></button><div class="sw"><b>${o.word}</b><span>${o.sub}</span></div></div>
+      <div class="list">${[[state === "coming" ? "Out" : "Released", o.when], [state === "playing" ? "Played" : "Length", state === "playing" ? `44% · ${o.cap.split(" played")[0]}` : g.hrs + " h"], ["Plays on", plat(g)], ["Genre", g.gen.join(" · ")], ["In queue", o.kick]]
+        .map(([k, v], i) => `<div style="--d:${300 + i * 70}ms"><span>${k}</span><b>${v}</b></div>`).join("")}</div></div>
+    <div class="lgs">${logo(g)}</div>`)
+};
+function row(g, pos) {
+  const meta = { coming: day(g.days), out: "Out now", playing: "Playing · 44%", played: "Played · " + g.mine }[state];
+  return `<button class="qr" data-open="${g.id}" style="--gc:${COL[g.c]}"><b class="n">${String(pos).padStart(2, "0")}</b><span class="cv" style="--c:url('${IMG[g.c]}')"></span>
+    <span class="tx"><b>${g.t}</b><small>${meta} · ${g.hrs} h · ${g.plat}</small></span>${ic("chev")}</button>`;
+}
+
+let state = "out", size = "fit", pick = "A", openG = 1;
+try { state = localStorage.getItem("qcd8:state") || state; size = localStorage.getItem("qcd8:size") || size; pick = localStorage.getItem("qcd8:pick") || pick; } catch (e) {}
+if (!["coming", "out", "playing", "played"].includes(state)) state = "out";
+if (!["fit", "412", "860"].includes(size)) size = "fit";
+if (!["A", "B", "C"].includes(pick)) pick = "A";
+
+function render() {
+  const sc = document.querySelector(`.screen[data-demo="${pick}"]`);
+  const list = GAMES.map((g, i) => g.id === openG ? CARD[pick](g, info(g, i + 1)) : row(g, i + 1)).join("");
+  sc.innerHTML = `<div class="qhd"><h4>Queue</h4><span>926 h to beat · 26 out now</span></div><div class="qlist">${list}</div>`;
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const st = document.querySelector(`#${pick} .stage`), sc = st.querySelector(".screen");
+  if (size === "fit") { st.classList.remove("fixed"); sc.style.width = ""; sc.style.transform = ""; st.style.height = ""; return; }
+  const w = +size, k = Math.min(1, st.clientWidth / w);
+  st.classList.add("fixed"); sc.style.width = w + "px"; sc.style.transform = k < 1 ? `scale(${k})` : "";
+  st.style.height = Math.ceil(sc.offsetHeight * k) + "px";
+}
+function mark() {
+  document.querySelectorAll("#stateSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.state === state));
+  document.querySelectorAll("#sizeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.size === size));
+  document.querySelectorAll("#demoSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.demoPick === pick));
+  document.querySelectorAll("section.demo").forEach(d => { d.hidden = d.id !== pick; });
+}
+const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (x) {} };
+let toastT;
+function toast(t) { const el = document.getElementById("toast"); el.textContent = t + " (demo)"; el.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("on"), 1500); }
+document.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) { const c = e.target.closest(".c7"); if (c) c.classList.toggle("turned"); return; }
+  if (b.dataset.state) { state = b.dataset.state; keep("qcd8:state", state); mark(); render(); return; }
+  if (b.dataset.size) { size = b.dataset.size; keep("qcd8:size", size); mark(); fit(); return; }
+  if (b.dataset.demoPick) { pick = b.dataset.demoPick; keep("qcd8:pick", pick); mark(); render(); return; }
+  if (b.dataset.open) { openG = +b.dataset.open; render(); return; }
+  if (b.dataset.say) toast(b.dataset.say);
+});
+new ResizeObserver(() => fit()).observe(document.querySelector(".page"));
+mark(); render();
+</script>

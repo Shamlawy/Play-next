@@ -1,11 +1,15 @@
-/* The open Queue card, v298 look D "Stamp" (the owner picked it from four demos: the picture fills the card, the front shows
-   the status, logo, platforms and genres; tap the cover = the game page, tap anywhere else = turn it over).
+/* The open Queue card, v299 round 9 "Sweep" (the owner: "Perfect"): box art top-left on a strap in the game's own colour (status +
+   spot, one headline, platform logos, genres), a ticket bottom-left (a released game's stub has torn off), the logo bottom-right.
+   One tap closes the card into its row, two quick taps turn it, the box art opens the game page.
      node tools/kit.mjs run tools/scenarios/queue-card.mjs --widths 412,859      SHOTS=dir (front + back per state)
    Checks, for each state (coming, out now, playing, played):
-     - the front has no buttons but the cover, and the stamp / status line / logo or title / chips are there
+     - the front has no buttons but the box art, and the strap / kicker / headline / ticket / logo or title are there
+     - the ticket's stub has torn off for a released game (out, playing, played) and is whole for a coming one
+     - the box art stands straight, the strap is in the game's colour, nothing on the front runs off the card
      - every open card is the same height at a width, whatever the game (v232's rule)
-     - a tap on the card turns it, a tap on the back turns it back, and the back holds Edit + More + the four numbers
-     - a tap on the cover opens the game page (and does not turn the card)
+     - two taps turn the card, the back holds Edit + More + the four numbers, two taps on the back turn it back
+     - one tap on the front (and on the back) closes the card into its row
+     - a tap on the box art opens the game page (and does not turn or close the card)
      - the back's ring captions never break inside a word (the owner's "ST OR Y") */
 import fs from "node:fs";
 import { LOGOS } from "../standin-logos.mjs";
@@ -38,34 +42,57 @@ export default async ({ p, w, fail }) => {
         const h = document.querySelector("#p-queue .hero"), f = h && h.querySelector(".pfront");
         if (!f) return { err: "no open card" };
         const btns = [...f.querySelectorAll("button")].filter(b => !b.matches(".qkcov"));
-        return { btns: btns.length, stamp: !!f.querySelector(".qkst"), sw: (f.querySelector(".qksw") || {}).textContent || "",
-          title: !!f.querySelector(".qkt img, .qkt h2"), chips: f.querySelectorAll(".qkc").length, h: Math.round(h.getBoundingClientRect().height) };
+        const fr = f.getBoundingClientRect(), out = [...f.querySelectorAll(".qkcov, .qkinfo, .qktk, .qkt")].filter(x => { const r = x.getBoundingClientRect(); return r.left < fr.left - 1 || r.right > fr.right + 1 || r.bottom > fr.bottom + 1; }).map(x => x.className);
+        const tk = f.querySelector(".qktk"), cov = f.querySelector(".qkcov"), lg = f.querySelector(".qkt").getBoundingClientRect(), tr = tk.getBoundingClientRect();
+        return { btns: btns.length, strap: !!f.querySelector(".qkstrap"), kick: (f.querySelector(".qkkick") || {}).textContent || "", head: (f.querySelector(".qkhead") || {}).textContent || "",
+          title: !!f.querySelector(".qkt img, .qkt h2"), snap: tk.classList.contains("qksnap"), tilt: getComputedStyle(cov).transform, out,
+          overlap: tr.right > lg.left + 2 && !!f.querySelector(".qkt img") && f.querySelector(".qkt img").getBoundingClientRect().left < tr.right - 2,
+          strapBg: getComputedStyle(f.querySelector(".qkstrap")).backgroundImage.includes("gradient"), h: Math.round(h.getBoundingClientRect().height) };
       });
       if (front.err) { fail(`${name}: ${front.err}`); continue; }
-      if (front.btns) fail(`${name}: ${front.btns} button(s) on the front besides the cover`);
-      if (!front.stamp || !front.title || !front.sw) fail(`${name}: front missing stamp/title/status (${JSON.stringify(front)})`);
-      if (k === 0 && name !== "out" && !front.sw.toLowerCase().includes({ coming: "coming", playing: "playing", played: "played" }[name])) fail(`${name}: status line says "${front.sw}"`);
+      if (front.btns) fail(`${name}: ${front.btns} button(s) on the front besides the box art`);
+      if (!front.strap || !front.strapBg || !front.title || !front.kick || !front.head) fail(`${name}: front missing strap/logo/kicker/headline (${JSON.stringify(front)})`);
+      if (front.tilt !== "none") fail(`${name}: the box art is tilted (${front.tilt})`);
+      if (front.out.length) fail(`${name}: runs off the card: ${front.out.join(", ")}`);
+      if (front.overlap) fail(`${name}: the ticket runs into the logo`);
+      if (front.snap !== (name !== "coming")) fail(`${name}: the ticket ${front.snap ? "tore" : "stayed whole"}`);
+      if (k === 0 && !front.kick.toLowerCase().includes({ coming: "coming", out: "out now", playing: "playing", played: "played" }[name])) fail(`${name}: the kicker says "${front.kick}"`);
       heights.push(front.h);
       if (k === 0 && shots) await pg.locator("#p-queue .hero").screenshot({ path: `${shots}/${w}-${name}-front.png` });
       if (k !== 0) continue;
-      /* tap the card (away from the cover) → it turns */
+      /* two taps (away from the box art) → it turns */
       const box = await pg.locator("#p-queue .hero .pfront").boundingBox();
-      await p.tap(box.x + box.width - 30, box.y + 30);
-      await pg.waitForTimeout(1100);
+      await p.tap(box.x + box.width - 30, box.y + 30); await pg.waitForTimeout(60); await p.tap(box.x + box.width - 30, box.y + 30);
+      await pg.waitForTimeout(1200);
       const back = await pg.evaluate(() => {
         const h = document.querySelector("#p-queue .hero .hflip");
+        if (!h) return { gone: true };
         const caps = [...h.querySelectorAll(".pback .sepone .cap")].map(c => ({ t: c.textContent, lines: Math.round(c.getBoundingClientRect().height / parseFloat(getComputedStyle(c).lineHeight)) }));
         return { on: h.classList.contains("on"), edit: !!h.querySelector(".pback [data-edit]"), more: !!h.querySelector(".pback [data-more]"),
           stats: h.querySelectorAll(".pback .stat").length, caps };
       });
-      if (!back.on) fail(`${name}: tapping the card didn't turn it`);
+      if (back.gone) { fail(`${name}: two taps closed the card instead of turning it`); continue; }
+      if (!back.on) fail(`${name}: two taps didn't turn the card`);
       if (!back.edit || !back.more || back.stats !== 4) fail(`${name}: back lacks Edit/More/4 numbers (${JSON.stringify(back)})`);
       for (const c of back.caps) if (c.lines > 1) fail(`${name}: ring caption "${c.t}" broke over ${c.lines} lines`);
       if (shots) await pg.locator("#p-queue .hero").screenshot({ path: `${shots}/${w}-${name}-back.png` });
       const bb = await pg.locator("#p-queue .hero .pback").boundingBox();
-      await p.tap(bb.x + bb.width / 2, bb.y + 12);
-      await pg.waitForTimeout(1100);
-      if (await pg.evaluate(() => document.querySelector("#p-queue .hero .hflip").classList.contains("on"))) fail(`${name}: tapping the back didn't turn it back`);
+      await p.tap(bb.x + bb.width / 2, bb.y + 12); await pg.waitForTimeout(60); await p.tap(bb.x + bb.width / 2, bb.y + 12);
+      await pg.waitForTimeout(1200);
+      if (await pg.evaluate(() => { const h = document.querySelector("#p-queue .hero .hflip"); return !h || h.classList.contains("on"); })) fail(`${name}: two taps on the back didn't turn it back`);
+      /* one tap closes it; then one on the back closes it too */
+      await p.tap(box.x + box.width - 30, box.y + 30);
+      await pg.waitForTimeout(800);
+      if (await pg.evaluate(() => !!document.querySelector("#p-queue .hero"))) fail(`${name}: one tap didn't close the card`);
+      if (name === "coming") {
+        await pg.evaluate(() => { flipId = null; collapsed = false; renderQueue(); const w = document.querySelector("#p-queue .hero .hflip"); qkTurn(w); });
+        await pg.waitForTimeout(1000);
+        const b2 = await pg.locator("#p-queue .hero .pback").boundingBox();
+        await p.tap(b2.x + b2.width / 2, b2.y + 12);
+        await pg.waitForTimeout(800);
+        if (await pg.evaluate(() => !!document.querySelector("#p-queue .hero"))) fail(`${name}: one tap on the back didn't close the card`);
+      }
+      await pg.evaluate(() => { flipId = null; collapsed = false; renderQueue(); });
     }
   }
   if (Math.max(...heights) - Math.min(...heights) > 2) fail(`open cards differ in height: ${heights.join(", ")}`);
