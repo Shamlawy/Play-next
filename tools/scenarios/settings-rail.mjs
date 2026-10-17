@@ -1,4 +1,4 @@
-/* v294: Settings rail (look B). Settings and Customise are one scroll of open groups with an "On this page" icon rail;
+/* v296: Settings rail (look B). Settings and Customise are one scroll of open groups with an "On this page" icon rail;
    exactly one link is aria-current="location" and it is the group just under the sticky title (first group in the zone
    between the title and 40% of the sheet; the last group at the very bottom). A tap on a rail icon lands its group under
    the title. A tap on a group's title doesn't close it. Search hides the rail, Edit has none, the icons are drawn (svg).

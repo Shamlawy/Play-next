@@ -44,8 +44,8 @@ Then keep the pair: `node tools/taste.mjs pair <name> --before=<ours before> --a
 - Class names are unique: grep `\.name\b` before adding one (clashes: .aw v164, .dash v195, .pl v204, .plat v228). Give a new feature its own prefix (`dx*`, `rm*`, `gd-*`).
 - Respect the notch and home bar on the iPhone: fixed things at the edges use `env(safe-area-inset-*)`.
 - Queue row logos (v290, the owner picked look A of four demos): upright in their own slot inside the row, every logo the same visual size (lfRule's optical sizing), near-black ones drawn light, folded rows on two lines. Never let a logo hang off its row, tilt or run past the screen edge (`tools/scenarios/logo-look.mjs`, Nexi's `lfLook`).
-- Settings rail (v294, look B of four demos): Settings and Customise are one scroll of open groups beside a sticky icon rail; the group under the title is lit (bar + tile, its name pops out a moment). Check `tools/scenarios/settings-rail.mjs`.
-- No emoji as icons (v294, the owner hates "default ugly icons"): draw them in the v247 menu style, 24x24, fill-only `currentColor`, one part at 35% opacity (`gIcon(name)` / `GICON`; a new Settings group needs its own drawing).
+- Settings rail (v296, look B of four demos): Settings and Customise are one scroll of open groups beside a sticky icon rail; the group under the title is lit (bar + tile, its name pops out a moment). Check `tools/scenarios/settings-rail.mjs`.
+- No emoji as icons (v296, the owner hates "default ugly icons"): draw them in the v247 menu style, 24x24, fill-only `currentColor`, one part at 35% opacity (`gIcon(name)` / `GICON`; a new Settings group needs its own drawing).
 - Short things stay whole: a date, "16h", a score chip or a word like "S-tier" never breaks over two lines (`white-space: nowrap`, or a non-breaking hyphen `\u2011`). The design eye flags it (v292: Played's top board chips).
 
 ## 5. Touch and motion

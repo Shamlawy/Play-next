@@ -150,12 +150,12 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - rule: Repeated things on any screen never spill, overlap, break short words, squash pictures or barely show.
 - check: node tools/kit.mjs eye
 
-### T30 · v294 · Settings · pick
+### T30 · v296 · Settings · pick
 - said: B looks very sick (the icon rail of four Settings rail demos)
 - rule: Settings and Customise are one scroll of open groups with a sticky On this page rail of group icons: the lit icon (bar + tile) follows the group under the title and its name pops out for a moment.
 - check: tools/scenarios/settings-rail.mjs
 
-### T31 · v294 · whole app · hate
+### T31 · v296 · whole app · hate
 - said: I hate the icons they look like default ugly icons I actually hate them across the app
 - rule: No emoji as icons: draw them in the v247 menu style (24x24, fill-only currentColor, one part at 35% opacity); Settings groups use gIcon / GICON.
 - check: none

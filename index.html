@@ -3053,7 +3053,19 @@ const pnReel = (() => {
   const rz = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; };
   const CARDC = [[C.B, C.W, C.P], [C.P, C.D, C.B], [C.D, C.W, C.P]];
 
-  function frame(x, t, W, H) {
+  /* v293: a picture drawn onto a card's projected quad q (TL TR BR BL): two affine halves, the first clipped to the whole quad
+     and the second on top of it clipped to its own triangle, so the seam is picture over picture (canvas 2D has no perspective) */
+  const tex = (x, im, q, al) => {
+    const w = im.width, h = im.height, [a, b, c, d] = q;
+    x.save(); x.globalAlpha = al;
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.lineTo(c[0], c[1]); x.lineTo(d[0], d[1]); x.closePath(); x.clip();
+    x.save(); x.transform((b[0] - a[0]) / w, (b[1] - a[1]) / w, (d[0] - a[0]) / h, (d[1] - a[1]) / h, a[0], a[1]); x.drawImage(im, 0, 0); x.restore();
+    x.beginPath(); x.moveTo(b[0], b[1]); x.lineTo(c[0], c[1]); x.lineTo(d[0], d[1]); x.closePath(); x.clip();
+    x.transform((c[0] - d[0]) / w, (c[1] - d[1]) / w, (c[0] - b[0]) / h, (c[1] - b[1]) / h, b[0] + d[0] - c[0], b[1] + d[1] - c[1]); x.drawImage(im, 0, 0);
+    x.restore();
+  };
+  /* A (optional, the app passes it): { covers: [9 small pictures or null, card by card, 4 = the centre], title, hours } */
+  function frame(x, t, W, H, A) {
     t = ((t % LEN) + LEN) % LEN;
     const u = Math.min(W, H) / 1000, hw = W / 2 / u, hh = H / 2 / u, L = lay(hw, hh);
     x.save();
@@ -3147,7 +3159,7 @@ const pnReel = (() => {
           const w3 = (lx, ly) => { const dy = ly - CH; let p = [lx * s + ox, (CH + dy * Math.cos(st)) * s + oy, dy * Math.sin(st) * s]; p = rx(p, -tilt); return proj([p[0], p[1] + drop, p[2]], dolly); };
           const pr = [[-CW, -CH], [CW, -CH], [CW, CH], [-CW, CH]].map(([a, b]) => w3(a, b));
           if (pr.some(p => !p) || s <= 0) continue;
-          draw.push({ centre, col, pr, w3, depth: pr.reduce((a, p) => a + p[2], 0) / 4, face: Math.cos(tilt - st) });
+          draw.push({ centre, col, pr, w3, im: A && A.covers && A.covers[r * 3 + c], depth: pr.reduce((a, p) => a + p[2], 0) / 4, face: Math.cos(tilt - st) });
         }
         draw.sort((a, b) => b.depth - a.depth);
         draw.forEach(d => {
@@ -3156,6 +3168,11 @@ const pnReel = (() => {
           if (al <= 0) return;
           const shade = mix(C.K, d.col, .4 + .6 * Math.max(0, d.face));
           poly(x, q, d.centre ? mix(shade, C.D, land) : shade, al);
+          if (d.im) {   /* v293: a real cover, shaded like the card it sits on; the centre one fades as the card becomes the page */
+            const ca = al * (d.centre ? 1 - land : 1);
+            if (ca > 0) { tex(x, d.im, q, ca); poly(x, q, C.K, ca * (.6 - .6 * Math.max(0, d.face))); }
+            return;
+          }
           const bar = [[-70, 70], [30, 70], [30, 90], [-70, 90]].map(([a, b]) => d.w3(a, b));
           if (!bar.some(p => !p) && !(d.centre && land > 0)) poly(x, bar.map(p => [p[0], p[1]]), d.col === C.W ? C.K : C.W, al * .9);
         });
@@ -3170,10 +3187,13 @@ const pnReel = (() => {
       if (out < 1) { const top = lerp(py, U5.base, out), bot = lerp(py + ph, U5.base + 4, out); poly(x, rect5(px, top, px + pw, bot), C.D); }
       const dx = -fall * (hw * 2 + pw);
       /* hours */
-      const kc = eo(seg(t, 8, .45)), hrs = Math.round(38 * kc);
+      const real = A && A.title, kc = eo(seg(t, 8, .45)), hrs = Math.round((real && A.hours > 0 ? A.hours : 38) * kc);
       const Fs = ph * .062, Fb = ph * .16;
       const enter = k => (1 - k) * 200;
-      font(x, Fs); x.fillStyle = rgb(C.W, .72); x.fillText("This week", px + U5.p + dx, U5.top + Fs + enter(eo(seg(t, 8, .25))));
+      /* v293: the game to play next, cut to fit beside the ring, and its hours played */
+      font(x, Fs); let lab = real ? String(A.title) : "This week";
+      if (real) { const room = pw - 2 * U5.p - ph * .24; if (x.measureText(lab).width > room) { while (lab.length > 1 && x.measureText(lab + "…").width > room) lab = lab.slice(0, -1); lab = lab.trimEnd() + "…"; } }
+      x.fillStyle = rgb(C.W, .72); x.fillText(lab, px + U5.p + dx, U5.top + Fs + enter(eo(seg(t, 8, .25))));
       font(x, Fb); x.fillStyle = rgb(C.W); x.fillText(hrs + "h", px + U5.p + dx, U5.top + Fs * 1.4 + Fb * .9 + enter(eo(seg(t, 8.03, .3))));
       /* progress ring */
       const kr = eo(seg(t, 9, .4)), R = ph * .1, rcx = px + pw - U5.p - R + dx, rcy = U5.top + R + Fs * .3;
@@ -3288,13 +3308,13 @@ const pnReel = (() => {
   }
 
   let off = null;
-  function draw(ctx, t, W, H, n = 1, shutter = 1 / 120) {
-    if (n <= 1) return frame(ctx, t, W, H);
+  function draw(ctx, t, W, H, n = 1, shutter = 1 / 120, A = null) {
+    if (n <= 1) return frame(ctx, t, W, H, A);
     const cv = ctx.canvas;
     if (!off || off.width !== cv.width || off.height !== cv.height) { off = document.createElement("canvas"); off.width = cv.width; off.height = cv.height; }
     const o = off.getContext("2d"), m = ctx.getTransform();
     for (let i = 0; i < n; i++) {
-      o.setTransform(m); frame(o, t - shutter * i / (n - 1), W, H);
+      o.setTransform(m); frame(o, t - shutter * i / (n - 1), W, H, A);
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 / (i + 1); ctx.drawImage(off, 0, 0); ctx.restore();
     }
   }
@@ -3339,7 +3359,7 @@ function pnreelPaint(t) {
   const b = document.getElementById("pnboot"), c = b && b.querySelector("canvas"); if (!c) return;
   const W = innerWidth, H = innerHeight, d = Math.min(devicePixelRatio || 1, 2), cw = Math.round(W * d), ch = Math.round(H * d);
   if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
-  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); pnReel.draw(x, t, W, H);
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); pnReel.draw(x, t, W, H, 1, 1 / 120, PNREEL.use);
 }
 { const b = document.getElementById("pnboot"); if (b) { b.innerHTML = '<canvas aria-hidden="true"></canvas><button class="pnreel-go" aria-label="Play the opening reel"></button><span class="pnreel-say">Tap to play</span><button class="pnreel-skip">Skip</button>'; pnreelPaint(0); } }
 </script>
@@ -3813,7 +3833,10 @@ function subAvg(subs, cat) {
 }
 const PALETTE = [
   "#4DA3FF","#2E6BFF","#5AE0FF","#3FD9A4","#5BD75B","#C8E04A","#F0A63C","#FF7A3C",
-  "#FF5470","#FF7AD9","#B45CFF","#7C5CFF","#C8A44A","#9AA7BF","#E8E2D0","#FF3355"
+  "#FF5470","#FF7AD9","#B45CFF","#7C5CFF","#C8A44A","#9AA7BF","#E8E2D0","#FF3355",
+  /* v294: 16 more, so a game's own colour has a near match (the picker shows them sorted by hue) */
+  "#FFE066","#FFB86B","#D9774A","#E04848","#B23A48","#FF8FA3","#D45A9A","#C99BFF",
+  "#5C7CFA","#1FB5C9","#2BB673","#A8E6CF","#7A9A3A","#A67C52","#6B7A99","#E9967A"
 ];
 let S = { games: [], duels: [], played: [] };
 let rawgKey = "", boostUrl = "", sgdbKey = "";
@@ -4373,7 +4396,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "294";
+const APP_V = "296";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4916,27 +4939,72 @@ function fill(h) {
 }
 
 /* ---- colour ---- */
-function swatchRow(container, current, onPick, list = PALETTE) {
-  container.innerHTML = list.map(c =>
-    `<button class="sw" data-c="${c}" style="background:${c}" aria-pressed="${c === current}" title="${c}"></button>`
+/* auto = { on, pick } adds an "Auto" swatch first: the colour comes from the game's art (v294) */
+function swatchRow(container, current, onPick, list = PALETTE, auto = null) {
+  const show = list === PALETTE ? palRow() : list, cur = String(current || "").toUpperCase();
+  container.innerHTML = (auto ? `<button class="sw swauto" data-swauto aria-pressed="${!!auto.on}" title="From the game's art" aria-label="Colour from the game's art">✨</button>` : "") +
+    show.map(c =>
+    `<button class="sw" data-c="${c}" style="background:${c}" aria-pressed="${!(auto && auto.on) && c.toUpperCase() === cur}" title="${c}"></button>`
   ).join("") + `<input type="color" value="${current}" style="width:46px;height:30px;padding:0;border:0;background:none" aria-label="Custom colour">`;
-  container.querySelectorAll(".sw").forEach(b => b.onclick = () => {
-    onPick(b.dataset.c);
-    container.querySelectorAll(".sw").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-  });
-  container.querySelector('input[type="color"]').oninput = e => onPick(e.target.value);
+  const press = b => container.querySelectorAll(".sw").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  container.querySelectorAll(".sw[data-c]").forEach(b => b.onclick = () => { onPick(b.dataset.c); press(b); });
+  const ab = container.querySelector("[data-swauto]"); if (ab) ab.onclick = () => { press(ab); auto.pick(); };
+  container.querySelector('input[type="color"]').oninput = e => { press(null); onPick(e.target.value); };
+}
+/* v294 (the owner: "it picked blue for all of those but the game art is not blue, make it smarter"): it used to take
+   the single most vivid pixel, so one blue speck won. Now every vivid pixel votes for its hue (more saturated and nearer
+   the middle of the picture = a bigger vote), neighbouring hues pool, and the winner's average is matched to the nearest
+   swatch in PALETTE, so it always reads well on black. Grey or dark art gets the steel swatch, not the default blue. */
+const okLab = ([r, g, b]) => {
+  const f = v => (v /= 255) <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4), R = f(r), G = f(g), B = f(b);
+  const l = Math.cbrt(.4122214708 * R + .5363325363 * G + .0514459929 * B), m = Math.cbrt(.2119034982 * R + .6806995451 * G + .1073969566 * B),
+    s = Math.cbrt(.0883024619 * R + .2817188376 * G + .6299787005 * B);
+  return [.2104542553 * l + .793617785 * m - .0040720468 * s, 1.9779984951 * l - 2.428592205 * m + .4505937099 * s, .0259040371 * l + .7827717662 * m - .808675766 * s];
+};
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+/* matched mostly on hue, then on how vivid it is; an average of art is a little duller than the art looks, so it's
+   lifted a quarter first, and lightness barely counts (the swatches are all bright enough for black) */
+function palNear(rgb) {
+  const [L, a0, b0] = okLab(rgb), A = a0 * 1.25, B = b0 * 1.25, C = Math.hypot(A, B); let best = PALETTE[0], bd = 1e9;
+  for (const c of PALETTE) {
+    const [l, a, b] = okLab(hexRgb(c)), dC = Math.hypot(a, b) - C, dH = Math.max(0, (a - A) * (a - A) + (b - B) * (b - B) - dC * dC);
+    const d = .08 * (l - L) * (l - L) + .5 * dC * dC + 2 * dH; if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+/* the picker's order: round the colour wheel, the soft greys and creams last */
+let palRowC = null;
+function palRow() {
+  if (palRowC) return palRowC;
+  const k = c => { const [l, a, b] = okLab(hexRgb(c)), ch = Math.hypot(a, b); return ch < .05 ? 10 + l : (Math.atan2(b, a) + Math.PI * 1.75) % (Math.PI * 2); };
+  return (palRowC = PALETTE.slice().sort((x, y) => k(x) - k(y)));
 }
 function colourFrom(canvas) {
-  const d = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-  let best = null, bestScore = -1;
-  for (let i = 0; i < d.length; i += 4 * 37) {
-    const r = d[i], g = d[i + 1], b = d[i + 2];
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-    if (mx < 60 || mx > 245) continue;
-    const score = (mx - mn) * (mx / 255);
-    if (score > bestScore) { bestScore = score; best = [r, g, b]; }
+  const w = canvas.width, h = canvas.height; if (!w || !h) return null;
+  const d = canvas.getContext("2d").getImageData(0, 0, w, h).data;
+  const step = Math.max(1, Math.floor(Math.sqrt(w * h / 6000))), N = 36;
+  const wt = new Float64Array(N), sr = new Float64Array(N), sg = new Float64Array(N), sb = new Float64Array(N);
+  let n = 0;
+  for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
+    const i = (y * w + x) * 4; if (d[i + 3] < 128) continue;
+    const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), c = mx - Math.min(r, g, b); n++;
+    if (mx < 50 || c < 40) continue;                                   /* dark, or grey/white */
+    const hu = mx === r ? ((g - b) / c + 6) % 6 : mx === g ? (b - r) / c + 2 : (r - g) / c + 4;
+    const k = Math.floor(hu / 6 * N) % N, dx = x / w - .5, dy = y / h - .5;
+    const q = (c / mx) * (c / mx) * (mx / 255) * (1.3 - (dx * dx + dy * dy) * 1.2);
+    wt[k] += q; sr[k] += r * q; sg[k] += g * q; sb[k] += b * q;
   }
-  return best ? "#" + best.map(v => Math.min(255, Math.round(v * 1.12)).toString(16).padStart(2, "0")).join("") : null;
+  if (!n) return null;
+  const at = k => (k + N) % N;
+  let best = -1, bs = 0;
+  for (let k = 0; k < N; k++) {
+    const s = wt[k] + .6 * (wt[at(k - 1)] + wt[at(k + 1)]) + .25 * (wt[at(k - 2)] + wt[at(k + 2)]);
+    if (s > bs) { bs = s; best = k; }
+  }
+  if (best < 0 || bs / n < .02) return "#9AA7BF";                      /* no real colour in it */
+  let R = 0, G = 0, B = 0, W = 0;
+  for (let j = -1; j <= 1; j++) { const k = at(best + j); R += sr[k]; G += sg[k]; B += sb[k]; W += wt[k]; }
+  return palNear([R / W, G / W, B / W]);
 }
 /* WebP at the same visual quality is roughly a third of JPEG's size, which is
    what makes a sharp cover affordable. Falls back when a browser can't encode it. */
@@ -5143,7 +5211,7 @@ $("#f-state").onclick = e => {
   form.state = b.dataset.v;
   [...$("#f-state").children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
 };
-swatchRow($("#f-colour"), form.colour, c => form.colour = c);
+swatchRow($("#f-colour"), form.colour, c => { form.colour = c; form.colourHand = true; });
 $("#f-status").onclick = e => {
   const b = e.target.closest(".chip"); if (!b) return;
   form.status = b.dataset.v;
@@ -5155,7 +5223,7 @@ $("#f-file").onchange = e => {
   readFile(f, (data, col, note, w) => {
     if (!data) { $("#f-msg").textContent = BIG_IMG(note); return; }
     form.img = data; $("#f-img").value = "";
-    if (col) { form.colour = col; swatchRow($("#f-colour"), col, c => form.colour = c); }
+    if (col) { form.colour = col; form.colourHand = false; form.colourOf = colKey(data); swatchRow($("#f-colour"), col, c => { form.colour = c; form.colourHand = true; }); }
     $("#f-msg").textContent = "Image ready — " + w + "px wide, " +
       Math.round(data.length * 0.75 / 1024) + " KB" + (col ? ", colour taken from the art." : ".");
   });
@@ -5166,7 +5234,7 @@ $("#f-save").onclick = () => {
   S.games.push({
     id: uid(), added: new Date().toISOString().slice(0, 10),
     title: t, desc: $("#f-desc").value.trim(),
-    img: $("#f-img").value.trim() || form.img, colour: form.colour,
+    img: $("#f-img").value.trim() || form.img, colour: form.colour, colourHand: !!form.colourHand, colourOf: form.colourOf || "",
     date: $("#f-date").value, hours: +$("#f-hours").value || 0,
     status: form.status, hype: form.hype, ord: nextOrd(),
     state: form.state || "upcoming", platforms: form.platforms || "",
@@ -5659,7 +5727,14 @@ function openEdit(id) {
       (pg.art ? artBlock(pg) : '<p class="empty">No character art yet</p>');
   };
   paintPrev();
-  swatchRow($("#e-colour"), editing.colour || PALETTE[0], c => { editing.colour = c; paintPrev(); });
+  const eCol = () => swatchRow($("#e-colour"), editing.colour || PALETTE[0], c => { editing.colour = c; editing.colourHand = true; paintPrev(); }, PALETTE,
+    { on: colourAuto(Object.assign({}, g, editing)), pick: () => {
+      /* v294: back to the art's colour, read now from the cover on the form */
+      const src = editing.imgCleared ? "" : (($("#e-img") && $("#e-img").value.trim()) || editing.img || g.img || "");
+      editing.colourHand = false; editing.colourOf = "";
+      artColour(src).then(c => { if (!editing) return; editing.colour = c || PALETTE[0]; if (c) editing.colourOf = colKey(src); eCol(); paintPrev(); });
+    } });
+  eCol();
   const sayDate = () => {
     const v = $("#e-date").value;
     $("#e-datesay").textContent = v ? shortDate(v) + " " + new Date(v).getFullYear() : "No date — shows as TBA";
@@ -5740,7 +5815,7 @@ function openEdit(id) {
       editing.imgUp = true;
       editing.imgCleared = false;
       if ($("#e-img")) $("#e-img").value = "";   /* or the old URL would win on save */
-      if (col) { editing.colour = col; swatchRow($("#e-colour"), col, c => editing.colour = c); }
+      if (col) { editing.colour = col; editing.colourHand = false; editing.colourOf = colKey(data); eCol(); }
       if ($("#e-covprev")) $("#e-covprev").src = data;
       if ($("#e-covwhat")) $("#e-covwhat").textContent =
         "Uploaded · " + w + "px wide · about " + Math.round(data.length * 0.75 / 1024) + " KB — tap Save";
@@ -6128,6 +6203,8 @@ function openEdit(id) {
         ? (editing.status === "tba" ? "confirmed" : (editing.status || g.status || "confirmed"))
         : "tba",
       hype: editing.hype, colour: editing.colour,
+      colourHand: editing.colourHand == null ? !!g.colourHand : editing.colourHand,
+      colourOf: editing.colourOf == null ? (g.colourOf || "") : editing.colourOf,
       state: editing.state || "upcoming",
       platforms: editing.platforms == null ? (g.platforms || "") : editing.platforms,
       genres: editing.genres == null ? (g.genres || "") : editing.genres,
@@ -8200,6 +8277,8 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
     if (t >= pnReel.LEN) { pnreelPaint(0); go(); return; } pnreelPaint(Math.max(0, t)); R.raf = requestAnimationFrame(tick); };
   const play = async () => {
     R.playing = 1; b.classList.add("on");
+    /* v293: the covers ready at the tap play; the loader stops, so it never works (or collects garbage) under the reel */
+    if (R.art) R.use = { title: R.art.title, hours: R.art.hours, covers: R.art.covers.slice() };
     const ac = audio();   /* inside the tap: the app's one sound context (null with Sound off) */
     let buf = null;
     if (ac && R.buf) try { buf = await Promise.race([R.buf, new Promise(r => setTimeout(() => r(null), 1500))]); } catch (e) {}
@@ -8217,11 +8296,71 @@ pnSweep(); { let q = 0; new MutationObserver(ms => { if (!q && ms.some(m => [...
   const start = () => {
     if (S.reelOff || S.motion === false || matchMedia("(prefers-reduced-motion: reduce)").matches) { removeEventListener("resize", fit); b.remove(); return; }
     R.ready = 1;
+    setTimeout(pnreelArt, 500);
     if (S.sound) R.buf = new Promise(res => setTimeout(() => { try { pnReel.audio().then(res, () => res(null)); } catch (e) { res(null); } }, 300));
     if (R.want) play();
   };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", start, { once: true }); else start();
 })();
+/* v293 (the owner: "Can it show some of the games in the library?"): the reel's 3x3 shelf shows real covers, the centre one
+   the game to play next (Playing now, else the top of the Queue), which then becomes the game page with its name and hours.
+   Small copies (120x156, cropped like a card) are made one at a time only while the pixel waits (what's ready at the tap
+   plays, so nothing pops in and nothing loads under the reel); remote pictures go through wsrv with CORS, so the canvas never gets tainted, and one that fails just stays a plain colour card. */
+async function pnreelArt() {
+  const R = PNREEL, b = document.getElementById("pnboot"); if (!b || b.dataset.gone) return;
+  let list = [];
+  try {
+    const ok = g => g && typeof g.img === "string" && g.img && !/^data:image\/svg/.test(g.img);
+    let q = []; try { q = sortGames(qWaiting().filter(isOutNow)); } catch (e) {}
+    const seen = new Set();
+    for (const g of [...S.games.filter(g => g.state === "playing"), ...q, ...S.games]) if (ok(g) && !seen.has(g.id)) { seen.add(g.id); list.push(g); if (list.length >= 9) break; }
+  } catch (e) { return; }
+  if (!list.length) return;
+  const top = list[0];
+  R.art = { title: top.title || "", hours: +top.hours || 0, covers: Array(9).fill(null) };
+  const SLOT = [4, 0, 2, 6, 8, 1, 3, 5, 7];   /* the centre first, then the corners (they're on screen longest) */
+  /* your own pictures (a file in the app, a photo you added) can be 12 MP: on the page, shrinking one held it ~400ms
+     and left garbage collected later (mid-reel). A small worker fetches, unpacks and crops each one and hands back a
+     120x156 bitmap, so the page never holds the big picture; one at a time with the app's other picture work
+     (fitQueue: two 12 MP unpacks at once ran Safari out of memory). A phone without OffscreenCanvas keeps colour cards. */
+  let wk = null, n = 0; const jobs = new Map();
+  const own = u => new Promise((ok, no) => {
+    if (!wk) {
+      if (typeof OffscreenCanvas !== "function" || typeof Worker !== "function") return no(0);
+      wk = new Worker(URL.createObjectURL(new Blob([`onmessage = async e => { const { id, url } = e.data;
+        try { const bm = await createImageBitmap(await (await fetch(url)).blob()), W = 120, H = 156, k = Math.max(W / bm.width, H / bm.height);
+          let src = bm, w = bm.width, h = bm.height; const tw = w * k;   /* halve until close, so a 12 MP picture shrinks smooth instead of grainy */
+          while (tw < w / 2) { const nw = Math.ceil(w / 2), nh = Math.ceil(h / 2), o = new OffscreenCanvas(nw, nh), g = o.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(src, 0, 0, nw, nh); if (src !== bm) src.width = 0; src = o; w = nw; h = nh; }
+          const f = Math.max(W / w, H / h), sw = W / f, sh = H / f, c = new OffscreenCanvas(W, H), x = c.getContext("2d"); x.imageSmoothingQuality = "high";
+          x.drawImage(src, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, W, H); bm.close();
+          const out = c.transferToImageBitmap(); postMessage({ id, out }, [out]); } catch (x) { postMessage({ id }); } };`], { type: "text/javascript" })));
+      wk.onmessage = e => { const j = jobs.get(e.data.id); if (j) { jobs.delete(e.data.id); clearTimeout(j.t); e.data.out ? j.ok(e.data.out) : j.no(0); } };
+      wk.onerror = () => { jobs.forEach(j => { clearTimeout(j.t); j.no(0); }); jobs.clear(); };
+    }
+    const id = ++n; jobs.set(id, { ok, no, t: setTimeout(() => { jobs.delete(id); no(0); }, 8000) });
+    wk.postMessage({ id, url: new URL(u, location.href).href });
+  });
+  try {
+    for (let i = 0; i < list.length; i++) {
+      if (b.dataset.gone || R.playing) return;
+      const u = list[i].img;
+      try {
+        let pic;
+        if (/^https?:/.test(u) && new URL(u).origin !== location.origin) {
+          /* someone else's picture: a 240px copy from wsrv (CORS, so the canvas stays clean), cropped on the page (tiny) */
+          const im = new Image(); im.crossOrigin = "anonymous"; im.decoding = "async";
+          im.src = "https://wsrv.nl/?w=240&h=312&fit=cover&output=webp&url=" + encodeURIComponent(u); await im.decode();
+          const c = document.createElement("canvas"), iw = im.naturalWidth, ih = im.naturalHeight, k = Math.max(120 / iw, 156 / ih);
+          c.width = 120; c.height = 156; c.getContext("2d").drawImage(im, (iw - 120 / k) / 2, (ih - 156 / k) / 2, 120 / k, 156 / k, 0, 0, 120, 156); pic = c;
+        } else pic = await (typeof fitQueue === "function" ? fitQueue(() => own(u)) : own(u));
+        if (b.dataset.gone || R.playing) return;
+        R.art.covers[SLOT[i]] = pic;
+      } catch (e) {}
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));   /* one picture per frame */
+    }
+    R.art.done = 1;
+  } finally { if (wk) wk.terminate(); }
+}
 /* v144: Persona-style calling card for any game */
 async function callingCard(id, seed) {
   const g = S.games.find(x => x.id === id); if (!g) return;
@@ -15686,7 +15825,7 @@ let setListY = 0;
 document.addEventListener("toggle", e => {
   const d = e.target, root = $("#sheet-in");
   if (!root || !(d instanceof HTMLDetailsElement) || !d.classList.contains("grp") || !root.contains(d)) return;
-  if (root.classList.contains("srl")) return;   /* v294: Settings is one scroll of open groups (the rail), no drilling in */
+  if (root.classList.contains("srl")) return;   /* v296: Settings is one scroll of open groups (the rail), no drilling in */
   const sh = $("#sheet");
   if (d.open) {
     if (!root.classList.contains("drill")) setListY = sh ? sh.scrollTop : 0;
@@ -25694,7 +25833,7 @@ function lvpSync() {
   let on = false;
   if (S.livePrev && lvpScope && !editing && sh.classList.contains("on")) {
     if (lvpScope !== "app") on = true;
-    else if (inn.classList.contains("srl")) on = !!inn.dataset.srlLvp;   /* v294: docked once you change a look group's setting */
+    else if (inn.classList.contains("srl")) on = !!inn.dataset.srlLvp;   /* v296: docked once you change a look group's setting */
     else { const g = inn.classList.contains("drill") && inn.querySelector("details.grp[open] > summary"); on = !!g && LVP_GROUPS.some(n => g.textContent.includes(n)); }
   }
   document.documentElement.classList.toggle("lvp", on);
@@ -26304,6 +26443,8 @@ WHATS_NEW.push(
 /* v292: Played's top board chips ("⏱ 32h", "Hype 9 → 8.5") stay on one line; the design eye (tools/eye.mjs) found them
    broken in two on rows whose name column is narrow */
 .pnb-p span { white-space: nowrap; }
+  /* v294: the ✨ "from the art" swatch in a game's colour row */
+  .swauto { display: grid; place-items: center; font-size: 15px; line-height: 1; background: var(--u-card2, var(--ink)); color: var(--ice); }
 </style>
 <script>
 /* ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s
@@ -26454,7 +26595,10 @@ WHATS_NEW.push(
     tryIt: "Close the app fully, open it again and tap the glow (Sound on for the music). Tap again or press Skip to go straight in, or turn it off here." },
   { v: 292, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
     say: "<b>The opening pixel fits any screen</b>: fold, unfold or turn the phone while the reel waits and the glowing pixel redraws in the middle at the new size, instead of a stretched first frame.",
-    tryIt: "Open the app with the phone folded, unfold it before you tap the glow: the pixel stays sharp and centred." }
+    tryIt: "Open the app with the phone folded, unfold it before you tap the glow: the pixel stays sharp and centred." },
+  { v: 295, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-reel"); }, at: "#s-reel",
+    say: "<b>Your games star in the opening reel</b>: the 3D shelf now holds your real covers, with the game you're playing (or the top of your Queue) in the middle, and its card turns into a page with its name and hours.",
+    tryIt: "Close the app fully, open it again and tap the glow: watch for your own covers when the shelf stands up." }
 );
 </script>
 <script>
@@ -26530,9 +26674,76 @@ WHATS_NEW.push(
     say: "<b>Tidier Played board</b>: the hours and hype chips on your top board stay on one line now, and \"S-tier\" no longer splits in two on a narrow screen. A new design eye checks every screen for things like this before each update.",
     tryIt: "Open Played and look at your top board, folded and unfolded." }
 );
+/* v294: every game wears its art's colour by itself. A game still on the default blue (or one whose colour came from
+   its art before) is read from its cover, one at a time, once per picture: a new cover gives a new colour. A colour you
+   picked by hand (colourHand) is never touched; the ✨ swatch in Edit hands it back to the art. Remote covers come as a
+   64px copy from the resize service (shares its pixels, nothing big unpacked); a picture that won't share is tried at
+   most 3 times (gq:colfail, its own key so the cloud backup doesn't re-upload on every open). */
+const colKey = s => s ? s.length + ":" + s.slice(0, 60) + s.slice(-40) : "";
+const colourAuto = g => !g.colourHand && (!!g.colourOf || !HEX.test(g.colour || "") || g.colour.toUpperCase() === PALETTE[0]);
+async function artColour(src) {
+  if (!src || typeof src !== "string") return null;
+  const remote = /^https?:\/\//.test(src) && !fitSame(src);
+  let blob = null;
+  for (const u of remote ? [fitSized(src, 64, 64), src] : [bigData(src) ? blobRef(src) : src]) {
+    try { const r = await fetch(u); if (r.ok) { blob = await r.blob(); break; } } catch (e) {}
+  }
+  if (!blob) return null;
+  const W = 48, H = 64, c = document.createElement("canvas"); c.width = W; c.height = H;
+  try {
+    let pic, done = () => {};
+    try { pic = await createImageBitmap(blob, { resizeWidth: W, resizeHeight: H, resizeQuality: "medium" }); }
+    catch (e) { try { pic = await createImageBitmap(blob); } catch (e2) {
+      const u = URL.createObjectURL(blob), im = new Image(); im.src = u;
+      await (im.decode ? im.decode() : new Promise((ok, no) => { im.onload = ok; im.onerror = no; }));
+      pic = im; done = () => URL.revokeObjectURL(u);
+    } }
+    c.getContext("2d").drawImage(pic, 0, 0, W, H); if (pic.close) pic.close(); done();
+    return colourFrom(c);
+  } catch (e) { return null; }
+}
+const COLJOB = { t: 0, busy: false };
+const colFails = () => { try { return JSON.parse(localStorage.getItem("gq:colfail") || "{}") || {}; } catch (e) { return {}; } };
+function colTodo() {
+  const f = colFails();
+  return (S.games || []).filter(g => { const src = g.img || ""; if (!src || !colourAuto(g)) return false;
+    const k = colKey(src); return k !== g.colourOf && (f[k] || 0) < 3; });
+}
+function colJobSoon(ms) { if (COLJOB.t || COLJOB.busy) return; COLJOB.t = setTimeout(colJob, ms); }
+async function colJob() {
+  COLJOB.t = 0; if (COLJOB.busy || document.hidden) return; COLJOB.busy = true;
+  const changed = [];
+  try {
+    for (const g of colTodo()) {
+      const w = scrollWait(400); if (w > 0) await new Promise(r => setTimeout(r, w));
+      const src = g.img, c = await artColour(src);
+      if (src !== g.img || !colourAuto(g)) continue;                     /* edited meanwhile */
+      const k = colKey(src);
+      if (!c) { const f = colFails(); f[k] = (f[k] || 0) + 1; try { localStorage.setItem("gq:colfail", JSON.stringify(f)); } catch (e) {} continue; }
+      g.colourOf = k; if (g.colour !== c) { g.colour = c; changed.push(g); }
+      await new Promise(r => setTimeout(r, 60));
+    }
+  } finally { COLJOB.busy = false; }
+  if (!changed.length) return;
+  save();
+  /* recoloured where it already shows, no redraw: a whole render() here re-ran every screen's entrance and left extra
+     GPU layers on Queue/Played (kit layers caught it); other spots take the colour on their next redraw */
+  const paint = () => { const w = scrollWait(600); if (w > 0) return setTimeout(paint, w);
+    for (const g of changed) { const id = CSS.escape(g.id);
+      document.querySelectorAll(`[data-row="${id}"],[data-opg="${id}"],[data-home-open="${id}"],[data-g="${id}"],[data-edit="${id}"],[data-sess="${id}"]`)
+        .forEach(el => { if (el.style.getPropertyValue("--accent")) el.style.setProperty("--accent", g.colour); }); } };
+  paint();
+}
+onSave({ after: () => colJobSoon(2500) });
+colJobSoon(5000);
+WHATS_NEW.push(
+  { v: 294, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row"),
+    say: "<b>Every game now wears its own colour</b>: I read it from the game's art by myself (the main colour, not one stray speck), so your Queue isn't all blue any more. There are 32 colours to pick from now, and ✨ in Edit hands a colour back to the art.",
+    tryIt: "Scroll the Queue, then open a game's Edit › Colour." }
+);
 </script>
 <style>
-/* ===== v294: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise
+/* ===== v296: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise
    are one scroll of open groups with an "On this page" column of group icons kept beside them (position: sticky). The group
    just under the sticky title is the lit one: a blue bar and a lit tile follow it (transform only), and its name shows
    beside the icon for a moment each time it changes. The icons are drawn (gIcon, the v247 menu style), not emoji. ===== */
@@ -26571,7 +26782,7 @@ html.still .srlbar, html.still .srltag { transition: none; }
 .srlend { height: 1px; }
 </style>
 <script>
-/* ===== v294: Settings rail (look B) and drawn group icons =====
+/* ===== v296: Settings rail (look B) and drawn group icons =====
    GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used shortcut, fill-only (currentColor) with one
    part at 35%, like the v247 menu icons. "_" (the menu's gear) is for a group that has none yet. */
 const GICON = {
@@ -26778,7 +26989,7 @@ document.addEventListener("click", e => {
   inn.dataset.srlLvp = nm; requestAnimationFrame(lvpSync);
 }, true));
 WHATS_NEW.push(
-  { v: 294, go: () => { closeFull(); dyClose(); nxShut(); openSettings("app"); requestAnimationFrame(() => { const i = SRL.groups.findIndex(g => srlName(g) === "Look of the app"); if (i >= 0) srlGo(i); }); },
+  { v: 296, go: () => { closeFull(); dyClose(); nxShut(); openSettings("app"); requestAnimationFrame(() => { const i = SRL.groups.findIndex(g => srlName(g) === "Look of the app"); if (i >= 0) srlGo(i); }); },
     at: () => document.querySelector(".srlnav"),
     say: "Settings is <b>one scroll</b> now, with an <b>On this page</b> rail of icons beside it: the group you're in lights up as you scroll, and its name pops out for a moment. Every group has its own <b>drawn icon</b> instead of an emoji.",
     tryIt: "Scroll Settings and watch the lit icon follow you, or tap an icon to jump to that group." }
