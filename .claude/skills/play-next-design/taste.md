@@ -194,3 +194,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: Perfect now the ticket snaps if the game is released if not it stays intact
 - rule: Round 9 approved. The bottom-left ticket of a released game (out, playing, played) tears: the stub snaps off at the perforation and droops (with a tear sound); a coming game's ticket stays whole.
 - check: none
+
+### T39 · v299 · Queue · hate
+- said: the backside info looks bad … it looks bad and plain … show me 3 demos
+- rule: The open card's back must carry the front's language (game colour, drawn icons, designed type), not grey stat tiles, an all-caps kicker, text platform chips and a loose Edit/⋯/arrow row.
+- check: none
