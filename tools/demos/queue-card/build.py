@@ -17,6 +17,6 @@ def logo():
 m = {"h1": jpg(cast, (960, 540)), "h2": jpg(cast.crop((0, 40, 560, 355)), (560, 315)), "h3": jpg(cast.crop((440, 40, 1000, 355)), (560, 315)),
      "h4": jpg(cast.crop((150, 0, 850, 394)), (560, 315)), "c1": jpg(ka.crop((int(W / 2 - H / 3), 0, int(W / 2 + H / 3), H)), (160, 240)),
      "c2": jpg(ka.crop((0, 0, 1400, 2100)), (160, 240)), "c3": jpg(ka.crop((2045, 0, 3445, 2100)), (160, 240)), "c4": jpg(ka.crop((1000, 600, 2400, 2700)), (160, 240)), "logo1": logo()}
-s = open(__file__.rsplit("/", 1)[0] + "/" + (sys.argv[2] if len(sys.argv) > 2 else "round5.html")).read()
+s = open(__file__.rsplit("/", 1)[0] + "/" + (sys.argv[2] if len(sys.argv) > 2 else "round6.html")).read()
 for k, v in m.items(): s = s.replace("{{%s}}" % k, v)
 open(sys.argv[1], "w").write(s)
