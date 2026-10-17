@@ -1,7 +1,8 @@
 /* Play next test kit. Lives in the repo so every chat (and GitHub) runs the same checks; before this, each chat
    rebuilt its harness in a scratchpad that was lost at the end.
 
-     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js); no press animation or sticky :hover in the CSS;
+     node tools/kit.mjs syntax          every <script> block in index.html compiles (and sw.js);
+                                        main not already at this branch's new APP_V (L27); no press animation or sticky :hover in the CSS;
                                         no new wrap of goTab/goSub/openFull/openSettings (use onNav/onSettings)
      node tools/kit.mjs sweep           every screen, a game page, Settings, Edit, chat at 412 / 859 / 360 wide in Chromium:
                                         script errors + every problem the app reports about itself (its own detectors)
@@ -64,6 +65,15 @@ function syntax() {
     n++;
     try { new vm.Script(m[2], { filename: `${FILE}:${html.slice(0, m.index).split("\n").length}` }); }
     catch (e) { fail(`script block at line ${html.slice(0, m.index).split("\n").length}: ${e.message}`); }
+  }
+  /* L27 (×5): another chat shipped the same version number to main while this branch was built, found only at the merge.
+     The branch raised APP_V but main is already at that number or past it → take the next one (fetches main first; skipped offline) */
+  if (FILE === "index.html") {
+    const g = (...a) => spawnSync("git", a, { cwd: ROOT, encoding: "utf8", timeout: 15000 });
+    g("fetch", "-q", "origin", "main");
+    const vOf = ref => ((g("show", ref + ":index.html").stdout || "").match(/const APP_V = "(\d+)"/) || [])[1];
+    const base = (g("merge-base", "HEAD", "origin/main").stdout || "").trim(), mainV = vOf("origin/main"), baseV = base && vOf(base);
+    if (mainV && baseV && +APP_V > +baseV && +mainV >= +APP_V) fail(`main already shipped v${mainV} while this branch raised APP_V to ${APP_V}: merge main and take v${+mainV + 1}`);
   }
   /* house rule (#309, v246): nothing moves when touched. No :active rule may change transform/scale/translate/rotate/filter/opacity */
   const MOVE = /^(transform|scale|translate|rotate|filter|opacity)$/;
