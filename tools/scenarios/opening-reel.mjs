@@ -46,9 +46,9 @@ export default async ({ p, w }) => {
   await pg.waitForTimeout(300);
   const rs = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"), d = Math.min(devicePixelRatio || 1, 2);
     const x = c.getContext("2d"), m = x.getImageData(c.width / 2 - 2, c.height / 2 - 2, 4, 4).data;
-    return { fit: c.width === Math.round(innerWidth * d) && c.height === Math.round(innerHeight * d), mid: m[2] }; });
+    return { fit: c.width === Math.round(innerWidth * d) && c.height === Math.round(innerHeight * d), mid: m[2], at: `canvas ${c.width}x${c.height}, page ${innerWidth}x${innerHeight} @${d}` }; });
   await pg.setViewportSize(vp); if (wk) { await pg.waitForTimeout(300); await pg.evaluate(() => dispatchEvent(new Event("resize"))); } await pg.waitForTimeout(300);
-  if (!rs.fit) bad.push("the waiting canvas didn't resize with the screen");
+  if (!rs.fit) bad.push("the waiting canvas didn't resize with the screen (" + rs.at + ")");
   else if (rs.mid < 120) bad.push("the opening pixel left the middle after a resize");
   /* 4: it waits for a tap */
   await pg.waitForTimeout(900);
