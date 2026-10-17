@@ -40,11 +40,14 @@ export default async ({ p, w }) => {
   if (worst > 16) bad.push(`a frame took ${worst.toFixed(1)}ms at 4x (budget 16)`);
   /* a fold / unfold / turn while it waits repaints the pixel at the new size */
   const vp = pg.viewportSize();
-  await pg.setViewportSize({ width: vp.width < 600 ? 859 : 412, height: vp.height }); await pg.waitForTimeout(300);
+  await pg.setViewportSize({ width: vp.width < 600 ? 859 : 412, height: vp.height });
+  /* Playwright's WebKit changes the size without a window resize event (ResizeObserver and visualViewport do fire); Safari fires it on a turn */
+  if (wk) await pg.evaluate(() => dispatchEvent(new Event("resize")));
+  await pg.waitForTimeout(300);
   const rs = await pg.evaluate(() => { const c = document.querySelector("#pnboot canvas"), d = Math.min(devicePixelRatio || 1, 2);
     const x = c.getContext("2d"), m = x.getImageData(c.width / 2 - 2, c.height / 2 - 2, 4, 4).data;
     return { fit: c.width === Math.round(innerWidth * d) && c.height === Math.round(innerHeight * d), mid: m[2] }; });
-  await pg.setViewportSize(vp); await pg.waitForTimeout(300);
+  await pg.setViewportSize(vp); if (wk) await pg.evaluate(() => dispatchEvent(new Event("resize"))); await pg.waitForTimeout(300);
   if (!rs.fit) bad.push("the waiting canvas didn't resize with the screen");
   else if (rs.mid < 120) bad.push("the opening pixel left the middle after a resize");
   /* 4: it waits for a tap */
