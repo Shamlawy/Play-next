@@ -5,11 +5,11 @@
      node tools/kit.mjs run tools/scenarios/settings-rail.mjs --widths 412,859,360      (SHOTS=dir saves pictures) */
 export default async ({ p, w }) => {
   const bad = [], note = m => bad.push(m), shots = process.env.SHOTS;
-  /* WebKit (webkit-check.yml's scenario input, the friend's iPhone) has no CDP touch: a click and a wheel instead */
+  /* WebKit (webkit-check.yml's scenario input, the friend's iPhone) has no CDP touch: a click and a scroll instead */
   let touch = true;
   const tap = async (x, y) => { if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; } await p.page.mouse.click(x, y); };
   const swipeUp = async () => { if (touch) try { return await p.swipe(p.w * .6, p.h * .75, p.w * .6, p.h * .3, 260); } catch (e) { touch = false; }
-    await p.page.mouse.move(p.w * .6, p.h * .5); await p.page.mouse.wheel(0, p.h * .45); };
+    await p.page.evaluate(d => document.getElementById("sheet").scrollBy(0, d), Math.round(p.h * .45)); };   /* mobile WebKit has no wheel either */
   const state = () => p.page.evaluate(() => {
     const sh = $("#sheet"), inn = $("#sheet-in"), head = inn.querySelector(".ehead"), foot = inn.querySelector(".efoot");
     const top = (parseFloat(getComputedStyle(head).top) || 0) + head.offsetHeight, bot = foot ? foot.offsetHeight : 0;
