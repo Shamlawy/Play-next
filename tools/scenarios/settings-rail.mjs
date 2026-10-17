@@ -9,8 +9,17 @@ export default async ({ p, w }) => {
   let touch = true;
   const tap = async (x, y) => { if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; }
     /* WebKit's emulated mouse dropped later clicks altogether (no click event at all): click what sits at the spot */
-    await p.page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y);   /* an svg path has no .click() in WebKit: a real click event, as a finger's would bubble */
-      if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window })); }, [x, y]); };
+    /* what sits at the spot; when it isn't the link we meant, say what covers it and click the link itself (so the jump logic is
+       still tested). An svg path has no .click() in WebKit: a real click event, as a finger's would bubble */
+    const cov = await p.page.evaluate(([x, y, sel]) => {
+      const el = document.elementFromPoint(x, y), want = sel && document.querySelector(sel);
+      const path = e => { const out = []; for (; e && e.nodeType === 1 && out.length < 5; e = e.parentElement) out.unshift(e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (typeof e.className === "string" && e.className ? "." + e.className.trim().split(/\s+/).join(".") : "")); return out.join(" > "); };
+      const hit = want && el && !want.contains(el) ? want : el, r = want && want.getBoundingClientRect(), n = want && want.closest(".srlnav") && want.closest(".srlnav").getBoundingClientRect();
+      if (hit) hit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window }));
+      return want && el && !want.contains(el) ? `covered by ${path(el)} at ${Math.round(x)},${Math.round(y)} (link ${Math.round(r.top)}..${Math.round(r.bottom)}, rail ${Math.round(n.top)}..${Math.round(n.bottom)}, sheet top ${Math.round($("#sheet").scrollTop)})` : "";
+    }, [x, y, tapSel]);
+    if (cov) note("WebKit: " + cov); };
+  let tapSel = null;
   const swipeUp = async () => { if (touch) try { return await p.swipe(p.w * .6, p.h * .75, p.w * .6, p.h * .3, 260); } catch (e) { touch = false; }
     await p.page.evaluate(d => document.getElementById("sheet").scrollBy(0, d), Math.round(p.h * .45)); };   /* mobile WebKit has no wheel either */
   const state = () => p.page.evaluate(() => {
@@ -64,7 +73,7 @@ export default async ({ p, w }) => {
   for (const id of ["sg-look-of-the-app", "sg-cloud-backup", "sg-nexi"]) {
     const box = await p.page.evaluate(id => { const a = document.querySelector(`.srlnav a[href="#${id}"]`); if (!a) return null; const r = a.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
     if (!box) { note("no rail link " + id); continue; }
-    await tap(box.x, box.y); await p.page.waitForTimeout(1400);
+    tapSel = `.srlnav a[href="#${id}"]`; await tap(box.x, box.y); tapSel = null; await p.page.waitForTimeout(1400);
     const r = await p.page.evaluate(id => {
       const g = document.getElementById(id), head = $("#sheet-in .ehead"), sh = $("#sheet");
       const top = (parseFloat(getComputedStyle(head).top) || 0) + head.offsetHeight;
