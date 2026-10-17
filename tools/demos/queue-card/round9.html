@@ -318,6 +318,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   .c7 .facts9 b { display: block; margin-top: 2px; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .c7 .bk { grid-template-rows: auto auto auto auto 1fr; }
 }
+/* a released game's ticket is used: the stub snaps off at the perforation and droops; a coming game's stays whole */
+@keyframes snapstub { from { transform: none; } 35% { transform: translate(-1px, 0) rotate(-2deg); } 70% { transform: translate(-5px, 5px) rotate(10deg); } }
+@keyframes snapbody { from { transform: none; } 35% { transform: translateX(1px); } }
+.k1 .tk.snap .stub { transform-origin: 0 100%; transform: translate(-5px, 4px) rotate(8deg); animation: snapstub .5s var(--ease) backwards 1.4s; }
+.k1 .tk.snap .body { transform: translateX(4px); animation: snapbody .5s var(--ease) backwards 1.4s; }
 /* closing: the card folds back into its row */
 @keyframes shut { to { opacity: 0; transform: translateY(-10px); } }
 .c7.shut { animation: shut .22s ease-in both; }
@@ -326,7 +331,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 <div class="page">
   <header class="intro">
     <h1>Queue card · round 9</h1>
-    <p><b>A</b> with <b>C's sounds</b>: the ink-drop bloop and soft chord as the strap sweeps in, then plucked notes as the box art, platforms and ticket land. The strap is <b>shorter</b> and its words are new. <b>Double tap</b> the card to turn it (a new turn with a light sweeping across it), <b>one tap</b> closes the card back into its row, and the box art still opens the game page.</p>
+    <p><b>A</b> with <b>C's sounds</b>: the ink-drop bloop and soft chord as the strap sweeps in, then plucked notes as the box art, platforms and ticket land. The strap is <b>shorter</b> and its words are new. <b>Double tap</b> the card to turn it (a new turn with a light sweeping across it), <b>one tap</b> closes the card back into its row, and the box art still opens the game page. A <b>released</b> game's ticket tears: the stub snaps off at the perforation. A coming game's ticket stays whole.</p>
   </header>
 
   <nav class="bar" aria-label="Demo controls">
@@ -419,7 +424,7 @@ const odo = s => [...s].map((ch, i) => /\d/.test(ch) ? `<span class="dg"><span s
 const wrap = (k, f, g, o, front) => `<div class="c7 ${f} st-${state}" style="${vars(g)}"><div class="flip"><div class="face front ${k}" role="button" aria-label="Double tap to turn the card, tap to close it">${front}<i class="glare"></i><i class="dim"></i></div>${back(g, o)}</div></div>`;
 const CARD = {
   A: (g, o) => wrap("k1", "f1", g, o, `<div class="art"></div><div class="shade8"></div><div class="slab8"></div>${top8(g, o)}
-    <div class="bl"><div class="tk"><div class="stub"><b>${o.tk[0]}</b><span>${o.tk[1]}</span></div><div class="body"><b>${o.tk[2]}</b><span>${o.tk[3]}</span></div></div></div>`)
+    <div class="bl"><div class="tk${state === "coming" ? "" : " snap"}"><div class="stub"><b>${o.tk[0]}</b><span>${o.tk[1]}</span></div><div class="body"><b>${o.tk[2]}</b><span>${o.tk[3]}</span></div></div></div>`)
 };
 
 /* ---------- sound: synthesised, quiet, only after a tap ---------- */
@@ -445,6 +450,7 @@ const SND = {
     [262, 330, 392, 494].forEach(f => tone("triangle", f, f, .05, t + .1, 1.4, .35));  // soft chord under it
     [[.6, 523], [.7, 659], [.77, 784], [.84, 880], [.95, 1047], [1.06, 1319]]          // plucks: box art, platforms, ticket, logo
       .forEach(([d, f]) => tone("triangle", f, f, .09, t + d, .28, .003));
+    if (state !== "coming") { noise("bandpass", 3200, 1200, 1.4, .3, t + 1.4, .16, .01); tone("triangle", 1568, 1175, .08, t + 1.56, .2, .003); } // the stub tears off
   },
   flip(toBack) { const a = ac(); if (!a) return; const { tone, noise, t } = kit(a);
     noise("bandpass", 1200, 500, .8, .3, t, .4, .08);                                  // C's page turn

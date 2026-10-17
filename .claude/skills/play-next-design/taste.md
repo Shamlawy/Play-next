@@ -189,3 +189,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: I like A so much but like the sound from C also the strap of colour behind the game art is so long shorten it … new better flip animation … double tap to flip and one tap to close … the info on the strap make it better looking
 - rule: Open Queue card = round 9: round 8 A (Sweep: game-colour strap behind top-left box art, ticket bottom-left, logo bottom-right) with C's ink sounds; strap ~72% folded / 54% unfolded carrying status dot + queue spot, one plain headline, platform logos, genres; double tap turns the card (same direction, slight overshoot, light sweep), one tap closes it into its row, the box art opens the game page.
 - check: none
+
+### T38 · v298 · Queue · pick
+- said: Perfect now the ticket snaps if the game is released if not it stays intact
+- rule: Round 9 approved. The bottom-left ticket of a released game (out, playing, played) tears: the stub snaps off at the perforation and droops (with a tear sound); a coming game's ticket stays whole.
+- check: none
