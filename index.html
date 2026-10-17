@@ -8801,7 +8801,7 @@ function qkStat(g, cd, score, n) {
   const day = shortDate(g.date), yr = g.date && !isNaN(new Date(g.date)) ? String(new Date(g.date).getFullYear()) : "";
   const hb = hrs ? [hrs + " h", "to beat"] : ["—", "to beat"];
   if (isPlayed(g)) { const p = playedRec(g), runs = p ? num(p.runs, 1, 1, 99) : 1, v = score || (p && scored(p) ? Math.round(p.real * 10) : 0);
-    return { k: "played", word: "Played", spot, head: runs === 1 ? "Played" : runs === 2 ? "Played twice" : "Played " + runs + " times",
+    return { k: "played", word: "Played", spot, head: runs === 1 ? "Finished" : runs === 2 ? "Played twice" : "Played " + runs + " times",
       stub: [v ? String(v) : "—", "my score"], body: [runs + "×", "played"], snap: 1 }; }
   if (g.state === "playing") { const pc = hrs ? Math.min(99, Math.round(lg / hrs * 100)) : 0, left = hrs ? Math.max(0, Math.round(hrs - lg)) : 0;
     return { k: "playing", word: "Playing", spot, head: hrs ? (left ? left + " h left" : "Nearly done") : "Playing now",
