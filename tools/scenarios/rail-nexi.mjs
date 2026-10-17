@@ -1,6 +1,6 @@
 /* #174 (the friend, iPad Safari, v228): "I was in the queue page and Nexi disappeared while the rail was open".
    With the rail open (wide screens) Nexi sits at its foot (html.nxseat). After every common action he must still be
-   there: shown, in the rail, on screen, not faded out. (On Home he steps out on purpose: Home has its own Nexi, v274.)
+   there: shown, in the rail, on screen, not faded out. (v295: on Home too; Home's own face steps aside.)
      node tools/kit.mjs run tools/scenarios/rail-nexi.mjs --widths 859,1080 */
 export default async ({ p, w }) => {
   if (w < 620) { console.log(`  ✓ ${w}px: no rail at this width`); return true; }
@@ -8,7 +8,6 @@ export default async ({ p, w }) => {
   const look = () => p.page.evaluate(() => {
     const H = document.documentElement, b = document.getElementById("pnbub"), r = document.getElementById("hrail");
     if (!H.classList.contains("pnrail") || H.classList.contains("railhide")) return { skip: "rail hidden" };
-    if (H.classList.contains("onhome")) return { skip: "home" };
     if (!H.classList.contains("nxseat")) return { bad: "not seated with the rail open" };
     const cs = getComputedStyle(b), br = b.getBoundingClientRect(), rr = r.getBoundingClientRect();
     let op = 1; for (let e = b; e && e.nodeType === 1; e = e.parentElement) op *= +getComputedStyle(e).opacity;
@@ -24,7 +23,7 @@ export default async ({ p, w }) => {
   });
   const check = async what => { await p.page.waitForTimeout(900); const r = await look(); if (r.bad) bad.push(`${what}: ${r.bad}`); };
   await p.page.evaluate(() => { S.railHide = false; S.nxSeatOff = false; }); await p.page.waitForTimeout(1200);
-  for (const t of ["queue", "games", "plan", "taste", "lib", "played", "add"]) { await p.step(t, `goTab(${JSON.stringify(t)})`, 600); await check("tab " + t); }
+  for (const t of ["home", "queue", "games", "plan", "taste", "lib", "played", "add"]) { await p.step(t, `goTab(${JSON.stringify(t)})`, 600); await check("tab " + t); }
   await p.step("queue", `goTab("queue")`, 600);
   await p.scroll(600); await check("queue scrolled");
   await p.page.evaluate(() => { const g = S.games[0]; if (g) openFull(g.id); }); await check("game page");

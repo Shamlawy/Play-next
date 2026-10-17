@@ -149,3 +149,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: the design skill that keeps learning (Oct 2026)
 - rule: Repeated things on any screen never spill, overlap, break short words, squash pictures or barely show.
 - check: node tools/kit.mjs eye
+
+### T30 · v295 · Nexi · hate
+- said: double tapping on nexi shows emoji and other commands, remove the emoji and the commands shorten them and organise them better
+- rule: Nexi's menu is one small card in a few named groups of short plain-word buttons; no emoji buttons, no rings of icons
+- check: tools/scenarios/nexi-wheel.mjs
