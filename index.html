@@ -26752,8 +26752,10 @@ details.grp > summary > .gi, .ssres .gi { color: var(--volt); }
 .squick button > span { color: var(--volt); display: grid; place-items: center; }
 #sheet-in.srl .srlwrap { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 10px; align-items: start; }
 #sheet-in.srl .srlbody { min-width: 0; }
-/* every group open costs drawing them all when Settings opens (562 → 1134ms at 4x CPU): the browser skips the ones off screen */
-#sheet-in.srl .srlbody > .setgroup { content-visibility: auto; contain-intrinsic-size: auto 560px; }
+/* every group open costs drawing them all when Settings opens (562 → 1134ms at 4x CPU): the browser skips the ones off screen.
+   Only where scroll anchoring keeps the view still while a skipped group takes its real height (Chrome); Safari has none, so
+   there a jump landed off and groups shifted under the finger (webkit-check): it draws them all instead. */
+@supports (overflow-anchor: auto) { #sheet-in.srl .srlbody > .setgroup { content-visibility: auto; contain-intrinsic-size: auto 560px; } }
 #sheet-in.srl .srlwrap.solo { display: block; }
 #sheet-in.srl .solo .srlnav { display: none; }
 .srlnav { position: sticky; top: calc(var(--srl-top, 35px) + 10px); margin-top: 8px; max-height: var(--srl-room, 70vh);
@@ -26903,7 +26905,7 @@ function srlMeasure() {
   SRL.io = new IntersectionObserver(es => {
     es.forEach(e => e.isIntersecting ? SRL.hits.add(e.target) : SRL.hits.delete(e.target));
     srlPick();
-  }, { root: sh, rootMargin: `-${Math.round(top)}px 0px -${Math.max(0, H - Math.round(top) - zone)}px 0px`, threshold: 0 });
+  }, { root: sh, rootMargin: `-${Math.round(top) + 4}px 0px -${Math.max(0, H - Math.round(top) - zone)}px 0px`, threshold: 0 });   /* +4: a group landed 8px under the title must not share the zone with the bottom edge of the one above (Safari counts the touching edge) */
   SRL.groups.forEach(g => SRL.io.observe(g));
   if (SRL.end) SRL.end.disconnect();
   SRL.end = new IntersectionObserver(([e]) => { SRL.atEnd = e.isIntersecting && sh.scrollTop > 0; srlPick(); },

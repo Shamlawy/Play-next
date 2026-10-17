@@ -7,13 +7,15 @@ export default async ({ p, w }) => {
   const bad = [], note = m => bad.push(m), shots = process.env.SHOTS;
   /* WebKit (webkit-check.yml's scenario input, the friend's iPhone) has no CDP touch: a click and a scroll instead */
   let touch = true;
-  const tap = async (x, y) => { if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; } await p.page.mouse.click(x, y); };
+  const tap = async (x, y) => { if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; }
+    /* WebKit's emulated mouse dropped later clicks altogether (no click event at all): click what sits at the spot */
+    await p.page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); el && el.click(); }, [x, y]); };
   const swipeUp = async () => { if (touch) try { return await p.swipe(p.w * .6, p.h * .75, p.w * .6, p.h * .3, 260); } catch (e) { touch = false; }
     await p.page.evaluate(d => document.getElementById("sheet").scrollBy(0, d), Math.round(p.h * .45)); };   /* mobile WebKit has no wheel either */
   const state = () => p.page.evaluate(() => {
     const sh = $("#sheet"), inn = $("#sheet-in"), head = inn.querySelector(".ehead"), foot = inn.querySelector(".efoot");
     const top = (parseFloat(getComputedStyle(head).top) || 0) + head.offsetHeight, bot = foot ? foot.offsetHeight : 0;
-    const t0 = sh.getBoundingClientRect().top + top, t1 = t0 + Math.max(40, Math.round((sh.clientHeight - top - bot) * .4));
+    const t0 = sh.getBoundingClientRect().top + top + 4, t1 = sh.getBoundingClientRect().top + top + Math.max(40, Math.round((sh.clientHeight - top - bot) * .4));
     const gs = [...inn.querySelectorAll(".srlbody > .setgroup")];
     const atEnd = sh.scrollTop > 0 && Math.ceil(sh.scrollTop + sh.clientHeight) >= sh.scrollHeight - 2;
     const want = atEnd ? gs[gs.length - 1] : gs.find(g => { const r = g.getBoundingClientRect(); return r.bottom > t0 && r.top < t1; });

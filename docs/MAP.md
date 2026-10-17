@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 26998 lines, 2022 KB, 119 scripts, 65 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27000 lines, 2023 KB, 119 scripts, 65 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -47,8 +47,8 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 26265 v285: `onSettings("after", () => {`
 - 26305 : `onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {} }));`
 - 26567 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
-- 26968 v296: `onSettings("before", () => srlOff());`
-- 26969 v296: `onSettings("after", () => srlBuild());`
+- 26970 v296: `onSettings("before", () => srlOff());`
+- 26971 v296: `onSettings("after", () => srlBuild());`
 
 ## Blocks
 
@@ -236,5 +236,5 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 26433–26449 | style | 1 | ===== v288: Nexi's tea break. The owner (after a Spy x Family ending where the family never gets to drink their tea): now and then, when the app… |
 | 26449–26604 | script | 14 | ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s (no touch, scroll or screen… |
 | 26604–26745 | script | 11 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |
-| 26745–26784 | style | 3 | ===== v296: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise are one scroll of open… |
-| 26784–26998 | script | 24 | ===== v296: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |
+| 26745–26786 | style | 4 | ===== v296: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise are one scroll of open… |
+| 26786–27000 | script | 25 | ===== v296: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |
