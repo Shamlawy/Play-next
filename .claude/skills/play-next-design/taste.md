@@ -219,3 +219,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: I like A so much so keep it but I want extra 3 demos for cards like yugioh cards and other
 - rule: Card back: round 13 A (controller fill) is the owner's pick so far; trading-card layouts (duel, monster, arcane) are being tried as extras, layout only, no real names or logos, the game's colour on black.
 - check: none
+
+### T44 · v300 · Queue · pick
+- said: Nah A it is but fix the numbers on the controller they're design is kinda off and build and merge
+- rule: The open card's back is round 13 A, the Controller: score on the controller's little screen (never over the D-pad), each area's number inside its round button, the four numbers underneath.
+- check: tools/scenarios/queue-card.mjs (score on the screen, numbers inside the buttons)
