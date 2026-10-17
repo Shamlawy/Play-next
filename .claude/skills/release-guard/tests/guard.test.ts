@@ -12,6 +12,7 @@ type World = {
   log?: string
   baseHtml?: string
   headHtml?: string
+  mainHtml?: string
   commitDiff?: string
   runs?: unknown[]
   // false: a repo that doesn't carry the Play next mods (another project)
@@ -40,6 +41,7 @@ function world(on: any, w: World) {
     if (a.startsWith('git diff --name-status -M base')) return out(w.names ?? '')
     if (a.startsWith('git diff -U0 base') && a.endsWith('docs/LOG.md')) return out(w.log ?? '')
     if (a === 'git show base:index.html') return out(w.baseHtml ?? '')
+    if (a === 'git show origin/main:index.html') return out(w.mainHtml ?? w.baseHtml ?? '')
     if (/^git show \S+:index\.html$/.test(a)) return out(w.headHtml ?? '')
     if (a.startsWith('git show -U0')) return out(w.commitDiff ?? '')
     if (a.startsWith('node ')) return out('ok\n')
@@ -124,6 +126,13 @@ describe('release-guard', () => {
     const r: any = await $.tool.call({ tool: 'mcp__github__merge_pull_request', owner: 'shamlawy', repo: 'Play-next', pullNumber: 7 } as any)
     expect(r.deny).toContain('no WHATS_NEW entry with v: 249')
     expect(w.calls.length).toBe(0)
+  })
+
+  test('a merge whose version main already shipped meanwhile is stopped', async ($, on) => {
+    world(on, { names: 'M\tindex.html\nM\tdocs/LOG.md\n', log: '+- v249: new thing\n', baseHtml: html('248'), headHtml: html('249'), mainHtml: html('249') })
+    await start($)
+    const r: any = await $.tool.call({ tool: 'mcp__github__merge_pull_request', owner: 'shamlawy', repo: 'Play-next', pullNumber: 7 } as any)
+    expect(r.deny).toContain('main already shipped v249')
   })
 
   test('a merge without a LOG line is stopped', async ($, on) => {
