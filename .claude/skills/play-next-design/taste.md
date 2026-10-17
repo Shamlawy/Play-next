@@ -155,12 +155,22 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - rule: Nexi's menu is one small card in a few named groups of short plain-word buttons; no emoji buttons, no rings of icons
 - check: tools/scenarios/nexi-wheel.mjs
 
-### T31 · v297 · Queue · hate
+### T31 · v297 · Settings · pick
+- said: B looks very sick (the icon rail of four Settings rail demos)
+- rule: Settings and Customise are one scroll of open groups with a sticky On this page rail of group icons: the lit icon (bar + tile) follows the group under the title and its name pops out for a moment.
+- check: tools/scenarios/settings-rail.mjs
+
+### T32 · v297 · whole app · hate
+- said: I hate the icons they look like default ugly icons I actually hate them across the app
+- rule: No emoji as icons: draw them in the v247 menu style (24x24, fill-only currentColor, one part at 35% opacity); Settings groups use gIcon / GICON.
+- check: none
+
+### T33 · v298 · Queue · hate
 - said: I hated sharp corners; the info is kinda blocking the back drop art
 - rule: The open Queue card has rounded corners everywhere (cover, slab, stat blocks, pills) and the backdrop picture fills the whole card, darkened only near the bottom.
 - check: none
 
-### T32 · v297 · Queue · pick
+### T34 · v298 · Queue · pick
 - said: D and make the pressing on the card flips it no need for a switch button; pressing on the art cover should take us to the game pages so remove the button
 - rule: Open Queue card = round 6 look D (Stamp): full picture, A's blue slab + cover drop, a round status stamp on the cover corner; the front shows only status, logo, platform, genres, no buttons; tapping the cover opens the game page, tapping anywhere else turns the card; dates, numbers, scores, Edit and More live on the back.
 - check: none

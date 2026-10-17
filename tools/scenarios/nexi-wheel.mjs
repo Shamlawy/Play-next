@@ -14,6 +14,11 @@ export default async ({ p, w }) => {
     if (!r.seat || !r.shown) bad.push("Nexi isn't in the rail on Home");
     if (r.face) bad.push("two Nexis on Home (the face is still shown)");
     if (r.loops.length) bad.push("seated Nexi still loops: " + r.loops.join(", "));
+    /* still at rest, but his reactions play: a wobble on the seated Nexi animates his core */
+    const wob = await p.page.evaluate(async () => { const b = document.getElementById("pnbub"); b.classList.add("wob");
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const n = getComputedStyle(b.querySelector(".core")).animationName; b.classList.remove("wob"); return n; });
+    if (!/pnWob/.test(wob)) bad.push("seated Nexi's wobble reaction doesn't play (" + wob + ")");
   }
   await p.page.evaluate(() => pnBubWheel()); await p.page.waitForTimeout(500);
   if (D) await p.page.screenshot({ path: `${D}/wheel-${w}.png` });
