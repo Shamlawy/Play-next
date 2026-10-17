@@ -199,3 +199,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: the backside info looks bad … it looks bad and plain … show me 3 demos
 - rule: The open card's back must carry the front's language (game colour, drawn icons, designed type), not grey stat tiles, an all-caps kicker, text platform chips and a loose Edit/⋯/arrow row.
 - check: none
+
+### T40 · v299 · Queue · hate
+- said: I like B idea but hate the hexogram or whatever so be creative again
+- rule: The card back keeps round 10 B's idea (one picture of the eight areas with the score in it, the four numbers beside), but never a radar/octagon chart; round 11 offers petals, a bezel and a constellation.
+- check: none
