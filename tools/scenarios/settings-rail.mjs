@@ -9,7 +9,8 @@ export default async ({ p, w }) => {
   let touch = true;
   const tap = async (x, y) => { if (touch) try { return await p.tap(x, y); } catch (e) { touch = false; }
     /* WebKit's emulated mouse dropped later clicks altogether (no click event at all): click what sits at the spot */
-    await p.page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); el && el.click(); }, [x, y]); };
+    await p.page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y);   /* an svg path has no .click() in WebKit: a real click event, as a finger's would bubble */
+      if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window })); }, [x, y]); };
   const swipeUp = async () => { if (touch) try { return await p.swipe(p.w * .6, p.h * .75, p.w * .6, p.h * .3, 260); } catch (e) { touch = false; }
     await p.page.evaluate(d => document.getElementById("sheet").scrollBy(0, d), Math.round(p.h * .45)); };   /* mobile WebKit has no wheel either */
   const state = () => p.page.evaluate(() => {
