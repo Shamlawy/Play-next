@@ -25512,7 +25512,8 @@ const PIC = { t: 0, n: 0, seen: new Set() };
 function picLook() {
   const d = Math.min(3, devicePixelRatio || 1), H = innerHeight, W = innerWidth;
   let held = 0, need = 0, worst = null;
-  for (const im of document.images) {
+  /* v304: only the screen on top. Measuring every picture of the hidden screens forced their layout (#136: up to seconds) */
+  for (const im of (document.querySelector("#full.on") || document.querySelector(".panel.on") || document).querySelectorAll("img")) {
     if (!im.complete || !im.naturalWidth || im._fitBusy) continue;   /* its small copy is still being made */
     if (im._fitTo && im.getAttribute("src") === im._fitTo) continue;   /* our sized copy (Safari can still report the old size while swapping) */
     const r = im.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
@@ -26449,7 +26450,8 @@ function layerMakers() {
    decoded. The next report of that kind names its cause instead of only "drawing". */
 function drawLoad() {
   const W = innerWidth, H = innerHeight, d = Math.min(3, devicePixelRatio || 1), top = document.querySelector("#full.on"); let mp = 0, n = 0, need = 0;
-  for (const i of document.images) { if (!i.complete || !i.naturalWidth || (top && !top.contains(i))) continue;
+  /* only the screen on top: a picture measured in a hidden screen forces that screen's layout (#136: this line ran mid-scroll for up to seconds) */
+  for (const i of (top || document.querySelector(".panel.on") || document).querySelectorAll("img")) { if (!i.complete || !i.naturalWidth) continue;
     const r = i.getBoundingClientRect(); if (r.bottom < 0 || r.top > H || r.right < 0 || r.left > W || r.width < 8) continue;
     n++; mp += i.naturalWidth * i.naturalHeight / 1e6; need += Math.min(i.naturalWidth * i.naturalHeight, r.width * r.height * d * d) / 1e6; }
   /* v304: url() backgrounds (the Queue's open card, row strips, Played's rows) count too; pictures under an open game page don't */
@@ -27554,8 +27556,8 @@ const picBgUrl = el => { const m = /url\((['"]?)(.*?)\1\)/.exec(el.getAttribute(
 function picBgOn() {
   const W = innerWidth, H = innerHeight, top = document.querySelector("#full.on"), out = [];
   if (document.querySelector("#sheet.on, #diary.on")) return out;
-  for (const el of document.querySelectorAll("[style*='url(']")) {
-    if ((top && !top.contains(el)) || (el._fitTo && el.getAttribute("style") === el._fitTo)) continue;   /* under the game page / our sized copy */
+  for (const el of (top || document.querySelector(".panel.on") || document).querySelectorAll("[style*='url(']")) {
+    if (el._fitTo && el.getAttribute("style") === el._fitTo) continue;   /* our sized copy */
     const u = picBgUrl(el); if (!u || /^data:image\/svg|\.svg(\?|#|$)/i.test(u)) continue;
     const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
     if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
