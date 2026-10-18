@@ -60,6 +60,7 @@ Then keep the pair: `node tools/taste.mjs pair <name> --before=<ours before> --a
 - Animate only `transform` and `opacity`. No looping blur, no filter / clip-path / mask on spinning layers (v167), no stacked effects, no `zIndex` in keyframes (v168). A `fill: "forwards"` animation is cancelled on every path that ends it (v215). Easing: `var(--ease)`.
 - Endless loops are allowed only as transform/opacity, and they keep running while a finger moves (v282): never pause them on scroll.
 - Big pictures and many layers cost the GPU on the Fold (v264, v287): keep layers few, pictures at the size they're shown.
+- No scroll-linked motion on list rows (v308, #469 item 6): a `view()`/`scroll()` timeline keeps its own GPU layer the whole time it exists, moving or not (Played's rows had four each: 9 screens of layers, now 4). Rows in a long list simply appear; one small piece (a badge shelf) may keep it, near the screen only.
 
 ## 6. Where the code goes
 

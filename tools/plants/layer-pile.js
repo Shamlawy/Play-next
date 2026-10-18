@@ -1,6 +1,9 @@
 /* Plant for the v287 layer-pile check: main's leftover #pnorbs (v68's two drifting glows), exactly as it was: a fixed
    full-screen box under every screen whose two circles loop a transform, so everything on screen is drawn over a GPU
-   layer. node tools/kit.mjs sweep --plant tools/plants/layer-pile.js --expect */
+   layer. node tools/kit.mjs sweep --plant tools/plants/layer-pile.js --expect
+   Lines read by tools/plants/run.mjs (every plant at once, app-check runs it):
+   sweep: --widths 412 --screens queue
+   expect: ^\[layout\] .*GPU layers pile up on this screen */
 (() => {
   const s = document.createElement("style");
   s.textContent = `#pnorbsx { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }

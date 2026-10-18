@@ -3470,6 +3470,16 @@ function extend(name, hook) {
 }
 extend.skip = value => ({ [EXT_SKIP]: true, value });
 extend.args = args => ({ [EXT_ARGS]: true, args });
+/* v308 (#334): a later script that changes how a screen looks redraws it once the whole page has loaded, not while it
+   loads: the app opened by drawing Played 4 times and Taste 3 times (each a full screen of work at the start).
+   bootRedraw("renderPlayed") runs it at once if the page has already loaded; while it loads, each name runs once at the end. */
+const BOOT_REDRAW = new Set();
+function bootRedraw(name) {
+  if (document.readyState !== "loading") { window[name](); return; }
+  if (!BOOT_REDRAW.size) document.addEventListener("DOMContentLoaded", () => { const l = [...BOOT_REDRAW]; BOOT_REDRAW.clear();
+    l.forEach(n => { try { window[n](); } catch (e) { setTimeout(() => { throw e; }); } }); }, { once: true });
+  BOOT_REDRAW.add(name);
+}
 /* v284: one scroll listener for the app's small "you scrolled" jobs. There were 11 listeners on window, each its own call into
    the page on every scroll frame of every scroller (30-140ms each per swipe set at 4x CPU: together the biggest script cost
    left while scrolling, v283), and most also cleared and set a timer on every frame. onScrolled(fn): fn(e, first, now) on
@@ -4312,7 +4322,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "307";
+const APP_V = "308";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -14550,7 +14560,6 @@ html:not(.grumon) #grum,html:not(.grumon) #grummsg,html:not(.grumon) #grumpop{di
 html.fast .vpill,html.fast .react{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html.fast .vpill{background:rgba(10,20,52,.97)!important}
 html.fast .react{background:linear-gradient(180deg,#16244d,#0a0f1e)!important}
-html.fast::before{transform:translateZ(0)}
 .pnb-row{content-visibility:auto;contain-intrinsic-size:auto 170px}
 #pnfps{position:fixed;left:8px;top:calc(env(safe-area-inset-top,0px) + 6px);z-index:999;padding:3px 8px;border-radius:8px;
   background:#000c;color:var(--volt);font:800 12px ui-monospace,monospace;pointer-events:none}
@@ -14610,9 +14619,9 @@ button,a,.icon{-webkit-tap-highlight-color:transparent}
 .pnb-h h3{margin:0;letter-spacing:.14em;font-size:15px;text-transform:uppercase}
 .pnb-row{position:relative;display:grid;grid-template-columns:minmax(0,40%) 1fr auto;align-items:center;gap:8px;width:100%;
   min-height:calc(clamp(160px,36vw,300px)*var(--pbs,.75));padding:calc(16px*var(--pbs,.75)) 18px;margin:0 0 3px;border:0;border-radius:0;text-align:left;color:var(--ice);overflow:hidden;background:var(--ink);
-  transform:none!important;animation:pnbIn .5s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i)*60ms)}
+  transform:none!important}
 .pnb-row:first-of-type{border-radius:14px 14px 0 0}.pnb-row:last-of-type{border-radius:0 0 14px 14px}
-.pnb-row::before{content:"";position:absolute;inset:0;background:var(--art) center 30%/cover;opacity:var(--pba,.8);transition:transform .6s ease}
+.pnb-row::before{content:"";position:absolute;inset:0;background:var(--art) center 30%/cover;opacity:var(--pba,.8)}
 .pnb-row::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,6,14,calc(1.05 - var(--pba,.8)*.35)) 0,rgba(4,6,14,calc(.75 - var(--pba,.8)*.6)) 42%,rgba(4,6,14,calc(.75 - var(--pba,.8)*.6)) 60%,rgba(4,6,14,calc(1.1 - var(--pba,.8)*.3)) 86%);
   box-shadow:inset 0 -1px 0 rgba(var(--vrgb),.35)}
 
@@ -14626,15 +14635,11 @@ button,a,.icon{-webkit-tap-highlight-color:transparent}
 .pnb-r{place-items:center;}
 .pnb-art{display:flex;align-items:center;gap:10px;margin:0 2px 10px;color:var(--mute);font:700 12px "Poppins",sans-serif}.pnb-art input{flex:1;accent-color:var(--volt)}
 .pnb-n{letter-spacing:-.03em;
-  text-shadow:0 4px 18px rgba(0,0,0,.8);animation:pnbPop .6s cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i)*60ms + .15s)}
+  text-shadow:0 4px 18px rgba(0,0,0,.8)}
 .pnb-n small{font:800 italic 12px "Poppins",sans-serif;color:var(--volt);margin:8px 0 0 3px}
 .pnb-n i{font-style:normal;font-size:13px;color:var(--volt);margin:22px 4px 0 0}
 .pnb-c{border:1.5px solid var(--ice);border-radius:99px;padding:3px 10px;font:700 10.5px "Poppins",sans-serif;white-space:nowrap}
 .pnb-row.top .pnb-r{background:var(--volt);}
-@keyframes pnbIn{from{opacity:0;translate:-22px 0}}
-@keyframes pnbPop{from{opacity:0;transform:scale(.6)}}
-html.still .pnb-row,html.still .pnb-n{animation:none}
-@media (prefers-reduced-motion:reduce){.pnb-row,.pnb-n{animation:none}}
 #pnshare{position:fixed;inset:0;z-index:95;background:rgba(2,4,10,.92);display:grid;place-items:center;padding:20px;overflow:auto;animation:fadein .25s ease both}
 #pnshare img{max-width:100%;max-height:78vh;border-radius:12px;box-shadow:0 20px 50px #000}
 #pnshare p{color:var(--mute);font-size:13px;text-align:center;margin:12px 0}
@@ -14673,8 +14678,8 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-pnshare]"))pnShareBoard();
   if(e.target.closest("#pnshare [data-x]")||e.target.id==="pnshare"){const o=document.getElementById("pnshare");if(o)o.remove();}
 });
-/* the app draws Played before this part loads, so redraw it once now */
-try{renderPlayed();}catch(e){}
+/* the app draws Played before this part loads, so redraw it once the page has loaded */
+bootRedraw("renderPlayed");
 let pnShareFile=null;
 async function pnShareBoard(noArt){
   if(typeof toast==="function")toast("Making your board…");
@@ -14837,67 +14842,33 @@ document.addEventListener("change",e=>{if(e.target.closest("[data-pnartv]"))save
 .pnb-ctl{animation:pnbDrop .35s cubic-bezier(.22,1,.36,1) both}
 @keyframes pnbDrop{from{opacity:0;translate:0 -8px}}
 .pnb-v{font:inherit}
-.pnb-row,.pnb-row .pnb-n{animation:none}
-.pnb-row.wait{opacity:0}
-.pnb-row.in{animation:pnbGlide .45s cubic-bezier(.22,1,.36,1) both}
-@keyframes pnbGlide{from{opacity:0;translate:0 18px}}
-html.fast.scrolling .pnb-row.in{animation-play-state:running!important}
-
-.pnb-row{transition:scale .2s ease}
 .pbd-row{animation:pnbDrop .4s ease backwards}
-.pbd-b{transition:scale .15s ease}
-html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{animation:none}
-@media (prefers-reduced-motion:reduce){.pnb-row.wait{opacity:1}.pnb-row.in,.pbd-row{animation:none}}
+html.still .pbd-row{animation:none}
+@media (prefers-reduced-motion:reduce){.pbd-row{animation:none}}
 </style>
 <script>
 (function(){
-  const calm=()=>S.motion===false||document.documentElement.classList.contains("still")||matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const io="IntersectionObserver" in window?new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;
-    const r=e.target;io.unobserve(r);r.classList.remove("wait");r.classList.add("in");}),{rootMargin:"0px 0px -8% 0px"}):null;
-  function wire(){const el=document.getElementById("p-played");if(!el)return;
-    el.querySelectorAll(".pnb-row").forEach(r=>{if(calm()||!io){r.classList.add("in");return;}r.classList.add("wait");io.observe(r);});}
-  extend("renderPlayed",{after:()=>{wire();}});
+  /* v308: the rows simply appear (their v155 glide and v156 scroll-linked motion are gone, #469 item 6) */
   /* sliders: live while dragging, saved on release */
   document.addEventListener("input",e=>{const r=e.target.closest("[data-pnsize]");if(!r)return;S.boardSize=+r.value;
     document.querySelectorAll(".pnb").forEach(b=>b.style.setProperty("--pbs",r.value/100));
     document.querySelectorAll("[data-pnsize]").forEach(o=>{if(o!==r)o.value=r.value;});});
   document.addEventListener("change",e=>{if(e.target.closest("[data-pnsize]"))save();});
-  /* everything above has loaded now, so draw Played once with the badges and board in place */
-  try{renderPlayed();}catch(e){}
+  /* draw Played once with the badges and board in place */
+  bootRedraw("renderPlayed");
 })();
 </script>
 <style>
 /* v156 scroll-driven motion: the browser ties these to your finger on its own graphics thread,
-   so they stay at full refresh rate however fast you scroll. Phones without it keep the v155 fade. */
+   so they stay at full refresh rate however fast you scroll. */
 @supports (animation-timeline: view()) {
-  .pnb-row.wait{opacity:1}
-  .pnb-row.in{animation:none}
-  /* rows rise and settle as they scroll into view */
-  .pnb-row.nr{animation:pnbRise linear;animation-timeline:view();animation-range:entry 0% cover 28%}
-  @keyframes pnbRise{from{opacity:0;translate:0 60px;scale:.9}}
-  /* the art is its own layer and drifts slower than the page: depth */
-  .pnb-row::before{inset:-16% 0;transition:none}
-  .pnb-row.nr::before{animation:pnbPara linear;animation-timeline:view();animation-range:cover}
-  @keyframes pnbPara{from{transform:translateY(-11%) scale(1.06)}to{transform:translateY(11%) scale(1.06)}}
-  /* title slides from the left, score from the right, meeting in the middle */
-  .pnb-row.nr>div:first-child{animation:pnbFromL linear;animation-timeline:view();animation-range:entry 10% cover 34%}
-  .pnb-row.nr .pnb-s{animation:pnbFromR linear;animation-timeline:view();animation-range:entry 10% cover 34%}
-  @keyframes pnbFromL{from{opacity:0;translate:-70px 0}}
-  @keyframes pnbFromR{from{opacity:0;translate:70px 0;scale:.7}}
-  /* badges grow in from the edge as you swipe the shelf */
+  /* badges grow in from the edge as you swipe the shelf (v308: the rows' rise, art drift and title/score slides are
+     gone: four GPU layers per row the whole time, #469 item 6) */
   .pbd-b.nr{animation:pbdCar linear;animation-timeline:view(inline);animation-range:entry 0% entry 100%}
   @keyframes pbdCar{from{opacity:0;scale:.55;translate:24px 0}}
-  html.fast.scrolling .pnb-row,html.fast.scrolling .pnb-row *,html.fast.scrolling .pnb-row::before,html.fast.scrolling .pbd-b{animation-play-state:running!important}
-  html.still .pnb-row,html.still .pnb-row *,html.still .pnb-row::before,html.still .pbd-b,html.still .pnb-row.nr,html.still .pnb-row.nr *,html.still .pnb-row.nr::before,html.still .pbd-b.nr{animation:none}
+  html.still .pbd-b,html.still .pbd-b.nr{animation:none}
 }
-@media (prefers-reduced-motion:reduce){.pnb-row,.pnb-row *,.pnb-row::before,.pbd-b{animation:none!important}}
-</style>
-<style>
-/* v157 the real drag: a full-screen blurred picture sat behind every screen, slowly zooming forever,
-   so the phone re-blurred the whole screen on every single frame. Speed boost now draws it at a quarter
-   size and stretches it up (it's blurry anyway, looks the same) and holds it still. */
-/* the board art no longer holds eight oversized layers in memory between scrolls */
-@supports (animation-timeline: view()){html.fast .pnb-row::before{will-change:auto}}
+@media (prefers-reduced-motion:reduce){.pbd-b{animation:none!important}}
 </style>
 <script>
 document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]")||!pnShareFile)return;
@@ -16226,7 +16197,7 @@ pnBoardRows = function (done) {
   const t = rankTable();
   return (done || []).filter(x => t.pos[x.id] != null).sort((a, b) => t.pos[a.id] - t.pos[b.id]);
 };
-try { renderPlayed(); } catch (e) {}
+bootRedraw("renderPlayed");
 GROUP_KEYS["On deck"] = ["curPlat", "deckOff"];
 WHATS_NEW.push(
   { v: 184, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); qScore(g.id); } }, at: () => $("#diary .qs-grid"),
@@ -18570,7 +18541,7 @@ extend("renderTaste", { before() {
   return extend.skip(out); } });
 /* leaving the tab lets the reveal play again next time you come back */
 onNav("after", k => { if (k === "tab" && curTab() !== "taste") ixShown.clear(); });
-try { renderTaste(); if (typeof renderPill === "function") renderPill(); } catch (e) {}
+bootRedraw("renderTaste"); bootRedraw("renderPill");
 WHATS_NEW.push(
   { v: 205, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-hero"),
     say: "Psychology, Patterns and Analytics are now one page: <b>Insights</b>. It opens with your player type, then how well you call games, what I've learned about you and your taste shape. The deep dives and all the numbers sit folded at the bottom.",
@@ -20869,7 +20840,7 @@ html.still .dustpuff { display: none; }
    Each row logo is measured once (localStorage gq:logofit, by URL): its aspect and, when the picture host allows reading
    pixels (CORS), the box of its non-transparent pixels, so see-through padding doesn't count. lfApply sizes every logo
    to about the same visual area in its tile (wide ones run long and thin, square ones stay short), content centred
-   vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size is read once in rAF. */
+   vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size: a ResizeObserver (v308, lfRO). */
 /* v223 made this a switch, off by default; v290 (the owner picked look A: same visual size, upright, inside the row)
    makes it always on and drops the switch */
 const LF_OFF = () => false;
@@ -20935,18 +20906,29 @@ function lfApply() {
   lfQ.push(...missing);
   /* the tile's size is read in a frame (never right after a redraw), and again on every call: v298 found it read once
      while the rows were still settling (115px for a 106px slot), so a wide logo ran past its spot until a resize */
-  if (lfBox) { lfSheet(); lfNext(); }
+  /* new logos are measured in idle time from the start; only the sheet needs the tile's size */
+  if (lfBox) lfSheet(); lfNext();
   const im = document.querySelector("#p-queue .rowart"); if (!im) return;
-  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return;
-    if (lfBox && Math.abs(lfBox.w - r.width) < 1 && Math.abs(lfBox.h - r.height) < 1) return;
-    lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
+  if (lfRO) { if (lfSeen !== im) { lfRO.disconnect(); lfRO.observe(im); lfSeen = im; } return; }
+  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); lfSize(r.width, r.height); });
 }
+function lfSize(w, h) {
+  if (!w || !h || (lfBox && Math.abs(lfBox.w - w) < 1 && Math.abs(lfBox.h - h) < 1)) return;
+  lfBox = { w, h }; lfSheet(); lfNext();
+}
+/* v308 (#334): the tile is measured by a ResizeObserver once the browser has laid it out by itself, never by reading it.
+   The read in a frame forced a full layout of the hidden Queue every time it was drawn (twice as the app opened, ~470ms
+   each at 4x). The observer reports when the Queue is first laid out (the idle warm-up of hidden tabs, or the switch to
+   it) and on any change of size (unfolding), and what it changes is drawn in that same frame. */
+let lfSeen = null;
+const lfRO = window.ResizeObserver ? new ResizeObserver(es => { const e = es[es.length - 1], b = e.borderBoxSize && e.borderBoxSize[0];
+  if (e.target.isConnected) lfSize(b ? b.inlineSize : e.contentRect.width, b ? b.blockSize : e.contentRect.height); }) : null;
 function lfNext() {
   if (lfBusy || !lfQ.length) return; lfBusy = true;
   const u = lfQ.shift();
   (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => lfMeasure(u).then(() => { lfBusy = false; lfSheet(); lfNext(); }));
 }
-addEventListener("resize", () => { lfBox = null; clearTimeout(lfApply.t); lfApply.t = setTimeout(lfApply, 300); }, { passive: true });
+addEventListener("resize", () => { if (lfRO) return; lfBox = null; clearTimeout(lfApply.t); lfApply.t = setTimeout(lfApply, 300); }, { passive: true });
 
 /* Nexi learned both reports: a price row that stays on "checking…" while no check is running (#118), and a queue logo
    drawn under 30% of its tile's height (#114; not when you chose "same box for all") */
@@ -24522,10 +24504,10 @@ extend("tasteInsightsPage", { map(o) {
 
 /* the first screens were drawn before this script existed: put the new looks in once */
 dzPlay();
-/* the queue keeps its last header (qPatch) and skips a redraw that matches it: redraw through it, never behind its back */
-(window.requestIdleCallback || setTimeout)(() => {
-  if (dzOn("deck") && $("#p-queue .deck:not(.dzd)")) renderQueue();
-  if (dzOn("court") && $("#p-taste .ix-hero:not(.dzc)")) renderTaste(); }, { timeout: 400 });
+/* the queue keeps its last header (qPatch) and skips a redraw that matches it: redraw through it, never behind its back.
+   v308: once, when the page has loaded (with Taste's, if a later script hasn't asked for it already) */
+if (dzOn("deck") && $("#p-queue .deck:not(.dzd)")) bootRedraw("renderQueue");
+if (dzOn("court") && $("#p-taste .ix-hero:not(.dzc)")) bootRedraw("renderTaste");
 
 document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest("[id^=s-dzx-] [data-v]"); if (!b) return;
@@ -27490,12 +27472,11 @@ WHATS_NEW.push(
    mid-swipe): 4 per row and 24 locked badges, each also cutting what's drawn above it into "overlap" layers. The motion is
    the same, but a piece only carries it near where it plays (.nr): a row from just above the screen to half a screen below
    it (it rises as it comes up from below; its art drifts while on screen), a badge in its shelf and half a shelf to the
-   right (it grows in from the right edge). Rows drawn before this script are picked up here too. */
+   right (it grows in from the right edge). Rows drawn before this script are picked up here too.
+   v308: the rows lost their motion (#469 item 6), so only the badges are watched now. */
 { const ok = window.IntersectionObserver && CSS.supports && CSS.supports("animation-timeline: view()");
-  const near = ok ? new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle("nr", e.isIntersecting)), { rootMargin: "15% 0px 50% 0px" }) : null;
   let shelf = null;
-  const wire = () => { if (!ok) return; near.disconnect(); if (shelf) shelf.disconnect(); shelf = null;
-    document.querySelectorAll("#p-played .pnb-row").forEach(r => near.observe(r));
+  const wire = () => { if (!ok) return; if (shelf) shelf.disconnect(); shelf = null;
     const row = document.querySelector("#p-played .pbd-row"); if (!row) return;
     shelf = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle("nr", e.isIntersecting)), { root: row, rootMargin: "0px 50% 0px 0px" });
     row.querySelectorAll(".pbd-b").forEach(b => shelf.observe(b)); };
@@ -27586,6 +27567,14 @@ WHATS_NEW.push(
   { v: 307, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: if a Queue card you open ends up off the screen, I report it on my own.",
     tryIt: "Nothing to do: if it happens, I file it myself." }
+);
+WHATS_NEW.push(
+  { v: 308, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>The app opens lighter</b>: while it loads it no longer draws your Played list four times and Taste three times, and the Queue's logos are sized when you first open the Queue, instead of making the phone lay out the whole hidden Queue at the start.",
+    tryIt: "Close the app fully and open it again." },
+  { v: 308, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .pnb-row") || null,
+    say: "<b>Played scrolls smoother</b>: your finished games now simply appear instead of rising and sliding in. Each row's motion kept four layers busy on the graphics chip the whole time; the badge shelf still slides in.",
+    tryIt: "Scroll your Played list quickly from top to bottom." }
 );
 /* Oct 18: Nexi learned (the owner: "it lagged a lot and the games stopped opening"): a Queue card you open has to end up on
    the screen. Opening one closed the card above it and the one you tapped slid off the top, so the next tap hit another row */

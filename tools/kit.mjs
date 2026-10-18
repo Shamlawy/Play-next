@@ -26,7 +26,9 @@
    Options: --file other.html (test another copy, e.g. the old build), --widths 412,859, --cpu 4,
    --set '{"bugOff":true}' (extra saved settings), --shots dir (tour: a screenshot of every step),
    --plant x.js (sweep: run this in every phone once it has loaded) with --expect (sweep fails unless the plant is reported:
-   the proof a new detector catches its problem).
+   the proof a new detector catches its problem); --match <regex> (repeatable): with --expect, a report line
+   ("[kind] screen: msg @ at") must match each one, so an unrelated report can't pass for the plant;
+   --screens queue,lib,game,settings,edit,chat (sweep: only these; default every one). Every plant at once: tools/plants/run.mjs.
    Exit code 1 when something failed (script errors, a broken block, a real report, a tour step without its target).
    Timing reports ("slow") are printed but never fail: a headless machine has no GPU. */
 import http from "http";
@@ -45,6 +47,7 @@ const opt = (k, d) => { const i = args.indexOf("--" + k); return i >= 0 ? args[i
 const FILE = opt("file", "index.html");
 const SET = JSON.parse(opt("set", "{}"));
 const PLANT = opt("plant") ? fs.readFileSync(opt("plant"), "utf8") : "", EXPECT = args.includes("--expect");   /* --set '{"bugOff":true}': extra saved settings for every phone */
+const MATCH = args.flatMap((a, i) => a === "--match" && args[i + 1] ? [new RegExp(args[i + 1], "i")] : []);
 const WIDTHS = opt("widths", "412,859,360").split(",").map(Number);
 /* --browser webkit: Safari's engine, for the friend's iPhone 11 / iPad (on GitHub: webkit-check.yml's "scenario" input; this
    container only has Chromium). No CDP there, so p.tap / p.swipe and perf need Chromium */
@@ -175,8 +178,11 @@ async function phone(browser, base, w, data) {
   data = { ...data, ...SET };
   await ctx.addInitScript(s => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("gq:data", s); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(data));
   const page = await ctx.newPage();
-  page.on("pageerror", e => errors.push(String(e && e.message || e).split("\n")[0]));
-  page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked|ERR_/i.test(m.text())) errors.push(m.text().split("\n")[0]); });
+  /* WebKit reports "Cannot load blob:… due to access control checks" for the old page's picture blob: URLs (made from data
+     URLs) still loading when a scenario reloads: one per reload, none on Chromium, not the app's (open idea M14) */
+  const wkNoise = t => WK && /\/\/localhost:\d+\/[0-9a-f-]{36} due to access control checks/i.test(t);
+  page.on("pageerror", e => { const t = String(e && e.message || e); if (!wkNoise(t)) errors.push(t.split("\n")[0]); });
+  page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked|ERR_/i.test(m.text()) && !wkNoise(m.text())) errors.push(m.text().split("\n")[0]); });
   await page.goto(base); await page.waitForTimeout(2500);
   if (PLANT) await page.evaluate(PLANT).catch(e => errors.push("plant: " + String(e.message || e).split("\n")[0]));
   const step = async (label, fn, wait = 1200) => {
@@ -214,11 +220,15 @@ function verdict(name, p) {
 
 /* ---------- sweep ---------- */
 async function sweep(browser, base) {
-  console.log(`\n== sweep (${FILE}, v${APP_V}) at ${WIDTHS.join(", ")} ==`);
+  /* --screens queue,game: only those tabs and pages (a plant's proof needs one screen, not the whole walk) */
+  const ONLY = opt("screens") ? opt("screens").split(",") : null, on = s => !ONLY || ONLY.includes(s);
+  for (const s of ONLY || []) if (!SCREENS.includes(s) && !["game", "settings", "edit", "chat"].includes(s)) return fail(`--screens: no screen "${s}" (${SCREENS.join(", ")}, game, settings, edit, chat)`);
+  console.log(`\n== sweep (${FILE}, v${APP_V}) at ${WIDTHS.join(", ")}${ONLY ? " on " + ONLY.join(", ") : ""} ==`);
   /* one width at a time: parallel runs starve the CPU and the app's lag checks report it */
   for (const w of WIDTHS) {
     const p = await phone(browser, base, w, seed(APP_V));
     for (const s of SCREENS) {
+      if (!on(s)) continue;
       /* the layout check runs 1.6s after a screen change, when idle: leave sooner and most of it is missed
          (a planted cut-off button was reported on 3 screens with 1.4s here, on 11 with 2.6s) */
       await p.step("goTab " + s, `goTab(${JSON.stringify(s)})`, 2600);
@@ -226,23 +236,26 @@ async function sweep(browser, base) {
       await p.scroll(900); await p.page.waitForTimeout(1100);
       await p.scroll(-900); await p.page.waitForTimeout(400);
     }
-    for (const id of ["g1", "g9", "g5"]) {
+    if (on("game")) for (const id of ["g1", "g9", "g5"]) {
       await p.step("game page " + id, `openFull(${JSON.stringify(id)})`, 1600);
       await p.scroll(700); await p.page.waitForTimeout(700);
       await p.step("close game", `closeFull()`, 700);
     }
-    await p.step("settings", `openSettings()`, 1500); await p.scroll(1200); await p.page.waitForTimeout(500);
-    await p.step("close settings", `typeof closeEdit === "function" && closeEdit()`, 700);
-    await p.step("edit", `openEdit("g2")`, 1400); await p.scroll(900); await p.page.waitForTimeout(500);
-    await p.step("close edit", `typeof closeEdit === "function" && closeEdit()`, 700);
-    await p.step("chat", `typeof nxChat === "function" && nxChat()`, 1200);
-    await p.step("close chat", `typeof dyClose === "function" && dyClose()`, 600);
+    if (on("settings")) { await p.step("settings", `openSettings()`, 1500); await p.scroll(1200); await p.page.waitForTimeout(500);
+      await p.step("close settings", `typeof closeEdit === "function" && closeEdit()`, 700); }
+    if (on("edit")) { await p.step("edit", `openEdit("g2")`, 1400); await p.scroll(900); await p.page.waitForTimeout(500);
+      await p.step("close edit", `typeof closeEdit === "function" && closeEdit()`, 700); }
+    if (on("chat")) { await p.step("chat", `typeof nxChat === "function" && nxChat()`, 1200);
+      await p.step("close chat", `typeof dyClose === "function" && dyClose()`, 600); }
     await p.step("home", `goTab("home")`, 1500);
     await p.flush(); await p.flush();
     if (EXPECT) {
-      const real = p.reports.filter(r => r.kind !== "slow");
-      if (real.length) console.log(`  ✓ ${w}px: the plant was reported (${real.length}):\n      ` + real.map(line).join("\n      "));
-      else fail(`${w}px: the plant was NOT reported`);
+      const real = p.reports.filter(r => r.kind !== "slow").map(line), miss = MATCH.filter(re => !real.some(l => re.test(l)));
+      /* a plant that threw shows here: otherwise a renamed function in the plant reads as a blind detector */
+      [...new Set(p.errors)].filter(e => /^plant: /.test(e)).forEach(e => console.log(`  · ${w}px: ${e}`));
+      if (real.length && !miss.length) console.log(`  ✓ ${w}px: the plant was reported (${real.length}):\n      ` + real.join("\n      "));
+      else fail(`${w}px: the plant was NOT reported` + (miss.length && MATCH.length ? ` (nothing matched ${miss.map(String).join(", ")})` : "")
+        + (real.length ? `; reported instead:\n      ` + real.join("\n      ") : ""));
     } else verdict(`${w}px`, p);
     await p.ctx.close();
   }
@@ -398,7 +411,7 @@ if (mode === "audit" || mode === "all") audit();
 if (mode === "sw" || mode === "all") sw();
 /* ---------- a saved scenario ---------- */
 async function scenario(browser, base) {
-  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set" && args[i - 1] !== "--browser" && args[i - 1] !== "--before");
+  const file = args.find((a, i) => i > 0 && !a.startsWith("--") && args[i - 1] !== "--file" && args[i - 1] !== "--widths" && args[i - 1] !== "--plant" && args[i - 1] !== "--set" && args[i - 1] !== "--browser" && args[i - 1] !== "--before" && args[i - 1] !== "--match" && args[i - 1] !== "--screens");
   if (!file) return fail("usage: node tools/kit.mjs run tools/scenarios/x.mjs [--widths 412]");
   const fn = (await import(pathToFileURL(path.resolve(file)).href)).default;
   for (const w of opt("widths") ? WIDTHS : [412]) {
