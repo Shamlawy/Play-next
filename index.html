@@ -3470,6 +3470,16 @@ function extend(name, hook) {
 }
 extend.skip = value => ({ [EXT_SKIP]: true, value });
 extend.args = args => ({ [EXT_ARGS]: true, args });
+/* v308 (#334): a later script that changes how a screen looks redraws it once the whole page has loaded, not while it
+   loads: the app opened by drawing Played 4 times and Taste 3 times (each a full screen of work at the start).
+   bootRedraw("renderPlayed") runs it at once if the page has already loaded; while it loads, each name runs once at the end. */
+const BOOT_REDRAW = new Set();
+function bootRedraw(name) {
+  if (document.readyState !== "loading") { window[name](); return; }
+  if (!BOOT_REDRAW.size) document.addEventListener("DOMContentLoaded", () => { const l = [...BOOT_REDRAW]; BOOT_REDRAW.clear();
+    l.forEach(n => { try { window[n](); } catch (e) { setTimeout(() => { throw e; }); } }); }, { once: true });
+  BOOT_REDRAW.add(name);
+}
 /* v284: one scroll listener for the app's small "you scrolled" jobs. There were 11 listeners on window, each its own call into
    the page on every scroll frame of every scroller (30-140ms each per swipe set at 4x CPU: together the biggest script cost
    left while scrolling, v283), and most also cleared and set a timer on every frame. onScrolled(fn): fn(e, first, now) on
@@ -14668,8 +14678,8 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-pnshare]"))pnShareBoard();
   if(e.target.closest("#pnshare [data-x]")||e.target.id==="pnshare"){const o=document.getElementById("pnshare");if(o)o.remove();}
 });
-/* the app draws Played before this part loads, so redraw it once now */
-try{renderPlayed();}catch(e){}
+/* the app draws Played before this part loads, so redraw it once the page has loaded */
+bootRedraw("renderPlayed");
 let pnShareFile=null;
 async function pnShareBoard(noArt){
   if(typeof toast==="function")toast("Making your board…");
@@ -14844,8 +14854,8 @@ html.still .pbd-row{animation:none}
     document.querySelectorAll(".pnb").forEach(b=>b.style.setProperty("--pbs",r.value/100));
     document.querySelectorAll("[data-pnsize]").forEach(o=>{if(o!==r)o.value=r.value;});});
   document.addEventListener("change",e=>{if(e.target.closest("[data-pnsize]"))save();});
-  /* everything above has loaded now, so draw Played once with the badges and board in place */
-  try{renderPlayed();}catch(e){}
+  /* draw Played once with the badges and board in place */
+  bootRedraw("renderPlayed");
 })();
 </script>
 <style>
@@ -16187,7 +16197,7 @@ pnBoardRows = function (done) {
   const t = rankTable();
   return (done || []).filter(x => t.pos[x.id] != null).sort((a, b) => t.pos[a.id] - t.pos[b.id]);
 };
-try { renderPlayed(); } catch (e) {}
+bootRedraw("renderPlayed");
 GROUP_KEYS["On deck"] = ["curPlat", "deckOff"];
 WHATS_NEW.push(
   { v: 184, go: () => { const g = S.games.find(isPlayed) || S.games[0]; if (g) { nxShut(); qScore(g.id); } }, at: () => $("#diary .qs-grid"),
@@ -18531,7 +18541,7 @@ extend("renderTaste", { before() {
   return extend.skip(out); } });
 /* leaving the tab lets the reveal play again next time you come back */
 onNav("after", k => { if (k === "tab" && curTab() !== "taste") ixShown.clear(); });
-try { renderTaste(); if (typeof renderPill === "function") renderPill(); } catch (e) {}
+bootRedraw("renderTaste"); bootRedraw("renderPill");
 WHATS_NEW.push(
   { v: 205, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); }, at: () => $("#p-taste .ix-hero"),
     say: "Psychology, Patterns and Analytics are now one page: <b>Insights</b>. It opens with your player type, then how well you call games, what I've learned about you and your taste shape. The deep dives and all the numbers sit folded at the bottom.",
@@ -20830,7 +20840,7 @@ html.still .dustpuff { display: none; }
    Each row logo is measured once (localStorage gq:logofit, by URL): its aspect and, when the picture host allows reading
    pixels (CORS), the box of its non-transparent pixels, so see-through padding doesn't count. lfApply sizes every logo
    to about the same visual area in its tile (wide ones run long and thin, square ones stay short), content centred
-   vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size is read once in rAF. */
+   vertically and starting at the tile's left edge (the GTA-style run-off stays). Box size: a ResizeObserver (v308, lfRO). */
 /* v223 made this a switch, off by default; v290 (the owner picked look A: same visual size, upright, inside the row)
    makes it always on and drops the switch */
 const LF_OFF = () => false;
@@ -20896,18 +20906,29 @@ function lfApply() {
   lfQ.push(...missing);
   /* the tile's size is read in a frame (never right after a redraw), and again on every call: v298 found it read once
      while the rows were still settling (115px for a 106px slot), so a wide logo ran past its spot until a resize */
-  if (lfBox) { lfSheet(); lfNext(); }
+  /* new logos are measured in idle time from the start; only the sheet needs the tile's size */
+  if (lfBox) lfSheet(); lfNext();
   const im = document.querySelector("#p-queue .rowart"); if (!im) return;
-  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); if (!r.width || !r.height) return;
-    if (lfBox && Math.abs(lfBox.w - r.width) < 1 && Math.abs(lfBox.h - r.height) < 1) return;
-    lfBox = { w: r.width, h: r.height }; lfSheet(); lfNext(); });
+  if (lfRO) { if (lfSeen !== im) { lfRO.disconnect(); lfRO.observe(im); lfSeen = im; } return; }
+  requestAnimationFrame(() => { const r = im.getBoundingClientRect(); lfSize(r.width, r.height); });
 }
+function lfSize(w, h) {
+  if (!w || !h || (lfBox && Math.abs(lfBox.w - w) < 1 && Math.abs(lfBox.h - h) < 1)) return;
+  lfBox = { w, h }; lfSheet(); lfNext();
+}
+/* v308 (#334): the tile is measured by a ResizeObserver once the browser has laid it out by itself, never by reading it.
+   The read in a frame forced a full layout of the hidden Queue every time it was drawn (twice as the app opened, ~470ms
+   each at 4x). The observer reports when the Queue is first laid out (the idle warm-up of hidden tabs, or the switch to
+   it) and on any change of size (unfolding), and what it changes is drawn in that same frame. */
+let lfSeen = null;
+const lfRO = window.ResizeObserver ? new ResizeObserver(es => { const e = es[es.length - 1], b = e.borderBoxSize && e.borderBoxSize[0];
+  if (e.target.isConnected) lfSize(b ? b.inlineSize : e.contentRect.width, b ? b.blockSize : e.contentRect.height); }) : null;
 function lfNext() {
   if (lfBusy || !lfQ.length) return; lfBusy = true;
   const u = lfQ.shift();
   (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => lfMeasure(u).then(() => { lfBusy = false; lfSheet(); lfNext(); }));
 }
-addEventListener("resize", () => { lfBox = null; clearTimeout(lfApply.t); lfApply.t = setTimeout(lfApply, 300); }, { passive: true });
+addEventListener("resize", () => { if (lfRO) return; lfBox = null; clearTimeout(lfApply.t); lfApply.t = setTimeout(lfApply, 300); }, { passive: true });
 
 /* Nexi learned both reports: a price row that stays on "checking…" while no check is running (#118), and a queue logo
    drawn under 30% of its tile's height (#114; not when you chose "same box for all") */
@@ -24483,10 +24504,10 @@ extend("tasteInsightsPage", { map(o) {
 
 /* the first screens were drawn before this script existed: put the new looks in once */
 dzPlay();
-/* the queue keeps its last header (qPatch) and skips a redraw that matches it: redraw through it, never behind its back */
-(window.requestIdleCallback || setTimeout)(() => {
-  if (dzOn("deck") && $("#p-queue .deck:not(.dzd)")) renderQueue();
-  if (dzOn("court") && $("#p-taste .ix-hero:not(.dzc)")) renderTaste(); }, { timeout: 400 });
+/* the queue keeps its last header (qPatch) and skips a redraw that matches it: redraw through it, never behind its back.
+   v308: once, when the page has loaded (with Taste's, if a later script hasn't asked for it already) */
+if (dzOn("deck") && $("#p-queue .deck:not(.dzd)")) bootRedraw("renderQueue");
+if (dzOn("court") && $("#p-taste .ix-hero:not(.dzc)")) bootRedraw("renderTaste");
 
 document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest("[id^=s-dzx-] [data-v]"); if (!b) return;
