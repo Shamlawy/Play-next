@@ -27714,26 +27714,30 @@ function lookEye(root, ok, o) {
 const EYE_SAY = { overlap: "Two cards sit on top of each other", spill: "Something spills out of its card", edge: "A card runs past the screen edge",
   uneven: "Pictures side by side are very different sizes", broken: "A date or short word breaks onto two lines", squeezed: "A short label is squeezed to a few letters" };
 function lookEyeRun(root, scr) {
-  if (!lookOk() || performance.now() - bugLastIn < 1200 || !root.isConnected) return;
-  let r; try { r = lookEye(root, EYE_OK, { pics: false, words: false, skip: ["faint", "squashed"] }); } catch (e) { return; }
-  let n = 0;
+  if (!lookOk() || performance.now() - bugLastIn < 1200 || !root.isConnected) return false;
+  let r; try { r = lookEye(root, EYE_OK, { pics: false, words: false, skip: ["faint", "squashed"] }); } catch (e) { return false; }
+  let n = 0, moving = false;
   for (const i of r.issues) {
     if (n >= 2) break;
     if (!EYE_SAY[i.kind] || (i.kind === "squeezed" && i.el.closest(LOOK_TAP)) || ((i.kind === "broken" || (i.kind === "spill" && i.el.tagName === "IMG")) && i.el.closest("#p-queue [data-row]"))) continue;
     /* a card mid slide-in reads as a spill or an overlap: only what has finished moving counts (Played's shelf still slides
        in when the screen settles, so waiting for the whole screen to be still never came) */
-    if (bugMoving(i.el) || (i.kind === "overlap" && i.el.nextElementSibling && bugMoving(i.el.nextElementSibling))) continue;
+    if (bugMoving(i.el) || (i.kind === "overlap" && i.el.nextElementSibling && bugMoving(i.el.nextElementSibling))) { moving = true; continue; }
     n++; bugReport("look", EYE_SAY[i.kind], { at: bugPath(i.el), screen: scr, sigAt: bugPath(i.el), stack: "The design eye measured: " + i.msg + " (" + i.at + ")" });
   }
+  return !moving;
 }
-/* once per screen and width, as the README says: a later layout pass of the same screen doesn't walk it again */
+/* once per screen, width and content, as the README says: a later layout pass of the same screen doesn't walk it again, but
+   another game page or cards filled in later (a different element count) do, and a pass that skipped something still moving
+   isn't counted (second-look on #575) */
 const LOOK_SEEN = new Set();
 BUG_AFTER.push(() => {
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
-  const scr = bugScreen(), key = scr + "|" + innerWidth;
-  if (!root || LOOK_SEEN.has(key)) return;
-  LOOK_SEEN.add(key); lookEyeRun(root, scr);
+  if (!root) return;
+  const scr = bugScreen(), key = scr + "|" + innerWidth + "|" + root.getElementsByTagName("*").length;
+  if (LOOK_SEEN.has(key)) return;
+  if (lookEyeRun(root, scr)) LOOK_SEEN.add(key);
 });
 BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on ${at} were drawn on top of each other.`],
   ["look", /Something spills out of its card/, at => `A picture or some words on ${at} stuck out of their card.`],
