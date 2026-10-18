@@ -1,7 +1,7 @@
 # GPU layers per screen, in screens' worth (node tools/kit.mjs layers). Only lower these (--lower);
 # raising one is a hand edit with the reason in the commit.
 412 home 6.9
-412 played 7.9
+412 played 8.6
 412 queue 5.2
 412 lib 3.3
 412 game 5.3
