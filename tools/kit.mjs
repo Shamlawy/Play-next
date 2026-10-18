@@ -179,7 +179,10 @@ async function phone(browser, base, w, data) {
   await ctx.addInitScript(s => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("gq:data", s); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(data));
   const page = await ctx.newPage();
   page.on("pageerror", e => errors.push(String(e && e.message || e).split("\n")[0]));
-  page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked|ERR_/i.test(m.text())) errors.push(m.text().split("\n")[0]); });
+  /* WebKit logs "Cannot load blob:… due to access control checks" for the old page's picture blob: URLs (made from data URLs)
+     still loading when a scenario reloads: one per reload, none on Chromium, not the app's (open idea M14) */
+  page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked|ERR_/i.test(m.text())
+    && !(WK && /\/\/localhost:\d+\/[0-9a-f-]{36} due to access control checks/i.test(m.text()))) errors.push(m.text().split("\n")[0]); });
   await page.goto(base); await page.waitForTimeout(2500);
   if (PLANT) await page.evaluate(PLANT).catch(e => errors.push("plant: " + String(e.message || e).split("\n")[0]));
   const step = async (label, fn, wait = 1200) => {
