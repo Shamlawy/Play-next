@@ -1,5 +1,9 @@
 # Play next — notes for Claude
 
+## Feature pause until Oct 22 2026 (read first)
+- The owner (Oct 15, confirmed Oct 18): "only fixes and cleanup until then". No new features, looks, screens or redesigns before Oct 23 2026, in any chat, including the daily fixer. Allowed: bug fixes, problem reports, stutter work, removing leftovers, tidying code, tests and tools. A new idea goes into a `node tools/learn.mjs add --kind=idea` note for after the pause. If the owner asks for a feature during the pause, remind them of the pause once and do it only if they confirm. Delete this section after Oct 22.
+- Why: a week of features stacked on features made fixes break or not hold (16 times in 193 log entries), and 17 releases went out Oct 15–18 that were mostly new looks while 9 stutter reports stayed open.
+
 ## The app
 - "Play next": a single-file web app, `index.html` (must stay lowercase — GitHub Pages is case-sensitive).
 - Hosted on GitHub Pages: https://shamlawy.github.io/Play-next/ (served from `main`).
