@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27603 lines, 2095 KB, 123 scripts, 66 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27606 lines, 2095 KB, 123 scripts, 66 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -243,4 +243,4 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 27401–27487 | script | 9 | — |
 | 27487–27504 | script | 2 | v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium gives each scroll-linked… |
 | 27504–27565 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
-| 27565–27603 | script | 3 | — |
+| 27565–27606 | script | 4 | — |

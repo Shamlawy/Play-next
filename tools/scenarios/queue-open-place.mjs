@@ -34,6 +34,13 @@ export default async ({ p, w, fail, seed }) => {
   await p.flush();
   const own = () => p.reports.filter(x => /ended up off the screen/.test(x.msg));
   if (own().length) fail(`Nexi reported a card off the screen without the plant: ${own()[0].at}`);
+  /* a finger that scrolls on right after opening moves the card itself: no report */
+  { const id = await pg.evaluate(() => { const r = [...document.querySelectorAll("#p-queue [data-row]:not(.hero)")][6]; scrollTo({ top: scrollY + r.getBoundingClientRect().top - innerHeight * 0.5, behavior: "instant" }); return r.dataset.row; });
+    await pg.waitForTimeout(900); const b = await pg.locator(`#p-queue [data-row="${id}"]`).boundingBox();
+    await p.tap(b.x + b.width / 2, b.y + Math.min(b.height / 2, 40)); await pg.waitForTimeout(250);
+    await p.swipe(p.w * 0.5, p.h * 0.85, p.w * 0.5, p.h * 0.1, 160, 8); await p.swipe(p.w * 0.5, p.h * 0.85, p.w * 0.5, p.h * 0.1, 160, 8); await pg.waitForTimeout(1600); }
+  await p.flush();
+  if (own().length) fail(`a finger scrolling on after opening was reported as a card off the screen`);
   /* the old jump, planted: every open is followed by a scroll that throws the card off the top */
   await pg.evaluate(() => document.addEventListener("click", e => { if (e.target.closest("#p-queue [data-row]:not(.hero)")) setTimeout(() => scrollBy({ top: innerHeight, behavior: "instant" }), 300); }, true));
   await tapRow(k++, 0.45);
