@@ -19,7 +19,7 @@ export function seed(APP_V, n = TITLES.length, { bare = false } = {}) {
     art: i >= 1 && i <= LOGOS.length && i < 9 ? LOGOS[i - 1].url : "",
     colour: ["#4DA3FF", "#7C5CFF", "#3FD9A4", "#F0A63C", "#FF5470", "#5AE0FF"][i % 6],
     date: iso(i < out ? -400 + i * (360 / out) : (i - out + 1) * 9), hours: 12 + (i % 14) * 4,
-    status: i < out ? "out" : "upcoming", state: i === 1 || i === 4 ? "playing" : "backlog", hype: 4 + (i % 6), ord: i + 1,
+    status: i < out ? "out" : "upcoming", state: i >= out ? "upcoming" : i === 1 || i === 4 ? "playing" : "backlog", hype: 4 + (i % 6), ord: i + 1,
     platforms: ["PS5, PC", "Switch", "PS5", "PC", "Switch, PS5, PC", "PS4 & PS5"][i % 6], genres: ["RPG", "Action", "Strategy", "Adventure"].slice(0, 1 + (i % 3)),
     added: iso(-200 + i * 3) }));
   if (!bare) games.forEach((g, i) => {
