@@ -4,6 +4,7 @@
 # error, a real problem report or a broken tour step (timing notes are printed only: GitHub's machines have no GPU).
 # Since v293 also the release number check (tools/appv-check.mjs), the design eye (kit.mjs eye, in `all`), its plant (a blind eye fails), and the design check on what the PR adds.
 # Since M5 every plant in tools/plants/*.js too (tools/plants/run.mjs): each one must still be reported by the detector it was made for.
+# Since Oct 18: kit.mjs all includes `taste` (the owner's look calls), its plant must fail them all, and `kit.mjs look` pictures what the PR changes on screen.
 name: App check
 on:
   workflow_dispatch:
@@ -50,6 +51,25 @@ jobs:
           PLANT: tools/plants/eye-broken.css
           SCREENS: lib,played
         run: node tools/kit.mjs run tools/scenarios/design-eye.mjs --widths 412
+      - name: "The taste checks still see (their plant must fail every one of them)"
+        env:
+          CI: "1"
+          PLANT: tools/plants/taste-broken.mjs
+        run: node tools/kit.mjs run tools/scenarios/taste.mjs --widths 412
+      - name: "What this PR changes on screen (before | after | where pictures, attached to this run)"
+        if: github.event_name == 'pull_request'
+        env:
+          CI: "1"
+          BASE: ${{ github.base_ref }}
+        run: node tools/kit.mjs look --base "origin/$BASE" --out look-shots --widths 412
+      - name: Attach the screen pictures
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: look-shots
+          path: look-shots
+          if-no-files-found: ignore
+          retention-days: 14
       - name: "The design check on what this PR adds to index.html"
         if: github.event_name == 'pull_request'
         env:
