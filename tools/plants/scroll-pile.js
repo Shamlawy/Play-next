@@ -1,4 +1,4 @@
-/* Plant for the v304 scroll-linked check: 60 pieces on the screen on top, each with its own view() timeline animation
+/* Plant for the v305 scroll-linked check: 60 pieces on the screen on top, each with its own view() timeline animation
    (what Played had: four per row plus every locked badge, each one a GPU layer the whole time).
    node tools/kit.mjs sweep --plant tools/plants/scroll-pile.js --expect */
 (() => {

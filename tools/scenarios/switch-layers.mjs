@@ -1,4 +1,4 @@
-/* GPU layers in the first moments of a tab switch (v304, #333/#347 "Switching to Queue stuttered"): the phone's switch frame
+/* GPU layers in the first moments of a tab switch (v305, #333/#347 "Switching to Queue stuttered"): the phone's switch frame
    was all drawing (script 0, render 157ms). The census at rest never saw it: while a screen slides and its first pieces
    cascade in, Chromium assumes anything drawn after a moving piece may overlap it and copies the rest of the screen into
    extra layers (the whole 59-row Queue as one 796×7537 layer). Prints layers / MP / screens at ~1 frame, 300ms, 1.5s.

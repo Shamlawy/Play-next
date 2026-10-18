@@ -4353,7 +4353,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "304";
+const APP_V = "305";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -9515,7 +9515,7 @@ function paintDots(id) {
 /* The snapshot for a transition is taken the instant the DOM changes, so a page
    whose figure or backdrop hasn't decoded yet slides in half-drawn. Waiting for
    the images first is what stops the flicker. */
-/* v304 (#62): only the pictures the page shows, at the size their spot was last given (fitWarm, picture fit): it used to
+/* v305 (#62): only the pictures the page shows, at the size their spot was last given (fitWarm, picture fit): it used to
    unpack each original (a 12 MP key art the new page doesn't even show) for this game and both neighbours */
 function warmGame(g) {
   if (!g) return Promise.resolve();
@@ -19894,7 +19894,12 @@ addEventListener("pointerdown", e => {
    it does; if one is still skipped while it's well inside the screen on three checks in a row during a scroll, part of the
    screen came up blank (#89). */
 { const SK = new Set(), seen = new Map(); let q = 0, last = 0;
-  document.addEventListener("contentvisibilityautostatechange", e => { if (e.skipped) SK.add(e.target); else { SK.delete(e.target); seen.delete(e.target); } }, true);
+  /* v302: a row removed while skipped (Settings is redrawn on every open) never says so, and the Set kept the whole old page
+     alive until a later scroll happened to run check(): ~2,100 nodes + their listeners per Settings open, the longer the
+     app was used the slower it got. Rows that left the page are dropped when Settings is redrawn, on a screen change and whenever the Set grows. */
+  const prune = () => { for (const el of SK) if (!el.isConnected) { SK.delete(el); seen.delete(el); } };
+  onSettings("after", () => requestAnimationFrame(prune)); onNav("after", () => requestAnimationFrame(prune));
+  document.addEventListener("contentvisibilityautostatechange", e => { if (e.skipped) { SK.add(e.target); if (SK.size > 60) prune(); } else { SK.delete(e.target); seen.delete(e.target); } }, true);
   /* v283 (#134, #136): this was the biggest job of every scroll frame on Month and Insights (a trace: 360-460ms of script plus
      150ms of forced style per few swipes at 4x CPU, more than all the rest together). It measured every skipped row in the
      whole app on every frame, hundreds of them in the hidden Library and Queue screens, before asking whether that screen
@@ -25460,7 +25465,7 @@ function fitRun() {
   /* not drawn yet: also look again shortly, a screen can finish showing without a tab switch (an animation, a late layout) */
   if (FIT.wait.size && fresh) { clearTimeout(FIT.wt); FIT.wt = setTimeout(fitRetry, 700); clearTimeout(FIT.wt2); FIT.wt2 = setTimeout(fitRetry, 2500); }
 }
-/* v304: the size each kind of spot (its first class) was last given, so a page that isn't on screen yet (the next game in
+/* v305: the size each kind of spot (its first class) was last given, so a page that isn't on screen yet (the next game in
    a swipe, a game about to open) can ask for its pictures at that size before it's drawn */
 FIT.role = new Map();
 function fitWarm(u, role) {
@@ -25480,7 +25485,7 @@ function fitScan(root) {
   root.querySelectorAll("img, [style*='url(']").forEach(fitAdd);
 }
 /* pieces that weren't drawn yet: look again when a screen or a page shows, a skipped row comes back, or after a scroll */
-/* v304 (#333/#347): a screen that just showed is sized in its first frame, before it's painted. A retry from inside a frame
+/* v305 (#333/#347): a screen that just showed is sized in its first frame, before it's painted. A retry from inside a frame
    used to wait for the next one, so the first frame decoded every original (3.3 MP on a switch to the Queue) */
 function fitNow() { fitRetry(); if (FIT.raf) { cancelAnimationFrame(FIT.raf); fitRun(); } }
 function fitRetry() { if (!FIT.wait.size) return; const w = [...FIT.wait]; FIT.wait.clear(); w.forEach(el => { if (el.isConnected) { FIT.again.add(el); fitAdd(el); } }); }
@@ -25512,7 +25517,7 @@ const PIC = { t: 0, n: 0, seen: new Set() };
 function picLook() {
   const d = Math.min(3, devicePixelRatio || 1), H = innerHeight, W = innerWidth;
   let held = 0, need = 0, worst = null;
-  /* v304: only the screen on top. Measuring every picture of the hidden screens forced their layout (#136: up to seconds) */
+  /* v305: only the screen on top. Measuring every picture of the hidden screens forced their layout (#136: up to seconds) */
   for (const im of (document.querySelector("#full.on") || document.querySelector(".panel.on") || document).querySelectorAll("img")) {
     if (!im.complete || !im.naturalWidth || im._fitBusy) continue;   /* its small copy is still being made */
     if (im._fitTo && im.getAttribute("src") === im._fitTo) continue;   /* our sized copy (Safari can still report the old size while swapping) */
@@ -26454,7 +26459,7 @@ function drawLoad() {
   for (const i of (top || document.querySelector(".panel.on") || document).querySelectorAll("img")) { if (!i.complete || !i.naturalWidth) continue;
     const r = i.getBoundingClientRect(); if (r.bottom < 0 || r.top > H || r.right < 0 || r.left > W || r.width < 8) continue;
     n++; mp += i.naturalWidth * i.naturalHeight / 1e6; need += Math.min(i.naturalWidth * i.naturalHeight, r.width * r.height * d * d) / 1e6; }
-  /* v304: url() backgrounds (the Queue's open card, row strips, Played's rows) count too; pictures under an open game page don't */
+  /* v305: url() backgrounds (the Queue's open card, row strips, Played's rows) count too; pictures under an open game page don't */
   if (typeof picBgOn === "function") for (const [, u, r] of picBgOn()) { const z = PICBG.get(u); if (!z || z === -1) continue;
     n++; mp += z[0] * z[1] / 1e6; need += Math.min(z[0] * z[1], r.width * r.height * d * d) / 1e6; }
   const L = layerMakers(), k = { held: 0, loop: 0, will: 0 }; for (const m of L.list) k[m.why]++;
@@ -27523,11 +27528,14 @@ WHATS_NEW.push(
     tryIt: "Tap a genre chip, then tap All to see everything again." },
   { v: 303, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .dzd-row") || $("#p-queue .deck") || null,
     say: "<b>On deck's three cards match now</b>: each has its picture on top in the same shape (number 1 was one big tall picture next to two wide ones). Number 1 still says Play this next.",
-    tryIt: "Look at your top 3 side by side." }
+    tryIt: "Look at your top 3 side by side." },
+  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>The app no longer slows down the longer you use it.</b> Every time Settings opened it left a copy of its whole page in memory (about 2,000 pieces), so a long session got heavier and laggier. They're let go now.",
+    tryIt: "Open and close Settings a few times, then keep using the app for a while: it should stay as smooth as when you started." }
 );
 </script>
 <script>
-/* v304 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium
+/* v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium
    gives each scroll-linked animation its own GPU layer whether it is moving or not (the GPU must be able to move it
    mid-swipe): 4 per row and 24 locked badges, each also cutting what's drawn above it into "overlap" layers. The motion is
    the same, but a piece only carries it near where it plays (.nr): a row from just above the screen to half a screen below
@@ -27544,7 +27552,7 @@ WHATS_NEW.push(
   extend("renderPlayed", { after: wire }); wire(); }
 </script>
 <script>
-/* v304: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"):
+/* v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"):
    1. pictures drawn as url() backgrounds. His picture check (picLook, v267) only looked at <img>s, so the Queue's open
       card, unfolded, unpacking a 12 MP original into a 2.9 MP spot (twice: front and back) never showed. Backgrounds on
       the screen on top now count the same way (their real size is read once from the cache, the first look waits for it).
@@ -27606,13 +27614,13 @@ BUG_NICE.push(["layout", /move with the scroll, and each one keeps/, () => "Too 
 </script>
 <script>
 WHATS_NEW.push(
-  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero") || $("#p-queue .row") || null,
+  { v: 305, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero") || $("#p-queue .row") || null,
     say: "<b>Smoother Queue and game pages</b>: pictures now get their right size before a screen's first frame, so the unfolded Queue unpacks a quarter of what it did (its open card was unpacking a 12 MP picture, twice) and a game page no longer unpacks key art it doesn't even show.",
     tryIt: "Switch to the Queue from another tab and scroll it fast, then open a game and swipe to the next ones." },
-  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .pnb") || $("#p-played"),
+  { v: 305, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .pnb") || $("#p-played"),
     say: "Played looks the same but gives the phone less to draw: each row and badge only carries its scroll motion while it's near the screen, instead of every one of them all the time.",
     tryIt: "Scroll Played and swipe the badge shelf." },
-  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+  { v: 305, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: a background picture far bigger than its spot, or a screen with too many pieces moving along with your finger, and I report it on my own.",
     tryIt: "Nothing to do: if it happens, I file it myself." }
 );

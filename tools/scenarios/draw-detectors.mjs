@@ -1,4 +1,4 @@
-/* v304: Nexi's two new drawing checks catch their problem, and stay quiet without it.
+/* v305: Nexi's two new drawing checks catch their problem, and stay quiet without it.
    1. A url() background unpacking far more than its spot (the Queue's open card, unfolded, drew a 12 MP original in a
       2.9 MP spot): planted as a 12 MP own file whose resize "failed", in a 230px box on Home → "A 12.0 MP picture fills…".
    2. Many scroll-linked animations on one screen (Played had 54, each a GPU layer): 60 planted → "… move with the scroll".
