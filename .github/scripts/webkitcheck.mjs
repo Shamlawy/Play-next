@@ -60,9 +60,13 @@ async function walk(name, dev) {
   /* v270: Apple devices buzz through a hidden <input switch>: one buzz = one flip, and no page listener hears the click */
   const hp = await page.evaluate(async () => { let heard = 0; const h = () => heard++; document.addEventListener("click", h, true);
     const shim = typeof navigator.vibrate === "function" && !/native code/.test(String(navigator.vibrate));
+    /* flipped = the switch changed: the app may have buzzed already (an odd number of flips leaves it on, and this one turns
+       it off), and a buzz within 35ms of the last is skipped, so wait that out first */
+    const was = (document.querySelector("label[aria-hidden] > input[switch]") || {}).checked || false;
+    await new Promise(r => setTimeout(r, 60));
     if (shim) navigator.vibrate(20); await new Promise(r => setTimeout(r, 100)); document.removeEventListener("click", h, true);
     const box = document.querySelector("label[aria-hidden] > input[switch]");
-    return { shim, flipped: box ? box.checked : null, isSwitch: box ? box.hasAttribute("switch") : null, heard }; }).catch(e => ({ err: String(e.message || e) }));
+    return { shim, flipped: box ? box.checked !== was : null, isSwitch: box ? box.hasAttribute("switch") : null, heard }; }).catch(e => ({ err: String(e.message || e) }));
   console.log(`\n[${name}] haptics: ${JSON.stringify(hp)}`);
   if (hp.err || (hp.shim && (hp.flipped !== true || hp.heard))) errors.push("haptics: " + JSON.stringify(hp));
   /* a "too faint" report says only where: also note what made it faint (text colour, faded parents, what was animating) */
