@@ -16,7 +16,13 @@
      node tools/kit.mjs eye             the design eye (tools/eye.mjs) on every screen, 3 game pages and Settings at 412 / 859 / 360:
                                         repeated things that spill, overlap, run off the screen, break short words, squash
                                         pictures or barely show; tools/eye-ok.txt excuses what's meant to look that way
-     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers + eye
+     node tools/kit.mjs taste           the owner's look calls that boxes can hold (tools/scenarios/taste.mjs, each named by its
+                                        taste.md id: header cards, one game page skeleton, one main action, pick list pictures,
+                                        drawn group icons, the open Queue card's corners, colour and logo slot) at 412 / 859
+     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers + eye + taste
+     node tools/kit.mjs look            what this branch changes on screen against main: before | after | where pictures of each
+                                        changed screen and a contact sheet of every screen (tools/.cache/look), for Claude to read
+                                        (--base <ref>, --out dir, --same: fail on any change)
      node tools/kit.mjs samecss --before old.html   the browser applies exactly the same CSS (after a CSS tidy)
      node tools/kit.mjs run x.mjs       a saved scenario (tools/scenarios/): export default async ({ p, w, fail }) => …,
                                         with p.tap / p.swipe (real touch through CDP) beside step / scroll / flush
@@ -40,6 +46,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { spawnSync } from "child_process";
 import { seed, TITLES } from "./seed.mjs";
 import { countLayers, LAYER_SCREENS } from "./layercount.mjs";
+import { fakeHelper, HELPER_HOST } from "./fake-helper.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2), mode = args.find(a => !a.startsWith("--")) || "all";
@@ -52,6 +59,8 @@ const WIDTHS = opt("widths", "412,859,360").split(",").map(Number);
 /* --browser webkit: Safari's engine, for the friend's iPhone 11 / iPad (on GitHub: webkit-check.yml's "scenario" input; this
    container only has Chromium). No CDP there, so p.tap / p.swipe and perf need Chromium */
 const BROWSER = opt("browser", "chromium"), WK = BROWSER === "webkit";
+/* FAKE_HELPER=0: block the helper like every other site (the empty states), instead of tools/fake-helper.mjs's answers */
+const FAKE = process.env.FAKE_HELPER !== "0", STANDIN_PIC = fs.readFileSync(path.join(ROOT, "FEFT_cast.webp"));
 const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2],
   414: [414, 896, 2], 810: [810, 1080, 2], 1080: [1080, 810, 2] };   /* 414 = iPhone 11, 810/1080 = iPad 9th gen upright / sideways */
 const html = fs.readFileSync(path.join(ROOT, FILE), "utf8");
@@ -127,6 +136,14 @@ function syntax() {
       const i = m.index + m[1].length;
       if (i > at && !/\b(const|let|var)\s+$/.test(js.slice(Math.max(0, i - 12), i)))
         fail(`${n} is extended at line ${js.slice(0, at).split("\n").length} and replaced at line ${js.slice(0, i).split("\n").length}: the hooks stop running; use extend(…) or move the replacement above the first extend`); } }
+  /* Oct 18: the phone runs the design eye too (lookEye), with its own copy of tools/eye-ok.txt (EYE_OK): the two must match,
+     or Nexi files a look the kit was told is on purpose (or the other way round) */
+  { const m = html.match(/const EYE_OK = (\[[^\n]*\]);/);
+    if (m) { let app = []; try { app = JSON.parse(m[1]); } catch (e) { fail(`EYE_OK in ${FILE} isn't a plain list of ["kind", "part"] pairs`); }
+      const txt = fs.readFileSync(path.join(ROOT, "tools/eye-ok.txt"), "utf8").split(/\r?\n/).map(l => l.match(/^(\w+)\s+(\S+)\s+—/)).filter(Boolean).map(x => x[1] + " " + x[2]);
+      const a = new Set(app.map(x => x.join(" "))), t = new Set(txt);
+      for (const x of t) if (!a.has(x)) fail(`tools/eye-ok.txt has "${x}" but EYE_OK in ${FILE} doesn't: add ["${x.split(" ").join('", "')}"] (the phone's eye would file it)`);
+      for (const x of a) if (!t.has(x)) fail(`EYE_OK in ${FILE} has "${x}" but tools/eye-ok.txt doesn't: add the line there with its reason, or drop it from EYE_OK`); } }
   for (const f of ["sw.js"]) try { new vm.Script(fs.readFileSync(path.join(ROOT, f), "utf8")); } catch (e) { fail(`${f}: ${e.message}`); }
   console.log(`  ${n} script blocks checked`);
 }
@@ -142,7 +159,9 @@ async function pw() {
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".svg": "image/svg+xml", ".webmanifest": "application/json" };
 function serve() {
   const srv = http.createServer((q, res) => {
-    let f = decodeURIComponent(q.url.split("?")[0]); if (f === "/" || f === "/index.html") f = "/" + FILE;
+    /* "/?file=tools/.cache/x.html" serves another copy at the root, so its relative pictures still resolve (kit.mjs look) */
+    const other = (/[?&]file=([^&]+)/.exec(q.url) || [])[1];
+    let f = decodeURIComponent(q.url.split("?")[0]); if (f === "/" || f === "/index.html") f = "/" + (other ? decodeURIComponent(other) : FILE);
     const p = path.join(ROOT, f);
     if (!p.startsWith(ROOT) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream" }); fs.createReadStream(p).pipe(res);
@@ -159,7 +178,7 @@ async function launch() {
   return chromium.launch(exe && !process.env.CI ? { executablePath: exe, args } : { args });
 }
 /* a fresh phone: seeded data, the helper's /bug caught here, every other site blocked (pictures, APIs) */
-async function phone(browser, base, w, data) {
+async function phone(browser, base, w, data, { url = base } = {}) {
   const [vw, vh, dpr] = SIZES[w] || [w, Math.round(w * 2.1), 2.6];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, serviceWorkers: "block",
     userAgent: WK ? (vw >= 600 ? "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
@@ -173,6 +192,15 @@ async function phone(browser, base, w, data) {
       try { reports.push(...(JSON.parse(r.request().postData() || "{}").reports || [])); } catch (e) {}
       return r.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}', headers: { "access-control-allow-origin": "*" } });
     }
+    /* M3: the helper answers with made-up data in its real shapes (tools/fake-helper.mjs), so filled cards get tested too */
+    if (FAKE && new URL(u).host === HELPER_HOST) {
+      let b = null; try { b = JSON.parse(r.request().postData() || "null"); } catch (e) {}
+      const a = fakeHelper(new URL(u).pathname, b, base);
+      return r.fulfill({ status: a.status, contentType: "application/json", body: JSON.stringify(a.json), headers: { "access-control-allow-origin": "*" } });
+    }
+    /* the pictures those answers point at (Steam's "more like this" headers, store art) are a repo picture, so their cards
+       are tested with a picture in them, like on a phone */
+    if (FAKE && r.request().resourceType() === "image") return r.fulfill({ status: 200, contentType: "image/webp", body: STANDIN_PIC, headers: { "access-control-allow-origin": "*" } });
     return r.abort();
   });
   data = { ...data, ...SET };
@@ -183,7 +211,7 @@ async function phone(browser, base, w, data) {
   const wkNoise = t => WK && /\/\/localhost:\d+\/[0-9a-f-]{36} due to access control checks/i.test(t);
   page.on("pageerror", e => { const t = String(e && e.message || e); if (!wkNoise(t)) errors.push(t.split("\n")[0]); });
   page.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::|blocked|ERR_/i.test(m.text()) && !wkNoise(m.text())) errors.push(m.text().split("\n")[0]); });
-  await page.goto(base); await page.waitForTimeout(2500);
+  await page.goto(url); await page.waitForTimeout(2500);
   if (PLANT) await page.evaluate(PLANT).catch(e => errors.push("plant: " + String(e.message || e).split("\n")[0]));
   const step = async (label, fn, wait = 1200) => {
     try { await page.evaluate(fn); } catch (e) { errors.push(`${label}: ${String(e.message || e).split("\n")[0]}`); }
@@ -438,6 +466,67 @@ async function eyeCheck(browser, base) {
   if (failed > before) console.log("  (a real problem: fix it; meant to look that way: a line in tools/eye-ok.txt with the reason)");
 }
 
+/* ---------- taste: the owner's look calls that boxes can hold (tools/scenarios/taste.mjs, Oct 18) ---------- */
+async function tasteCheck(browser, base) {
+  console.log(`\n== taste: the owner's look calls (${FILE}) at 412, 859 ==`);
+  const run = (await import(pathToFileURL(path.join(ROOT, "tools/scenarios/taste.mjs")).href)).default;
+  for (const w of opt("widths") ? WIDTHS : [412, 859]) {
+    const p = await phone(browser, base, w, seed(APP_V));
+    await run({ p, w, fail, seed });
+    [...new Set(p.errors)].forEach(e => fail(`${w}px: script error: ${e}`));
+    await p.ctx.close();
+  }
+}
+
+/* ---------- look: what this branch changes on screen (Oct 18, the owner: "upgrade how you are testing the app and seeing
+   glitches and ui problems … I want that you get to see all the lags and bad ui and bad design") ----------
+   Every check above measures boxes and timings; none of them shows Claude the screen. This takes still screenshots of every
+   screen (tools/shots.mjs: home, Queue, Library, Played, Plan, Taste top and one screen down, two game pages, an open Queue
+   card, Settings, Edit) of main and of this copy, the same seed and clock for both, and compares them pixel by pixel. Each
+   screen that changed gets one picture, before | after | where (in red), in --out (default tools/.cache/look, git-ignored),
+   plus a contact sheet of every screen as it is now (sheet-<w>.png): Claude reads them (the Read tool shows pictures) before
+   merging, so a fix that moves something else gets seen, which the feature pause is about ("fixes broke other things", 16
+   times). Never fails on a change (look changes are expected); --same fails on any (a speed fix that must look the same).
+   --base <ref> (default origin/main), --widths (default 412,859). */
+async function lookCheck(browser, base) {
+  const { shootAll, compare, sheet, prepare } = await import(pathToFileURL(path.join(ROOT, "tools/shots.mjs")).href);
+  const ref = opt("base", "origin/main"), out = path.resolve(ROOT, opt("out", "tools/.cache/look")), same = args.includes("--same");
+  const ws = opt("widths") ? WIDTHS : [412, 859];
+  if (ref.startsWith("origin/")) spawnSync("git", ["fetch", "-q", "origin", ref.slice(7)], { cwd: ROOT, timeout: 30000 });
+  const old = spawnSync("git", ["show", ref + ":index.html"], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 26 });
+  if (old.status) return fail(`look: no index.html at ${ref} (${(old.stderr || "").trim()})`);
+  console.log(`\n== look: what ${FILE} changes on screen against ${ref}, at ${ws.join(", ")} ==`);
+  fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(path.join(out, "before"), { recursive: true });
+  const cache = path.join(ROOT, "tools/.cache"); fs.mkdirSync(cache, { recursive: true });
+  const baseFile = path.join(cache, "look-base.html"); fs.writeFileSync(baseFile, old.stdout);
+  const vOf = h => (h.match(/const APP_V = "(\d+)"/) || [])[1] || "1";
+  let changed = 0;
+  for (const w of ws) {
+    const sets = {};
+    for (const [k, file, v] of [["before", baseFile, vOf(old.stdout)], ["after", path.join(ROOT, FILE), APP_V]]) {
+      const rel = path.relative(ROOT, file).split(path.sep).join("/");
+      const p = await phone(browser, base, w, seed(v, 60), { url: base + "?file=" + encodeURIComponent(rel) });
+      await prepare(p, seed(v, 60));
+      sets[k] = await shootAll(p, w, k === "before" ? path.join(out, "before") : out, { scale: "css" });
+      [...new Set(p.errors)].forEach(e => fail(`${w}px ${k}: script error: ${e}`));
+      if (k === "after") await sheet(p.page, sets.after, path.join(out, `sheet-${w}.png`));
+      if (k === "after") for (const f of sets.after) {
+        const b = path.join(out, "before", path.basename(f)); if (!fs.existsSync(b)) { console.log(`  + ${path.basename(f, ".png")}: new screen`); continue; }
+        const r = await compare(p.page, b, f, path.join(out, "changed-" + path.basename(f)));
+        const pct = r.n / r.all * 100;
+        if (r.n <= r.all * .0005) { console.log(`  ✓ ${path.basename(f, ".png")}: same`); continue; }
+        changed++;
+        const line = `${path.basename(f, ".png")}: ${pct < .1 ? "<0.1" : pct.toFixed(1)}% changed in ${r.box} → ${path.relative(ROOT, path.join(out, "changed-" + path.basename(f)))}`;
+        if (same) fail(line); else console.log(`  △ ${line}`);
+      }
+      await p.ctx.close();
+    }
+  }
+  fs.rmSync(baseFile, { force: true });
+  console.log(`  ${changed ? changed + " screen(s) changed: read each changed-*.png (before | after | where) and check it's what was meant"
+    : "nothing changed on screen"}; every screen now: ${ws.map(w => path.relative(ROOT, path.join(out, `sheet-${w}.png`))).join(", ")}`);
+}
+
 /* ---------- samecss: the browser applies exactly the same CSS in two copies (after audit.mjs --fix-css or any CSS tidy) ---------- */
 /* ---------- layers: how much the GPU draws per screen (v287) ----------
    The stutters that kept coming back (#60 Home, #62 game page, #207 Played) were drawing, not code: the phone timed a 128ms
@@ -496,7 +585,7 @@ async function samecss(browser) {
 }
 
 if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
-if (["sweep", "tour", "perf", "smooth", "layers", "eye", "all", "run"].includes(mode)) {
+if (["sweep", "tour", "perf", "smooth", "layers", "eye", "taste", "all", "run", "look"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
@@ -504,8 +593,10 @@ if (["sweep", "tour", "perf", "smooth", "layers", "eye", "all", "run"].includes(
     if (mode === "smooth" || mode === "all") await smooth(browser, base);
     if (mode === "layers" || mode === "all") await layers(browser, base);
     if (mode === "eye" || mode === "all") await eyeCheck(browser, base);
+    if (mode === "taste" || mode === "all") await tasteCheck(browser, base);
     if (mode === "perf") await perf(browser, base);
     if (mode === "run") await scenario(browser, base);
+    if (mode === "look") await lookCheck(browser, base);
   } finally { await browser.close(); srv.close(); }
 }
 console.log(failed ? `\n${failed} problem(s).` : "\nAll clear.");

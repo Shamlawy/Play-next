@@ -27597,3 +27597,144 @@ document.addEventListener("click", e => {
   }), 900);
 }, true);
 </script>
+<script>
+/* ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via
+   nexi and you"; open idea M23): Nexi runs the design eye. The kit's eye (tools/eye.mjs, every PR) found look bugs nobody had
+   reported, but only ever on made-up test games. lookEye() is that eye, in the app: tools/eye.mjs calls this same function
+   in the test browser (and adds its pixel checks), and the phone runs it with your own games, titles and logos once a screen
+   has settled (BUG_AFTER: once per screen and size, never while you touch, not during the tour). It files what EYE_OK
+   (= tools/eye-ok.txt, kept the same by kit.mjs syntax) doesn't excuse, only the kinds Nexi's older checks don't already
+   cover, so one problem stays one report: cards on top of each other, a picture or words drawn outside its card, a card past
+   the screen edge, pictures side by side at very different sizes, a date or short word broken over lines, a short label
+   squeezed to a few letters. Faint words and squashed pictures stay with lookDesign; Queue rows keep their own logo and
+   short-word checks (lfLook). The words themselves never leave the phone: a report names the element and the size only. */
+const EYE_OK = [["overlap", "shx-fan"], ["faint", "shx-fan"], ["overlap", "dc-fan"]];
+/* eye:start (tools/eye.mjs reads the code between the two marks, so an older copy of the app is checked with today's eye) */
+function lookEye(root, ok, o) {
+  o = o || {}; ok = ok || [];
+  const W = innerWidth, H = innerHeight, CS = new Map(), cs = e => { let c = CS.get(e); if (!c) { c = getComputedStyle(e); CS.set(e, c); } return c; };
+  const vis = e => { if (!e.getClientRects().length) return false;
+    /* checkVisibility also sees a closed <details>' content (content-visibility: hidden), which still has boxes */
+    if (e.checkVisibility && !e.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true, opacityProperty: true })) return false;
+    const c = cs(e); return c.visibility !== "hidden" && +c.opacity > .05; };
+  const pathOf = e => { const p = []; for (let x = e; x && x !== document.body && p.length < 4; x = x.parentElement) p.unshift(x.id ? "#" + x.id : x.tagName.toLowerCase() + (x.classList[0] ? "." + x.classList[0] : "")); return p.join(" > "); };
+  /* what the person sees: the open page on top (game page, sheet, Settings), else the tab */
+  if (!root) { const tops = [...document.querySelectorAll("#full.on, .sheet.on, #sheet.on, #edit.on, #set.on, .dy.on")].filter(vis);
+    root = tops.length ? tops[tops.length - 1] : document.querySelector("main") || document.body; }
+  const issues = [];
+  /* o.words === false: no text in the messages (the phone's reports: a title cut to 14 letters would get past bugScrub) */
+  const q14 = t => o.words === false ? "words" : `"${t.slice(0, 14)}"`;
+  const say = (kind, e, msg, px) => { const at = pathOf(e); if (ok.some(([k, s]) => k === kind && at.includes(s))) return;
+    const i = { kind, at, msg, px: Math.round(px || 0) }; Object.defineProperty(i, "el", { value: e }); issues.push(i); };
+  /* o.skip: kinds not to measure at all (the phone leaves faint words and squashed pictures to lookDesign: the colour walk
+     up every word's cards was most of its cost) */
+  const want = k => !(o.skip && o.skip.includes(k));
+  /* fixed layers (Nexi, the tab bar, toasts) aren't items (remembered per element: every word asked again for all its cards) */
+  const FX = new Map(), fixedUp = e => { if (!e || e === root) return false; let v = FX.get(e); if (v === undefined) { const p = cs(e).position; v = p === "fixed" || p === "sticky" || fixedUp(e.parentElement); FX.set(e, v); } return v; };
+  /* a side scroller: running past the screen is how it works */
+  const sideScroll = e => { for (let x = e.parentElement; x && x !== document.documentElement; x = x.parentElement) { const c = cs(x); if (/auto|scroll|hidden|clip/.test(c.overflowX) && x.scrollWidth > x.clientWidth + 2) return x; } return null; };
+  const clipBox = (e, upTo) => { let b = [-1e9, -1e9, 1e9, 1e9]; for (let x = e.parentElement; x && x !== upTo.parentElement; x = x.parentElement) { const c = cs(x);
+    if (c.overflow !== "visible" || c.overflowX !== "visible" || c.overflowY !== "visible" || c.contain.includes("paint") || c.clipPath !== "none") { const q = x.getBoundingClientRect(); b = [Math.max(b[0], q.left), Math.max(b[1], q.top), Math.min(b[2], q.right), Math.min(b[3], q.bottom)]; } } return b; };
+  const onScreen = q => q.bottom > 0 && q.top < H && q.width > 0 && q.height > 0;
+  const kindOf = e => e.tagName + "." + (e.classList[0] || "");
+  /* the repeated things: 3+ visible siblings of the same kind (rows, cards, tiles, chips) */
+  const groups = [];
+  /* only what is on screen or near it gets judged: a subtree far outside the screen is skipped whole (a 60-game Queue's rows
+     made the walk 90ms at 4x on a phone; this is the part the phone runs too) */
+  const far = e => { const q = e.getBoundingClientRect(); return q.width > 0 && q.height > 0 && (q.bottom < -H * .5 || q.top > H * 1.5 || q.right < -W || q.left > W * 2); };
+  const tw = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, { acceptNode: e => far(e) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  for (let par = tw.nextNode(); par; par = tw.nextNode()) {
+    if (par.children.length < 3 || !(par instanceof HTMLElement) || !vis(par) || fixedUp(par)) continue;   /* an svg's shapes aren't items */
+    const by = {};
+    for (const c of par.children) { if (!(c instanceof HTMLElement) || /^(SCRIPT|STYLE|BR|svg|path)$/i.test(c.tagName) || far(c) || !vis(c)) continue; (by[kindOf(c)] ||= []).push(c); }
+    for (const k in by) if (by[k].length >= 3 && k !== "SPAN." && k !== "B." && k !== "I.") groups.push(by[k]);
+  }
+  /* colour-mix() leaves oklab(…) / oklch(…) / color(srgb …) in computed styles (v301's rows): read those too, or a light word
+     on a dark row reads as black (1.0:1); oklab's L cubed is close to relative luminance */
+  const lum = s => { const okl = s.match(/^okl(?:ab|ch)\(\s*([\d.]+)(%?)[^/)]*(?:\/\s*([\d.]+))?/);
+    if (okl) { const L = +okl[1] / (okl[2] ? 100 : 1); return { L: L ** 3, a: okl[3] == null ? 1 : +okl[3] }; }
+    const sr = s.match(/^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?/);
+    if (sr) { const v = sr.slice(1, 4).map(x => { x = +x; return x <= .04 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return { L: .2126 * v[0] + .7152 * v[1] + .0722 * v[2], a: sr[4] == null ? 1 : +sr[4] }; }
+    const m = s.match(/[\d.]+/g); if (!m) return null; const v = m.slice(0, 3).map(x => { x = +x / 255; return x <= .04 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return { L: .2126 * v[0] + .7152 * v[1] + .0722 * v[2], a: m[3] == null ? 1 : +m[3] }; };
+  const bgUnder = e => { for (let x = e; x; x = x.parentElement) { const c = cs(x); if (c.backgroundImage !== "none") return null; const l = lum(c.backgroundColor); if (l && l.a > .9) return l.L; } return 0; };
+  const opUp = e => { let a = 1; for (let x = e; x; x = x.parentElement) a *= +cs(x).opacity; return a; };
+  const seen = new Set();
+  for (const g of groups) {
+    const boxes = g.map(e => e.getBoundingClientRect());
+    g.forEach((e, i) => {
+      const q = boxes[i]; if (!onScreen(q) || seen.has(e)) return; seen.add(e);
+      if (!sideScroll(e) && (q.right > W + 1.5 || q.left < -1.5)) { const d = Math.max(q.right - W, -q.left); say("edge", e, `runs ${Math.round(d)}px past the screen edge`, d); }
+      const nb = boxes[i + 1];
+      if (nb && onScreen(nb)) { const ox = Math.min(q.right, nb.right) - Math.max(q.left, nb.left), oy = Math.min(q.bottom, nb.bottom) - Math.max(q.top, nb.top);
+        if (ox > 6 && oy > 6 && ox * oy > .15 * Math.min(q.width * q.height, nb.width * nb.height)) say("overlap", e, `sits ${Math.round(oy)}px over the next one`, oy); }
+      for (const d of e.querySelectorAll("img, svg, canvas, b, span, small, i, p, h1, h2, h3, h4, strong, em, div")) {
+        if (!vis(d) || fixedUp(d)) continue;
+        const r = d.getBoundingClientRect(); if (r.width < 2 || r.height < 2) continue;
+        const cb = clipBox(d, e), pic = /^(IMG|CANVAS|svg)$/i.test(d.tagName);
+        const vx0 = Math.max(r.left, cb[0]), vy0 = Math.max(r.top, cb[1]), vx1 = Math.min(r.right, cb[2]), vy1 = Math.min(r.bottom, cb[3]);
+        const out = Math.max(q.left - vx0, q.top - vy0, vx1 - q.right, vy1 - q.bottom);
+        const leaf = !pic && d.childElementCount === 0 && d.textContent.trim();
+        if ((pic || leaf) && out > 6 && vx1 > vx0 && vy1 > vy0 && cs(d).position !== "absolute") say("spill", d, `${pic ? "picture" : q14(d.textContent.trim())} drawn ${Math.round(out)}px outside its ${kindOf(e).toLowerCase()}`, out);
+        if (want("squashed") && d.tagName === "IMG" && d.complete && d.naturalWidth > 4) {
+          const c = cs(d), nat = d.naturalWidth / d.naturalHeight, got = r.width / r.height;
+          if (c.objectFit === "fill" && Math.abs(Math.log(got / nat)) > Math.log(1.3) && !c.objectViewBox?.startsWith?.("inset")) say("squashed", d, `picture stretched to ${Math.round(r.width)}x${Math.round(r.height)} (its shape is ${nat.toFixed(2)}:1)`);
+          if (Math.min(r.width, r.height) < 14 && Math.max(r.width, r.height) < 40) say("squashed", d, `picture squashed to ${Math.round(r.width)}x${Math.round(r.height)}`);
+        }
+        if (leaf) {
+          const c = cs(d), t = d.textContent.trim(), lh = parseFloat(c.lineHeight) || parseFloat(c.fontSize) * 1.25;
+          const h = r.height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom) - parseFloat(c.borderTopWidth) - parseFloat(c.borderBottomWidth);
+          if (c.overflowX !== "visible" && d.scrollWidth > d.clientWidth + 1 && d.clientWidth < 60 && d.clientWidth > 0 && t.length > 3) say("squeezed", d, `${q14(t)} cut down to ${d.clientWidth}px`, d.clientWidth);
+          /* a date or "16h" in two, or one word split ("S-/tier"); lines by the text's own boxes: a tall block isn't a broken word */
+          if (t.length <= 14 && (/\d/.test(t) || !/\s/.test(t)) && h > lh * 1.6) {
+            const rg = document.createRange(); rg.selectNodeContents(d); const tops = new Set([...rg.getClientRects()].filter(b => b.width > 1).map(b => Math.round(b.top / (lh * .5))));
+            if (tops.size > 1) say("broken", d, `${o.words === false ? "a short word" : `"${t}"`} breaks onto ${tops.size} lines`, tops.size); }
+          const fg = want("faint") && lum(c.color), bg = fg && bgUnder(d);
+          if (fg && bg != null && /[\p{L}\p{N}]/u.test(t) && t.length > 1 && parseFloat(c.fontSize) >= 9) { const a = fg.a * opUp(d), L = fg.L * a + bg * (1 - a), k = (Math.max(L, bg) + .05) / (Math.min(L, bg) + .05);
+            if (k < 2) say("faint", d, `${q14(t)} barely shows (${k.toFixed(1)}:1)`, k * 10); }
+        }
+      }
+    });
+    /* side by side, same kind: their pictures should be the same size */
+    const lines = {}; g.forEach((e, i) => { if (onScreen(boxes[i])) (lines[Math.round(boxes[i].top / 4)] ||= []).push(e); });
+    for (const k in lines) { const row = lines[k]; if (row.length < 3) continue;
+      const a = row.map(e => { const im = e.querySelector("img"); if (!im || !vis(im)) return 0; const r = im.getBoundingClientRect(); return r.width * r.height; });
+      if (a.every(Boolean)) { const s = Math.max(...a) / Math.min(...a); if (s >= 2.5) say("uneven", row[0].parentElement, `pictures side by side differ ${s.toFixed(1)}x in size`, s * 10); } }
+  }
+  /* the pictures the kit's pixel eye looks at: one per repeated item, on screen (o.pics === false: the phone has no pixel eye) */
+  const pics = [];
+  if (o.pics !== false) caps: for (const g of groups) for (const e of g) { const q = e.getBoundingClientRect(); if (!onScreen(q) || q.top < 0 || q.bottom > H - 60) continue;
+    const im = [...e.querySelectorAll("img")].find(vis); if (!im || !im.complete || !im.naturalWidth) continue;
+    const r = im.getBoundingClientRect(); if (r.width < 20 || r.height < 12) continue;
+    const words = [...e.querySelectorAll("*")].filter(d => d.childElementCount === 0 && d.textContent.trim() && vis(d) && !d.contains(im)).map(d => d.getBoundingClientRect()).filter(w => w.width).map(w => [w.left, w.top, w.right, w.bottom]);
+    pics.push({ id: "eye" + pics.length, at: pathOf(im), box: [q.left, q.top, q.right, q.bottom], ib: [r.left - 40, r.top - 40, r.right + 40, r.bottom + 40], words });
+    im.setAttribute("data-eyepic", "eye" + (pics.length - 1)); if (pics.length >= 14) break caps; }
+  return { issues, pics, groups: groups.length };
+}
+/* eye:end */
+const EYE_SAY = { overlap: "Two cards sit on top of each other", spill: "Something spills out of its card", edge: "A card runs past the screen edge",
+  uneven: "Pictures side by side are very different sizes", broken: "A date or short word breaks onto two lines", squeezed: "A short label is squeezed to a few letters" };
+function lookEyeRun(root, scr) {
+  if (!lookOk() || performance.now() - bugLastIn < 1200 || !root.isConnected) return;
+  let r; try { r = lookEye(root, EYE_OK, { pics: false, words: false, skip: ["faint", "squashed"] }); } catch (e) { return; }
+  let n = 0;
+  for (const i of r.issues) {
+    if (n >= 2) break;
+    if (!EYE_SAY[i.kind] || (i.kind === "squeezed" && i.el.closest(LOOK_TAP)) || ((i.kind === "broken" || (i.kind === "spill" && i.el.tagName === "IMG")) && i.el.closest("#p-queue [data-row]"))) continue;
+    /* a card mid slide-in reads as a spill or an overlap: only what has finished moving counts (Played's shelf still slides
+       in when the screen settles, so waiting for the whole screen to be still never came) */
+    if (bugMoving(i.el) || (i.kind === "overlap" && i.el.nextElementSibling && bugMoving(i.el.nextElementSibling))) continue;
+    n++; bugReport("look", EYE_SAY[i.kind], { at: bugPath(i.el), screen: scr, sigAt: bugPath(i.el), stack: "The design eye measured: " + i.msg + " (" + i.at + ")" });
+  }
+}
+BUG_AFTER.push(() => {
+  if (!lookOk() || performance.now() - bugLastIn < 1200) return;
+  const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+  if (root) lookEyeRun(root, bugScreen());
+});
+BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on ${at} were drawn on top of each other.`],
+  ["look", /Something spills out of its card/, at => `A picture or some words on ${at} stuck out of their card.`],
+  ["look", /A card runs past the screen edge/, at => `A card on ${at} ran past the edge of the screen.`],
+  ["look", /Pictures side by side are very different sizes/, at => `Pictures in one row on ${at} were very different sizes.`],
+  ["look", /A date or short word breaks onto two lines/, at => `A date or a short word on ${at} was broken over two lines.`],
+  ["look", /A short label is squeezed to a few letters/, at => `A short label on ${at} was squeezed down to a few letters.`]);
+</script>

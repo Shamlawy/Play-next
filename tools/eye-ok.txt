@@ -2,3 +2,4 @@
 # Add a line only for a deliberate look, with the reason; a real problem gets fixed instead.
 overlap shx-fan — the tab's game fan: covers fanned over each other on purpose
 faint shx-fan — the fan's back covers are dimmed on purpose, the front one is bright
+overlap dc-fan — the Add page's discovery card fans three covers over each other on purpose
