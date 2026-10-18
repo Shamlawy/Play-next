@@ -42,6 +42,7 @@
 - Must feel smooth at high refresh rate.
 - Animate only `transform` and `opacity`. No looping blur. No stacked effects.
 - Test performance in a browser before saying it's done: `node tools/kit.mjs perf` (main-thread ms per step, 4x slower CPU; `--file old.html` for the before).
+- No scroll-linked motion on list rows (v308, #469 item 6: Played's rows rose, slid and drifted with `view()` timelines, four GPU layers each the whole time; they simply appear now). Start-up redraws go through `bootRedraw(name)` (runs once when the page has loaded, v308); never read a hidden screen's layout (a rect inside a `.panel:not(.on)` forces a full layout of that screen even under content-visibility): measure with a ResizeObserver (`lfRO`) or when it shows.
 - Loops keep running while a finger moves (v282, the owner: "I dont want animation to stop while scrolling"). v280's hold (pause every endless loop mid-scroll) is gone: pausing/restarting cost 20–43ms as each scroll started and stopped (a visible hitch, and Nexi/the rail looked frozen), while running transform/opacity loops cost ~0.3ms of style per scroll frame. Never bring a scroll hold back; keep every endless loop transform/opacity only. `node tools/kit.mjs smooth` (in `all`, every PR) fails if Nexi's or the rail's loops stop mid-swipe, a loop running mid-swipe animates anything else, or what the finger landed on moves (#309). Measure scroll cost with `tools/scenarios/trace-loops.mjs` (`CPU=1`, `TAB=lib|game`).
 
 ## Settings

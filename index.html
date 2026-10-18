@@ -4322,7 +4322,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "307";
+const APP_V = "308";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -27567,6 +27567,14 @@ WHATS_NEW.push(
   { v: 307, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
     say: "I've learned to spot this myself now: if a Queue card you open ends up off the screen, I report it on my own.",
     tryIt: "Nothing to do: if it happens, I file it myself." }
+);
+WHATS_NEW.push(
+  { v: 308, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>The app opens lighter</b>: while it loads it no longer draws your Played list four times and Taste three times, and the Queue's logos are sized when you first open the Queue, instead of making the phone lay out the whole hidden Queue at the start.",
+    tryIt: "Close the app fully and open it again." },
+  { v: 308, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .pnb-row") || null,
+    say: "<b>Played scrolls smoother</b>: your finished games now simply appear instead of rising and sliding in. Each row's motion kept four layers busy on the graphics chip the whole time; the badge shelf still slides in.",
+    tryIt: "Scroll your Played list quickly from top to bottom." }
 );
 /* Oct 18: Nexi learned (the owner: "it lagged a lot and the games stopped opening"): a Queue card you open has to end up on
    the screen. Opening one closed the card above it and the one you tapped slid off the top, so the next tap hit another row */
