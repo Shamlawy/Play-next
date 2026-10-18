@@ -15,7 +15,8 @@ export const SHOTS = [
   ["plan", `closeFull(); goTab("plan")`, 1], ["taste", `closeFull(); goTab("taste")`, 1],
   ["game", `closeFull(); goTab("games"); goSub("games", "queue"); openFull(S.games[0].id)`, 1],
   /* since Oct 18 (kit.mjs look): an open Queue card, a playing game's page (news, hours), Settings and Edit */
-  ["card", `closeFull(); goTab("games"); goSub("games", "queue"); const r = document.querySelector("#p-queue [data-row]:not(.hero)"); r && r.click()`, 0],
+  ["card", `closeFull(); goTab("games"); goSub("games", "queue"); const r = document.querySelector("#p-queue [data-row]:not(.hero)"); r && r.click();
+    setTimeout(() => { const h = document.querySelector("#p-queue .hero"); h && h.scrollIntoView({ block: "center", behavior: "instant" }); }, 1200)`, -1],
   ["game2", `closeFull(); goTab("games"); goSub("games", "queue"); openFull((S.games.find(g => g.state === "playing" && g.nw) || S.games[1]).id)`, 1],
   ["settings", `closeFull(); openSettings()`, 1], ["edit", `closeFull(); openEdit(S.games[2].id)`, 0]];
 const CLOSE = `typeof closeEdit === "function" && closeEdit(); typeof dyClose === "function" && dyClose(); closeFull()`;
@@ -45,15 +46,17 @@ export async function shot(p, file, scale = "device") {
 }
 export async function shootAll(p, w, out, { only = null, scale = "device" } = {}) {
   fs.mkdirSync(out, { recursive: true });
-  const down = () => p.page.evaluate(() => { const g = document.querySelector("#full.on .hub.gpage") || document.querySelector("#sheet.on #sheet-in");
-    if (g) g.scrollTop = innerHeight; else scrollTo(0, Math.min(innerHeight * 1.3, document.scrollingElement.scrollHeight)); });
-  const up = () => p.page.evaluate(() => { const g = document.querySelector("#full.on .hub.gpage") || document.querySelector("#sheet.on #sheet-in"); if (g) g.scrollTop = 0; scrollTo(0, 0); });
+  /* the open page's own scroller (a game page, a sheet: whichever box really scrolls), else the window */
+  const box = `[...document.querySelectorAll("#full.on .hub.gpage, #sheet.on, #sheet.on *")].find(e => e.scrollHeight > e.clientHeight + 40 && /auto|scroll/.test(getComputedStyle(e).overflowY))`;
+  const down = () => p.page.evaluate(`{ const g = ${box}; if (g) g.scrollTop = innerHeight * .8; else scrollTo(0, Math.min(innerHeight * 1.3, document.scrollingElement.scrollHeight)); }`);
+  const up = () => p.page.evaluate(`{ const g = ${box}; if (g) g.scrollTop = 0; scrollTo(0, 0); }`);
   const files = [];
   for (const [name, js, alsoDown] of SHOTS) {
     if (only && !only.includes(name)) continue;
     await p.step("close", CLOSE, 300);
-    await p.step(name, js, 2400); await up(); files.push(path.join(out, `${w}-${name}.png`)); await shot(p, files.at(-1), scale);
-    if (alsoDown) { await down(); files.push(path.join(out, `${w}-${name}-down.png`)); await shot(p, files.at(-1), scale); await up(); }
+    /* alsoDown: 1 = also one screen down, 0 = the top only, -1 = where the step left it (the open Queue card) */
+    await p.step(name, js, 2400); if (alsoDown >= 0) await up(); files.push(path.join(out, `${w}-${name}.png`)); await shot(p, files.at(-1), scale);
+    if (alsoDown > 0) { await down(); files.push(path.join(out, `${w}-${name}-down.png`)); await shot(p, files.at(-1), scale); await up(); }
   }
   await p.step("close", CLOSE, 300);
   return files;
