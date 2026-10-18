@@ -17,6 +17,10 @@ export async function eyeWalk({ p, w }, only) {
   const shots = process.env.SHOTS; if (shots) fs.mkdirSync(shots, { recursive: true });
   if (process.env.PLANT) { const css = fs.readFileSync(process.env.PLANT, "utf8");
     await p.page.evaluate(css => { const s = document.createElement("style"); s.id = "eyeplant"; s.textContent = css; document.head.appendChild(s); }, css); }
+  /* Nexi's first "I evolved" power-up fires 15s after the app opens and flies energy dots across whatever screen is up; the
+     eye measures screens at rest, so a walk that reached the Library at 15s read the dots as a picture spilling onto its
+     card's words (v304, 0 of 4 runs on main, 4 of 5 on a branch whose walk was a little faster) */
+  await p.page.evaluate(() => { if (typeof extend === "function" && typeof pnPowerUp === "function") extend("pnPowerUp", { before: () => extend.skip() }); });
   const found = [];
   for (const [name, go, back] of PLACES) {
     if (only && !only.includes(name.split(" ")[0]) && !only.includes(name)) continue;
