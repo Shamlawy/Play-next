@@ -4312,7 +4312,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "306";
+const APP_V = "307";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8993,6 +8993,7 @@ function renderQueue() {
     else { collapsed = false; focusId = r.dataset.row; }
     /* the backdrop swap is its own slow fade — keep it out of the snapshot */
     morphId = null;
+    qKeep = { id: r.dataset.row, top: r.getBoundingClientRect().top };
     renderQueue();
     const h = !collapsed && S.motion !== false && S.vt !== false && !calm() && $("#p-queue .hero");
     if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 2000); }   /* v299: the entrance runs ~1.9s (the stub tears at 1.4s) */
@@ -10747,7 +10748,7 @@ document.addEventListener("click", e => {
   const qf = e.target.closest(".hflip.qkf");
   if (qf) {
     if (e.target.closest("button,a,input,select,textarea,label,.hmenu,.hmore,[data-more],[data-diary],[data-comp],[data-edit]")) { clearTimeout(qkTapT); qkTapT = 0; return; }
-    e.stopPropagation(); e.preventDefault(); qkTap(qf); return;
+    e.stopPropagation(); e.preventDefault(); qkTap(qf, e.timeStamp); return;
   }
   const btn = e.target.closest("button,a"), f0 = e.target.closest("[data-flip]");
   const f = f0 && (!btn || btn === f0) ? f0 : null, u = !f && !btn && e.target.closest("[data-unflip]");
@@ -10758,10 +10759,12 @@ document.addEventListener("click", e => {
   if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
 }, true);
 window.addEventListener("click", e => { if (e.target.closest("[data-unflip]") && !e.target.closest(".qkf") && !e.target.closest("button,a,[data-more],[data-diary],[data-comp],[data-edit]")) { const w = e.target.closest(".hflip"); if (w && w.classList.contains("on")) { e.stopPropagation(); e.preventDefault(); document.querySelectorAll(".hmore.on").forEach(m => m.classList.remove("on")); flLift(w); w.classList.remove("on"); flipId = null; beep("back"); } } }, true);
-/* v299: the open Queue card's taps. A single tap waits a moment to be sure no second one is coming */
+/* v299: the open Queue card's taps. A single tap waits a moment to be sure no second one is coming. Oct 18: the gap is
+   timed from when the finger lifted (the event's timeStamp), not from when the page got to it: on a busy phone the second
+   tap of a double tap was handled 150-330ms late, read as two single taps, and the card closed instead of turning */
 let qkTapT = 0, qkTapAt = 0;
-function qkTap(w) {
-  const now = performance.now();
+function qkTap(w, at) {
+  const now = at || performance.now();
   if (qkTapT && now - qkTapAt < 320) { clearTimeout(qkTapT); qkTapT = 0; qkTurn(w); return; }
   qkTapAt = now; clearTimeout(qkTapT);
   qkTapT = setTimeout(() => { qkTapT = 0; qkShut(w); }, 320);
@@ -11569,13 +11572,31 @@ setTimeout(() => { const h = document.documentElement; h.classList.add("first");
   if (hm && hm.classList.contains("on")) countUp(hm); setTimeout(() => h.classList.remove("first"), 1400); }, 60);
 
 /* ranks glide to their new places instead of jumping */
-let pnSkipFlip = 0;
+let pnSkipFlip = 0, qKeep = null;
 extend("renderQueue", { before() {
     const pn = $("[data-row]") && $("[data-row]").closest(".panel"), live = !pnSkipFlip && pn && pn.classList.contains("on") && !calm(), before = {};
     if (live) document.querySelectorAll("[data-row]").forEach(r => before[r.dataset.row] = r.getBoundingClientRect().top);
-    return live ? before : null; },
-  after(out, args, before) {
-    if (before) document.querySelectorAll("[data-row]").forEach(r => { const t = before[r.dataset.row]; if (t == null) return;
+    return live ? { tops: before, order: Object.keys(before).join("|") } : null; },
+  after(out, args, b) {
+    /* Oct 18 (the owner: "spent time on the queue … it lagged a lot and the games stopped opening"): the row you tap stays
+       under your finger. Opening a card closes the one above it, so everything below moved up ~440px (unfolded) and the
+       card you opened slid off the top; the next tap then landed on another row. Put back in the frame, before it's drawn */
+    const keep = qKeep; qKeep = null;
+    if (keep) requestAnimationFrame(() => { const k = document.querySelector(`#p-queue [data-row="${CSS.escape(keep.id)}"]`); if (!k) return;
+      const r = k.getBoundingClientRect(), d = keep.top >= 0 && keep.top < innerHeight ? r.top - keep.top : 0;   /* a row opened from off screen has no place to keep */
+      if (Math.abs(d) > 1) scrollTo({ top: scrollY + d, behavior: "instant" });
+      /* an open card above the screen comes down into view; one that runs under the tab bar slides up (never past its own top) */
+      const top = r.top - d, over = r.bottom - d - (innerHeight - 90), go = calm() ? "instant" : "smooth";
+      if (!k.classList.contains("hero")) return;
+      if (top < 0) scrollBy({ top: top - 70, behavior: go });
+      else if (over > 0 && top > 70) scrollBy({ top: Math.min(over, top - 70), behavior: go }); });
+    if (!b) return;
+    /* opening or closing a card keeps the order: nothing to glide, and measuring every row right after the redraw laid out the
+       whole list inside the tap (~100ms of a 420ms tap at 4x with 60 games) */
+    const rows = [...document.querySelectorAll("[data-row]")];
+    if (rows.map(r => r.dataset.row).join("|") === b.order) return;
+    const before = b.tops;
+    rows.forEach(r => { const t = before[r.dataset.row]; if (t == null) return;
       const now = r.getBoundingClientRect().top, dy = t - now; if (!dy || Math.abs(dy) > innerHeight * 2) return;
       if ((t > innerHeight && now > innerHeight) || (t < -200 && now < -200)) return;   /* off screen both times: nobody sees it glide */
       /* z-index in the keyframes kept this off the GPU and re-drew every row each frame; set it on the side instead */
@@ -27558,4 +27579,24 @@ WHATS_NEW.push(
     say: "<b>Cards turn faster and cleaner</b>: a double tap flips the card straight over in under half a second, no slow swing past and back. Platform versions like 4·Vita and One·360 now sit beside their own logo instead of running into the next one, and the old rating ticks no longer play when a card opens.",
     tryIt: "Open a game in the Queue and double tap the card." }
 );
+WHATS_NEW.push(
+  { v: 307, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row") || $("#p-queue [data-row]") || null,
+    say: "<b>The Queue stays put when you open a card</b>: the card you tap opens right where your finger is, instead of sliding off the top of the screen, and opening one is lighter for the phone. Double taps on a busy phone now turn the card instead of closing it.",
+    tryIt: "Scroll the Queue, tap a game halfway down, then double tap its card." },
+  { v: 307, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: if a Queue card you open ends up off the screen, I report it on my own.",
+    tryIt: "Nothing to do: if it happens, I file it myself." }
+);
+/* Oct 18: Nexi learned (the owner: "it lagged a lot and the games stopped opening"): a Queue card you open has to end up on
+   the screen. Opening one closed the card above it and the one you tapped slid off the top, so the next tap hit another row */
+document.addEventListener("click", e => {
+  const r = e.target.closest && e.target.closest("#p-queue [data-row]");
+  if (!r || r.classList.contains("hero") || e.target.closest("button")) return;
+  const id = r.dataset.row;
+  setTimeout(() => requestAnimationFrame(() => {
+    const h = document.querySelector(`#p-queue .hero[data-row="${CSS.escape(id)}"]`); if (!h || !h.closest(".panel.on") || $("#full.on")) return;
+    const b = h.getBoundingClientRect();
+    if (b.top < -40 || b.top > innerHeight - 120) bugReport("layout", "The Queue card you opened ended up off the screen", { at: bugPath(h) });
+  }), 900);
+}, true);
 </script>
