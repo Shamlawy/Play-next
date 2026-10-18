@@ -27726,10 +27726,14 @@ function lookEyeRun(root, scr) {
     n++; bugReport("look", EYE_SAY[i.kind], { at: bugPath(i.el), screen: scr, sigAt: bugPath(i.el), stack: "The design eye measured: " + i.msg + " (" + i.at + ")" });
   }
 }
+/* once per screen and width, as the README says: a later layout pass of the same screen doesn't walk it again */
+const LOOK_SEEN = new Set();
 BUG_AFTER.push(() => {
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
-  if (root) lookEyeRun(root, bugScreen());
+  const scr = bugScreen(), key = scr + "|" + innerWidth;
+  if (!root || LOOK_SEEN.has(key)) return;
+  LOOK_SEEN.add(key); lookEyeRun(root, scr);
 });
 BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on ${at} were drawn on top of each other.`],
   ["look", /Something spills out of its card/, at => `A picture or some words on ${at} stuck out of their card.`],
