@@ -122,7 +122,7 @@
   .panel { display: none; }
   .panel.on { display: block; }
   @media (prefers-reduced-motion: no-preference) {
-    html.tabfade .panel.on { animation: cut .28s cubic-bezier(.16,1,.3,1) both; }
+    html.tabfade .panel.on { animation: cut .28s cubic-bezier(.16,1,.3,1) backwards; }
     @keyframes cut { from { opacity: 0; transform: translateY(14px) scale(.99); } }
     html.tabslash .panel.on { animation: slashin .38s cubic-bezier(.16,1,.3,1) backwards; }
     @keyframes slashin { from { opacity: 0; transform: translateX(-24px); } }
@@ -2574,8 +2574,8 @@ transform:rotate(-12deg);box-shadow:0 0 30px var(--volt),inset 0 0 20px var(--vo
 /* v110 smoothness pass */
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion:no-preference){
-html.sm-r:not(.tabslash) .panel.on{animation:smR .42s cubic-bezier(.16,1,.3,1) both!important}
-html.sm-l:not(.tabslash) .panel.on{animation:smL .42s cubic-bezier(.16,1,.3,1) both!important}
+html.sm-r:not(.tabslash) .panel.on{animation:smR .42s cubic-bezier(.16,1,.3,1) backwards!important}
+html.sm-l:not(.tabslash) .panel.on{animation:smL .42s cubic-bezier(.16,1,.3,1) backwards!important}
 .tile,.btn,.chip,nav button,.icon,.calarrow,.crow{transition:scale .45s cubic-bezier(.34,1.56,.64,1),transform .12s cubic-bezier(.2,.9,.25,1),background-color .2s,color .2s,opacity .2s}
 .tile:active,.btn:active,.chip:active,nav button:active,.icon:active,.calarrow:active,.crow:active{transition-duration:.08s}
 img.smld{animation:smImg .45s ease both}
@@ -4353,7 +4353,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "303";
+const APP_V = "304";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -9515,10 +9515,14 @@ function paintDots(id) {
 /* The snapshot for a transition is taken the instant the DOM changes, so a page
    whose figure or backdrop hasn't decoded yet slides in half-drawn. Waiting for
    the images first is what stops the flicker. */
+/* v304 (#62): only the pictures the page shows, at the size their spot was last given (fitWarm, picture fit): it used to
+   unpack each original (a 12 MP key art the new page doesn't even show) for this game and both neighbours */
 function warmGame(g) {
   if (!g) return Promise.resolve();
-  const urls = [g.key || g.art || cover(g), bgSource(g)].filter(Boolean);
-  return Promise.all(urls.map(u => new Promise(res => {
+  const dash = fullStyleOf() === "dash";
+  const pics = dash ? [[bgSource(g), "gd-bg"], [g.key && S.gdFig ? g.key : "", "gd-fig"]]
+    : [[g.key || g.art || cover(g), g.key || g.art ? "hub-fig" : ""], [bgSource(g), "hub-back"]];
+  return Promise.all(pics.filter(x => x[0]).map(([u0, role]) => (typeof fitWarm === "function" ? fitWarm(u0, role) : Promise.resolve(u0)).then(u => new Promise(res => {
     const im = new Image();
     im.onload = im.onerror = () => res();
     im.src = u;
@@ -9527,7 +9531,7 @@ function warmGame(g) {
       const w = () => { if (im.naturalWidth && typeof warmDone === "function") warmDone(u); };
       if (im.complete) w(); else im.addEventListener("load", w); });
     setTimeout(res, 350);
-  })));
+  }))));
 }
 
 /* a game page's numbers and buttons, shared by every page style */
@@ -9882,6 +9886,7 @@ function hubStep(dir) {
      transition and leave the old snapshot on screen as a black frame */
   into.querySelectorAll('[style*="view-transition-name"]').forEach(x => { x.style.viewTransitionName = ""; });
   morphId = null;
+  if (typeof fitLike === "function") fitLike(into);
   into.querySelectorAll("img").forEach(im => { im.decoding = "sync"; im.loading = "eager"; });
   hubReady(into).then(() => {
   if (mine !== hubTurn) return;
@@ -9952,6 +9957,7 @@ function hubPage(g) {
   if (!el) return null;
   el.classList.add("noanim");
   el.querySelectorAll('[style*="view-transition-name"]').forEach(x => { x.style.viewTransitionName = ""; });
+  if (typeof fitLike === "function") fitLike(el);
   el.querySelectorAll("img").forEach(im => { im.decoding = "sync"; im.loading = "eager"; });
   return el;
 }
@@ -14891,7 +14897,7 @@ document.addEventListener("change",e=>{if(e.target.closest("[data-pnartv]"))save
 html.fast.scrolling .pnb-row.in{animation-play-state:running!important}
 
 .pnb-row{transition:scale .2s ease}
-.pbd-row{animation:pnbDrop .4s ease both}
+.pbd-row{animation:pnbDrop .4s ease backwards}
 .pbd-b{transition:scale .15s ease}
 html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{animation:none}
 @media (prefers-reduced-motion:reduce){.pnb-row.wait{opacity:1}.pnb-row.in,.pbd-row{animation:none}}
@@ -14920,22 +14926,22 @@ html.still .pnb-row.wait{opacity:1}html.still .pnb-row.in,html.still .pbd-row{an
   .pnb-row.wait{opacity:1}
   .pnb-row.in{animation:none}
   /* rows rise and settle as they scroll into view */
-  .pnb-row{animation:pnbRise linear both;animation-timeline:view();animation-range:entry 0% cover 28%}
+  .pnb-row.nr{animation:pnbRise linear;animation-timeline:view();animation-range:entry 0% cover 28%}
   @keyframes pnbRise{from{opacity:0;translate:0 60px;scale:.9}}
   /* the art is its own layer and drifts slower than the page: depth */
-  .pnb-row::before{inset:-16% 0;will-change:transform;transition:none;
-    animation:pnbPara linear both;animation-timeline:view();animation-range:cover}
+  .pnb-row::before{inset:-16% 0;transition:none}
+  .pnb-row.nr::before{animation:pnbPara linear;animation-timeline:view();animation-range:cover}
   @keyframes pnbPara{from{transform:translateY(-11%) scale(1.06)}to{transform:translateY(11%) scale(1.06)}}
   /* title slides from the left, score from the right, meeting in the middle */
-  .pnb-row>div:first-child{animation:pnbFromL linear both;animation-timeline:view();animation-range:entry 10% cover 34%}
-  .pnb-s{animation:pnbFromR linear both;animation-timeline:view();animation-range:entry 10% cover 34%}
+  .pnb-row.nr>div:first-child{animation:pnbFromL linear;animation-timeline:view();animation-range:entry 10% cover 34%}
+  .pnb-row.nr .pnb-s{animation:pnbFromR linear;animation-timeline:view();animation-range:entry 10% cover 34%}
   @keyframes pnbFromL{from{opacity:0;translate:-70px 0}}
   @keyframes pnbFromR{from{opacity:0;translate:70px 0;scale:.7}}
   /* badges grow in from the edge as you swipe the shelf */
-  .pbd-b{animation:pbdCar linear both;animation-timeline:view(inline);animation-range:entry 0% entry 100%}
+  .pbd-b.nr{animation:pbdCar linear;animation-timeline:view(inline);animation-range:entry 0% entry 100%}
   @keyframes pbdCar{from{opacity:0;scale:.55;translate:24px 0}}
   html.fast.scrolling .pnb-row,html.fast.scrolling .pnb-row *,html.fast.scrolling .pnb-row::before,html.fast.scrolling .pbd-b{animation-play-state:running!important}
-  html.still .pnb-row,html.still .pnb-row *,html.still .pnb-row::before,html.still .pbd-b{animation:none}
+  html.still .pnb-row,html.still .pnb-row *,html.still .pnb-row::before,html.still .pbd-b,html.still .pnb-row.nr,html.still .pnb-row.nr *,html.still .pnb-row.nr::before,html.still .pbd-b.nr{animation:none}
 }
 @media (prefers-reduced-motion:reduce){.pnb-row,.pnb-row *,.pnb-row::before,.pbd-b{animation:none!important}}
 </style>
@@ -25321,7 +25327,7 @@ WHATS_NEW.push(
    the frame the piece is first drawn, before it's painted (MutationObserver collects, one rAF measures them all at
    once), so the big one is never unpacked; pieces that aren't drawn yet (a hidden screen, a row skipped by
    content-visibility) are sized when they show. A copy that fails puts the original back. */
-const FIT = { q: new Set(), raf: 0, wait: new Set(), again: new Set(), local: new Map(), bad: new Set(), STEPS: [128, 192, 256, 384, 512, 768, 1024, 1536] };
+const FIT = { q: new Set(), raf: 0, wait: new Set(), again: new Set(), local: new Map(), bad: new Set(), STEPS: [128, 192, 256, 384, 512, 768, 1024, 1280, 1536, 1792, 2048, 2560] };
 const fitStep = px => { for (const b of FIT.STEPS) if (px <= b) return b; return 0; };
 /* the app's own files (pictures kept in the repo, e.g. a key art an old save links to) are resized on the phone too */
 const fitSame = u => u.indexOf(location.origin + "/") === 0 || (u.length < 300 && /^[\w\-./%]+\.(jpe?g|png|webp)$/i.test(u));
@@ -25449,9 +25455,23 @@ function fitRun() {
     el._fitSig = fitUrls(el);
     if (n[0]) jobs.push([el, n]);
   }
-  for (const [el, n] of jobs) { try { if (el.tagName === "IMG") fitImg(el, n); else fitBg(el, n); } catch (e) {} el._fitSig = fitUrls(el); }
+  for (const [el, n] of jobs) { try { if (el.tagName === "IMG") fitImg(el, n); else fitBg(el, n); } catch (e) {} el._fitSig = fitUrls(el);
+    const c = el.classList && el.classList[0]; if (c) FIT.role.set(c, n); }
   /* not drawn yet: also look again shortly, a screen can finish showing without a tab switch (an animation, a late layout) */
   if (FIT.wait.size && fresh) { clearTimeout(FIT.wt); FIT.wt = setTimeout(fitRetry, 700); clearTimeout(FIT.wt2); FIT.wt2 = setTimeout(fitRetry, 2500); }
+}
+/* v304: the size each kind of spot (its first class) was last given, so a page that isn't on screen yet (the next game in
+   a swipe, a game about to open) can ask for its pictures at that size before it's drawn */
+FIT.role = new Map();
+function fitWarm(u, role) {
+  const n = role && FIT.role.get(role); if (!n || !n[0]) return Promise.resolve(u);
+  if (fitRemote(u)) return Promise.resolve(fitSized(u, n[0], n[1]));
+  if (fitLocalOk(u)) return fitLocal(u, n[0], n[1]).then(t => t || u, () => u);
+  return Promise.resolve(u);
+}
+function fitLike(root) {
+  root.querySelectorAll("img, [style*='url(']").forEach(el => { const n = FIT.role.get(el.classList[0]); if (!n || !n[0]) return;
+    try { if (el.tagName === "IMG") fitImg(el, n); else fitBg(el, n); } catch (e) {} });
 }
 function fitAdd(el) { FIT.q.add(el); if (!FIT.raf) FIT.raf = requestAnimationFrame(fitRun); }
 function fitScan(root) {
@@ -25460,6 +25480,9 @@ function fitScan(root) {
   root.querySelectorAll("img, [style*='url(']").forEach(fitAdd);
 }
 /* pieces that weren't drawn yet: look again when a screen or a page shows, a skipped row comes back, or after a scroll */
+/* v304 (#333/#347): a screen that just showed is sized in its first frame, before it's painted. A retry from inside a frame
+   used to wait for the next one, so the first frame decoded every original (3.3 MP on a switch to the Queue) */
+function fitNow() { fitRetry(); if (FIT.raf) { cancelAnimationFrame(FIT.raf); fitRun(); } }
 function fitRetry() { if (!FIT.wait.size) return; const w = [...FIT.wait]; FIT.wait.clear(); w.forEach(el => { if (el.isConnected) { FIT.again.add(el); fitAdd(el); } }); }
 if (window.MutationObserver) new MutationObserver(ms => {
   for (const m of ms) {
@@ -25474,7 +25497,7 @@ if (window.MutationObserver) new MutationObserver(ms => {
 document.addEventListener("error", e => { const im = e.target; if (!im || im.tagName !== "IMG" || !im._fitFrom || im.getAttribute("src") !== im._fitTo) return;
   FIT.bad.add(im._fitFrom); const s = im._fitFrom; im._fitTo = s; im.setAttribute("src", s); }, true);
 document.addEventListener("contentvisibilityautostatechange", e => { if (!e.skipped) fitRetry(); }, true);
-onNav("after", () => requestAnimationFrame(fitRetry));
+onNav("after", () => requestAnimationFrame(fitNow));
 { let t = 0; const go = () => { const w = scrollWait(150); if (w > 8) { t = setTimeout(go, w); return; } t = 0; fitRetry(); };
   onScrolled(() => { if (!t && FIT.wait.size) t = setTimeout(go, 150); }); }
 addEventListener("resize", () => { clearTimeout(FIT.rt); FIT.rt = setTimeout(() => fitScan(document.body), 400); });   /* fitImg/fitBg refit only where a box grew */
@@ -26425,12 +26448,15 @@ function layerMakers() {
    now also says what there was to draw: the layer makers in view (as above) and the pictures in view, in megapixels as
    decoded. The next report of that kind names its cause instead of only "drawing". */
 function drawLoad() {
-  const W = innerWidth, H = innerHeight; let mp = 0, n = 0;
-  for (const i of document.images) { if (!i.complete || !i.naturalWidth) continue;
+  const W = innerWidth, H = innerHeight, d = Math.min(3, devicePixelRatio || 1), top = document.querySelector("#full.on"); let mp = 0, n = 0, need = 0;
+  for (const i of document.images) { if (!i.complete || !i.naturalWidth || (top && !top.contains(i))) continue;
     const r = i.getBoundingClientRect(); if (r.bottom < 0 || r.top > H || r.right < 0 || r.left > W || r.width < 8) continue;
-    n++; mp += i.naturalWidth * i.naturalHeight / 1e6; }
+    n++; mp += i.naturalWidth * i.naturalHeight / 1e6; need += Math.min(i.naturalWidth * i.naturalHeight, r.width * r.height * d * d) / 1e6; }
+  /* v304: url() backgrounds (the Queue's open card, row strips, Played's rows) count too; pictures under an open game page don't */
+  if (typeof picBgOn === "function") for (const [, u, r] of picBgOn()) { const z = PICBG.get(u); if (!z || z === -1) continue;
+    n++; mp += z[0] * z[1] / 1e6; need += Math.min(z[0] * z[1], r.width * r.height * d * d) / 1e6; }
   const L = layerMakers(), k = { held: 0, loop: 0, will: 0 }; for (const m of L.list) k[m.why]++;
-  return `drawing on screen: ${n} pictures (${mp.toFixed(1)} MP decoded); layer makers ${k.loop} loops, ${k.held} held, ${k.will} will-change, `
+  return `drawing on screen: ${n} pictures (${mp.toFixed(1)} MP decoded, ${need.toFixed(1)} MP shown); layer makers ${k.loop} loops, ${k.held} held, ${k.will} will-change, `
     + `${Math.round(L.score * 100)}% of the screen drawn over them` + (L.list[0] ? `; biggest ${L.list[0].why} ${Math.round(L.list[0].share * 100)}% ${L.list[0].at}` : "");
 }
 extend("lagSplit", { map(out) {
@@ -27390,8 +27416,8 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
 #p-queue .qfcv { position: absolute; z-index: 1; right: 26px; bottom: 22px; width: 132px; height: 190px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: none;
   box-shadow: 0 16px 36px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.22); cursor: pointer; }
 #p-queue .qfcv img { width: 100%; height: 100%; max-width: none; object-fit: cover; display: block; border-radius: 0; }
-#p-queue .qfswap .qfin { animation: qfswap .42s var(--ease) both; }
-#p-queue .qfswap .qfcv { animation: qfcv .42s var(--ease) both; }
+#p-queue .qfswap .qfin { animation: qfswap .42s var(--ease) backwards; }
+#p-queue .qfswap .qfcv { animation: qfcv .42s var(--ease) backwards; }
 @keyframes qfswap { from { opacity: 0; transform: translateX(-18px); } }
 @keyframes qfcv { from { opacity: 0; transform: translateY(14px); } }
 #p-queue .qfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 16px 10px; padding-top: 8px; }
@@ -27496,5 +27522,96 @@ WHATS_NEW.push(
   { v: 303, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .dzd-row") || $("#p-queue .deck") || null,
     say: "<b>On deck's three cards match now</b>: each has its picture on top in the same shape (number 1 was one big tall picture next to two wide ones). Number 1 still says Play this next.",
     tryIt: "Look at your top 3 side by side." }
+);
+</script>
+<script>
+/* v304 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium
+   gives each scroll-linked animation its own GPU layer whether it is moving or not (the GPU must be able to move it
+   mid-swipe): 4 per row and 24 locked badges, each also cutting what's drawn above it into "overlap" layers. The motion is
+   the same, but a piece only carries it near where it plays (.nr): a row from just above the screen to half a screen below
+   it (it rises as it comes up from below; its art drifts while on screen), a badge in its shelf and half a shelf to the
+   right (it grows in from the right edge). Rows drawn before this script are picked up here too. */
+{ const ok = window.IntersectionObserver && CSS.supports && CSS.supports("animation-timeline: view()");
+  const near = ok ? new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle("nr", e.isIntersecting)), { rootMargin: "15% 0px 50% 0px" }) : null;
+  let shelf = null;
+  const wire = () => { if (!ok) return; near.disconnect(); if (shelf) shelf.disconnect(); shelf = null;
+    document.querySelectorAll("#p-played .pnb-row").forEach(r => near.observe(r));
+    const row = document.querySelector("#p-played .pbd-row"); if (!row) return;
+    shelf = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle("nr", e.isIntersecting)), { root: row, rootMargin: "0px 50% 0px 0px" });
+    row.querySelectorAll(".pbd-b").forEach(b => shelf.observe(b)); };
+  extend("renderPlayed", { after: wire }); wire(); }
+</script>
+<script>
+/* v304: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"):
+   1. pictures drawn as url() backgrounds. His picture check (picLook, v267) only looked at <img>s, so the Queue's open
+      card, unfolded, unpacking a 12 MP original into a 2.9 MP spot (twice: front and back) never showed. Backgrounds on
+      the screen on top now count the same way (their real size is read once from the cache, the first look waits for it).
+   2. a screen whose pieces carry many scroll-linked animations (view()/scroll() timelines): each one is its own GPU layer
+      the whole time it exists, moving or not (Played had 54: four per row and one per locked badge). Over 40 in the
+      screen on top → kind "layout" (like the layer pile, v287), once per screen a session. */
+const PICBG = new Map();   /* url → [w, h], 0 while it loads, -1 when it can't */
+const picBgUrl = el => { const m = /url\((['"]?)(.*?)\1\)/.exec(el.getAttribute("style") || ""); return m ? m[2].replace(/\\(.)/g, "$1") : ""; };
+function picBgOn() {
+  const W = innerWidth, H = innerHeight, top = document.querySelector("#full.on"), out = [];
+  if (document.querySelector("#sheet.on, #diary.on")) return out;
+  for (const el of document.querySelectorAll("[style*='url(']")) {
+    if ((top && !top.contains(el)) || (el._fitTo && el.getAttribute("style") === el._fitTo)) continue;   /* under the game page / our sized copy */
+    const u = picBgUrl(el); if (!u || /^data:image\/svg|\.svg(\?|#|$)/i.test(u)) continue;
+    const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
+    if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
+    out.push([el, u, r]);
+  }
+  return out;
+}
+extend("picLook", { map(o) {
+  const d = Math.min(3, devicePixelRatio || 1);
+  for (const [el, u, r] of picBgOn()) { const z = PICBG.get(u); if (!z || z === -1) continue;
+    const m = z[0] * z[1], n = Math.max(1, r.width * d * r.height * d);
+    o.held += m; o.need += Math.min(m, n);
+    if (m > 8e6 && m > 4 * n && (!o.worst || m / n > o.worst.k)) o.worst = { im: el, m, n, k: m / n };
+  }
+  return o;
+} });
+extend("picWhy", { map(out, [el]) { return el && el.tagName !== "IMG" ? "background, " + (el._fitTo ? "fitted " + (el._fitN || []).join("x") : FIT.wait.has(el) ? "waiting to be drawn" : el._fitSig != null ? "looked at, left as is" : "never looked at") + ", box " + el.offsetWidth + "×" + el.offsetHeight : out; } });
+/* the first look at a screen learns its backgrounds' sizes, then looks again */
+extend("picCheck", { before() {
+  const miss = [...new Set(picBgOn().map(x => x[1]).filter(u => !PICBG.has(u)))]; if (!miss.length) return;
+  miss.forEach(u => { PICBG.set(u, 0); const i = new Image(); i.onload = () => PICBG.set(u, [i.naturalWidth, i.naturalHeight]); i.onerror = () => PICBG.set(u, -1); i.src = u; });
+  picArm(1500); return extend.skip();
+} });
+/* scroll-linked animations on the screen on top */
+const SCRL = { seen: new Set(), t: 0 };
+function scrollLinked() {
+  if (typeof ScrollTimeline === "undefined" || !document.getAnimations) return { n: 0 };
+  const top = document.querySelector("#full.on") || document.querySelector(".panel.on"); if (!top) return { n: 0 };
+  const by = new Map(); let n = 0;
+  for (const a of document.getAnimations()) { const t = a.effect && a.effect.target;
+    if (!(a.timeline instanceof ScrollTimeline) || !t || !top.contains(t)) continue;
+    n++; const k = a.animationName || "waapi"; by.set(k, (by.get(k) || 0) + 1); }
+  return { n, by: [...by].sort((a, b) => b[1] - a[1]).map(([k, c]) => c + "× " + k).join(", ") };
+}
+BUG_AFTER.push(() => {
+  if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
+  clearTimeout(SCRL.t); SCRL.t = setTimeout(() => {
+    if (performance.now() - bugLastIn < 1200 || document.hidden) return;
+    const scr = bugScreen(); if (SCRL.seen.has(scr)) return;
+    const r = scrollLinked(); if (r.n <= 40) return;
+    SCRL.seen.add(scr);
+    bugReport("layout", `${r.n} pieces on this screen move with the scroll, and each one keeps its own GPU layer the whole time`, { screen: scr, note: r.by, sigAt: "" });
+  }, 900);
+});
+BUG_NICE.push(["layout", /move with the scroll, and each one keeps/, () => "Too many pieces here move along with your finger, and the phone has to keep a separate layer for every one of them."]);
+</script>
+<script>
+WHATS_NEW.push(
+  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero") || $("#p-queue .row") || null,
+    say: "<b>Smoother Queue and game pages</b>: pictures now get their right size before a screen's first frame, so the unfolded Queue unpacks a quarter of what it did (its open card was unpacking a 12 MP picture, twice) and a game page no longer unpacks key art it doesn't even show.",
+    tryIt: "Switch to the Queue from another tab and scroll it fast, then open a game and swipe to the next ones." },
+  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .pnb") || $("#p-played"),
+    say: "Played looks the same but gives the phone less to draw: each row and badge only carries its scroll motion while it's near the screen, instead of every one of them all the time.",
+    tryIt: "Scroll Played and swipe the badge shelf." },
+  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $("#pnbub") || null,
+    say: "I've learned to spot this myself now: a background picture far bigger than its spot, or a screen with too many pieces moving along with your finger, and I report it on my own.",
+    tryIt: "Nothing to do: if it happens, I file it myself." }
 );
 </script>
