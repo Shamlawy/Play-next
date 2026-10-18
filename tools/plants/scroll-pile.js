@@ -1,6 +1,9 @@
 /* Plant for the v305 scroll-linked check: 60 pieces on the screen on top, each with its own view() timeline animation
    (what Played had: four per row plus every locked badge, each one a GPU layer the whole time).
-   node tools/kit.mjs sweep --plant tools/plants/scroll-pile.js --expect */
+   node tools/kit.mjs sweep --plant tools/plants/scroll-pile.js --expect
+   Lines read by tools/plants/run.mjs (every plant at once, app-check runs it):
+   sweep: --widths 412 --screens queue
+   expect: ^\[layout\] .*pieces on this screen move with the scroll */
 (() => {
   const s = document.createElement("style");
   s.textContent = `.scrpx { height: 6px; margin: 2px 0; animation: scrpx linear both; animation-timeline: view(); }

@@ -3,6 +3,7 @@
 # at 412 / 859 / 360 in Chromium with the app's own problem checks listening, and the what's-new tour. Fails on a script
 # error, a real problem report or a broken tour step (timing notes are printed only: GitHub's machines have no GPU).
 # Since v293 also the release number check (tools/appv-check.mjs), the design eye (kit.mjs eye, in `all`), its plant (a blind eye fails), and the design check on what the PR adds.
+# Since M5 every plant in tools/plants/*.js too (tools/plants/run.mjs): each one must still be reported by the detector it was made for.
 name: App check
 on:
   workflow_dispatch:
@@ -39,6 +40,10 @@ jobs:
         env:
           CI: "1"
         run: node tools/kit.mjs all
+      - name: "Every problem check still sees its plant (tools/plants/run.mjs, a blind detector fails)"
+        env:
+          CI: "1"
+        run: node tools/plants/run.mjs
       - name: "The design eye still sees (its plant must be flagged)"
         env:
           CI: "1"
