@@ -27730,13 +27730,17 @@ function lookEyeRun(root, scr) {
 /* once per screen, width and content, as the README says: a later layout pass of the same screen doesn't walk it again, but
    another game page or cards filled in later (a different element count) do, and a pass that skipped something still moving
    isn't counted (second-look on #575) */
-const LOOK_SEEN = new Set();
+const LOOK_SEEN = new Set(), LOOK_TRIES = new Map();
 BUG_AFTER.push(() => {
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (!root) return;
-  const scr = bugScreen(), key = scr + "|" + innerWidth + "|" + root.getElementsByTagName("*").length;
-  if (LOOK_SEEN.has(key)) return;
+  const scr = bugScreen(), sw = scr + "|" + innerWidth, key = sw + "|" + root.getElementsByTagName("*").length;
+  /* at most 3 tries of the same content and 8 walks per screen and width: a finding that never stops moving, or a count that
+     keeps changing, can't make it walk on every pass (second-look on #576) */
+  const n = k => LOOK_TRIES.get(k) || 0;
+  if (LOOK_SEEN.has(key) || n(key) >= 3 || n(sw) >= 8) return;
+  LOOK_TRIES.set(key, n(key) + 1).set(sw, n(sw) + 1);
   if (lookEyeRun(root, scr)) LOOK_SEEN.add(key);
 });
 BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on ${at} were drawn on top of each other.`],
