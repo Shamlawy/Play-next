@@ -17287,6 +17287,14 @@ function bugMoving(el) {
     if (a.getAnimations && a.getAnimations().some(x => x.playState === "running" && x.effect && x.effect.getComputedTiming && x.effect.getComputedTiming().iterations !== Infinity)) return true;
   return false;
 }
+/* ms until the finite animations moving el (or a parent) end */
+function bugMoveLeft(el) {
+  let left = 1;
+  for (let a = el; a && a !== document.documentElement; a = a.parentElement)
+    for (const x of a.getAnimations ? a.getAnimations() : []) { const t = x.playState === "running" && x.effect && x.effect.getComputedTiming && x.effect.getComputedTiming();
+      if (t && t.iterations !== Infinity && isFinite(t.endTime)) left = Math.max(left, (t.endTime - (t.localTime || 0)) / (x.playbackRate || 1)); }
+  return left;
+}
 function bugVisible(el, r, root) {
   let v = { l: r.left, r: r.right, t: r.top, b: r.bottom };
   for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
@@ -17341,13 +17349,14 @@ function bugLayoutPass() {
     const q = nb.getBoundingClientRect(); if (q.width && (q.left < 20 || q.right > W - 20)) bugReport("layout", "Nexi's glow is cut off by the screen edge", { at: "#pnbub", screen: scr });
   }
   const rail = document.getElementById("hrail"), railOn = rail && getComputedStyle(rail).display !== "none" && !document.documentElement.classList.contains("railhide");
-  let n = 0;
+  let n = 0, moved = 0;
   for (const el of root.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea, [role=button]")) {
     if (n >= 3) break;
     const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) continue;
     if (el.closest(BUG_SKIP)) continue;
     const cut = (r.left < W - 6 && r.right > W + 2) || (r.right > 6 && r.left < -2);
-    if (cut && !bugClipped(el, root) && !bugMoving(el)) { n++; bugReport("layout", "A button is cut off by the " + (r.left < 0 ? "left" : "right") + " edge of the screen", { at: bugPath(el), screen: scr }); continue; }
+    if (cut && !bugClipped(el, root) && bugMoving(el)) { moved = Math.max(moved, bugMoveLeft(el)); continue; }
+    if (cut && !bugClipped(el, root)) { n++; bugReport("layout", "A button is cut off by the " + (r.left < 0 ? "left" : "right") + " edge of the screen", { at: bugPath(el), screen: scr }); continue; }
     /* hidden under the Nexi rail: the rail sits on top of its middle */
     if (railOn && r.top >= 0 && r.bottom <= H && r.left >= 0 && r.right <= W && r.right > W - 110) {
       /* only the part you can actually see: a scrolling row clips what's past its edge */
@@ -17356,9 +17365,12 @@ function bugLayoutPass() {
       if (hit && rail.contains(hit)) { n++; bugReport("layout", "A button is hidden under the Nexi rail", { at: bugPath(el), screen: scr }); }
     }
   }
+  /* a cut button still sliding in was skipped: look once more when it has landed (on a slow phone the Queue bar was still
+     moving at the only pass, so a tab past the edge went unreported; the button-cut plant missed it in CI) */
+  if (moved && !BUG.edgeAgain) { BUG.edgeAgain = 1; setTimeout(bugLayoutPass, Math.min(moved, 2500) + 150); }
 }
 function bugLayoutSoon() {
-  if (!bugOn()) return; clearTimeout(BUG.lt);
+  if (!bugOn()) return; clearTimeout(BUG.lt); BUG.edgeAgain = 0;
   BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1600);
 }
 /* screen changes: breadcrumb + a layout look once it settles */
@@ -27730,13 +27742,17 @@ function lookEyeRun(root, scr) {
 /* once per screen, width and content, as the README says: a later layout pass of the same screen doesn't walk it again, but
    another game page or cards filled in later (a different element count) do, and a pass that skipped something still moving
    isn't counted (second-look on #575) */
-const LOOK_SEEN = new Set();
+const LOOK_SEEN = new Set(), LOOK_TRIES = new Map();
 BUG_AFTER.push(() => {
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (!root) return;
-  const scr = bugScreen(), key = scr + "|" + innerWidth + "|" + root.getElementsByTagName("*").length;
-  if (LOOK_SEEN.has(key)) return;
+  const scr = bugScreen(), sw = scr + "|" + innerWidth, key = sw + "|" + root.getElementsByTagName("*").length;
+  /* at most 3 tries of the same content and 8 walks per screen and width: a finding that never stops moving, or a count that
+     keeps changing, can't make it walk on every pass (second-look on #576) */
+  const n = k => LOOK_TRIES.get(k) || 0;
+  if (LOOK_SEEN.has(key) || n(key) >= 3 || n(sw) >= 8) return;
+  LOOK_TRIES.set(key, n(key) + 1).set(sw, n(sw) + 1);
   if (lookEyeRun(root, scr)) LOOK_SEEN.add(key);
 });
 BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on ${at} were drawn on top of each other.`],

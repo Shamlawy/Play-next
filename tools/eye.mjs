@@ -49,7 +49,10 @@ async function snap(page, show) {
 }
 
 /* everything wrong on the screen as it is now */
-export async function look(page) {
+export async function look(page, again = 1) {
+  /* pictures on screen first load (a picture arriving mid-look moves the rows under the measured boxes: a 39px "spill" on the
+     scrolled 859 Library that came and went between runs) */
+  await page.waitForFunction(() => [...document.images].every(im => im.complete || im.loading === "lazy" && !im.getClientRects().length || (() => { const r = im.getBoundingClientRect(); return r.bottom < 0 || r.top > innerHeight; })()), null, { timeout: 4000 }).catch(() => {});
   /* entrances and fades first finish (a paused fade-in reads as faint words, a paused slide as a spill); endless loops pause */
   await page.waitForFunction(() => !document.getAnimations().some(a => a.playState === "running" && a.effect && a.effect.getComputedTiming().iterations !== Infinity), null, { timeout: 4000 }).catch(() => {});
   /* pause only what is running, and later play only those: play() on a finished or CSS-paused animation would restart it */
@@ -58,6 +61,8 @@ export async function look(page) {
   const { issues, pics, groups } = await page.evaluate(([src, ok]) => (0, eval)("(" + src + ")")(null, ok), [EYE_SRC, OK]);
   if (pics.length) {
     let base, base2; const each = [];
+    const boxes = () => page.evaluate(() => [...document.querySelectorAll("[data-eyepic]")].map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + "," + Math.round(r.top); }).join(" "));
+    const before = await boxes();
     try { base = await snap(page, null); for (const p of pics) each.push(await snap(page, p.id)); base2 = await snap(page, null); }
     finally { await page.evaluate(() => { document.getElementById("eyehide")?.remove(); document.querySelectorAll("[data-eyehide]").forEach(e => e.removeAttribute("data-eyehide")); }); }
     const px = await page.evaluate(async ([base, base2, each, pics]) => {
@@ -90,6 +95,11 @@ export async function look(page) {
       }
       return out;
     }, [base, base2, each, pics]);
+    /* the pictures moved while it took its pictures: what it saw isn't where they were measured, so look again */
+    if (again > 0 && await boxes() !== before) {
+      await page.evaluate(() => { document.querySelectorAll("[data-eyepic]").forEach(e => e.removeAttribute("data-eyepic")); (window.eyeHeld || []).forEach(a => a.play()); window.eyeHeld = null; });
+      await page.waitForTimeout(400); return look(page, again - 1);
+    }
     await page.evaluate(() => { document.getElementById("eyehide")?.remove(); document.querySelectorAll("[data-eyehide]").forEach(e => e.removeAttribute("data-eyehide")); });
     for (const i of px) if (!OK.some(([k, s]) => k === i.kind && i.at.includes(s))) issues.push(i);
   }
