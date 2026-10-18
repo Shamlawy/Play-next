@@ -4353,7 +4353,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "303";
+const APP_V = "304";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -19888,7 +19888,12 @@ addEventListener("pointerdown", e => {
    it does; if one is still skipped while it's well inside the screen on three checks in a row during a scroll, part of the
    screen came up blank (#89). */
 { const SK = new Set(), seen = new Map(); let q = 0, last = 0;
-  document.addEventListener("contentvisibilityautostatechange", e => { if (e.skipped) SK.add(e.target); else { SK.delete(e.target); seen.delete(e.target); } }, true);
+  /* v302: a row removed while skipped (Settings is redrawn on every open) never says so, and the Set kept the whole old page
+     alive until a later scroll happened to run check(): ~2,100 nodes + their listeners per Settings open, the longer the
+     app was used the slower it got. Rows that left the page are dropped when Settings is redrawn, on a screen change and whenever the Set grows. */
+  const prune = () => { for (const el of SK) if (!el.isConnected) { SK.delete(el); seen.delete(el); } };
+  onSettings("after", () => requestAnimationFrame(prune)); onNav("after", () => requestAnimationFrame(prune));
+  document.addEventListener("contentvisibilityautostatechange", e => { if (e.skipped) { SK.add(e.target); if (SK.size > 60) prune(); } else { SK.delete(e.target); seen.delete(e.target); } }, true);
   /* v283 (#134, #136): this was the biggest job of every scroll frame on Month and Insights (a trace: 360-460ms of script plus
      150ms of forced style per few swipes at 4x CPU, more than all the rest together). It measured every skipped row in the
      whole app on every frame, hundreds of them in the hidden Library and Queue screens, before asking whether that screen
@@ -27495,6 +27500,9 @@ WHATS_NEW.push(
     tryIt: "Tap a genre chip, then tap All to see everything again." },
   { v: 303, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .dzd-row") || $("#p-queue .deck") || null,
     say: "<b>On deck's three cards match now</b>: each has its picture on top in the same shape (number 1 was one big tall picture next to two wide ones). Number 1 still says Play this next.",
-    tryIt: "Look at your top 3 side by side." }
+    tryIt: "Look at your top 3 side by side." },
+  { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
+    say: "<b>The app no longer slows down the longer you use it.</b> Every time Settings opened it left a copy of its whole page in memory (about 2,000 pieces), so a long session got heavier and laggier. They're let go now.",
+    tryIt: "Open and close Settings a few times, then keep using the app for a while: it should stay as smooth as when you started." }
 );
 </script>
