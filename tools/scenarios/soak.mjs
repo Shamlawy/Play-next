@@ -22,7 +22,7 @@ export default async ({ p, w }) => {
     for (const t of tabs) { await p.step("tab", `goTab(${JSON.stringify(t)})`, 450); await p.page.evaluate(() => { for (const s of document.querySelectorAll(".panel.on, .panel.on *")) if (s.scrollHeight > s.clientHeight + 50 && /auto|scroll/.test(getComputedStyle(s).overflowY)) { s.scrollTop = s.scrollHeight / 2; break; } }); await p.page.waitForTimeout(250); }
     for (const id of ids) { await p.step("open", `openFull(${JSON.stringify(id)})`, 600); await p.step("close", `closeFull()`, 400); }
     await p.step("settings", `typeof openSettings==="function"&&openSettings()`, 700);
-    await p.page.keyboard.press("Escape").catch(() => {});
+    await p.step("close settings", `closeEdit()`, 400);
     await p.step("home", `goTab("home")`, 500);
     rows.push({ round: r, ...(await metrics()), switchMs: await timeSwitch() });
   }
