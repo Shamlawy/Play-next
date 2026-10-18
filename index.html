@@ -724,7 +724,7 @@
   }
   .libcard { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
     text-align: left; color: inherit; font: inherit; }
-  .libshot { position: relative; overflow: hidden; border-bottom: 3px solid var(--accent, var(--volt)); }
+  .libshot { display: block; position: relative; overflow: hidden; border-bottom: 3px solid var(--accent, var(--volt)); }
   .libshot img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
   .libcard .cn { display: block; font-size: 11px; font-weight: 800; color: var(--ice);
     padding: 6px 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3472,12 +3472,12 @@ extend.skip = value => ({ [EXT_SKIP]: true, value });
 extend.args = args => ({ [EXT_ARGS]: true, args });
 /* v308 (#334): a later script that changes how a screen looks redraws it once the whole page has loaded, not while it
    loads: the app opened by drawing Played 4 times and Taste 3 times (each a full screen of work at the start).
-   bootRedraw("renderPlayed") runs it at once if the page has already loaded; while it loads, each name runs once at the end. */
+   bootRedraw("renderPlayed") runs it at once if the page has already loaded; while it loads, each name runs once at the end. A name that isn't a function (yet) is skipped. */
 const BOOT_REDRAW = new Set();
 function bootRedraw(name) {
-  if (document.readyState !== "loading") { window[name](); return; }
+  if (document.readyState !== "loading") { if (typeof window[name] === "function") window[name](); return; }
   if (!BOOT_REDRAW.size) document.addEventListener("DOMContentLoaded", () => { const l = [...BOOT_REDRAW]; BOOT_REDRAW.clear();
-    l.forEach(n => { try { window[n](); } catch (e) { setTimeout(() => { throw e; }); } }); }, { once: true });
+    l.forEach(n => { if (typeof window[n] !== "function") return; try { window[n](); } catch (e) { setTimeout(() => { throw e; }); } }); }, { once: true });
   BOOT_REDRAW.add(name);
 }
 /* v284: one scroll listener for the app's small "you scrolled" jobs. There were 11 listeners on window, each its own call into
@@ -4322,7 +4322,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "308";
+const APP_V = "309";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -27575,6 +27575,11 @@ WHATS_NEW.push(
   { v: 308, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "played"); }, at: () => $("#p-played .pnb-row") || null,
     say: "<b>Played scrolls smoother</b>: your finished games now simply appear instead of rising and sliding in. Each row's motion kept four layers busy on the graphics chip the whole time; the badge shelf still slides in.",
     tryIt: "Scroll your Played list quickly from top to bottom." }
+);
+WHATS_NEW.push(
+  { v: 309, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "lib"); }, at: () => $("#p-lib .libtag.tr") || $("#p-lib .tabbar") || null,
+    say: "<b>Library covers show their whole date on iPhone</b>: the release date in a cover's corner was cut to a sliver on iPhone and iPad; it now shows in full, like the rest of the corner tags.",
+    tryIt: "Open the Library and look at the top-right corner of a cover." }
 );
 /* Oct 18: Nexi learned (the owner: "it lagged a lot and the games stopped opening"): a Queue card you open has to end up on
    the screen. Opening one closed the card above it and the one you tapped slid off the top, so the next tap hit another row */
