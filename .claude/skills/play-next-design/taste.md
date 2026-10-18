@@ -239,3 +239,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: A and the new bar, make it and F too as a second option if we want to switch to it
 - rule: Closed Queue rows are round 2 A (Strap: spot + box art on a slanted strap in the game's colour, picture behind, kicker, name, headline, torn ticket, progress line, logo slot) with one control bar (tabs with counts, Order menu in groups, Shuffle picks in place / hold for the shuffler, Boss HP); Character select is the second look in Settings › Queue cards.
 - check: tools/scenarios/queue-rows.mjs
+
+### T48 · v303 · Queue · hate
+- said: on deck some games have a tall image and some wide so fix
+- rule: On deck's three cards share one shape: picture on top, same size and place in each; #1 differs only by its button word
+- check: node tools/kit.mjs run tools/scenarios/genre-filter.mjs --widths 412,859

@@ -4353,7 +4353,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "302";
+const APP_V = "303";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -8843,6 +8843,8 @@ const QD_IC = {
 };
 const qdIc = (k, c = "") => `<svg${c ? ` class="${c}"` : ""} viewBox="0 0 24 24" aria-hidden="true">${QD_IC[k]}</svg>`;
 const QD_TAB = { all: "All", out: "Out", soon: "Coming", done: "Played" };
+/* v303: a tab's word. A genre picked on a game page (G:<genre>) has no QD_TAB entry and showed "undefined": its name is in QFILTERS */
+const qdTabName = v => QD_TAB[v] || (QFILTERS.find(x => x[0] === v) || [])[1] || String(v).replace(/^\w:/, "");
 /* the orders, grouped (the menu was one long list of 17) */
 const QD_GROUPS = [["Order", ["manual", "date", "hype", "ondeck", "shortest", "longest"]], ["Your scores", ["overall", "expect", "duel"]],
   ["One area", ["story", "music", "gameplay", "replay", "visuals", "world", "chars", "pace"]]];
@@ -8851,7 +8853,7 @@ const QD_GROUPS = [["Order", ["manual", "date", "hype", "ondeck", "shortest", "l
 function qdDeck(manual) {
   const c = qCounts(), on = qNow(), nm = k => k === "manual" ? "My order" : (SORTS.find(x => x[0] === k) || ["", "Sorted"])[1];
   const hp = S.grum && typeof window.bossHP === "function" ? window.bossHP() : null;   /* v302: HP only while Grumble is on (v286), else a plain "Boss" */
-  const tabs = QFILTERS.map(([v]) => `<button class="qdtab" data-qfilter="${v}" aria-pressed="${on === v}" aria-label="${QD_TAB[v]}, ${c[v]}">${QICON[v]}<span class="qdtl">${QD_TAB[v]}</span><small>${c[v]}</small></button>`).join("")
+  const tabs = QFILTERS.map(([v]) => `<button class="qdtab" data-qfilter="${v}" aria-pressed="${on === v}" aria-label="${esc(qdTabName(v))}, ${c[v]}">${QICON[v] || ""}<span class="qdtl">${esc(qdTabName(v))}</span><small>${c[v]}</small></button>`).join("")
     + (S.lists || []).map(l => `<button class="qdtab" data-qfilter="L:${l.id}" aria-pressed="${on === "L:" + l.id}" aria-label="${esc(l.n)}, ${c["L:" + l.id]}"><i class="qle">${esc(l.e)}</i><span class="qdtl">${esc(l.n)}</span><small>${c["L:" + l.id]}</small></button>`).join("")
     + `<button class="qdtab qdlist" data-lists="" aria-label="${(S.lists || []).length ? "Manage lists" : "Make a list"}">${qdIc("list")}</button>`;
   return `<div class="qdeck" id="qdeck">
@@ -13312,10 +13314,21 @@ function deckWhy(g) {
   else if (!(g.state === "backlog" || isFresh(g))) bits.push(g.date ? "out " + shortDate(g.date) : "not out yet");
   return bits.join(" · ");
 }
+/* v303: the Queue's On deck is the top of what the Queue shows: a genre, a list or a tab narrows it too (a genre picked on a
+   game page kept showing games of other genres); under Played there's nothing left to play, so it goes */
+function deckShown(n) {
+  const f = qNow(); if (f === "all") return onDeck(n);
+  const ids = new Set(queueList().map(g => g.id)), s = onDeckScores();
+  return Object.keys(s).filter(id => ids.has(id)).sort((a, b) => s[b] - s[a]).slice(0, n || 3).map(id => S.games.find(g => g.id === id)).filter(Boolean);
+}
+function deckHead() {
+  const f = qNow(), l = f.startsWith("L:") ? ((S.lists || []).find(x => "L:" + x.id === f) || {}).n : f === "all" ? "" : qdTabName(f);
+  return "On deck" + (l ? " · " + esc(l) : "");
+}
 function onDeckStrip() {
   if (S.deckOff) return "";
-  const d = onDeck(3); if (!d.length) return "";
-  return `<div class="deck"><span class="deck-h">On deck</span>${d.map((g, i) => `<button class="deck-g" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
+  const d = deckShown(3); if (!d.length) return "";
+  return `<div class="deck"><span class="deck-h">${deckHead()}</span>${d.map((g, i) => `<button class="deck-g" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
     <img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${i + 1}. ${esc(g.title)}</b><small>${esc(deckWhy(g))}</small></span></button>`).join("")}</div>`;
 }
 
@@ -21956,20 +21969,21 @@ document.addEventListener("click", e => {
   for (let y = row.nextElementSibling; y; y = y.nextElementSibling) y.animate([{ transform: `translateY(${-dh}px)` }, { transform: "none" }], { duration: 360, easing: PN_EASE });
   if (open) [...x.children].forEach((c, i) => c.animate([{ opacity: 0, transform: "scale(.9)" }, { opacity: 1, transform: "none" }], { duration: 240, delay: Math.min(i, 12) * 22, easing: "ease-out", fill: "backwards" }));
 }, true);
-/* the genre filter: one at a time, like "Like <game>" */
+/* the genre filter: one at a time, like "Like <game>". v303: a drawn tag (was the 🏷️ emoji), same 16x16 style as the other tabs */
+const QD_TAGIC = '<svg viewBox="0 0 16 16" aria-hidden="true"><path opacity=".45" d="M1.6 2.6v4.6l7.2 7.2 5.6-5.6-7.2-7.2H2.6z"/><circle cx="5" cy="5" r="1.5"/></svg>';
 function gtagFilter(t) {
   for (let i = QFILTERS.length - 1; i >= 0; i--) if (/^G:/.test(QFILTERS[i][0])) QFILTERS.splice(i, 1);
-  QFILTERS.push(["G:" + t, t]); QICON["G:" + t] = "🏷️";
+  QFILTERS.push(["G:" + t, t]); QICON["G:" + t] = QD_TAGIC;
   S.qFilter = "G:" + t; save();
   if ($("#full.on")) closeFull();
   goTab("queue"); renderQueue();
   const c = allGames().filter(x => gdGenreSet(x).has(gdKey(t))).length;
-  toast(`${c} ${c === 1 ? "game" : "games"} tagged ${t} · switch back in the Queue's filter menu`);
+  toast(`${c} ${c === 1 ? "game" : "games"} tagged ${t} · tap All to see everything again`);
 }
 extend("qCounts", { after: c => { QFILTERS.forEach(([k]) => { if (/^G:/.test(k)) c[k] = allGames().filter(x => gdGenreSet(x).has(gdKey(k.slice(2)))).length; }); } });
 extend("queueList", { before: () => { const f = qNow(); if (/^G:/.test(f)) return extend.skip(allGames().filter(x => gdGenreSet(x).has(gdKey(f.slice(2))))); } });
 /* a reload keeps the genre view (QFILTERS starts without it) */
-if (/^G:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { QFILTERS.push([S.qFilter, S.qFilter.slice(2)]); QICON[S.qFilter] = "🏷️"; try { renderQueue(); } catch (e) {} }
+if (/^G:/.test(S.qFilter || "") && !QFILTERS.some(x => x[0] === S.qFilter)) { QFILTERS.push([S.qFilter, S.qFilter.slice(2)]); QICON[S.qFilter] = QD_TAGIC; try { renderQueue(); } catch (e) {} }
 document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-gtag]"); if (!b) return; e.stopPropagation(); beep("tap"); gtagFilter(b.dataset.gtag); }, true);
 /* Nexi learned (v234): a number in a stat tile cut short with "…" (the release tile showed "13 S…"). The ellipsis kept it out of
    the cut-off-text check, but a number you can't read is still broken. Checks the tiles on screen: game page, open queue card */
@@ -24451,24 +24465,14 @@ WHATS_NEW.push(
 
 .deck.dzd { display: block; }
 .dzd-row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 8px 2px 12px; }
-.dzd-a, .dzd-s { flex: 0 0 min(76%, 300px); height: 410px; scroll-snap-align: start; position: relative; overflow: hidden; border: 0; border-radius: 30px;
-  padding: 0; text-align: left; color: #fff; font: inherit; box-shadow: 0 18px 40px -20px rgba(0,0,0,.85); }
-@media (min-width: 700px) { .dzd-a, .dzd-s { flex: 1 1 0; min-width: 0; } }
-.dzd-a { background: rgb(14,18,32); }
-.dzd-a .dzd-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-/* the soft blur under the words: a blurred copy of the same picture, masked to the bottom (drawn once, never animated) */
-.dzd-a .dzd-blur { position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; filter: blur(14px) saturate(1.15);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 46%, black 70%); mask-image: linear-gradient(to bottom, transparent 46%, black 70%); }
-.dzd-a::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0) 45%, rgba(0,0,0,.45) 100%); }
-.dzd-n { position: absolute; z-index: 2; top: 12px; right: 12px; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 20px; display: grid; place-items: center;
-  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35); font-weight: 700; font-size: 14px; }
-.dzd-b { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
-.dzd-a b, .dzd-s b { font-size: 26px; line-height: 1.05; font-weight: 600; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.dzd-a small, .dzd-s small { font-size: 13px; opacity: .72; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.dzd-s { flex: 0 0 min(76%, 300px); height: 410px; scroll-snap-align: start; position: relative; overflow: hidden; border-radius: 30px;
+  text-align: left; color: #fff; font: inherit; box-shadow: 0 18px 40px -20px rgba(0,0,0,.85); }
+@media (min-width: 700px) { .dzd-s { flex: 1 1 0; min-width: 0; } }
+.dzd-s b { font-size: 26px; line-height: 1.05; font-weight: 600; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dzd-s small { font-size: 13px; opacity: .72; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .dzd-m { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; font-weight: 500; }
 .dzd-m i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .dzd-m i em { font-style: normal; opacity: .65; font-weight: 400; }
-.dzd-btn { margin-top: 12px; height: 46px; border-radius: 23px; display: grid; place-items: center; background: rgba(255,255,255,.94); color: rgb(12,14,22); font-weight: 600; font-size: 14px; }
 .dzd-s { background: var(--u-pan, rgb(14,18,32)); border: 1px solid rgba(255,255,255,.06); padding: 8px; display: flex; flex-direction: column; }
 .dzd-ph { position: relative; height: 50%; flex: none; border-radius: 24px; overflow: hidden; background: rgb(20,26,46); }
 .dzd-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -24529,20 +24533,17 @@ function dzPlay() {
 }
 extend("renderHome", { after: () => { dzPlay(); } });
 
-/* 2. On deck: photo cards (#1 full picture, #2 and #3 picture on top) */
+/* 2. On deck: photo cards. v303: all three the same shape, the picture on top (#1 was a full-card picture next to two
+   picture-on-top cards: one tall, two wide, the owner: "some games have a tall image and some wide so fix"); #1 keeps "Play this next" */
 extend("onDeckStrip", { before() {
   if (!dzOn("deck") || S.deckOff) return;
-  const d = onDeck(3); if (!d.length) return extend.skip("");
+  const d = deckShown(3); if (!d.length) return extend.skip("");
   const art = g => esc(bgSource(g) || cover(g)), why = g => esc(deckWhy(g) || platList(g.genres).slice(0, 2).join(" · "));
-  return extend.skip(`<div class="deck dzd"><span class="deck-h">On deck</span><div class="dzd-row">${d.map((g, i) => i === 0
-    ? `<button type="button" class="dzd-a" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
-        <img class="dzd-img" decoding="async" src="${art(g)}" alt=""><img class="dzd-blur" decoding="async" src="${esc(liteFor(bgSource(g) || cover(g), 1) || bgSource(g) || cover(g))}" alt="" aria-hidden="true">
-        <span class="dzd-n">#1</span>
-        <span class="dzd-b"><b>${esc(g.title)}</b><small>${why(g)}</small><span class="dzd-m">${dzMeta(g)}</span><span class="dzd-btn">Play this next</span></span></button>`
-    : `<button type="button" class="dzd-s" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
+  return extend.skip(`<div class="deck dzd"><span class="deck-h">${deckHead()}</span><div class="dzd-row">${d.map((g, i) =>
+    `<button type="button" class="dzd-s${i ? "" : " dzd-1"}" data-opg="${g.id}" style="--accent:${esc(g.colour || PALETTE[0])}">
         <span class="dzd-ph"><img decoding="async" src="${art(g)}" alt=""></span>
         <span class="dzd-t"><b>${esc(g.title)}</b><small>${why(g)}</small><span class="dzd-m">${dzMeta(g)}</span></span>
-        <span class="dzd-row2"><span class="dzd-btn2">Open</span><span class="dzd-n2">#${i + 1}</span></span></button>`).join("")}</div></div>`);
+        <span class="dzd-row2"><span class="dzd-btn2">${i ? "Open" : "Play this next"}</span><span class="dzd-n2">#${i + 1}</span></span></button>`).join("")}</div></div>`);
 } });
 
 /* 3. Taste → Insights: the player type as a court card, with patterned card backs either side */
@@ -27317,7 +27318,7 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
 #p-queue .qdbtn { display: flex; align-items: center; gap: 9px; height: 54px; padding: 0 14px; border-radius: 18px; background: var(--u-pan); border: 1px solid var(--u-line2);
   font: inherit; font-size: 14.5px; font-weight: 600; color: var(--ice); white-space: nowrap; flex: none; cursor: pointer; }
 #p-queue .qdbtn svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
-#p-queue .qdsortw { flex: 0 1 auto; min-width: 0; }
+#p-queue .qdsortw { flex: none; }   /* v303: it shrank below its button's min-width, so Order ran over Shuffle; the tabs wrap instead */
 #p-queue .qdsort { min-width: 168px; width: 100%; text-align: left; }
 #p-queue .qdsort[aria-pressed="true"] { border-color: rgba(var(--vrgb), .6); }
 #p-queue .qdsort[aria-pressed="true"] > svg:first-child, #p-queue .qdshuf svg { color: var(--volt); }
@@ -27441,9 +27442,59 @@ WHATS_NEW.push(
     say: "<b>Prefer covers?</b> Switch the Queue to <b>Character select</b>: the game you pick fills a big panel with its logo and bars for hype, length and progress, and every game sits below it as a cover.",
     tryIt: "Tap Character select, go back to the Queue and tap a few covers." }
 );
+/* v303 Nexi learned (the owner's report: a genre picked on a game page showed "undefined" in the Queue's bar, and Order ran over
+   Shuffle with "My ord…" cut short). Three checks on the screen you're looking at:
+   1. a short label that says undefined / NaN / [object Object] (a word built from a missing value)
+   2. a button that runs out of its own box into the thing next to it (its wrapper shrank below the button's width)
+   3. a short word on a button cut with "…" (a game's own title is let off: long names are cut on purpose) */
+extend("lookDesign", { after(o, [root, scr]) {
+  const H = innerHeight, W = innerWidth, seen = el => { const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W && (!el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) ? r : null; };
+  try {
+    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n, k = 0;
+    while ((n = tw.nextNode()) && k++ < 4000) {
+      const t = n.nodeValue; if (t.length > 40 || !/(^|[\s·:,(])(undefined|NaN|\[object Object\])($|[\s·:,)%])/.test(t)) continue;
+      const el = n.parentElement; if (!el || el.closest("input, textarea, [contenteditable], #diary, script, style") || !seen(el)) continue;
+      bugReport("look", "A label says undefined", { at: bugPath(el) + " says \"" + t.trim().slice(0, 30) + "\"", screen: scr }); break;
+    }
+  } catch (e) {}
+  try {
+    for (const b of [...root.querySelectorAll("button")].slice(0, 400)) {
+      const p = b.parentElement; if (!p || p === root || p.closest("button")) continue;
+      const cs = getComputedStyle(b); if (cs.position === "absolute" || cs.position === "fixed") continue;
+      const pc = getComputedStyle(p); if (pc.display === "contents" || pc.overflowX !== "visible") continue;
+      const r = seen(b); if (!r) continue; const pr = p.getBoundingClientRect();
+      if (r.right <= pr.right + 2 && r.left >= pr.left - 2) continue;
+      const hit = [...p.parentElement.children].find(s => { if (s === p || s.contains(b)) return false; const q = seen(s); if (!q) return false;
+        return Math.min(r.right, q.right) - Math.max(r.left, q.left) > 4 && Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top) > 4; });
+      if (hit) { bugReport("look", "A button runs into the one next to it", { at: bugPath(b) + " over " + bugPath(hit) + " by " + Math.round(Math.min(r.right, hit.getBoundingClientRect().right) - Math.max(r.left, hit.getBoundingClientRect().left)) + "px", screen: scr }); break; }
+    }
+  } catch (e) {}
+  try {
+    const titles = new Set(allGames().map(g => String(g.title || "").trim().toLowerCase()));
+    for (const el of [...root.querySelectorAll("button, button *, [role=button], [role=button] *")].slice(0, 1500)) {
+      if (el.scrollWidth <= el.clientWidth + 1 || el.children.length) continue;
+      const t = el.textContent.trim(); if (!t || t.length > 12 || titles.has(t.toLowerCase())) continue;
+      if (getComputedStyle(el).textOverflow !== "ellipsis" || !seen(el)) continue;
+      bugReport("look", "A short word on a button is cut short", { at: bugPath(el) + " \"" + t + "\" shows " + el.clientWidth + " of " + el.scrollWidth + "px", screen: scr }); break;
+    }
+  } catch (e) {}
+} });
+BUG_NICE.push(["look", /label says undefined/, at => `A label on ${at} said "undefined": a word was missing where its name should be.`],
+  ["look", /runs into the one next to it/, at => `A button on ${at} ran over the one next to it.`],
+  ["look", /short word on a button is cut/, at => `A short word on a button on ${at} was cut off with "…".`]);
 WHATS_NEW.push(
   { v: 302, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue [data-qshuf]"),
     say: "<b>Shuffle lights its pick cleanly</b>, in the list and on Character select covers, and <b>Boss</b> in the Queue's bar only shows the Shadow's HP while Grumble is switched on.",
     tryIt: "Tap Shuffle and watch the game it picks light up." }
+);
+WHATS_NEW.push(
+  { v: 303, go: () => { closeFull(); dyClose(); nxShut(); const g = S.games.find(x => platList(x.genres).length) || S.games[0]; if (g) openFull(g.id); },
+    at: () => $("#full.on [data-gtag]") || $("#full.on .gd-tags") || null,
+    say: "Fixed: <b>tap a genre on a game's page</b> and the Queue now shows its name on the tab (it said \"undefined\"), and <b>On deck picks only from that genre</b>. I've learned to spot this myself now: a label that says undefined, a button running over its neighbour, or a short word cut off.",
+    tryIt: "Tap a genre chip, then tap All to see everything again." },
+  { v: 303, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .dzd-row") || $("#p-queue .deck") || null,
+    say: "<b>On deck's three cards match now</b>: each has its picture on top in the same shape (number 1 was one big tall picture next to two wide ones). Number 1 still says Play this next.",
+    tryIt: "Look at your top 3 side by side." }
 );
 </script>
