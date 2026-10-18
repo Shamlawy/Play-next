@@ -100,7 +100,8 @@ export default async ({ p, w }) => {
     /* renderLib + renderPlayed */
     goTab("games"); await wait(500); renderLib(); out.libRoom = !!document.querySelector("#lib-view [data-room]") || !document.getElementById("lib-view");
     renderPlayed(); const rows = [...document.querySelectorAll("#p-played .pnb-row")];
-    out.playedRows = rows.length ? rows.every(x => x.classList.contains("in") || x.classList.contains("wait")) : "n/a";
+    /* v308: rows simply appear (no glide, no scroll-linked motion): drawn, fully shown, nothing animating them */
+    out.playedRows = rows.length ? rows.every(x => getComputedStyle(x).opacity === "1" && !x.getAnimations({ subtree: true }).length) : "n/a";
     goTab("home"); await wait(300);
     return out;
   });
