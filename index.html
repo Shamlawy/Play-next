@@ -3802,7 +3802,6 @@ let form = { status: "confirmed", hype: 7, img: "", colour: PALETTE[0], state: "
 let editing = null;
 let focusId = null;
 let collapsed = false;
-let lastHero = null;
 let morphId = null;
 
 function mix(hex, to, amt) {
@@ -3918,46 +3917,6 @@ function beep(kind) {
     blip(ac, t, freq, vol, dur, type);
     t += dur * 0.72;
   });
-}
-
-/* ---- reveal choreography: the pips tick up, then the rings sweep ----
-   every delay below is shared by the CSS and the audio, so they can't drift */
-const pace = () => num(S.pace, 100, 40, 250) / 100;
-const PD = i => Math.round((200 + i * 42) / pace());
-/* the rings wait for the hype accent to land, so the two never collide */
-const PTAIL = g => PD(num(g && g.hype, 0, 0, 10)) + Math.round(110 / pace());
-const RD = (i, g) => PTAIL(g) + Math.round((60 + i * 95) / pace());
-const RDUR = () => Math.round(720 / pace());
-
-function revealSound(g, force) {
-  if (!g || S.motion === false) return;
-  if (!force && !userTouched) return;
-  const mode = S.ticks == null ? "both" : S.ticks;
-  if (mode === "off") return;
-  const ac = audio();
-  if (!ac) return;
-  const base = num(S.tickPitch, 760, 380, 1500);
-  const vol = num(S.tickVol, 34, 0, 100) / 100 * 0.11;
-  if (!vol) return;
-  const t0 = ac.currentTime + 0.03, sec = ms => ms / 1000;
-
-  if (mode === "both" || mode === "hype") {
-    const n = num(g.hype, 0, 0, 10);
-    for (let i = 0; i < n; i++)
-      blip(ac, t0 + sec(PD(i)), base * Math.pow(2, i / 30), vol * 0.5, 0.03, "square");
-    if (n) blip(ac, t0 + sec(PD(n) + 70), base * 1.5, vol * 0.8, 0.1, "triangle");
-  }
-  if (mode === "both" || mode === "rings") {
-    const rated = RATINGS.map(([k], i) => [i, num((g.mine || {})[k], 0, 0, 10)]).filter(x => x[1] > 0);
-    rated.forEach(([i, v], n) => {
-      blip(ac, t0 + sec(RD(i, g)), base * 0.62 * Math.pow(2, n / 12), vol * 0.55, 0.05, "triangle");
-    });
-    if (rated.length) {
-      const last = RD(rated[rated.length - 1][0], g) + RDUR();
-      blip(ac, t0 + sec(last), base * 0.62, vol * 0.9, 0.13, "triangle");
-      blip(ac, t0 + sec(last + 55), base * 0.93, vol * 0.75, 0.16, "triangle");
-    }
-  }
 }
 
 let toastTimer;
@@ -4353,7 +4312,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "304";
+const APP_V = "305";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5347,7 +5306,6 @@ const GROUP_KEYS = {
   "Player type card": ["dzX"],
   "The standings tile": ["standN"],
   "Queue cards": ["qLook", "cardBg", "cardBgStr"],
-  "Opening a card": ["ticks", "tickVol", "tickPitch", "pace"],
   "Labels on the board": ["flowTitle", "flowDate"],
   "Your evening": ["evening", "playStyle"],
   "The web": ["webGrid"],
@@ -6380,23 +6338,6 @@ function openSettings(scope) {
       <p class="note">Off by default: a halo on every row makes the Queue heavier to scroll.</p>
     </div>
 
-    <div class="setgroup" data-scope="games" data-sub="queue"><h4 data-desc="The ticks and the sweep when a card reveals itself.">Opening a card</h4>
-      <p class="note">The pips tick up first, then the rings sweep. Let go of a slider to hear it.</p>
-      <div class="chips" id="s-ticks">
-        ${[["both", "Both"], ["hype", "Hype only"], ["rings", "Rings only"], ["off", "Silent"]].map(([v, l]) =>
-          `<button class="chip" data-v="${v}" aria-pressed="${(S.ticks == null ? "both" : S.ticks) === v}"><span>${l}</span></button>`).join("")}
-      </div>
-      <label for="s-tickvol">Tick volume</label>
-      <div class="rowline"><input id="s-tickvol" type="range" min="0" max="100" value="${num(S.tickVol, 34, 0, 100)}">
-        <span class="v" id="s-tickvol-v">${num(S.tickVol, 34, 0, 100)}%</span></div>
-      <label for="s-tickpitch">Tick pitch</label>
-      <div class="rowline"><input id="s-tickpitch" type="range" min="380" max="1500" value="${num(S.tickPitch, 760, 380, 1500)}">
-        <span class="v" id="s-tickpitch-v">${num(S.tickPitch, 760, 380, 1500)}Hz</span></div>
-      <label for="s-pace">Reveal pace — higher is faster</label>
-      <div class="rowline"><input id="s-pace" type="range" min="40" max="250" value="${num(S.pace, 100, 40, 250)}">
-        <span class="v" id="s-pace-v">${num(S.pace, 100, 40, 250)}%</span></div>
-    </div>
-
     <div class="setgroup" data-scope="games" data-sub="played"><h4 data-desc="The ranked rows, their art, and the badge shelf.">Top board</h4>
       <label>Top board</label>
       <div class="chips" id="s-boardon">
@@ -7240,19 +7181,7 @@ function openSettings(scope) {
   slide("#s-raw", "#s-raw-v", "px", "rowArtW");
   slide("#s-rao", "#s-rao-v", "%", "rowArtOp");
   slide("#s-rag", "#s-rag-v", "px", "rowArtGlow");
-  slide("#s-tickvol", "#s-tickvol-v", "%", "tickVol");
-  slide("#s-tickpitch", "#s-tickpitch-v", "Hz", "tickPitch");
-  slide("#s-pace", "#s-pace-v", "%", "pace", () => renderQueue());
 
-  /* preview on release, not on drag — otherwise a slider fires fifty sequences at once */
-  const heroGame = () => S.games.find(g => g.id === focusId) || sortGames(liveGames())[0];
-  const preview = () => {
-    if (!S.sound) { toast("Sounds are off"); return; }
-    lastHero = null; renderQueue();
-    if (collapsed) revealSound(heroGame(), true);
-  };
-  ["#s-tickvol", "#s-tickpitch", "#s-pace"].forEach(sel => { if ($(sel)) $(sel).onchange = preview; });
-  pick("#s-ticks", v => S.ticks = v, preview);
 
   if ($("#s-keysave")) $("#s-keysave").onclick = () => {
     rawgKey = $("#s-key").value.trim();
@@ -8942,7 +8871,7 @@ function renderQueue() {
       const target = Number(el.dataset.count);
       if (!isFinite(target)) return;
       if (still) { el.textContent = target; return; }
-      const dur = (target > 400 ? 1100 : 850) / pace(), t0 = performance.now();
+      const dur = target > 400 ? 1100 : 850, t0 = performance.now();
       const tick = now => {
         const p = Math.min(1, (now - t0) / dur);
         el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
@@ -9026,10 +8955,6 @@ function renderQueue() {
     sorted.length ? "" : '<p class="empty">Nothing here right now. Try another filter.</p>');
 
   countUp(el);
-  const heroChanged = activeId && activeId !== lastHero;
-  lastHero = activeId;
-  const looking = onQueueTab();
-  if (heroChanged && looking) revealSound(sorted.find(g => g.id === activeId));
   el.querySelectorAll("[data-hub]").forEach(b => b.onclick = e => {
     e.stopPropagation();
     hubJump(b.querySelector("img") || b, b.dataset.hub);
@@ -9843,7 +9768,7 @@ function openFull(id) {
     const o = e.target.closest("[data-fullopen]");
     if (o) {
       hubReturn = null;
-      focusId = o.dataset.fullopen; collapsed = false; lastHero = null;
+      focusId = o.dataset.fullopen; collapsed = false;
       closeFull(); goTab("queue"); renderQueue();
       return;
     }
@@ -10110,7 +10035,7 @@ function openPeek(ids) {
     if (e.target === box || e.target.closest("#peek-close")) return closePeek();
     const o = e.target.closest("[data-peekopen]");
     if (o) {
-      focusId = o.dataset.peekopen; collapsed = false; lastHero = null;
+      focusId = o.dataset.peekopen; collapsed = false;
       closePeek(); goTab("queue"); renderQueue();
       return;
     }
@@ -10318,7 +10243,7 @@ function applyBackup(d) {
     try { localStorage.setItem(KKEY, rawgKey); } catch (e) {}
     if ($("#key")) $("#key").value = rawgKey;
   }
-  lastHero = null; focusId = null; collapsed = false;
+  focusId = null; collapsed = false;
   save(); applyLook(); render();
 }
 /* Two people, two phones, one file. Nothing already here is touched: a game
@@ -10380,7 +10305,7 @@ function mergeBackup(d) {
     S.duels.push(Object.assign({}, u, { a: a, b: b, w: u.w === u.a ? a : u.w === u.b ? b : u.w }));
   });
   dedupePlayed();
-  lastHero = null; focusId = null; collapsed = false;
+  focusId = null; collapsed = false;
   save(); render();
   return { added: added, skipped: skipped, scores: scores, dressed: dressed };
 }
@@ -10835,7 +10760,8 @@ function qkTap(w) {
   qkTapAt = now; clearTimeout(qkTapT);
   qkTapT = setTimeout(() => { qkTapT = 0; qkShut(w); }, 320);
 }
-/* two taps: the card turns, always the same way round, a little past and back like a card flicked over on a table */
+/* two taps: the card turns, always the same way round. v305 (the owner: "slow animation and shift and too slow"): 420ms straight
+   over, no swing past and back (that was the shift) */
 function qkTurn(w) {
   const fr = w.querySelector(":scope > .pfront"), bk = w.querySelector(":scope > .pback");
   if (!fr || !bk || w.dataset.busy) return;
@@ -10845,8 +10771,8 @@ function qkTurn(w) {
   try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
   if (on) w.querySelectorAll(".pback [data-count]").forEach(x => x.textContent = x.dataset.count);
   if (S.motion === false || calm() || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
-  const a = on ? 0 : 180, o = { duration: 760, easing: "cubic-bezier(.45,0,.25,1)" };
-  const k = b => [{ transform: `rotateY(${b}deg)` }, { transform: `rotateY(${b + 100}deg)`, offset: .5 }, { transform: `rotateY(${b + 187}deg)`, offset: .82 }, { transform: `rotateY(${b + 180}deg)` }];
+  const a = on ? 0 : 180, o = { duration: 420, easing: "cubic-bezier(.3,0,.15,1)" };
+  const k = b => [{ transform: `rotateY(${b}deg)` }, { transform: `rotateY(${b + 180}deg)` }];
   const away = on ? fr : bk;
   w.dataset.busy = 1; w.classList.add("qkturn"); away.style.visibility = "visible";
   const run = fr.animate(k(a), o); bk.animate(k(a - 180), o);
@@ -10872,7 +10798,7 @@ document.addEventListener("click", e => {
   if (f) { const on = f.getAttribute("aria-pressed") !== "true"; f.setAttribute("aria-pressed", String(on)); const h = $("#f-hours"); h.disabled = on; if (on) h.value = ""; beep("tap"); return; }
   const b = e.target.closest("[data-comp]"); if (!b) return;
   e.stopPropagation(); const g = S.games.find(x => x.id === b.dataset.comp); if (!g) return;
-  compSet(g, !g.comp); beep("tap"); if (typeof lastHero !== "undefined") lastHero = null; render(); toast(g.comp ? g.title + " is competitive — immune ∞" : g.title + " counts again");
+  compSet(g, !g.comp); beep("tap"); render(); toast(g.comp ? g.title + " is competitive — immune ∞" : g.title + " counts again");
 }, true);
 /* v113 play diary: Nexi picker + competitive mode */
 const MOODS = [["😍", "Loved it"], ["🙂", "Good"], ["😐", "Meh"], ["😴", "Bored"], ["😤", "Frustrated"]];
@@ -11703,12 +11629,12 @@ function sfx(kind, x) {
       [262, 330, 392, 494].forEach(f => tone("triangle", f, f, .05, t + .1, 1.4, .35));
       [[.6, 523], [.7, 659], [.77, 784], [.84, 880], [.95, 1047], [1.06, 1319]].forEach(([d, f]) => tone("triangle", f, f, .09, t + d, .28, .003));
       if (x) { noise("bandpass", 3200, 1200, 1.4, .3, t + 1.4, .16, .01); tone("triangle", 1568, 1175, .08, t + 1.56, .2, .003); } }
-    if (kind === "qkflip") { noise("bandpass", 1200, 500, .8, .3, t, .4, .08); (x ? [784, 1047] : [1047, 784]).forEach((f, i) => tone("triangle", f, f, .08, t + .48 + i * .07, .3, .003)); }
+    if (kind === "qkflip") { noise("bandpass", 1200, 500, .8, .3, t, .26, .05); (x ? [784, 1047] : [1047, 784]).forEach((f, i) => tone("triangle", f, f, .08, t + .3 + i * .06, .26, .003)); }
     if (kind === "qkshut") [659, 494].forEach((f, i) => tone("triangle", f, f, .07, t + i * .06, .22, .003));
     /* v300, the card's back: a button click, bubbles as the controller and its buttons fill, a tiny start jingle */
-    if (kind === "qkback") { noise("highpass", 2500, 3500, 1, .25, t + .3, .03, .001); tone("sine", 600, 400, .12, t + .3, .05);
-      for (let i = 0; i < 7; i++) { const f = 380 + Math.random() * 520; tone("sine", f, f * 1.9, .08, t + .55 + i * .09 + Math.random() * .04, .07, .002); }
-      [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f, .03, t + 1.45 + i * .07, .14, .003)); }
+    if (kind === "qkback") { noise("highpass", 2500, 3500, 1, .25, t + .2, .03, .001); tone("sine", 600, 400, .12, t + .2, .05);
+      for (let i = 0; i < 7; i++) { const f = 380 + Math.random() * 520; tone("sine", f, f * 1.9, .08, t + .35 + i * .06 + Math.random() * .03, .07, .002); }
+      [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f, .03, t + .9 + i * .06, .14, .003)); }
   } catch (e) {}
 }
 
@@ -26864,7 +26790,6 @@ const GICON = {
   "On deck": "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><path fill-rule='evenodd' d='M5.2 12a6.8 6.8 0 1 0 13.6 0a6.8 6.8 0 1 0 -13.6 0zM7.4 12a4.6 4.6 0 1 0 9.2 0a4.6 4.6 0 1 0 -9.2 0z'/><circle cx='12' cy='12' r='2.2'/>",
   "Queue cards": "<rect x='2.5' y='3.5' width='5' height='5' rx='1.6'/><rect x='2.5' y='9.5' width='5' height='5' rx='1.6'/><rect x='2.5' y='15.5' width='5' height='5' rx='1.6'/><g opacity='.35'><rect x='9' y='4.3' width='12.5' height='3.4' rx='1.7'/><rect x='9' y='10.3' width='12.5' height='3.4' rx='1.7'/><rect x='9' y='16.3' width='12.5' height='3.4' rx='1.7'/></g>",
   "Character art": "<circle cx='12' cy='6.6' r='4'/><g opacity='.35'><path d='M4 20.2c0-4.3 3.6-7.4 8-7.4s8 3.1 8 7.4a1.3 1.3 0 0 1-1.3 1.3H5.3A1.3 1.3 0 0 1 4 20.2z'/></g>",
-  "Opening a card": "<g opacity='.35'><rect x='6.5' y='6.5' width='11' height='11' rx='2.4'/></g><path d='M3 4.2A1.2 1.2 0 0 1 4.2 3H9v2.4H5.4V9H3zM21 4.2A1.2 1.2 0 0 0 19.8 3H15v2.4h3.6V9H21zM3 19.8A1.2 1.2 0 0 0 4.2 21H9v-2.4H5.4V15H3zM21 19.8a1.2 1.2 0 0 1-1.2 1.2H15v-2.4h3.6V15H21z'/>",
   "Top board": "<path d='M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0z'/><g opacity='.35'><path d='M6.5 5H3.6v1.8a4 4 0 0 0 3.6 4M17.5 5h2.9v1.8a4 4 0 0 1-3.6 4z'/><rect x='10.6' y='13.5' width='2.8' height='4' rx='0.6'/></g><rect x='7' y='17.6' width='10' height='3.4' rx='1.2'/>",
   "Library": "<rect x='3' y='4' width='4.6' height='17' rx='1.4'/><rect x='8.6' y='2.5' width='4.6' height='18.5' rx='1.4'/><g opacity='.35'><g transform='rotate(-16 17.5 20)'><rect x='14.6' y='4.2' width='4.6' height='16.6' rx='1.4'/></g></g>",
   "A game's own page": "<g opacity='.35'><path d='M6 2.5h8.2l5.3 5.3v11.2a2.5 2.5 0 0 1-2.5 2.5H6a2.5 2.5 0 0 1-2.5-2.5v-14A2.5 2.5 0 0 1 6 2.5z'/></g><path d='M14.2 2.5l5.3 5.3h-3.6a1.7 1.7 0 0 1-1.7-1.7z'/><rect x='6.6' y='11.6' width='9.8' height='2' rx='1'/><rect x='6.6' y='15.4' width='7' height='2' rx='1'/>",
@@ -27083,11 +27008,14 @@ html.ui2 .hero .plate.qk::before { content: none; }
 .qkkick i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--qsc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--qsc) 30%, transparent); }
 .qkhead { font: 700 18px/1.1 "Poppins", system-ui, sans-serif; letter-spacing: -.02em; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qkpl { display: flex; margin-top: 3px; }
-.qkpl .pfms { display: flex; align-items: center; gap: 12px; }
-.qkpl .pfm { position: relative; display: block; width: 18px; height: 18px; font-style: normal; color: white; }
-.qkpl .pfm svg { display: block; width: 100%; height: 100%; fill: currentColor; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
-.qkpl .pfm small, .qkpl .pfm b { position: absolute; left: calc(100% + 1px); top: -6px; font: 700 9.5px/1 "Poppins", system-ui, sans-serif; letter-spacing: 0; text-transform: none; color: white; white-space: nowrap; }
-.qkpl .pfm b { position: static; font-size: 12px; }
+/* v305: a game on many systems wraps onto a second line inside the strap instead of running past its end */
+.qkpl .pfms { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 8px; min-width: 0; }
+/* v305: a version ("4·Vita", "One·360") sits in its logo's own box, raised like an exponent, so it takes room in the row and
+   never runs into the next logo (it used to hang outside the 18px box) */
+.qkpl .pfm { display: flex; align-items: flex-start; gap: 1px; height: 16px; font-style: normal; color: white; }
+.qkpl .pfm svg { display: block; flex: none; width: 16px; height: 16px; fill: currentColor; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.qkpl .pfm small, .qkpl .pfm b { margin-top: -5px; font: 700 9px/1 "Poppins", system-ui, sans-serif; letter-spacing: 0; text-transform: none; color: white; white-space: nowrap; }
+.qkpl .pfm b { margin-top: 3px; font-size: 12px; }
 .qkpl > .qkp:not(.pfms) { font: 600 12px/18px "Poppins", system-ui, sans-serif; color: white; white-space: nowrap; margin-left: 10px; }
 .qkgn { font: 600 12px/1.3 "Poppins", system-ui, sans-serif; color: rgba(255,255,255,.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qktk { position: absolute; z-index: 1; left: 16px; bottom: 16px; display: flex; height: 60px; filter: drop-shadow(0 10px 20px rgba(0,0,0,.45)); transform-origin: 0 100%; pointer-events: none; }
@@ -27116,7 +27044,7 @@ html.ui2 .hero .plate.qk::before { content: none; }
   .qkcov { left: 30px; top: 30px; width: 150px; }
   .qkinfo { left: 214px; top: 64px; width: calc(54% - 226px); gap: 8px; }
   .qkkick { font-size: 13px; } .qkhead { font-size: 26px; } .qkgn { font-size: 14px; }
-  .qkpl .pfms { gap: 16px; } .qkpl .pfm { width: 24px; height: 24px; } .qkpl .pfm small { font-size: 11px; top: -7px; }
+  .qkpl .pfms { gap: 10px 13px; } .qkpl .pfm, .qkpl .pfm svg { width: auto; height: 22px; } .qkpl .pfm svg { width: 22px; } .qkpl .pfm small { font-size: 10px; margin-top: -6px; }
   .qktk { left: 28px; bottom: 26px; height: 88px; } .qktk > div { padding: 0 20px; } .qktk b { font-size: 32px; } .qktk span { font-size: 12.5px; }
   .qkt { right: 28px; bottom: 26px; width: 40%; max-width: 340px; height: 100px; } .hero .qkt h2 { font-size: 30px; }
 }
@@ -27154,7 +27082,7 @@ html.still .hero.heroin .qk, html.still .hero.heroin .qk *, html.still .hero.her
 /* the turn (WAAPI in qkTurn) replaces the old transition; qkTurn keeps the side that goes away visible until the turn ends
    (backface-visibility hides it once it has swung past edge-on) */
 .hero .hflip.qkf > .plate { transition: none; }
-.hero .hflip.qkf.qkturn > .plate::after { animation: flShine .76s ease-in-out; }
+.hero .hflip.qkf.qkturn > .plate::after { animation: flShine .42s ease-in-out; }
 html.still .hero .hflip.qkf.qkturn > .plate::after { animation: none; }
 /* ===== v300: the open Queue card's back, round 13 "Controller" (the owner: "A it is"). The game's colour on black: your score fills
    a controller (on its little screen), each area fills one of its round buttons, the four numbers sit under it. ===== */
@@ -27214,17 +27142,18 @@ html.ui2 .hero .plate.qb::before { content: none; }
 .qbfour span { font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qbpf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12px; font-weight: 600; color: var(--mute); }
 .qbpf .pfms { display: flex; align-items: center; gap: 12px; }
-.qbpf .pfm { position: relative; display: block; width: 18px; height: 18px; font-style: normal; color: var(--ice); }
-.qbpf .pfm svg { display: block; width: 100%; height: 100%; fill: currentColor; }
-.qbpf .pfm small, .qbpf .pfm b { position: absolute; left: calc(100% + 1px); top: -6px; font: 700 9.5px/1 "Poppins", system-ui, sans-serif; text-transform: none; color: var(--ice); white-space: nowrap; }
+.qbpf .pfm { display: flex; align-items: flex-start; gap: 1px; height: 18px; font-style: normal; color: var(--ice); }
+.qbpf .pfm svg { display: block; flex: none; width: 18px; height: 18px; fill: currentColor; }
+.qbpf .pfm small, .qbpf .pfm b { margin-top: -5px; font: 700 9.5px/1 "Poppins", system-ui, sans-serif; text-transform: none; color: var(--ice); white-space: nowrap; }
+.qbpf .pfm b { margin-top: 3px; font-size: 12px; }
 .qbpf em { font-style: normal; white-space: nowrap; }
 /* turning over: the controller and its buttons fill up, the numbers rise in */
 @media (prefers-reduced-motion: no-preference) {
-  .hero .hflip.qkf.on .qbliq { animation: qbfill 1s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.5s + var(--i, 0) * 80ms); }
-  .hero .hflip.qkf.on .qbb .qbliq { animation-delay: calc(.5s + var(--i) * 80ms); }
-  .hero .hflip.qkf.on .qbbig .qbliq { animation-delay: .35s; animation-duration: 1.3s; }
-  .hero .hflip.qkf.on .qbbub { animation: qbbub 1s ease-out both 1.2s; }
-  .hero .hflip.qkf.on .qbfour > div { animation: qbrise .45s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.9s + var(--i) * 70ms); }
+  .hero .hflip.qkf.on .qbliq { animation: qbfill .8s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.3s + var(--i, 0) * 50ms); }
+  .hero .hflip.qkf.on .qbb .qbliq { animation-delay: calc(.3s + var(--i) * 50ms); }
+  .hero .hflip.qkf.on .qbbig .qbliq { animation-delay: .22s; animation-duration: 1s; }
+  .hero .hflip.qkf.on .qbbub { animation: qbbub 1s ease-out both .75s; }
+  .hero .hflip.qkf.on .qbfour > div { animation: qbrise .4s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(.45s + var(--i) * 50ms); }
   @keyframes qbfill { from { transform: translateY(var(--bt)); } }
   @keyframes qbbub { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
   @keyframes qbrise { from { opacity: 0; transform: translateY(12px); } }
@@ -27504,5 +27433,10 @@ WHATS_NEW.push(
   { v: 304, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "<b>The app no longer slows down the longer you use it.</b> Every time Settings opened it left a copy of its whole page in memory (about 2,000 pieces), so a long session got heavier and laggier. They're let go now.",
     tryIt: "Open and close Settings a few times, then keep using the app for a while: it should stay as smooth as when you started." }
+);
+WHATS_NEW.push(
+  { v: 305, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .hero .qkpl") || $("#p-queue [data-row]") || null,
+    say: "<b>Cards turn faster and cleaner</b>: a double tap flips the card straight over in under half a second, no slow swing past and back. Platform versions like 4·Vita and One·360 now sit beside their own logo instead of running into the next one, and the old rating ticks no longer play when a card opens.",
+    tryIt: "Open a game in the Queue and double tap the card." }
 );
 </script>

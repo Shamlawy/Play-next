@@ -244,3 +244,13 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: on deck some games have a tall image and some wide so fix
 - rule: On deck's three cards share one shape: picture on top, same size and place in each; #1 differs only by its button word
 - check: node tools/kit.mjs run tools/scenarios/genre-filter.mjs --widths 412,859
+
+### T49 · v305 · Queue · hate
+- said: the numbers or version looks bad and into each other
+- rule: A platform version (4·Vita, One·360) sits in its logo's own box as a raised label, never overlapping the next logo; a long platform list wraps inside the strap.
+- check: node tools/kit.mjs run tools/scenarios/card-turn.mjs --widths 412,859,360
+
+### T50 · v305 · Queue · hate
+- said: double tapping the card has a slow animation and shift and too slow
+- rule: The open Queue card turns straight over in about 420ms, no swing past and back.
+- check: node tools/kit.mjs run tools/scenarios/card-turn.mjs --widths 412,859,360
