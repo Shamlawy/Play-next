@@ -1,4 +1,4 @@
-/* v305 (the owner: "the numbers or version looks bad and into each other … double tapping the card has a slow animation and shift
+/* v306 (the owner: "the numbers or version looks bad and into each other … double tapping the card has a slow animation and shift
    and too slow … when pressing and opening a card there are old sounds that was for the rating"):
      node tools/kit.mjs run tools/scenarios/card-turn.mjs --widths 412,859,360
    Checks:
