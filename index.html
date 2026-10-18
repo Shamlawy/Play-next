@@ -8994,7 +8994,7 @@ function renderQueue() {
     /* the backdrop swap is its own slow fade — keep it out of the snapshot */
     morphId = null;
     qKeep = { id: r.dataset.row, top: r.getBoundingClientRect().top };
-    renderQueue();
+    try { renderQueue(); } finally { qKeep = null; }   /* a redraw that stops early must not leave it for the next one */
     const h = !collapsed && S.motion !== false && S.vt !== false && !calm() && $("#p-queue .hero");
     if (h) { h.classList.add("heroin"); setTimeout(() => h.classList.remove("heroin"), 2000); }   /* v299: the entrance runs ~1.9s (the stub tears at 1.4s) */
     if (!collapsed) { if (h && h.querySelector(".qkin")) sfx("qkopen", !!h.querySelector(".qksnap")); else beep("open"); }
@@ -27593,8 +27593,11 @@ document.addEventListener("click", e => {
   const r = e.target.closest && e.target.closest("#p-queue [data-row]");
   if (!r || r.classList.contains("hero") || e.target.closest("button")) return;
   const id = r.dataset.row;
+  /* a finger that scrolls on before the check moved the card itself: nothing to report */
+  let moved = false; const mv = () => { moved = true; }; addEventListener("touchmove", mv, { passive: true, capture: true }); addEventListener("wheel", mv, { passive: true, capture: true });
   setTimeout(() => requestAnimationFrame(() => {
-    const h = document.querySelector(`#p-queue .hero[data-row="${CSS.escape(id)}"]`); if (!h || !h.closest(".panel.on") || $("#full.on")) return;
+    removeEventListener("touchmove", mv, true); removeEventListener("wheel", mv, true);
+    const h = document.querySelector(`#p-queue .hero[data-row="${CSS.escape(id)}"]`); if (moved || !h || !h.closest(".panel.on") || $("#full.on")) return;
     const b = h.getBoundingClientRect();
     if (b.top < -40 || b.top > innerHeight - 120) bugReport("layout", "The Queue card you opened ended up off the screen", { at: bugPath(h) });
   }), 900);
