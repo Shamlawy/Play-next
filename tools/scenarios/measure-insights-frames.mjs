@@ -14,6 +14,8 @@ const VARIANTS = {
   noshadow: "* { box-shadow: none !important; text-shadow: none !important; }",
   nocourt: ".dzc-table { display: none !important; }",
   noclip: ".ix-card, .ix-hero { overflow: visible !important; }",
+  "rv-noscale": ".ix-rv { transform: translateY(16px) !important; }",
+  "rv-opacity": ".ix-rv { transform: none !important; transition: opacity .35s ease !important; }",
   noendless: "*, *::before, *::after { animation-iteration-count: 1 !important; animation-duration: .001s !important; }",
 };
 export default async ({ p, w, seed }) => {
