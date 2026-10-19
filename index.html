@@ -4253,7 +4253,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "312";
+const APP_V = "313";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -13733,8 +13733,9 @@ og.gain.setValueAtTime(.9,t);og.gain.exponentialRampToValueAtTime(.001,t+.45);o.
 rg.gain.setValueAtTime(.05/(i+1),t);rg.gain.exponentialRampToValueAtTime(.0005,t+.5);r.connect(rg).connect(m);r.start(t);r.stop(t+.55)})}catch(_){}}
 let lastPair='';
 /* v169: checked once per frame at most, not on every change anywhere in the app */
-let duelQ=0;new MutationObserver(()=>{if(duelQ)return;duelQ=requestAnimationFrame(duelLook)}).observe(document.body,{childList:true,subtree:true});
-function duelLook(){duelQ=0;const r=document.querySelector('.duelrow');if(!r){lastPair='';return}
+/* lag hunt round 3: only Taste draws duels (tasteDuels), so only Taste is watched and searched (was every change anywhere, ~14ms per Queue switch at 4x) */
+let duelQ=0;const duelRoot=document.getElementById('p-taste')||document.body;new MutationObserver(()=>{if(duelQ)return;duelQ=requestAnimationFrame(duelLook)}).observe(duelRoot,{childList:true,subtree:true});
+function duelLook(){duelQ=0;const r=duelRoot.querySelector('.duelrow');if(!r){lastPair='';return}
 if(r.querySelector('.fxvsb'))return;const v=document.createElement('i');v.className='fxvsb';v.textContent='VS';r.appendChild(v);
 const k=[...r.querySelectorAll('.duelpick')].map(d=>d.dataset.duel).join();if(k===lastPair||still())return;lastPair=k;
 r.classList.add('fxin');setTimeout(()=>{const q=v.getBoundingClientRect();boom();burst(q.left+q.width/2,q.top+q.height/2,18,9,'#EAF2FF')},620);
@@ -27381,6 +27382,9 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
   #p-queue .qfst { gap: 5px 8px; } #p-queue .qfst > span:not(.qfseg), #p-queue .qfst b { font-size: 11px; } #p-queue .qfseg i { height: 8px; }
   #p-queue .qfcv { right: 16px; bottom: 16px; width: 88px; height: 128px; }
 }
+/* lag hunt round 3: while the Queue is hidden its rows may skip drawing, so showing it restyles only the rows on screen;
+   qWarm (last script) draws the rest a few at a time at idle, so a fling right after still finds them drawn (#89) */
+html:not(.dragging-now) #p-queue.qcold .row:not(.qw) { content-visibility: auto; }
 </style>
 <script>
 WHATS_NEW.push(
@@ -27772,5 +27776,27 @@ WHATS_NEW.push(
   { v: 312, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue [data-row]") || null,
     say: "<b>Even lighter</b>: opening the app, scrolling Settings and switching to the Queue do less work, and covers load a few at a time instead of all at once.",
     tryIt: "Open Settings and scroll through it, then tap the Queue a few times." }
+);
+/* lag hunt round 3 (1): a switch to the Queue restyled every row of it in the tap's frame (~1,960 elements, ~130-170ms of
+   style at 4x), even rows far below: a hidden panel's content is styled again when it shows. While the Queue is hidden its
+   rows may skip drawing (.qcold, content-visibility: auto); once it shows, the rest are drawn 6 rows per idle moment */
+{ const P = () => $("#p-queue"), ric = window.requestIdleCallback || (f => setTimeout(f, 50));
+  let run = 0;
+  const cold = p => { run++; p.classList.add("qcold"); p.querySelectorAll(".row.qw").forEach(r => r.classList.remove("qw")); };
+  const warm = () => { const p = P(), me = ++run;
+    const step = () => { if (me !== run || !p.classList.contains("on")) return;
+      const rest = p.querySelectorAll(".row:not(.qw)");
+      for (let i = 0; i < Math.min(6, rest.length); i++) rest[i].classList.add("qw");
+      if (rest.length > 6) ric(step, { timeout: 300 }); else p.classList.remove("qcold"); };
+    requestAnimationFrame(() => ric(step, { timeout: 300 })); };
+  onNav("after", () => { const p = P(); if (!p) return;
+    if (!p.classList.contains("on")) { if (!p.classList.contains("qcold")) cold(p); }
+    else if (p.classList.contains("qcold")) warm(); });
+  if (P() && !P().classList.contains("on")) cold(P());
+}
+WHATS_NEW.push(
+  { v: 313, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $('nav button[data-tab="games"]') || null,
+    say: "<b>Faster to the Queue</b>: switching to it now draws only the games on screen in the moment you tap, and the rest a few at a time right after.",
+    tryIt: "Tap Games, then switch between Queue and Library a few times." }
 );
 </script>
