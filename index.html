@@ -4251,7 +4251,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "310";
+const APP_V = "311";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11513,8 +11513,10 @@ setTimeout(() => { const h = document.documentElement; h.classList.add("first");
 /* ranks glide to their new places instead of jumping */
 let pnSkipFlip = 0, qKeep = null;
 extend("renderQueue", { before() {
-    const pn = $("[data-row]") && $("[data-row]").closest(".panel"), live = !pnSkipFlip && pn && pn.classList.contains("on") && !calm(), before = {};
-    if (live) document.querySelectorAll("[data-row]").forEach(r => before[r.dataset.row] = r.getBoundingClientRect().top);
+    /* lag hunt C1 (#347): opening or closing a card (qKeep) keeps the order, so there's nothing to glide: no measuring every
+       row (x120, all screens' rows) inside the tap; otherwise only the Queue's own rows */
+    const pn = $("#p-queue"), live = !qKeep && !pnSkipFlip && pn && pn.classList.contains("on") && !calm(), before = {};
+    if (live) pn.querySelectorAll("[data-row]").forEach(r => before[r.dataset.row] = r.getBoundingClientRect().top);
     return live ? { tops: before, order: Object.keys(before).join("|") } : null; },
   after(out, args, b) {
     /* Oct 18 (the owner: "spent time on the queue … it lagged a lot and the games stopped opening"): the row you tap stays
@@ -11532,7 +11534,7 @@ extend("renderQueue", { before() {
     if (!b) return;
     /* opening or closing a card keeps the order: nothing to glide, and measuring every row right after the redraw laid out the
        whole list inside the tap (~100ms of a 420ms tap at 4x with 60 games) */
-    const rows = [...document.querySelectorAll("[data-row]")];
+    const rows = [...$("#p-queue").querySelectorAll("[data-row]")];
     if (rows.map(r => r.dataset.row).join("|") === b.order) return;
     const before = b.tops;
     rows.forEach(r => { const t = before[r.dataset.row]; if (t == null) return;
@@ -12371,21 +12373,24 @@ function pnBubLines() {
   L.push(["🔥 " + pnTake(), ""]); L.push([pnEvoLine(), ""]);
   return L;
 }
-var pnSayT;   /* v279: was pnBubSay.t (a property on a function is lost when it's extended) */
+var pnSayN = 0, pnSayT;   /* pnSayN: a hush or a newer line cancels a line still waiting for its frame. v279: was pnBubSay.t (a property on a function is lost when it's extended) */
 function pnBubSay(line) {
   const m = $("#pnbubmsg"), L = pnBubLines(); if (!m || !L.length) return;
   const [txt, act] = line || L[Math.floor(Math.random() * L.length)];
+  const right = pnBubX > innerWidth / 2, y = pnBubY + 8;   /* read before any write here: nothing to flush yet */
   m.textContent = txt; m.dataset.act = act;
-  const right = pnBubX > innerWidth / 2, w = Math.min(240, m.offsetWidth || 220);
-  const x = right ? pnBubX - w - 12 : pnBubX + 74, y = pnBubY + 8;
-  m.style.transformOrigin = right ? "right center" : "left center";
-  m.style.transform = `translate3d(${x}px,${y}px,0) scale(.6)`;
-  requestAnimationFrame(() => { m.classList.add("on"); m.style.transform = `translate3d(${x}px,${y}px,0) scale(1)`; });
+  /* lag hunt C3: its width was read right after the new text went in (a forced layout inside whatever called it, 37ms+ at
+     4x); it's measured in the next frame, where that layout happens anyway */
+  const n = ++pnSayN;
+  requestAnimationFrame(() => { if (n !== pnSayN) return; const w = Math.min(240, m.offsetWidth || 220), x = right ? pnBubX - w - 12 : pnBubX + 74;
+    m.style.transformOrigin = right ? "right center" : "left center";
+    m.style.transform = `translate3d(${x}px,${y}px,0) scale(.6)`;
+    requestAnimationFrame(() => { if (n !== pnSayN) return; m.classList.add("on"); m.style.transform = `translate3d(${x}px,${y}px,0) scale(1)`; }); });
   if (navigator.vibrate) navigator.vibrate(6);
   pnBubMood("talk", 1700); const bb = $("#pnbub"); if (bb) { bb.style.setProperty("--ex", right ? "-4px" : "4px"); bb.style.setProperty("--ey", "1px"); }
   clearTimeout(pnSayT); pnSayT = setTimeout(pnBubHush, 5500);
 }
-function pnBubHush() { const m = $("#pnbubmsg"); if (m) m.classList.remove("on"); }
+function pnBubHush() { pnSayN++; const m = $("#pnbubmsg"); if (m) m.classList.remove("on"); }
 function pnBubShow() {
   const b = $("#pnbub"); if (!b) return;
   const t = pnBubEdge(); pnBubPlace(t.x, t.y);
@@ -17146,6 +17151,10 @@ function bugScreen() {
   const t = curTab(), sub = SUBKEY[t] ? subOf(t) : "";
   return t + (sub ? "/" + sub : "");
 }
+/* lag hunt B3: a report read innerWidth/innerHeight, which forces a restyle when one is due (7-67ms per report, 255ms in one
+   card turn): the size is kept from resize instead */
+const bugVP = { w: innerWidth, h: innerHeight };
+addEventListener("resize", () => { bugVP.w = innerWidth; bugVP.h = innerHeight; }, { passive: true });
 function bugCrumb(c) { BUG.crumbs.push(new Date().toTimeString().slice(0, 8) + " " + c); if (BUG.crumbs.length > 14) BUG.crumbs.shift(); }
 /* what you tapped, by what it is, never by what it says */
 addEventListener("click", e => {
@@ -17169,8 +17178,8 @@ function bugReport(kind, msg, x) {
   const ks = Object.keys(sent); if (ks.length > 150) ks.slice(0, ks.length - 150).forEach(k => delete sent[k]);
   save();
   BUG.q.push({ sig, kind, msg, stack: bugScrub(x.stack || "").split("\n").slice(0, 8).join("\n"), at, screen: scr, note: x.note ? bugScrub(x.note) : "",
-    w: innerWidth, h: innerHeight, dpr: Math.round((devicePixelRatio || 1) * 100) / 100, dev: bugDev(), v: APP_V, style: S.uiStyle || "clean", crumbs: BUG.crumbs.slice(-10) });
-  if (kind !== "user" && typeof bugNoted === "function") bugNoted(kind, scr, msg);
+    w: bugVP.w, h: bugVP.h, dpr: Math.round((devicePixelRatio || 1) * 100) / 100, dev: bugDev(), v: APP_V, style: S.uiStyle || "clean", crumbs: BUG.crumbs.slice(-10) });
+  if (kind !== "user" && typeof bugNoted === "function") (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => bugNoted(kind, scr, msg), { timeout: 2000 });   /* Nexi's word about it waits for idle too */
   clearTimeout(BUG.t); BUG.t = setTimeout(bugFlush, kind === "user" ? 50 : 3000);
 }
 async function bugFlush() {
@@ -17259,7 +17268,22 @@ function bugLayout() {
   const quiet = performance.now() - bugLastIn;
   if (quiet < 1200) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1300 - quiet); }
   else bugLayoutPass();
-  for (const f of BUG_AFTER) try { f(); } catch (e) {}
+  bugAfterRun();
+}
+/* lag hunt B1: the checks after a layout pass ran back to back in one idle callback (up to 890ms at 4x on Settings, 227ms
+   opening a game); each one now gets its own idle slice, waits while you touch or scroll, and a newer pass drops the rest */
+let bugAfterGen = 0;
+function bugAfterRun() {
+  const gen = ++bugAfterGen, q = [...BUG_AFTER], ric = window.requestIdleCallback || ((f, o) => setTimeout(f, 60));
+  const step = dl => {
+    while (q.length && gen === bugAfterGen) {
+      const quiet = performance.now() - bugLastIn;
+      if (quiet < 1200) { setTimeout(() => ric(step, { timeout: 3000 }), 1300 - quiet); return; }
+      const f = q.shift(); try { f(); } catch (e) {}
+      if (q.length && !(dl && dl.timeRemaining && dl.timeRemaining() > 6)) { ric(step, { timeout: 3000 }); return; }
+    }
+  };
+  ric(step, { timeout: 3000 });
 }
 function bugLayoutPass() {
   BUG.lt = 0;
@@ -17587,7 +17611,9 @@ try {
     last = t;
     if (performance.now() - lastMove < 400) return requestAnimationFrame(tick);
     on = false; last = 0;
-    if ((hitches >= 3 || worst >= 90) && lagOk()) bugReport("slow", "Scrolling stutters on " + lagWhere() + " (" + hitches + " hitches, worst " + Math.round(worst / 10) * 10 + "ms)", { screen: bugScreen(), stack: lagSplit(t0, performance.now()) });
+    /* lag hunt B2: the report (and its timing split) was written inside the last scroll frame (80-210ms at 4x): it waits for idle */
+    if ((hitches >= 3 || worst >= 90) && lagOk()) { const h = hitches, w = worst, a = t0, b = performance.now(), wh = lagWhere(), sc = bugScreen();
+      (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => bugReport("slow", "Scrolling stutters on " + wh + " (" + h + " hitches, worst " + Math.round(w / 10) * 10 + "ms)", { screen: sc, stack: lagSplit(a, b) }), { timeout: 3000 }); }
     hitches = 0; worst = 0;
   };
   addEventListener("touchmove", () => { lastMove = performance.now(); if (!on) { on = true; last = 0; t0 = lastMove; requestAnimationFrame(tick); } }, { passive: true, capture: true });
@@ -18104,7 +18130,9 @@ extend("nxVoice", { before: (t, ...more) => { t = String(t || ""); if (t.charAt(
 extend("pnBubSay", { before: line => {
   if (!line && Math.random() < .6) { const pl = nxPersonaLine(); if (pl) line = pl; }
   nxPDress();
-  const b = $("#pnbub"); if (b && !document.documentElement.classList.contains("nxtouring")) { b.classList.remove("sig"); void b.offsetWidth; b.classList.add("sig"); clearTimeout(nxPDress.st); nxPDress.st = setTimeout(() => b.classList.remove("sig"), 950); }
+  const b = $("#pnbub"); if (b && !document.documentElement.classList.contains("nxtouring")) { /* lag hunt C3: the restart read offsetWidth (a forced layout, up to 121ms at 4x in a card turn): only a running one is
+       restarted, two frames later */
+    if (b.classList.contains("sig")) { b.classList.remove("sig"); requestAnimationFrame(() => requestAnimationFrame(() => b.classList.add("sig"))); } else b.classList.add("sig"); clearTimeout(nxPDress.st); nxPDress.st = setTimeout(() => b.classList.remove("sig"), 950); }
   return extend.args([line]); } });
 nxPDress();
 /* #57: Nexi's glow showed as a square. Peeking from the left gave him the class "pl", which another screen styles
@@ -19776,10 +19804,12 @@ addEventListener("pointerdown", e => {
       if (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) { seen.delete(el); continue; }
       { const cx = Math.max(1, Math.min(innerWidth - 2, r.left + r.width / 2)), cy = Math.max(1, Math.min(H - 2, Math.max(r.top, 0) + vis / 2)), top = document.elementFromPoint(cx, cy);
         if (!top || (!el.contains(top) && !top.contains(el))) { seen.delete(el); continue; } }
-      const s = seen.get(el) || { n: 0, t: 0 }; if (now - s.t < 90) continue;
+      let s = seen.get(el) || { n: 0, t: 0 }; if (now - s.t < 200) continue;
+      if (now - s.t > 1000) s = { n: 0, t: 0 };   /* both looks in the same scroll, not one now and one minutes ago */
       s.n++; s.t = now; seen.set(el, s);
-      if (s.n >= 3) { seen.delete(el); SK.delete(el); bugReport("layout", "Part of the screen stayed blank while scrolling", { at: bugPath(el) + " skipped while " + Math.round(vis) + "px of it was on screen", screen: bugScreen() }); return; } } };
-  onScrolled((e, first, now) => { if (!q && SK.size && now - last > 100) q = requestAnimationFrame(check); });
+      if (s.n >= 2) { seen.delete(el); SK.delete(el); bugReport("layout", "Part of the screen stayed blank while scrolling", { at: bugPath(el) + " skipped while " + Math.round(vis) + "px of it was on screen", screen: bugScreen() }); return; } } };
+  /* lag hunt B2: every 250ms (was 100; up to 140ms of a scroll's script at 4x), still blank on two looks 200ms+ apart = the same 0.2s as before */
+  onScrolled((e, first, now) => { if (!q && SK.size && now - last > 250) q = requestAnimationFrame(check); });
 }
 
 /* ---- the design reviewer checks its facts (v215). Its first 7 reports all claimed something the numbers it was given
@@ -24043,7 +24073,9 @@ WHATS_NEW.push(
   setInterval(() => {
     if (document.hidden || !navigator.onLine || !bugOn() || nxTouring()) { seen.clear(); return; }
     const now = performance.now(), live = new Set();
-    document.querySelectorAll(".gp-wait, .dy-empty, [class*=wait]").forEach(el => {
+    /* lag hunt B4: the class-name search ran over the whole page (~11k nodes, every 5s); now only over what's showing */
+    const roots = [...document.querySelectorAll("#full.on, #sheet.on, #diary.on, #peek.on, .panel.on")];
+    roots.flatMap(r => [...r.querySelectorAll(".gp-wait, .hl-wait, .rv-wait, .dy-empty, [class*=wait]")]).forEach(el => {
       const t = (el.textContent || "").trim(); if (t.length > 120 || !RX.test(t) || !el.getClientRects().length) return;
       live.add(el); const o = seen.get(el);
       if (!o || o.t !== t) { seen.set(el, { t, at: now }); return; }
@@ -24625,6 +24657,12 @@ function offHold(root) {
   if (REST.held.length) REST.held = REST.held.filter(a => { const el = a.effect && a.effect.target;
     if (el && root.contains(el) && !offSeen(el)) { OFFHOLD.add(a); return false; } return true; });
 }
+/* hold a hidden screen's loops when the page is idle, one screen per idle slice (never inside a tap or a scroll frame) */
+const OFFIDLE = new Set();
+function offIdle(p) {
+  if (OFFIDLE.has(p)) return; OFFIDLE.add(p);
+  (window.requestIdleCallback || (f => setTimeout(f, 120)))(() => { OFFIDLE.delete(p); if (!p.classList.contains("on")) offHold(p); }, { timeout: 700 });
+}
 /* ...and set going again the ones under root that are drawn again */
 function offFree(root) {
   /* last frames written onto pieces come off again where that changes nothing (it can't, for a slide-in: its last frame is
@@ -24651,16 +24689,18 @@ function offFree(root) {
 }
 { /* a hidden screen also gets redrawn now and then (the queue after a change): look again after it settles */
   const later = new Map();
-  const soon = p => { if (later.has(p)) return; later.set(p, setTimeout(() => { later.delete(p); if (!p.classList.contains("on")) offHold(p); }, 300)); };
+  const soon = p => { if (later.has(p)) return; later.set(p, setTimeout(() => { later.delete(p); offIdle(p); }, 300)); };
   /* and every hidden screen once more after a switch settles (a redraw can land after the first look) */
-  let sw = 0; const sweep = () => { clearTimeout(sw); sw = setTimeout(() => document.querySelectorAll(".panel:not(.on)").forEach(offHold), 1500); };
+  let sw = 0; const sweep = () => { clearTimeout(sw); sw = setTimeout(() => document.querySelectorAll(".panel:not(.on)").forEach(offIdle), 1500); };
   const mo = new MutationObserver(ms => {
     const seen = new Set();
     for (const m of ms) {
       const self = m.type === "attributes" && m.target.classList.contains("panel");   /* the screen itself shown or hidden */
       const p = self ? m.target : m.target.closest && m.target.closest(".panel"), k = p && (self ? "s" : "c") + (p.id || "");
       if (!p || seen.has(k)) continue; seen.add(k);
-      if (self) { if (p.classList.contains("on")) { requestAnimationFrame(() => offFree(p)); setTimeout(() => offFree(p), 400); } else offHold(p); sweep(); }
+      /* Oct 19 (lag hunt A1): holding the screen just hidden ran inside the tap and restyled that whole hidden screen
+         (getAnimations subtree: 65-530ms per switch at 4x); it waits for idle now, a few loops ticking 0.5s longer cost ~0 */
+      if (self) { if (p.classList.contains("on")) { requestAnimationFrame(() => offFree(p)); setTimeout(() => offFree(p), 400); } else offIdle(p); sweep(); }
       else if (!p.classList.contains("on")) { soon(p); sweep(); }
     }
   });
@@ -24675,8 +24715,9 @@ function offFree(root) {
   setInterval(() => { if (document.hidden) return;
     const all = document.getAnimations(), now = all.map(x => x.playState[0]).join("");
     if (++n % 5 && now === st && all.length === last.length && all.every((x, i) => x === last[i])) return;
-    offHold(document.body); offFree(null); offOrphans();
-    last = document.getAnimations(); st = last.map(x => x.playState[0]).join(""); }, 2000); }
+    last = all; st = now;   /* lag hunt A2: the full look waits for idle, so it never lands in a scroll frame */
+    (window.requestIdleCallback || (f => setTimeout(f, 120)))(() => { offHold(document.body); offFree(null); offOrphans();
+      last = document.getAnimations(); st = last.map(x => x.playState[0]).join(""); }, { timeout: 1500 }); }, 2000); }
 document.addEventListener("toggle", e => { const d = e.target; if (d && d.open) requestAnimationFrame(() => offFree(d)); }, true);   /* a section opened */
 document.addEventListener("contentvisibilityautostatechange", e => { const el = e.target;
   if (e.skipped) offHold(el); else { offFree(el); requestAnimationFrame(() => offFree(el)); } }, true);
@@ -26205,6 +26246,9 @@ function offOrphans() {
   for (const a of OFFPLAYED) {
     const el = a.effect && a.effect.target;
     if (!a.animationName || a.playState === "idle" || !el || !el.isConnected) { OFFPLAYED.delete(a); continue; }
+    /* lag hunt A2: reading a style inside a hidden screen restyles that whole screen (up to 550ms every 2s at 4x); its loops
+       are held anyway and get looked at when the screen shows */
+    if (el.closest(".panel:not(.on)")) continue;
     if (!getComputedStyle(el, a.effect.pseudoElement || null).animationName.split(", ").includes(a.animationName)) {
       try { a.cancel(); } catch (e) {} OFFPLAYED.delete(a); OFFHOLD.delete(a); }
   }
@@ -26800,9 +26844,11 @@ const SRL = { io: null, end: null, ro: null, cur: -1, lock: 0, tagT: 0, hits: ne
 /* groups off screen aren't drawn (content-visibility), so their height is a guess until they are: each group's last real
    height (per sheet width) is kept for the next time Settings opens, and a jump checks where it landed once it stops */
 const SRL_H = new Map();
-const srlKey = g => srlName(g) + "@" + ((document.getElementById("sheet-in") || {}).clientWidth || 0);
+const srlW = () => (document.getElementById("sheet-in") || {}).clientWidth || 0;
+/* lag hunt A3: the width is read once per pass (read per group between writes, it forced a layout each time: ~1s at 4x) */
+const srlKey = (g, w = srlW()) => srlName(g) + "@" + w;
 function srlOff() {
-  SRL.groups.forEach(g => { if (g.isConnected && g.offsetHeight > 40) SRL_H.set(srlKey(g), g.offsetHeight); });
+  { const w = srlW(); SRL.groups.forEach(g => { if (g.isConnected && g.offsetHeight > 40) SRL_H.set(srlKey(g, w), g.offsetHeight); }); }
   ["io", "end", "ro"].forEach(k => { if (SRL[k]) SRL[k].disconnect(); SRL[k] = null; });
   clearTimeout(SRL.tagT); clearTimeout(SRL.lock); SRL.lock = 0;
   SRL.hits.clear(); SRL.links = []; SRL.groups = []; SRL.cur = -1; SRL.atEnd = false;
@@ -26887,13 +26933,13 @@ function srlBuild() {
   const groups = [...inn.querySelectorAll(".setgroup")].filter(g => g.querySelector("details.grp") && !g.closest(".srlwrap"));
   if (!groups.length) return;
   inn.classList.add("srl");
-  const seen = {};
+  const seen = {}, w = srlW();
   groups.forEach(g => {
     g.querySelector("details.grp").open = true;
     let id = "sg-" + (srlName(g).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "group");
     if (seen[id]) id += "-" + ++seen[id]; else seen[id] = 1;
     g.id = id;
-    const h = SRL_H.get(srlKey(g)); g.style.containIntrinsicSize = h ? `auto ${h}px` : "";
+    const h = SRL_H.get(srlKey(g, w)); g.style.containIntrinsicSize = h ? `auto ${h}px` : "";
   });
   /* a div with role="navigation", not a <nav>: the tab bar is styled as bare "nav" in 20+ rules (fixed, hidden in the rail…) */
   const wrap = document.createElement("div"), body = document.createElement("div"), nav = document.createElement("div");
@@ -27693,4 +27739,13 @@ BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on
   ["look", /Pictures side by side are very different sizes/, at => `Pictures in one row on ${at} were very different sizes.`],
   ["look", /A date or short word breaks onto two lines/, at => `A date or a short word on ${at} was broken over two lines.`],
   ["look", /A short label is squeezed to a few letters/, at => `A short label on ${at} was squeezed down to a few letters.`]);
+/* v311 (the owner: "list me every reason for the lag … go hunt"): the top of the Oct 19 lag hunt, all work nobody sees: hiding a
+   screen and the 2s animation look wait for idle (A1/A2), Settings reads its width once (A3), Nexi's checks run in idle slices
+   and their reports wait for idle (B1-B3), the loading-line watch looks only at what's showing (B4), a Queue card tap no
+   longer measures every row (C1), and Nexi's bubble measures in the next frame (C3). */
+WHATS_NEW.push(
+  { v: 311, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("nav button[data-tab=games]") || null,
+    say: "<b>Smoother switching</b>: changing tabs, opening a Queue card and opening Settings do much less work in the moment you tap, and my own lag checks wait until you stop touching the screen.",
+    tryIt: "Switch between Home, Games and Settings a few times, open a Queue card and scroll: it should feel lighter." }
+);
 </script>
