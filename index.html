@@ -3763,50 +3763,52 @@ const BG_BASE = "#000000", BG_TINT = "#2F6BFF", BG_GRAD = 30;
 const BG_BASES = ["#000000", "#0E1A3D", "#16307A", "#0C3D5C", "#0B4A48", "#0F3D22", "#2A1B5E", "#4A1460", "#5A1240", "#5C1020", "#5A2A0E", "#2E2E36"];
 const rgbOf = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(",");
 function applyLook() {
-  const r = document.documentElement;
-  { const t = theme(); r.style.setProperty("--volt", t.a); r.style.setProperty("--volt2", t.b);
-    r.style.setProperty("--vrgb", rgbOf(t.a)); r.style.setProperty("--v2rgb", rgbOf(t.b)); r.dataset.theme = S.theme || "midnight"; }
-  r.style.setProperty("--afh", num(S.artFloat, 10, 0, 40) + "px");
-  r.style.setProperty("--afs", (num(S.artSpeed, 60, 15, 160) / 10) + "s");
-  r.style.setProperty("--aglow", num(S.artGlow, 9, 0, 46) + "px");
+  const r = document.documentElement, wide = window.innerWidth >= 760;   /* read before any write below: nothing to flush yet */
+  /* lag hunt R3: a custom property on <html> restyles the whole page when it changes, and applyLook runs on every Settings pick
+     and resize: only the ones that really changed are written */
+  const lookSet = (k, v) => { v = String(v); if (r.style.getPropertyValue(k) !== v) r.style.setProperty(k, v); };
+  { const t = theme(); lookSet("--volt", t.a); lookSet("--volt2", t.b);
+    lookSet("--vrgb", rgbOf(t.a)); lookSet("--v2rgb", rgbOf(t.b)); r.dataset.theme = S.theme || "midnight"; }
+  lookSet("--afh", num(S.artFloat, 10, 0, 40) + "px");
+  lookSet("--afs", (num(S.artSpeed, 60, 15, 160) / 10) + "s");
+  lookSet("--aglow", num(S.artGlow, 9, 0, 46) + "px");
   /* how hard the cut-outs hit: brightness and contrast together, one number */
   const punch = num(S.artPunch, 0, -40, 80) / 100;
-  r.style.setProperty("--apun", (1 + punch).toFixed(2));
-  r.style.setProperty("--acon", (1 + punch * 0.7).toFixed(2));
-  r.style.setProperty("--raw", num(S.rowArtW, 150, 40, 200) + "px");
-  r.style.setProperty("--rao", num(S.rowArtOp, 95, 10, 100) / 100);
-  r.style.setProperty("--rag", num(S.rowArtGlow, 7, 0, 30) + "px");
+  lookSet("--apun", (1 + punch).toFixed(2));
+  lookSet("--acon", (1 + punch * 0.7).toFixed(2));
+  lookSet("--raw", num(S.rowArtW, 150, 40, 200) + "px");
+  lookSet("--rao", num(S.rowArtOp, 95, 10, 100) / 100);
+  lookSet("--rag", num(S.rowArtGlow, 7, 0, 30) + "px");
   r.classList.toggle("still", S.motion === false);
   if (S.tabFade === undefined) S.tabFade = "slash";
   r.classList.toggle("tabfade", S.tabFade === true);
   r.classList.toggle("tabslash", S.tabFade === "slash");
   r.classList.toggle("rowtint", S.rowTint === "soft" || S.rowTint === "strong");
-  r.style.setProperty("--bgmask", S.bgFade === "none" ? "none"
+  lookSet("--bgmask", S.bgFade === "none" ? "none"
     : S.bgFade === "light" ? "linear-gradient(90deg, rgba(0,0,0,.55) 0%, #000 45%)"
     : "linear-gradient(90deg, transparent 12%, #000 78%)");
   ["tidy", "classic", "logo"].forEach(k => r.classList.toggle("cl-" + k, (S.cardLayout || "tidy") === k));
-  r.style.setProperty("--rtp", S.rowTint === "strong" ? "42%" : "20%");
+  lookSet("--rtp", S.rowTint === "strong" ? "42%" : "20%");
   r.classList.toggle("rowanim", !!S.rowAnim);
   r.classList.toggle("round", S.corners !== "sharp");
   r.classList.toggle("ui2", S.uiStyle !== "arcade");
   /* v276 background: base colour + how much of the glow colour shows (0 = plain base colour) */
   { const base = HEX.test(S.bgBase || "") ? S.bgBase : BG_BASE, tint = HEX.test(S.bgTint || "") ? S.bgTint : BG_TINT, amt = num(S.bgGrad, BG_GRAD, 0, 100);
-    r.style.setProperty("--bgb", base); r.style.setProperty("--bgt", rgbOf(mix(tint, "#000000", 0.35)));
-    r.style.setProperty("--wop", (amt / 100).toFixed(2)); r.classList.toggle("paper", amt > 0);
+    lookSet("--bgb", base); lookSet("--bgt", rgbOf(mix(tint, "#000000", 0.35)));
+    lookSet("--wop", (amt / 100).toFixed(2)); r.classList.toggle("paper", amt > 0);
     const m = document.querySelector('meta[name="theme-color"]'); if (m && m.content !== base) m.content = base; }
-  r.style.setProperty("--r", num(S.radius, 18, 0, 34) + "px");
-  r.style.setProperty("--kshy", num(S.figShadowY, 18, 0, 70) + "px");
-  r.style.setProperty("--kshb", num(S.figShadowB, 34, 0, 90) + "px");
-  r.style.setProperty("--ksho", num(S.figShadowO, 72, 0, 95) / 100);
-  r.style.setProperty("--kglb", num(S.figGlowB, 0, 0, 90) + "px");
-  r.style.setProperty("--kglo", num(S.figGlowO, 0, 0, 100) + "%");
-  r.style.setProperty("--railw", num(S.railW, 92, 64, 150) + "px");
+  lookSet("--r", num(S.radius, 18, 0, 34) + "px");
+  lookSet("--kshy", num(S.figShadowY, 18, 0, 70) + "px");
+  lookSet("--kshb", num(S.figShadowB, 34, 0, 90) + "px");
+  lookSet("--ksho", num(S.figShadowO, 72, 0, 95) / 100);
+  lookSet("--kglb", num(S.figGlowB, 0, 0, 90) + "px");
+  lookSet("--kglo", num(S.figGlowO, 0, 0, 100) + "%");
+  lookSet("--railw", num(S.railW, 92, 64, 150) + "px");
   const navMode = S.nav || "auto";
-  const wide = window.innerWidth >= 760;
   const onDock = navMode === "dock";
   const onRail = !onDock && (navMode === "rail" || (navMode === "auto" && wide));
   r.classList.toggle("dock", onDock);
-  r.style.setProperty("--dockh", onDock ? "62px" : "0px");
+  lookSet("--dockh", onDock ? "62px" : "0px");
   r.classList.toggle("rail", onRail);
   /* folding only means anything while the rail exists */
   r.classList.toggle("railoff", onRail);
@@ -4251,7 +4253,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "311";
+const APP_V = "312";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -9566,7 +9568,11 @@ function warmCovers() {
     else loadBar("✓ Everything's loaded", 1, true);
   };
   loadBar("Loading covers 0/" + todo.length, 0);
-  todo.forEach(im => (im.decode ? im.decode() : Promise.resolve()).then(tick, tick));
+  /* lag hunt R5 (#334): every cover was decoded at once, 200ms after start (60 full-size pictures with a 60-game library):
+     six at a time now, the next six when those are done */
+  let at = 0; const next = () => { const b = todo.slice(at, at += 6); if (!b.length) return;
+    Promise.all(b.map(im => (im.decode ? im.decode() : Promise.resolve()).then(tick, tick))).then(next); };
+  next();
 }
 function openLx(id, list) {
   let o = $("#lxfull");
@@ -11555,11 +11561,13 @@ function cdTick() {
     const v = { d: Math.floor(ms / 864e5), h: Math.floor(ms / 36e5) % 24, m: Math.floor(ms / 6e4) % 60, s: Math.floor(ms / 1e3) % 60 };
     /* v263: a countdown on a hidden screen (Home's, while you're on Games) only changes its digits: a flip there can't go to
        the GPU, so it ran on the main thread for half of every second and held the Fold's screen at 60Hz everywhere */
-    const hid = cd.checkVisibility ? !cd.checkVisibility({ contentVisibilityAuto: true }) : !!cd.closest(".panel:not(.on)");
+    /* lag hunt R4: checkVisibility forces a restyle, so it is asked only once a digit changes, and never under a game page or sheet */
+    let hid; const isHid = () => hid ??= !!document.querySelector("#full.on, #sheet.on") || (cd.checkVisibility ? !cd.checkVisibility({ contentVisibilityAuto: true }) : !!cd.closest(".panel:not(.on)"));
     cd.querySelectorAll("b[data-u]").forEach(b => {
       const nv = String(v[b.dataset.u]).padStart(b.dataset.u === "d" ? 1 : 2, "0");
       const cn = b.querySelector(".cdn"), cur = cn ? cn.textContent : b.textContent;
-      if (cur !== nv) { b.innerHTML = `<i class="cdn">${nv}</i>`; if (calm() || cur === "–" || window.pnRest || hid) return;   /* v260: resting = no flip */
+      if (cur !== nv) { const skip = calm() || cur === "–" || window.pnRest || isHid();   /* asked before the write below */
+        b.innerHTML = `<i class="cdn">${nv}</i>`; if (skip) return;   /* v260: resting = no flip */
         const gh = document.createElement("i"); gh.className = "cdg"; gh.textContent = cur; b.appendChild(gh);
         gh.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-110%)", opacity: 0 }], { duration: 520, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => gh.remove();
         b.firstChild.animate([{ transform: "translateY(110%)" }, { transform: "translateY(-10%)", offset: .75 }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(.2,.9,.3,1)" }); }
@@ -21980,9 +21988,9 @@ document.addEventListener("click", e => {
   const ro = "ResizeObserver" in window ? new ResizeObserver(es => es.forEach(e => {
     const h = e.target, id = h.dataset.row, b = e.borderBoxSize && e.borderBoxSize[0], ht = Math.round(b ? b.blockSize : e.contentRect.height);
     if (!ht || !h.isConnected || document.hidden || h.querySelector(".hflip.on") || !h.closest("#p-queue")) return;
-    const k = innerWidth + "|" + (S.cardLayout || "") + "|" + (S.uiStyle || "") + "|" + (S.motion === false);
+    const k = bugVP.w + "|" + (S.cardLayout || "") + "|" + (S.uiStyle || "") + "|" + (S.motion === false);   /* bugVP: innerWidth here forced a restyle inside the Queue tap (18ms at 4x) */
     if (last && last.k === k && last.id !== id && Math.abs(last.h - ht) > 12)
-      bugReport("look", "Open queue cards are different sizes", { at: `.hero ${last.h}px, then ${ht}px at ${innerWidth}px wide`, screen: "games/queue" });
+      bugReport("look", "Open queue cards are different sizes", { at: `.hero ${last.h}px, then ${ht}px at ${bugVP.w}px wide`, screen: "games/queue" });
     last = { k, id, h: ht };
   })) : null;
   extend("renderQueue", { after: () => {
@@ -22359,7 +22367,8 @@ function dcPaint() {
 }
 document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-dcopen]")) { e.stopPropagation(); beep("open"); dcOpen(); } }, true);
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest("#pnbubmsg"); if (!m || m.dataset.act !== "discover") return; e.stopPropagation(); if (typeof pnBubHush === "function") pnBubHush(); dcOpen(); }, true);
-setTimeout(dcPaint, 0);
+/* lag hunt R5 (#334): the hidden Add screen's picks card was drawn in the first task after start; it waits for idle now */
+(window.requestIdleCallback || (f => setTimeout(f, 1500)))(dcPaint, { timeout: 5000 });
 setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(() => dcRun(false), { timeout: 8000 }) : dcRun(false)), 50000);
 addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => dcRun(false), 20000); });
 
@@ -24731,7 +24740,7 @@ document.addEventListener("contentvisibilityautostatechange", e => { const el = 
    keeps animating (Home's countdown flipping every second on a hidden Home was one), or a visible piece animating a property
    only the main thread can draw (sizes, colours, backgrounds, shadows; transform, opacity and filter are fine). */
 const DRAW_OK = /^(transform|translate|rotate|scale|opacity|filter|offset|easing|composite|computedOffset)$/;
-const DRAW = { t: 0, n: 0 };
+const DRAW = { t: 0, n: 0, clean: new Map() };
 function drawSlow(a) {
   const el = a.effect && a.effect.target;
   if (a.playState !== "running" || !el || !el.isConnected || (a.timeline && a.timeline !== document.timeline)) return null;
@@ -24759,7 +24768,10 @@ async function drawCheck() {
   if (!lagOk() || nxTouring() || calm() || window.pnRest || DRAW.n >= 6 ||
       document.documentElement.classList.contains("dragging-now")) { if (DRAW.n < 6) drawArm(20000); return; }
   const go = DRAW.go = Symbol(), scr = bugScreen();
-  const one = await drawLook(); if (DRAW.go !== go || !one.size) { if (DRAW.go === go) drawArm(60000); return; }
+  /* lag hunt R6: a screen found clean isn't looked at again for 10 minutes (each look is 8 passes over every animation, with a
+     restyle for each one's visibility; it ran every minute on every screen, all day) */
+  const ck = scr + "|" + bugVP.w; if (performance.now() - (DRAW.clean.get(ck) ?? -1e9) < 600000) return;
+  const one = await drawLook(); if (DRAW.go !== go || !one.size) { if (DRAW.go === go) { DRAW.clean.set(ck, performance.now()); drawArm(60000); } return; }
   await new Promise(r => setTimeout(r, 3000)); if (DRAW.go !== go || bugScreen() !== scr || window.pnRest) return;
   const two = await drawLook(); if (DRAW.go !== go || window.pnRest) return;
   DRAW.n++;
@@ -26860,12 +26872,12 @@ function srlPlace() {
   const a = SRL.links[SRL.cur], nav = a && a.closest(".srlnav"); if (!nav) return;
   nav.querySelector(".srlbar").style.transform = `translateY(${a.offsetTop}px) scaleY(${a.offsetHeight / 20})`;
 }
-function srlTag(i) {
+function srlTag(i, r) {
   const a = SRL.links[i]; if (!a) return;
   let t = document.getElementById("srltag");
   if (!t) { t = document.createElement("span"); t.id = "srltag"; t.className = "srltag"; t.setAttribute("aria-hidden", "true"); document.body.appendChild(t); }
   t.textContent = srlName(SRL.groups[i]);
-  const r = a.getBoundingClientRect();
+  r ||= a.getBoundingClientRect();
   t.style.transform = `translate(${Math.round(r.right + 8)}px, ${Math.round(r.top + (r.height - 31) / 2)}px)`;
   t.classList.add("on"); clearTimeout(SRL.tagT);
   SRL.tagT = setTimeout(() => t.classList.remove("on"), 1500);
@@ -26876,12 +26888,15 @@ function srlSet(i, quiet) {
   SRL.links.forEach((a, j) => j === i ? a.setAttribute("aria-current", "location") : a.removeAttribute("aria-current"));
   /* quiet = the first light while the sheet is being drawn: no layout reads here (v206), srlMeasure's rAF places the bar */
   if (quiet) return;
-  srlPlace();
-  srlTag(i);
-  /* keep the lit tile inside the rail when the rail itself has to scroll (a short screen) */
-  const a = SRL.links[i], nav = a.closest(".srlnav");
-  if (nav.scrollHeight > nav.clientHeight + 2 && (a.offsetTop < nav.scrollTop || a.offsetTop + a.offsetHeight > nav.scrollTop + nav.clientHeight))
-    nav.scrollTop = a.offsetTop - nav.clientHeight / 3;
+  /* lag hunt R7: the bar, the name tag and the rail's own scroll each read the layout right after a write (three forced layouts
+     per group while you scroll Settings, 21-33ms at 4x): all of it is read once in the next frame, then written */
+  cancelAnimationFrame(SRL.showF); SRL.showF = requestAnimationFrame(() => { if (SRL.cur !== i) return;
+    const a = SRL.links[i], nav = a && a.closest(".srlnav"); if (!nav) return;
+    const ot = a.offsetTop, oh = a.offsetHeight, r = a.getBoundingClientRect(), sh = nav.scrollHeight, ch = nav.clientHeight, st = nav.scrollTop;
+    nav.querySelector(".srlbar").style.transform = `translateY(${ot}px) scaleY(${oh / 20})`;
+    srlTag(i, r);
+    /* keep the lit tile inside the rail when the rail itself has to scroll (a short screen) */
+    if (sh > ch + 2 && (ot < st || ot + oh > st + ch)) nav.scrollTop = ot - ch / 3; });
 }
 function srlPick() {
   if (SRL.lock) return;
@@ -27747,5 +27762,11 @@ WHATS_NEW.push(
   { v: 311, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue [data-row]") || null,   /* the Queue it just opened: tap a card here */
     say: "<b>Smoother switching</b>: changing tabs, opening a Queue card and opening Settings do much less work in the moment you tap, and my own lag checks wait until you stop touching the screen.",
     tryIt: "Switch between Home, Games and Settings a few times, open a Queue card and scroll: it should feel lighter." }
+);
+/* v312: lag hunt round 2 (docs/LOG.md): root colours written only when they change, the countdown, the Settings rail, start-up decoding */
+WHATS_NEW.push(
+  { v: 312, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue [data-row]") || null,
+    say: "<b>Even lighter</b>: opening the app, scrolling Settings and switching to the Queue do less work, and covers load a few at a time instead of all at once.",
+    tryIt: "Open Settings and scroll through it, then tap the Queue a few times." }
 );
 </script>

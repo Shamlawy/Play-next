@@ -5,6 +5,9 @@
 # Since v293 also the release number check (tools/appv-check.mjs), the design eye (kit.mjs eye, in `all`), its plant (a blind eye fails), and the design check on what the PR adds.
 # Since M5 every plant in tools/plants/*.js too (tools/plants/run.mjs): each one must still be reported by the detector it was made for.
 # Since Oct 18: kit.mjs all includes `taste` (the owner's look calls), its plant must fail them all, and `kit.mjs look` pictures what the PR changes on screen.
+# Since Oct 19 (the owner: "why is it taking long"): the same checks as `kit.mjs all` + the plants, but side by side, one job each
+# (one after another they took 22 min, the design eye alone 10.5, so it is split by width): ~5 min. Each job installs
+# Chromium itself (~25s). A new part of `kit.mjs all` needs its own line here too.
 name: App check
 on:
   workflow_dispatch:
@@ -20,8 +23,21 @@ permissions:
   contents: read
 jobs:
   check:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: code, name: "Code: release number, syntax, health, bug finder, sw.js, design check" }
+          - { id: sweep, name: "Every screen at 412, 859, 360 (sweep)" }
+          - { id: flow, name: "Tour, smooth, layers, taste" }
+          - { id: eye412, name: "Design eye 412", w: "412" }
+          - { id: eye859, name: "Design eye 859", w: "859" }
+          - { id: eye360, name: "Design eye 360", w: "360" }
+          - { id: plants, name: "Every check still sees its plant" }
+          - { id: look, name: "What this PR changes on screen" }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,49 +45,69 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: "Install Chromium and the bug finder (one npm call, since a second one would remove the first one's packages)"
+        run: npm i --no-save playwright@1.56.1 eslint@9.36.0 globals@16.4.0 acorn@8.15.0 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
       - name: "The release number is above main's (two chats on the same vN merge with no conflict, L27)"
-        if: github.event_name == 'pull_request'
+        if: matrix.id == 'code' && github.event_name == 'pull_request'
         env:
           BASE: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node tools/appv-check.mjs "--base=origin/$BASE" "--head=$HEAD_SHA"
-      - name: "Install Chromium and the bug finder (one npm call, since a second one would remove the first one's packages)"
-        run: npm i --no-save playwright@1.56.1 eslint@9.36.0 globals@16.4.0 acorn@8.15.0 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
-      - name: Check the app
+      - name: "Every script compiles, code health and bug finder within budget, sw.js shrinks pictures"
+        if: matrix.id == 'code'
         env:
           CI: "1"
-        run: node tools/kit.mjs all
+        run: node tools/kit.mjs syntax && node tools/kit.mjs audit && node tools/kit.mjs sw
+      - name: "The design check on what this PR adds to index.html"
+        if: matrix.id == 'code' && github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: node tools/design-check.mjs "--base=origin/$BASE"
+      - name: "Every screen with the app's own problem checks listening"
+        if: matrix.id == 'sweep'
+        env:
+          CI: "1"
+        run: node tools/kit.mjs sweep
+      - name: "The what's-new tour, loops mid-swipe, GPU layers, the owner's look calls"
+        if: matrix.id == 'flow'
+        env:
+          CI: "1"
+        run: node tools/kit.mjs tour && node tools/kit.mjs smooth && node tools/kit.mjs layers && node tools/kit.mjs taste
+      - name: "The design eye (what looks broken)"
+        if: startsWith(matrix.id, 'eye')
+        env:
+          CI: "1"
+          W: ${{ matrix.w }}
+        run: node tools/kit.mjs eye --widths "$W"
       - name: "Every problem check still sees its plant (tools/plants/run.mjs, a blind detector fails)"
+        if: matrix.id == 'plants'
         env:
           CI: "1"
         run: node tools/plants/run.mjs
       - name: "The design eye still sees (its plant must be flagged)"
+        if: matrix.id == 'plants'
         env:
           CI: "1"
           PLANT: tools/plants/eye-broken.css
           SCREENS: lib,played
         run: node tools/kit.mjs run tools/scenarios/design-eye.mjs --widths 412
       - name: "The taste checks still see (their plant must fail every one of them)"
+        if: matrix.id == 'plants'
         env:
           CI: "1"
           PLANT: tools/plants/taste-broken.mjs
         run: node tools/kit.mjs run tools/scenarios/taste.mjs --widths 412
       - name: "What this PR changes on screen (before | after | where pictures, attached to this run)"
-        if: github.event_name == 'pull_request'
+        if: matrix.id == 'look' && github.event_name == 'pull_request'
         env:
           CI: "1"
           BASE: ${{ github.base_ref }}
         run: node tools/kit.mjs look --base "origin/$BASE" --out look-shots --widths 412
       - name: Attach the screen pictures
-        if: github.event_name == 'pull_request'
+        if: matrix.id == 'look' && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: look-shots
           path: look-shots
           if-no-files-found: ignore
           retention-days: 14
-      - name: "The design check on what this PR adds to index.html"
-        if: github.event_name == 'pull_request'
-        env:
-          BASE: ${{ github.base_ref }}
-        run: node tools/design-check.mjs "--base=origin/$BASE"
