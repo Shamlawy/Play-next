@@ -27744,7 +27744,7 @@ BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on
    and their reports wait for idle (B1-B3), the loading-line watch looks only at what's showing (B4), a Queue card tap no
    longer measures every row (C1), and Nexi's bubble measures in the next frame (C3). */
 WHATS_NEW.push(
-  { v: 311, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("nav button[data-tab=games]") || null,
+  { v: 311, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue [data-row]") || null,   /* the Queue it just opened: tap a card here */
     say: "<b>Smoother switching</b>: changing tabs, opening a Queue card and opening Settings do much less work in the moment you tap, and my own lag checks wait until you stop touching the screen.",
     tryIt: "Switch between Home, Games and Settings a few times, open a Queue card and scroll: it should feel lighter." }
 );
