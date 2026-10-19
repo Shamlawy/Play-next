@@ -17279,19 +17279,23 @@ function bugLayout() {
   bugAfterRun();
 }
 /* lag hunt B1: the checks after a layout pass ran back to back in one idle callback (up to 890ms at 4x on Settings, 227ms
-   opening a game); each one now gets its own idle slice, waits while you touch or scroll, and a newer pass drops the rest */
-let bugAfterGen = 0;
+   opening a game); each one now gets its own idle slice and waits while you touch or scroll. A pass that comes while a round
+   is still going runs once more after it (v312: dropping the rest starved the design eye, last in line, in a fast CI sweep) */
+const BUG_AR = { busy: false, again: false };
 function bugAfterRun() {
-  const gen = ++bugAfterGen, q = [...BUG_AFTER], ric = window.requestIdleCallback || ((f, o) => setTimeout(f, 60));
+  if (BUG_AR.busy) { BUG_AR.again = true; return; }
+  BUG_AR.busy = true;
+  const q = [...BUG_AFTER], ric = window.requestIdleCallback || ((f, o) => setTimeout(f, 60));
   const step = dl => {
-    while (q.length && gen === bugAfterGen) {
+    while (q.length) {
       const quiet = performance.now() - bugLastIn;
-      if (quiet < 1200) { setTimeout(() => ric(step, { timeout: 3000 }), 1300 - quiet); return; }
+      if (quiet < 1200) { setTimeout(() => ric(step, { timeout: 1500 }), 1300 - quiet); return; }
       const f = q.shift(); try { f(); } catch (e) {}
-      if (q.length && !(dl && dl.timeRemaining && dl.timeRemaining() > 6)) { ric(step, { timeout: 3000 }); return; }
+      if (q.length && !(dl && dl.timeRemaining && dl.timeRemaining() > 6)) { ric(step, { timeout: 1500 }); return; }
     }
+    BUG_AR.busy = false; if (BUG_AR.again) { BUG_AR.again = false; bugAfterRun(); }
   };
-  ric(step, { timeout: 3000 });
+  ric(step, { timeout: 1500 });
 }
 function bugLayoutPass() {
   BUG.lt = 0;
