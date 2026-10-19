@@ -4251,7 +4251,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "309";
+const APP_V = "310";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -27155,7 +27155,8 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
   background: linear-gradient(100deg, color-mix(in oklab, var(--accent, var(--volt)) 60%, black) 20%, color-mix(in oklab, var(--accent, var(--volt)) 88%, black) 92%); }
 #p-queue .qsstrap::after { content: ""; position: absolute; top: 0; bottom: 0; right: 3px; width: 6px; transform: skewX(var(--qsk)); transform-origin: 0 0;
   background: color-mix(in oklab, var(--accent, var(--volt)) 55%, white); opacity: .85; }
-#p-queue .row.qs > .rowin { position: relative; z-index: 2; display: grid; grid-template-columns: 44px 58px 30px minmax(0, 1fr) auto; grid-template-rows: auto auto auto;
+/* the name keeps room for two lines, so a long name doesn't make its row taller than the rest (one line sits centred in it) */
+#p-queue .row.qs > .rowin { position: relative; z-index: 2; display: grid; grid-template-columns: 44px 58px 30px minmax(0, 1fr) auto; grid-template-rows: auto minmax(48px, auto) auto;
   column-gap: 12px; align-items: center; align-content: center; min-height: 112px; padding-top: 10px; padding-bottom: 12px; padding-left: 20px; }
 #p-queue .row.qs:not(.artrow) > .rowin { padding-right: 16px; }
 #p-queue .qs .rowin > .rank { grid-area: 1 / 1 / 4 / 2; font-size: 30px; font-weight: 700; letter-spacing: -.04em; color: var(--ice); text-shadow: 0 2px 8px rgba(0,0,0,.45); font-variant-numeric: tabular-nums; min-width: 0; }
@@ -27193,7 +27194,7 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
   #p-queue .qsbg { left: 34%; } #p-queue .qsbg::before { left: -51.5%; }
   #p-queue .row.qs > .qsstrap { left: -30px; width: 140px; --qsk: -9deg; }
   #p-queue .qsstrap::after { right: 3px; width: 4px; }
-  #p-queue .row.qs > .rowin { grid-template-columns: 26px 46px 18px minmax(0, 1fr); column-gap: 8px; min-height: 104px; padding-left: 12px; padding-top: 9px; padding-bottom: 10px; }
+  #p-queue .row.qs > .rowin { grid-template-columns: 26px 46px 18px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 8px; min-height: 104px; padding-left: 12px; padding-top: 9px; padding-bottom: 10px; }
   #p-queue .qs .rowin > .rank { font-size: 19px; }
   #p-queue .qs .rowin > img { width: 46px; height: 68px; border-radius: 8px; }
   #p-queue .qskick { display: none; }
@@ -27516,6 +27517,11 @@ WHATS_NEW.push(
   { v: 309, go: () => { closeFull(); dyClose(); nxShut(); goTab("games"); goSub("games", "lib"); }, at: () => $("#p-lib .libtag.tr") || $("#p-lib .tabbar") || null,
     say: "<b>Library covers show their whole date on iPhone</b>: the release date in a cover's corner was cut to a sliver on iPhone and iPad; it now shows in full, like the rest of the corner tags.",
     tryIt: "Open the Library and look at the top-right corner of a cover." }
+);
+WHATS_NEW.push(
+  { v: 310, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); }, at: () => $("#p-queue .row.qs") || null,
+    say: "<b>Queue rows are all one size</b>: unfolded, a game whose name ran onto two lines made its closed row taller than the rest. Every row now keeps room for two lines, so they line up evenly.",
+    tryIt: "Unfold the phone and scroll the Queue: every closed row is the same height." }
 );
 /* Oct 18: Nexi learned (the owner: "it lagged a lot and the games stopped opening"): a Queue card you open has to end up on
    the screen. Opening one closed the card above it and the one you tapped slid off the top, so the next tap hit another row */

@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27691 lines, 2107 KB, 124 scripts, 65 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27697 lines, 2107 KB, 124 scripts, 65 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -238,9 +238,9 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 26539–26693 | script | 13 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |
 | 26693–26734 | style | 4 | ===== v297: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise are one scroll of open… |
 | 26734–26949 | script | 24 | ===== v297: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |
-| 26949–27319 | style | 38 | ===== v299: the open Queue card, round 9 "Sweep" (the owner, after rounds 7-9: "Perfect"; they hated v298's fixed blue slab, the round stamp that… |
-| 27319–27405 | script | 9 | — |
-| 27405–27421 | script | 1 | v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium gives each scroll-linked… |
-| 27421–27482 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
-| 27482–27536 | script | 5 | — |
-| 27536–27691 | script | 16 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
+| 26949–27320 | style | 38 | ===== v299: the open Queue card, round 9 "Sweep" (the owner, after rounds 7-9: "Perfect"; they hated v298's fixed blue slab, the round stamp that… |
+| 27320–27406 | script | 9 | — |
+| 27406–27422 | script | 1 | v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium gives each scroll-linked… |
+| 27422–27483 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
+| 27483–27542 | script | 6 | — |
+| 27542–27697 | script | 16 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |

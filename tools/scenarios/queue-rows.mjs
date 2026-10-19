@@ -2,6 +2,7 @@
    F "Character select" as a second option: "A and the new bar, make it and F too as a second option").
      node tools/kit.mjs run tools/scenarios/queue-rows.mjs --widths 412,859      SHOTS=dir (the rows, the menu, the second look)
    Checks:
+     - every closed row is the same height (a two-line name doesn't make its row taller)
      - every closed row has the strap, the spot, the box art, the name, the open card's headline and the progress line; nothing in it
        runs past the row; the name keeps room (60px+); the ticket shows unfolded and hides folded, where the date and hours sit under the name
      - the strap is drawn in the game's colour, the cover stands straight, a released game's ticket stub hangs torn and a coming one's doesn't
@@ -37,6 +38,8 @@ export default async ({ p, w, fail }) => {
       when: vis(q(".rowmeta > .when")), out, h: Math.round(R.height), title: g.title };
   }), folded);
   if (rows.length < 4) fail(`only ${rows.length} closed rows`);
+  /* v310 (the owner: "some look bigger than the other while closed"): a two-line name made its row taller */
+  const hs = rows.map(r => r.h); if (Math.max(...hs) - Math.min(...hs) > 1) fail(`closed rows differ in height: ${[...new Set(hs)].join(" / ")}px`);
   for (const r of rows) {
     if (!r.strap) fail(`row ${r.rank}: no slanted strap in its colour`);
     if (!r.cover) fail(`row ${r.rank}: the box art is missing or squashed`);
