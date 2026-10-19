@@ -17367,10 +17367,10 @@ function bugLayoutPass() {
   }
   /* a cut button still sliding in was skipped: look once more when it has landed (on a slow phone the Queue bar was still
      moving at the only pass, so a tab past the edge went unreported; the button-cut plant missed it in CI) */
-  if (moved && !BUG.edgeAgain) { BUG.edgeAgain = 1; setTimeout(bugLayoutPass, Math.min(moved, 2500) + 150); }
+  if (moved && !BUG.edgeAgain) { BUG.edgeAgain = 1; BUG.et = setTimeout(bugLayoutPass, Math.min(moved, 2500) + 150); }
 }
 function bugLayoutSoon() {
-  if (!bugOn()) return; clearTimeout(BUG.lt); BUG.edgeAgain = 0;
+  if (!bugOn()) return; clearTimeout(BUG.lt); clearTimeout(BUG.et); BUG.edgeAgain = 0;
   BUG.lt = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(bugLayout, { timeout: 3000 }) : bugLayout()), 1600);
 }
 /* screen changes: breadcrumb + a layout look once it settles */
@@ -24050,7 +24050,8 @@ WHATS_NEW.push(
     if (!bugOn() || document.hidden) return;
     const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
     if (!root) return;
-    const key = bugScreen() + "|" + innerWidth + "x" + innerHeight + "|" + root.getElementsByTagName("*").length;
+    /* a game page keys on its game too: two games can have the same element count, and the second was never checked */
+    const key = bugScreen() + "|" + innerWidth + "x" + innerHeight + "|" + (root.closest("#full") ? hubAt + "|" : "") + root.getElementsByTagName("*").length;
     if (done.has(key)) return;
     if (ric && !(dl && typeof dl.timeRemaining === "function" && !dl.didTimeout && dl.timeRemaining() >= 4)) {
       if (waits++ < 40) { clearTimeout(BUG.lt); BUG.lt = setTimeout(() => ric(bugLayout), 250); } else waits = 0;
@@ -27740,20 +27741,22 @@ function lookEyeRun(root, scr) {
   return !moving;
 }
 /* once per screen, width and content, as the README says: a later layout pass of the same screen doesn't walk it again, but
-   another game page or cards filled in later (a different element count) do, and a pass that skipped something still moving
+   another game page (its id is in the key: two games can have the same element count) or cards filled in later (a different
+   element count) do, and a pass that skipped something still moving
    isn't counted (second-look on #575) */
 const LOOK_SEEN = new Set(), LOOK_TRIES = new Map();
 BUG_AFTER.push(() => {
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (!root) return;
-  const scr = bugScreen(), sw = scr + "|" + innerWidth, key = sw + "|" + root.getElementsByTagName("*").length;
-  /* at most 3 tries of the same content and 8 walks per screen and width: a finding that never stops moving, or a count that
-     keeps changing, can't make it walk on every pass (second-look on #576) */
+  const scr = bugScreen(), sw = scr + "|" + innerWidth, key = sw + "|" + (root.closest("#full") ? hubAt + "|" : "") + root.getElementsByTagName("*").length;
+  /* at most 3 tries of the same content, 8 walks skipped as moving and 40 walks in all per screen and width: a finding that
+     never stops moving, or a count that keeps changing, can't make it walk on every pass (second-look on #576), while finished
+     walks don't use up the moving budget, so the 9th game page is still looked at (second-look on #577) */
   const n = k => LOOK_TRIES.get(k) || 0;
-  if (LOOK_SEEN.has(key) || n(key) >= 3 || n(sw) >= 8) return;
+  if (LOOK_SEEN.has(key) || n(key) >= 3 || n(sw + "|m") >= 8 || n(sw) >= 40) return;
   LOOK_TRIES.set(key, n(key) + 1).set(sw, n(sw) + 1);
-  if (lookEyeRun(root, scr)) LOOK_SEEN.add(key);
+  if (lookEyeRun(root, scr)) LOOK_SEEN.add(key); else LOOK_TRIES.set(sw + "|m", n(sw + "|m") + 1);
 });
 BUG_NICE.push(["look", /Two cards sit on top of each other/, at => `Two cards on ${at} were drawn on top of each other.`],
   ["look", /Something spills out of its card/, at => `A picture or some words on ${at} stuck out of their card.`],
