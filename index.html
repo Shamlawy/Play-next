@@ -19813,8 +19813,9 @@ addEventListener("pointerdown", e => {
       const r = el.getBoundingClientRect(), vis = Math.min(r.bottom, H) - Math.max(r.top, 0);
       if (r.width < 40 || vis < Math.min(40, r.height * .4)) { seen.delete(el); continue; }
       /* v313: an element that stops being content-visibility: auto (the Queue's .qcold rows once drawn) never says it isn't
-         skipped any more; ask the browser before calling it blank */
-      if (el.checkVisibility && el.checkVisibility({ contentVisibilityAuto: true })) { SK.delete(el); seen.delete(el); continue; }
+         skipped any more; ask the browser before calling it blank. The skipped element itself always reads as visible (only
+         its contents are skipped), so ask its first child (second-look on #588) */
+      { const k = el.firstElementChild; if (k && k.checkVisibility && k.checkVisibility({ contentVisibilityAuto: true })) { SK.delete(el); seen.delete(el); continue; } }
       /* only what you could see (v216: the Played board's rows in the hidden Played panel were reported from Plan; the hidden
          screen test is above now, before measuring) */
       if (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) { seen.delete(el); continue; }
