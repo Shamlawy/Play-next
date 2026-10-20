@@ -23,6 +23,7 @@ export const LAYER_SCREENS = {
   home: `closeFull(); goTab("home")`, played: `closeFull(); goTab("games"); goSub("games", "played")`,
   queue: `closeFull(); goTab("games"); goSub("games", "queue")`, lib: `closeFull(); goTab("games"); goSub("games", "lib")`,
   game: `goTab("games"); openFull((S.games.find(g => g.status === "playing") || S.games[0]).id)`,
+  insights: `closeFull(); goTab("taste"); goSub("taste", "insights")`,
 };
 export const printLayers = (name, w, c, top = 15) => {
   console.log(`\n  [${name}] ${w}px: ${c.n} layers, ${c.mp} MP, ${c.screens} screens`);
