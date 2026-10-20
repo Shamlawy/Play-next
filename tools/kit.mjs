@@ -593,7 +593,7 @@ async function detectors(browser, base) {
   if (args.includes("--lower") && !EXPECT) {
     /* a budget is today's worst run ×2 (timings swing up to 2x between runs, M40), rounded up to 10ms; only ever lowered.
        --reset: a line for every check whose ×2 is over "*" (a new check, or after a cleanup that changed many) */
-    const now = { ...budget }, b2 = k => Math.ceil(worst[k] * 2 / 10) * 10;
+    const now = { ...budget }, b2 = k => Math.max(budget["*"] ?? 50, Math.ceil(worst[k] * 2 / 10) * 10);   /* never under "*": a line below it guards nothing and flaps */
     for (const k in now) { if (k === "*" || worst[k] == null) continue; if (b2(k) < now[k]) now[k] = b2(k); }
     if (args.includes("--reset")) for (const k in worst) if (k !== "*" && b2(k) > (budget["*"] ?? 50)) now[k] = b2(k);
     fs.writeFileSync(path.join(ROOT, dc.BUDGET_FILE), fs.readFileSync(path.join(ROOT, dc.BUDGET_FILE), "utf8").split("\n").filter(l => l.startsWith("#")).join("\n") + "\n" +

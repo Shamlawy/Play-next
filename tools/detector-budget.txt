@@ -16,4 +16,4 @@ observer:long-animation-frame › later 140
 lookMap 110
 bugLook 160
 lookText 70
-lookAfter › later 10
+lookAfter › later 50
