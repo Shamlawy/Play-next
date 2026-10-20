@@ -70,42 +70,49 @@ const IC = {
   eye: `<path opacity=".35" d="M12 5C6.5 5 2.7 9 1.5 12c1.2 3 5 7 10.5 7s9.3-4 10.5-7C21.3 9 17.5 5 12 5z"/><path d="M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8z"/>`,
   heart: `<path opacity=".35" d="M12 21s-9-5.6-9-12a5 5 0 0 1 9-3a5 5 0 0 1 9 3c0 6.4-9 12-9 12z"/><path d="M12 9.5l1.4 2.9 3.1.4-2.3 2.1.6 3.1-2.8-1.6-2.8 1.6.6-3.1-2.3-2.1 3.1-.4z"/>`,
   spark: `<path opacity=".35" d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/><path d="M12 7l1.3 3.7L17 12l-3.7 1.3L12 17l-1.3-3.7L7 12l3.7-1.3z"/>`,
+  tactic: `<path opacity=".35" d="M3 3h18v18H3z"/><path d="M6 6h5v5H6zm7 7h5v5h-5z"/>`,
+  search: `<path opacity=".35" d="M10 3a7 7 0 1 0 0 14a7 7 0 0 0 0-14z"/><path d="M15.5 14.1l6 6-1.4 1.4-6-6zM10 6a4 4 0 0 1 4 4h-2a2 2 0 0 0-2-2z"/>`,
+  clock: `<path opacity=".35" d="M6 2h12v2l-5 8 5 8v2H6v-2l5-8-5-8z"/><path d="M8 20h8l-4-6z"/>`,
+  moon: `<path opacity=".35" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/><path d="M17 3l.9 2.1L20 6l-2.1.9L17 9l-.9-2.1L14 6l2.1-.9z"/>`,
   lock: `<path opacity=".35" d="M5 10h14v11H5z"/><path d="M8 10V7a4 4 0 0 1 8 0v3h-2V7a2 2 0 0 0-4 0v3z"/>`,
   you: `<path opacity=".35" d="M4 4h16v12H8l-4 4z"/><path d="M8 8h8v2H8zm0 3h5v2H8z"/>`
 };
 const svg = k => `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${IC[k]}</svg>`;
-/* one made-up RPG, played and not played. "from" = what taught it */
-const SK = [
-  { ic: "time", n: "Time management", lv: 3, vague: "A calendar where every day forces a choice", from: "The 60-day voyage: you can't train the crew, repair the ship and chase the side missions all before the eclipse",
-    tr: "plan your week with 3 slots a day, like the voyage board" },
-  { ic: "bond", n: "Keeping bonds alive", lv: 3, vague: "Friendships that only grow if you keep showing up", from: "Mira's arc: skip her for two chapters and she leaves the crew before the finale",
-    tr: "pick one person this week and check in twice" },
-  { ic: "grit", n: "Not giving up", lv: 2, vague: "A tough fight halfway through that rewards learning it", from: "The Storm Captain: three phases, and the third only opens once you stop rushing",
-    tr: "when something fails, change one thing and try again" },
-  { ic: "heart", n: "Letting go", lv: 1, story: 1, vague: "The story is about accepting what you can't change", from: "The ending at the lighthouse, where Kael chooses to stay behind",
-    tr: "" }
-];
-const lv = n => `<div class="skA-l">${[1, 2, 3].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}<span>${["", "some", "a lot", "a core part"][n]}</span></div>`;
+/* made-up games by default; DATA=<json file> (kept out of the repo) swaps in other games and words */
+const DEF = { games: [
+  { id: "g0", key: "played", played: 1, accent: "#7C5CFF", hours: 46, skills: [
+    { ic: "time", n: "Time management", lv: 3, txt: "The 60-day voyage: you can't train the crew, repair the ship and chase the side missions all before the eclipse", tr: "plan your week with 3 slots a day, like the voyage board" },
+    { ic: "bond", n: "Keeping bonds alive", lv: 3, txt: "Mira's arc: skip her for two chapters and she leaves the crew before the finale", tr: "pick one person this week and check in twice" },
+    { ic: "grit", n: "Not giving up", lv: 2, txt: "The Storm Captain: three phases, and the third only opens once you stop rushing", tr: "when something fails, change one thing and try again" },
+    { ic: "heart", n: "Letting go", lv: 1, story: 1, txt: "The ending at the lighthouse, where Kael chooses to stay behind", tr: "" }] },
+  { id: "g7", key: "notplayed", played: 0, accent: "#7C5CFF", hours: 46, skills: [
+    { ic: "time", n: "Time management", lv: 3, txt: "A calendar where every day forces a choice", tr: "plan your week with 3 slots a day" },
+    { ic: "bond", n: "Keeping bonds alive", lv: 3, txt: "Friendships that only grow if you keep showing up", tr: "pick one person this week and check in twice" },
+    { ic: "grit", n: "Not giving up", lv: 2, txt: "A tough fight halfway through that rewards learning it", tr: "when something fails, change one thing and try again" },
+    { ic: "heart", n: "Letting go", lv: 1, story: 1, txt: "The story is about accepting what you can't change", tr: "" }] }],
+  build: { meta: "11 played games", rows: [["Planning ahead", 86], ["Time management", 72], ["Keeping bonds alive", 64], ["Not giving up", 58], ["Spotting patterns", 40], ["Reaction speed", 12, 1], ["Teamwork", 6, 1]],
+    tip: "you rarely train reaction speed. Rift Runner in your queue is all about it." } };
+const DATA = process.env.DATA ? JSON.parse(fs.readFileSync(process.env.DATA, "utf8")) : DEF;
+const AMT = ["", "some", "a lot", "a core part"];
+const lv = n => `<div class="skA-l">${[1, 2, 3].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}<span>${AMT[n]}</span></div>`;
 const head = (meta) => `<div class="skd-h">${svg("spark")}<span>What it builds in you</span><small>${meta}</small></div>`;
-const you = played => played ? `<div class="skd-you">${svg("you").replace("<svg", '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"')}<b>You said:</b> “Made me start planning my weekends.”</div>`
-  : "";
+const you = played => played ? `<div class="skd-you">${svg("you").replace("<svg", '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"')}<b>Nexi will ask:</b> did anything stick with you? Your answer goes here.</div>` : "";
+const tryL = s => s.tr ? `<p class="skd-try"><b>Try:</b> ${s.tr}</p>` : "";
 const LOOKS = {
-  A: played => `<section class="skd" style="--accent:#7C5CFF">${head(played ? "from the moments that taught it" : "no spoilers until you finish")}
-    <div class="skA">${SK.map(s => `<div><div class="skA-t"><span class="skA-d">${svg(s.ic)}</span><div><p class="skA-n">${s.n}</p>${lv(s.lv)}</div></div>
-      <div class="skA-x"><p class="skd-from">${played ? s.from : s.vague}</p>${s.tr ? `<p class="skd-try"><b>Try:</b> ${s.tr}</p>` : ""}</div></div>`).join("")}</div>${you(played)}</section>`,
-  B: played => `<section class="skd" style="--accent:#7C5CFF">${head(played ? "finished" : "if you play it")}
-    <p class="skB-top">${played ? "You levelled up 4 skills" : "Levels up 4 skills"}<small>${played ? "in 46 hours" : "~46 hours"}</small></p>
-    <div class="skB">${SK.map(s => `<div>${svg(s.ic)}<span class="skB-n">${s.n}</span><span class="skB-v">+${s.lv}<small>lv</small></span>
-      <span class="skB-bar"><i style="width:${s.lv * 33}%"></i></span><div class="skB-x"><p class="skd-from">${played ? s.from : s.vague}</p>${s.tr ? `<p class="skd-try"><b>Try:</b> ${s.tr}</p>` : ""}</div></div>`).join("")}</div>${you(played)}</section>`,
-  C: played => `<section class="skd" style="--accent:#7C5CFF">${head(played ? "4 of 4 unlocked" : "unlocks as you finish")}
-    <div class="skC">${SK.map(s => `<div><span class="skC-i">${svg(s.ic)}</span><div><p class="skC-k">${s.story ? "Story lesson" : "Skill"} · ${["", "some", "a lot", "a core part"][s.lv]}</p><p class="skC-n">${s.n}</p>
-      ${played ? `<p class="skd-from">${s.from}</p>` : `<p class="skd-from">${s.vague}</p><p class="skC-lock">${svg("lock")}What taught it unlocks when you finish</p>`}
-      ${s.tr ? `<p class="skd-try"><b>Try:</b> ${s.tr}</p>` : ""}</div></div>`).join("")}</div>${you(played)}</section>`
+  A: g => `<section class="skd" style="--accent:${g.accent}">${head(g.played ? "from the moments that taught it" : "no spoilers until you finish")}
+    <div class="skA">${g.skills.map(s => `<div><div class="skA-t"><span class="skA-d">${svg(s.ic)}</span><div><p class="skA-n">${s.n}</p>${lv(s.lv)}</div></div>
+      <div class="skA-x"><p class="skd-from">${s.txt}</p>${tryL(s)}</div></div>`).join("")}</div>${you(g.played)}</section>`,
+  B: g => `<section class="skd" style="--accent:${g.accent}">${head(g.played ? "finished" : "if you play it")}
+    <p class="skB-top">${g.played ? `You levelled up ${g.skills.length} skills` : `Levels up ${g.skills.length} skills`}<small>~${g.hours} hours</small></p>
+    <div class="skB">${g.skills.map(s => `<div>${svg(s.ic)}<span class="skB-n">${s.n}</span><span class="skB-v">+${s.lv}<small>lv</small></span>
+      <span class="skB-bar"><i style="width:${s.lv * 33}%"></i></span><div class="skB-x"><p class="skd-from">${s.txt}</p>${tryL(s)}</div></div>`).join("")}</div>${you(g.played)}</section>`,
+  C: g => `<section class="skd" style="--accent:${g.accent}">${head(g.played ? `${g.skills.length} of ${g.skills.length} unlocked` : "unlocks as you finish")}
+    <div class="skC">${g.skills.map(s => `<div><span class="skC-i">${svg(s.ic)}</span><div><p class="skC-k">${s.story ? "Story lesson" : "Skill"} · ${AMT[s.lv]}</p><p class="skC-n">${s.n}</p>
+      <p class="skd-from">${s.txt}</p>${g.played ? "" : `<p class="skC-lock">${svg("lock")}What taught it unlocks when you finish</p>`}${tryL(s)}</div></div>`).join("")}</div>${you(g.played)}</section>`
 };
-const BUILD = `<section class="skd" style="margin:14px 0">${`<div class="skd-h">${svg("spark")}<span>What your games built</span><small>11 played games</small></div>`}
-  ${[["Planning ahead", 86], ["Time management", 72], ["Keeping bonds alive", 64], ["Not giving up", 58], ["Spotting patterns", 40], ["Reaction speed", 12, 1], ["Teamwork", 6, 1]]
-    .map(([n, v, lo]) => `<div class="skI-row"><span>${n}</span><b class="${lo ? "lo" : ""}"><i style="width:${v}%"></i></b><small>${v}</small></div>`).join("")}
-  <div class="skI-tip"><b>Nexi:</b> you rarely train reaction speed. Rift Runner in your queue is all about it.</div></section>`;
+const BUILD = `<section class="skd" style="margin:14px 0"><div class="skd-h">${svg("spark")}<span>What your games built</span><small>${DATA.build.meta}</small></div>
+  ${DATA.build.rows.map(([n, v, lo]) => `<div class="skI-row"><span>${n}</span><b class="${lo ? "lo" : ""}"><i style="width:${v}%"></i></b><small>${v}</small></div>`).join("")}
+  <div class="skI-tip"><b>Nexi:</b> ${DATA.build.tip}</div></section>`;
 export default async ({ p, w, seed }) => {
   const dir = process.env.SHOTS || "tools/.cache/skills"; fs.mkdirSync(dir, { recursive: true });
   const v = await p.page.evaluate(() => APP_V);
@@ -117,19 +124,14 @@ export default async ({ p, w, seed }) => {
   const hide = () => p.page.evaluate(() => { for (const e of document.querySelectorAll("body *")) { const c = getComputedStyle(e);
     if ((c.position === "fixed" || c.position === "sticky") && !e.closest("#full") && e.getBoundingClientRect().height < innerHeight * .6) e.style.visibility = "hidden"; }
     const b = document.querySelector("#pnbub"); if (b) b.style.visibility = "hidden"; });
-  for (const [id, played] of [["g0", 1], ["g7", 0]]) for (const k of Object.keys(LOOKS)) {
-    await p.page.evaluate(id => openFull(id), id); await p.page.waitForTimeout(1500);
+  for (const g of DATA.games) for (const k of Object.keys(LOOKS)) {
+    await p.page.evaluate(([id, t]) => { if (t) S.games.find(x => x.id === id).title = t; openFull(id); }, [g.id, g.title || ""]); await p.page.waitForTimeout(1500);
     await p.page.evaluate(html => { document.querySelectorAll(".skd").forEach(x => x.remove());
-      const a = document.querySelector("#full .gd-s-prog"); a.insertAdjacentHTML("afterend", html); }, LOOKS[k](played));
-    await hide(); await p.page.waitForTimeout(200);
-    /* show the section with the end of the section above it, so it's clear where it sits */
-    await p.page.evaluate(() => { const e = document.querySelector("#full .skd"), sc = e.closest("#full .hub, #full") ;
-      const prog = document.querySelector("#full .gd-s-prog"); prog.scrollIntoView({ block: "start", behavior: "instant" }); });
+      document.querySelector("#full .gd-s-prog").insertAdjacentHTML("afterend", html); }, LOOKS[k](g));
+    /* the section with the end of the one above it, so it's clear where it sits */
+    await p.page.evaluate(() => document.querySelector("#full .gd-s-prog").scrollIntoView({ block: "start", behavior: "instant" }));
     await p.page.waitForTimeout(400); await hide();
-    await p.page.screenshot({ path: path.join(dir, `${w}-${k}-${played ? "played" : "notplayed"}.png`) });
-    await p.page.evaluate(() => document.querySelector("#full .skd").scrollIntoView({ block: "start", behavior: "instant" }));
-    await p.page.waitForTimeout(300); await hide();
-    await p.page.screenshot({ path: path.join(dir, `${w}-${k}-${played ? "played" : "notplayed"}-2.png`) });
+    await p.page.screenshot({ path: path.join(dir, `${w}-${k}-${g.key}.png`) });
     await p.page.evaluate(() => typeof closeFull === "function" && closeFull()); await p.page.waitForTimeout(600);
   }
   await p.step("insights", `goTab("taste"); goSub("taste", "insights")`, 2500);

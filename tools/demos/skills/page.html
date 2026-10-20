@@ -32,11 +32,10 @@ h1 { font: 700 26px/1.15 var(--f); letter-spacing: -.015em; margin: 0; text-wrap
 </style>
 <div class="wrap">
   <div class="ctl">
-    <div><h1>What it builds in you</h1><p class="sub">A demo inside the real game page. Made-up game, made-up words. Nothing is in the app yet.</p></div>
+    <div><h1>What it builds in you</h1><p class="sub">A demo inside the real game page. The pictures, dates and scores around it are the test phone's stand-ins. Nothing is in the app yet.</p></div>
     <div class="grp"><b>Look</b><div class="seg" id="look">
       <button type="button" data-v="A" aria-pressed="true">A · Perks</button><button type="button" data-v="B" aria-pressed="false">B · Level up</button><button type="button" data-v="C" aria-pressed="false">C · Codex</button></div></div>
-    <div class="grp"><b>The game</b><div class="seg" id="st">
-      <button type="button" data-v="played" aria-pressed="true">Played</button><button type="button" data-v="notplayed" aria-pressed="false">Not played yet</button></div></div>
+    <div class="grp"><b>The game</b><div class="seg" id="st"></div></div>
     <div class="grp"><b>Phone</b><div class="seg" id="wd">
       <button type="button" data-v="412" aria-pressed="true">Folded</button><button type="button" data-v="859" aria-pressed="false">Unfolded</button></div></div>
     <div class="grp"><b>Screen</b><div class="seg" id="scr">
@@ -51,8 +50,9 @@ h1 { font: 700 26px/1.15 var(--f); letter-spacing: -.015em; margin: 0; text-wrap
   <div><div class="stage"><div class="phone fold" id="ph"><img id="im" alt="Demo screenshot"></div></div><p class="cap" id="cap"></p></div>
 </div>
 <script>
-const IMG = {{IMG}};
-const st = { look: "A", st: "played", wd: "412", scr: "game" };
+const IMG = {{IMG}}, GAMES = {{GAMES}};
+document.getElementById("st").innerHTML = GAMES.map(g => `<button type="button" data-v="${g.key}">${g.title}${g.played ? "" : " · not played"}</button>`).join("");
+const st = { look: "A", st: GAMES[0].key, wd: "412", scr: "game" };
 const SAY = {
   A: ["Perks", "Each skill is a tile with its own drawn icon in a diamond, 3 bars for how much, then what taught it and one thing to try."],
   B: ["Level up", "Like a game's results screen: a big line on top, +1 to +3 per skill with a bar, then the moment behind it."],
@@ -63,7 +63,7 @@ function draw() {
   document.getElementById("im").src = IMG[k];
   document.getElementById("ph").className = "phone " + (st.wd === "412" ? "fold" : "wide");
   document.getElementById("cap").textContent = st.scr === "insights" ? "Insights · the same card for every look" :
-    `Game page · look ${st.look} · ${st.st === "played" ? "played: names the real moments" : "not played: vague, no spoilers"}`;
+    `Game page · look ${st.look} · ${GAMES.find(g => g.key === st.st).played ? "played: names the real moments" : "not played: vague, no spoilers"}`;
   const [n, t] = SAY[st.look]; document.getElementById("say").innerHTML = `<h2>${n}</h2><p>${t}</p>`;
   document.querySelectorAll(".seg").forEach(g => g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === st[g.id]))));
 }
