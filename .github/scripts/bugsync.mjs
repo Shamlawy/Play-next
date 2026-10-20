@@ -63,7 +63,7 @@ const body = b => {
     b.kind === "slow" && famOf(b.msg) ? costOf(s.msg || b.msg, s.stack).line : "",
     s.at ? `Where: \`${s.at}\`` : "",
     s.stack ? (b.kind === "user" ? "What was at the spot they tapped:\n" : b.kind === "slow" ? "Timing:\n" : "Stack:\n") + fence(s.stack) : "",
-    `| | |\n|---|---|\n| Times | ${b.n} |\n| Versions | ${(b.vs || []).join(", ")} |\n| Phones | ${(b.devs || []).join(", ")} |\n| Screens | ${(b.screens || []).join(", ")} |\n| Latest | ${s.w}×${s.h} @${s.dpr}x, ${s.style || "clean"} style |\n| First / last | ${when(b.first)} / ${when(b.last)} |`,
+    `| | |\n|---|---|\n| Times | ${b.n} |\n| Versions | ${(b.vs || []).join(", ")} |\n| Phones | ${(b.devs || []).join(", ")} |\n| Screens | ${(b.screens || []).join(", ")} |\n| Latest | ${s.w}×${s.h} @${s.dpr}x, ${s.style || "clean"} style |\n| First / last | ${when(b.first)} / ${when(b.last)} |${s.lib ? `\n| Library | ${String(s.lib).replace(/\|/g, "/")} |` : ""}`,
     s.crumbs && s.crumbs.length ? "What happened just before:\n" + fence(s.crumbs.join("\n")) : "",
     /^(iPhone|iPad|Mac[^,]*Safari)/.test(s.dev || "") ? "_Safari (WebKit): reproduce with Playwright's WebKit (the WebKit check workflow), not Chromium. Before v229 an iPad reported itself as \"Mac\"._" : "",
     "_Sent automatically by the app. No game titles, scores or notes are included._"
