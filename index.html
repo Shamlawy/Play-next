@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "316";
+const APP_V = "317";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -4836,6 +4836,7 @@ function fill(h) {
   form.critic = h.metacritic || 0;
   form.rawgId = h.id || null;
   form.genres = mergeTags(mapGenres(h.genres), h.tags);
+  form.lkT = lookRaw(h.tags);
   paintGenrePick();
   const future = h.released && new Date(h.released) > new Date();
   form.state = future ? "upcoming" : "backlog";
@@ -5149,7 +5150,7 @@ $("#f-save").onclick = () => {
     state: form.state || "upcoming", platforms: form.platforms || "",
     learn: "", tips: "", critic: form.critic || 0, rawgId: form.rawgId || null, rawgOk: !!form.rawgOk,
     genres: form.genres || "", art: form.art || "", hero: form.hero || "", bg: form.bg || "", key: form.key || "",
-    about: form.about || "",
+    about: form.about || "", lkT: form.lkT || [],
     steamId: form.steamId || "", mine: {}, comp: $("#f-comp").getAttribute("aria-pressed") === "true"
   });
   if (S.games[S.games.length - 1].comp) S.games[S.games.length - 1].hours = 0;
@@ -5193,6 +5194,7 @@ function editSums(g) {
     stands: state,
     platforms: sumList(g.platforms, "None picked"),
     genres: sumList(g.genres, "None picked"),
+    look: sumList(lookOf(g).join(", "), "Not known yet"),
     notes: [g.learn ? "learn" : "", g.tips ? "tips" : ""].filter(Boolean).join(" + ") || "Empty",
     cover: g.img ? (String(g.img).startsWith("data:") ? "Uploaded" : "Linked") : "Placeholder",
     art: g.art ? (g.artSide === "left" ? "Set, left" : "Set, right") : "None",
@@ -5413,6 +5415,10 @@ function openEdit(id) {
     </div>
     <div class="setgroup"><h4 data-sum="${esc(sums.genres)}">Genres and tags</h4>
     ${genrePicker("e-genrepick", g.genres)}
+    </div>
+    <div class="setgroup"><h4 data-sum="${esc(sums.look)}">How it looks</h4>
+    <p class="note">${typeof g.look === "string" ? "Your pick." : "Filled in by itself from what Steam players say. Tap to change it."}</p>
+    ${lookPicker("e-lookpick", lookOf(g).join(", "))}
     </div>
     <div class="setgroup"><h4 data-sum="${esc(sums.notes)}">Notes</h4>
     <label for="e-learn">What I can learn from it</label>
@@ -5778,6 +5784,7 @@ function openEdit(id) {
       if ($("#e-about")) $("#e-about").value = editing.about;
     }
     const merged = mergeTags(editing.genres == null ? (g.genres || "") : editing.genres, d.tags);
+    if (lookRaw(d.tags).length) editing.lkT = lookRaw(d.tags);
     const added = platList(merged).length - platList(editing.genres == null ? (g.genres || "") : editing.genres).length;
     const got = [];
     if (added > 0) {
@@ -5856,6 +5863,8 @@ function openEdit(id) {
     v => editing.platforms = v);
   bindPlatPicker("e-genrepick", () => editing.genres == null ? (g.genres || "") : editing.genres,
     v => editing.genres = v);
+  bindPlatPicker("e-lookpick", () => editing.look == null ? lookOf(g).join(", ") : editing.look,
+    v => editing.look = v);
   $("#e-artside").onclick = e => {
     const b = e.target.closest(".chip"); if (!b) return;
     editing.artSide = b.dataset.v;
@@ -6117,6 +6126,7 @@ function openEdit(id) {
       state: editing.state || "upcoming",
       platforms: editing.platforms == null ? (g.platforms || "") : editing.platforms,
       genres: editing.genres == null ? (g.genres || "") : editing.genres,
+      look: editing.look == null ? g.look : editing.look, lkT: editing.lkT || g.lkT,
       learn: $("#e-learn").value.trim(),
       tips: $("#e-tips").value.trim(),
       critic: Number($("#e-critic").value) || 0,
@@ -7137,6 +7147,7 @@ function openSettings(scope) {
       g.rawgId = d.id;
       const merged = mergeTags(g.genres || d.genres || "", d.tags);
       if (merged && merged !== g.genres) { g.genres = merged; tg++; }
+      if (lookRaw(d.tags).length) g.lkT = lookRaw(d.tags);
       if (d.bg && !g.bg) g.bg = d.bg;
     if (d.about && !g.about) g.about = d.about.slice(0, 1500);
       if (d.critic && d.critic !== g.critic) { g.critic = d.critic; sc++; }
@@ -7870,6 +7881,66 @@ const TAG_ALIAS = {
   funny: "Comedy", comedy: "Comedy", cute: "Cozy", relaxing: "Cozy", atmospheric: "Dark"
 };
 const GENRE_BY_NORM = GENRES.reduce((a, g) => { a[norm(g)] = g; return a; }, {});
+/* v317 (the owner: "I love games with good graphics… modern HD stuff, not Octopath"): how a game LOOKS, apart from what kind
+   of game it is. Filled by itself from what Steam players call it (g.stTags) and RAWG's tags (g.lkT, kept when a game is
+   looked up); a pick in Edit › How it looks wins (g.look, a string, "" = none). "Modern HD" = Steam says Realistic or
+   Cinematic, or 3D with nothing pixel, 2D or retro. lookLean() learns which looks you go for from the games you scored and
+   the ones waiting in your queue (hype), and On deck, Nexi's guess, "What I've learned" and Nexi's chats use it. */
+const LOOKS = [["Modern HD", []], ["Realistic", ["realistic", "photorealistic"]], ["Stylized", ["stylized", "celshaded", "celshading"]],
+  ["Anime", ["anime"]], ["Cinematic", ["cinematic"]], ["Beautiful", ["beautiful"]], ["Pixel art", ["pixelgraphics", "pixelart"]],
+  ["2.5D", ["25d"]], ["Hand-drawn", ["handdrawn"]], ["Cartoony", ["cartoony", "cartoon"]], ["Retro", ["retro", "oldschool"]],
+  ["Minimalist", ["minimalist"]], ["Low-poly", ["lowpoly"]], ["Voxel", ["voxel"]]];
+const LOOK_NAMES = LOOKS.map(x => x[0]);
+const LOOK_TAG = LOOKS.reduce((a, [n, al]) => { al.forEach(k => a[k] = n); return a; }, {});
+const LOOK_FLAT = new Set(["pixelgraphics", "pixelart", "25d", "2d", "retro", "oldschool", "handdrawn", "voxel", "lowpoly"]);
+function looksFromTags(tags) {
+  const ks = (tags || []).map(norm), out = [];
+  ks.forEach(k => { const n = LOOK_TAG[k]; if (n && !out.includes(n)) out.push(n); });
+  if (!ks.some(k => LOOK_FLAT.has(k)) && ks.some(k => k === "realistic" || k === "photorealistic" || k === "cinematic" || k === "3d")) out.unshift("Modern HD");
+  return out.slice(0, 4);
+}
+/* the look tags out of a RAWG tag list (names only, the ones looksFromTags reads) */
+const lookRaw = arr => (arr || []).filter(t => !t || !t.language || t.language === "eng").map(t => String((t && t.name) || t || ""))
+  .filter(n => { const k = norm(n); return LOOK_TAG[k] || LOOK_FLAT.has(k) || k === "3d"; }).slice(0, 8);
+function lookOf(g) {
+  if (!g) return [];
+  if (typeof g.look === "string") return platList(g.look).filter(x => LOOK_NAMES.includes(x));
+  return looksFromTags((g.stTags || []).concat(g.lkT || []));
+}
+function lookPicker(id, current) {
+  const on = platList(current);
+  return `<div class="platpick genrepick" id="${id}">${LOOK_NAMES.map(n => `<button class="chip" data-p="${esc(n)}" aria-pressed="${on.includes(n)}"><span>${esc(n)}</span></button>`).join("")}</div>`;
+}
+/* per look: lean -1..1 (how much you go for it) and n (games it rests on). A scored game counts against your own average
+   score, a dropped one against it, a game waiting in the queue by its hype (at half weight: wanting isn't playing) */
+let lookMemo = null;
+function lookLean() {
+  const sc = S.played.filter(scored), sig = sc.map(p => p.id + p.real).join() + "|" + S.games.map(g => g.id + lookOf(g).join("/") + g.hype + g.state).join();
+  if (lookMemo && lookMemo.sig === sig) return lookMemo.l;
+  const avg = sc.length ? sc.reduce((a, p) => a + p.real, 0) / sc.length : 7, acc = {};
+  S.games.forEach(g => {
+    const ls = lookOf(g); if (!ls.length || g.comp) return;
+    const p = playedRec(g); let v, w;
+    if (p && scored(p)) { v = (p.real - avg) / 2.5; w = 1; }
+    else if (isDropped(g)) { v = -.6; w = .7; }
+    else if (!p) { v = .3 + (num(g.hype, 5, 0, 10) - 5) / 6; w = .5; }
+    else return;
+    v = Math.max(-1, Math.min(1, v));
+    ls.forEach(l => { const a = acc[l] ||= { s: 0, w: 0, n: 0 }; a.s += v * w; a.w += w; a.n++; });
+  });
+  const l = {}; Object.entries(acc).forEach(([k, a]) => l[k] = { lean: a.s / (a.w + 1.5), n: a.n });
+  lookMemo = { sig, l }; return l;
+}
+/* how well a game's look fits you: the mean lean of its looks that rest on 2+ games */
+function lookFit(g) {
+  const l = lookLean(), ls = lookOf(g).filter(x => l[x] && l[x].n >= 2);
+  return ls.length ? ls.reduce((a, x) => a + l[x].lean, 0) / ls.length : 0;
+}
+/* the game's look you go for most, when it's clearly one you like ("" otherwise) */
+function lookTop(g) {
+  const l = lookLean(), best = lookOf(g).filter(x => l[x] && l[x].n >= 2 && l[x].lean >= .25).sort((a, b) => l[b].lean - l[a].lean)[0];
+  return best || "";
+}
 const mapTags = arr => (arr || [])
   .filter(t => !t || !t.language || t.language === "eng")
   .map(t => {
@@ -8645,11 +8716,11 @@ const qbIc = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${QB_IC[k]}</svg>
 function qbAreas(g) {
   const own = RATINGS.map(([k]) => num((g.mine || {})[k], 0, 0, 10));
   if (own.some(v => v > 0)) return { vals: own, guess: false };
-  const gs = platList(g.genres).map(x => x.toLowerCase());
+  const gs = platList(g.genres).map(x => x.toLowerCase()), ls = lookOf(g);   /* v317: games that look alike count more too */
   const rated = S.games.filter(x => x.id !== g.id && x.mine && RATINGS.some(([k]) => x.mine[k] > 0));
   if (!rated.length) return null;
   const vals = RATINGS.map(([k]) => { let s = 0, w = 0;
-    rated.forEach(x => { const v = num(x.mine[k], 0, 0, 10); if (!v) return; const wt = platList(x.genres).some(n => gs.includes(n.toLowerCase())) ? 3 : 1; s += v * wt; w += wt; });
+    rated.forEach(x => { const v = num(x.mine[k], 0, 0, 10); if (!v) return; const wt = (platList(x.genres).some(n => gs.includes(n.toLowerCase())) ? 3 : 1) * (lookOf(x).some(n => ls.includes(n)) ? 1.5 : 1); s += v * wt; w += wt; });
     return w ? Math.round(s / w * 10) / 10 : 0; });
   return vals.some(v => v > 0) ? { vals, guess: true } : null;
 }
@@ -13218,6 +13289,11 @@ function tasteInsights() {
   if (sTier.length >= 2) { const c = {}; sTier.forEach(g => platList(g.genres).forEach(x => c[x] = (c[x] || 0) + 1));
     const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
     if (top && top[1] >= Math.ceil(sTier.length / 2)) out.push({ ic: uiIc("crown"), txt: `${top[1]} of your ${sTier.length} S-tier games are <b>${esc(tagWord(top[0].toLowerCase()))}</b>`, sub: "The top of your ranking" }); }
+  /* v317: the looks you go for and the one you skip */
+  const lks = Object.entries(lookLean()).filter(([, x]) => x.n >= 3).sort((a, b) => b[1].lean - a[1].lean);
+  const up = lks.filter(([, x]) => x.lean >= .2).slice(0, 2), dn = lks.filter(([, x]) => x.lean <= -.1).slice(-1);
+  if (up.length) out.push({ ic: uiIc("up"), txt: `You go for the <b>${up.map(([k]) => esc(k)).join("</b> and <b>")}</b> look`, sub: "From how it looks, in the games you scored and the ones waiting in your queue" });
+  if (dn.length) out.push({ ic: uiIc("down"), txt: `<b>${esc(dn[0][0])}</b> isn't your look`, sub: `Lower scores and less hype than your other games (${dn[0][1].n} games)` });
   /* signals from the last 90 days */
   const since = Date.now() - 90 * 864e5, sig = (S.sig || []).filter(x => x.t > since);
   const count = k => { const c = {}; sig.filter(x => x.k === k).forEach(x => x.tg.forEach(tg => c[tg] = (c[tg] || 0) + 1)); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]; };
@@ -13248,7 +13324,7 @@ let deckMemo = null;
 function onDeckScores() {
   const live = S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp);
   const t = rankTable(), fav = rankedGames();
-  const sig = live.map(g => g.id + g.genres + g.platforms + g.hype + g.state).join() + t.sig + curPlat() + (S.duels || []).length;
+  const sig = live.map(g => g.id + g.genres + g.platforms + g.hype + g.state + lookOf(g)).join() + t.sig + curPlat() + (S.duels || []).length + (lookLean(), lookMemo.sig);
   if (deckMemo && deckMemo.sig === sig) return deckMemo.s;
   const elo = eloTable(), tags = g => new Set(platList(g.genres).map(x => x.toLowerCase()));
   const favW = fav.map((g, i) => ({ tg: tags(g), w: Math.max(.15, 1 - i / Math.max(4, fav.length)) * (t.sc[g.id] / 10) }));
@@ -13261,7 +13337,8 @@ function onDeckScores() {
   live.forEach((g, i) => {
     const out = g.state === "backlog" || g.state === "playing" || isFresh(g) || (g.date && new Date(g.date + "T00:00:00") <= new Date());
     s[g.id] = .45 * (sims[i] / smax) + .2 * (emax > emin ? (el[i] - emin) / (emax - emin) : .5) + .2 * (onPlat(g) ? 1 : 0)
-      + .1 * num(g.hype, 5, 0, 10) / 10 + (g.state === "playing" ? .08 : 0) + (out ? 1 : 0);   /* out now always beats not out yet */
+      + .1 * num(g.hype, 5, 0, 10) / 10 + (g.state === "playing" ? .08 : 0) + (out ? 1 : 0)   /* out now always beats not out yet */
+      + .15 * lookFit(g);   /* v317: a look you go for (Modern HD, Pixel art…) lifts it, one you don't lowers it */
   });
   deckMemo = { sig, s };
   return s;
@@ -13277,6 +13354,7 @@ function deckWhy(g) {
   const like = fav.find(f => platList(f.genres).some(x => tg.has(x.toLowerCase())));
   const bits = [];
   if (like) bits.push("like your #" + (rankOf(like.id)) + " " + like.title);
+  const lk = !like && lookTop(g); if (lk) bits.push(lk + ", your kind of look");
   if (onPlat(g) && curPlat() !== "any") bits.push("on " + curPlat());
   if (g.state === "playing") bits.push("you've started it");
   else if (!(g.state === "backlog" || isFresh(g))) bits.push(g.date ? "out " + shortDate(g.date) : "not out yet");
@@ -14912,7 +14990,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
   const rated = skip => S.played.filter(p => scored(p) && p.id !== skip).map(p => {
     const g = S.games.find(x => x.id === p.id); if (!g) return null;
     const m = g.mine || {};
-    return { title: g.title, score: p.real, again: !!p.again, genres: platList(g.genres).slice(0, 3),
+    return { title: g.title, score: p.real, again: !!p.again, genres: platList(g.genres).slice(0, 3).concat(lookOf(g).slice(0, 2).map(x => x + " look")),
       liked: whyOf(g).map(k => LABEL[k]).filter(Boolean).slice(0, 6),
       parts: RATINGS.filter(([k]) => m[k] > 0).map(([k, l]) => l + " " + m[k]) };
   }).filter(Boolean).sort((a, b) => b.score - a.score);
@@ -14936,7 +15014,7 @@ document.addEventListener("click",async e=>{if(!e.target.closest("[data-pnsend]"
     paint(o, g, `<p class="awload">Reading your ratings…</p>`);
     const pick = taste.length > 18 ? taste.slice(0, 12).concat(taste.slice(-6)) : taste;
     const me = S.played.find(p => p.id === g.id);
-    const game = { title: g.title, genres: platList(g.genres).slice(0, 4), platforms: platList(g.platforms).slice(0, 4),
+    const game = { title: g.title, genres: platList(g.genres).slice(0, 4).concat(lookOf(g).slice(0, 2).map(x => x + " look")), platforms: platList(g.platforms).slice(0, 4),
       about: String(g.desc || g.about || "").slice(0, 500), played: !!(me && scored(me)), myScore: me && me.real || null };
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 30000);
     fetch(SGDB_PROXY + "/why", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -21975,7 +22053,7 @@ function gdAbout(g) {
    rest in place, plus what Steam players call it (g.stTags, fetched by stSync, never shown before). Each genre says how many of
    your games share it, and a tap opens your Queue filtered to it ("G:<genre>", next to your lists) */
 const gdKey = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-const gdGenreSet = x => new Set(platList(x.genres).concat(x.stTags || []).map(gdKey));
+const gdGenreSet = x => new Set(platList(x.genres).concat(x.stTags || [], lookOf(x)).map(gdKey));
 function gdTagData(g) {
   const base = platList(g.genres).filter((t, i, a) => a.findIndex(x => gdKey(x) === gdKey(t)) === i), seen = new Set(base.map(gdKey));
   const gen = typeof ST_GENERIC !== "undefined" ? ST_GENERIC : new Set();
@@ -21986,8 +22064,12 @@ function gdTagData(g) {
 function gdTags(g, state, plats) {
   const { base, st, n } = gdTagData(g), more = base.slice(3).length + st.length;
   const chip = (t, cls) => { const c = n(t); return `<button type="button" class="gtag${cls ? " " + cls : ""}" data-gtag="${esc(t)}" title="${esc(c > 1 ? `${c} of your games are ${t} · tap to see them` : `See your ${t} games`)}">${esc(t)}${c > 1 ? `<small>${c}</small>` : ""}</button>`; };
-  if (!state && !base.length && !st.length && !plats) return "";
-  return `<div class="gd-tags">${state ? `<span class="acc">${esc(state)}</span>` : ""}${base.slice(0, 3).map(t => chip(t)).join("")}${
+  /* v317: how it looks, right after the first genres, plus whether that's your kind of look */
+  const lks = lookOf(g), fit = lks.length ? lookFit(g) : 0;
+  const look = lks.length ? `<span class="gd-lk"><i class="gd-tlab">Looks</i>${lks.map(t => chip(t, "lk")).join("")}${
+    fit >= .25 ? '<i class="gd-lkfit up">Your kind of look</i>' : fit <= -.2 ? '<i class="gd-lkfit">Not your usual look</i>' : ""}</span>` : "";
+  if (!state && !base.length && !st.length && !plats && !look) return "";
+  return `<div class="gd-tags">${state ? `<span class="acc">${esc(state)}</span>` : ""}${base.slice(0, 3).map(t => chip(t)).join("")}${look}${
     more ? `<span class="gd-tmore" hidden>${base.slice(3).map(t => chip(t)).join("")}${st.length ? `<i class="gd-tlab">Steam players say</i>${st.map(t => chip(t, "st")).join("")}` : ""}</span>
       <button type="button" class="gtag gd-tplus" data-gdtags aria-expanded="false" aria-label="Show ${more} more tags">+${more}</button>` : ""}${plats}</div>`;
 }
@@ -26978,6 +27060,7 @@ const GICON = {
   "Release": "<g opacity='.35'><rect x='2.5' y='4.5' width='19' height='17' rx='3'/></g><path d='M5.5 4.5h13a3 3 0 0 1 3 3v2h-19v-2a3 3 0 0 1 3-3z'/><rect x='6.6' y='2' width='2.2' height='5' rx='1.1'/><rect x='15.2' y='2' width='2.2' height='5' rx='1.1'/><rect x='13.4' y='13.4' width='4.6' height='4.6' rx='1.2'/>",
   "Where it stands": "<g opacity='.35'><ellipse cx='12' cy='20.6' rx='6' ry='1.6'/></g><path fill-rule='evenodd' d='M12 2a7 7 0 0 1 7 7c0 4.6-5 9.4-6.4 10.6a.9.9 0 0 1-1.2 0C10 18.4 5 13.6 5 9a7 7 0 0 1 7-7zm0 4.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z'/>",
   "Platforms": "<g opacity='.35'><rect x='6.5' y='5' width='11' height='14' rx='1.4'/></g><path d='M5.5 5v14H4.2A2.7 2.7 0 0 1 1.5 16.3V7.7A2.7 2.7 0 0 1 4.2 5z'/><path d='M18.5 5h1.3a2.7 2.7 0 0 1 2.7 2.7v8.6a2.7 2.7 0 0 1-2.7 2.7h-1.3z'/><g opacity='.35'><circle cx='3.5' cy='9' r='1'/></g><g opacity='.35'><circle cx='20.5' cy='14.6' r='1'/></g>",
+  "How it looks": "<path opacity='.35' d='M12 5C6.6 5 2.8 9 1.4 12c1.4 3 5.2 7 10.6 7s9.2-4 10.6-7C21.2 9 17.4 5 12 5z'/><circle cx='12' cy='12' r='3.8'/>",
   "Genres and tags": "<circle cx='7.2' cy='7.2' r='4.4'/><g opacity='.35'><rect x='13' y='3' width='8.4' height='8.4' rx='2'/></g><g opacity='.35'><circle cx='7.2' cy='16.8' r='4.4'/></g><path d='M17.2 12.6L21.6 20.6L12.8 20.6z'/>",
   "Notes": "<g opacity='.35'><path d='M5 2.5h14A2.5 2.5 0 0 1 21.5 5v10.5l-6 6H5A2.5 2.5 0 0 1 2.5 19V5A2.5 2.5 0 0 1 5 2.5z'/></g><path d='M21.5 15.5h-4a2 2 0 0 0-2 2v4z'/><rect x='6.4' y='7' width='11.2' height='2' rx='1'/><rect x='6.4' y='11' width='8' height='2' rx='1'/>",
   "Hype": "<g opacity='.35'><path d='M12.4 1.8c.6 3.6 6.6 6.2 6.6 12.2a7 7 0 0 1-14 0c0-2.8 1.4-4.6 2.8-5.8.2 1.8 1 2.8 2 3.4-.3-4.2.8-7.4 2.6-9.8z'/></g><path d='M12.3 10.6c.4 2.2 3.7 3.6 3.7 7.1a4 4 0 0 1-8 0c0-1.7.8-2.8 1.7-3.5.2 1 .6 1.6 1.2 2-.2-2.5.4-4.2 1.4-5.6z'/>",
@@ -27589,6 +27672,11 @@ button.icon .uic, .ls-b .uic, #hrail .act .uic { margin-right: 0; width: 1.3em; 
 .shs-tk b { margin-top: 3px; font: 700 clamp(16px, 4.4vw, 23px)/1.15 "Poppins", system-ui, sans-serif; color: var(--ice); white-space: nowrap; }
 .shs-tk.shs-on { background: rgba(var(--vrgb), .18); border-color: rgba(var(--vrgb), .7); }
 .shs-tk.shs-on span { color: var(--ice); }
+/* v317: game page › Looks (how a game looks: Modern HD, Pixel art…) */
+.gd-tags span.gd-lk { display: contents; }
+.gd-tags .gtag.lk { border-color: rgba(var(--vrgb), .32); }
+.gd-tags .gd-lkfit { align-self: center; padding: 0 4px; font: 600 11px/1.2 "Poppins", system-ui, sans-serif; font-style: normal; color: var(--mute); white-space: nowrap; }
+.gd-tags .gd-lkfit.up { color: var(--volt); }
 </style>
 <script>
 WHATS_NEW.push(
@@ -28099,5 +28187,13 @@ WHATS_NEW.push(
     at: () => $("#p-taste .shs-hero") || $("#p-taste .ix-hero") || null,
     say: "<b>Insights has a new top</b>: your three favourite games shattered into one picture with your player type across it, your tarot cards under it, an S‑tier shelf, a sky of the genres you love and the month your backlog is done.",
     tryIt: "Open Insights and scroll. Dashed stars in Your sky are genres you haven't tried: tap the game under the sky to open the one that would light one. Customise › Top of Insights switches back." }
+);
+/* v317: how a game looks (lookOf / lookLean, next to GENRE_GROUPS): the tour opens the first game with a known look */
+WHATS_NEW.push(
+  { v: 317, go: () => { dyClose(); nxShut(); const g = S.games.find(x => lookOf(x).length && !isPlayed(x)) || S.games.find(x => lookOf(x).length);
+      if (!g) return nxOpenGame(); if ($("#sheet") && $("#sheet").classList.contains("on")) closeEdit(); if (!($("#full.on") && hubAt === g.id)) openFull(g.id); },
+    at: () => $("#full .gd-tags .gtag.lk") || null,
+    say: "<b>I know how your games look now</b>: Modern HD, Stylized, Anime, Pixel art, 2.5D and more, straight from what Steam players say. I learn which looks you love from your scores and hype, and On deck leans that way.",
+    tryIt: "Open a game and find Looks under its genres: tap one to see every game with that look. Edit › How it looks changes it, and Insights › What I've learned says which looks you go for." }
 );
 </script>

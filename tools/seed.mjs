@@ -8,6 +8,8 @@ export const TITLES = ["Starfall Odyssey", "Crimson Tactics", "Neon Drift", "Ech
 import { LOGOS } from "./standin-logos.mjs";
 import { steamId, tagsFor, reviewFor, hoursFor, criticFor, newsFor } from "./fake-helper.mjs";
 const ART = ["fefw-key-art.jpg", "logo-512.png", "FEFT_cast.webp"];
+/* v317: what Steam players say about how each PC game looks (Modern HD, Pixel art…), so the Looks row and lookLean are swept */
+const LOOK_TAGS = [["Realistic", "3D"], ["Pixel Graphics", "2D"], ["Anime", "Stylized", "3D"], ["Hand-drawn"], ["Cinematic", "Beautiful"]];
 const day = 864e5, iso = d => new Date(Date.now() + d * day).toISOString().slice(0, 10);
 
 export function seed(APP_V, n = TITLES.length, { bare = false } = {}) {
@@ -25,7 +27,7 @@ export function seed(APP_V, n = TITLES.length, { bare = false } = {}) {
   if (!bare) games.forEach((g, i) => {
     const now = Date.now(), pc = /PC/.test(g.platforms);
     /* a phone that has been online: Steam knows the PC games, critics and players scored most, HowLongToBeat timed them */
-    if (pc) Object.assign(g, { stId: steamId(g.id), stTags: tagsFor(g.id), stAt: now, rv: { st: (({ d, p, n }) => ({ d, p, n }))(reviewFor(g.id)), at: now } });
+    if (pc) Object.assign(g, { stId: steamId(g.id), stTags: tagsFor(g.id).concat(LOOK_TAGS[i % LOOK_TAGS.length]), stAt: now, rv: { st: (({ d, p, n }) => ({ d, p, n }))(reviewFor(g.id)), at: now } });
     if (g.status === "out" && i % 5 !== 3) { g.rv = { ...(g.rv || { at: now }), mc: criticFor(g.id), mcP: "PlayStation 5", us: 3.4 + (i % 5) * .3, un: 180 + i * 41 }; g.critic = criticFor(g.id); g.criticFrom = "RAWG"; }
     const h = hoursFor(g.id); g.hoursX = h.x; g.hours100 = h.c; g.hbAt = now;
     /* news for the two games being played: the newest post is the one already seen, the older two came in this week */
