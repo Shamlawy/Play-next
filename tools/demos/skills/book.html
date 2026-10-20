@@ -1,0 +1,182 @@
+<!doctype html>
+<!-- Demo (idea M42, the skills book): the Book tab next to Insights. A deterministic page: seek(t) draws the moment t seconds
+     in (cover opens, the pages riffle to the latest game, a finger turns one page), so tools/demos/skills/book-render.mjs can
+     film it frame by frame. Games and words come from window.BOOK (a private DATA file); the made-up ones below are the default.
+     Only transform and opacity move. Not part of the app. -->
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=block" rel="stylesheet">
+<style>
+:root { --bg: #000; --pan: #0b1020; --paper: #10172a; --paper2: #141c33; --line: rgba(234,242,255,.09); --ice: #eaf2ff; --mute: #8fa0c2; --volt: #4da3ff;
+  --f: "Poppins", system-ui, sans-serif; }
+html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+body { font: 500 13px/1.45 var(--f); color: var(--ice); }
+body::before { content: ""; position: fixed; inset: 0; background: radial-gradient(120% 70% at 50% 0%, rgba(40,90,200,.32), transparent 60%); }
+.scr { position: relative; height: 100%; display: flex; flex-direction: column; }
+.hd { padding: 26px 28px 0; }
+.hd h1 { margin: 0; font: 700 30px/1.15 var(--f); letter-spacing: -.015em; }
+.hd p { margin: 4px 0 0; color: var(--mute); font-size: 13.5px; }
+.desk { flex: 1; display: grid; place-items: center; min-height: 0; }
+.book { position: relative; width: var(--W); height: var(--H); perspective: 2400px; will-change: transform; }
+.pg { position: absolute; top: 0; width: 50%; height: 100%; box-sizing: border-box; overflow: hidden; background: var(--paper); }
+.pg.l { left: 0; border-radius: 16px 4px 4px 16px; background: linear-gradient(270deg, #0a0f1d, var(--paper) 9%); }
+.pg.r { left: 50%; border-radius: 4px 16px 16px 4px; background: linear-gradient(90deg, #0a0f1d, var(--paper) 9%); }
+.leaf { position: absolute; top: 0; left: 50%; width: 50%; height: 100%; transform-origin: 0 50%; transform-style: preserve-3d; }
+.leaf > .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; box-sizing: border-box; }
+.leaf > .fr { border-radius: 4px 16px 16px 4px; background: linear-gradient(90deg, #0a0f1d, var(--paper) 9%); }
+.leaf > .bk { transform: rotateY(180deg); border-radius: 16px 4px 4px 16px; background: linear-gradient(270deg, #0a0f1d, var(--paper) 9%); }
+.face > .sh { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+.cast { position: absolute; top: 0; width: 50%; height: 100%; pointer-events: none; opacity: 0; }
+.cast.r { left: 50%; background: linear-gradient(90deg, rgba(0,0,0,.65), transparent 70%); border-radius: 4px 16px 16px 4px; }
+.cast.l { left: 0; background: linear-gradient(270deg, rgba(0,0,0,.65), transparent 70%); border-radius: 16px 4px 4px 16px; }
+.edge { position: absolute; top: 6px; bottom: 6px; width: 7px; border-radius: 3px; background: repeating-linear-gradient(90deg, #1b2440 0 1px, #0d1324 1px 2px); }
+/* page contents */
+.in { position: absolute; inset: 0; padding: 26px 26px 22px 30px; display: flex; flex-direction: column; gap: 12px; }
+.pg.l .in, .bk .in { padding: 26px 30px 22px 26px; }
+.folio { position: absolute; bottom: 12px; font: 600 10.5px/1 var(--f); color: var(--mute); opacity: .7; }
+.r .folio, .fr .folio { right: 22px; } .l .folio, .bk .folio { left: 22px; }
+.kick { font: 600 11px/1.2 var(--f); color: var(--volt); white-space: nowrap; }
+h2 { margin: 0; font: 700 21px/1.18 var(--f); letter-spacing: -.015em; text-wrap: balance; }
+.sk { display: grid; gap: 5px; padding: 12px 13px; border-radius: 14px; background: var(--paper2); border: 1px solid var(--line); }
+.sk .k { display: flex; align-items: center; gap: 7px; font: 600 10.5px/1.2 var(--f); color: var(--volt); white-space: nowrap; }
+.sk .k i { width: 14px; height: 4px; border-radius: 2px; background: rgba(234,242,255,.16); } .sk .k i.on { background: var(--volt); }
+.sk .g { font: 700 14px/1.28 var(--f); letter-spacing: -.01em; }
+.sk dl { display: grid; grid-template-columns: 70px 1fr; gap: 4px 8px; margin: 3px 0 0; }
+.sk dt { font: 600 10.5px/1.45 var(--f); color: var(--mute); white-space: nowrap; }
+.sk dd { margin: 0; font: 500 11px/1.45 var(--f); color: rgba(234,242,255,.84); }
+.sk dt.life { color: var(--volt); } .sk dd.life { color: var(--ice); font-weight: 600; }
+/* art page: the game's own colour, its name big (the app uses the game's key art here) */
+.art { position: absolute; inset: 0; background: linear-gradient(160deg, var(--c) 0%, rgba(0,0,0,.2) 55%, #070b16 100%); }
+.art::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 2px, transparent 2px 22px); }
+.art .emb { position: absolute; left: 50%; top: 38%; width: 46%; aspect-ratio: 1; transform: translate(-50%, -50%) rotate(45deg); border-radius: 22%; border: 2px solid rgba(255,255,255,.35); background: rgba(0,0,0,.18); }
+.art .emb::after { content: ""; position: absolute; inset: 18%; border-radius: 22%; background: rgba(255,255,255,.12); }
+.art .ttl { position: absolute; left: 26px; right: 30px; bottom: 54px; font: 700 26px/1.12 var(--f); letter-spacing: -.02em; text-wrap: balance; }
+.art .meta { position: absolute; left: 26px; bottom: 28px; font: 600 11.5px/1 var(--f); color: rgba(234,242,255,.8); white-space: nowrap; }
+.art .note { position: absolute; left: 26px; top: 22px; font: 600 10px/1 var(--f); color: rgba(234,242,255,.55); }
+.seal { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); width: 64px; height: 64px; border-radius: 50%; background: #0a0f1d; display: grid; place-items: center; color: var(--mute); border: 1px solid var(--line); }
+.cover { position: absolute; inset: 0; border-radius: 4px 18px 18px 4px; background: linear-gradient(150deg, #1f3c8a, #0d1a3f 55%, #070d22); }
+.cover::before { content: ""; position: absolute; inset: 14px; border: 1.5px solid rgba(160,200,255,.35); border-radius: 12px; }
+.cover .t { position: absolute; left: 34px; right: 34px; top: 34%; font: 700 30px/1.1 var(--f); letter-spacing: -.02em; text-wrap: balance; }
+.cover .s { position: absolute; left: 34px; right: 34px; top: calc(34% + 84px); color: rgba(234,242,255,.75); font-size: 12.5px; }
+.cover .chips { position: absolute; left: 34px; right: 34px; bottom: 44px; display: flex; flex-wrap: wrap; gap: 6px; }
+.cover .chips span, .chip { font: 600 11px/1 var(--f); padding: 7px 10px; border-radius: 999px; background: rgba(77,163,255,.16); color: var(--ice); white-space: nowrap; }
+.toc { display: grid; gap: 10px; margin-top: 6px; }
+.toc div { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+.toc div b { font-weight: 600; } .toc div span { margin-left: auto; color: var(--mute); font-size: 11.5px; white-space: nowrap; }
+.toc div.sealed { color: var(--mute); }
+.big { font: 700 44px/1 var(--f); letter-spacing: -.03em; color: var(--volt); }
+.you { border: 1px dashed rgba(234,242,255,.22); border-radius: 14px; padding: 14px; color: var(--mute); font-size: 12px; }
+.you b { color: var(--ice); }
+/* the Insights sub-tabs, with Book */
+.tabs { align-self: center; margin: 0 0 26px; display: flex; gap: 4px; padding: 5px; border-radius: 999px; background: rgba(11,16,32,.92); border: 1px solid var(--line); }
+.tabs span { font: 700 13px/1 var(--f); padding: 12px 18px; border-radius: 999px; color: var(--mute); white-space: nowrap; }
+.tabs span.on { background: var(--volt); color: #04111f; }
+.finger { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,.28); border: 2px solid rgba(255,255,255,.6); opacity: 0; pointer-events: none; z-index: 999; }
+/* folded: one page at a time; the book's left half sits off screen and a turned page leaves to the left */
+.fold .desk { justify-items: start; overflow: hidden; }
+.fold .art.top { bottom: auto; height: 34%; }
+.fold .art.top .emb { width: 26%; top: 46%; }
+.fold .art.top .ttl { bottom: 34px; font-size: 22px; } .fold .art.top .meta { bottom: 14px; }
+.fold .in.under { top: 34%; padding-top: 14px; }
+</style></head><body>
+<div class="scr" id="scr">
+  <div class="hd"><h1>Book</h1><p>What your games taught you</p></div>
+  <div class="desk"><div class="book" id="book"></div></div>
+  <div class="tabs"><span>Insights</span><span>Duels</span><span>Friend</span><span class="on">Book</span></div>
+  <div class="finger" id="fg"></div>
+</div>
+<script>
+const DEF = { games: [
+  { title: "Starfall Odyssey", played: 1, accent: "#7C5CFF", hours: 46, skills: [
+    { n: "Prioritising", lv: 3, gain: "Better at prioritising, and at dropping what doesn't matter", txt: "The 60-day voyage never has enough days.", mind: "You practise trade-offs.", life: "You get stuck less on what to do first.", tr: "Pick one thing each morning." }] }],
+  cover: ["Prioritising", "Empathy"] };
+const B = window.BOOK || DEF;
+const esc = s => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const AMT = ["", "some", "a lot", "a core part"];
+const played = B.games.filter(g => g.played), sealed = B.games.filter(g => !g.played);
+const sk = s => `<div class="sk"><div class="k">${esc(s.n)} ${[1, 2, 3].map(i => `<i class="${i <= s.lv ? "on" : ""}"></i>`).join("")} <span style="color:var(--mute)">${AMT[s.lv]}</span></div>
+  <div class="g">${esc(s.gain)}</div><dl><dt>In the game</dt><dd>${esc(s.txt)}</dd>${s.mind ? `<dt>In your head</dt><dd>${esc(s.mind)}</dd>` : ""}${s.life ? `<dt class="life">In your life</dt><dd class="life">${esc(s.life)}</dd>` : ""}${s.tr ? `<dt>Try</dt><dd>${esc(s.tr)}</dd>` : ""}</dl></div>`;
+const art = (g, n) => `<div class="art" style="--c:${g.accent}"><span class="note">the game's key art goes here</span><span class="emb"></span>${g.played ? "" : `<span class="seal"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path opacity=".35" d="M5 10h14v11H5z"/><path d="M8 10V7a4 4 0 0 1 8 0v3h-2V7a2 2 0 0 0-4 0v3z"/></svg></span>`}
+  <div class="ttl">${esc(g.title)}</div><div class="meta">${g.played ? `Finished · ~${g.hours}h · ${g.skills.length} skills` : "Not played yet · sealed until you finish"}</div></div>`;
+/* every page side in reading order. Unfolded: spreads [cover | contents, intro | art, skills 1-2 | skills 3-4, what stayed | …].
+   Folded: one page at a time, the art as a band on top of the game's first page. */
+const fold = innerWidth < 600;
+if (fold) document.body.classList.add("fold");
+const P = [];
+const cover = `<div class="cover"><div class="t">What my games taught me</div><div class="s">${played.length} games finished · ${played.reduce((a, g) => a + g.skills.length, 0)} skills</div>
+  <div class="chips">${(B.cover || []).map(c => `<span>${esc(c)}</span>`).join("")}</div></div>`;
+const stayed = g => `<div class="in"><div class="kick">${esc(g.title)} · what stayed</div><h2>${g.skills.length} skills from ~${g.hours} hours</h2>
+   <div style="display:flex;flex-wrap:wrap;gap:6px">${g.skills.map(s => `<span class="chip">${esc(s.n)}</span>`).join("")}</div>
+   <div class="you"><b>Nexi asked:</b> did anything stick with you?<br><br>Your answer is written here, in your own words.</div></div>`;
+const per = 4, toc = [], body = []; let pn = 3;
+played.forEach(g => { toc.push([g.title, pn]);
+  if (fold) body.push(`${art(g).replace('class="art"', 'class="art top"')}<div class="in under">${sk(g.skills[0])}</div>`,
+    `<div class="in"><div class="kick">${esc(g.title)}</div>${g.skills.slice(1, 3).map(sk).join("")}</div>`,
+    `<div class="in"><div class="kick">${esc(g.title)}</div>${g.skills.slice(3, 4).map(sk).join("")}</div>`, stayed(g));
+  else body.push(art(g), `<div class="in"><div class="kick">${esc(g.title)}</div>${g.skills.slice(0, 2).map(sk).join("")}</div>`, `<div class="in">${g.skills.slice(2, 4).map(sk).join("")}</div>`, stayed(g));
+  pn += per; });
+sealed.forEach(g => { toc.push([g.title, pn, 1]);
+  if (fold) body.push(`${art(g).replace('class="art"', 'class="art top"')}<div class="in under">${sk(g.skills[0])}</div>`);
+  else body.push(art(g), `<div class="in"><div class="kick">${esc(g.title)} · sealed</div>${g.skills.slice(0, 2).map(sk).join("")}</div>`); pn += fold ? 1 : 2; });
+const contents = `<div class="in"><div class="kick">Contents</div><h2>Your games, in the order you finished them</h2><div class="toc">${toc.map(([t, p, s]) =>
+  `<div class="${s ? "sealed" : ""}"><b>${esc(t)}</b><span>${s ? "sealed" : "p. " + p}</span></div>`).join("")}</div></div>`;
+const intro = `<div class="in" style="justify-content:center"><div class="big">${played.length}</div><h2>games finished</h2><p style="margin:0;color:var(--mute)">Each one left you better at something. Turn the page.</p></div>`;
+const end = `<div class="in" style="justify-content:center;color:var(--mute)">More pages fill in as you finish games.</div>`;
+if (fold) [cover, contents, intro, ...body, end].forEach(x => P.push(x, `<div class="in"></div>`));   /* backs stay plain paper */
+else { P.push(cover, contents, intro, ...body, end); if (P.length % 2) P.push(`<div class="in"></div>`); }
+/* leaf j: front = P[2j], back = P[2j+1] */
+const book = document.getElementById("book"), N = P.length / 2;
+const W = fold ? (innerWidth - 32) * 2 : Math.min(innerWidth - 56, 980), H = Math.min(innerHeight - 220, fold ? 640 : W * .74 + 40);
+if (fold) book.style.marginLeft = (16 - W / 2) + "px";
+book.style.setProperty("--W", W + "px"); book.style.setProperty("--H", H + "px");
+book.innerHTML = `<div class="edge" style="left:-5px"></div><div class="edge" style="right:-5px"></div><div class="pg l" id="pl"></div><div class="pg r" id="pr"></div><div class="cast r" id="cr"></div><div class="cast l" id="cl"></div>` +
+  Array.from({ length: N }, (_, j) => `<div class="leaf" id="lf${j}"><div class="face fr">${P[2 * j]}<span class="folio">${j ? 2 * j : ""}</span><div class="sh"></div></div><div class="face bk">${P[2 * j + 1]}<span class="folio">${2 * j + 1}</span><div class="sh"></div></div></div>`).join("");
+const tabs = [...document.querySelectorAll(".tabs span")];
+const L = [...Array(N)].map((_, j) => document.getElementById("lf" + j)), fg = document.getElementById("fg");
+const ease = x => x < 0 ? 0 : x > 1 ? 1 : x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2, out = x => x < 0 ? 0 : x > 1 ? 1 : 1 - Math.pow(1 - x, 3);
+/* where the reader lands: the first page of the latest finished game (the last played one) */
+const land = fold ? 3 + (played.length - 1) * 4 : 1 + 1 + (played.length - 1) * 2;   /* leaves turned to show its art + skills 1-2 */
+/* the timeline, in seconds */
+const T = { tap: .35, in: [.55, 1.2], open: [1.3, 2.4], riffle: 2.5, settle: 4.6, swipe: [6.9, 8.2] };
+function angleOf(j, t) {
+  if (j === 0) return 180 * ease((t - T.open[0]) / (T.open[1] - T.open[0]));
+  if (j < land) { /* the riffle: quick at first, each later page a little slower, the last one settles */
+    const k = j - 1, n = land - 1, st = T.riffle + (T.settle - .8 - T.riffle) * Math.pow(k / Math.max(1, n - 1), 1.6), d = .42 + .5 * (k / Math.max(1, n - 1)) ** 2;
+    return 180 * (k === n - 1 ? out((t - st) / (d + .25)) : ease((t - st) / d)); }
+  if (j === land) { /* the finger turns this one: follows the drag, then lets go */
+    const [a, b] = T.swipe, drag = (b - .5 - a), r = (t - a) / drag;
+    if (t < a) return 0; if (t < b - .5) return 120 * ease(r); return 120 + 60 * out((t - (b - .5)) / .5); }
+  return 0;
+}
+window.seek = t => {
+  const sc = .94 + .06 * out((t - T.in[0]) / (T.in[1] - T.in[0]));
+  const a0 = angleOf(0, t), shift = fold ? 0 : -(W / 4) * (1 - a0 / 180);   /* closed, the book sits centred on its cover */
+  book.style.transform = `translateX(${shift}px) scale(${sc})`; book.style.opacity = out((t - T.in[0]) / .45);
+  tabs[3].className = t >= T.tap ? "on" : ""; tabs[0].className = t < T.tap ? "on" : "";
+  let top = -1, cast = 0, side = 0;
+  L.forEach((el, j) => { const a = angleOf(j, t); el.style.transform = `rotateY(${-a}deg)`;
+    el.style.zIndex = a < 90 ? 100 - j : 200 + j;
+    el.children[0].lastElementChild.style.opacity = a < 90 ? .45 * Math.sin(a * Math.PI / 180) : 0;
+    el.children[1].lastElementChild.style.opacity = a >= 90 ? .45 * Math.sin(a * Math.PI / 180) : 0;
+    if (a > 0 && a < 180) { const c = Math.sin(a * Math.PI / 180); if (c > cast) { cast = c; side = a < 90 ? 1 : -1; } }
+    if (a >= 180) top = j; });
+  /* the static pages under the leaves: left = back of the last turned leaf, right = the page after the moving ones (hidden under them anyway) */
+  const pl = document.getElementById("pl"); pl.style.opacity = top >= 0 ? 1 : 0;
+  document.getElementById("pr").style.opacity = 0;
+  document.getElementById("cr").style.opacity = side > 0 ? cast * .9 : 0; document.getElementById("cl").style.opacity = side < 0 ? cast * .9 : 0;
+  document.querySelectorAll(".edge")[0].style.opacity = a0 > 90 ? 1 : 0;
+  /* the finger, only in the video: down, drag left, lift */
+  const [s0, s1] = T.swipe, r = (t - s0) / (s1 - .5 - s0), bx = book.getBoundingClientRect();
+  if (t < T.tap + .3) { const tr = tabs[3].getBoundingClientRect();   /* the tap on Book */
+    fg.style.left = fg.style.top = "0"; fg.style.transform = `translate(${tr.left + tr.width / 2}px, ${tr.top + tr.height / 2}px)`;
+    fg.style.opacity = t < .1 ? t / .1 : t < T.tap ? 1 : Math.max(0, 1 - (t - T.tap) / .3); }
+  else if (t > s0 - .25 && t < s1 - .2) { const x = bx.left + bx.width * (.9 - .62 * ease(r)), y = bx.top + bx.height * (.62 - .05 * ease(r));
+    fg.style.transform = `translate(${x}px, ${y}px)`; fg.style.left = "0"; fg.style.top = "0";
+    fg.style.opacity = t < s0 ? (t - (s0 - .25)) / .25 : t > s1 - .5 ? Math.max(0, 1 - (t - (s1 - .5)) / .3) : 1; } else fg.style.opacity = 0;
+};
+window.LEN = 10.5;
+/* when each page turn starts (for the page sounds): [time, how big] */
+window.TURNS = () => { const out = [];
+  for (let j = 0; j <= land; j++) { let t0 = 0; for (let t = 0; t < 12; t += 1 / 120) if (angleOf(j, t) > 2) { t0 = t; break; } out.push([t0, j === 0 ? 1 : j === land ? .9 : .55]); }
+  return out; };
+window.ready = document.fonts.ready.then(() => (seek(0), true));
+</script></body></html>
