@@ -3,3 +3,4 @@
 overlap shx-fan — the tab's game fan: covers fanned over each other on purpose
 faint shx-fan — the fan's back covers are dimmed on purpose, the front one is bright
 overlap dc-fan — the Add page's discovery card fans three covers over each other on purpose
+overlap shs-sh — Insights' shattered hero: three slanted shards whose boxes overlap, the cut (clip-path) keeps a gap between them

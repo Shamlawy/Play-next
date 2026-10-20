@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "315";
+const APP_V = "316";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -6491,6 +6491,15 @@ function openSettings(scope) {
       <div class="chips" id="s-dzx-court">
         ${[["on", "New"], ["off", "Classic"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).court ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
+      </div>
+    </div>
+
+    <div class="setgroup" data-scope="taste" data-sub="insights"><h4 data-desc="How the top of Insights opens.">Top of Insights</h4>
+      <label>Look</label>
+      <p class="note">Shattered: your top three games as one picture with your type across it, an S-tier shelf, your sky of genres and when your backlog is done. Classic: the player type card on its own.</p>
+      <div class="chips" id="s-dzx-shs">
+        ${[["on", "Shattered"], ["off", "Classic"]].map(([v, l]) =>
+          `<button class="chip" data-v="${v}" aria-pressed="${((S.dzX || {}).shs ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
     </div>
 
@@ -27528,6 +27537,58 @@ button.icon .uic, .ls-b .uic, #hrail .act .uic { margin-right: 0; width: 1.3em; 
 .dy-h b .uic { color: var(--volt); width: 1.25em; height: 1.25em; margin-right: .4em; }
 .chip > span > .uic:first-child, .btn > span > .uic:first-child { color: var(--volt); }
 .chips .chip[aria-pressed="true"] > span > .uic:first-child { color: inherit; }
+/* ===== v316: Insights "Shattered Sky" (shs*, last script) ===== */
+.ixp .shs-hero { position: relative; height: clamp(300px, 58vw, 460px); border-radius: var(--u-r); overflow: hidden; background: var(--u-card); border: 1px solid var(--u-line); isolation: isolate; }
+.shs-art { position: absolute; inset: 0; }
+.shs-art::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.2); }
+.shs-sh { position: absolute; top: 0; bottom: 0; overflow: hidden; background: var(--u-card2); }
+.shs-sh img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shs-sh.shs-n1 { left: 0; width: 100%; }
+.shs-sh.shs-n2.shs-s0 { left: 0; width: 56%; clip-path: polygon(0 0, 100% 0, 78.57% 100%, 0 100%); }
+.shs-sh.shs-n2.shs-s1 { left: 46%; width: 54%; clip-path: polygon(22.22% 0, 100% 0, 100% 100%, 0 100%); }
+.shs-sh.shs-n3.shs-s0 { left: 0; width: 40%; clip-path: polygon(0 0, 100% 0, 70% 100%, 0 100%); }
+.shs-sh.shs-n3.shs-s1 { left: 30%; width: 44%; clip-path: polygon(27.27% 0, 100% 0, 72.73% 100%, 0 100%); }
+.shs-sh.shs-n3.shs-s2 { left: 64%; width: 36%; clip-path: polygon(33.33% 0, 100% 0, 100% 100%, 0 100%); }
+.shs-slab { position: absolute; left: -10%; right: -10%; bottom: 13%; height: 33%; background: var(--volt); transform: rotate(-5deg); z-index: 1; }
+.shs-line { position: absolute; left: -10%; right: -10%; bottom: 8%; height: 6px; background: var(--ice); transform: rotate(-5deg); z-index: 1; }
+.shs-words { position: absolute; left: 18px; right: 14px; bottom: 17%; z-index: 2; transform: rotate(-5deg); transform-origin: 0 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.shs-kick { margin: 0; background: rgba(0,0,0,.85); color: var(--ice); font: 600 12.5px/1.2 "Poppins", system-ui, sans-serif; padding: 6px 11px; border-radius: 8px; }
+.shs-name { margin: 0; font: 700 clamp(38px, 10.5vw, 78px)/1 "Poppins", system-ui, sans-serif; letter-spacing: -.025em; color: var(--ice); text-shadow: 5px 5px 0 rgba(0,0,0,.85); text-transform: none; font-style: normal; }
+.shs-name.shs-long { font-size: clamp(28px, 7.4vw, 56px); }
+.ixp .shs-say { display: flex; align-items: center; gap: 18px; padding: 2px 4px; }
+.shs-stamp { flex: none; font: 700 clamp(30px, 8vw, 46px)/1 "Poppins", system-ui, sans-serif; letter-spacing: -.03em; padding: 6px 14px 8px; border-radius: 8px; background: var(--ice); color: rgb(5 8 18); transform: rotate(-4deg); box-shadow: 5px 5px 0 var(--volt); white-space: nowrap; }
+.shs-say p { margin: 0; font: 600 15px/1.45 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.ix-hero.shs-arc .ix-kick { margin-top: 2px; }
+.shs-row { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; margin: 2px -16px 0; padding: 2px 16px 4px; scroll-snap-type: x proximity; }
+.shs-row::-webkit-scrollbar { display: none; }
+.shs-tile { flex: 0 0 clamp(112px, 28vw, 150px); background: none; border: 0; padding: 0; color: var(--ice); text-align: left; font: inherit; scroll-snap-align: start; }
+.shs-pic { position: relative; display: block; aspect-ratio: 3 / 4; clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%); background: var(--u-card2); }
+.shs-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shs-pic b { position: absolute; left: 14%; bottom: -.1em; font: 700 clamp(44px, 12vw, 62px)/1 "Poppins", system-ui, sans-serif; letter-spacing: -.04em; color: var(--ice); text-shadow: 4px 4px 0 rgba(0,0,0,.85); }
+.shs-tt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 600 13px/1.3 "Poppins", system-ui, sans-serif; margin-top: 8px; padding: 0 10px 0 12px; }
+.shs-sky { position: relative; height: clamp(320px, 66vw, 440px); margin-top: 4px; border-radius: var(--u-rs); background: rgba(var(--vrgb), .06); border: 1px solid var(--u-line); overflow: hidden; }
+.shs-sky.shs-few { height: clamp(250px, 54vw, 340px); }
+.shs-sky svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.shs-sky line { stroke: rgba(var(--vrgb), .55); stroke-width: 1.5; }
+.shs-sky line.shs-u { stroke: rgba(var(--vrgb), .38); stroke-dasharray: 5 6; }
+.shs-st { position: absolute; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); transform: rotate(45deg); border-radius: 3px; background: rgba(var(--vrgb), var(--a)); }
+.shs-st.shs-core { background: var(--ice); box-shadow: 5px 5px 0 var(--volt); }
+.shs-st.shs-un { background: none; border: 2px dashed rgba(var(--vrgb), .7); }
+.shs-lb { position: absolute; width: 104px; margin-left: -52px; text-align: center; font: 600 12.5px/1.25 "Poppins", system-ui, sans-serif; color: var(--ice); }
+.shs-lb small { display: block; margin-top: 2px; font: 500 11px/1.2 system-ui, sans-serif; color: var(--mute); white-space: nowrap; }
+.shs-lb.shs-core { width: 150px; margin-left: -75px; font-size: 15px; font-weight: 700; }
+.shs-lb.shs-un { color: var(--mute); }
+.shs-pick { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 13px 16px; background: var(--u-card2); border: 1px solid var(--u-line); border-radius: var(--u-rs); color: var(--ice); font: inherit; text-align: left; }
+.shs-pick small { display: block; font: 600 12.5px/1.3 "Poppins", system-ui, sans-serif; color: var(--mute); }
+.shs-pick b { display: block; font: 700 15px/1.3 "Poppins", system-ui, sans-serif; }
+.shs-go { margin-left: auto; flex: none; font: 700 13.5px/1 "Poppins", system-ui, sans-serif; color: var(--volt); white-space: nowrap; }
+.shs-tix { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 4px; padding: 0 4px; }
+.shs-tk { padding: 12px 14px; border-radius: var(--u-rs); background: var(--u-card2); border: 1px solid var(--u-line); transform: skewX(-8deg); }
+.shs-tk > * { display: block; transform: skewX(8deg); }
+.shs-tk span { font: 600 12.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--mute); white-space: nowrap; }
+.shs-tk b { margin-top: 3px; font: 700 clamp(16px, 4.4vw, 23px)/1.15 "Poppins", system-ui, sans-serif; color: var(--ice); white-space: nowrap; }
+.shs-tk.shs-on { background: rgba(var(--vrgb), .18); border-color: rgba(var(--vrgb), .7); }
+.shs-tk.shs-on span { color: var(--ice); }
 </style>
 <script>
 WHATS_NEW.push(
@@ -27763,7 +27824,7 @@ document.addEventListener("click", e => {
    the screen edge, pictures side by side at very different sizes, a date or short word broken over lines, a short label
    squeezed to a few letters. Faint words and squashed pictures stay with lookDesign; Queue rows keep their own logo and
    short-word checks (lfLook). The words themselves never leave the phone: a report names the element and the size only. */
-const EYE_OK = [["overlap", "shx-fan"], ["faint", "shx-fan"], ["overlap", "dc-fan"]];
+const EYE_OK = [["overlap", "shx-fan"], ["faint", "shx-fan"], ["overlap", "dc-fan"], ["overlap", "shs-sh"]];
 /* eye:start (tools/eye.mjs reads the code between the two marks, so an older copy of the app is checked with today's eye) */
 function lookEye(root, ok, o) {
   o = o || {}; ok = ok || [];
@@ -27962,5 +28023,81 @@ WHATS_NEW.push(
     at: () => $(".dzc-card") || $("#p-taste .ix-hero") || null,
     say: "Your player type is a tarot art card now: your top game's picture in a diamond that breaks through the frame, your type's own colour, a numeral and a name plate. It flips in, glints and sparks a few times, then rests. Your next two traits stand beside it as cards.",
     tryIt: "Open Insights: your type, its traits, What I've learned and the folds below all have drawn icons. The card changes with your type." }
+);
+
+/* ===== v316 (the owner picked "Shattered Sky" after four rounds of demos: "A and B", then "build and merge", the pause
+   lifted for it): Insights opens with your top three ranked games cut into slanted shards as one picture, your player type
+   across them on a slab and your hype gap as a stamp; the v315 tarot table stays under it as "Your arcana"; new cards: an
+   S-tier shelf (slanted box art, big rank numbers), Your sky (your genres as diamonds sized by S-tier games, genres you've
+   never finished dashed, with the queued game that would light one) and when the backlog is done at 1/2/4 hours a day.
+   One extend map on tasteInsightsPage, after orc + court; switch S.dzX.shs (Customise › Top of Insights: Shattered / Classic). */
+const shsGenre = x => { const m = String(x).match(/\(([^)]+)\)/); return m ? m[1] : String(x); };
+function shsHero(main, R, b) {
+  const pics = R.slice(0, 3), n = pics.length; if (!n) return "";
+  const gap = b && b.n >= 4 && Math.abs(b.mean) >= .5 ? `${b.mean > 0 ? "+" : "−"}${Math.abs(b.mean).toFixed(1)}` : "";
+  return `<section class="shs-hero ${ixRv("shs")}"><div class="shs-art" aria-hidden="true">${pics.map((g, i) =>
+      `<span class="shs-sh shs-n${n} shs-s${i}"><img decoding="async" src="${esc(bgSource(g) || cover(g))}" alt=""></span>`).join("")}</div>
+    <i class="shs-slab" aria-hidden="true"></i><i class="shs-line" aria-hidden="true"></i>
+    <div class="shs-words"><p class="shs-kick">Your player type</p><h2 class="shs-name${String(main.t).length > 14 ? " shs-long" : ""}">${esc(main.t)}</h2></div></section>
+  <div class="shs-say ${ixRv("shs-say")}">${gap ? `<b class="shs-stamp">${gap}</b>` : ""}<p>${esc(main.line)}</p></div>`;
+}
+function shsShelf(R, t) {
+  const L = R.map((g, i) => [g, i + 1]).filter(([g]) => tierOf(t.sc[g.id]) === "S"); if (!L.length) return "";
+  return `<div class="ix-card ix-full shs-shelf ${ixRv("shs-shelf")}"><h4>S‑tier shelf<small>${L.length} game${L.length === 1 ? "" : "s"} at the top of your ranking${L.length > 3 ? " · swipe for more" : ""}</small></h4>
+    <div class="shs-row">${L.map(([g, k]) => `<button type="button" class="shs-tile" data-opg="${g.id}"><span class="shs-pic"><img decoding="async" src="${esc(cover(g))}" alt=""><b>${String(k).padStart(2, "0")}</b></span><span class="shs-tt">${esc(g.title)}</span></button>`).join("")}</div></div>`;
+}
+function shsSky(R, t) {
+  const pool = R.length >= 3 ? R : playedRows().map(x => x.g); if (pool.length < 3) return "";
+  const c = {}, s = {};
+  pool.forEach(g => platList(g.genres).forEach(x => { c[x] = (c[x] || 0) + 1; if (tierOf(t.sc[g.id]) === "S") s[x] = (s[x] || 0) + 1; }));
+  const val = x => (s[x] || 0) + c[x] * .25, G = Object.keys(c).sort((a, b) => val(b) - val(a)).slice(0, 5); if (G.length < 2) return "";
+  const tried = new Set(); S.games.filter(g => isPlayed(g) || t.sc[g.id] != null).forEach(g => platList(g.genres).forEach(x => tried.add(x)));
+  const un = []; S.games.filter(g => !isPlayed(g) && !isDropped(g) && !g.comp).forEach(g => platList(g.genres).forEach(x => {
+    if (un.length < 2 && !tried.has(x) && !un.some(u => u[0] === x)) un.push([x, g]); }));
+  /* three genres or fewer: a shorter sky, the stars spread over it instead of leaving its lower half empty */
+  const few = G.length <= 3, cy = few ? 56 : 42;
+  const P = few ? [[50, 56], [20, 26], [80, 24]] : [[50, 42], [21, 20], [79, 18], [21, 66], [79, 64]], U = [[88, cy], [12, cy]], top = val(G[0]) || 1, sc = n => `${n} S‑tier`;
+  const lb = (x, y, h, cls, name, sub) => `<span class="shs-lb${cls}" style="left:${x}%;top:calc(${y}% + ${h}px)">${esc(name)}${sub ? `<small>${sub}</small>` : ""}</span>`;
+  const nodes = [], lines = [];
+  G.forEach((x, i) => { const [px, py] = P[i], r = i ? val(x) / top : 1, sz = i ? Math.round(16 + 30 * r) : 58;
+    nodes.push(`<i class="shs-st${i ? "" : " shs-core"}" style="left:${px}%;top:${py}%;--s:${sz}px;--a:${(.3 + .6 * r).toFixed(2)}"></i>`
+      + lb(px, py, Math.round(sz * .71) + 8, i ? "" : " shs-core", shsGenre(x), i ? (s[x] ? sc(s[x]) : `${c[x]} ranked`) : (s[x] ? `${sc(s[x])} · your core` : "your core")));
+    if (i) lines.push(`<line x1="50" y1="${cy}" x2="${px}" y2="${py}"/>`); });
+  if (G[3]) lines.push(`<line x1="21" y1="20" x2="21" y2="66"/>`); if (G[4]) lines.push(`<line x1="79" y1="18" x2="79" y2="64"/>`);
+  un.forEach(([x], i) => { const [px, py] = U[i];
+    nodes.push(`<i class="shs-st shs-un" style="left:${px}%;top:${py}%;--s:20px"></i>` + lb(px, py, 22, " shs-un", shsGenre(x), "not tried"));
+    lines.push(`<line class="shs-u" x1="50" y1="${cy}" x2="${px}" y2="${py}"/>`); });
+  const pick = un[0] && un[0][1];
+  return `<div class="ix-card ix-full shs-skyc ${ixRv("shs-sky")}"><h4>Your sky<small>Bigger diamond = more S‑tier games in that genre. Dashed = a genre you haven't finished yet.</small></h4>
+    <div class="shs-sky${few ? " shs-few" : ""}" aria-hidden="true"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines.map(l => l.replace("<line", '<line vector-effect="non-scaling-stroke"')).join("")}</svg>${nodes.join("")}</div>
+    ${pick ? `<button type="button" class="shs-pick" data-opg="${pick.id}"><span><small>Light a new star</small><b>${esc(pick.title)} → ${esc(shsGenre(un[0][0]))}</b></span><span class="shs-go">Open</span></button>` : ""}</div>`;
+}
+function shsBacklog() {
+  const live = S.games.filter(g => !isPlayed(g) && !isDropped(g)), h = Math.round(live.reduce((a, g) => a + hrsOf(g), 0)); if (h < 10) return "";
+  const ev = num(S.evening, 4, 1, 12), paces = [1, 2, 4], near = paces.reduce((a, p) => Math.abs(p - ev) < Math.abs(a - ev) ? p : a, 1);
+  const when = p => new Date(Date.now() + h / p * 864e5).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  return `<div class="ix-card ix-full shs-bl ${ixRv("shs-bl")}"><h4>${h}h to clear<small>When your backlog is done if you play every day</small></h4>
+    <div class="shs-tix">${paces.map(p => `<div class="shs-tk${p === near ? " shs-on" : ""}"><span>${p}h a day</span><b>${esc(when(p))}</b></div>`).join("")}</div></div>`;
+}
+extend("tasteInsightsPage", { map(o) {
+  if (!dzOn("shs") || typeof o !== "string") return o;
+  const T = ixType(), main = T[0]; if (!main) return o;
+  const t = rankTable(), R = rankedGames(); if (!R.length) return o;
+  const hero = shsHero(main, R, hypeBias()); let done = false;
+  o = o.replace(/<section class="ix-hero ([^"]*)"([^>]*)>([\s\S]*?)<\/section>/, (m, cls, rest, inner) => { done = true;
+    /* the type's name and line move up into the shattered hero; the tarot table (or the classic medal) stays under it */
+    const tarot = /\bdzc\b/.test(cls), arc = `<section class="ix-hero shs-arc ${cls}"${rest}>${inner.replace(/<p class="ix-kick">[\s\S]*?<\/p>/, `<p class="ix-kick">${tarot ? "Your arcana" : "Your traits"}</p>`)
+      .replace(/<h2>[\s\S]*?<\/h2>/, "").replace(/<p class="ix-line">[\s\S]*?<\/p>/, tarot ? '<p class="ix-line">Each card is drawn from a game you ranked.</p>' : "")}</section>`;
+    return hero + arc + shsShelf(R, t); });
+  if (!done) return o;
+  const more = shsSky(R, t) + shsBacklog(), at = o.indexOf('<details class="ix-card ix-fold');
+  return at < 0 ? o.replace(/<\/div>$/, more + "</div>") : o.slice(0, at) + more + o.slice(at);
+} });
+if (dzOn("shs") && $("#p-taste .ixp") && !$("#p-taste .shs-hero")) bootRedraw("renderTaste");
+WHATS_NEW.push(
+  { v: 316, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); },
+    at: () => $("#p-taste .shs-hero") || $("#p-taste .ix-hero") || null,
+    say: "<b>Insights has a new top</b>: your three favourite games shattered into one picture with your player type across it, your tarot cards under it, an S‑tier shelf, a sky of the genres you love and the month your backlog is done.",
+    tryIt: "Open Insights and scroll. Dashed stars in Your sky are genres you haven't tried: tap the game under the sky to open the one that would light one. Customise › Top of Insights switches back." }
 );
 </script>
