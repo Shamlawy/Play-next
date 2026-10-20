@@ -3,17 +3,17 @@
 # Only lower these (--lower); raising one is a hand edit with the reason in the commit.
 * 50
 bugLayout › later 390
-lookAfter 270
-lookEyeRun 270
-lookEye 270
+lookAfter 200
+lookEyeRun 190
+lookEye 190
 lookDesignAfter 390
 lookDesign 380
-lookReview 150
-layerPileAfter › later 140
-bugLayout 210
-bugLayoutPass 190
-observer:long-animation-frame › later 150
+lookReview 140
+layerPileAfter › later 70
+bugLayout 200
+bugLayoutPass 180
+observer:long-animation-frame › later 140
 lookMap 110
-bugLook 170
-lookText 90
-lookAfter › later 80
+bugLook 160
+lookText 70
+lookAfter › later 10
