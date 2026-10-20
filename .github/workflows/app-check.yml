@@ -8,6 +8,7 @@
 # Since Oct 19 (the owner: "why is it taking long"): the same checks as `kit.mjs all` + the plants, but side by side, one job each
 # (one after another they took 22 min, the design eye alone 10.5, so it is split by width): ~5 min. Each job installs
 # Chromium itself (~25s). A new part of `kit.mjs all` needs its own line here too.
+# Since Oct 20: what Nexi's own problem checks cost (kit.mjs detectors, lesson L1), its own job; its plant runs with the others.
 name: App check
 on:
   workflow_dispatch:
@@ -36,6 +37,7 @@ jobs:
           - { id: eye412, name: "Design eye 412", w: "412" }
           - { id: eye859, name: "Design eye 859", w: "859" }
           - { id: eye360, name: "Design eye 360", w: "360" }
+          - { id: detectors, name: "What Nexi's own checks cost (detectors)" }
           - { id: plants, name: "Every check still sees its plant" }
           - { id: look, name: "What this PR changes on screen" }
     steps:
@@ -73,6 +75,11 @@ jobs:
         env:
           CI: "1"
         run: node tools/kit.mjs tour && node tools/kit.mjs smooth && node tools/kit.mjs layers && node tools/kit.mjs taste
+      - name: "Nexi's own problem checks: each within its budget, none measuring a hidden screen"
+        if: matrix.id == 'detectors'
+        env:
+          CI: "1"
+        run: node tools/kit.mjs detectors
       - name: "The design eye (what looks broken)"
         if: startsWith(matrix.id, 'eye')
         env:

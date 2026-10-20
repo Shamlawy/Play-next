@@ -4,6 +4,9 @@
      expect: ^\[look\] .*A label says undefined  one line per report it must cause, a regex (case-insensitive) on the report
                                                  line "[kind] screen: msg @ at"; every one must match, so an unrelated report
                                                  can't pass for the plant
+     kit: detectors --widths 412 --screens home,queue   instead of the sweep: this kit.mjs step and its options (a check of the
+                                                 checks, like hidden-rect.js for kit.mjs detectors; it passes only when the
+                                                 step names the plant)
    and this runs `node tools/kit.mjs sweep --plant <it> --expect <sweep options> --match <each expect>` one at a time
    (parallel phones starve the CPU and the lag checks file reports).
      node tools/plants/run.mjs                  every *.js plant (app-check runs this on every PR)
@@ -28,18 +31,19 @@ const secs = ms => (ms / 1000).toFixed(0) + "s", rows = [], t0 = Date.now();
 for (const f of plants) {
   const head = (fs.readFileSync(path.join(DIR, f), "utf8").match(/^\s*\/\*[\s\S]*?\*\//) || [""])[0];
   const line = k => [...head.matchAll(new RegExp(`^\\s*${k}:\\s*(.+?)\\s*(?:\\*\\/)?$`, "gm"))].map(m => m[1]);
-  const sweep = full ? [] : (line("sweep")[0] || "").split(/\s+/).filter(Boolean), expect = line("expect");
+  const kit = (line("kit")[0] || "").split(/\s+/).filter(Boolean);
+  const sweep = kit.length ? kit.slice(1) : full ? [] : (line("sweep")[0] || "").split(/\s+/).filter(Boolean), expect = line("expect");
   const bad = expect.filter(e => { try { new RegExp(e); return false; } catch (x) { return true; } });
   const t = Date.now();
   if (bad.length) { rows.push({ f, ok: false, ms: 0, why: "a broken expect: line: " + bad.join(", ") }); continue; }
-  console.log(`\n### ${f}${sweep.length ? " (" + sweep.join(" ") + ")" : " (every width and screen)"}`);
-  const r = spawnSync(process.execPath, [path.join(ROOT, "tools/kit.mjs"), "sweep", "--plant", path.join(DIR, f), "--expect", ...sweep, ...pass,
+  console.log(`\n### ${f}${kit.length ? " (kit.mjs " + kit.join(" ") + ")" : sweep.length ? " (" + sweep.join(" ") + ")" : " (every width and screen)"}`);
+  const r = spawnSync(process.execPath, [path.join(ROOT, "tools/kit.mjs"), kit[0] || "sweep", "--plant", path.join(DIR, f), "--expect", ...sweep, ...pass,
     ...expect.flatMap(e => ["--match", e])], { cwd: ROOT, encoding: "utf8", env: process.env, maxBuffer: 1 << 24 });
   const out = (r.stdout + r.stderr).trim().split("\n").filter(l => l && !/^(All clear\.|\d+ problem\(s\)\.)$/.test(l));
   console.log(out.join("\n"));
   rows.push({ f, ok: r.status === 0, ms: Date.now() - t, why: r.status === 0 ? `${expect.length || "any"} expected report${expect.length === 1 ? "" : "s"} seen`
     : (out.filter(l => /✗/.test(l)).map(l => l.replace(/^\s*✗\s*/, "")).join("; ").replace(/;? reported instead:$/, "").slice(0, 300) || `kit.mjs exited ${r.status}`) });
-  if (!expect.length) console.log("  · no expect: lines, so any report counts: add the reports it must cause");
+  if (!expect.length && !kit.length) console.log("  · no expect: lines, so any report counts: add the reports it must cause");
 }
 
 const ok = rows.filter(r => r.ok).length;

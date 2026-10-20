@@ -17265,6 +17265,11 @@ let bugLastIn = 0;
 ["pointerdown", "touchmove", "wheel"].forEach(t => addEventListener(t, () => { bugLastIn = performance.now(); }, { capture: true, passive: true }));
 onScrolled((e, first, now) => { bugLastIn = now; });
 const BUG_AFTER = [];
+/* Oct 20 (kit.mjs detectors): a check asks this before it reads a size. A piece whose drawing is skipped (off screen under
+   content-visibility: auto, e.g. Settings' groups and the Queue's rows, or in a hidden screen) has no layout yet: one read of
+   its size laid out every skipped group at once (bugLayoutPass on Settings: 412ms in one read at 4x). It isn't on screen, so
+   there is nothing to judge. checkVisibility only brings style up to date, never layout */
+const bugSkipped = el => !!el.checkVisibility && !el.checkVisibility({ contentVisibilityAuto: true });
 let bugBusyTries = 0;
 function bugLayout() {
   /* v235: wait while a page or sheet is still animating in. An idle pass scheduled for the screen before could run in the
@@ -17306,7 +17311,7 @@ function bugLayoutPass() {
   const W = innerWidth, H = innerHeight, scr = bugScreen();
   const sw = document.documentElement.scrollWidth;
   if (sw > W + 2) {
-    let wide = null; root.querySelectorAll("*").forEach(el => { if (wide) return; const r = el.getBoundingClientRect(); if (r.right > W + 2 && r.width && !el.closest(BUG_SKIP) && !bugClipped(el, root)) wide = el; });
+    let wide = null; root.querySelectorAll("*").forEach(el => { if (wide || bugSkipped(el)) return; const r = el.getBoundingClientRect(); if (r.right > W + 2 && r.width && !el.closest(BUG_SKIP) && !bugClipped(el, root)) wide = el; });
     bugReport("layout", "The page scrolls sideways", { at: wide ? bugPath(wide) : "", screen: scr });
   }
   /* v198: Nexi floating with his glow cut by the screen edge (peeking is on purpose) */
@@ -17318,6 +17323,7 @@ function bugLayoutPass() {
   let n = 0, moved = 0;
   for (const el of root.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea, [role=button]")) {
     if (n >= 3) break;
+    if (bugSkipped(el)) continue;
     const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) continue;
     if (el.closest(BUG_SKIP)) continue;
     const cut = (r.left < W - 6 && r.right > W + 2) || (r.right > 6 && r.left < -2);
@@ -17655,7 +17661,7 @@ function lookText(root) {
   for (const el of root.querySelectorAll("*")) {
     if (out.length > 400) break;
     let t = ""; for (const c of el.childNodes) if (c.nodeType === 3) t += c.textContent;
-    if (t.trim().length < 2) continue;
+    if (t.trim().length < 2 || bugSkipped(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 6 || r.height < 6 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
     if (el.closest(LOOK_SKIP)) continue;
@@ -17809,7 +17815,7 @@ function bugBlurry() {
     const r = on(el); if (r && Math.max(r.width, r.height) * dpr > (LITE_W.get(hit) || 600) * 1.4) out.push([el, hit]); });
   return out;
 }
-BUG_AFTER.push(() => {
+BUG_AFTER.push(function blurryAfter() {
     if (!bugOn() || document.hidden || performance.now() - bugLastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return;
     const first = bugBlurry(); if (!first.length) return;
     /* give the swap a fair chance first: only what's still soft 3s later counts */
@@ -18151,7 +18157,7 @@ nxPDress();
 /* #57: Nexi's glow showed as a square. Peeking from the left gave him the class "pl", which another screen styles
    with overflow: hidden, and it stayed after the peek. Classes are now pkl/pkr. He now checks that nothing
    (any class, from anywhere) clips his glow. */
-BUG_AFTER.push(() => {
+BUG_AFTER.push(function glowClipAfter() {
   try { const b = $("#pnbub"); if (!b || !bugOn() || document.hidden || !b.getClientRects().length || getComputedStyle(b).display === "none") return;
     const cs = getComputedStyle(b);
     if (cs.overflowX !== "visible" || cs.overflowY !== "visible" || cs.clipPath !== "none" || /paint|strict|content/.test(cs.contain))
@@ -18747,7 +18753,7 @@ function lookDesign2(root, scr) {
   }
   /* 5. too small to tap (both sides under 24px, and not inside something bigger you can tap) */
   for (const el of root.querySelectorAll(LOOK_TAP)) {
-    if (el.closest(LOOK_SKIP) || (el.parentElement && el.parentElement.closest(LOOK_TAP))) continue;
+    if (el.closest(LOOK_SKIP) || (el.parentElement && el.parentElement.closest(LOOK_TAP)) || bugSkipped(el)) continue;
     const r = el.getBoundingClientRect(); if (!onScreen(r) || r.width >= 24 || r.height >= 24) continue;
     const cs = getComputedStyle(el); if (cs.display === "inline" || cs.visibility === "hidden" || +cs.opacity < .5) continue;
     if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
@@ -18757,7 +18763,7 @@ function lookDesign2(root, scr) {
   /* 6. squashed pictures, 7. pictures that didn't load */
   let nSq = 0, nBr = 0;
   for (const im of root.querySelectorAll("img")) {
-    if (im.closest(LOOK_SKIP)) continue;
+    if (im.closest(LOOK_SKIP) || bugSkipped(im)) continue;
     const r = im.getBoundingClientRect(); if (!onScreen(r) || r.width * r.height < 1500) continue;
     const cs = getComputedStyle(im); if (cs.visibility === "hidden" || +cs.opacity < .3) continue;
     if (!bugVisible(im, r, root)) continue;
@@ -18774,7 +18780,7 @@ function lookDesign2(root, scr) {
     }
   }
 }
-BUG_AFTER.push(() => {
+BUG_AFTER.push(function lookDesignAfter() {
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (root) try { lookDesign(root, bugScreen()); } catch (e) {}
@@ -18795,6 +18801,7 @@ function lookMap2(root) {
     let t = ""; for (const c of el.childNodes) if (c.nodeType === 3) t += c.textContent; t = t.trim().replace(/\s+/g, " ");
     if (!isImg && !tap && !t) continue;
     if (!tap && !isImg && el.closest(LOOK_TAP)) continue;                    /* a button's own label: the button line covers it */
+    if (bugSkipped(el)) continue;
     const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) continue;
     if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) continue;
     const cs = getComputedStyle(el);
@@ -18827,7 +18834,7 @@ async function lookReview(root, scr) {
       stack: "Suggested fix: " + x.fix + "\nConfidence " + x.confidence + "\nWhat the AI saw:\n" + ids.map(i => items[+i.slice(1)]).join("\n") });
   });
 }
-BUG_AFTER.push(() => {
+BUG_AFTER.push(function lookReviewAfter() {
   if (!lookOk()) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   /* only after the screen has been on for 3s untouched, so it reviews what you actually look at */
@@ -20922,8 +20929,10 @@ addEventListener("resize", () => { if (lfRO) return; lfBox = null; clearTimeout(
    drawn under 30% of its tile's height (#114; not when you chose "same box for all") */
 extend("lookDesign", { after(o, [root, scr]) {
   try {
-    if (!pxBusy) { const el = [...document.querySelectorAll(".px .pxck")].find(x => x.getClientRects().length); if (el) bugReport("look", "A price stayed on “checking…”", { at: bugPath(el), screen: scr }); }
-    if (!LF_OFF()) for (const img of document.querySelectorAll("#p-queue .rowart img")) {
+    /* Oct 20 (kit.mjs detectors): only the screen being looked at; the Queue's logos were measured from every screen, which
+       laid out the hidden Queue */
+    if (!pxBusy) { const el = [...root.querySelectorAll(".px .pxck")].find(x => x.getClientRects().length); if (el) bugReport("look", "A price stayed on “checking…”", { at: bugPath(el), screen: scr }); }
+    if (!LF_OFF()) for (const img of root.querySelectorAll("#p-queue .rowart img")) {
       if (lfFitted(img) || !img.complete || !img.naturalWidth || !img.getClientRects().length) continue;
       const b = img.parentElement.getBoundingClientRect(); if (!b.height || b.bottom < 0 || b.top > innerHeight) continue;
       const k = Math.min(b.width / img.naturalWidth, b.height / img.naturalHeight);
@@ -26196,7 +26205,7 @@ WHATS_NEW.push(
     return out;
   };
   let t = 0;
-  BUG_AFTER.push(() => {
+  BUG_AFTER.push(function stuckEntranceAfter() {
     if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
     const root = document.querySelector("#full.on .hub") || document.querySelector(".panel.on"); if (!root) return;
     const a = stuck(root); if (!a.length) return;
@@ -26336,7 +26345,8 @@ function layerMakers() {
   if (document.querySelector("#sheet.on, #diary.on")) return { list: [], score: 0 };
   const top = document.querySelector("#full.on"), stop = top || document.body;
   const add = (el, why, host) => {
-    if (!el || !el.isConnected || out.has(el) || (top && !top.contains(el)) || el.closest("#pnbub, #pnbubmsg, #toast, #nxbug, #nxtour, .nxtour")) return;
+    /* Oct 20 (kit.mjs detectors): never a piece in a hidden screen, before anything is measured (its style or size lays out that screen) */
+    if (!el || !el.isConnected || out.has(el) || (top && !top.contains(el)) || el.closest(".panel:not(.on), #pnbub, #pnbubmsg, #toast, #nxbug, #nxtour, .nxtour")) return;
     if (el.checkVisibility && !el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })) return;
     /* v289: the size first (cheap), so pieces out of view or tiny skip the walk up their parents' styles below */
     const r = el.getBoundingClientRect(), vw = Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0)), vh = Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0));
@@ -26363,7 +26373,7 @@ function layerMakers() {
       if (r.style && /transform|opacity/.test(r.style.willChange || "") && r.selectorText && !/:hover|:active|:focus/.test(r.selectorText)) lmkWill.push(r.selectorText.replace(/::?(before|after)\b/g, ""));
       else if (r.cssRules) walk(r.cssRules); } catch (e) {} } };
     for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (e) {} } }
-  for (const sel of lmkWill) { try { for (const el of document.querySelectorAll(sel)) if (/transform|opacity/.test(getComputedStyle(el).willChange)) add(el, "will"); } catch (e) {} }
+  for (const sel of lmkWill) { try { for (const el of (top || document).querySelectorAll(sel)) if (!el.closest(".panel:not(.on)") && /transform|opacity/.test(getComputedStyle(el).willChange)) add(el, "will"); } catch (e) {} }
   const list = [...out.values()].sort((a, b) => b.share - a.share);
   return { list, score: list.filter(m => m.over).reduce((s, m) => s + m.share, 0) };
 }
@@ -26371,7 +26381,7 @@ function layerMakers() {
    (tools/plants/layer-pile.js). Small pieces held after their entry (a finished fill-both animation under nothing) don't
    show here: `node tools/kit.mjs layers` (every PR) catches those by the GPU's own count. */
 { let t = 0;
-  BUG_AFTER.push(() => {
+  BUG_AFTER.push(function layerPileAfter() {
     if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
     clearTimeout(t); t = setTimeout(() => {
       if (performance.now() - bugLastIn < 1200 || document.hidden) return;
@@ -27426,7 +27436,7 @@ WHATS_NEW.push(
    2. a button that runs out of its own box into the thing next to it (its wrapper shrank below the button's width)
    3. a short word on a button cut with "…" (a game's own title is let off: long names are cut on purpose) */
 extend("lookDesign", { after(o, [root, scr]) {
-  const H = innerHeight, W = innerWidth, seen = el => { const r = el.getBoundingClientRect();
+  const H = innerHeight, W = innerWidth, seen = el => { if (bugSkipped(el)) return null; const r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W && (!el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) ? r : null; };
   try {
     const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n, k = 0;
@@ -27451,9 +27461,10 @@ extend("lookDesign", { after(o, [root, scr]) {
   try {
     const titles = new Set(allGames().map(g => String(g.title || "").trim().toLowerCase()));
     for (const el of [...root.querySelectorAll("button, button *, [role=button], [role=button] *")].slice(0, 1500)) {
-      if (el.scrollWidth <= el.clientWidth + 1 || el.children.length) continue;
+      /* Oct 20 (kit.mjs detectors): the cheap tests first; reading every part's scrollWidth was ~200ms at 4x on Settings */
+      if (el.children.length) continue;
       const t = el.textContent.trim(); if (!t || t.length > 12 || titles.has(t.toLowerCase())) continue;
-      if (getComputedStyle(el).textOverflow !== "ellipsis" || !seen(el)) continue;
+      if (bugSkipped(el) || getComputedStyle(el).textOverflow !== "ellipsis" || el.scrollWidth <= el.clientWidth + 1 || !seen(el)) continue;
       bugReport("look", "A short word on a button is cut short", { at: bugPath(el) + " \"" + t + "\" shows " + el.clientWidth + " of " + el.scrollWidth + "px", screen: scr }); break;
     }
   } catch (e) {}
@@ -27544,7 +27555,7 @@ function scrollLinked() {
     n++; const k = a.animationName || "waapi"; by.set(k, (by.get(k) || 0) + 1); }
   return { n, by: [...by].sort((a, b) => b[1] - a[1]).map(([k, c]) => c + "× " + k).join(", ") };
 }
-BUG_AFTER.push(() => {
+BUG_AFTER.push(function scrollLinkedAfter() {
   if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
   clearTimeout(SCRL.t); SCRL.t = setTimeout(() => {
     if (performance.now() - bugLastIn < 1200 || document.hidden) return;

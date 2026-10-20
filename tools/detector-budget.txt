@@ -1,0 +1,19 @@
+# What one run of each of Nexi's problem checks may cost, in ms of main thread at 4x slower CPU (node tools/kit.mjs detectors).
+# "*" = every check without its own line; "<check> › later" (what a check schedules) counts against its check's line.
+# Only lower these (--lower); raising one is a hand edit with the reason in the commit.
+* 50
+bugLayout › later 390
+lookAfter 270
+lookEyeRun 270
+lookEye 270
+lookDesignAfter 390
+lookDesign 380
+lookReview 150
+layerPileAfter › later 140
+bugLayout 210
+bugLayoutPass 190
+observer:long-animation-frame › later 150
+lookMap 110
+bugLook 170
+lookText 90
+lookAfter › later 80

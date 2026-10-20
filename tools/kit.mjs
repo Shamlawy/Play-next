@@ -19,7 +19,10 @@
      node tools/kit.mjs taste           the owner's look calls that boxes can hold (tools/scenarios/taste.mjs, each named by its
                                         taste.md id: header cards, one game page skeleton, one main action, pick list pictures,
                                         drawn group icons, the open Queue card's corners, colour and logo slot) at 412 / 859
-     node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers + eye + taste
+     node tools/kit.mjs detectors       what Nexi's own problem checks cost (tools/scenarios/detector-cost.mjs): every screen at 412 / 859,
+                                    checks on vs bugOff, 4x CPU; fails when a check's worst run is over tools/detector-budget.txt or a
+                                    check reads a hidden screen's layout (Oct 20, lesson L1). --lower writes today's worst runs
+node tools/kit.mjs all             syntax + audit + sw + sweep + tour + smooth + layers + detectors + eye + taste
      node tools/kit.mjs look            what this branch changes on screen against main: before | after | where pictures of each
                                         changed screen and a contact sheet of every screen (tools/.cache/look), for Claude to read
                                         (--base <ref>, --out dir, --same: fail on any change)
@@ -178,7 +181,7 @@ async function launch() {
   return chromium.launch(exe && !process.env.CI ? { executablePath: exe, args } : { args });
 }
 /* a fresh phone: seeded data, the helper's /bug caught here, every other site blocked (pictures, APIs) */
-async function phone(browser, base, w, data, { url = base } = {}) {
+async function phone(browser, base, w, data, { url = base, init = null } = {}) {
   const [vw, vh, dpr] = SIZES[w] || [w, Math.round(w * 2.1), 2.6];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, serviceWorkers: "block",
     userAgent: WK ? (vw >= 600 ? "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
@@ -205,6 +208,7 @@ async function phone(browser, base, w, data, { url = base } = {}) {
   });
   data = { ...data, ...SET };
   await ctx.addInitScript(s => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("gq:data", s); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(data));
+  if (init) await ctx.addInitScript(init);   /* runs before the app (kit.mjs detectors' timers) */
   const page = await ctx.newPage();
   /* WebKit reports "Cannot load blob:… due to access control checks" for the old page's picture blob: URLs (made from data
      URLs) still loading when a scenario reloads: one per reload, none on Chromium, not the app's (open idea M14) */
@@ -560,6 +564,44 @@ async function layers(browser, base) {
   }
 }
 
+/* ---------- detectors: what Nexi's own problem checks cost (Oct 20) ----------
+   The checks caused the stutters they report at least 5 times (v283 ×2, v287, v305, the Oct 20 heading check: 39-65ms laying
+   out hidden screens). tools/scenarios/detector-cost.mjs times every check and watches its layout reads; this walks each width
+   with the checks on and with bugOff, and fails on a check over its budget or one that reads a hidden screen. With --plant
+   and --expect it passes only when the plant's hidden-screen read is caught (tools/plants/hidden-rect.js). */
+async function detectors(browser, base) {
+  const dc = await import(pathToFileURL(path.join(ROOT, "tools/scenarios/detector-cost.mjs")).href);
+  const budget = dc.readBudget(ROOT), worst = {};
+  console.log(`\n== detectors: what Nexi's own checks cost (${FILE}), 4x CPU ==`);
+  for (const w of opt("widths") ? WIDTHS : [412, 859]) {
+    const walk = async extra => { const p = await phone(browser, base, w, { ...seed(APP_V), nxEvo: 99, ...extra }, { init: dc.instrument });
+      await p.page.evaluate(() => { if (typeof PRB !== "undefined" && PRB.st) { PRB.st.done = true; prbSave(); } });
+      const r = await dc.detectorWalk(p, { only: opt("screens") ? opt("screens").split(",") : null }); [...new Set(p.errors)].filter(e => !/^plant: /.test(e) || !EXPECT).forEach(e => fail(`${w}px${extra.bugOff ? " (bugOff)" : ""}: script error: ${e}`));
+      [...new Set(p.errors)].filter(e => /^plant: /.test(e)).forEach(e => console.log(`  · ${w}px: ${e}`));
+      await p.ctx.close(); return r; };
+    const on = await walk({}), off = EXPECT ? null : await walk({ bugOff: true });
+    const { bad, notes } = dc.judge(w, on, off, budget);
+    for (const c of on.calls) worst[c.name] = Math.max(worst[c.name] || 0, c.max);
+    if (EXPECT) {
+      const got = on.hidden.filter(h => /plant/i.test(h.check));
+      if (got.length) console.log(`  ✓ ${w}px: the plant was caught: ${got.map(h => `${h.check} read ${h.api} of #${h.panel}`).join("; ")}`);
+      else fail(`${w}px: the plant's hidden-screen read was NOT caught${bad.length ? "; caught instead:\n      " + bad.join("\n      ") : ""}`);
+      continue;
+    }
+    console.log(`  ${w}px:`); notes.forEach(n => console.log("    " + n)); bad.forEach(b => fail(b));
+  }
+  if (args.includes("--lower") && !EXPECT) {
+    /* a budget is today's worst run ×2 (timings swing up to 2x between runs, M40), rounded up to 10ms; only ever lowered.
+       --reset: a line for every check whose ×2 is over "*" (a new check, or after a cleanup that changed many) */
+    const now = { ...budget }, b2 = k => Math.ceil(worst[k] * 2 / 10) * 10;
+    for (const k in now) { if (k === "*" || worst[k] == null) continue; if (b2(k) < now[k]) now[k] = b2(k); }
+    if (args.includes("--reset")) for (const k in worst) if (k !== "*" && b2(k) > (budget["*"] ?? 50)) now[k] = b2(k);
+    fs.writeFileSync(path.join(ROOT, dc.BUDGET_FILE), fs.readFileSync(path.join(ROOT, dc.BUDGET_FILE), "utf8").split("\n").filter(l => l.startsWith("#")).join("\n") + "\n" +
+      Object.entries(now).map(([k, v]) => `${k} ${v}`).join("\n") + "\n");
+    console.log("  wrote " + dc.BUDGET_FILE);
+  }
+}
+
 async function samecss(browser) {
   const old = opt("before"); if (!old) return fail("usage: node tools/kit.mjs samecss --before old.html [--file index.html]");
   const dump = async file => {
@@ -585,13 +627,14 @@ async function samecss(browser) {
 }
 
 if (mode === "samecss") { const browser = await launch(); try { await samecss(browser); } finally { await browser.close(); } }
-if (["sweep", "tour", "perf", "smooth", "layers", "eye", "taste", "all", "run", "look"].includes(mode)) {
+if (["sweep", "tour", "perf", "smooth", "layers", "detectors", "eye", "taste", "all", "run", "look"].includes(mode)) {
   const { srv, base } = serve(); const browser = await launch();
   try {
     if (mode === "sweep" || mode === "all") await sweep(browser, base);
     if (mode === "tour" || mode === "all") await tour(browser, base);
     if (mode === "smooth" || mode === "all") await smooth(browser, base);
     if (mode === "layers" || mode === "all") await layers(browser, base);
+    if (mode === "detectors" || mode === "all") await detectors(browser, base);
     if (mode === "eye" || mode === "all") await eyeCheck(browser, base);
     if (mode === "taste" || mode === "all") await tasteCheck(browser, base);
     if (mode === "perf") await perf(browser, base);
