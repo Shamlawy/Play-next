@@ -78,6 +78,7 @@ fine if the line format stays. Public repo: no game titles, scores or personal d
 - **L121** · 2026-10-20 · v313 · `bugSkipped`, `bugLayoutPass`, `lookText`, `content-visibility`, `kit.mjs detectors` — A check that reads sizes of every button/text in a screen forced layout of every content-visibility: auto part it skips (Settings' groups: 412ms in one read at 4x) -> ask bugSkipped(el) before any size read in a walker, and prove the cost with node tools/kit.mjs detectors
 - **L122** · 2026-10-20 · v313 · `git checkout -b`, `worktree`, `shared folder` — In a side session sharing C:\Users\PC\Play-next I ran git checkout -b there while another session had uncommitted edits -> start side-session work with git worktree add -b <branch> ..\Play-next-<name> main and give kit.mjs PW_PATH (but kit.mjs sw then fails: swcheck imports PW_PATH as a URL; judge sw from the main checkout or CI)
 - **L123** · 2026-10-20 · v313 · `PowerShell`, `Out-File`, `git commit -F` — PowerShell 5.1 Out-File -Encoding utf8 writes a BOM, which landed in a commit subject -> strip it (node replace /^\uFEFF/) before git commit -F or gh --body-file
+- **L124** · 2026-10-20 · v313 · `kit.mjs detectors`, `detector-budget.txt`, `lookDesign`, `lookEye` — kit.mjs detectors' worst-run numbers (lookDesign 190ms on Settings) were mostly style/layout the app left pending, paid by whichever check read first; a plain CDP profile showed the checks at ~15ms → before making a check lighter, profile it alone (Profiler at 4x, its own self time) and fix only what is its own work
 
 ## Missed opportunities
 

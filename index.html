@@ -17564,9 +17564,12 @@ function nxBugCard(txt) {
   let c = $("#nxbug");
   if (!c) { c = document.createElement("button"); c.type = "button"; c.id = "nxbug"; document.body.appendChild(c);
     c.onclick = () => { c.classList.remove("on"); bugAsk(); }; }
-  c.classList.remove("on"); void c.offsetWidth;   /* the restart reflow comes before the new words (v206 check) */
+  /* Oct 20 (kit.mjs detectors): the pop-in restarts over two frames; a forced reflow here (void offsetWidth) laid out the
+     whole page, 60-100ms at 4x, right after a lag report */
+  c.classList.remove("on");
   c.innerHTML = `<i aria-hidden="true">🐞</i><span><b>${esc(pnName())}</b>${esc(typeof nxVoice === "function" ? nxVoice(txt) : txt)}</span>`;
-  c.classList.add("on");
+  const k = c.k = (c.k || 0) + 1;
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (c.k === k) c.classList.add("on"); }));
   clearTimeout(c.t); c.t = setTimeout(() => c.classList.remove("on"), 7000);
 }
 function bugLogHtml() {
