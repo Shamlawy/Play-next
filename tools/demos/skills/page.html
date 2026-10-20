@@ -1,0 +1,72 @@
+<title>Skills Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap">
+<style>
+/* layout: one phone frame in the middle, the controls above it, where-it-lives notes beside it on wide screens */
+:root { --bg: #05070d; --card: #111729; --line: rgba(234,242,255,.1); --ice: #eaf2ff; --mute: #8fa0c2; --volt: #4da3ff; color-scheme: dark;
+  --f: "Poppins", system-ui, sans-serif; }
+body { background: var(--bg); color: var(--ice); font: 500 14px/1.5 var(--f); padding: 20px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)); }
+h1 { font: 700 26px/1.15 var(--f); letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+.sub { color: var(--mute); margin: 6px 0 18px; max-width: 62ch; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; max-width: 1180px; margin: 0 auto; }
+@media (min-width: 980px) { .wrap { grid-template-columns: 300px minmax(0, 1fr); } }
+.ctl { display: grid; gap: 14px; align-content: start; }
+.grp b { display: block; font: 600 12.5px/1.2 var(--f); color: var(--mute); margin-bottom: 7px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { font: 600 13px/1.2 var(--f); color: var(--ice); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--volt); border-color: var(--volt); color: #04111f; }
+.seg button:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+.note { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+.note h2 { font: 700 15px/1.25 var(--f); margin: 0 0 4px; }
+.note p { margin: 0; color: var(--mute); font-size: 13px; }
+.where { display: grid; gap: 8px; counter-reset: w; }
+.where div { display: grid; grid-template-columns: 26px 1fr; gap: 8px; }
+.where div::before { counter-increment: w; content: counter(w); width: 24px; height: 24px; border-radius: 8px; background: rgba(77,163,255,.16); color: var(--volt); font: 700 12px/24px var(--f); text-align: center; }
+.where strong { display: block; font-weight: 600; font-size: 13.5px; }
+.where span { color: var(--mute); font-size: 12.5px; }
+.stage { display: flex; justify-content: center; min-width: 0; }
+.phone { width: 100%; border-radius: 28px; border: 1px solid var(--line); overflow: hidden; background: #000; }
+.phone.fold { max-width: 412px; } .phone.wide { max-width: 860px; }
+.phone img { display: block; width: 100%; height: auto; }
+.cap { text-align: center; color: var(--mute); font-size: 12.5px; margin-top: 8px; }
+</style>
+<div class="wrap">
+  <div class="ctl">
+    <div><h1>What it builds in you</h1><p class="sub">A demo inside the real game page. The pictures, dates and scores around it are the test phone's stand-ins. Nothing is in the app yet.</p></div>
+    <div class="grp"><b>Look</b><div class="seg" id="look">
+      <button type="button" data-v="A" aria-pressed="true">A · Perks</button><button type="button" data-v="B" aria-pressed="false">B · Level up</button><button type="button" data-v="C" aria-pressed="false">C · Codex</button></div></div>
+    <div class="grp"><b>The game</b><div class="seg" id="st"></div></div>
+    <div class="grp"><b>Phone</b><div class="seg" id="wd">
+      <button type="button" data-v="412" aria-pressed="true">Folded</button><button type="button" data-v="859" aria-pressed="false">Unfolded</button></div></div>
+    <div class="grp"><b>Screen</b><div class="seg" id="scr">
+      <button type="button" data-v="game" aria-pressed="true">Game page</button><button type="button" data-v="insights" aria-pressed="false">Insights</button></div></div>
+    <div class="note where">
+      <div><p><strong>Game page</strong><span>Its own section, right under Your progress, above About.</span></p></div>
+      <div><p><strong>Insights</strong><span>"What your games built": everything your played games trained, and what you rarely train.</span></p></div>
+      <div><p><strong>Nexi, in the morning</strong><span>"I worked out what 3 of your games teach." The nightly job's news, nothing to tap.</span></p></div>
+    </div>
+    <div class="note" id="say"></div>
+  </div>
+  <div><div class="stage"><div class="phone fold" id="ph"><img id="im" alt="Demo screenshot"></div></div><p class="cap" id="cap"></p></div>
+</div>
+<script>
+const IMG = {{IMG}}, GAMES = {{GAMES}};
+document.getElementById("st").innerHTML = GAMES.map(g => `<button type="button" data-v="${g.key}">${g.title}${g.played ? "" : " · not played"}</button>`).join("");
+const st = { look: "A", st: GAMES[0].key, wd: "412", scr: "game" };
+const SAY = {
+  A: ["Perks", "Each skill is a tile with its own drawn icon in a diamond, 3 bars for how much, then what taught it and one thing to try."],
+  B: ["Level up", "Like a game's results screen: a big line on top, +1 to +3 per skill with a bar, then the moment behind it."],
+  C: ["Codex", "Journal entries you unlock. Before you play, each one says what it's about and keeps a lock on what taught it."]
+};
+function draw() {
+  const k = st.scr === "insights" ? `${st.wd}-insights` : `${st.wd}-${st.look}-${st.st}`;
+  document.getElementById("im").src = IMG[k];
+  document.getElementById("ph").className = "phone " + (st.wd === "412" ? "fold" : "wide");
+  document.getElementById("cap").textContent = st.scr === "insights" ? "Insights · the same card for every look" :
+    `Game page · look ${st.look} · ${GAMES.find(g => g.key === st.st).played ? "played: names the real moments" : "not played: vague, no spoilers"}`;
+  const [n, t] = SAY[st.look]; document.getElementById("say").innerHTML = `<h2>${n}</h2><p>${t}</p>`;
+  document.querySelectorAll(".seg").forEach(g => g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === st[g.id]))));
+}
+document.querySelectorAll(".seg").forEach(g => g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; st[g.id] = b.dataset.v; draw(); }));
+draw();
+</script>
