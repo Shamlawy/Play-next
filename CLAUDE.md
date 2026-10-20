@@ -58,6 +58,11 @@
 - Bump `SHELL` in `sw.js` only if the cache must be wiped.
 - The old in-app "Load a new version" / "Feed me a new version" upload was removed (v161): a hand-loaded copy used to override GitHub updates forever.
 
+## Time estimates (the owner, Oct 20: "give me time estimate on how long the task will take cuz I always keep checking")
+- Before starting anything that takes more than about a minute, the first line of the reply says how long it will take and what you'll send at the end: "⏱ About 10 min: I'll film both videos and send them." In the Heads-up box it's its own line.
+- When it runs past the estimate, say so with a new one ("⏱ Taking longer: about 5 more min, the render is at 76%"). Background work (renders, CI, kit runs) gets "should be done around HH:MM UTC" when it starts.
+- Rough guide: `kit.mjs all` ~6 min, a scenario ~1 min, app-check on GitHub ~8 min, a demo video ~4 min a width, a small fix + release ~20 min, a new screen or feature 1–3 h.
+
 ## What's new tour (required on every release)
 - After an update, Nexi runs a tour (`nxTour`) of every `WHATS_NEW` entry newer than the version the phone had.
 - Every user-facing change MUST add a `WHATS_NEW` entry (in the v172 script near the end of `index.html`) with: `v` = the new `APP_V`, `go` (open the right screen: `nxOpenGame()`, `nxQueue()`, `nxHome()`, `nxOpenSettings(sel)` or custom), `at` (selector or function returning the element to point at, or null), `say` (what it does, can use <b>), `tryIt` (what to try).
