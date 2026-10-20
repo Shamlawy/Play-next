@@ -17189,7 +17189,7 @@ function bugReport(kind, msg, x) {
   const ks = Object.keys(sent); if (ks.length > 150) ks.slice(0, ks.length - 150).forEach(k => delete sent[k]);
   save();
   BUG.q.push({ sig, kind, msg, stack: bugScrub(x.stack || "").split("\n").slice(0, 8).join("\n"), at, screen: scr, note: x.note ? bugScrub(x.note) : "",
-    w: bugVP.w, h: bugVP.h, dpr: Math.round((devicePixelRatio || 1) * 100) / 100, dev: bugDev(), v: APP_V, style: S.uiStyle || "clean", crumbs: BUG.crumbs.slice(-10) });
+    w: bugVP.w, h: bugVP.h, dpr: Math.round((devicePixelRatio || 1) * 100) / 100, dev: bugDev(), v: APP_V, style: S.uiStyle || "clean", crumbs: BUG.crumbs.slice(-10), lib: typeof bugLib === "function" ? bugLib() : "" });
   if (kind !== "user" && typeof bugNoted === "function") (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => bugNoted(kind, scr, msg), { timeout: 2000 });   /* Nexi's word about it waits for idle too */
   clearTimeout(BUG.t); BUG.t = setTimeout(bugFlush, kind === "user" ? 50 : 3000);
 }
@@ -17421,9 +17421,40 @@ function bugSnap(el, x, y) {
     `element ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)}; scroll ${el.scrollWidth}×${el.scrollHeight} vs client ${el.clientWidth}×${el.clientHeight}${el.scrollWidth > el.clientWidth + 2 ? " (content wider than its box)" : ""}`,
     `style: display ${cs.display}, position ${cs.position}, overflow ${cs.overflowX}/${cs.overflowY}, white-space ${cs.whiteSpace}, text-overflow ${cs.textOverflow}, font ${cs.fontSize}/${cs.lineHeight}, opacity ${cs.opacity}, z ${cs.zIndex}${cs.transform !== "none" ? ", transform " + cs.transform : ""}${cs.filter !== "none" ? ", filter " + cs.filter : ""}`,
     el.tagName === "IMG" ? `picture: ${el.complete ? (el.naturalWidth ? "loaded " + el.naturalWidth + "×" + el.naturalHeight : "FAILED to load") : "still loading"}, shown ${Math.round(r.width)}×${Math.round(r.height)}, object-fit ${cs.objectFit}` : "",
-    clips.length ? "clipped by: " + clips.join(" · ") : ""
+    clips.length ? "clipped by: " + clips.join(" · ") : "",
+    bugCard(el)
   ].filter(Boolean).join("\n");
   return { what, path: bugPath(el), snap };
+}
+/* Oct 20: what the game at the spot is like (lengths, counts, kinds of picture) and the pictures in its card, never its
+   title: a bug caused by one game (a very long name, an odd logo, a huge uploaded picture) shows in the report */
+function bugPic(u) {
+  u = String(u || ""); if (!u) return "none";
+  if (/^data:/.test(u)) return "uploaded " + Math.round(u.length * .75 / 1024) + "KB";
+  if (/^blob:/.test(u)) return "uploaded";
+  try { const h = new URL(u, location.href); return h.origin === location.origin ? "app file" : h.hostname.replace(/^www\./, ""); } catch (e) { return "odd link"; }
+}
+function bugGame(g) {
+  const t = String(g.title || ""), w = t.split(/\s+/).filter(Boolean);
+  return `game: title ${t.length} chars, ${w.length} words, longest word ${Math.max(0, ...w.map(x => x.length))}${/[^ -ɏ\s\p{P}\p{S}\p{N}]/u.test(t) ? ", non-Latin letters" : ""}; ${g.status || "?"}/${g.state || "?"}; ` +
+    `platforms ${String(g.platforms || "").split(/[,&/]/).filter(s => s.trim()).length}, genres ${(g.genres || []).length}, about ${String(g.desc || "").length} chars; ` +
+    `cover ${bugPic(g.img)}, key art ${bugPic(g.key)}, logo ${bugPic(g.art)}`;
+}
+function bugCard(el) {
+  let g = null;
+  for (let a = el; a && a !== document.body && !g; a = a.parentElement)
+    for (const at of a.attributes || []) if (at.name.startsWith("data-") && at.value && (g = S.games.find(x => x.id === at.value))) break;
+  if (!g) { const h = document.querySelector("#full.on [data-hub]"); g = h && S.games.find(x => x.id === h.dataset.hub) || null; }
+  const card = el.closest(".row, .dxr, .libcard, .hit, [data-g], [data-opg]"), pics = card ? [...card.querySelectorAll("img")].slice(0, 4) : [];
+  const ps = pics.map(i => { const q = i.getBoundingClientRect(); return `${Math.round(q.width)}×${Math.round(q.height)} of ${i.complete ? (i.naturalWidth ? i.naturalWidth + "×" + i.naturalHeight : "FAILED") : "loading"}`; });
+  return [g ? bugGame(g) : "", ps.length ? "pictures in its card (shown of real): " + ps.join(", ") : ""].filter(Boolean).join("\n");
+}
+/* every report: how big the library is (slowness that only shows with a big library) */
+function bugLib() {
+  const gs = S.games || []; let up = 0, kb = 0, long = 0;
+  for (const g of gs) { long = Math.max(long, String(g.title || "").length); for (const k of ["img", "key", "art"]) if (/^data:/.test(g[k] || "")) { up++; kb += g[k].length * .75 / 1024; } }
+  const n = s => gs.filter(g => g.status === s).length;
+  return `${gs.length} games (${n("out")} out, ${n("upcoming")} coming), ${(S.lists || []).length} lists, ${up} uploaded pictures (${Math.round(kb)}KB), longest title ${long} chars`;
 }
 document.addEventListener("click", e => { if (e.target.closest("[data-bugreport]")) { e.stopPropagation(); closeEdit(); setTimeout(bugAsk, 250); } }, true);
 bugSeen();
