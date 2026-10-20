@@ -18454,16 +18454,16 @@ function ixType() {
   const duels = (S.duels || []).filter(d => d.w).length, p = rows.length, l = live.length, f1 = v => v.toFixed(1);
   const T = [];
   const oracle = acc && acc.n >= 4 && acc.pct >= 75 && acc.hits / acc.n >= .6;
-  if (oracle) T.push({ e: uiIc("oracle"), t: "The Oracle", c: "Oracle", line: `You call games before you play them: ${acc.hits} of ${acc.n} landed within a point of your hype.` });
-  if (!oracle && b.n >= 4 && b.mean <= -1) T.push({ e: uiIc("optimist"), t: "The Optimist", c: "Optimist", line: `Your hype runs ${f1(-b.mean)} points above the verdict. You fall for the idea of a game before the game itself.` });
-  if (!oracle && b.n >= 4 && b.mean >= 1) T.push({ e: uiIc("skeptic"), t: "The Skeptic", c: "Skeptic", line: `Games beat your expectations by ${f1(b.mean)} points. The ones you shrug at deserve a real chance.` });
-  if (topG && pool.length >= 3 && topG[1] / pool.length >= .5) T.push({ e: uiIc("devotee"), t: `The ${topG[0]} Devotee`, c: topG[0] + " heart", line: `${topG[1]} of your top ${pool.length} games are ${topG[0]}. You know exactly what you like.` });
-  if (p >= 5 && avg < 6.5) T.push({ e: uiIc("critic"), t: "The Tough Critic", c: "Tough critic", line: `Your average verdict is ${f1(avg)}. A high score from you really means something.` });
-  if (p >= 5 && avg >= 8.3) T.push({ e: uiIc("heart"), t: "The Big Heart", c: "Big heart", line: `Your average verdict is ${f1(avg)}. You find the good in almost everything you play.` });
-  if (l >= 10 && l >= 3 * Math.max(1, p)) T.push({ e: uiIc("books"), t: "The Collector", c: "Collector", line: `${l} games waiting, ${p} finished. You love the hunt as much as the play.` });
-  if (p >= 5 && p >= l) T.push({ e: uiIc("finish"), t: "The Finisher", c: "Finisher", line: `${p} finished and only ${l} waiting. You see things through.` });
-  if (kinds.size >= 7) T.push({ e: uiIc("compass"), t: "The Explorer", c: "Explorer", line: `You've finished games in ${kinds.size} different genres. You go everywhere.` });
-  if (duels >= 50) T.push({ e: uiIc("duel"), t: "The Duelist", c: "Duelist", line: `${duels} duels settled. Your ranking is battle-tested.` });
+  if (oracle) T.push({ k: "oracle", e: uiIc("oracle"), t: "The Oracle", c: "Oracle", line: `You call games before you play them: ${acc.hits} of ${acc.n} landed within a point of your hype.` });
+  if (!oracle && b.n >= 4 && b.mean <= -1) T.push({ k: "optimist", e: uiIc("optimist"), t: "The Optimist", c: "Optimist", line: `Your hype runs ${f1(-b.mean)} points above the verdict. You fall for the idea of a game before the game itself.` });
+  if (!oracle && b.n >= 4 && b.mean >= 1) T.push({ k: "skeptic", e: uiIc("skeptic"), t: "The Skeptic", c: "Skeptic", line: `Games beat your expectations by ${f1(b.mean)} points. The ones you shrug at deserve a real chance.` });
+  if (topG && pool.length >= 3 && topG[1] / pool.length >= .5) T.push({ k: "devotee", e: uiIc("devotee"), t: `The ${topG[0]} Devotee`, c: topG[0] + " heart", line: `${topG[1]} of your top ${pool.length} games are ${topG[0]}. You know exactly what you like.` });
+  if (p >= 5 && avg < 6.5) T.push({ k: "critic", e: uiIc("critic"), t: "The Tough Critic", c: "Tough critic", line: `Your average verdict is ${f1(avg)}. A high score from you really means something.` });
+  if (p >= 5 && avg >= 8.3) T.push({ k: "heart", e: uiIc("heart"), t: "The Big Heart", c: "Big heart", line: `Your average verdict is ${f1(avg)}. You find the good in almost everything you play.` });
+  if (l >= 10 && l >= 3 * Math.max(1, p)) T.push({ k: "books", e: uiIc("books"), t: "The Collector", c: "Collector", line: `${l} games waiting, ${p} finished. You love the hunt as much as the play.` });
+  if (p >= 5 && p >= l) T.push({ k: "finish", e: uiIc("finish"), t: "The Finisher", c: "Finisher", line: `${p} finished and only ${l} waiting. You see things through.` });
+  if (kinds.size >= 7) T.push({ k: "compass", e: uiIc("compass"), t: "The Explorer", c: "Explorer", line: `You've finished games in ${kinds.size} different genres. You go everywhere.` });
+  if (duels >= 50) T.push({ k: "duel", e: uiIc("duel"), t: "The Duelist", c: "Duelist", line: `${duels} duels settled. Your ranking is battle-tested.` });
   return T;
 }
 const ixShown = new Set();
@@ -24512,22 +24512,50 @@ WHATS_NEW.push(
 
 .ix-hero.dzc { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 18px; }
 .ix-hero.dzc > * { max-width: 100%; }
-/* v315 the player type card: one big face (a huge drawn emblem, the type's letter in two corners), two quiet card backs beside it */
-.dzc-table { position: relative; display: flex; justify-content: center; align-items: center; gap: 14px; width: calc(100% + 36px); max-width: none; margin: 0 -18px 18px; }
-.dzc-card, .dzc-back { flex: none; width: min(60vw, 250px); aspect-ratio: 5 / 7; border-radius: 24px; position: relative; }
-.dzc-card { background: radial-gradient(circle at 50% 46%, rgba(var(--vrgb), .24), transparent 62%), linear-gradient(180deg, rgb(20,26,46), rgb(10,13,25));
-  box-shadow: inset 0 0 0 1.5px rgba(var(--vrgb), .55), 0 24px 50px -22px rgba(0,0,0,.9); color: var(--ice); }
-.dzc-card::before { content: ""; position: absolute; inset: 9px; border-radius: 17px; border: 1px solid rgba(234,242,255,.16); pointer-events: none; }
-.dzc-back { width: min(34vw, 140px); border-radius: 18px; background-color: rgb(12,15,28); box-shadow: inset 0 0 0 1px rgba(234,242,255,.1);
-  background-image: repeating-linear-gradient(135deg, rgba(var(--vrgb), .16) 0 2px, transparent 2px 9px); }
-.dzc-back::after { content: ""; position: absolute; inset: 8px; border-radius: 12px; border: 1px solid rgba(var(--vrgb), .3); }
-.dzc-face { position: absolute; inset: 0; display: grid; place-items: center; }
-.dzc-big { width: 74%; aspect-ratio: 1; display: grid; place-items: center; }
-.dzc-big .uic { width: 100%; height: 100%; margin: 0; color: var(--volt); vertical-align: top; filter: none; }
-.dzc-ix { position: absolute; top: 16px; left: 18px; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 800 20px/1 "Poppins", system-ui, sans-serif; color: var(--ice); }
-.dzc-ix .uic { width: 17px; height: 17px; margin: 0; color: var(--volt); }
-.dzc-ix.b { top: auto; left: auto; bottom: 16px; right: 18px; transform: rotate(180deg); }
-@media (min-width: 700px) { .dzc-card { width: 250px; } .dzc-back { width: 150px; } }
+/* v315 the player type card, a tarot art card (the owner's reference poster, round 3 C): the character's picture in a tilted diamond that breaks through
+   a thin frame, the type's own colour, a numeral in a diamond, a name plate; your next two traits stand beside it as smaller cards.
+   Motion = transform / opacity only, every loop ends after three plays, and it all waits for the card to scroll into view (.in). */
+.dzc-table { position: relative; display: flex; justify-content: center; align-items: center; gap: 12px; width: calc(100% + 36px); max-width: none; margin: 0 -18px 18px; }
+.dzc-card { --c: 77,163,255; flex: none; container-type: inline-size; position: relative; width: min(56vw, 240px); aspect-ratio: 5 / 7; background: #05070d; color: #fff; }
+.dzc-card.sd { width: min(31vw, 132px); opacity: .92; }
+.dzc-card.bk { opacity: .7; }
+.dzc-card::before { content: ""; position: absolute; inset: 3.2cqw; border: 1px solid rgba(255,255,255,.85); z-index: 4; pointer-events: none; }
+.dzc-card .tint { position: absolute; inset: 3.2cqw; background: linear-gradient(180deg, rgba(var(--c), .3), rgba(var(--c), .04) 60%, rgba(var(--c), .2)); }
+.dzc-card .back { position: absolute; left: 50%; top: 47%; width: 104%; aspect-ratio: 1; transform: translate(-50%, -50%); background: rgba(var(--c), .36); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); z-index: 1; }
+.dzc-card .art { position: absolute; left: 50%; top: 46%; width: 92%; aspect-ratio: 1; transform: translate(-50%, -50%); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); z-index: 2; background: rgb(16,20,42); display: grid; place-items: center; }
+.dzc-card .art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 24%; display: block; }
+.dzc-card .art .uic { width: 46%; height: 46%; margin: 0; color: rgb(var(--c)); }
+.dzc-card .ol { position: absolute; left: 50%; top: 46%; width: 66%; aspect-ratio: 1; margin: -33% 0 0 -33%; transform: rotate(45deg); border: 1px solid rgba(255,255,255,.7); z-index: 3; pointer-events: none; }
+.dzc-card .shade { position: absolute; inset: 3.2cqw; z-index: 2; background: linear-gradient(0deg, #05070d 0, rgba(5,7,13,0) 38%); pointer-events: none; }
+.dzc-card .num { position: absolute; z-index: 5; top: -3.3cqw; left: 50%; width: 13cqw; aspect-ratio: 1; transform: translateX(-50%) rotate(45deg); background: #05070d; border: 1px solid rgba(255,255,255,.85); }
+.dzc-card .num b { position: absolute; inset: 0; transform: rotate(-45deg); display: grid; place-items: center; font: 700 4.4cqw "Poppins", system-ui, sans-serif; color: #fff; }
+.dzc-card .plate { position: absolute; z-index: 5; left: 50%; bottom: 6.4cqw; transform: translateX(-50%); min-width: 56%; padding: 1.9cqw 3cqw; text-align: center; font: 700 5.2cqw/1 "Poppins", system-ui, sans-serif; letter-spacing: .03em; color: #fff; white-space: nowrap;
+  background: rgb(calc(var(--r) * .38), calc(var(--g) * .38), calc(var(--b) * .38)); border: 1px solid rgba(var(--c), .95); }
+.dzc-card .fx { position: absolute; inset: 3.2cqw; overflow: hidden; z-index: 4; pointer-events: none; }
+.dzc-card .shine { position: absolute; top: -10%; bottom: -10%; left: 0; width: 26%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent); transform: translateX(-160%) skewX(-18deg); }
+.dzc-card .sp { position: absolute; bottom: 8%; width: 2.4cqw; height: 2.4cqw; background: rgb(var(--c)); transform: rotate(45deg); opacity: 0; }
+.ix-hero.dzc .dzc-table { opacity: 0; }
+.ix-hero.dzc.in .dzc-table, html.still .ix-hero.dzc .dzc-table { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+:where(html:not(.still)) .ix-hero.dzc.in .dzc-card.mn { animation: dzcFlip .9s var(--ease) backwards; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .back { animation: dzcPop .9s var(--ease) .2s backwards; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .art { animation: dzcPop 1s var(--ease) .35s backwards, dzcBreathe 5s ease-in-out 1.4s 3; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .ol { animation: dzcSpin 1.4s var(--ease) .3s backwards, dzcSway 6s ease-in-out 1.8s 3; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .plate { animation: dzcSlide .7s var(--ease) .7s backwards; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .num { animation: dzcFade .6s ease .6s backwards; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .shine { animation: dzcSweep 5s ease-in-out 1.6s 3; }
+:where(html:not(.still)) .ix-hero.dzc.in .mn .sp { animation: dzcRise 4s ease-out 1.5s 3; }
+}
+@keyframes dzcFlip { from { transform: perspective(900px) rotateY(-88deg) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes dzcPop { from { transform: translate(-50%, -50%) scale(.45); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+@keyframes dzcBreathe { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.045); } }
+@keyframes dzcSpin { from { transform: rotate(-135deg) scale(.5); opacity: 0; } to { transform: rotate(45deg) scale(1); opacity: 1; } }
+@keyframes dzcSway { 0%, 100% { transform: rotate(45deg); } 50% { transform: rotate(51deg); } }
+@keyframes dzcSlide { from { transform: translate(-50%, 160%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@keyframes dzcFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dzcSweep { 0% { transform: translateX(-160%) skewX(-18deg); } 55%, 100% { transform: translateX(560%) skewX(-18deg); } }
+@keyframes dzcRise { 0% { transform: translateY(0) rotate(45deg) scale(.6); opacity: 0; } 15% { opacity: .95; } 100% { transform: translateY(-62cqw) rotate(45deg) scale(1.1); opacity: 0; } }
+@media (min-width: 700px) { .dzc-card { width: 240px; } .dzc-card.sd { width: 132px; } }
 </style>
 <script>
 /* v259 three new card looks (switch: S.dzX) */
@@ -24570,14 +24598,20 @@ extend("onDeckStrip", { before() {
 } });
 
 /* 3. Taste → Insights: the player type as a court card, with patterned card backs either side */
+const DZ_TYPE = { oracle: [92,150,255, "I"], optimist: [255,170,70, "II"], skeptic: [186,120,255, "III"], devotee: [70,215,190, "IV"], critic: [255,100,110, "V"],
+  heart: [255,120,175, "VI"], books: [170,205,90, "VII"], finish: [240,200,90, "VIII"], compass: [255,150,90, "IX"], duel: [220,70,70, "X"] };
+function dzcCard(ty, g, main) {
+  const [r, gr, b, num] = DZ_TYPE[ty.k] || [77,163,255, "0"], name = String(ty.t).replace(/^The\s+/i, "");
+  const pic = g ? `<img decoding="async" src="${esc(bgSource(g) || cover(g))}" alt="">` : ty.e;
+  const fx = main ? `<span class="fx"><i class="shine"></i>${[18, 50, 78].map((l, j) => `<i class="sp" style="left:${l}%;bottom:${8 + j * 5}%;animation-delay:${(1.5 + j * 1.1).toFixed(1)}s"></i>`).join("")}</span>` : "";
+  return `<div class="dzc-card${main ? " mn" : " sd"}" style="--c:${r},${gr},${b};--r:${r};--g:${gr};--b:${b}"><i class="tint"></i><i class="back"></i><span class="art">${pic}</span><i class="ol"></i><i class="shade"></i>${fx}<span class="num"><b>${num}</b></span><span class="plate">${esc(name)}</span></div>`;
+}
 extend("tasteInsightsPage", { map(o) {
   if (!dzOn("court") || typeof o !== "string") return o;
-  const main = ixType()[0]; if (!main) return o;
-  const L = (String(main.c || main.t).replace(/^The\s+/i, "").trim()[0] || "?").toUpperCase(), ix = `<b>${esc(L)}</b>${main.e}`;
-  const card = `<div class="dzc-table" aria-hidden="true"><span class="dzc-back"></span>
-    <div class="dzc-card"><span class="dzc-ix">${ix}</span><span class="dzc-ix b">${ix}</span>
-      <div class="dzc-face"><span class="dzc-big">${main.e}</span></div></div>
-    <span class="dzc-back"></span></div>`;
+  const T = ixType(), main = T[0]; if (!main) return o;
+  const R = rankedGames(), art = i => R[i] || R[0] || null, side = T.slice(1, 3);
+  const bk = '<div class="dzc-card sd bk"><i class="tint"></i><i class="back"></i><i class="ol"></i></div>', L = side[0] ? dzcCard(side[0], art(1)) : bk, Rt = side[1] ? dzcCard(side[1], art(2)) : bk;   /* a plain card back keeps the main card in the middle */
+  const card = `<div class="dzc-table" aria-hidden="true">${L}${dzcCard(main, art(0), true)}${Rt}</div>`;
   /* the old medal and shine make way for the card; the words stay */
   return o.replace(/<section class="ix-hero ([^"]*)"([^>]*)>([\s\S]*?)<\/section>/, (m, cls, rest, inner) =>
     `<section class="ix-hero dzc ${cls}"${rest}>${card}${inner.replace(/<i class="ix-shine"><\/i>/, "").replace(/<div class="ix-medal">[\s\S]*?<\/div>/, "")}</section>`);
@@ -27926,7 +27960,7 @@ WHATS_NEW.push(
 WHATS_NEW.push(
   { v: 315, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); },
     at: () => $(".dzc-card") || $("#p-taste .ix-hero") || null,
-    say: "Your player type card is redrawn: one big card with your type's own drawn emblem filling it, and every emoji on Insights is a drawn icon now.",
+    say: "Your player type is a tarot art card now: your top game's picture in a diamond that breaks through the frame, your type's own colour, a numeral and a name plate. It flips in, glints and sparks a few times, then rests. Your next two traits stand beside it as cards.",
     tryIt: "Open Insights: your type, its traits, What I've learned and the folds below all have drawn icons. The card changes with your type." }
 );
 </script>
