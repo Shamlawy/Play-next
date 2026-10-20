@@ -24516,7 +24516,7 @@ WHATS_NEW.push(
    a thin frame, the type's own colour, a numeral in a diamond, a name plate; your next two traits stand beside it as smaller cards.
    Motion = transform / opacity only, every loop ends after three plays, and it all waits for the card to scroll into view (.in). */
 .dzc-table { position: relative; display: flex; justify-content: center; align-items: center; gap: 12px; width: calc(100% + 36px); max-width: none; margin: 0 -18px 18px; }
-.dzc-card { --c: 77,163,255; flex: none; container-type: inline-size; position: relative; width: min(56vw, 240px); aspect-ratio: 5 / 7; background: #05070d; color: #fff; }
+.dzc-card { --c: 77,163,255; flex: none; container-type: inline-size; position: relative; width: min(56vw, 240px); aspect-ratio: 5 / 7; background: rgb(5,7,13); color: rgb(255,255,255); }
 .dzc-card.sd { width: min(31vw, 132px); opacity: .92; }
 .dzc-card.bk { opacity: .7; }
 .dzc-card::before { content: ""; position: absolute; inset: 3.2cqw; border: 1px solid rgba(255,255,255,.85); z-index: 4; pointer-events: none; }
@@ -24526,10 +24526,10 @@ WHATS_NEW.push(
 .dzc-card .art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 24%; display: block; }
 .dzc-card .art .uic { width: 46%; height: 46%; margin: 0; color: rgb(var(--c)); }
 .dzc-card .ol { position: absolute; left: 50%; top: 46%; width: 66%; aspect-ratio: 1; margin: -33% 0 0 -33%; transform: rotate(45deg); border: 1px solid rgba(255,255,255,.7); z-index: 3; pointer-events: none; }
-.dzc-card .shade { position: absolute; inset: 3.2cqw; z-index: 2; background: linear-gradient(0deg, #05070d 0, rgba(5,7,13,0) 38%); pointer-events: none; }
-.dzc-card .num { position: absolute; z-index: 5; top: -3.3cqw; left: 50%; width: 13cqw; aspect-ratio: 1; transform: translateX(-50%) rotate(45deg); background: #05070d; border: 1px solid rgba(255,255,255,.85); }
-.dzc-card .num b { position: absolute; inset: 0; transform: rotate(-45deg); display: grid; place-items: center; font: 700 4.4cqw "Poppins", system-ui, sans-serif; color: #fff; }
-.dzc-card .plate { position: absolute; z-index: 5; left: 50%; bottom: 6.4cqw; transform: translateX(-50%); min-width: 56%; padding: 1.9cqw 3cqw; text-align: center; font: 700 5.2cqw/1 "Poppins", system-ui, sans-serif; letter-spacing: .03em; color: #fff; white-space: nowrap;
+.dzc-card .shade { position: absolute; inset: 3.2cqw; z-index: 2; background: linear-gradient(0deg, rgb(5,7,13) 0, rgba(5,7,13,0) 38%); pointer-events: none; }
+.dzc-card .num { position: absolute; z-index: 5; top: -3.3cqw; left: 50%; width: 13cqw; aspect-ratio: 1; transform: translateX(-50%) rotate(45deg); background: rgb(5,7,13); border: 1px solid rgba(255,255,255,.85); }
+.dzc-card .num b { position: absolute; inset: 0; transform: rotate(-45deg); display: grid; place-items: center; font: 700 4.4cqw "Poppins", system-ui, sans-serif; color: rgb(255,255,255); }
+.dzc-card .plate { position: absolute; z-index: 5; left: 50%; bottom: 6.4cqw; transform: translateX(-50%); min-width: 56%; padding: 1.9cqw 3cqw; text-align: center; font: 700 5.2cqw/1 "Poppins", system-ui, sans-serif; letter-spacing: .03em; color: rgb(255,255,255); white-space: nowrap;
   background: rgb(calc(var(--r) * .38), calc(var(--g) * .38), calc(var(--b) * .38)); border: 1px solid rgba(var(--c), .95); }
 .dzc-card .fx { position: absolute; inset: 3.2cqw; overflow: hidden; z-index: 4; pointer-events: none; }
 .dzc-card .shine { position: absolute; top: -10%; bottom: -10%; left: 0; width: 26%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent); transform: translateX(-160%) skewX(-18deg); }
