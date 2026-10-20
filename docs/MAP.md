@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27812 lines, 2118 KB, 124 scripts, 65 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 27820 lines, 2119 KB, 124 scripts, 65 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -50,7 +50,8 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 26570 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
 - 26992 v297: `onSettings("before", () => srlOff());`
 - 26993 v297: `onSettings("after", () => srlBuild());`
-- 27800 : `onNav("after", () => { const p = P(); if (!p) return;`
+- 27757 : `onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.`
+- 27808 : `onNav("after", () => { const p = P(); if (!p) return;`
 
 ## Blocks
 
@@ -244,4 +245,4 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 27482–27498 | script | 1 | v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium gives each scroll-linked… |
 | 27498–27559 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
 | 27559–27618 | script | 6 | — |
-| 27618–27812 | script | 19 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
+| 27618–27820 | script | 20 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |

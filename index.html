@@ -27750,7 +27750,15 @@ function lookEyeRun(root, scr) {
    element count) do, and a pass that skipped something still moving
    isn't counted (second-look on #575) */
 const LOOK_SEEN = new Set(), LOOK_TRIES = new Map();
-BUG_AFTER.push(() => {
+/* Oct 20: a layout pass queued by the screen before ran ~120ms after a switch, walked the new screen while it was still
+   sliding in, found nothing and marked it seen, so the real pass at 1.6s skipped it (eye-in-app.js flapped, on main too):
+   the eye only walks a screen 1.2s after it changed */
+let lookNavAt = 0, lookLaterT = 0;
+onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.now(); });
+BUG_AFTER.push(function lookAfter() {
+  const since = performance.now() - lookNavAt;
+  /* too soon after a switch: walk once it has settled (no pass may come later: run 1 of zz-eyeorder had none) */
+  if (since < 1200) { clearTimeout(lookLaterT); lookLaterT = setTimeout(() => (window.requestIdleCallback || setTimeout)(lookAfter, { timeout: 1500 }), 1250 - since); return; }
   if (!lookOk() || performance.now() - bugLastIn < 1200) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (!root) return;
