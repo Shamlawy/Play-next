@@ -14,3 +14,4 @@ endlessAnimations  48     # animations that never stop (CSS `infinite`, Web Anim
 subtreeObservers   6      # MutationObservers watching a whole subtree (not getAnimations({ subtree: true }), v280)
 orphanSettings     0      # Settings keys listed in GROUP_KEYS that nothing reads
 lint               0      # bug finder findings (node tools/lint.mjs: undefined names, unused values, duplicate keys, unreachable code…)
+layoutAfterHtml    3      # layout reads right after an HTML write in the same function (v206; node tools/where.mjs --list-v206)

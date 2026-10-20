@@ -10061,7 +10061,7 @@ function renderPlayed() {
     })()}
     ${(() => {
       /* finished shelf: every scored game, best on the left, tap to open */
-      const sh = done.filter(x => scored(x)).sort((a, b) => b.real - a.real); setTimeout(pnShelf, 30);
+      const sh = done.filter(x => scored(x)).sort((a, b) => b.real - a.real); requestAnimationFrame(pnShelf);   /* was a 30ms timer: it could land before the new rows were laid out (v206 check) */
       if (!sh.length) return "";
       return `<div class="shelf"><label>Finished shelf · ${sh.length}</label>
         <div class="shelf-row" id="shelf-row">${sh.map((x, i) => `<button class="sb" data-edit="${x.id}" style="--i:${Math.min(i, 12)};--accent:${esc(x.g.colour)}"
@@ -12668,8 +12668,10 @@ function openWrapped(Y, M) {
     if (n < 0) n = 0; if (n >= T.length) return close();
     i = n; const s = T[i]; o.dataset.bg = s.bg;
     bars.forEach((x, k) => { x.className = k < i ? "done" : k === i ? (s.stay ? "done" : "now") : ""; });
+    /* restart the line's entrance before the new slide goes in: the reflow then lays out only the old slide (v206 check) */
+    say.parentNode.classList.remove("on"); void say.offsetWidth;
     stage.innerHTML = `<div class="wr-s bg-${s.bg}">${s.art ? `<div class="wr-art" style="background-image:url('${esc(cssUrl(s.art))}')"></div>` : ""}<div class="wr-in">${s.html}</div></div>`;
-    say.textContent = s.say; say.parentNode.classList.remove("on"); void say.offsetWidth; say.parentNode.classList.add("on");
+    say.textContent = s.say; say.parentNode.classList.add("on");
     if (b) { pnBubPlace(PN_EDGE, innerHeight - 62 - 40); try { pnBubMood("talk", 1600); } catch (e) {} }
     beep(i ? "tap" : "open");
   };
@@ -15261,8 +15263,8 @@ function nxTour(was, all) {
         card.innerHTML = `<small>${esc(head)} · ${esc(pnName())}'s tour</small><p>${st.say}</p>${st.tryIt ? `<span class="try">${st.tryIt}</span>` : ""}
           <div class="row2"><i>${i + 1} / ${steps.length}</i>${i < steps.length - 1 ? '<button class="btn ghost" data-nx="skip"><span>Skip</span></button>' : ""}
           <button class="btn" data-nx="next"><span>${i < steps.length - 1 ? "Next ›" : "Done"}</span></button></div>`;
-        requestAnimationFrame(() => { card.classList.add("on"); ringAt(); });
-        nxDock(card, el);
+        /* Nexi docks beside the new card in the frame it shows, not right after its words went in (v206 check) */
+        requestAnimationFrame(() => { nxDock(card, el); card.classList.add("on"); ringAt(); });
         if (typeof pnBubMood === "function") pnBubMood("talk", 1500);
       }, el ? 450 : 50);
     }, 350);
@@ -17525,8 +17527,9 @@ function nxBugCard(txt) {
   let c = $("#nxbug");
   if (!c) { c = document.createElement("button"); c.type = "button"; c.id = "nxbug"; document.body.appendChild(c);
     c.onclick = () => { c.classList.remove("on"); bugAsk(); }; }
+  c.classList.remove("on"); void c.offsetWidth;   /* the restart reflow comes before the new words (v206 check) */
   c.innerHTML = `<i aria-hidden="true">🐞</i><span><b>${esc(pnName())}</b>${esc(typeof nxVoice === "function" ? nxVoice(txt) : txt)}</span>`;
-  c.classList.remove("on"); void c.offsetWidth; c.classList.add("on");
+  c.classList.add("on");
   clearTimeout(c.t); c.t = setTimeout(() => c.classList.remove("on"), 7000);
 }
 function bugLogHtml() {
