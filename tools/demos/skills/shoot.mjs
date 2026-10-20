@@ -53,6 +53,16 @@ const CSS = `
 .skd-you { margin-top: 12px; padding: 11px 12px; border-radius: 14px; border: 1px dashed var(--u-line2); font: 500 12.5px/1.4 "Poppins", system-ui, sans-serif; color: var(--mute); }
 .skd-you b { color: var(--ice); font-weight: 600; }
 .skd-vote { display: flex; gap: 6px; margin-top: 10px; font: 500 11.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--mute); align-items: center; }
+/* the chain: in the game → in your head → in your life */
+.skR { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 7px 10px; margin: 10px 0 0; }
+.skR dt { font: 600 11.5px/1.45 "Poppins", system-ui, sans-serif; color: var(--mute); white-space: nowrap; }
+.skR dd { margin: 0; font: 500 12.5px/1.45 "Poppins", system-ui, sans-serif; color: var(--ice); opacity: .82; min-width: 0; }
+.skR dd.life { opacity: 1; font-weight: 600; }
+.skR dt.life { color: var(--volt); }
+.skR .skC-lock { margin-top: 3px !important; }
+.skG { font: 700 15px/1.3 "Poppins", system-ui, sans-serif; color: var(--ice); letter-spacing: -.015em; margin-top: 3px !important; text-wrap: balance; }
+.skK { display: flex; align-items: center; gap: 8px; font: 600 11.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--volt); white-space: nowrap; }
+.skK .skA-l { margin: 0; }
 /* Insights: your build */
 .skI-row { display: grid; grid-template-columns: 130px 1fr 34px; gap: 10px; align-items: center; margin-top: 9px; font: 600 12.5px/1.2 "Poppins", system-ui, sans-serif; color: var(--ice); }
 .skI-row span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -97,18 +107,23 @@ const AMT = ["", "some", "a lot", "a core part"];
 const lv = n => `<div class="skA-l">${[1, 2, 3].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}<span>${AMT[n]}</span></div>`;
 const head = (meta) => `<div class="skd-h">${svg("spark")}<span>What it builds in you</span><small>${meta}</small></div>`;
 const you = played => played ? `<div class="skd-you">${svg("you").replace("<svg", '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:6px"')}<b>Nexi will ask:</b> did anything stick with you? Your answer goes here.</div>` : "";
-const tryL = s => s.tr ? `<p class="skd-try"><b>Try:</b> ${s.tr}</p>` : "";
+/* one skill = a chain: the moment in the game → what it trains in your head → what gets better in your life → one thing to try */
+const lock = `<p class="skC-lock">${svg("lock")}The moments that teach it unlock when you finish</p>`;
+const chain = (s, g) => `<dl class="skR"><dt>In the game</dt><dd>${s.txt || ""}${g.played ? "" : lock}</dd>
+  ${s.mind ? `<dt>In your head</dt><dd>${s.mind}</dd>` : ""}${s.life ? `<dt class="life">In your life</dt><dd class="life">${s.life}</dd>` : ""}
+  ${s.tr ? `<dt>Try</dt><dd>${s.tr}</dd>` : ""}</dl>`;
+const gain = s => s.gain || s.n;
 const LOOKS = {
   A: g => `<section class="skd" style="--accent:${g.accent}">${head(g.played ? "from the moments that taught it" : "no spoilers until you finish")}
-    <div class="skA">${g.skills.map(s => `<div><div class="skA-t"><span class="skA-d">${svg(s.ic)}</span><div><p class="skA-n">${s.n}</p>${lv(s.lv)}</div></div>
-      <div class="skA-x"><p class="skd-from">${s.txt}</p>${tryL(s)}</div></div>`).join("")}</div>${you(g.played)}</section>`,
+    <div class="skA">${g.skills.map(s => `<div><div class="skA-t"><span class="skA-d">${svg(s.ic)}</span><div style="min-width:0"><div class="skK">${s.n}${lv(s.lv)}</div><p class="skG">${gain(s)}</p></div></div>
+      <div class="skA-x">${chain(s, g)}</div></div>`).join("")}</div>${you(g.played)}</section>`,
   B: g => `<section class="skd" style="--accent:${g.accent}">${head(g.played ? "finished" : "if you play it")}
     <p class="skB-top">${g.played ? `You levelled up ${g.skills.length} skills` : `Levels up ${g.skills.length} skills`}<small>~${g.hours} hours</small></p>
     <div class="skB">${g.skills.map(s => `<div>${svg(s.ic)}<span class="skB-n">${s.n}</span><span class="skB-v">+${s.lv}<small>lv</small></span>
-      <span class="skB-bar"><i style="width:${s.lv * 33}%"></i></span><div class="skB-x"><p class="skd-from">${s.txt}</p>${tryL(s)}</div></div>`).join("")}</div>${you(g.played)}</section>`,
+      <span class="skB-bar"><i style="width:${s.lv * 33}%"></i></span><div class="skB-x"><p class="skG">${gain(s)}</p>${chain(s, g)}</div></div>`).join("")}</div>${you(g.played)}</section>`,
   C: g => `<section class="skd" style="--accent:${g.accent}">${head(g.played ? `${g.skills.length} of ${g.skills.length} unlocked` : "unlocks as you finish")}
-    <div class="skC">${g.skills.map(s => `<div><span class="skC-i">${svg(s.ic)}</span><div><p class="skC-k">${s.story ? "Story lesson" : "Skill"} · ${AMT[s.lv]}</p><p class="skC-n">${s.n}</p>
-      <p class="skd-from">${s.txt}</p>${g.played ? "" : `<p class="skC-lock">${svg("lock")}What taught it unlocks when you finish</p>`}${tryL(s)}</div></div>`).join("")}</div>${you(g.played)}</section>`
+    <div class="skC">${g.skills.map(s => `<div><span class="skC-i">${svg(s.ic)}</span><div style="min-width:0"><p class="skC-k">${s.story ? "Story lesson" : "Skill"} · ${s.n} · ${AMT[s.lv]}</p><p class="skG">${gain(s)}</p>
+      ${chain(s, g)}</div></div>`).join("")}</div>${you(g.played)}</section>`
 };
 const BUILD = `<section class="skd" style="margin:14px 0"><div class="skd-h">${svg("spark")}<span>What your games built</span><small>${DATA.build.meta}</small></div>
   ${DATA.build.rows.map(([n, v, lo]) => `<div class="skI-row"><span>${n}</span><b class="${lo ? "lo" : ""}"><i style="width:${v}%"></i></b><small>${v}</small></div>`).join("")}
@@ -131,7 +146,13 @@ export default async ({ p, w, seed }) => {
     /* the section with the end of the one above it, so it's clear where it sits */
     await p.page.evaluate(() => document.querySelector("#full .gd-s-prog").scrollIntoView({ block: "start", behavior: "instant" }));
     await p.page.waitForTimeout(400); await hide();
-    await p.page.screenshot({ path: path.join(dir, `${w}-${k}-${g.key}.png`) });
+    /* the whole section in one tall picture: a tall window for a moment, then the clip from the line above it to its end */
+    const vp = p.page.viewportSize(); await p.page.setViewportSize({ width: vp.width, height: 5200 }); await p.page.waitForTimeout(500);
+    await p.page.evaluate(() => document.querySelector("#full .gd-s-prog").scrollIntoView({ block: "start", behavior: "instant" })); await p.page.waitForTimeout(300); await hide();
+    const r = await p.page.evaluate(() => { const a = document.querySelector("#full .gd-s-prog").getBoundingClientRect(), b = document.querySelector("#full .skd").getBoundingClientRect(), h = document.querySelector("#full .gd-s-about");
+      const end = h ? Math.min(h.getBoundingClientRect().top + 90, innerHeight) : b.bottom + 16; return { y: Math.max(0, a.bottom - 140), h: end - Math.max(0, a.bottom - 140) }; });
+    await p.page.screenshot({ path: path.join(dir, `${w}-${k}-${g.key}.png`), clip: { x: 0, y: r.y, width: vp.width, height: r.h } });
+    await p.page.setViewportSize(vp);
     await p.page.evaluate(() => typeof closeFull === "function" && closeFull()); await p.page.waitForTimeout(600);
   }
   await p.step("insights", `goTab("taste"); goSub("taste", "insights")`, 2500);
