@@ -25885,6 +25885,9 @@ html.ui2 #fxrad .left { font: 600 13px "Poppins", system-ui, sans-serif; }
   const look = () => {
     if (!lookOk() || !document.documentElement.classList.contains("ui2")) return;
     for (const h of document.querySelectorAll("h1, h2, h3")) {
+      /* Oct 20 (#136): a heading in a hidden screen (or a closed game page) is skipped before anything is measured:
+         reading its rect forced that whole screen's layout (65ms at 4x switching to Home, "look ← FrameRequestCallback") */
+      if (h.closest(".panel:not(.on), #full:not(.on)")) continue;
       const r = h.getBoundingClientRect(); if (r.width < 20 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
       const cs = getComputedStyle(h), fs = parseFloat(cs.fontSize);
       if (fs < 18 || cs.visibility === "hidden" || !h.textContent.trim() || h.closest("[aria-hidden=true], .pcdov, .ccov, .fxout, .wr-in")) continue;
