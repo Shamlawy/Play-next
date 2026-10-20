@@ -2836,6 +2836,37 @@ html.still .ccov,html.still .ccov img{animation:none}
 
 <div id="pnboot"></div>
 <script>
+/* ===== v314: drawn icons on the chips, buttons and sheet headers that still had emoji (the owner: "do the emoji to icons
+   cleanup", T32). uiIc(name): 24x24, fill-only (currentColor), one part at 35%, like gIcon (Settings) and qbIc (game page).
+   Self-contained and early (the first screens draw while the page loads); the drawings are copies of those two sets. Templates call it; the one static button inlines the same. ===== */
+const UIC = {
+  edit: "<path opacity='.35' d='M15.2 5.3l3.5 3.5L9 18.5 5.5 15z'/><path d='M17.3 3.2a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2l-1.4 1.4-3.5-3.5zM4.6 16.3l3.1 3.1-4.2 1.1z'/>",
+  comp: "<path opacity='.35' d='M4 4h3.2l7.4 7.4-1.6 1.6L4 7.2z'/><path d='M20 4h-3.2L9 11.8l-2.4-.8-1.4 1.4 2.4 2.4-3 3 1.6 1.6 3-3 2.4 2.4 1.4-1.4-.8-2.4L20 7.2z'/>",
+  diary: "<path opacity='.35' d='M6 3.5h11.5a1 1 0 0 1 1 1V17H7.5A1.5 1.5 0 0 0 6 18.5z'/><path d='M7.5 17h11v3.5h-11a1.75 1.75 0 0 1 0-3.5zM9 6.5h6.5v1.6H9z'/>",
+  spark: "<path d='M10 4.6C11.55 11.65 11.55 11.65 18.6 13.2C11.55 14.75 11.55 14.75 10 21.8C8.45 14.75 8.45 14.75 1.4 13.2C8.45 11.65 8.45 11.65 10 4.6z'/><g opacity='.35'><path d='M18.4 1.8C19.05 4.75 19.05 4.75 22 5.4C19.05 6.05 19.05 6.05 18.4 9C17.75 6.05 17.75 6.05 14.8 5.4C17.75 4.75 17.75 4.75 18.4 1.8z'/><circle cx='19' cy='18.8' r='1.6'/></g>",
+  gear: "<g opacity='.35'><path d='M19.25 9.11 21.92 9.62v4.76l-2.67.51-.08.19 1.52 2.25-3.36 3.36-2.25-1.52-.19.08-.51 2.67H9.62l-.51-2.67-.19-.08-2.25 1.52-3.36-3.36 1.52-2.25-.08-.19-2.67-.51V9.62l2.67-.51.08-.19-1.52-2.25 3.36-3.36 2.25 1.52.19-.08.51-2.67h4.76l.51 2.67.19.08 2.25-1.52 3.36 3.36-1.52 2.25z'/></g><circle cx='12' cy='12' r='3.4'/>",
+  timer: "<g opacity='.35'><circle cx='12' cy='13.4' r='8.4'/></g><rect x='9.6' y='1.6' width='4.8' height='2.4' rx='1.2'/><rect x='11' y='3' width='2' height='3' rx='0.6'/><path d='M11 8.4h2v4.8l3 2.2-1.2 1.6-3.8-2.8z'/>",
+  brain: "<g opacity='.35'><circle cx='12' cy='12.6' r='9.4'/></g><rect x='7.4' y='8.4' width='3.2' height='6.8' rx='1.6'/><rect x='13.4' y='8.4' width='3.2' height='6.8' rx='1.6'/><circle cx='12' cy='2.6' r='1.5'/><rect x='11.25' y='3' width='1.5' height='2.6' rx='0.5'/>",
+  chat: "<g opacity='.35'><path d='M5 3.5h14a2.5 2.5 0 0 1 2.5 2.5v8a2.5 2.5 0 0 1-2.5 2.5h-6.2l-4.3 3.7a.7.7 0 0 1-1.2-.5v-3.2H5A2.5 2.5 0 0 1 2.5 14V6A2.5 2.5 0 0 1 5 3.5z'/></g><circle cx='8' cy='10' r='1.4'/><circle cx='12' cy='10' r='1.4'/><circle cx='16' cy='10' r='1.4'/>",
+  cart: "<g opacity='.35'><path d='M6.2 6.5h14.6l-1.7 7.6a2 2 0 0 1-2 1.6H8.9a2 2 0 0 1-2-1.6z'/></g><path d='M2.5 3.5h2.4a1 1 0 0 1 1 .8l2.6 12.4h9.1a1 1 0 0 1 0 2H7.8a1 1 0 0 1-1-.8L4.1 5.5H2.5a1 1 0 0 1 0-2z'/><circle cx='9.4' cy='21' r='1.5'/><circle cx='16.8' cy='21' r='1.5'/>",
+  eye: "<g opacity='.35'><path d='M12 4.5c5 0 8.6 3.6 10 7.5-1.4 3.9-5 7.5-10 7.5S3.4 15.9 2 12c1.4-3.9 5-7.5 10-7.5z'/></g><circle cx='12' cy='12' r='3.6'/>",
+  bug: "<g opacity='.35'><rect x='6.5' y='8' width='11' height='13' rx='5.5'/></g><circle cx='12' cy='5.8' r='2.7'/><rect x='1.8' y='10.6' width='5' height='1.9' rx='.95'/><rect x='17.2' y='10.6' width='5' height='1.9' rx='.95'/><rect x='1.8' y='15.2' width='5' height='1.9' rx='.95'/><rect x='17.2' y='15.2' width='5' height='1.9' rx='.95'/>",
+  chart: "<rect x='3.5' y='12' width='4.6' height='8.5' rx='1.3'/><rect x='9.7' y='3.5' width='4.6' height='17' rx='1.3'/><g opacity='.35'><rect x='15.9' y='8' width='4.6' height='12.5' rx='1.3'/></g>",
+  radar: "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><circle cx='12' cy='12' r='2.6'/><rect x='11' y='2.8' width='2' height='9.2' rx='1' transform='rotate(40 12 12)'/>",
+  image: "<g opacity='.35'><rect x='2.5' y='4' width='19' height='16' rx='3.2'/></g><circle cx='8.5' cy='9.5' r='1.9'/><path d='M4 18.4l5-5.2 3.4 3.4 3-3.2 4.8 5z'/>",
+  search: "<g opacity='.35'><circle cx='10.5' cy='10.5' r='7.5'/></g><rect x='16' y='14.2' width='2.8' height='8.4' rx='1.4' transform='rotate(-45 17.4 18.4)'/>",
+  flag: "<g opacity='.35'><path d='M5.6 4h12.8l-2.6 4.6 2.6 4.6H5.6z'/></g><rect x='3.4' y='2.4' width='2.4' height='19.2' rx='1.2'/>",
+  list: "<circle cx='4.4' cy='6.5' r='1.7'/><rect x='8.4' y='5.5' width='12.6' height='2' rx='1'/><g opacity='.35'><circle cx='4.4' cy='12' r='1.7'/><rect x='8.4' y='11' width='12.6' height='2' rx='1'/></g><circle cx='4.4' cy='17.5' r='1.7'/><rect x='8.4' y='16.5' width='12.6' height='2' rx='1'/>",
+  star: "<path d='M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z'/>",
+  unsure: "<g opacity='.35'><circle cx='12' cy='12' r='9.5'/></g><rect x='11' y='15.8' width='2' height='2.4' rx='1'/><path d='M9.2 9.7a2.8 2.8 0 1 1 4.5 2.2c-.9.7-1.7 1.2-1.7 2.4h-2c0-1.8 1.1-2.6 2-3.3.4-.3.6-.6.6-1a1.4 1.4 0 0 0-2.8 0z'/>",
+  dice: "<g opacity='.35'><rect x='3' y='3' width='18' height='18' rx='4.5'/></g><circle cx='8.4' cy='8.4' r='1.5'/><circle cx='15.6' cy='8.4' r='1.5'/><circle cx='12' cy='12' r='1.5'/><circle cx='8.4' cy='15.6' r='1.5'/><circle cx='15.6' cy='15.6' r='1.5'/>",
+  trash: "<g opacity='.35'><path d='M5.6 8h12.8l-1 11.8a2 2 0 0 1-2 1.8H8.6a2 2 0 0 1-2-1.8z'/></g><rect x='3.5' y='5' width='17' height='2.4' rx='1.2'/><rect x='9' y='2.4' width='6' height='2.4' rx='1'/>"
+};
+function uiIc(name) {
+  const d = UIC[name] || UIC.gear;
+  return `<svg class="uic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+}
+
 /* v252: the card's markup, here so the launch intro can use it before the rest of the page loads.
    o: k (speed), ar (width / height), word, rv (reveal what's on it), still (no animation),
    art (picture url, already escaped for CSS) or img (picture src), alt, kick (small line), title. */
@@ -3297,7 +3328,7 @@ function pnreelPaint(t) {
     <input id="f-date" type="date">
     <label for="f-hours">Hours to beat</label>
     <input id="f-hours" type="number" min="0" placeholder="80">
-    <button class="chip" id="f-comp" type="button" aria-pressed="false" style="margin-top:8px"><span>⚔️ Competitive · never ends</span></button>
+    <button class="chip" id="f-comp" type="button" aria-pressed="false" style="margin-top:8px"><span><svg class="uic" viewBox="0 0 24 24" aria-hidden="true"><path opacity=".35" d="M4 4h3.2l7.4 7.4-1.6 1.6L4 7.2z"/><path d="M20 4h-3.2L9 11.8l-2.4-.8-1.4 1.4 2.4 2.4-3 3 1.6 1.6 3-3 2.4 2.4 1.4-1.4-.8-2.4L20 7.2z"/></svg> Competitive · never ends</span></button>
     <label>How sure is that date?</label>
     <div class="chips" id="f-status">
       <button class="chip" data-v="confirmed" aria-pressed="true"><span>Confirmed</span></button>
@@ -4253,7 +4284,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "313";
+const APP_V = "314";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -5407,7 +5438,7 @@ function openEdit(id) {
     <label for="e-real">What it actually deserved</label>
     <div class="rowline"><input id="e-real" type="range" min="0" max="10" step="0.5" value="${scored(played) ? played.real : 5}">
       <span class="v" id="e-real-v">${played.dk ? "Unscored" : scored(played) ? (+played.real).toFixed(1) : "—"}</span></div>
-    <div class="chips"><button class="chip" id="e-dk" type="button" aria-pressed="${!!played.dk}"><span>🤷 Don't remember</span></button></div>
+    <div class="chips"><button class="chip" id="e-dk" type="button" aria-pressed="${!!played.dk}"><span>${uiIc("unsure")} Don't remember</span></button></div>
     <p class="note">You hyped it ${g.hype || "—"}/10 before playing.</p>
     <label for="e-runs">Times through</label>
     <div class="rowline"><input id="e-runs" type="range" min="1" max="12" step="1" value="${num(played.runs, 1, 1, 12)}">
@@ -5441,7 +5472,7 @@ function openEdit(id) {
     <div class="epanel" data-ep="look">
     <div class="stickprev"><div class="eprev" id="e-prev"></div></div>
     <div class="setgroup"><h4 data-sum="SteamGridDB, Steam, Xbox, PlayStation">Art from SteamGridDB and the stores</h4>
-    <div class="chips"><button class="btn" id="e-sgauto"><span>✨ Auto-pick all</span></button>
+    <div class="chips"><button class="btn" id="e-sgauto"><span>${uiIc("spark")} Auto-pick all</span></button>
     <button class="btn ghost" id="e-sgdb"><span>Browse and choose</span></button></div>
     <p class="note" id="e-sgdb-msg">Auto-pick fills the logo, backdrop and cover with the sharpest of SteamGridDB's top picks, or the stores' own art when that's much sharper or SteamGridDB has none. Browse shows every picture from SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG with its size, sharpest first, so you can choose each one yourself. Tap Save to keep either.</p>
     <div id="e-sgdb-out"></div>
@@ -6510,7 +6541,7 @@ function openSettings(scope) {
       <label>Chat memory</label>
       <p class="note">${S.nxMem ? "Nexi remembers: " + escRaw(S.nxMem) : "After you chat, Nexi keeps a short note about you here, so the next chat picks up where you left off."}</p>
       ${S.nxMem ? '<button class="btn ghost" id="s-nxforget"><span>Forget it</span></button>' : ""}
-      <button class="btn" data-nxchat=""><span>💬 Chat with Nexi</span></button>
+      <button class="btn" data-nxchat=""><span>${uiIc("chat")} Chat with Nexi</span></button>
       <p class="note" id="s-helperv">Checking Nexi's helper…</p>
     </div>
 
@@ -6596,7 +6627,7 @@ function openSettings(scope) {
       <div class="chips" id="s-xbt">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.btOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-        <button class="chip" data-v="plan"><span>🛒 Shopping plan</span></button>
+        <button class="chip" data-v="plan"><span>${uiIc("cart")} Shopping plan</span></button>
       </div>
       <label>Drifting games</label>
       <p class="note">When a game you're playing starts slipping (longer gaps, shorter sessions, the point where you usually drop games), Nexi offers something short in between or to park it, before you quietly give up on it.</p>
@@ -6609,7 +6640,7 @@ function openSettings(scope) {
       <div class="chips" id="s-xqc">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) =>
           `<button class="chip" data-v="${v}" aria-pressed="${(S.qcOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
-        <button class="chip" data-v="look"><span>🧹 Look now</span></button>
+        <button class="chip" data-v="look"><span>${uiIc("eye")} Look now</span></button>
       </div>
       <label>Release-day cards</label>
       <p class="note">When a game you're waiting for comes out, it hands you a card the next time you open the app, then shows you the game. Off brings back the old OUT NOW screen.</p>
@@ -6790,7 +6821,7 @@ function openSettings(scope) {
       </div>
       <p class="note">Nexi picks up Steam's own genre tags (Souls-like, Metroidvania, JRPG…) for every game that's on Steam, by himself, and puts them first. They also make "games like this" sharper. Off takes exactly those away again.</p>
       <label>SteamGridDB art</label>
-      <button class="btn" id="s-sgbulk"><span>✨ Fill missing art for every game</span></button>
+      <button class="btn" id="s-sgbulk"><span>${uiIc("spark")} Fill missing art for every game</span></button>
       <p class="note" id="s-sgbulk-msg">Goes through your whole list and fills only what's empty — logo, backdrop, cover. Anything you already picked is left alone.</p>
       <label>Critic scores</label>
       <p class="note">Only games RAWG matches by name get touched — an unannounced sequel often matches an older game in its series, so those are skipped and counted. Open one and pull it yourself to see what it found. Scores, dates and Steam's user tags all come through RAWG. Unreleased games have no critic score, so run this again after a game is out. Steam's own API blocks browsers, and IGN has no public API.</p>
@@ -6814,7 +6845,7 @@ function openSettings(scope) {
       <label>Intro cutscene on launch</label>
       <div class="chips" id="s-cine"><button class="chip" data-v="on" aria-pressed="${!S.cineOff}"><span>Play every time</span></button><button class="chip" data-v="off" aria-pressed="${!!S.cineOff}"><span>Off</span></button></div>
       <button class="btn ghost" id="s-cine-now"><span>Play it now</span></button>
-      <button class="btn ghost" id="s-whatsnew"><span>✨ Show me what's new</span></button>
+      <button class="btn ghost" id="s-whatsnew"><span>${uiIc("spark")} Show me what's new</span></button>
       <button class="btn ghost" id="s-stest"><span>⏱ Run the smoothness self-test</span></button>
       <label>Problem reports</label>
       <div class="chips" id="s-bugs">
@@ -6830,7 +6861,7 @@ function openSettings(scope) {
       <div class="chips" id="s-review">
         ${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.reviewOff ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}
       </div>
-      <button class="btn ghost" data-bugreport=""><span>🐞 Report a problem</span></button>
+      <button class="btn ghost" data-bugreport=""><span>${uiIc("bug")} Report a problem</span></button>
     </div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Steam and PlayStation Store prices for the games you're waiting on, and a ping when one drops.">Price alerts</h4><div id="s-pxbox">${typeof pxSetHtml === "function" ? pxSetHtml() : ""}</div></div>
@@ -6840,7 +6871,7 @@ function openSettings(scope) {
     <div class="setgroup" data-scope="app"><h4 data-desc="Your games, locked and backed up by themselves. Get them back on any phone with your code.">Cloud backup</h4><div id="s-cbbox">${typeof cbSetHtml === "function" ? cbSetHtml() : ""}</div></div>
 
     <div class="setgroup" data-scope="app"><h4 data-desc="Storage, backups and starting over.">Your data</h4>
-      <button class="btn ghost" id="s-usage"><span>📊 Your usage (private)</span></button>
+      <button class="btn ghost" id="s-usage"><span>${uiIc("chart")} Your usage (private)</span></button>
       <p class="note">Which screens you visit and what you open, counted per version so you can compare before and after a change. Only on this phone and in your backups.</p>
       <label>Help tidy the app</label>
       <div class="chips" id="s-useoff">
@@ -8882,7 +8913,7 @@ function renderQueue() {
     <div class="tabbar"><h3>Queue</h3><span class="tcount">${
       S.games.length ? S.games.filter(g => !isPlayed(g) && !isDropped(g)).length + " waiting · " + S.played.length + " played" : ""
     }</span>
-      <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
+      <button class="chip" data-settings="games"><span>${uiIc("gear")} Customise</span></button></div>
     ${subChips("games")}
     ${qdDeck(manual)}
     ${onDeckStrip()}
@@ -9030,8 +9061,8 @@ function renderCal() {
   const timing = view === "timer";
   el.innerHTML = `
     <div class="tabbar"><h3>${esc(subLabel("plan", view))}</h3>
-      <span class="tbacts"><button class="chip" id="fx-radar" aria-label="Radar"><span>📡<em> Radar</em></span></button>
-      <button class="chip" data-settings="plan"><span>⚙ Customise</span></button></span></div>
+      <span class="tbacts"><button class="chip" id="fx-radar" aria-label="Radar"><span>${uiIc("radar")}<em> Radar</em></span></button>
+      <button class="chip" data-settings="plan"><span>${uiIc("gear")} Customise</span></button></span></div>
     ${subChips("plan")}
     ${(flow || planning || timing) ? "" : `<div class="cal-head">
       <button class="calarrow" id="cal-prev" aria-label="Previous month"><span>‹</span></button>
@@ -9058,7 +9089,7 @@ function renderCal() {
     ${(planning || timing) ? "" : undated.length ? `<div class="undated"><label>No date yet</label>
       ${undated.map(g => `<div class="row slab" style="--accent:${esc(g.colour)}"><div style="display:flex;gap:12px;align-items:center;width:100%">
         <img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt=""><span class="name">${esc(g.title)}</span>
-        <button class="icon" data-edit="${g.id}" title="Add a date">✎</button></div></div>`).join("")}</div>` : ""}`;
+        <button class="icon" data-edit="${g.id}" title="Add a date">${uiIc("edit")}</button></div></div>`).join("")}</div>` : ""}`;
   if ($("#cal-prev")) $("#cal-prev").onclick = () => { calM--; if (calM < 0) { calM = 11; calY--; } renderCal(); };
   if ($("#cal-next")) $("#cal-next").onclick = () => { calM++; if (calM > 11) { calM = 0; calY++; } renderCal(); };
   el.querySelectorAll("[data-flowscope]").forEach(b => b.onclick = () => {
@@ -9115,7 +9146,7 @@ function renderLib() {
   const reel = S.libLayout === "reel";
   const reelw = num(S.reelW, 72, 40, 96);
   el.innerHTML = `<div class="tabbar"><h3>Library</h3>
-      <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
+      <button class="chip" data-settings="games"><span>${uiIc("gear")} Customise</span></button></div>
     ${subChips("games")}
     <div class="chips" id="lib-view">
       ${[["grid", "Grid"], ["reel", "Swipe"]].map(([v, l]) =>
@@ -10014,7 +10045,7 @@ function renderPlayed() {
   const quit = S.games.filter(isDropped);
   el.innerHTML = `
     <div class="tabbar"><h3>Played</h3>
-      <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
+      <button class="chip" data-settings="games"><span>${uiIc("gear")} Customise</span></button></div>
     ${subChips("games")}
     ${typeof pnBadges === "function" ? pnBadges() : ""}
     ${typeof pnBoard === "function" ? pnBoard(done) : ""}
@@ -10090,7 +10121,7 @@ function renderPlayed() {
           ${sc ? `<span class="gap ${d < 0 ? "over" : "under"}">${d > 0 ? "+" : ""}${d}</span>` : ""}
           <button class="icon${x.again ? " again" : ""}" data-again="${x.id}"
             title="${x.again ? "In the replay list" : "Want to play it again"}">↻</button>
-          <button class="icon" data-edit="${x.id}" title="Edit ${esc(x.g.title)}">✎</button>
+          <button class="icon" data-edit="${x.id}" title="Edit ${esc(x.g.title)}">${uiIc("edit")}</button>
         </div></div>`;
       }).join("")}
       <p class="note">Red means you hyped it more than it deserved.${
@@ -10769,7 +10800,7 @@ function openDiaryPicker(all) {
   const top = live.filter(g => g.comp || g.state === "playing").sort((x, y) => (y.comp ? 1 : 0) - (x.comp ? 1 : 0));
   const rest = live.filter(g => !top.includes(g));
   const row = g => `<button class="dy-g" data-g="${g.id}" style="--accent:${esc(g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${g.comp ? "⚔️ Competitive" : "Playing now"}${(g.diary || []).length ? " · " + g.diary.length + " entries" : ""}</small></span><em>›</em></button>`;
-  dyShow(box, `<div class="dy-h"><b>📓 What did you play?</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("diary")} What did you play?</b><button class="dy-x" aria-label="Close">✕</button></div>
     ${top.length ? `<div class="dy-gl">${top.map(row).join("")}</div>` : `<p class="dy-empty">Nothing marked "Playing now" yet, so everything is below.</p>`}
     ${all || !top.length ? `<div class="dy-gl" style="margin-top:10px">${rest.map(row).join("")}</div>` : `<button class="dy-more">Show other games</button>`}`,
     e => { const g = e.target.closest("[data-g]"); if (g) { beep("tap"); openDiary(g.dataset.g); return; }
@@ -10786,7 +10817,7 @@ function openDiary(id, mins) {
 
   const wld = e => (e.w || e.l || e.d) ? `${e.w || 0}W ${e.l || 0}L${e.d ? " " + e.d + "D" : ""}` : "";
   dyShow(box, `<div class="dy-h"><button class="dy-bk" aria-label="Back">‹</button><b>${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
-    <label class="dy-c"><input type="checkbox" class="dy-ct"${comp ? " checked" : ""}> ⚔️ Competitive game <small>no hours, immune to the Shadow</small></label>
+    <label class="dy-c"><input type="checkbox" class="dy-ct"${comp ? " checked" : ""}> ${uiIc("comp")} Competitive game <small>no hours, immune to the Shadow</small></label>
     <p class="dy-q">How did ${mins ? "that " + mins + " min" : "it"} feel? Jot what you noticed.</p>
     <div class="dy-m">${MOODS.map((m, i) => `<button data-m="${i}"${i === pick ? ' class="sel"' : ""}><span>${m[0]}</span><small>${m[1]}</small></button>`).join("")}</div>
     <input class="dy-n" maxlength="140" placeholder="What happened? e.g. a tactic that worked" value="${cur && cur.n ? esc(cur.n) : ""}">
@@ -10832,7 +10863,7 @@ function droppedBlock(quit) {
       <img decoding="async" style="${coverPos(g)}" src="${esc(cover(g))}" alt="">
       <span class="name">${esc(g.title)}</span>
       ${g.logged ? `<span class="score">${Number(g.logged).toFixed(1)}h in</span>` : ""}
-      <button class="icon" data-edit="${g.id}" title="Edit ${esc(g.title)}">✎</button>
+      <button class="icon" data-edit="${g.id}" title="Edit ${esc(g.title)}">${uiIc("edit")}</button>
     </div></div>`).join("")}`;
 }
 
@@ -10843,7 +10874,7 @@ function renderReplay() {
     .map(p => ({ ...p, g: S.games.find(g => g.id === p.id) })).filter(x => x.g);
   el.innerHTML = `
     <div class="tabbar"><h3>Replay</h3>
-      <button class="chip" data-settings="games"><span>⚙ Customise</span></button></div>
+      <button class="chip" data-settings="games"><span>${uiIc("gear")} Customise</span></button></div>
     ${subChips("games")}
     <label>Worth going back to</label>
     ${again.length ? again.map(x => `
@@ -10853,7 +10884,7 @@ function renderReplay() {
         ${x.g.hours ? `<span class="score">${x.g.hours}h</span>` : ""}
         <span class="score">${x.real}/10</span>
         ${num(x.runs, 1, 1, 99) > 1 ? `<span class="when">${num(x.runs, 1, 1, 99)}×</span>` : ""}
-        <button class="icon" data-edit="${x.id}" title="Edit ${esc(x.g.title)}">✎</button>
+        <button class="icon" data-edit="${x.id}" title="Edit ${esc(x.g.title)}">${uiIc("edit")}</button>
         <button class="icon" data-requeue="${x.id}" title="Put it back in the queue">↥</button>
         <button class="icon" data-drop="${x.id}" title="Take it off this list">✕</button>
       </div></div>`).join("")
@@ -11812,7 +11843,7 @@ function pnRail(ranked) {
   if (r.dataset.sig === sig) { pnRailTabs(); return; }
   r.dataset.sig = sig;
   r.innerHTML = `${tabs}<span class="sep"></span>
-    <button class="act hot" data-ra="pick" title="Pick one for me">🎲</button>
+    <button class="act hot" data-ra="pick" title="Pick one for me">${uiIc("dice")}</button>
     <span class="rh">QUEUE</span>
     <div class="games">${list.map((g, n) => { const src = bgSource(g) || cover(g), out = g.state === "backlog" || g.state === "playing" || isFresh(g);
       return `<button class="g" data-rg="${g.id}" title="${esc(g.title)}" style="--tint:${esc(g.colour || PALETTE[0])}${src ? `;background-image:url('${esc(cssUrl(src))}')` : ""}">
@@ -12537,7 +12568,7 @@ function openSessions(id) {
   const before = Math.max(0, loggedOf(g) - st.tot);
   const moodOn = d => { const e = (g.diary || []).filter(x => sessDay(x.t) === d).slice(-1)[0]; return e && MOODS[e.m] ? MOODS[e.m][0] : ""; };
   const tm = t => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  dyShow(box, `<div class="dy-h"><b>⏱ ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("timer")} ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
     <div class="ss-st"><div><b>${st.n}</b><small>sessions</small></div><div><b>${fmtH(st.tot)}</b><small>played</small></div>
       <div><b>${st.n ? fmtH(st.avg) : "—"}</b><small>average</small></div><div><b>${st.n ? fmtH(st.best) : "—"}</b><small>longest</small></div></div>
     ${sessHeat(list, g.colour, SESS_W)}
@@ -12778,7 +12809,7 @@ function finWire(root, onPick) {
 function openFinDate(id) {
   const g = S.games.find(x => x.id === id), rec = (S.played || []).find(x => x.id === id); if (!g || !rec) return;
   const box = dyBox();
-  dyShow(box, `<div class="dy-h"><b>🏁 When did you finish ${esc(g.title)}?</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("flag")} When did you finish ${esc(g.title)}?</b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="dy-q">Pick the month. Your recaps count the game there.</p><div id="fin-sheet">${finPick(rec.t)}</div>`, () => {});
   finWire(box.querySelector("#fin-sheet"), t => { rec.t = t; saveNow(); renderPlayed(); toast("Finished in " + FIN_M[+t.slice(5, 7) - 1] + " " + t.slice(0, 4)); setTimeout(dyClose, 350); });
 }
@@ -12805,8 +12836,8 @@ function openLists(gid, editId) {
     : editId === l.id
       ? `<div class="ls-r"><span class="e">${esc(l.e)}</span><input class="ls-in" data-ren="${l.id}" value="${escRaw(l.n)}" maxlength="32"><button type="button" class="ls-b" data-rsave="${l.id}">Save</button></div>`
       : `<div class="ls-r"><span class="e">${esc(l.e)}</span><button type="button" class="n" data-lshow="${l.id}">${esc(l.n)}<small>${count(l)} game${count(l) === 1 ? "" : "s"} · show in queue</small></button>
-        <button type="button" class="ls-b" data-redit="${l.id}" aria-label="Rename">✎</button><button type="button" class="ls-b del" data-ldel="${l.id}" aria-label="Delete">🗑</button></div>`;
-  dyShow(box, `<div class="dy-h"><b>📋 ${g ? "Lists for " + esc(g.title) : "Your lists"}</b><button class="dy-x" aria-label="Close">✕</button></div>
+        <button type="button" class="ls-b" data-redit="${l.id}" aria-label="Rename">${uiIc("edit")}</button><button type="button" class="ls-b del" data-ldel="${l.id}" aria-label="Delete">${uiIc("trash")}</button></div>`;
+  dyShow(box, `<div class="dy-h"><b>${uiIc("list")} ${g ? "Lists for " + esc(g.title) : "Your lists"}</b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="dy-q">${g ? "Tap a list to put this game in it (or take it out). A game can be in as many as you like." : "Your own shelves. Pick one in the Queue's filter menu to see just those games."}</p>
     ${L.length ? `<div class="ls-l">${L.map(row).join("")}</div>` : '<p class="dy-empty">No lists yet. Make your first one below.</p>'}
     <div class="ls-new"><small>New list</small><div class="ls-emo">${LIST_EMO.map(x => `<button type="button" data-emo="${x}"${x === emo ? ' class="on"' : ""}>${x}</button>`).join("")}</div>
@@ -12912,7 +12943,7 @@ function uSheet() {
   const nice = k => { const [t, s] = k.split("/"); return (SCOPE_NAME[t] || (t === "add" ? "Add" : t)) + (s ? " › " + (subLabel(t, s) || s) : ""); };
   const top = o => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
   const all = top(u.v).slice(0, 12), opens = top(u.o);
-  dyShow(dyBox(), `<div class="dy-h"><b>📊 Your usage <small class="u-pv">private</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(dyBox(), `<div class="dy-h"><b>${uiIc("chart")} Your usage <small class="u-pv">private</small></b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="dy-q">Counted on this phone since ${esc(u.since || uDay())}. Nobody sees this but you; it's in your backups so you can compare later.</p>
     ${vs.length ? `<div class="u-t"><div class="u-r u-h"><span>Version</span><span>Days</span><span>Visits/day</span><span>Opens/day</span></div>
       ${vs.map(v => { const b = byV[v]; return `<div class="u-r"><span>v${esc(v)}${v === APP_V ? " (now)" : ""}</span><span>${b.days}</span><span>${per(sum(b.v), b.days)}</span><span>${per(sum(b.o), b.days)}</span></div>`; }).join("")}</div>` : ""}
@@ -12937,7 +12968,7 @@ function qScorePick() {
   const pl = S.games.filter(g => !isPlayed(g) && g.state === "playing" && !g.comp);
   const done = S.games.filter(g => isPlayed(g) && scored(playedRec(g))).slice(-6).reverse();
   const row = (g, s) => `<button class="dy-g" data-g="${g.id}" style="--accent:${esc(g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b><small>${s}</small></span><em>›</em></button>`;
-  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score a game</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(dyBox(), `<div class="dy-h"><b>${uiIc("star")} Score a game</b><button class="dy-x" aria-label="Close">✕</button></div>
     ${un.length ? `<p class="dy-q">Played, no score yet</p><div class="dy-gl">${un.map(g => row(g, "Needs a verdict")).join("")}</div>` : ""}
     ${pl.length ? `<p class="dy-q">Playing now</p><div class="dy-gl">${pl.map(g => row(g, "Finished it?")).join("")}</div>` : ""}
     ${done.length ? `<p class="dy-q">Change a score</p><div class="dy-gl">${done.map(g => row(g, (playedRec(g) || {}).real + "/10")).join("")}</div>` : ""}
@@ -13035,7 +13066,7 @@ function qDuel(focusId, note) {
   const card = (g, s) => `<button class="qd-g" data-qdw="${s}" style="--accent:${esc(g.colour || PALETTE[0])}">
       <img decoding="async" src="${esc(cover(g))}" alt=""><b>${esc(g.title)}</b>
       <small class="qd-rk">#${t.pos[g.id] + 1} ${tierBadge(t.sc[g.id])}${confDots(t.n[g.id])}</small></button>`;
-  dyShow(box, `<div class="dy-h"><b>⚔️ Which was better?</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("comp")} Which was better?</b><button class="dy-x" aria-label="Close">✕</button></div>
     ${note ? `<p class="qd-note">${note}</p>` : ""}
     ${pr ? `<div class="qd-row">${card(pr[0], 0)}<span class="qd-vs">VS</span>${card(pr[1], 1)}</div>
       <div class="qd-acts"><button data-qdw="e0">‹ Slight edge</button><button data-qdw="d">Even</button><button data-qdw="e1">Slight edge ›</button></div>
@@ -13072,14 +13103,14 @@ function qScore(id) {
   const ints = []; for (let v = SCORE_LO; v <= 10; v++) ints.push(v);
   const halves = []; for (let v = SCORE_LO + .5; v < 10; v++) halves.push(v);
   const rk = rankOf(g.id);
-  dyShow(dyBox(), `<div class="dy-h"><b>⭐ Score it</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(dyBox(), `<div class="dy-h"><b>${uiIc("star")} Score it</b><button class="dy-x" aria-label="Close">✕</button></div>
     <div class="qs-g" style="--accent:${esc(g.colour || PALETTE[0])}"><img decoding="async" src="${esc(cover(g))}" alt=""><span><b>${esc(g.title)}</b>
       <small>${rec && rec.dk ? "Unscored (you don't remember)" : cur != null ? (rk ? "#" + rk + " · " : "") + "tap to change" : isPlayed(g) ? "Played, not scored yet" : "Scoring it marks it played"}${g.hype > 0 ? " · hype was " + g.hype : ""}</small></span>
       <em class="qs-v">${cur != null ? cur + tierBadge(cur) : "–"}</em></div>
     <div class="qs-grid" style="--n:${ints.length}">${ints.map((v, i) => `<button class="qs-i${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 1}/span 2">${v}</button>`).join("")}
       ${halves.map((v, i) => `<button class="qs-h${cur === v ? " on" : ""}" data-qs="${v}" style="grid-column:${i * 2 + 2}/span 2">${String(v).replace(/^(\d+)\.5$/, "$1½")}</button>`).join("")}</div>
     <p class="qd-meta">Top row whole points, bottom row halves. 9+ is S tier, 7½+ A, 6+ B.</p>
-    <button class="dy-more qs-dk${rec && rec.dk ? " on" : ""}" data-qs="dk">🤷 Don't remember</button>`,
+    <button class="dy-more qs-dk${rec && rec.dk ? " on" : ""}" data-qs="dk">${uiIc("unsure")} Don't remember</button>`,
     e => {
       const b = e.target.closest("[data-qs]"); if (!b) return;
       const v = b.dataset.qs === "dk" ? "dk" : +b.dataset.qs;
@@ -13169,7 +13200,7 @@ function tasteInsights() {
 function insightsBlock() {
   const ins = tasteInsights(), t = rankTable(), n = (S.duels || []).filter(d => d.w).length;
   const top = rankedGames().slice(0, 5);
-  return `<div class="tins"><div class="tins-h"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>⚔️ Duel</span></button></div>
+  return `<div class="tins"><div class="tins-h"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>${uiIc("comp")} Duel</span></button></div>
     ${ins.length ? ins.map(x => `<div class="tin"><span class="ti">${x.ic}</span><span><span class="tt">${x.txt}</span><small>${esc(x.sub)}</small></span></div>`).join("")
       : `<p class="note">${n < 4 ? "Settle a few duels and I'll start spotting patterns, like which kinds of game win." : "Nothing stands out yet. More duels, and games added or removed, sharpen this."}</p>`}
     ${top.length ? `<div class="tins-rk">${top.map((g, i) => `<button class="rk" data-opg="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<span>${esc(g.title)}</span>${confDots(t.n[g.id])}<small>${t.sc[g.id]}</small></button>`).join("")}</div>` : ""}
@@ -13337,13 +13368,13 @@ function nxChat(prefill) {
   uCount("o", "chat");
   const box = dyBox(), log = (S.nxChat ||= []);
   const bub = m => `<div class="nc-m ${m.role === "user" ? "me" : "nx"}">${m.role === "user" ? "" : '<span class="nc-f"><i></i><i></i></span>'}<p>${esc(m.content).replace(/\n/g, "<br>")}</p></div>`;
-  dyShow(box, `<div class="dy-h"><b>💬 ${esc(pnName())} <small class="nc-p">${esc(nxPName())}</small></b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("chat")} ${esc(pnName())} <small class="nc-p">${esc(nxPName())}</small></b><button class="dy-x" aria-label="Close">✕</button></div>
     <div class="nc-pers">${NX_PERSONAS.map(([k, l, e]) => `<button data-pers="${k}" aria-pressed="${nxP() === k}">${e} ${esc(l)}</button>`).join("")}</div>
     <div class="nc-log">${log.length ? log.slice(-20).map(bub).join("") : `<div class="nc-m nx"><span class="nc-f"><i></i><i></i></span><p>${esc(nxVoice(`Ask me what to play next, why you like what you like, or for tips on a game. I know your ranking and your queue.`))}</p></div>`}
       ${nxBusy ? '<div class="nc-m nx"><span class="nc-f"><i></i><i></i></span><p class="nc-dots"><i></i><i></i><i></i></p></div>' : ""}</div>
-    <div class="nc-asks">${NX_ASKS().map(q => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join("")}<button data-act="duel">⚔️ Duel</button><button data-act="find">⚙ Find a setting</button></div>
+    <div class="nc-asks">${NX_ASKS().map(q => `<button data-ask="${esc(q)}">${esc(q)}</button>`).join("")}<button data-act="duel">${uiIc("comp")} Duel</button><button data-act="find">⚙ Find a setting</button></div>
     <div class="nc-in"><input class="nc-q" maxlength="300" placeholder="Ask ${esc(pnName())}…" value="${esc(prefill || "")}" enterkeyhint="send"><button class="nc-go" aria-label="Send">➤</button></div>
-    ${S.nxMem ? `<details class="nc-mem"><summary>🧠 What I remember about you</summary><p>${esc(S.nxMem)}</p><button data-act="forget">Forget this</button></details>` : ""}`,
+    ${S.nxMem ? `<details class="nc-mem"><summary>${uiIc("brain")} What I remember about you</summary><p>${esc(S.nxMem)}</p><button data-act="forget">Forget this</button></details>` : ""}`,
     e => {
       const pe = e.target.closest("[data-pers]"); if (pe) { S.nxPersona = pe.dataset.pers; save(); beep("tap"); renderHome(); return nxChat(box.querySelector(".nc-q").value); }
       const a = e.target.closest("[data-ask]"); if (a) return nxSend(a.dataset.ask);
@@ -13462,7 +13493,7 @@ function openSimilar(id) {
   const loc = simLocal(g, 6);
   const row = x => `<button class="dy-g" data-opg="${x.g.id}" style="--accent:${esc(x.g.colour || "#4DA3FF")}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><span><b>${esc(x.g.title)}</b><small>${esc(isPlayed(x.g) ? (rankOf(x.g.id) ? "Your #" + rankOf(x.g.id) : "Played") : x.g.state === "playing" ? "Playing now" : "In your queue")} · ${Math.round(x.s * 100)}% alike</small></span><em>›</em></button>`;
   const box = dyBox();
-  dyShow(box, `<div class="dy-h"><b>🔍 Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("search")} Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
     <p class="dy-q">${esc(nxVoice(loc.length ? "Here's what fits, from your games and a few new ones." : "Nothing in your library is close. Here are some new ones."))}</p>
     ${loc.length ? `<p class="dy-q"><b>In your library</b></p><div class="dy-gl">${loc.map(row).join("")}</div>
       <button class="dy-more" data-simq="${g.id}">Show these in the queue</button>` : ""}
@@ -13497,7 +13528,7 @@ function simRestore() { if (/^S:/.test(S.qFilter || "") && !QFILTERS.some(x => x
 function simBack(g) {
   const l = simLocal(g, 3);
   return `<div class="simback"><span class="sb-h">Like this</span>${l.map(x => `<button class="sb-g" data-opg="${x.g.id}" title="${esc(x.g.title)}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><small>${esc(x.g.title)}</small></button>`).join("")}
-    <span class="sb-acts"><button class="chip" data-sim="${g.id}"><span>🔍 More like it</span></button><button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button></span></div>`;
+    <span class="sb-acts"><button class="chip" data-sim="${g.id}"><span>${uiIc("search")} More like it</span></button><button class="chip" data-trailer="${g.id}"><span>▶ Trailer</span></button></span></div>`;
 }
 
 /* ---- trailers: a YouTube search, so it always finds the latest one ---- */
@@ -14604,7 +14635,7 @@ function pnBoard(done){
   const mon=t=>{if(!t)return "Played";const d=new Date(t);return isNaN(d)?"Played":d.toLocaleDateString(undefined,{month:"short",year:"numeric"});};
   const pba=(S.boardArt==null?80:S.boardArt)/100;
   return `<div class="pnb" style="--pba:${pba};--pbs:${(S.boardSize == null ? 75 : S.boardSize) / 100}"><div class="pnb-h"><h3>Top board</h3>
-    <div class="chips"><button class="chip" data-pnart aria-pressed="${pnArtOpen}"><span>🖼 Look</span></button>
+    <div class="chips"><button class="chip" data-pnart aria-pressed="${pnArtOpen}"><span>${uiIc("image")} Look</span></button>
     <button class="chip" data-pnshare><span>↗ Share</span></button></div></div>
     ${pnArtOpen?`<div class="pnb-ctl"><label class="pnb-art">Faint<input type="range" min="20" max="100" value="${Math.round(pba*100)}" data-pnartv>Strong</label><label class="pnb-art">Small<input type="range" min="50" max="100" value="${S.boardSize==null?75:S.boardSize}" data-pnsize>Big</label></div>`:""}
     ${list.map((x,i)=>`<button class="pnb-row${i===0?" top":""}" data-edit="${x.id}" style="--i:${Math.min(i,10)};--art:url('${esc(art(x.g))}')">
@@ -18448,7 +18479,7 @@ function tasteInsightsPage() {
   }
   /* 3. what I've noticed */
   const ins = tasteInsights(), top = rankedGames().slice(0, 5);
-  out.push(`<div class="ix-card ${ixRv("learn")}"><div class="ix-head"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>⚔️ Duel</span></button></div>
+  out.push(`<div class="ix-card ${ixRv("learn")}"><div class="ix-head"><h4>What I've learned</h4><button class="chip" data-qduel=""><span>${uiIc("comp")} Duel</span></button></div>
     ${ins.length ? `<div class="ix-ins">${ins.map((x, i) => `<div class="ix-in" style="--i:${i}"><i>${x.ic}</i><span><span class="tt">${x.txt}</span><small>${esc(x.sub)}</small></span></div>`).join("")}</div>`
       : `<p class="ix-s">${duels < 4 ? "Settle a few duels and I'll start spotting patterns, like which kinds of game win." : "Nothing stands out yet. More duels, and games added or removed, sharpen this."}</p>`}
     ${top.length ? `<div class="ix-rk">${top.map((g, i) => `<button data-opg="${g.id}"><b>${i + 1}</b>${tierBadge(t.sc[g.id])}<span>${esc(g.title)}</span></button>`).join("")}</div>` : ""}</div>`);
@@ -22253,7 +22284,7 @@ openSimilar = function (id) {
   const g = S.games.find(x => x.id === id); if (!g) return;
   uCount("o", "similar");
   const loc = simLocal(g, 8), box = dyBox();
-  dyShow(box, `<div class="dy-h"><b>🔍 Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
+  dyShow(box, `<div class="dy-h"><b>${uiIc("search")} Like ${esc(g.title)}</b><button class="dy-x" aria-label="Close">✕</button></div>
     ${loc.length ? `<p class="dy-q"><b>In your library</b> · <button class="gp-more" data-simq="${g.id}">show them in the Queue</button></p>
       <div class="sg-lib">${loc.map(x => `<button type="button" data-opg="${x.g.id}"><img decoding="async" src="${esc(cover(x.g))}" alt=""><small>${esc(x.g.title)} · ${Math.round(x.s * 100)}%</small></button>`).join("")}</div>` : ""}
     <p class="dy-q" style="margin-top:10px"><b>Picked by ${esc(pnName())}</b> <small>checked on RAWG</small></p>
@@ -27439,6 +27470,12 @@ html.still .hero .hflip.qkf.on :is(.qbliq, .qbbub, .qbfour > div) { animation: n
 /* lag hunt round 3: while the Queue is hidden its rows may skip drawing, so showing it restyles only the rows on screen;
    qWarm (last script) draws the rest a few at a time at idle, so a fling right after still finds them drawn (#89) */
 html:not(.dragging-now) #p-queue.qcold .row:not(.qw) { content-visibility: auto; }
+/* ===== v314: drawn icons in chips, buttons and sheet headers (uiIc) ===== */
+.uic { width: 1.2em; height: 1.2em; fill: currentColor; display: inline-block; vertical-align: -.22em; margin-right: .3em; flex: none; }
+button.icon .uic, .ls-b .uic, #hrail .act .uic { margin-right: 0; width: 1.3em; height: 1.3em; vertical-align: middle; }
+.dy-h b .uic { color: var(--volt); width: 1.25em; height: 1.25em; margin-right: .4em; }
+.chip > span > .uic:first-child, .btn > span > .uic:first-child { color: var(--volt); }
+.chips .chip[aria-pressed="true"] > span > .uic:first-child { color: inherit; }
 </style>
 <script>
 WHATS_NEW.push(
@@ -27862,6 +27899,9 @@ WHATS_NEW.push(
 WHATS_NEW.push(
   { v: 313, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: () => $('nav button[data-tab="games"]') || null,
     say: "<b>Faster to the Queue</b>: switching to it now draws only the games on screen in the moment you tap, and the rest a few at a time right after.",
-    tryIt: "Tap Games, then switch between Queue and Library a few times." }
+    tryIt: "Tap Games, then switch between Queue and Library a few times." },
+  { v: 314, go: () => { closeFull(); dyClose(); nxShut(); nxOpenSettings("#s-whatsnew"); }, at: "#s-whatsnew",
+    say: "<b>No more default emoji icons</b>: the buttons and sheet titles that still used emoji (Customise, Show me what's new, Report a problem, Score it, Lists, Diary, Timer, Edit and more) now wear drawn icons in the same style as the menu.",
+    tryIt: "Open Settings and look at the buttons, then open a game's Score it or Lists sheet." }
 );
 </script>
