@@ -6,7 +6,11 @@
      node tools/where.mjs --check         hazards from the hard-won rules (exit 1): a call to a function that only exists
                                           inside another script's scope (v237), state read off a wrapped function (v198),
                                           assigning a top-level const (v216), wrapping goTab / goSub / openFull /
-                                          openSettings again instead of onNav / onSettings (v269); --base=<git ref> = only the ones new since that build
+                                          openSettings again instead of onNav / onSettings (v269), a layout read right after an
+                                          HTML write in one function (v206: also through top-level helpers, setTimeout <100ms and
+                                          extend() after/map hooks; budgeted by audit.mjs layoutAfterHtml, over it fails);
+                                          --base=<git ref> = only the ones new since that build
+     node tools/where.mjs --list-v206     every v206 hit (audit.mjs counts them)
      node tools/where.mjs --json [--at=N] the whole map, or the functions around line N (the learn mod reads this)
    Cached in tools/.cache/ by index.html's size + mtime. */
 import fs from "fs";
@@ -18,6 +22,9 @@ import { fileURLToPath } from "url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /* PN_MAP_FILE: map another copy (--check --base maps the old build with it) */
 const FILE = process.env.PN_MAP_FILE || path.join(ROOT, "index.html");
+const BUDGET = path.join(ROOT, "tools", "audit-budget.txt");
+/* the cache also keys on this file: a map built by an older where.mjs (without a newer rule) must not be reused */
+const SELF = fs.statSync(fileURLToPath(import.meta.url)).mtimeMs;
 const CACHE = path.join(ROOT, "tools", ".cache", process.env.PN_MAP_FILE ? "where-other.json" : "where.json");
 
 function acorn() {
@@ -160,17 +167,99 @@ function build() {
   const door = (defs.onNav || []).find(d => !d.scoped);   /* the door itself wraps them once, in its own script */
   if (door) for (const k of NAV) for (const w of wraps[k] || []) if (w.fn && w.line > door.line && w.s !== door.s)
     hazards.push({ rule: "v269", line: w.line, s: w.s, name: k, msg: `${k} is wrapped here: register ${k === "openSettings" ? "onSettings" : "onNav"}("before"|"after", …) instead (CLAUDE.md, v269)` });
+  /* v206: a layout read right after an HTML write in the same function forces a full layout of the new markup there and
+     then. A callback handed to anything (requestAnimationFrame, an observer, a timer, a listener) runs later and is fine;
+     forEach/map/... callbacks run now, so they count as the same function. A write into an element made in that function
+     (createElement / cloneNode / a template) touches nothing on screen and doesn't count. */
+  const SYNC = new Set(["forEach", "map", "filter", "some", "every", "find", "findIndex", "reduce", "flatMap", "sort", "call", "apply"]);
+  const READ = /^(getBoundingClientRect|getClientRects|getComputedStyle|offset(Width|Height|Top|Left|Parent)|client(Width|Height|Top|Left)|scroll(Width|Height|Top|Left)|innerText|checkVisibility)$/;
+  const WRITE = /^(innerHTML|outerHTML)$/, WRITE_CALL = /^(insertAdjacentHTML|replaceChildren)$/, scanned = [];
+  scripts.forEach((sc, si) => {
+    const ast = asts[si]; if (!ast) return;
+    const L = n => n.loc.start.line + sc.off;
+    const nameOf = new Map(), hookOf = new Map();   /* function node -> a readable name / the function it extends */
+    const rootOf = x => { while (x && x.type === "MemberExpression") x = x.object; return x && x.type === "Identifier" ? x.name : null; };
+    /* only top-level functions are followed into: a local on() / add() / k() shares its name with too many others */
+    const globFns = new Set(ast.body.flatMap(n => n.type === "FunctionDeclaration" ? [n] : n.type === "VariableDeclaration" ? n.declarations.filter(d => isFn(d.init)).map(d => d.init) : []));
+    /* setTimeout(fn) / setTimeout(fn, <100) / queueMicrotask(fn) usually runs before the browser has laid the new markup
+       out (v245: renderPlayed → pnShelf 30ms later), so it counts as the same function; rAF and observers are the safe doors */
+    const soon = (p, n) => p && p.type === "CallExpression" && p.arguments[0] === n && p.callee.type === "Identifier" && (p.callee.name === "queueMicrotask"
+      || p.callee.name === "setTimeout" && (!p.arguments[1] || p.arguments[1].type === "Literal" && +p.arguments[1].value < 100));
+    /* extend("fn", { after, map }): the hook runs right after fn's own body, so a read there follows fn's HTML write */
+    const noteExtend = n => { if (n.type === "CallExpression" && n.callee.type === "Identifier" && n.callee.name === "extend" && n.arguments[0] && n.arguments[0].type === "Literal" && n.arguments[1] && n.arguments[1].type === "ObjectExpression")
+      for (const p of n.arguments[1].properties) if (p.key && /^(after|map)$/.test(p.key.name) && isFn(p.value)) { hookOf.set(p.value, n.arguments[0].value); nameOf.set(p.value, `extend("${n.arguments[0].value}").${p.key.name}`); } };
+    const scan = (fn, name) => {
+      const events = [], fresh = new Set();
+      let late = 0;   /* inside a setTimeout(…, <100) callback: counts here, but not for the callers of this function */
+      const ev = o => events.push(late ? { ...o, t: true } : o);
+      const walk = (n, parent, key) => {
+        let soonCb = false;
+        if (n !== fn && /Function|Arrow/.test(n.type)) {
+          const sync = parent && parent.type === "CallExpression" && key === "arguments" && parent.callee.type === "MemberExpression" && !parent.callee.computed && SYNC.has(parent.callee.property.name)
+            || parent && parent.type === "CallExpression" && key === "callee"   /* (() => …)() */
+            || (soonCb = soon(parent, n));
+          if (!sync) { scan(n, n.id ? n.id.name : nameOf.get(n) || name + " › callback"); return; }
+        }
+        noteExtend(n);
+        if (n.type === "AwaitExpression" || n.type === "ForOfStatement" && n.await) events.push({ a: true, pos: n.type === "AwaitExpression" ? n.argument.end : n.start });
+        if (n.type === "VariableDeclarator" && n.id.type === "Identifier" && n.init) {
+          if (/Function|Arrow/.test(n.init.type)) nameOf.set(n.init, n.id.name);
+          const src = sc.code.slice(n.init.start, n.init.end);
+          if (/createElement|cloneNode|createDocumentFragment|\.content\b|DOMParser/.test(src) && n.init.type !== "ArrowFunctionExpression") fresh.add(n.id.name);
+        }
+        if (n.type === "AssignmentExpression" && n.left.type === "MemberExpression" && !n.left.computed && WRITE.test(n.left.property.name) && !fresh.has(rootOf(n.left.object)))
+          ev({ w: true, pos: n.start, line: L(n), what: "." + n.left.property.name });
+        if (n.type === "CallExpression" && n.callee.type === "MemberExpression" && !n.callee.computed && WRITE_CALL.test(n.callee.property.name) && !fresh.has(rootOf(n.callee.object)))
+          ev({ w: true, pos: n.start, line: L(n), what: "." + n.callee.property.name + "()" });
+        const isRead = (n.type === "MemberExpression" && !n.computed && READ.test(n.property.name) && !(parent && parent.type === "AssignmentExpression" && key === "left"))
+          || (n.type === "CallExpression" && n.callee.type === "Identifier" && n.callee.name === "getComputedStyle");
+        if (isRead) ev({ w: false, pos: n.start, line: L(n), what: n.type === "CallExpression" ? "getComputedStyle()" : n.property.name });
+        else if (n.type === "CallExpression" && n.callee.type === "Identifier") {
+          ev({ c: n.callee.name, pos: n.start, line: L(n) });
+          if (n.arguments[0] && n.arguments[0].type === "Identifier" && soon(n, n.arguments[0])) events.push({ c: n.arguments[0].name, pos: n.start + 1, line: L(n), t: true });   /* setTimeout(pnShelf, 30) */
+        }
+        if (soonCb) late++;
+        for (const k in n) { if (k === "loc") continue; const v = n[k];
+          if (Array.isArray(v)) v.forEach(c => c && typeof c.type === "string" && walk(c, n, k)); else if (v && typeof v.type === "string") walk(v, n, k); }
+        if (soonCb) late--;
+      };
+      walk(fn.body || fn, null, null);
+      events.sort((a, b) => a.pos - b.pos);
+      /* an async function's code after its first await runs later (a fetch, a timer): only the part before it counts */
+      if (fn.async) { const k = events.findIndex(e => e.a); if (k >= 0) events.length = k; }
+      scanned.push({ name, s: sc.i, events, glob: globFns.has(fn), hook: hookOf.get(fn) });
+    };
+    const top = n => { noteExtend(n); for (const c of kids(n)) {
+      if (/Function|Arrow/.test(c.type)) scan(c, c.id ? c.id.name : nameOf.get(c) || `script #${sc.i} fn`);
+      else { if (c.type === "VariableDeclarator" && c.id.type === "Identifier" && c.init && /Function|Arrow/.test(c.init.type)) nameOf.set(c.init, c.id.name);
+        if (c.type === "AssignmentExpression" && c.left.type === "Identifier" && /Function|Arrow/.test(c.right.type)) nameOf.set(c.right, c.left.name);
+        if (c.type === "Property" && c.key && /Function|Arrow/.test(c.value.type)) nameOf.set(c.value, c.key.name || c.key.value);
+        top(c); } } };
+    top(ast);
+  });
+  /* a helper that reads layout (itself or through its own helpers, v297's srlSet → srlPlace) counts as a read where it's called */
+  const reads = new Map();
+  for (const f of scanned) { const r = f.glob && f.events.find(e => e.w === false && !e.t); if (r && !reads.has(f.name)) reads.set(f.name, r.what); }
+  for (let grew = true; grew;) { grew = false;
+    for (const f of scanned) if (f.glob && !reads.has(f.name)) { const c = f.events.find(e => e.c && !e.t && reads.has(e.c)); if (c) { reads.set(f.name, `${c.c}() → ${reads.get(c.c)}`); grew = true; } } }
+  const writes = new Map();
+  for (const f of scanned) { const w = f.glob && f.events.find(e => e.w && !e.t); if (w && !writes.has(f.name)) writes.set(f.name, { ...w, what: `${f.name}()'s ${w.what}` }); }
+  for (const f of scanned) {
+    const w = f.events.find(e => e.w) || (f.hook && writes.get(f.hook) && { ...writes.get(f.hook), pos: -1 }), r = w && f.events.find(e => e.pos > w.pos && (e.c ? reads.has(e.c) : e.w === false));
+    if (r) { const what = r.c ? `${r.c}() (reads ${reads.get(r.c)})` : r.what;
+      hazards.push({ rule: "v206", line: r.line, s: f.s, name: f.name, msg: `${f.name}: ${what} at line ${r.line} after ${w.what} at line ${w.line}: a forced layout of the new markup; read it in requestAnimationFrame or a ResizeObserver (lfRO) instead (v206)` }); }
+  }
   const seenH = new Set();
   hazards.splice(0, hazards.length, ...hazards.filter(h => { const k = h.line + h.msg; if (seenH.has(k)) return false; seenH.add(k); return true; }));
   const st = fs.statSync(FILE);
-  const map = { key: `${st.size}:${st.mtimeMs}`, lines: lines.length, scripts: scripts.map(({ code, off, ...s }) => s), defs, wraps,
+  const map = { key: `${st.size}:${st.mtimeMs}:${SELF}`, lines: lines.length, scripts: scripts.map(({ code, off, ...s }) => s), defs, wraps,
     props: Object.fromEntries(Object.entries(props).filter(([k]) => fnNames.has(k))), fnRanges, hazards };
   fs.mkdirSync(path.dirname(CACHE), { recursive: true });
   fs.writeFileSync(CACHE, JSON.stringify(map));
   return map;
 }
 export function load() {
-  try { const st = fs.statSync(FILE), m = JSON.parse(fs.readFileSync(CACHE, "utf8")); if (m.key === `${st.size}:${st.mtimeMs}`) return m; } catch (e) {}
+  try { const st = fs.statSync(FILE), m = JSON.parse(fs.readFileSync(CACHE, "utf8")); if (m.key === `${st.size}:${st.mtimeMs}:${SELF}`) return m; } catch (e) {}
   return build();
 }
 
@@ -228,11 +317,19 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const had = new Set(old.hazards.map(key));
       hz = hz.filter(h => !had.has(key(h)));
     }
+    else {   /* the v206 hits from before the check existed are budgeted (tools/audit-budget.txt layoutAfterHtml, a ratchet): over it fails */
+      const v206 = hz.filter(h => h.rule === "v206"), m = (fs.existsSync(BUDGET) ? fs.readFileSync(BUDGET, "utf8") : "").match(/^layoutAfterHtml\s+(\d+)/m);
+      if (m && v206.length <= +m[1]) { hz = hz.filter(h => h.rule !== "v206"); console.log(`v206 layout reads after an HTML write: ${v206.length} (budget ${m[1]}; --list-v206 lists them)`); }
+    }
     const parseErr = map.scripts.filter(s => s.parseError);
     for (const s of parseErr) console.log(`script #${s.i} (line ${s.start}) doesn't parse: ${s.parseError}`);
     if (!hz.length) console.log(`No ${base ? "new " : ""}hazards (${map.hazards.length} known in total).`);
     for (const h of hz.slice(0, 60)) console.log(`[${h.rule}] line ${h.line}: ${h.msg}`);
     process.exit(hz.length || parseErr.length ? 1 : 0);
+  }
+  else if (opt["list-v206"]) {
+    const hz = map.hazards.filter(h => h.rule === "v206");
+    if (opt["list-v206"] === "count") console.log(hz.length); else for (const h of hz) console.log(`line ${h.line}: ${h.msg}`);
   }
   else if (names.length) console.log(names.map(n => lookup(map, n)).join("\n\n"));
   else console.log(fs.readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 10).join("\n").replace(/^\/\* ?| ?\*\/$/gm, ""));
