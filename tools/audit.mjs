@@ -154,6 +154,14 @@ function measure() {
   if (lr.status === 0) { const n = +lr.stdout.trim() || 0; add("lint", "bug finder findings (node tools/lint.mjs: undefined names, unused values, duplicate keys, unreachable code…)", Array.from({ length: n }, (_, i) => "see node tools/lint.mjs"), "fix them: node tools/lint.mjs lists each"); }
   else if (process.env.CI) add("lint", "bug finder could not run (ESLint missing)", ["ESLint missing"], "npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0");
   else console.log("  (lint skipped: npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0)");
+  /* v206: a layout read right after an HTML write in the same function (tools/where.mjs follows top-level helpers, short
+     timers and extend() hooks); broken a dozen times while it was only a written rule */
+  const own = FILE === path.join(ROOT, "index.html");
+  const wr = spawnSync(process.execPath, [path.join(ROOT, "tools/where.mjs"), "--list-v206"], { encoding: "utf8", env: own ? process.env : { ...process.env, PN_MAP_FILE: FILE } });
+  if (wr.status === 0) add("layoutAfterHtml", "layout reads right after an HTML write in the same function (v206; node tools/where.mjs --list-v206)", wr.stdout.trim().split("\n").filter(Boolean),
+    "read it in requestAnimationFrame or a ResizeObserver (lfRO), or before the write");
+  else if (process.env.CI) add("layoutAfterHtml", "v206 check could not run (tools/where.mjs failed: acorn missing?)", ["where.mjs failed"], "npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0");
+  else console.log("  (layoutAfterHtml skipped: tools/where.mjs failed: " + ((wr.stderr || "").trim().split("\n").find(l => /Error/.test(l)) || "") + ")");
   M._size = { lines: html.split("\n").length, kb: Math.round(html.length / 1024), scripts: scripts.length, styles: styles.length };
   return M;
 }

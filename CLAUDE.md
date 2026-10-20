@@ -91,7 +91,7 @@
 
 ## Hard-won rules (details and the story behind each are in docs/LOG.md)
 - Many functions are wrapped by later scripts (`renderHome`, `save`, `gdMarkup`… see docs/MAP.md; screen changes use hooks instead): never read state off a function (`fn.x`, v198), extend a `const` instead of reassigning it (v216), and don't call a function that lives inside another script's scope (v237). New code goes in the last `<script>`/`<style>`.
-- Never read layout (rects, scrollTop, computed style) right after an innerHTML redraw: do it in requestAnimationFrame or let an observer report it (v206).
+- Never read layout (rects, scrollTop, computed style) right after an innerHTML redraw: do it in requestAnimationFrame or let an observer report it (v206). A check since Oct 20 (broken 12+ times as a written rule): `node tools/where.mjs --list-v206` finds a read after an innerHTML/outerHTML/insertAdjacentHTML/replaceChildren write in one function, also through a top-level helper, a setTimeout under 100ms or an `extend()` after/map hook; the audit's `layoutAfterHtml` budget (so every PR) fails when the count goes up. It can't see a read on a hidden screen (still yours to avoid) or a write made by a helper.
 - Give classes unique names: grep `\.name\b` before adding one (clashes: .aw v164, .dash v195, .pl v204, .plat v228, shx-<k> v210).
 - A `fill: "forwards"` animation must be cancelled on every path that ends it (v215). No `zIndex` in keyframes (v168); no filter/clip-path/mask on spinning layers (v167).
 - Don't debounce idle work on "any DOM change": filter the mutations or cap the wait (v202).
