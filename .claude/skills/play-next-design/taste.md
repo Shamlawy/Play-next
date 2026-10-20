@@ -254,3 +254,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: double tapping the card has a slow animation and shift and too slow
 - rule: The open Queue card turns straight over in about 420ms, no swing past and back.
 - check: node tools/kit.mjs run tools/scenarios/card-turn.mjs --widths 412,859,360
+
+### T51 · v316 · Insights · pick
+- said: I like 1 and 4 … A and B … do whatever I trust you now build and merge
+- rule: Insights opens with the top three ranked games as slanted shards in one picture with the player type across them on a slab, the tarot table under it as Your arcana, then an S-tier shelf of slanted box art with big rank numbers, Your sky (genre diamonds sized by S-tier games, untried genres dashed) and the backlog's finish dates at 1/2/4 hours a day.
+- check: tools/scenarios/insights-shattered.mjs
