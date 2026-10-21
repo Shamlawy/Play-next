@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28558 lines, 2202 KB, 125 scripts, 66 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28580 lines, 2215 KB, 125 scripts, 66 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -52,8 +52,8 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 27142 v297: `onSettings("after", () => srlBuild());`
 - 27968 : `onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.`
 - 28019 : `onNav("after", () => { const p = P(); if (!p) return;`
-- 28540 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); });`
-- 28542 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
+- 28559 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); });`
+- 28561 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
 
 ## Blocks
 
@@ -248,5 +248,5 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 27709–27770 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
 | 27770–27829 | script | 6 | — |
 | 27829–28121 | script | 29 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
-| 28121–28229 | style | 12 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
-| 28229–28558 | script | 32 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
+| 28121–28230 | style | 13 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
+| 28230–28580 | script | 46 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |

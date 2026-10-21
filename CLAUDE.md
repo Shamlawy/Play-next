@@ -61,7 +61,7 @@
 
 ## Time estimates (the owner, Oct 20: "give me time estimate on how long the task will take cuz I always keep checking")
 - Before starting anything that takes more than about a minute, the first line of the reply says how long it will take and what you'll send at the end: "⏱ About 10 min: I'll film both videos and send them." In the Heads-up box it's its own line.
-- When it runs past the estimate, say so with a new one ("⏱ Taking longer: about 5 more min, the render is at 76%"). Background work (renders, CI, kit runs) gets "should be done around HH:MM UAE time" when it starts. All times are UAE time (UTC+4, Asia/Dubai; the owner, Oct 21: "Mind using uae time not utc?"): `TZ=Asia/Dubai date +%H:%M`.
+- When it runs past the estimate, say so with a new one ("⏱ Taking longer: about 5 more min, the render is at 76%"). Background work (renders, CI, kit runs) gets "should be done around HH:MM UAE time" when it starts. All times are UAE time in 12-hour form, "2:05 PM" (UTC+4, Asia/Dubai; the owner, Oct 21: "Mind using uae time not utc?", then "for the time always use 12 hours not 24"): `TZ=Asia/Dubai date +"%-I:%M %p"`.
 - Rough guide: `kit.mjs all` ~6 min, a scenario ~1 min, app-check on GitHub ~8 min, a demo video ~4 min a width, a small fix + release ~20 min, a new screen or feature 1–3 h.
 
 ## What's new tour (required on every release)
