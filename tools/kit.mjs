@@ -184,6 +184,7 @@ async function launch() {
 async function phone(browser, base, w, data, { url = base, init = null } = {}) {
   const [vw, vh, dpr] = SIZES[w] || [w, Math.round(w * 2.1), 2.6];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, serviceWorkers: "block",
+    ...(process.env.VIDEO ? { recordVideo: { dir: process.env.VIDEO, size: { width: vw, height: vh } } } : {}),   /* VIDEO=dir films each phone (.webm) */
     userAgent: WK ? (vw >= 600 ? "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
       : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1")
       : "Mozilla/5.0 (Linux; Android 16; SM-F9800) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36" });

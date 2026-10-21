@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "317";
+const APP_V = "318";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -11672,6 +11672,15 @@ function sfx(kind, x) {
     if (kind === "qkback") { noise("highpass", 2500, 3500, 1, .25, t + .2, .03, .001); tone("sine", 600, 400, .12, t + .2, .05);
       for (let i = 0; i < 7; i++) { const f = 380 + Math.random() * 520; tone("sine", f, f * 1.9, .08, t + .35 + i * .06 + Math.random() * .03, .07, .002); }
       [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f, .03, t + .9 + i * .06, .14, .003)); }
+    /* v317, the skills book: a warm shimmer under a chime that climbs as the cover lifts and a soft thump as it lands;
+       an airy whoosh and a light flap per page (x = how big); a bell, its fifth and a few sparkles when it lands on a game */
+    if (kind === "bkopen") { [523, 784, 1175].forEach(f => tone("sine", f, f, .05, t, 2.2, .6));
+      [1047, 1319, 1568, 1976, 2349, 2637, 3136].forEach((f, i) => tone("sine", f, f, .07 * (1 - i * .06), t + .12 + i * .11, 1.4, .003));
+      noise("bandpass", 300, 1400, .9, .22, t + .3, 1.3, .6); tone("sine", 90, 45, .5, t + 1.36, .3, .004); tone("sine", 784, 784, .05, t + 1.38, 1.8, .003); }
+    if (kind === "bkpage") { const v = x || .6; noise("bandpass", 500, 2400, 1, .4 * v, t, .6, .22); noise("bandpass", 2600, 900, .8, .14 * v, t + .55, .12, .01); }
+    if (kind === "bkland") { tone("sine", 1319, 1319, .16, t + .05, 2.2, .003); tone("sine", 1976, 1976, .09, t + .2, 1.8, .003);
+      [659, 988, 1319].forEach(f => tone("sine", f, f, .04, t, 1.8, .5));
+      for (let i = 0; i < 12; i++) { const f = 3000 + Math.random() * 3600; tone("sine", f, f, .03 + Math.random() * .03, t + .1 + Math.random() * .9, .3, .002); } }
   } catch (e) {}
 }
 
@@ -16385,6 +16394,7 @@ function helperCheck() {
     if (!$("#s-helperv")) return;
     el.textContent = ok && j.v === 13 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except prices in your own currency (exchange rates) and PlayStation prices for countries without a PS Store, which need the new helper."
       : ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
+      : ok && j.v === 20 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except the skills book's private lock (your book's pages can't reach this phone yet), which needs the new helper."
       : ok && j.v >= 15 && j.v < 20 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Steam sessions logging themselves, which need the new helper."
       : ok && j.v >= 15 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews, hours to beat and game pictures from the stores are all on."
       : ok && j.v === 14 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except game pictures from Steam, Xbox, PlayStation and Nintendo in Browse and choose, which need the new helper."
@@ -28106,5 +28116,439 @@ WHATS_NEW.push(
     at: () => $("#p-queue .hero .hflip.qkf") || null,
     say: "<b>Smoother Queue</b>: the open card no longer keeps an extra picture layer for the phone to redraw while you scroll past it.",
     tryIt: "Open a card in the Queue, scroll past it, then tap it twice quickly: it still turns over the same way." }
+);
+</script>
+<style>
+/* ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good
+   apply it now"). A navy book with a foil crest on its cover; each game you finished has a picture page and its skills as
+   look A tiles. Pages bend like paper: a turning leaf is cut into strips whose small angles add up, with a shade that runs
+   along them. Only transform and opacity move; the bend lives only while a page turns. */
+.skb { --skb-f1: rgb(138, 168, 236); --skb-f2: rgb(244, 248, 255); --skb-f3: rgb(125, 157, 230); --skb-f4: rgb(226, 235, 255); --skb-n1: rgb(34, 66, 143); --skb-n2: rgb(17, 36, 90); --skb-n3: rgb(8, 17, 49); --skb-n4: rgb(5, 10, 31);
+  --skb-paper: rgb(16, 23, 42); --skb-paper2: rgb(21, 29, 53); --skb-edge: rgb(7, 11, 23); --skb-ink: rgb(12, 25, 64);
+  --skb-foil: linear-gradient(115deg, var(--skb-f1) 0%, var(--skb-f2) 28%, var(--skb-f3) 46%, var(--skb-f4) 66%, var(--skb-f1) 84%, var(--skb-f2) 100%);
+  position: relative; margin: 4px 0 18px; }
+.skb-stage { position: relative; height: min(660px, calc(100dvh - 250px)); min-height: 460px; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.skb-rise { position: relative; height: calc(100% - 30px); max-width: 100%; aspect-ratio: 1.3; flex: none; }
+.skb-book { position: absolute; inset: 0; perspective: 2200px; }
+.skb-floor { position: absolute; left: 6%; right: 6%; bottom: -22px; height: 36px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.85), transparent); }
+.skb-pg, .skb-leaf { position: absolute; top: 0; height: 100%; width: 50%; }
+.skb-pg.l { left: 0; } .skb-pg.r { left: 50%; }
+.skb-leaf { left: 50%; transform-style: preserve-3d; transform-origin: 0 50%; }
+.skb-st { position: absolute; top: 0; left: 100%; width: 100%; height: 100%; transform-style: preserve-3d; transform-origin: 0 50%; }
+.skb-leaf > .skb-st { left: 0; }
+.skb-fc { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.skb-fc.b { transform: rotateY(180deg); }
+.skb-fc > i { position: absolute; inset: 0; opacity: 0; will-change: opacity; }
+.skb-fc > .s0 { background: rgb(0,0,0); } .skb-fc > .s1 { background: linear-gradient(90deg, transparent, rgb(0,0,0)); } .skb-fc > .s2 { background: linear-gradient(270deg, transparent, rgb(0,0,0)); }
+.skb-pc { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; contain: strict; }
+.skb-pc.f { border-radius: 4px 16px 16px 4px; background: linear-gradient(90deg, var(--skb-edge), var(--skb-paper) 7%, var(--skb-paper) 94%, var(--u-pan)); }
+.skb-pc.b { border-radius: 16px 4px 4px 16px; background: linear-gradient(270deg, var(--skb-edge), var(--skb-paper) 7%, var(--skb-paper) 94%, var(--u-pan)); }
+.skb-pc.none { background: none; }
+.skb-cast { position: absolute; top: 0; width: 50%; height: 100%; pointer-events: none; opacity: 0; }
+.skb-cast.r { left: 50%; background: linear-gradient(90deg, rgba(0,0,0,.7), transparent 75%); border-radius: 4px 16px 16px 4px; }
+.skb-cast.l { left: 0; background: linear-gradient(270deg, rgba(0,0,0,.7), transparent 75%); border-radius: 16px 4px 4px 16px; }
+.skb-blk { position: absolute; top: 5px; bottom: 5px; width: 9px; border-radius: 3px; background: repeating-linear-gradient(90deg, rgba(60,80,130,.6) 0 1px, var(--skb-edge) 1px 2px); }
+.skb-blk.l { left: -7px; } .skb-blk.r { right: -7px; }
+.skb-gut { position: absolute; left: 50%; top: 0; bottom: 0; width: 40px; margin-left: -20px; background: linear-gradient(90deg, transparent, rgba(0,0,0,.45) 50%, transparent); pointer-events: none; z-index: 900; }
+.skb-hint { margin: 2px 0 0; text-align: center; font-size: 12.5px; color: var(--mute); }
+/* folded: one page at a time; the book's left half sits off the screen and a turned page leaves to the left */
+.skb.fold .skb-stage { justify-content: flex-start; }
+.skb.fold .skb-rise { aspect-ratio: auto; width: 200%; max-width: none; margin-left: -100%; }
+.skb.fold .skb-gut, .skb.fold .skb-blk.l { display: none; }
+/* page contents */
+.skb-in { zoom: var(--skb-z, 1); position: absolute; inset: 0; padding: 24px 24px 30px 28px; display: flex; flex-direction: column; gap: 10px; }
+.skb-pc.b .skb-in { padding: 24px 28px 30px 24px; }
+.skb-fo { position: absolute; bottom: 12px; font-size: 10.5px; font-weight: 600; line-height: 1; color: var(--mute); opacity: .7; }
+.skb-pc.f .skb-fo { right: 20px; } .skb-pc.b .skb-fo { left: 20px; }
+.skb-k { font-size: 11px; font-weight: 600; line-height: 1.2; color: var(--volt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skb-h { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.18; letter-spacing: -.015em; color: var(--ice); text-wrap: balance; }
+.skb-sk { padding: 11px 12px; border-radius: 14px; background: var(--skb-paper2); border: 1px solid var(--u-line); }
+.skb-skt { display: flex; align-items: center; gap: 10px; }
+.skb-dia { width: 36px; height: 36px; display: grid; place-items: center; flex: none; position: relative; color: var(--ice); }
+.skb-dia::before { content: ""; position: absolute; inset: 4px; transform: rotate(45deg); border-radius: 7px; background: var(--a); }
+.skb-dia svg { position: relative; width: 19px; height: 19px; }
+.skb-kk { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; line-height: 1.2; color: var(--volt); white-space: nowrap; }
+.skb-pips { display: flex; gap: 3px; align-items: center; }
+.skb-pips i { width: 16px; height: 5px; border-radius: 3px; background: var(--u-line2); overflow: hidden; display: block; }
+.skb-pips i b { display: block; height: 100%; background: var(--volt); border-radius: 3px; transform-origin: 0 50%; }
+.skb-pips span { font-size: 10.5px; color: var(--mute); margin-left: 4px; }
+.skb-g { font-size: 14px; font-weight: 700; line-height: 1.28; letter-spacing: -.01em; margin-top: 3px; color: var(--ice); text-wrap: balance; }
+.skb-sk dl { display: grid; grid-template-columns: 66px 1fr; gap: 4px 8px; margin: 9px 0 0; padding-top: 8px; border-top: 1px solid var(--u-line); }
+.skb-sk dt { align-self: start; font-size: 10.5px; font-weight: 600; line-height: 1.45; color: var(--mute); white-space: nowrap; }
+.skb-sk dd { margin: 0; font-size: 11px; line-height: 1.45; color: rgba(234,242,255,.84); }
+.skb-sk dt.life { color: var(--volt); } .skb-sk dd.life { color: var(--ice); font-weight: 600; }
+/* a game's picture page: its own art in its own colour */
+.skb-art { position: absolute; inset: 0; overflow: hidden; background: var(--c); }
+.skb-art img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; }
+.skb-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(4,8,20,.92) 100%); }
+.skb-art .t { position: absolute; z-index: 1; left: 24px; right: 26px; bottom: 50px; font-size: 25px; font-weight: 700; line-height: 1.12; letter-spacing: -.02em; color: var(--ice); text-wrap: balance; }
+.skb-art .m { position: absolute; z-index: 1; left: 24px; bottom: 28px; font-size: 11.5px; font-weight: 600; line-height: 1; color: rgba(234,242,255,.8); white-space: nowrap; }
+.skb-glint { position: absolute; z-index: 1; top: -20%; bottom: -20%; left: 0; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.3) 50%, transparent); transform: translateX(-130%) skewX(-12deg); }
+.skb.fold .skb-art.top { bottom: auto; height: 34%; }
+.skb.fold .skb-art.top .t { bottom: 32px; font-size: 21px; } .skb.fold .skb-art.top .m { bottom: 13px; }
+.skb.fold .skb-in.under { top: 34%; padding-top: 14px; }
+/* the cover: navy leather, an embossed double frame, a foil crest and foil words, your top three skills as foil badges */
+.skb-cv { position: absolute; inset: 0; overflow: hidden; border-radius: 4px 18px 18px 4px; background: radial-gradient(130% 90% at 28% 18%, var(--skb-n1) 0%, var(--skb-n2) 42%, var(--skb-n3) 78%, var(--skb-n4) 100%); }
+.skb-cv .gr { position: absolute; inset: 0; opacity: .5; background: repeating-radial-gradient(circle at 30% 30%, rgba(255,255,255,.025) 0 1px, transparent 1px 3px), repeating-linear-gradient(35deg, rgba(0,0,0,.08) 0 2px, transparent 2px 5px); }
+.skb-cv .sp { position: absolute; left: 0; top: 0; bottom: 0; width: 20px; background: linear-gradient(90deg, var(--skb-n4), var(--skb-n2) 60%, rgba(0,0,0,.25)); }
+.skb-cv .sp::before, .skb-cv .sp::after { content: ""; position: absolute; left: 3px; right: 5px; height: 3px; border-radius: 2px; background: var(--skb-foil); opacity: .55; }
+.skb-cv .sp::before { top: 9%; } .skb-cv .sp::after { bottom: 9%; }
+.skb-cv .fr { position: absolute; inset: 16px 16px 16px 32px; border-radius: 12px; border: 1.5px solid rgba(178,205,255,.5);
+  box-shadow: 0 1px 0 rgba(255,255,255,.07), inset 0 2px 3px rgba(0,0,0,.55), inset 0 0 0 6px rgba(4,9,26,.35), inset 0 0 0 7px rgba(178,205,255,.22); }
+.skb-cv .cn { position: absolute; width: 28px; height: 28px; }
+.skb-cv .vo { position: absolute; left: 32px; right: 16px; top: 36px; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .08em; color: rgba(200,220,255,.7); }
+.skb-cv .cr { position: absolute; left: calc(50% + 8px); top: 29%; width: 40%; aspect-ratio: 1; transform: translate(-50%, -50%); }
+.skb-cv .t { position: absolute; left: 48px; right: 32px; top: 51%; text-align: center; font-size: 29px; font-weight: 800; line-height: 1.08; letter-spacing: -.02em; text-wrap: balance;
+  background: var(--skb-foil); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.skb-cv .ru { position: absolute; left: calc(50% + 8px); top: calc(51% + 68px); width: 86px; height: 1.5px; margin-left: -43px; background: var(--skb-foil); opacity: .6; }
+.skb-cv .s { position: absolute; left: 48px; right: 32px; top: calc(51% + 80px); text-align: center; color: rgba(214,228,255,.72); font-size: 12px; }
+.skb-cv .bd { position: absolute; left: 44px; right: 28px; bottom: 46px; display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+.skb-bdg { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; line-height: 1; color: var(--ice); padding: 7px 11px 7px 8px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid transparent; background: linear-gradient(var(--skb-ink), var(--skb-ink)) padding-box, var(--skb-foil) border-box; }
+.skb-bdg svg { width: 14px; height: 14px; color: var(--skb-f4); }
+.skb-sheen { position: absolute; top: -30%; bottom: -30%; left: 0; width: 46%; transform: translateX(-130%) skewX(-14deg);
+  background: linear-gradient(100deg, transparent 10%, rgba(220,235,255,.28) 48%, rgba(255,255,255,.42) 50%, rgba(220,235,255,.28) 52%, transparent 90%); }
+.skb-ep { position: absolute; inset: 0; background: var(--skb-n3); border-radius: 16px 4px 4px 16px; }
+.skb-ep::before { content: ""; position: absolute; inset: 0; opacity: .55; background: repeating-linear-gradient(45deg, rgba(120,160,240,.13) 0 1px, transparent 1px 22px), repeating-linear-gradient(-45deg, rgba(120,160,240,.13) 0 1px, transparent 1px 22px); }
+.skb-plate { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 62%; padding: 22px 16px; border-radius: 14px; text-align: center;
+  border: 1px solid transparent; background: linear-gradient(var(--skb-ink), var(--skb-ink)) padding-box, var(--skb-foil) border-box; }
+.skb-plate small { display: block; font-size: 10.5px; font-weight: 600; color: var(--mute); }
+.skb-plate b { display: block; margin-top: 8px; font-size: 20px; font-weight: 700; line-height: 1.1; color: var(--ice); }
+.skb-plate svg { width: 40px; height: 40px; margin: 0 auto 10px; display: block; }
+.skb-toc { display: grid; gap: 10px; margin-top: 4px; }
+.skb-toc div { display: flex; gap: 10px; align-items: baseline; font-size: 13px; color: var(--ice); }
+.skb-toc b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skb-toc span { margin-left: auto; color: var(--mute); font-size: 11.5px; white-space: nowrap; }
+.skb-big { font-size: 42px; font-weight: 700; line-height: 1; letter-spacing: -.03em; color: var(--volt); }
+.skb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.skb-chips span { font-size: 11px; font-weight: 600; line-height: 1; padding: 7px 10px; border-radius: 999px; background: rgba(var(--vrgb), .16); color: var(--ice); white-space: nowrap; }
+.skb-note { border: 1px dashed var(--u-line2); border-radius: 14px; padding: 14px; color: var(--mute); font-size: 12px; }
+.skb-spk { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: -14px 0 0 -14px; color: var(--skb-f2); opacity: 0; pointer-events: none; z-index: 950; }
+</style>
+<script>
+/* ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through.
+   The words for each game are written outside the app (ideas M41/M42) and kept sealed in BOOK_SEALED. The repo is public, so
+   each phone makes its own key pair (ECDH P-256; the private half stays in S.bookKey, which only the encrypted cloud backup
+   carries) and sends the public half to the helper (POST /book/key); tools/book-seal.mjs seals each game's words to that key
+   (a one-off key per entry, AES-GCM), title inside. An entry's id is random and only the phone it was sealed to can open it,
+   so the repo never says which games you finished. Opened entries are kept in localStorage gq:book (not the backup). Opening the tab: the book rises, the foil cover catches the light and swings open, the pages riffle to the game
+   you finished last and its skills fill in. Then swipe (the page follows the finger) or tap a side to turn. Calm / reduced
+   motion: it opens straight on that page, no movement. Sounds go through sfx() (bkopen, bkpage, bkland). */
+const BOOK_SEALED = {};
+const bookNorm = t => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
+let bookStore = null;
+function bookLocal() { if (!bookStore) { try { bookStore = JSON.parse(localStorage.getItem("gq:book") || "{}") || {}; } catch (e) { bookStore = {}; } } return bookStore; }
+/* this phone's key pair, made once; the public half goes to the helper until it says it has it */
+async function bookKey() {
+  const C = crypto.subtle;
+  if (!S.bookKey) {
+    const k = await C.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    const j = await C.exportKey("jwk", k.privateKey); S.bookKey = { kty: j.kty, crv: j.crv, x: j.x, y: j.y, d: j.d }; saveNow();
+  }
+  return C.importKey("jwk", S.bookKey, { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+}
+async function bookKeySend() {
+  if (!S.bookKey) return; const { x, y } = S.bookKey;
+  try { if (localStorage.getItem("gq:bookpub") === x) return; } catch (e) { return; }
+  let uid = ""; try { uid = localStorage.getItem("gq:uid") || ""; } catch (e) {}
+  if (!uid) { uid = (Math.random().toString(36).slice(2, 10) + Date.now().toString(36)).slice(0, 24); try { localStorage.setItem("gq:uid", uid); } catch (e) {} }
+  try { const os = /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? "Apple" : /Android/.test(navigator.userAgent) ? "Android" : "other";
+    await nxPost("/book/key", { uid, pub: { kty: "EC", crv: "P-256", x, y }, os, v: APP_V }); localStorage.setItem("gq:bookpub", x); } catch (e) {}
+}
+/* an entry: base64 of [the sender's one-off public key (65) | iv (12) | AES-GCM of {n, skills}], key = HKDF over ECDH */
+async function bookOpen(sealed, priv) {
+  const C = crypto.subtle, raw = Uint8Array.from(atob(sealed), c => c.charCodeAt(0));
+  const eph = await C.importKey("raw", raw.slice(0, 65), { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const bits = await C.deriveBits({ name: "ECDH", public: eph }, priv, 256);
+  const hk = await C.importKey("raw", bits, "HKDF", false, ["deriveKey"]);
+  const key = await C.deriveKey({ name: "HKDF", hash: "SHA-256", salt: raw.slice(0, 65), info: new TextEncoder().encode("play-next-book-v2") }, hk, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await C.decrypt({ name: "AES-GCM", iv: raw.slice(65, 77) }, key, raw.slice(77))));
+}
+/* the key is made and sent soon after the app opens, so pages can be sealed to this phone before the book is ever opened */
+setTimeout(() => { if (window.crypto && crypto.subtle) bookKey().then(bookKeySend).catch(() => {}); }, 9000);
+/* the games you finished that have pages, in the order you finished them */
+async function bookGames() {
+  const L = bookLocal(); let changed = false;
+  if (window.crypto && crypto.subtle) try {
+    const priv = await bookKey(); bookKeySend();
+    if (L._k !== S.bookKey.x) { L._k = S.bookKey.x; L._tried = []; }   /* a restored or new key gets another go at every entry */
+    const tried = new Set(L._tried || []);
+    for (const [id, sealed] of Object.entries(BOOK_SEALED)) {
+      if (tried.has(id)) continue; tried.add(id); changed = true;
+      try { const e = await bookOpen(sealed, priv); if (e && e.n) L[e.n] = { skills: e.skills }; } catch (e) {}   /* sealed to another phone */
+    }
+    L._tried = [...tried];
+  } catch (e) {}
+  const out = [];
+  for (const p of [...S.played].sort((a, b) => String(a.t || "").localeCompare(String(b.t || "")))) {
+    const g = S.games.find(x => x.id === p.id); if (!g) continue;
+    const e = L[bookNorm(g.title)]; if (e && e.skills && e.skills.length) out.push({ g, p, skills: e.skills });
+  }
+  if (changed) try { localStorage.setItem("gq:book", JSON.stringify(L)); } catch (e) {}
+  return out;
+}
+/* drawn icons, 24x24, fill-only currentColor, one part at .35 (the v247/v297 style) */
+const SKB_IC = {
+  time: `<path opacity=".35" d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20z"/><path d="M11 6h2v5.6l3.7 2.2-1 1.7L11 12.7z"/>`,
+  bond: `<path opacity=".35" d="M16 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zm0 2c-1.3 0-2.6.3-3.6.8C14 15 15 16.6 15 18.5V20h8v-2c0-2.8-3.6-5-7-5z"/><path d="M8.5 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zM1 20v-1.5C1 15.5 4.6 13 8.5 13S16 15.5 16 18.5V20z"/>`,
+  grit: `<path opacity=".35" d="M2 21L9.5 7l3.5 6.5 2.5-4L22 21z"/><path d="M9.5 7L13 13.5l-2 1.3-1.5-2.3L7 14.5 9.5 7zM15.5 9.5L17.6 13l-1.6 1-1.4-2z"/>`,
+  eye: `<path opacity=".35" d="M12 5C6.5 5 2.7 9 1.5 12c1.2 3 5 7 10.5 7s9.3-4 10.5-7C21.3 9 17.5 5 12 5z"/><path d="M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8z"/>`,
+  heart: `<path opacity=".35" d="M12 21s-9-5.6-9-12a5 5 0 0 1 9-3a5 5 0 0 1 9 3c0 6.4-9 12-9 12z"/><path d="M12 9.5l1.4 2.9 3.1.4-2.3 2.1.6 3.1-2.8-1.6-2.8 1.6.6-3.1-2.3-2.1 3.1-.4z"/>`,
+  spark: `<path opacity=".35" d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/><path d="M12 7l1.3 3.7L17 12l-3.7 1.3L12 17l-1.3-3.7L7 12l3.7-1.3z"/>`,
+  tactic: `<path opacity=".35" d="M3 3h18v18H3z"/><path d="M6 6h5v5H6zm7 7h5v5h-5z"/>`,
+  search: `<path opacity=".35" d="M10 3a7 7 0 1 0 0 14a7 7 0 0 0 0-14z"/><path d="M15.5 14.1l6 6-1.4 1.4-6-6zM10 6a4 4 0 0 1 4 4h-2a2 2 0 0 0-2-2z"/>`,
+  clock: `<path opacity=".35" d="M6 2h12v2l-5 8 5 8v2H6v-2l5-8-5-8z"/><path d="M8 20h8l-4-6z"/>`,
+  moon: `<path opacity=".35" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/><path d="M17 3l.9 2.1L20 6l-2.1.9L17 9l-.9-2.1L14 6l2.1-.9z"/>`
+};
+const skbIc = k => `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${SKB_IC[k] || SKB_IC.spark}</svg>`;
+const SKB_AMT = ["", "some", "a lot", "a core part"];
+/* the crest: two foil rings with ticks, an eight-point star and an open book in the middle; a dark copy under it embosses it */
+const skbStar = (cx, cy, R, r, n) => Array.from({ length: n * 2 }, (_, i) => { const a = i * Math.PI / n, d = i % 2 ? r : R; return `${(cx + d * Math.sin(a)).toFixed(2)},${(cy - d * Math.cos(a)).toFixed(2)}`; }).join(" ");
+const SKB_CREST = `<path fill-rule="evenodd" d="M60 2a58 58 0 1 0 0 116A58 58 0 0 0 60 2zm0 3.2a54.8 54.8 0 1 1 0 109.6A54.8 54.8 0 0 1 60 5.2z"/>${Array.from({ length: 48 }, (_, i) => `<rect x="59.3" y="9.5" width="1.4" height="${i % 4 ? 3 : 5.5}" transform="rotate(${i * 7.5} 60 60)"/>`).join("")}
+  <path fill-rule="evenodd" d="M60 18a42 42 0 1 0 0 84A42 42 0 0 0 60 18zm0 2.4a39.6 39.6 0 1 1 0 79.2A39.6 39.6 0 0 1 60 20.4z"/>
+  <polygon points="${skbStar(60, 60, 37, 15, 8)}" opacity=".4"/><polygon points="${skbStar(60, 60, 30, 11, 4)}"/>
+  ${[45, 135, 225, 315].map(a => `<polygon points="${skbStar(60 + 48 * Math.sin(a * Math.PI / 180), 60 - 48 * Math.cos(a * Math.PI / 180), 4.2, 1.2, 4)}"/>`).join("")}`;
+const SKB_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="skbfoil" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="var(--skb-f1)"/><stop offset=".3" stop-color="var(--skb-f2)"/><stop offset=".5" stop-color="var(--skb-f3)"/><stop offset=".72" stop-color="var(--skb-f4)"/><stop offset="1" stop-color="var(--skb-f1)"/></linearGradient></defs></svg>`;
+const skbCorner = st => `<svg class="cn" viewBox="0 0 30 30" style="${st}" aria-hidden="true"><g fill="none" stroke="url(#skbfoil)" stroke-width="1.4"><path d="M2 22V8a6 6 0 0 1 6-6h14"/><path d="M7 16v-5a4 4 0 0 1 4-4h5" opacity=".6"/></g><rect x="9.5" y="9.5" width="4" height="4" transform="rotate(45 11.5 11.5)" fill="var(--skb-f4)"/></svg>`;
+/* every page side in reading order, as leaves: leaf j shows f on its front (a right page) and b on its back (a left page).
+   Unfolded: [cover | inside cover, contents | art, skills 1-2 | skills 3-4, what stayed | art …]. Folded: one page at a time
+   (backs are never seen), one skill a page, the art as a band over each game's first skill. land = the leaves turned to show the last game. */
+function skbPages(B, fold) {
+  const n = B.reduce((a, x) => a + x.skills.length, 0), top = {};
+  B.forEach(x => x.skills.forEach(s => { top[s.n] = top[s.n] || { n: s.n, ic: s.ic, v: 0 }; top[s.n].v += s.lv; }));
+  const badges = Object.values(top).sort((a, b) => b.v - a.v).slice(0, 3);
+  const cover = `<div class="skb-cv"><div class="gr"></div><div class="sp"></div><div class="fr"></div>
+    ${skbCorner("left:40px;top:24px")}${skbCorner("right:24px;top:24px;transform:scaleX(-1)")}${skbCorner("left:40px;bottom:24px;transform:scaleY(-1)")}${skbCorner("right:24px;bottom:24px;transform:scale(-1)")}
+    <div class="vo">Volume 1</div><svg class="cr" viewBox="0 0 120 120" aria-hidden="true"><g fill="rgba(0,0,0,.55)" transform="translate(1.2 1.8)">${SKB_CREST}</g><g fill="url(#skbfoil)">${SKB_CREST}</g>
+    <circle cx="60" cy="60" r="13.5" fill="var(--skb-n3)"/><path fill="url(#skbfoil)" d="M50 54.5c3.6-.9 7.1-.3 9.4 1.6v11.6c-2.3-1.7-5.8-2.2-9.4-1.4zm20 0c-3.6-.9-7.1-.3-9.4 1.6v11.6c2.3-1.7 5.8-2.2 9.4-1.4z"/></svg>
+    <div class="t">What my games taught me</div><div class="ru"></div><div class="s">${B.length ? `${B.length} ${B.length === 1 ? "game" : "games"} · ${n} skills` : "The first pages are being written"}</div>
+    <div class="bd">${badges.map(b => `<span class="skb-bdg">${skbIc(b.ic)}${esc(b.n)}</span>`).join("")}</div><div class="skb-sheen"></div></div>`;
+  const inside = `<div class="skb-ep"><div class="skb-plate"><svg viewBox="0 0 120 120" aria-hidden="true"><g fill="url(#skbfoil)">${SKB_CREST}</g></svg><small>This book belongs to</small><b>${esc(S.userName || "Player 1")}</b></div></div>`;
+  const pips = (lv, last) => `<span class="skb-pips">${[1, 2, 3].map(i => `<i>${i <= lv ? `<b${last ? ' class="skb-pf"' : ""}></b>` : ""}</i>`).join("")}<span>${SKB_AMT[lv] || ""}</span></span>`;
+  const sk = (s, g, last) => `<div class="skb-sk"><div class="skb-skt"><span class="skb-dia" style="--a:${esc(g.colour || "var(--volt)")}">${skbIc(s.ic)}</span><div style="min-width:0"><div class="skb-kk">${esc(s.n)}${pips(s.lv, last)}</div>
+    <div class="skb-g">${esc(s.gain || s.n)}</div></div></div><dl><dt>In the game</dt><dd>${esc(s.txt)}</dd>${s.mind ? `<dt>In your head</dt><dd>${esc(s.mind)}</dd>` : ""}${s.life ? `<dt class="life">In your life</dt><dd class="life">${esc(s.life)}</dd>` : ""}${s.tr ? `<dt>Try</dt><dd>${esc(s.tr)}</dd>` : ""}</dl></div>`;
+  const art = (x, top) => { const g = x.g, src = bgSource(g), h = hrsOf(g);
+    return `<div class="skb-art${top ? " top" : ""}" style="--c:${esc(g.colour || "var(--u-card2)")}">${src ? `<img src="${esc(src)}" alt="" decoding="async">` : ""}<span class="skb-glint"></span>
+      <div class="t">${esc(g.title)}</div><div class="m">Finished${h ? ` · ~${h}h` : ""} · ${x.skills.length} skills</div></div>`; };
+  const stayed = x => `<div class="skb-in"><div class="skb-k">${esc(x.g.title)} · what stayed</div><h3 class="skb-h">${x.skills.length} skills${hrsOf(x.g) ? ` from ~${hrsOf(x.g)} hours` : ""}</h3>
+    <div class="skb-chips">${x.skills.map(s => `<span>${esc(s.n)}</span>`).join("")}</div>
+    <div class="skb-note">Finished ${esc(x.p.t ? new Date(x.p.t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "")}</div></div>`;
+  const P = [], toc = []; let pn = fold ? 2 : 3;
+  B.forEach((x, i) => { const last = i === B.length - 1; toc.push([x.g.title, pn]);
+    if (fold) P.push(`${art(x, 1)}<div class="skb-in under">${sk(x.skills[0], x.g, last)}</div>`,
+      ...x.skills.slice(1).map(s => `<div class="skb-in"><div class="skb-k">${esc(x.g.title)}</div>${sk(s, x.g)}</div>`), stayed(x));
+    else P.push(art(x), `<div class="skb-in"><div class="skb-k">${esc(x.g.title)}</div>${x.skills.slice(0, 2).map(s => sk(s, x.g, last)).join("")}</div>`,
+      `<div class="skb-in">${x.skills.slice(2, 4).map(s => sk(s, x.g)).join("")}</div>`, stayed(x));
+    pn += fold ? x.skills.length + 1 : 4; });
+  const contents = `<div class="skb-in"><div class="skb-k">Contents</div>${B.length ? `<div style="display:flex;align-items:baseline;gap:10px"><span class="skb-big">${B.length}</span><h3 class="skb-h">${B.length === 1 ? "game finished, and it" : "games finished, each one"} left you better at something</h3></div>
+    <p style="margin:0;color:var(--mute);font-size:12.5px">In the order you finished them</p><div class="skb-toc">${toc.map(([t, p]) => `<div><b>${esc(t)}</b><span>p. ${p}</span></div>`).join("")}</div>`
+    : `<h3 class="skb-h">Your first pages are being written</h3><p style="margin:0;color:var(--mute);font-size:12.5px">When Nexi has written what a game you finished taught you, it gets its own pages here.</p>`}</div>`;
+  const end = `<div class="skb-in" style="justify-content:center;color:var(--mute);font-size:12.5px">More pages fill in as you finish games.</div>`, blank = `<div class="skb-in"></div>`;
+  const L = [];
+  if (fold) { L.push({ f: cover, b: inside }); [contents, ...P, end].forEach(x => L.push({ f: x, b: blank })); }
+  else { const all = [cover, inside, contents, ...P, end]; if (all.length % 2) all.push(blank); for (let i = 0; i < all.length; i += 2) L.push({ f: all[i], b: all[i + 1] }); }
+  /* the last game's first page: folded, its own leaf; unfolded, the spread with its art on the left */
+  let land = 1;
+  if (B.length) { const lastStart = fold ? 2 + B.slice(0, -1).reduce((a, x) => a + x.skills.length + 1, 0) : 2 + (B.length - 1) * 2; land = lastStart; }
+  return { L, land };
+}
+/* one leaf's DOM: a chain of n strips, each the next one's parent, showing its slice of the front and (mirrored) the back */
+function skbLeaf(lf, n) {
+  let h = "";
+  for (let k = n - 1; k >= 0; k--) h = `<div class="skb-st"${k ? "" : ` style="width:${(100 / n).toFixed(4)}%"`}>
+    <div class="skb-fc f"><div class="skb-pc f" style="width:${n * 100}%;left:${-k * 100}%">${lf.f}</div><i class="s0"></i><i class="s1"></i><i class="s2"></i></div>
+    <div class="skb-fc b"><div class="skb-pc b" style="width:${n * 100}%;left:${-(n - 1 - k) * 100}%">${lf.b}</div><i class="s0"></i><i class="s1"></i><i class="s2"></i></div>${h}</div>`;
+  const el = document.createElement("div"); el.className = "skb-leaf"; el.innerHTML = h;
+  const st = [...el.querySelectorAll(".skb-st")];
+  return { el, st, f: st.map(s => [[...s.children[0].querySelectorAll(":scope > i")], [...s.children[1].querySelectorAll(":scope > i")]]) };
+}
+const SKB_D = Math.PI / 180;
+const skbShade = (phi, front) => front ? (phi < 90 ? .55 * Math.pow(Math.sin(phi * SKB_D), 1.3) : .55) : (phi >= 90 ? .5 * Math.pow(Math.sin(phi * SKB_D), 1.3) : .5);
+function skbRamp([flat, up, down], l, r) { flat.style.opacity = Math.min(l, r).toFixed(3); up.style.opacity = Math.max(0, r - l).toFixed(3); down.style.opacity = Math.max(0, l - r).toFixed(3); }
+/* a = how far over the page is (0 flat right, 180 flat left); bend > 0: its outer edge trails, < 0: it leads (a finger pulls it) */
+function skbPose(o, a, bend, j) {
+  const n = o.st.length, ph = [];
+  o.el.style.zIndex = a < 90 ? 100 - j : 200 + j;
+  for (let k = 0; k < n; k++) { const u = n > 1 ? k / (n - 1) : 0; ph.push(Math.max(0, Math.min(180, a + bend * (.5 - Math.pow(u, 1.3) * 1.4)))); }
+  const E = [ph[0], ...ph.slice(1).map((p, k) => (p + ph[k]) / 2), ph[n - 1]];
+  for (let k = 0; k < n; k++) {
+    o.st[k].style.transform = `rotateY(${-(ph[k] - (k ? ph[k - 1] : 0)).toFixed(3)}deg)`;
+    const [fr, bk] = o.f[k];
+    skbRamp(fr, skbShade(E[k], 1), skbShade(E[k + 1], 1)); skbRamp(bk, skbShade(E[k + 1], 0), skbShade(E[k], 0));
+  }
+}
+const skbCl = x => x < 0 ? 0 : x > 1 ? 1 : x, skbOut = x => 1 - Math.pow(1 - skbCl(x), 3), skbSine = x => .5 - .5 * Math.cos(Math.PI * skbCl(x));
+const skbIO = x => (x = skbCl(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+/* the cover: a slow, heavy lift, it passes upright and falls flat faster, then a small bounce settles it */
+function skbCoverA(u) { if (u <= 0) return 0; if (u >= 1) return 180;
+  if (u < .8) { const w = u / .8; return w < .55 ? 100 * skbSine(w / .55) : 100 + 80 * Math.pow((w - .55) / .45, 2); }
+  const b = (u - .8) / .2; return 180 - 7 * Math.sin(Math.PI * b) * (1 - b * .6); }
+const SKB = { el: null, L: [], land: 1, at: 0, fold: false, turns: [], raf: 0, intro: 0, drag: null, B: null, run: 0 };
+/* the still pages under the moving ones: left = the back of the last leaf over, right = the front of the next */
+function skbStill(left, right) {
+  const r = SKB.el; if (!r) return;
+  const pl = r.querySelector(".skb-pg.l"), pr = r.querySelector(".skb-pg.r");
+  pl.innerHTML = left >= 0 && SKB.L[left] ? `<div class="skb-pc b">${SKB.L[left].b}</div>` : "";
+  pr.innerHTML = right < SKB.L.length && right >= 0 ? `<div class="skb-pc f">${SKB.L[right].f}</div>` : "";
+  r.querySelector(".skb-blk.l").style.opacity = left >= 0 ? 1 : 0;
+  r.querySelector(".skb-blk.r").style.opacity = right < SKB.L.length ? 1 : 0;
+  r.querySelector(".skb-gut").style.opacity = left >= 0 && right < SKB.L.length && !SKB.fold ? 1 : 0;
+  const shut = right === 0 && left < 0;   /* a shut book sits centred on its cover */
+  r.querySelector(".skb-book").style.transform = shut && !SKB.fold ? "translateX(-25%)" : "";
+}
+const skbRest = () => skbStill(SKB.at - 1, SKB.at);
+/* the frame loop: every turning leaf follows its own curve; when it lands, it becomes a still page */
+function skbFrame(now) {
+  SKB.raf = 0; const r = SKB.el; if (!r || !r.isConnected) { SKB.turns = []; return; }
+  let cast = 0, side = 0, cover = null;
+  for (const t of [...SKB.turns]) {
+    let a, b;
+    if (t.drag) { a = t.a; b = t.b; }
+    else { const x = (now - t.t0) / t.dur; if (x < 0) { a = t.a0; b = 0; }
+      else { a = t.cover ? (t.a1 > t.a0 ? skbCoverA(x) : 180 - skbCoverA(x)) : t.a0 + (t.a1 - t.a0) * t.ease(x);
+        b = t.cover ? 0 : 30 * Math.sin(a * SKB_D) * Math.sign(t.a1 - t.a0) * (1 - .4 * skbCl(x)); }
+      if (x >= 1) { t.done = true; a = t.a1; b = 0; } }
+    skbPose(t.o, a, b, t.j);
+    if (t.j === 0) cover = a;
+    if (a > 0 && a < 180) { const c = Math.sin(a * SKB_D); if (c > cast) { cast = c; side = a < 90 ? 1 : -1; } }
+    if (t.done) { SKB.turns.splice(SKB.turns.indexOf(t), 1); t.o.el.remove(); if (t.end) t.end(); }
+  }
+  r.querySelector(".skb-cast.r").style.opacity = side > 0 ? (cast * .85).toFixed(3) : 0;
+  r.querySelector(".skb-cast.l").style.opacity = side < 0 ? (cast * .85).toFixed(3) : 0;
+  if (cover != null && !SKB.fold) r.querySelector(".skb-book").style.transform = `translateX(${(-25 * (1 - cover / 180)).toFixed(3)}%)`;
+  if (SKB.turns.length) SKB.raf = requestAnimationFrame(skbFrame);
+}
+const skbGo = () => { if (!SKB.raf) SKB.raf = requestAnimationFrame(skbFrame); };
+/* start turning leaf j from a0 to a1 (degrees) */
+function skbTurn(j, a0, a1, o) {
+  const leaf = skbLeaf(SKB.L[j], j === 0 ? 1 : o.strips || 4), t = Object.assign({ j, o: leaf, a0, a1, t0: performance.now() + (o.delay || 0), dur: o.dur || 900, ease: o.ease || skbIO, cover: j === 0 }, o);
+  SKB.el.querySelector(".skb-book").appendChild(leaf.el); skbPose(leaf, a0, 0, j);
+  SKB.turns.push(t); skbGo(); return t;
+}
+/* the opening: the book rises, a sheen crosses the cover, the cover swings open, the pages riffle past (the last eight at most)
+   and the last game you finished lands and fills in */
+function skbIntro() {
+  const r = SKB.el, run = ++SKB.run, land = Math.min(SKB.land, SKB.L.length - 1);
+  (SKB.timers || []).forEach(clearTimeout); SKB.timers = [];
+  if (calm()) { SKB.at = land; skbRest(); return; }
+  SKB.intro = 1; SKB.at = 0; skbRest();
+  const at = (ms, fn) => SKB.timers.push(setTimeout(() => { if (SKB.run === run) fn(); }, ms));
+  r.querySelector(".skb-rise").animate([{ transform: "translateY(46px) perspective(1400px) rotateX(20deg) scale(.88)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 900, easing: "cubic-bezier(.2,.7,.2,1)" });
+  const sheen = r.querySelector(".skb-pg.r .skb-sheen");
+  if (sheen) sheen.animate([{ transform: "translateX(-130%) skewX(-14deg)" }, { transform: "translateX(230%) skewX(-14deg)" }], { duration: 900, delay: 500, easing: "ease-in-out" });
+  const first = Math.max(1, land - 8), R = [];
+  for (let j = first; j < land; j++) R.push(j);
+  const plan = R.map((j, k) => { const q = R.length > 1 ? k / (R.length - 1) : 1;
+    return { j, delay: 1600 + 1400 * Math.pow(q, 1.2), dur: 650 + 550 * q * q + (k === R.length - 1 ? 300 : 0), last: k === R.length - 1, q }; });
+  const landAt = plan.length ? 1500 + plan[plan.length - 1].delay + plan[plan.length - 1].dur : 1500 + 1700;
+  at(1500, () => {
+    sfx("bkopen");
+    /* the pages that will move lie flat on the right over the page it lands on; the cover goes over first */
+    skbStill(-1, land);
+    skbTurn(0, 0, 180, { dur: 1700, end: () => skbStill(first - 1, land) });
+    plan.forEach(x => skbTurn(x.j, 0, 180, { delay: x.delay, dur: x.dur, strips: 3, ease: x.last ? skbOut : skbIO, end: () => skbStill(x.j, land) }));
+  });
+  plan.forEach(x => at(1500 + x.delay, () => sfx("bkpage", .5 + .3 * x.q)));
+  at(landAt, () => { SKB.intro = 0; SKB.at = land; skbRest(); skbFill(r); });
+}
+/* the landed game fills in: its skill pips one after another, a glint over its picture, a few sparkles, a bell */
+function skbFill(r) {
+  if (calm()) return;
+  SKB.calmAt = performance.now() + 1600;
+  sfx("bkland");
+  r.querySelectorAll(".skb-pg .skb-pf").forEach((b, i) => b.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 260, delay: 300 + i * 90, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" }));
+  r.querySelectorAll(".skb-pg .skb-glint").forEach(g => g.animate([{ transform: "translateX(-130%) skewX(-12deg)" }, { transform: "translateX(300%) skewX(-12deg)" }], { duration: 900, delay: 100, easing: "ease-in-out" }));
+  const host = r.querySelector(".skb-pg." + (SKB.fold ? "r" : "l")); if (!host) return;
+  [[.22, .18, 0], [.7, .12, 100], [.5, .42, 220], [.16, .55, 300], [.82, .38, 380], [.36, .28, 500], [.62, .6, 580]].forEach(([x, y, d]) => {
+    const s = document.createElement("i"); s.className = "skb-spk"; s.innerHTML = skbIc("spark"); s.style.left = x * 100 + "%"; s.style.top = y * (SKB.fold ? 34 : 60) + "%"; host.appendChild(s);
+    s.animate([{ transform: "scale(.3) rotate(0deg)", opacity: 0 }, { transform: "scale(1.1) rotate(45deg)", opacity: 1, offset: .45 }, { transform: "scale(.4) rotate(90deg)", opacity: 0 }], { duration: 700, delay: 60 + d, easing: "ease-in-out" }).onfinish = () => s.remove(); });
+}
+/* skip the opening when you touch the book */
+function skbSkip() {
+  if (!SKB.intro) return; SKB.run++; (SKB.timers || []).forEach(clearTimeout); SKB.timers = [];
+  SKB.turns.forEach(t => t.o.el.remove()); SKB.turns = []; SKB.intro = 0; SKB.at = Math.min(SKB.land, SKB.L.length - 1); skbRest();
+  SKB.el.querySelector(".skb-book").style.transform = "";
+}
+/* turning by hand: a drag that follows the finger (the page's edge leads), or a tap on a side */
+function skbWire(r) {
+  const stage = r.querySelector(".skb-stage");
+  const can = dir => dir > 0 ? SKB.at < SKB.L.length : SKB.at > 0;
+  const start = dir => { const j = dir > 0 ? SKB.at : SKB.at - 1;
+    if (dir > 0) skbStill(SKB.at - 1, SKB.at + 1); else skbStill(SKB.at - 2, SKB.at);
+    sfx("bkpage", .8); const t = skbTurn(j, dir > 0 ? 0 : 180, dir > 0 ? 0 : 180, { drag: true, cover: false, a: dir > 0 ? 0 : 180, b: 0, dur: 1 }); return t; };
+  const finish = (t, dir, done) => { t.drag = false; const a = t.a, to = done ? (dir > 0 ? 180 : 0) : (dir > 0 ? 0 : 180);
+    t.a0 = a; t.a1 = to; t.t0 = performance.now(); t.dur = 260 + 520 * Math.abs(to - a) / 180; t.ease = skbOut;
+    t.end = () => { if (done) SKB.at += dir; skbRest(); };
+    skbGo(); };
+  stage.addEventListener("pointerdown", e => {
+    if (SKB.intro) { skbSkip(); return; }
+    if (SKB.turns.length || e.button > 0) return;
+    const bx = r.querySelector(".skb-book").getBoundingClientRect();
+    SKB.drag = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, pw: SKB.fold ? bx.width / 2 : bx.width / 2, bx, turn: null, dir: 0, lx: e.clientX, lt: performance.now(), v: 0 };
+  });
+  stage.addEventListener("pointermove", e => { const d = SKB.drag; if (!d || e.pointerId !== d.id) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y, now = performance.now();
+    d.v = (e.clientX - d.lx) / Math.max(1, now - d.lt); d.lx = e.clientX; d.lt = now;
+    if (!d.turn) { if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { SKB.drag = null; return; }
+      if (Math.abs(dx) < 10) return; const dir = dx < 0 ? 1 : -1; if (!can(dir)) { SKB.drag = null; return; }
+      d.dir = dir; d.turn = start(dir); try { stage.setPointerCapture(e.pointerId); } catch (x) {} }
+    const p = skbCl(Math.abs(dx) / (d.pw * 1.5)), t = d.turn;
+    t.a = d.dir > 0 ? 178 * p : 180 - 178 * p; t.b = -d.dir * 30 * Math.max(.35, Math.sin(t.a * SKB_D)) * (p < .1 ? p * 10 : 1);
+    skbGo(); });
+  const up = e => { const d = SKB.drag; if (!d || e.pointerId !== d.id) return; SKB.drag = null;
+    if (d.turn) { const p = Math.abs(d.turn.a - (d.dir > 0 ? 0 : 180)) / 180, fling = d.v * -d.dir > .5; finish(d.turn, d.dir, e.type !== "pointercancel" && (p > .4 || fling)); return; }
+    if (e.type === "pointercancel" || performance.now() - d.t > 450) return;
+    /* a tap: the right side turns forward, the left side back */
+    const x = (e.clientX - d.bx.left) / d.bx.width, dir = SKB.fold ? (x > .5 + .5 * .35 ? 1 : -1) : (x > .5 ? 1 : -1);
+    if (!can(dir)) return;
+    const t = start(dir); t.a = dir > 0 ? 0 : 180; finish(t, dir, true); };
+  stage.addEventListener("pointerup", up); stage.addEventListener("pointercancel", up);
+}
+async function skbMount() {
+  /* only on a shown Taste tab: a hidden one (the app starting on another tab) mounts when you go there (onNav below) */
+  const r = $("#p-taste .skb"); if (!r || r.dataset.on || !r.closest(".panel.on")) return; r.dataset.on = "1";
+  const B = await bookGames(); if (!r.isConnected) return;
+  SKB.el = r; SKB.B = B; SKB.fold = !matchMedia("(min-width: 700px)").matches; r.classList.toggle("fold", SKB.fold);
+  const { L, land } = skbPages(B, SKB.fold); SKB.L = L; SKB.land = land; SKB.turns = [];
+  r.innerHTML = `${SKB_DEFS}<div class="skb-stage"><div class="skb-rise"><div class="skb-floor"></div><div class="skb-book"><div class="skb-blk l"></div><div class="skb-blk r"></div>
+    <div class="skb-pg l"></div><div class="skb-pg r"></div><div class="skb-cast r"></div><div class="skb-cast l"></div><div class="skb-gut"></div></div></div></div>
+    <p class="skb-hint">${B.length ? "Swipe or tap a side to turn the page" : "Finish a game and its pages arrive here"}</p>`;
+  skbWire(r); skbIntro();
+  /* short screens: the words on every page shrink to fit (two full skills need ~590px of page unfolded, one ~470px folded) */
+  if (SKB.ro) SKB.ro.disconnect();
+  SKB.ro = new ResizeObserver(es => { const h = es[0].contentRect.height; if (h) r.style.setProperty("--skb-z", Math.min(1, Math.max(.7, h / (SKB.fold ? 470 : 590))).toFixed(3)); });
+  SKB.ro.observe(r.querySelector(".skb-rise"));
+}
+/* Nexi's own checks wait while the book moves (the opening, a turning page, the landing's sparkles), like v235's wait for a
+   sliding sheet: a turning leaf sits over the pages under it and holds GPU layers only for that moment */
+const skbBusy = () => !!(SKB.intro || SKB.turns.length || performance.now() < (SKB.calmAt || 0));
+extend("bugLayout", { before() { if (skbBusy() && document.querySelector("#p-taste.on .skb")) { clearTimeout(BUG.lt); BUG.lt = setTimeout(bugLayout, 600); return extend.skip(); } } });
+function skbShell() { return `<div class="skb" aria-label="Your book: what your games taught you"></div>`; }
+SUBS.taste.push(["book", "Book"]); Object.assign(SUBHOME, { book: "taste" });
+extend("renderTaste", { before() {
+  if (subOf("taste") !== "book") return;
+  const el = $("#p-taste");
+  /* a redraw while you read (a save somewhere) keeps the open book and where you are in it */
+  if (el && el.querySelector(".skb[data-on]")) return extend.skip();
+  const _tp = tastePsych; tastePsych = skbShell;
+  let out; try { out = EXT.renderTaste.base.apply(this, arguments); } finally { tastePsych = _tp; }
+  if (el) el.querySelectorAll(".tins").forEach(x => x.remove());
+  skbMount(); return extend.skip(out); } });
+/* leaving mid-opening ends it at once: no sounds or turning pages on a hidden screen */
+onNav("before", () => { if (SKB.intro) skbSkip(); });
+/* coming back to the tab opens the book again from its cover */
+onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste") === "book") { const r = $("#p-taste .skb"); if (r) { delete r.dataset.on; skbMount(); } } });
+/* folding or unfolding the phone with the book open lays it out again (one page folded, a spread unfolded) */
+matchMedia("(min-width: 700px)").addEventListener("change", e => { const r = $("#p-taste .skb[data-on]"); if (!r || SKB.fold === !e.matches) return;
+  SKB.run++; (SKB.timers || []).forEach(clearTimeout); SKB.timers = []; SKB.turns.forEach(t => t.o.el.remove()); SKB.turns = []; SKB.intro = 0;
+  delete r.dataset.on; skbMount(); });
+if (subOf("taste") === "book") bootRedraw("renderTaste");
+bootRedraw("renderPill");
+WHATS_NEW.push(
+  { v: 318, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
+    say: "<b>Your book is here</b>: Taste › Book is what your finished games taught you. The foil cover swings open, the pages riffle to the last game you finished, and each skill says what you did in the game, what it trains in your head and how it makes you better in life.",
+    tryIt: "Swipe a page (it follows your finger) or tap a side to turn. Only some games have pages yet; more arrive as they're written." }
 );
 </script>

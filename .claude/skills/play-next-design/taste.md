@@ -259,3 +259,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: I like 1 and 4 … A and B … do whatever I trust you now build and merge
 - rule: Insights opens with the top three ranked games as slanted shards in one picture with the player type across them on a slab, the tarot table under it as Your arcana, then an S-tier shelf of slanted box art with big rank numbers, Your sky (genre diamonds sized by S-tier games, untried genres dashed) and the backlog's finish dates at 1/2/4 hours a day.
 - check: tools/scenarios/insights-shattered.mjs
+
+### T52 · v316 · Game page (skills, M41) · pick
+- said: A it is, make the pages flip slower and better also the make the sounds magical and better and the animations better also the cover image of the book should be better the book should be waaay better
+- rule: Skills cards use look A (Perks). The skills book (M42) turns pages slowly with a paper curl, plays chime/shimmer sounds rather than plain noise, opens with a weighty cover swing, and has an illustrated, game-like cover (embossed frame, foil emblem, foil skill badges).
+- check: tools/demos/skills/book-render.mjs --beats (by eye)
