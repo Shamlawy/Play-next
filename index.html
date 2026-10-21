@@ -28161,6 +28161,7 @@ WHATS_NEW.push(
 .skb-pc.b .skb-in { padding: 24px 28px 30px 24px; }
 .skb-fo { position: absolute; bottom: 12px; font-size: 10.5px; font-weight: 600; line-height: 1; color: var(--mute); opacity: .7; }
 .skb-pc.f .skb-fo { right: 20px; } .skb-pc.b .skb-fo { left: 20px; }
+.skb-art + .skb-fo { z-index: 1; color: rgba(234,242,255,.8); opacity: 1; }
 .skb-k { font-size: 11px; font-weight: 600; line-height: 1.2; color: var(--volt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skb-h { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.18; letter-spacing: -.015em; color: var(--ice); text-wrap: balance; }
 .skb-sk { padding: 11px 12px; border-radius: 14px; background: var(--skb-paper2); border: 1px solid var(--u-line); }
@@ -28342,11 +28343,11 @@ function skbPages(B, fold) {
     if (fold) return [`${art(x, 1)}<div class="skb-in under">${sk(x.skills[0], x.g, last)}</div>`, ...x.skills.slice(1).map(s => `<div class="skb-in">${k}${sk(s, x.g)}</div>`), stayed(x)];
     const pg = [art(x)];
     for (let j = 0; j < x.skills.length; j += 2) pg.push(`<div class="skb-in">${j ? "" : k}${x.skills.slice(j, j + 2).map(s => sk(s, x.g, last && !j)).join("")}</div>`);
-    pg.push(stayed(x)); if (pg.length % 2) pg.push(blank); return pg; });
-  /* page numbers count the cover as 0; the contents points at them and every written page shows its own (a picture page doesn't) */
+    pg.push(stayed(x)); if (pg.length % 2 && i < B.length - 1) pg.push(blank); return pg; });
+  /* page numbers count the cover as 0; the contents points at each game's first page (its picture) and every page but a blank shows its own */
   const head = fold ? 2 : 3, toc = []; let pn = head;
   games.forEach((pg, i) => { toc.push([B[i].g.title, pn]); pn += pg.length; });
-  const P = games.flat().map((h, i) => h === blank || (!fold && h.startsWith(`<div class="skb-art`)) ? h : `${h}<span class="skb-fo">${head + i}</span>`);
+  const P = games.flat().map((h, i) => h === blank ? h : `${h}<span class="skb-fo">${head + i}</span>`);
   const contents = `<div class="skb-in"><div class="skb-k">Contents</div>${B.length ? `<div style="display:flex;align-items:baseline;gap:10px"><span class="skb-big">${B.length}</span><h3 class="skb-h">${B.length === 1 ? "game finished, and it" : "games finished, each one"} left you better at something</h3></div>
     <p style="margin:0;color:var(--mute);font-size:12.5px">In the order you finished them</p><div class="skb-toc">${toc.map(([t, p]) => `<div><b>${esc(t)}</b><span>p. ${p}</span></div>`).join("")}</div>`
     : `<h3 class="skb-h">Your first pages are being written</h3><p style="margin:0;color:var(--mute);font-size:12.5px">When Nexi has written what a game you finished taught you, it gets its own pages here.</p>`}</div>`;
@@ -28514,6 +28515,7 @@ async function skbMount() {
   /* only on a shown Taste tab: a hidden one (the app starting on another tab) mounts when you go there (onNav below) */
   const r = $("#p-taste .skb"); if (!r || r.dataset.on || !r.closest(".panel.on")) return; r.dataset.on = "1";
   const B = await bookGames(); if (!r.isConnected) return;
+  if (!r.closest(".panel.on")) { delete r.dataset.on; return; }   /* you left the tab meanwhile: it mounts when you come back */
   SKB.el = r; SKB.B = B; SKB.fold = !matchMedia("(min-width: 700px)").matches; r.classList.toggle("fold", SKB.fold);
   const { L, land } = skbPages(B, SKB.fold); SKB.L = L; SKB.land = land; SKB.turns = [];
   r.innerHTML = `${SKB_DEFS}<div class="skb-stage"><div class="skb-rise"><div class="skb-floor"></div><div class="skb-book"><div class="skb-blk l"></div><div class="skb-blk r"></div>
@@ -28525,15 +28527,17 @@ async function skbMount() {
      one ~470px folded. A fixed guess cut off longer words at the foot of the page */
   SKB.need = SKB.fold ? 470 : 590; SKB.h = 0;
   const fit = () => { if (SKB.h) r.style.setProperty("--skb-z", Math.min(1, Math.max(.7, SKB.h / SKB.need)).toFixed(3)); };
-  const ms = document.createElement("div"); ms.className = "skb-pg"; ms.style.cssText = "left:50%;visibility:hidden;pointer-events:none;--skb-z:1";
-  ms.innerHTML = [...new Set(L.flatMap(x => [x.f, x.b]))].filter(h => h.includes("skb-in")).map(h => `<div class="skb-pc f">${h}</div>`).join("");
-  r.querySelector(".skb-book").appendChild(ms);
-  requestAnimationFrame(() => { if (!ms.isConnected) return;
-    const rise = r.querySelector(".skb-rise").offsetHeight; let need = 0;   /* not the rect: the book is still rising in, scaled */
-    ms.querySelectorAll(".skb-in").forEach(x => { if (x.clientHeight) need = Math.max(need, rise * x.scrollHeight / x.clientHeight); });
-    ms.remove(); if (need) { SKB.need = Math.max(need, 1); fit(); } });
+  const pages = [...new Set(L.flatMap(x => [x.f, x.b]))].filter(h => h.includes(`class="skb-sk"`)).map(h => `<div class="skb-pc f">${h.replace(/<img[^>]*>/g, "")}</div>`).join("");
+  const measure = () => { if (!r.isConnected || !r.closest(".panel.on") || !pages) return;
+    const ms = document.createElement("div"); ms.className = "skb-pg"; ms.style.cssText = "left:50%;visibility:hidden;pointer-events:none;--skb-z:1";
+    ms.innerHTML = pages; r.querySelector(".skb-book").appendChild(ms);
+    requestAnimationFrame(() => { if (!ms.isConnected) return; if (!r.closest(".panel.on")) { ms.remove(); return; }
+      const rise = r.querySelector(".skb-rise").offsetHeight; let need = 0;   /* not the rect: the book is still rising in, scaled */
+      ms.querySelectorAll(".skb-in").forEach(x => { if (x.clientHeight) need = Math.max(need, rise * x.scrollHeight / x.clientHeight); });
+      ms.remove(); if (need) { SKB.need = need * 1.02 + 4; SKB.mh = rise; fit(); } }); };
+  measure(); if (document.fonts) document.fonts.ready.then(() => { if (SKB.el === r) measure(); });
   if (SKB.ro) SKB.ro.disconnect();
-  SKB.ro = new ResizeObserver(es => { SKB.h = es[0].contentRect.height; fit(); });
+  SKB.ro = new ResizeObserver(es => { SKB.h = es[0].contentRect.height; fit(); if (SKB.mh && Math.abs(SKB.h - SKB.mh) > 4) { SKB.mh = SKB.h; measure(); } });
   SKB.ro.observe(r.querySelector(".skb-rise"));
 }
 /* Nexi's own checks wait while the book moves (the opening, a turning page, the landing's sparkles), like v235's wait for a
