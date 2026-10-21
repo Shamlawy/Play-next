@@ -30,15 +30,30 @@ export default async ({ p, w, seed, fail }) => {
   if (!cb) bad.push("no music chip on the picture page");
   else { await p.tap(cb.x, cb.y); await p.page.waitForTimeout(1500); const b = await st();
     if (b.at !== a.at) bad.push(`a tap on the chip turned the page (${a.at} → ${b.at})`);
-    if (b.chip !== "Harbour at Dusk") bad.push(`after a tap on the chip it says "${b.chip}", expected the next track`); }
+    if (b.chip !== "Harbour at Dusk") bad.push(`after a tap on the chip it says "${b.chip}", expected the next track`);
+    /* two quick taps: the chip stays while the next track loads, so the second can't turn the page */
+    await p.tap(cb.x, cb.y); await p.page.waitForTimeout(120); await p.tap(cb.x, cb.y); await p.page.waitForTimeout(1500);
+    if ((await st()).at !== a.at) bad.push("two quick taps on the chip turned the page"); }
   /* the contents is quiet; back on the game it plays again */
   await p.page.evaluate(() => { SKB.at = 1; skbRest(); }); await p.page.waitForTimeout(300);
   if ((await st()).g) bad.push("music kept playing on the contents");
   await p.page.evaluate(() => { SKB.at = SKB.land; skbRest(); }); await p.page.waitForTimeout(800);
   if (!(await st()).srcs) bad.push("back on the game's pages, no music");
-  /* leaving the tab */
-  await p.page.evaluate(() => goTab("home")); await p.page.waitForTimeout(300);
-  if ((await st()).g) bad.push("music kept playing after leaving the tab");
+  /* leaving the tab with a real tap on the tab bar (it paints the tab without goTab) */
+  const hb = await p.page.evaluate(() => { const b = [...document.querySelectorAll('[data-tab="home"]')].find(x => x.getClientRects().length && x.getBoundingClientRect().width);
+    if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  /* unfolded the rail may be tucked away: then a click on the same button (the same handler, still no goTab) */
+  if (hb) await p.tap(hb.x, hb.y); else await p.page.evaluate(() => document.querySelector('nav button[data-tab="home"]').click());
+  await p.page.waitForTimeout(500);
+  if (await p.page.evaluate(() => document.querySelector("#p-taste").classList.contains("on"))) bad.push("tapping Home didn't leave the book");
+  if ((await st()).g || (await p.page.evaluate(() => SKB_MUS.srcs.length))) bad.push("music kept playing after tapping Home on the tab bar");
+  await p.page.evaluate(() => { goTab("taste"); goSub("taste", "insights"); goSub("taste", "book"); }); await p.page.waitForTimeout(1500);
+  if (!(await st()).srcs) bad.push("back in the book, no music");
+  /* Settings over the book: quiet; closed again: it comes back */
+  await p.page.evaluate(() => openSettings("app")); await p.page.waitForTimeout(500);
+  if ((await st()).g) bad.push("music kept playing under Settings");
+  await p.page.evaluate(() => closeEdit()); await p.page.waitForTimeout(900);
+  if (!(await st()).srcs) bad.push("closing Settings didn't bring the music back");
   /* the book's own switch, then Sounds */
   for (const [k, val, what] of [["bookMusic", false, "the book's music switch off"], ["sound", false, "Sounds off"]]) {
     await p.page.evaluate(([k, val]) => { S.bookMusic = true; S.sound = true; S[k] = val; goTab("taste"); goSub("taste", "insights"); goSub("taste", "book"); }, [k, val]);

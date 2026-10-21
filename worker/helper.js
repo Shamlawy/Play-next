@@ -1534,8 +1534,15 @@ const OST_ALB = /\b(sound ?track|ost)\b|original (score|music)|\bmusic from\b/i;
 const OST_MAIN = /\b(main theme|title theme|title screen|main menu)\b/i, OST_THEME = /\b(theme|opening|overture|prologue)\b/i;
 const ostWords = t => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, " ")
   .replace(/\b(the|a|an|of|and|edition|anniversary|remastered|remaster|deluxe|definitive|complete|hd|game)\b/g, " ").split(/\s+/).filter(w => w.length > 1 || /\d/.test(w));
+/* the words that tell a game from its sequel: numbers and roman numerals, minus "vol. 2", "disc 1" and years */
+const OST_NUM = t => new Set(String(t || "").toLowerCase().replace(/\b(vol(ume)?|disc|cd|part)\.?\s*\w+/g, " ").replace(/\b(19|20)\d\d\b/g, " ")
+  .match(/\b(\d+|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi)\b/g) || []);
+/* words an album name may carry beyond the game's name without being another game */
+const OST_FILL = new Set(["original", "soundtrack", "sound", "track", "ost", "video", "music", "score", "from", "official", "vol", "volume", "disc", "selection", "selections",
+  "collection", "complete", "deluxe", "edition", "expanded", "plus", "special", "best", "songs", "themes", "the", "game", "games", "of", "and", "a", "presents", "arrangements", "album", "single", "ep"]);
 export function ostRank(title, results) {
   const W = ostWords(title); if (!W.length) return [];
+  const N = OST_NUM(title), same = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
   const seen = new Set(), out = [], per = {};
   /* the real soundtrack is the album most of the matches come from (a fan's cover single or arrangement brings one or two) */
   for (const r of results || []) if (r && r.collectionId) per[r.collectionId] = (per[r.collectionId] || 0) + 1;
@@ -1545,7 +1552,10 @@ export function ostRank(title, results) {
     const al = String(r.collectionName || ""), tn = String(r.trackName || ""), alW = new Set(ostWords(al)), tnW = new Set(ostWords(tn));
     const hit = W.filter(w => alW.has(w)).length / W.length;
     if (hit < .6) continue;   /* the album has to be this game's */
-    let sc = hit * 4;
+    if (!same(N, OST_NUM(al.replace(/\(.*?\)|\[.*?\]/g, " ")))) continue;   /* a sequel's number (or the original's lack of one) must match */
+    const extra = [...alW].filter(w => !W.includes(w) && !OST_FILL.has(w) && !/^\d+$/.test(w)).length;   /* "Silksong" on the first game's search */
+    let sc = hit * 4 - extra * 1.5;
+    if (extra === 0 && hit === 1) sc += 3;
     if (OST_ALB.test(al)) sc += 3;
     if (OST_MAIN.test(tn)) sc += 3; else if (OST_THEME.test(tn)) sc += 1.5;
     if (top >= 4 && per[r.collectionId] === top) sc += 2;
@@ -1555,9 +1565,12 @@ export function ostRank(title, results) {
     if (OST_BAD.test(tn) || OST_BAD.test(al) || OST_BAD.test(String(r.artistName || ""))) sc -= 8;
     if ((r.trackTimeMillis || 0) < 40000) sc -= 3;   /* jingles and stingers */
     if (sc < 4) continue;
-    out.push({ sc, n: cutWf(tn, 80), a: cutWf(r.artistName, 60), al: cutWf(al, 80), u: String(r.previewUrl) });
+    out.push({ sc, hit, extra, n: cutWf(tn, 80), a: cutWf(r.artistName, 60), al: cutWf(al, 80), u: String(r.previewUrl) });
   }
-  return out.sort((x, y) => y.sc - x.sc).slice(0, 6).map(({ sc, ...x }) => x);
+  /* when some album carries every word of the name, the ones that miss a word are another game */
+  /* and when one carries nothing else, those with other words in their name are a sequel or a spin-off */
+  const best = Math.max(0, ...out.map(x => x.hit)), least = Math.min(...out.map(x => x.extra));
+  return out.filter(x => x.hit >= best - .001 && x.extra <= least).sort((x, y) => y.sc - x.sc).slice(0, 6).map(({ sc, hit, extra, ...x }) => x);
 }
 async function ostRoute(req, env, h) {
   if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
@@ -1578,6 +1591,7 @@ async function ostClip(req, url, h) {
   const u = url.searchParams.get("u") || ""; if (!OST_HOST.test(u)) return json({ error: "not an Apple preview" }, 400, h);
   const r = await fetch(u, { cf: { cacheTtl: 7 * 86400, cacheEverything: true } });
   if (!r.ok) return json({ error: "preview " + r.status }, 502, h);
+  if (r.url && !OST_HOST.test(r.url)) return json({ error: "moved off Apple" }, 400, h);   /* a redirect may not lead elsewhere */
   if (+(r.headers.get("content-length") || 0) > 4e6) return json({ error: "too big" }, 413, h);
   return new Response(r.body, { status: 200, headers: { ...h, "Content-Type": r.headers.get("content-type") || "audio/mp4", "Cache-Control": "public, max-age=604800" } });
 }

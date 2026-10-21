@@ -3879,7 +3879,7 @@ function audio() {
   if (!S.sound || !userTouched) return null;
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended" && AC.resume) AC.resume();
+    if (AC.state !== "running" && AC.state !== "closed" && AC.resume) AC.resume();   /* iOS says "interrupted" after a call */
     return AC;
   } catch (e) { return null; }
 }
@@ -5303,7 +5303,7 @@ const GROUP_KEYS = {
   "Your evening": ["evening", "playStyle"],
   "The web": ["webGrid"],
   "Conclusions": ["analysisAt"],
-  "Sound and reactions": ["sound", "reactions"],
+  "Sound and reactions": ["sound", "reactions", "bookMusic"],
   "Motion": ["motion", "vt", "rowAnim", "tabFade", "restOff"],
   "Header cards": ["shxOff", "shxX"],
   "Your data": ["useOff"],
@@ -28247,7 +28247,8 @@ WHATS_NEW.push(
 .skb-plate svg { width: 40px; height: 40px; margin: 0 auto 10px; display: block; }
 /* the contents: each game a small closed Queue row (v301's language): its picture behind, its box art on a slanted strap in
    its own colour, the name, when you finished it, and its page number */
-.skb-toc { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.skb-toc { display: flex; flex-direction: column; gap: 8px; margin: 4px -6px 0; padding: 0 6px 8px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.skb-tr { flex: none; }
 .skb-tr { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; column-gap: 14px; min-height: 64px; padding: 8px 14px 8px 12px;
   border-radius: 14px; overflow: hidden; isolation: isolate; background: color-mix(in srgb, var(--c) 16%, var(--skb-paper2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 34%, transparent); }
 .skb-tr .bg { position: absolute; top: 0; bottom: 0; right: 0; left: 38%; z-index: -2; background-size: cover; background-position: center; opacity: .6; }
@@ -28617,25 +28618,26 @@ async function skbOstList(g) {
 async function skbOstBuf(a, u) {
   const m = SKB_MUS; if (m.buf.has(u)) return m.buf.get(u);
   const r = await fetch(HELPER + "/ost/clip?u=" + encodeURIComponent(u)); if (!r.ok) throw new Error("clip " + r.status);
-  const ab = await r.arrayBuffer(), b = await new Promise((ok, no) => a.decodeAudioData(ab, ok, no));   /* the callback form: older Safari */
-  m.buf.set(u, b); if (m.buf.size > 4) m.buf.delete(m.buf.keys().next().value);
+  const ab = await r.arrayBuffer(), b = await new Promise((ok, no) => { const pr = a.decodeAudioData(ab, ok, no); if (pr && pr.catch) pr.catch(() => {}); });   /* the callback form (older Safari); newer ones also reject the returned promise */
+  m.buf.set(u, b); if (m.buf.size > 2) m.buf.delete(m.buf.keys().next().value);   /* a decoded clip is ~11 MB (the iPhone 11) */
   return b;
 }
-function skbMusStop(fade = .8) {
-  const m = SKB_MUS; m.run++; m.g = null; m.tr = null; clearTimeout(m.t);
+function skbMusStop(fade = .8, keep) {
+  const m = SKB_MUS; m.run++; m.g = null; if (!keep) m.tr = null; clearTimeout(m.t);
   if (m.out) { const a = m.out.context, t = a.currentTime, o = m.out, ss = m.srcs;
     try { o.gain.cancelScheduledValues(t); o.gain.setValueAtTime(o.gain.value, t); o.gain.linearRampToValueAtTime(0, t + fade); ss.forEach(x => x.stop(t + fade + .05)); } catch (e) {} }
-  m.out = null; m.srcs = []; skbOstChip();
+  m.out = null; m.srcs = []; if (!keep) skbOstChip();   /* keep: another track is on its way, the chip stays (a second tap must not turn the page) */
 }
-async function skbMusPlay(g) {
+async function skbMusPlay(g, keep) {
   const m = SKB_MUS; if (m.g === g.id) return;
-  skbMusStop(.9);
+  skbMusStop(.9, keep);
   if (!S.sound || S.bookMusic === false || document.hidden) return;
   const a = audio(); if (!a) return;
   m.g = g.id; const run = m.run;
   try {
     const e = await skbOstList(g); if (run !== m.run || !e.l.length) return;
     const tr = e.l[e.i] || e.l[0], buf = await skbOstBuf(a, tr.u); if (run !== m.run) return;
+    if (buf.duration < 3) throw new Error("clip too short");
     const out = a.createGain(), t0 = a.currentTime + .05, d = buf.duration, X = Math.min(2.5, d / 4);
     out.gain.setValueAtTime(0, t0); out.gain.linearRampToValueAtTime(SKB_VOL, t0 + 2.4); out.connect(a.destination);
     /* one pass of the clip, faded at both ends; the next starts before it ends, so the loop crossfades into itself */
@@ -28644,12 +28646,13 @@ async function skbMusPlay(g) {
       s.connect(g2); g2.connect(out); s.start(at); s.stop(at + d + .05); m.srcs.push(s); s.onended = () => { m.srcs = m.srcs.filter(x => x !== s); };
       m.t = setTimeout(() => one(at + d - X), Math.max(0, (at + d - X - a.currentTime - 1) * 1000)); };
     m.out = out; m.tr = tr; one(t0); skbOstChip();
-  } catch (x) { if (run === m.run) m.g = null; }
+  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); } }
 }
 /* what the book shows decides the music: a game's pages play its theme, anything else (the cover, the contents, a page still
    turning, a hidden tab or app) is quiet */
 function skbMusSync() {
-  const r = SKB.el, on = r && r.isConnected && r.closest(".panel.on") && !document.hidden && !SKB.intro;
+  const r = SKB.el, over = ($("#sheet") || {}).classList?.contains("on") || ($("#full") || {}).classList?.contains("on");
+  const on = r && r.isConnected && r.closest(".panel.on") && !document.hidden && !SKB.intro && !over;
   const x = on && SKB.G ? SKB.G(SKB.at) : null;
   if (x) skbMusPlay(x.g); else if (SKB_MUS.g) skbMusStop();
   skbOstChip();
@@ -28666,9 +28669,14 @@ function skbOstNext() {
   const m = SKB_MUS, x = SKB.G && SKB.G(SKB.at); if (!x) return;
   const M = skbOstAll(), e = M[x.g.id]; if (!e || e.l.length < 2) return;
   e.i = (e.i + 1) % e.l.length; try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (y) {}
-  m.g = null; skbMusPlay(x.g);
+  m.g = null; skbMusPlay(x.g, true);
 }
-document.addEventListener("visibilitychange", () => { if (document.hidden) { if (SKB_MUS.g) skbMusStop(.2); } else if (SKB.el) skbMusSync(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) { if (SKB_MUS.g) skbMusStop(.2); SKB_MUS.buf.clear(); } else if (SKB.el) skbMusSync(); });
+/* the tab bar and the rail paint a tab without goTab, so onNav never hears them: leaving the book that way ends its opening
+   and its music too */
+extend("paintTab", { after() { if (!SKB.el) return; if (!SKB.el.closest(".panel.on")) { if (SKB.intro) skbSkip(); SKB_MUS.buf.clear(); } skbMusSync(); } });
+extend("closeEdit", { after() { if (SKB.el) requestAnimationFrame(skbMusSync); } });
+extend("closeFull", { after() { if (SKB.el) requestAnimationFrame(skbMusSync); } });
 onSettings("before", () => { if (SKB_MUS.g) skbMusStop(.5); });
 function skbMusSetHtml() {
   return `<label>Game music in the book</label>
