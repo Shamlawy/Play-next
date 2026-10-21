@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "326";
+const APP_V = "327";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28162,7 +28162,7 @@ WHATS_NEW.push(
 .skb-yt[hidden] { display: none; }
 .skb-ytv { flex: none; width: 200px; height: 200px; border-radius: 10px; overflow: hidden; background: rgb(0, 0, 0); }
 .skb-ytv iframe { display: block; width: 100%; height: 100%; border: 0; }
-.skb-ytt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 0; border: 0; background: none; color: var(--ice);
+.skb-ytt { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 0; border: 0; background: none; color: var(--ice);
   font-family: inherit; text-align: left; cursor: pointer; }
 .skb-ytt small { font-size: 11px; font-weight: 600; color: var(--mute); white-space: nowrap; }
 .skb-ytt b { font-size: 13px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -28860,6 +28860,9 @@ WHATS_NEW.push(
     tryIt: "Open Taste › Book on a Nintendo game you finished. If the phone won't start the music by itself, the card under the book says to tap the player, and I hear about it." },
   { v: 326, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
     say: "<b>The book's music holds on better</b>: when YouTube can't be asked, the music it found before still plays, and the \"tap the player\" hint no longer skips the song.",
-    tryIt: "Open Taste › Book on a game you finished and listen; if the card asks you to tap the player, tap the little YouTube player." }
+    tryIt: "Open Taste › Book on a game you finished and listen; if the card asks you to tap the player, tap the little YouTube player." },
+  { v: 327, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
+    say: "<b>The song's name sits beside the YouTube player again</b> on a folded phone, instead of dropping under it.",
+    tryIt: "Open Taste › Book on a game whose music comes from YouTube and look at the card under the book." }
 );
 </script>
