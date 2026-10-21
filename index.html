@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "318";
+const APP_V = "319";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28235,7 +28235,7 @@ WHATS_NEW.push(
    so the repo never says which games you finished. Opened entries are kept in localStorage gq:book (not the backup). Opening the tab: the book rises, the foil cover catches the light and swings open, the pages riffle to the game
    you finished last and its skills fill in. Then swipe (the page follows the finger) or tap a side to turn. Calm / reduced
    motion: it opens straight on that page, no movement. Sounds go through sfx() (bkopen, bkpage, bkland). */
-const BOOK_SEALED = {};
+const BOOK_SEALED = {"c95fd80edb7af04e":"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"};
 const bookNorm = t => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
 let bookStore = null;
 function bookLocal() { if (!bookStore) { try { bookStore = JSON.parse(localStorage.getItem("gq:book") || "{}") || {}; } catch (e) { bookStore = {}; } } return bookStore; }
@@ -28549,6 +28549,9 @@ bootRedraw("renderPill");
 WHATS_NEW.push(
   { v: 318, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
     say: "<b>Your book is here</b>: Taste › Book is what your finished games taught you. The foil cover swings open, the pages riffle to the last game you finished, and each skill says what you did in the game, what it trains in your head and how it makes you better in life.",
-    tryIt: "Swipe a page (it follows your finger) or tap a side to turn. Only some games have pages yet; more arrive as they're written." }
+    tryIt: "Swipe a page (it follows your finger) or tap a side to turn. Only some games have pages yet; more arrive as they're written." },
+  { v: 319, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
+    say: "<b>Your book has its first pages</b>: the game you finished most recently now has its four skills, locked so only your phone can read them.",
+    tryIt: "Open Taste › Book and read what it trained in you, then try one of the Try lines this week." }
 );
 </script>
