@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "321";
+const APP_V = "322";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28163,6 +28163,7 @@ WHATS_NEW.push(
 .skb-fo { position: absolute; bottom: 12px; font-size: 10.5px; font-weight: 600; line-height: 1; color: var(--mute); opacity: .7; }
 .skb-pc.f .skb-fo { right: 20px; } .skb-pc.b .skb-fo { left: 20px; }
 .skb-art + .skb-fo { z-index: 2; top: 14px; bottom: auto; padding: 5px 8px; border-radius: 999px; background: rgba(4,8,20,.6); color: rgba(234,242,255,.85); opacity: 1; }
+.skb.fold .skb-art + .skb-fo { right: auto; left: 20px; }   /* v322: folded the picture fills its page, a right one: the music chip has the top-right corner */
 .skb-k { font-size: 11px; font-weight: 600; line-height: 1.2; color: var(--volt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skb-h { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.18; letter-spacing: -.015em; color: var(--ice); text-wrap: balance; }
 .skb-sk { padding: 11px 12px; border-radius: 14px; background: var(--skb-paper2); border: 1px solid var(--u-line); }
@@ -28186,11 +28187,10 @@ WHATS_NEW.push(
 .skb-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,8,20,.35) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 55%, rgba(4,8,20,.5) 100%); }
 /* its words sit on a slanted strap in the game's colour (the closed Queue row's strap, laid along the foot of the page) with a
    lighter stripe on its edge; the box art stands straight over the edge; a ticket holds the numbers */
-.skb-ab { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; padding: 0 22px 22px 24px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; isolation: isolate; }
+.skb-ab { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; padding: 0 22px 22px 24px; display: grid; grid-template-columns: minmax(0, 1fr); align-items: end; isolation: isolate; }
 .skb-ab::before, .skb-ab::after { content: ""; position: absolute; left: -12%; right: -12%; top: 44px; z-index: -1; transform: skewY(-7deg); transform-origin: 0 0; }
 .skb-ab::before { bottom: -40px; background: linear-gradient(100deg, color-mix(in oklab, var(--c) 56%, black) 10%, color-mix(in oklab, var(--c) 84%, black) 95%); box-shadow: 0 -12px 30px rgba(0,0,0,.35); }
 .skb-ab::after { height: 5px; background: color-mix(in oklab, var(--c) 55%, white); opacity: .85; }
-.skb-ab .cv { width: 66px; height: 94px; max-width: none; object-fit: cover; border-radius: 10px; box-shadow: 0 0 0 2px rgba(255,255,255,.24), 0 12px 26px rgba(0,0,0,.5); }
 .skb-ab .tx { min-width: 0; padding-bottom: 2px; }
 .skb-ab .k { font-size: 11.5px; font-weight: 600; line-height: 1.2; color: color-mix(in oklab, var(--c) 35%, white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skb-ab .t { margin-top: 3px; font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -.02em; color: var(--ice); text-wrap: balance;
@@ -28210,13 +28210,6 @@ WHATS_NEW.push(
 .skb-ost svg { width: 14px; height: 14px; flex: none; color: color-mix(in oklab, var(--c) 35%, white); }
 .skb-ost span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .skb-glint { position: absolute; z-index: 1; top: -20%; bottom: -20%; left: 0; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.3) 50%, transparent); transform: translateX(-130%) skewX(-12deg); }
-.skb.fold .skb-art.top { bottom: auto; height: 34%; }
-.skb.fold .skb-art.top .skb-ab { padding: 0 18px 14px 18px; column-gap: 12px; }
-.skb.fold .skb-art.top .skb-ab::before, .skb.fold .skb-art.top .skb-ab::after { top: 30px; transform: skewY(-5deg); }
-.skb.fold .skb-art.top .skb-ab .cv { width: 46px; height: 66px; border-radius: 8px; }
-.skb.fold .skb-art.top .skb-ab .t { font-size: 18px; }
-.skb.fold .skb-art.top .skb-tk { display: none; }
-.skb.fold .skb-in.under { top: 34%; padding-top: 14px; }
 /* the cover: navy leather, an embossed double frame, a foil crest and foil words, your top three skills as foil badges */
 .skb-cv { position: absolute; inset: 0; overflow: hidden; border-radius: 4px 18px 18px 4px; background: radial-gradient(130% 90% at 28% 18%, var(--skb-n1) 0%, var(--skb-n2) 42%, var(--skb-n3) 78%, var(--skb-n4) 100%); }
 .skb-cv .gr { position: absolute; inset: 0; opacity: .5; background: repeating-radial-gradient(circle at 30% 30%, rgba(255,255,255,.025) 0 1px, transparent 1px 3px), repeating-linear-gradient(35deg, rgba(0,0,0,.08) 0 2px, transparent 2px 5px); }
@@ -28374,10 +28367,9 @@ function skbPages(B, fold) {
   const sk = (s, g, last) => `<div class="skb-sk"><div class="skb-skt"><span class="skb-dia" style="--a:${esc(g.colour || "var(--volt)")}">${skbIc(s.ic)}</span><div style="min-width:0"><div class="skb-kk">${esc(s.n)}${pips(s.lv, last)}</div>
     <div class="skb-g">${esc(s.gain || s.n)}</div></div></div><dl><dt>In the game</dt><dd>${esc(s.txt)}</dd>${s.mind ? `<dt>In your head</dt><dd>${esc(s.mind)}</dd>` : ""}${s.life ? `<dt class="life">In your life</dt><dd class="life">${esc(s.life)}</dd>` : ""}${s.tr ? `<dt>Try</dt><dd>${esc(s.tr)}</dd>` : ""}</dl></div>`;
   const fin = x => x.p.t ? new Date(x.p.t).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "";
-  const art = (x, top) => { const g = x.g, src = bgSource(g), h = hrsOf(g), best = x.skills.reduce((a, s) => s.lv > a.lv ? s : a, x.skills[0]);
-    return `<div class="skb-art${top ? " top" : ""}" data-g="${esc(g.id)}" style="--c:${esc(g.colour || "var(--volt)")}">${src ? `<img src="${esc(src)}" alt="" decoding="async">` : ""}<span class="skb-glint"></span>
-      <button class="skb-ost" data-ost hidden></button><div class="skb-ab"><img class="cv" src="${esc(cover(g))}" alt="" decoding="async">
-      <div class="tx"><div class="k">${fin(x) ? `Finished ${esc(fin(x))}` : "Finished"}</div><div class="t">${esc(g.title)}</div></div>
+  const art = x => { const g = x.g, src = bgSource(g), h = hrsOf(g), best = x.skills.reduce((a, s) => s.lv > a.lv ? s : a, x.skills[0]);
+    return `<div class="skb-art" data-g="${esc(g.id)}" style="--c:${esc(g.colour || "var(--volt)")}">${src ? `<img src="${esc(src)}" alt="" decoding="async">` : ""}<span class="skb-glint"></span>
+      <button class="skb-ost" data-ost hidden></button><div class="skb-ab"><div class="tx"><div class="k">${fin(x) ? `Finished ${esc(fin(x))}` : "Finished"}</div><div class="t">${esc(g.title)}</div></div>
       <div class="skb-tk">${h ? `<span><b>~${h}h</b><small>to finish</small></span>` : ""}<span><b>${x.skills.length}</b><small>skills</small></span>${best ? `<span class="w"><b>${esc(best.n)}</b><small>top skill</small></span>` : ""}</div></div></div>`; };
   const stayed = x => `<div class="skb-in"><div class="skb-k">${esc(x.g.title)} · what stayed</div><h3 class="skb-h">${x.skills.length} skills${hrsOf(x.g) ? ` from ~${hrsOf(x.g)} hours` : ""}</h3>
     <div class="skb-chips">${x.skills.map(s => `<span>${esc(s.n)}</span>`).join("")}</div>
@@ -28386,7 +28378,7 @@ function skbPages(B, fold) {
   /* each game's pages in reading order. Unfolded: its picture, its skills two to a page (all of them), what stayed, and a
      blank one when that makes an odd count, so the next game's picture lands on a left page too. Folded: one skill a page */
   const games = B.map((x, i) => { const last = i === B.length - 1, k = `<div class="skb-k">${esc(x.g.title)}</div>`;
-    if (fold) return [`${art(x, 1)}<div class="skb-in under">${sk(x.skills[0], x.g, last)}</div>`, ...x.skills.slice(1).map(s => `<div class="skb-in">${k}${sk(s, x.g)}</div>`), stayed(x)];
+    if (fold) return [art(x), ...x.skills.map((s, j) => `<div class="skb-in">${k}${sk(s, x.g, last && !j)}</div>`), stayed(x)];
     const pg = [art(x)];
     for (let j = 0; j < x.skills.length; j += 2) pg.push(`<div class="skb-in">${j ? "" : k}${x.skills.slice(j, j + 2).map(s => sk(s, x.g, last && !j)).join("")}</div>`);
     pg.push(stayed(x)); if (pg.length % 2 && i < B.length - 1) pg.push(blank); return pg; });
@@ -28517,7 +28509,7 @@ function skbFill(r) {
   r.querySelectorAll(".skb-pg .skb-glint").forEach(g => g.animate([{ transform: "translateX(-130%) skewX(-12deg)" }, { transform: "translateX(300%) skewX(-12deg)" }], { duration: 900, delay: 100, easing: "ease-in-out" }));
   const host = r.querySelector(".skb-pg." + (SKB.fold ? "r" : "l")); if (!host) return;
   [[.22, .18, 0], [.7, .12, 100], [.5, .42, 220], [.16, .55, 300], [.82, .38, 380], [.36, .28, 500], [.62, .6, 580]].forEach(([x, y, d]) => {
-    const s = document.createElement("i"); s.className = "skb-spk"; s.innerHTML = skbIc("spark"); s.style.left = x * 100 + "%"; s.style.top = y * (SKB.fold ? 34 : 60) + "%"; host.appendChild(s);
+    const s = document.createElement("i"); s.className = "skb-spk"; s.innerHTML = skbIc("spark"); s.style.left = x * 100 + "%"; s.style.top = y * 60 + "%"; host.appendChild(s);
     s.animate([{ transform: "scale(.3) rotate(0deg)", opacity: 0 }, { transform: "scale(1.1) rotate(45deg)", opacity: 1, offset: .45 }, { transform: "scale(.4) rotate(90deg)", opacity: 0 }], { duration: 700, delay: 60 + d, easing: "ease-in-out" }).onfinish = () => s.remove(); });
 }
 /* skip the opening when you touch the book */
@@ -28603,7 +28595,7 @@ extend("bugLayout", { before() { if (skbBusy() && document.querySelector("#p-tas
    The helper (POST /ost, HELPER_V 22) finds the game's official soundtrack on Apple's free iTunes Search and ranks its
    30-second clips (the soundtrack album, a main theme, no covers or remixes); GET /ost/clip hands the clip over with CORS,
    so Web Audio can decode it and fade it. The chip on the picture page names the track; a tap plays the next one (kept
-   per game in localStorage gq:ost, bookkeeping, not the backup). Follows Settings › Sounds, plus its own switch there. ===== */
+   per game in localStorage gq:ost, bookkeeping, not the backup). Its own switch in Settings › Sound and reactions (v322: not Sounds). ===== */
 const SKB_MUS = { g: null, run: 0, out: null, srcs: [], t: 0, tr: null, buf: new Map() };
 const SKB_VOL = .3;
 const skbOstAll = () => { try { return JSON.parse(localStorage.getItem("gq:ost") || "{}") || {}; } catch (e) { return {}; } };
@@ -28628,11 +28620,18 @@ function skbMusStop(fade = .8, keep) {
     try { o.gain.cancelScheduledValues(t); o.gain.setValueAtTime(o.gain.value, t); o.gain.linearRampToValueAtTime(0, t + fade); ss.forEach(x => x.stop(t + fade + .05)); } catch (e) {} }
   m.out = null; m.srcs = []; if (!keep) skbOstChip();   /* keep: another track is on its way, the chip stays (a second tap must not turn the page) */
 }
+/* v322 (the owner: "music doesn't work on any game, I hear nothing"): audio() stays silent while Sounds (the tap sounds) is
+   off, and the owner's phone has it off, so the music never started. The book's music answers only to its own switch:
+   the same sound engine, woken by the first touch like every sound */
+function skbAC() {
+  if (!userTouched) return null;
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state !== "running" && AC.state !== "closed" && AC.resume) AC.resume(); return AC; } catch (e) { return null; }
+}
 async function skbMusPlay(g, keep) {
   const m = SKB_MUS; if (m.g === g.id) return;
   skbMusStop(.9, keep);
-  if (!S.sound || S.bookMusic === false || document.hidden) return;
-  const a = audio(); if (!a) return;
+  if (S.bookMusic === false || document.hidden) return;
+  const a = skbAC(); if (!a) return;
   m.g = g.id; const run = m.run;
   try {
     const e = await skbOstList(g); if (run !== m.run || !e.l.length) return;
@@ -28719,6 +28718,9 @@ WHATS_NEW.push(
     tryIt: "Open Taste › Book, swipe through, and check the contents page: each game's page number matches the page." },
   { v: 321, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
     say: "<b>Your book plays each game's music</b>: land on a finished game's pages and a clip of its soundtrack fades in, like a PS5 home screen. Its picture page now carries the game on a strap in its own colour, and the contents lists every game like a closed Queue row.",
-    tryIt: "Turn to a game's picture and listen; tap the track's name at the top for another one. Settings › Sound and reactions › Game music in the book turns it off." }
+    tryIt: "Turn to a game's picture and listen; tap the track's name at the top for another one. Settings › Sound and reactions › Game music in the book turns it off." },
+  { v: 322, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-art") || $("#p-taste .skb-stage") || null,
+    say: "<b>Your book's music plays now</b>, even with the app's tap sounds off: it was waiting for that switch. Each game's picture also fills its whole page, without the box art.",
+    tryIt: "Open Taste › Book and turn to a finished game's picture: its soundtrack fades in. On a folded phone the skills start on the next page." }
 );
 </script>

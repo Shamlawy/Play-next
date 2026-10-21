@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28725 lines, 2230 KB, 125 scripts, 66 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28727 lines, 2231 KB, 125 scripts, 66 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -52,10 +52,10 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 27143 v297: `onSettings("after", () => srlBuild());`
 - 27969 : `onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.`
 - 28020 : `onNav("after", () => { const p = P(); if (!p) return;`
-- 28680 v317: `onSettings("before", () => { if (SKB_MUS.g) skbMusStop(.5); });`
-- 28686 v317: `onSettings("after", () => { const c = $("#s-bkmus"); if (!c) return;`
-- 28701 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); if (SKB_MUS.g) skbMusStop(.5); });`
-- 28703 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
+- 28679 v317: `onSettings("before", () => { if (SKB_MUS.g) skbMusStop(.5); });`
+- 28685 v317: `onSettings("after", () => { const c = $("#s-bkmus"); if (!c) return;`
+- 28700 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); if (SKB_MUS.g) skbMusStop(.5); });`
+- 28702 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
 
 ## Blocks
 
@@ -250,5 +250,5 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 27710–27771 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
 | 27771–27830 | script | 6 | — |
 | 27830–28122 | script | 29 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
-| 28122–28273 | style | 18 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
-| 28273–28725 | script | 55 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
+| 28122–28266 | style | 18 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
+| 28266–28727 | script | 56 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
