@@ -1,0 +1,30 @@
+# By hand (Actions tab), or when the probe or the helper changes: the skills book's game music (helper /ost, /ost/clip)
+# through the helper's own code against Apple's real iTunes Search, and the live helper. This container can't reach either.
+# Read it with the job log. Titles: well-known games only (a public repo's logs are public).
+name: Music probe
+on:
+  workflow_dispatch:
+    inputs:
+      titles:
+        description: "Game names, | separated (well-known games, not the owner's)"
+        required: false
+  push:
+    paths:
+      - ".github/scripts/ostprobe.mjs"
+      - "worker/helper.js"
+      - ".github/workflows/ost-probe.yml"
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe
+        env:
+          TITLES: ${{ github.event.inputs.titles }}
+        run: node .github/scripts/ostprobe.mjs 2>&1
