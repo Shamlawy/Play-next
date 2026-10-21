@@ -35,4 +35,6 @@ jobs:
       - name: The book plays a real game's music (live helper)
         env:
           FAKE_HELPER: live
+          # Playwright's own Chromium can't decode AAC (Apple's clips are .m4a); the owner's Chrome can, and so can the runner's
+          CHROME: /usr/bin/google-chrome
         run: node tools/kit.mjs run tools/scenarios/skills-book-music-live.mjs --widths 412

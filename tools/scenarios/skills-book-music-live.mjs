@@ -1,7 +1,8 @@
 /* v322 (the owner: "music doesn't work on any game, I hear nothing"): the book's music end to end, the way the phone
    gets it: the REAL helper (POST /ost, GET /ost/clip) and Apple's clip, decoded and playing in Chromium with Sounds (tap
    sounds) off. Only on a machine that can reach them: ost-probe.yml runs it on every helper change,
-     FAKE_HELPER=live node tools/kit.mjs run tools/scenarios/skills-book-music-live.mjs --widths 412
+     FAKE_HELPER=live CHROME=/usr/bin/google-chrome node tools/kit.mjs run tools/scenarios/skills-book-music-live.mjs --widths 412
+   in real Chrome: Playwright's own Chromium has no AAC (Apple's clips), so it can never decode one.
    A well-known title only (a public repo's logs are public); this container can't reach the helper. */
 export default async ({ p, w, seed, fail }) => {
   if (process.env.FAKE_HELPER !== "live") return fail("run with FAKE_HELPER=live (it needs the real helper)");
