@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "322";
+const APP_V = "323";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -10994,7 +10994,9 @@ function sideScroller(node) {
 let tTwo = false;
 document.addEventListener("touchstart", e => {
   tStartX = e.touches[0].clientX; tStartY = e.touches[0].clientY;
-  tInScroller = sideScroller(e.target);
+  /* v323: the skills book turns its pages with the same swipe, so a swipe on it stays in the book (shut on its back cover,
+     swiping it open again also walked Taste to its previous view) */
+  tInScroller = sideScroller(e.target) || !!(e.target.closest && e.target.closest(".skb-stage"));
   /* two fingers is the bigger move: it changes tab. One finger stays inside the tab. */
   tTwo = e.touches.length > 1;
 }, { passive: true });
@@ -28232,6 +28234,16 @@ WHATS_NEW.push(
 .skb-sheen { position: absolute; top: -30%; bottom: -30%; left: 0; width: 46%; transform: translateX(-130%) skewX(-14deg);
   background: linear-gradient(100deg, transparent 10%, rgba(220,235,255,.28) 48%, rgba(255,255,255,.42) 50%, rgba(220,235,255,.28) 52%, transparent 90%); }
 .skb-ep { position: absolute; inset: 0; background: var(--skb-n3); border-radius: 16px 4px 4px 16px; }
+/* v323 (the owner: "the book end should have a cover and closes when I scroll to the end"): the back cover, the front's
+   mirror (spine and frame on the right, rounded on the left), and the endpaper inside it on the right */
+.skb-ep.r { border-radius: 4px 16px 16px 4px; }
+.skb-cv.bc { border-radius: 18px 4px 4px 18px; background: radial-gradient(130% 90% at 72% 18%, var(--skb-n1) 0%, var(--skb-n2) 42%, var(--skb-n3) 78%, var(--skb-n4) 100%); }
+.skb-cv.bc .sp { left: auto; right: 0; transform: scaleX(-1); }
+.skb-cv.bc .fr { inset: 16px 32px 16px 16px; }
+.skb-cv.bc .cr { left: calc(50% - 8px); top: 34%; width: 30%; }
+.skb-cv.bc .t { left: 32px; right: 48px; top: 52%; font-size: 24px; }
+.skb-cv.bc .ru { left: calc(50% - 8px); top: calc(52% + 40px); }
+.skb-cv.bc .s { left: 32px; right: 48px; top: calc(52% + 52px); }
 .skb-ep::before { content: ""; position: absolute; inset: 0; opacity: .55; background: repeating-linear-gradient(45deg, rgba(120,160,240,.13) 0 1px, transparent 1px 22px), repeating-linear-gradient(-45deg, rgba(120,160,240,.13) 0 1px, transparent 1px 22px); }
 .skb-plate { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 62%; padding: 22px 16px; border-radius: 14px; text-align: center;
   border: 1px solid transparent; background: linear-gradient(var(--skb-ink), var(--skb-ink)) padding-box, var(--skb-foil) border-box; }
@@ -28392,9 +28404,15 @@ function skbPages(B, fold) {
       return `<div class="skb-tr" style="--c:${esc(g.colour || "var(--volt)")}">${src ? `<span class="bg" style="background-image:url('${esc(cssUrl(src))}')"></span>` : ""}<span class="st"></span><img class="cv" src="${esc(cover(g))}" alt="" decoding="async"><span class="tx"><b>${esc(g.title)}</b><small>${fin(x) ? `Finished ${esc(fin(x))} · ` : ""}${x.skills.length} skills</small></span><span class="pn"><small>p.</small>${p}</span></div>`; }).join("")}</div>`
     : `<h3 class="skb-h">Your first pages are being written</h3><p style="margin:0;color:var(--mute);font-size:12.5px">When Nexi has written what a game you finished taught you, it gets its own pages here.</p>`}</div>`;
   const end = `<div class="skb-in" style="justify-content:center;color:var(--mute);font-size:12.5px">More pages fill in as you finish games.</div>`;
+  /* v323: the back cover closes the book: unfolded it's the back of the last leaf (an endpaper inside it), so turning past
+     the last page shuts the book on it; folded it's the last page */
+  const back = `<div class="skb-cv bc"><div class="gr"></div><div class="sp"></div><div class="fr"></div>
+    ${skbCorner("left:24px;top:24px")}${skbCorner("right:40px;top:24px;transform:scaleX(-1)")}${skbCorner("left:24px;bottom:24px;transform:scaleY(-1)")}${skbCorner("right:40px;bottom:24px;transform:scale(-1)")}
+    <svg class="cr" viewBox="0 0 120 120" aria-hidden="true"><g fill="rgba(0,0,0,.55)" transform="translate(1.2 1.8)">${SKB_CREST}</g><g fill="url(#skbfoil)">${SKB_CREST}</g></svg>
+    <div class="t">The end, for now</div><div class="ru"></div><div class="s">${B.length ? `${B.length} ${B.length === 1 ? "game" : "games"} · ${n} skills so far` : "The first pages are being written"}</div></div>`;
   const L = [];
-  if (fold) { L.push({ f: front, b: inside }); [contents, ...P, end].forEach(x => L.push({ f: x, b: blank })); }
-  else { const all = [front, inside, contents, ...P, end]; if (all.length % 2) all.push(blank); for (let i = 0; i < all.length; i += 2) L.push({ f: all[i], b: all[i + 1] }); }
+  if (fold) { L.push({ f: front, b: inside }); [contents, ...P, end, back].forEach(x => L.push({ f: x, b: blank })); }
+  else { const all = [front, inside, contents, ...P, end]; if (all.length % 2) all.push(blank); all.push(`<div class="skb-ep r"></div>`, back); for (let i = 0; i < all.length; i += 2) L.push({ f: all[i], b: all[i + 1] }); }
   /* the last game's first page: folded, its own leaf; unfolded, the spread with its art on the left */
   const off = games.slice(0, -1).reduce((a, pg) => a + pg.length, 0), land = B.length ? (fold ? 2 + off : 2 + off / 2) : 1;
   /* which game a spread shows (folded: one page; unfolded: the left page or the right) */
@@ -28442,14 +28460,14 @@ function skbStill(left, right) {
   r.querySelector(".skb-blk.l").style.opacity = left >= 0 ? 1 : 0;
   r.querySelector(".skb-blk.r").style.opacity = right < SKB.L.length ? 1 : 0;
   r.querySelector(".skb-gut").style.opacity = left >= 0 && right < SKB.L.length && !SKB.fold ? 1 : 0;
-  const shut = right === 0 && left < 0;   /* a shut book sits centred on its cover */
-  r.querySelector(".skb-book").style.transform = shut && !SKB.fold ? "translateX(-25%)" : "";
+  const shut = right === 0 && left < 0, shutBack = left === SKB.L.length - 1 && right >= SKB.L.length;   /* a shut book sits centred on its cover, front or back */
+  r.querySelector(".skb-book").style.transform = SKB.fold ? "" : shut ? "translateX(-25%)" : shutBack ? "translateX(25%)" : "";
 }
 const skbRest = () => { skbStill(SKB.at - 1, SKB.at); skbMusSync(); };
 /* the frame loop: every turning leaf follows its own curve; when it lands, it becomes a still page */
 function skbFrame(now) {
   SKB.raf = 0; const r = SKB.el; if (!r || !r.isConnected) { SKB.turns = []; return; }
-  let cast = 0, side = 0, cover = null;
+  let cast = 0, side = 0, cover = null, back = null;
   for (const t of [...SKB.turns]) {
     let a, b;
     if (t.drag) { a = t.a; b = t.b; }
@@ -28458,19 +28476,20 @@ function skbFrame(now) {
         b = t.cover ? 0 : 30 * Math.sin(a * SKB_D) * Math.sign(t.a1 - t.a0) * (1 - .4 * skbCl(x)); }
       if (x >= 1) { t.done = true; a = t.a1; b = 0; } }
     skbPose(t.o, a, b, t.j);
-    if (t.j === 0) cover = a;
+    if (t.j === 0) cover = a; else if (t.j === SKB.L.length - 1) back = a;
     if (a > 0 && a < 180) { const c = Math.sin(a * SKB_D); if (c > cast) { cast = c; side = a < 90 ? 1 : -1; } }
     if (t.done) { SKB.turns.splice(SKB.turns.indexOf(t), 1); t.o.el.remove(); if (t.end) t.end(); }
   }
   r.querySelector(".skb-cast.r").style.opacity = side > 0 ? (cast * .85).toFixed(3) : 0;
   r.querySelector(".skb-cast.l").style.opacity = side < 0 ? (cast * .85).toFixed(3) : 0;
   if (cover != null && !SKB.fold) r.querySelector(".skb-book").style.transform = `translateX(${(-25 * (1 - cover / 180)).toFixed(3)}%)`;
+  else if (back != null && !SKB.fold) r.querySelector(".skb-book").style.transform = `translateX(${(25 * back / 180).toFixed(3)}%)`;   /* shutting on the back cover slides it to the middle */
   if (SKB.turns.length) SKB.raf = requestAnimationFrame(skbFrame);
 }
 const skbGo = () => { if (!SKB.raf) SKB.raf = requestAnimationFrame(skbFrame); };
 /* start turning leaf j from a0 to a1 (degrees) */
 function skbTurn(j, a0, a1, o) {
-  const leaf = skbLeaf(SKB.L[j], j === 0 ? 1 : o.strips || 4), t = Object.assign({ j, o: leaf, a0, a1, t0: performance.now() + (o.delay || 0), dur: o.dur || 900, ease: o.ease || skbIO, cover: j === 0 }, o);
+  const leaf = skbLeaf(SKB.L[j], j === 0 || (j === SKB.L.length - 1 && !SKB.fold) ? 1 : o.strips || 4), t = Object.assign({ j, o: leaf, a0, a1, t0: performance.now() + (o.delay || 0), dur: o.dur || 900, ease: o.ease || skbIO, cover: j === 0 }, o);
   SKB.el.querySelector(".skb-book").appendChild(leaf.el); skbPose(leaf, a0, 0, j);
   SKB.turns.push(t); skbGo(); return t;
 }
@@ -28521,7 +28540,7 @@ function skbSkip() {
 /* turning by hand: a drag that follows the finger (the page's edge leads), or a tap on a side */
 function skbWire(r) {
   const stage = r.querySelector(".skb-stage");
-  const can = dir => dir > 0 ? SKB.at < SKB.L.length : SKB.at > 0;
+  const can = dir => dir > 0 ? SKB.at < SKB.L.length - (SKB.fold ? 1 : 0) : SKB.at > 0;   /* folded, the back cover is the last page */
   const start = dir => { const j = dir > 0 ? SKB.at : SKB.at - 1;
     if (dir > 0) skbStill(SKB.at - 1, SKB.at + 1); else skbStill(SKB.at - 2, SKB.at);
     sfx("bkpage", .8); const t = skbTurn(j, dir > 0 ? 0 : 180, dir > 0 ? 0 : 180, { drag: true, cover: false, a: dir > 0 ? 0 : 180, b: 0, dur: 1 }); return t; };
@@ -28599,18 +28618,46 @@ extend("bugLayout", { before() { if (skbBusy() && document.querySelector("#p-tas
 const SKB_MUS = { g: null, run: 0, out: null, srcs: [], t: 0, tr: null, buf: new Map() };
 const SKB_VOL = .3;
 const skbOstAll = () => { try { return JSON.parse(localStorage.getItem("gq:ost") || "{}") || {}; } catch (e) { return {}; } };
+/* v323 (the owner, after v322: "still not working"): the helper asks Apple from Cloudflare's shared addresses, which Apple
+   turns away at times (a whole region at once), so when it finds nothing the phone asks Apple itself (its search allows any
+   page) and hands the songs to the helper to rank the same way. A "no music" kept by v321/v322 was often such a refusal:
+   only one written here (w) counts, the rest are asked again */
+async function skbOstApple(t) {
+  const R = []; let ok = 0;
+  for (const q of [t + " original soundtrack", t + " soundtrack"]) {
+    try { const r = await fetch("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, media: "music", entity: "song", limit: "50", country: "US" }));
+      if (!r.ok) continue; ok++;
+      R.push(...((await r.json()).results || []).map(x => ({ trackId: x.trackId, trackName: x.trackName, collectionName: x.collectionName, collectionId: x.collectionId,
+        artistName: x.artistName, previewUrl: x.previewUrl, trackNumber: x.trackNumber, discNumber: x.discNumber, trackTimeMillis: x.trackTimeMillis }))); } catch (e) {}
+  }
+  return ok ? R : null;
+}
+/* when the music can't play, Nexi says why in a problem report (once a day per reason) */
+BUG_NICE.push(["music", /book's music couldn't play/, () => "A game's music in your book didn't play, so I wrote down which step failed."]);
+const skbMusWhy = why => { try { bugReport("music", "The book's music couldn't play: " + why, { screen: "taste/book" }); } catch (e) {} };
 async function skbOstList(g) {
   const M = skbOstAll(), e = M[g.id];
-  /* a found list keeps 30 days; "no soundtrack" only 2 hours (v322: v321 kept it a day, and a busy helper answered empty) */
-  if (e && Date.now() - e.at < (e.l.length ? 30 * 864e5 : 2 * 36e5)) return e;
-  let l; try { const j = await nxPost("/ost", { t: g.title }); l = (j.tracks || []).filter(x => x && x.u).slice(0, 6); } catch (x) { return e || { l: [], i: 0 }; }
-  const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now() }; M[g.id] = n;
+  /* a found list keeps 30 days; "no soundtrack" 2 hours */
+  if (e && Date.now() - e.at < (e.l.length ? 30 * 864e5 : e.w ? 2 * 36e5 : 0)) return e;
+  const got = j => (j.tracks || []).filter(x => x && x.u).slice(0, 6);
+  let l = null, why = "";
+  try { l = got(await nxPost("/ost", { t: g.title })); } catch (x) { why = "the helper said " + x.message; }
+  if (!l || !l.length) {
+    const R = await skbOstApple(g.title);
+    if (!R) why += (why ? "; " : "") + "Apple didn't answer the phone either";
+    else if (R.length) { try { l = got(await nxPost("/ost", { t: g.title, r: R })); } catch (x) { l = null; why += (why ? "; " : "") + "the helper couldn't sort Apple's songs: " + x.message; } }
+    else l = [];
+  }
+  if (!l) { skbMusWhy(why); return e && e.l.length ? e : { l: [], i: 0 }; }
+  const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 1 }; M[g.id] = n;
   try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (x) {}
   return n;
 }
 async function skbOstBuf(a, u) {
   const m = SKB_MUS; if (m.buf.has(u)) return m.buf.get(u);
-  const r = await fetch(HELPER + "/ost/clip?u=" + encodeURIComponent(u)); if (!r.ok) throw new Error("clip " + r.status);
+  /* v323: straight from Apple (its clip host allows any page), through the helper when that fails */
+  let r = null; try { r = await fetch(u); if (!r.ok) r = null; } catch (x) {}
+  if (!r) { r = await fetch(HELPER + "/ost/clip?u=" + encodeURIComponent(u)); if (!r.ok) throw new Error("clip " + r.status); }
   const ab = await r.arrayBuffer(), b = await new Promise((ok, no) => { const pr = a.decodeAudioData(ab, ok, no); if (pr && pr.catch) pr.catch(() => {}); });   /* the callback form (older Safari); newer ones also reject the returned promise */
   m.buf.set(u, b); if (m.buf.size > 2) m.buf.delete(m.buf.keys().next().value);   /* a decoded clip is ~11 MB (the iPhone 11) */
   return b;
@@ -28632,7 +28679,7 @@ async function skbMusPlay(g, keep) {
   const m = SKB_MUS; if (m.g === g.id) return;
   skbMusStop(.9, keep);
   if (S.bookMusic === false || document.hidden) return;
-  const a = skbAC(); if (!a) return;
+  const a = skbAC(); if (!a) { if (userTouched) skbMusWhy("the phone gave no sound engine"); return; }
   m.g = g.id; const run = m.run;
   try {
     const e = await skbOstList(g); if (run !== m.run || !e.l.length) return;
@@ -28646,7 +28693,7 @@ async function skbMusPlay(g, keep) {
       s.connect(g2); g2.connect(out); s.start(at); s.stop(at + d + .05); m.srcs.push(s); s.onended = () => { m.srcs = m.srcs.filter(x => x !== s); };
       m.t = setTimeout(() => one(at + d - X), Math.max(0, (at + d - X - a.currentTime - 1) * 1000)); };
     m.out = out; m.tr = tr; one(t0); skbOstChip();
-  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); } }
+  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); skbMusWhy("the clip didn't load or decode (" + (x && x.message || x) + ")"); } }
 }
 /* what the book shows decides the music: a game's pages play its theme, anything else (the cover, the contents, a page still
    turning, a hidden tab or app) is quiet */
@@ -28722,6 +28769,9 @@ WHATS_NEW.push(
     tryIt: "Turn to a game's picture and listen; tap the track's name at the top for another one. Settings › Sound and reactions › Game music in the book turns it off." },
   { v: 322, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-art") || $("#p-taste .skb-stage") || null,
     say: "<b>Your book's music plays now</b>, even with the app's tap sounds off: it was waiting for that switch. Each game's picture also fills its whole page, without the box art.",
-    tryIt: "Open Taste › Book and turn to a finished game's picture: its soundtrack fades in. On a folded phone the skills start on the next page." }
+    tryIt: "Open Taste › Book and turn to a finished game's picture: its soundtrack fades in. On a folded phone the skills start on the next page." },
+  { v: 323, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
+    say: "<b>Your book's music finds its way now</b>: when my helper can't reach Apple, your phone asks Apple itself, and if a game still stays quiet I report which step failed. Past the last page the book also <b>shuts on its new back cover</b>.",
+    tryIt: "Open Taste › Book: the last game's soundtrack plays. Then keep swiping to the end: the book closes on its back cover, and a swipe back opens it again." }
 );
 </script>
