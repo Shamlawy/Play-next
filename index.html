@@ -28622,33 +28622,35 @@ const skbOstAll = () => { try { return JSON.parse(localStorage.getItem("gq:ost")
    turns away at times (a whole region at once), so when it finds nothing the phone asks Apple itself (its search allows any
    page) and hands the songs to the helper to rank the same way. A "no music" kept by v321/v322 was often such a refusal:
    only one written here (w) counts, the rest are asked again */
-async function skbOstApple(t) {
+async function skbOstApple(t, f) {
   const R = []; let ok = 0;
   for (const q of [t + " original soundtrack", t + " soundtrack"]) {
     try { const r = await fetch("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, media: "music", entity: "song", limit: "50", country: "US" }));
-      if (!r.ok) continue; ok++;
+      if (!r.ok) { if (f) f.net = false; continue; } ok++;
       R.push(...((await r.json()).results || []).map(x => ({ trackId: x.trackId, trackName: x.trackName, collectionName: x.collectionName, collectionId: x.collectionId,
-        artistName: x.artistName, previewUrl: x.previewUrl, trackNumber: x.trackNumber, discNumber: x.discNumber, trackTimeMillis: x.trackTimeMillis }))); } catch (e) {}
+        artistName: x.artistName, previewUrl: x.previewUrl, trackNumber: x.trackNumber, discNumber: x.discNumber, trackTimeMillis: x.trackTimeMillis }))); } catch (e) { if (f && !(e instanceof TypeError)) f.net = false; }
   }
   return ok ? R : null;
 }
-/* when the music can't play, Nexi says why in a problem report (once a day per reason) */
+/* when the music can't play, Nexi says why in a problem report (once a day per reason); not while the phone is offline or
+   when every step failed only for the network (a TypeError from fetch): that's no fault of the book */
 BUG_NICE.push(["music", /book's music couldn't play/, () => "A game's music in your book didn't play, so I wrote down which step failed."]);
-const skbMusWhy = why => { try { bugReport("music", "The book's music couldn't play: " + why, { screen: "taste/book" }); } catch (e) {} };
+const skbMusWhy = (why, net) => { if (net || navigator.onLine === false) return; try { bugReport("music", "The book's music couldn't play: " + why, { screen: "taste/book" }); } catch (e) {} };
 async function skbOstList(g) {
   const M = skbOstAll(), e = M[g.id];
   /* a found list keeps 30 days; "no soundtrack" 2 hours */
   if (e && Date.now() - e.at < (e.l.length ? 30 * 864e5 : e.w ? 2 * 36e5 : 0)) return e;
   const got = j => (j.tracks || []).filter(x => x && x.u).slice(0, 6);
   let l = null, why = "";
-  try { l = got(await nxPost("/ost", { t: g.title })); } catch (x) { why = "the helper said " + x.message; }
+  const f = { net: true };   /* stays true while every failure is the network's */
+  try { l = got(await nxPost("/ost", { t: g.title })); } catch (x) { why = "the helper said " + x.message; if (!(x instanceof TypeError)) f.net = false; }
   if (!l || !l.length) {
-    const R = await skbOstApple(g.title);
+    const R = await skbOstApple(g.title, f);
     if (!R) why += (why ? "; " : "") + "Apple didn't answer the phone either";
-    else if (R.length) { try { l = got(await nxPost("/ost", { t: g.title, r: R })); } catch (x) { l = null; why += (why ? "; " : "") + "the helper couldn't sort Apple's songs: " + x.message; } }
+    else if (R.length) { try { l = got(await nxPost("/ost", { t: g.title, r: R })); } catch (x) { l = null; why += (why ? "; " : "") + "the helper couldn't sort Apple's songs: " + x.message; if (!(x instanceof TypeError)) f.net = false; } }
     else l = [];
   }
-  if (!l) { skbMusWhy(why); return e && e.l.length ? e : { l: [], i: 0 }; }
+  if (!l) { skbMusWhy(why, f.net); return e && e.l.length ? e : { l: [], i: 0 }; }
   const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 1 }; M[g.id] = n;
   try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (x) {}
   return n;
@@ -28693,7 +28695,7 @@ async function skbMusPlay(g, keep) {
       s.connect(g2); g2.connect(out); s.start(at); s.stop(at + d + .05); m.srcs.push(s); s.onended = () => { m.srcs = m.srcs.filter(x => x !== s); };
       m.t = setTimeout(() => one(at + d - X), Math.max(0, (at + d - X - a.currentTime - 1) * 1000)); };
     m.out = out; m.tr = tr; one(t0); skbOstChip();
-  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); skbMusWhy("the clip didn't load or decode (" + (x && x.message || x) + ")"); } }
+  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); skbMusWhy("the clip didn't load or decode (" + (x && x.message || x) + ")", x instanceof TypeError); } }
 }
 /* what the book shows decides the music: a game's pages play its theme, anything else (the cover, the contents, a page still
    turning, a hidden tab or app) is quiet */
