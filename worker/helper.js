@@ -28,7 +28,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 22;
+const HELPER_V = 23;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -1579,6 +1579,13 @@ async function ostRoute(req, env, h) {
   const base = ostWords(t).join(" "), all = [], key = "ost:" + base.toLowerCase().slice(0, 120);
   /* v322: a found list is kept 30 days in KV, so a game asks Apple once a month, not once a phone a day */
   if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (c && c.length) return json({ ok: true, tracks: c }, 200, h); } catch (e) {} }
+  /* v323: the songs the phone found on Apple itself (Apple turned the helper's shared address away): rank those, keeping
+     only Apple's own preview links, and keep what's found like any other */
+  if (Array.isArray(b.r)) {
+    const tracks = ostRank(t, b.r.slice(0, 120).filter(x => x && typeof x === "object" && OST_HOST.test(String(x.previewUrl || ""))));
+    if (tracks.length && env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(tracks), { expirationTtl: 30 * 86400 }); } catch (e) {} }
+    return json({ ok: true, tracks }, 200, h);
+  }
   let fail = 0;
   for (const q of [base + " original soundtrack", base + " soundtrack"]) {
     /* v322: only good answers stay in Cloudflare's cache: Apple turns busy shared addresses away (403/429), and a cached

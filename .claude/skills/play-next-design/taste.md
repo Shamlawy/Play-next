@@ -274,3 +274,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: the image of the game i want it the full page not cut like you just made and remove the cover art only the image of them on page
 - rule: A game's picture page in the book: the picture fills the whole page (folded too, skills start on the next page), no box art on it
 - check: tools/scenarios/skills-book-music.mjs (chip/pill overlap)
+
+### T55 · v323 · Taste · rule
+- said: the book end should have a cover and closes when I scroll to the end
+- rule: The skills book ends on a back cover (the front's mirror: navy, foil frame and crest, 'The end, for now'); past the last page it shuts and the closed book sits centred; folded it's the last page
+- check: tools/scenarios/skills-book-back.mjs

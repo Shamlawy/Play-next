@@ -24,3 +24,16 @@ try {
   const v = await (await fetch(LIVE + "/version")).json(); console.log(" version", v.v, "ost:", v.ost);
   const r = await fetch(req(LIVE, "/ost", { t: titles[0] })); console.log(" /ost", r.status, JSON.stringify(await r.json()).slice(0, 300));
 } catch (e) { console.log(" live helper:", e.message); }
+// v323: how often the live helper finds music (Apple turns Cloudflare's shared addresses away), and whether a phone could
+// ask Apple itself: CORS on the search and the clip host, and the JSONP form
+console.log("== live helper, every title");
+for (const t of titles) { try { const r = await fetch(req(LIVE, "/ost", { t })); const j = await r.json().catch(() => ({}));
+  console.log(` ${t}: ${r.status} ${(j.tracks || []).length} tracks${j.error ? " " + j.error : ""}`); } catch (e) { console.log(` ${t}: ${e.message}`); } }
+console.log("== Apple straight from a browser's point of view");
+try { const r = await fetch("https://itunes.apple.com/search?term=" + encodeURIComponent(titles[0] + " soundtrack") + "&media=music&entity=song&limit=5", { headers: { Origin: O } });
+  console.log(" search", r.status, "ACAO:", r.headers.get("access-control-allow-origin"), "type:", r.headers.get("content-type"));
+  const j = await r.json(); const u = j.results && j.results[0] && j.results[0].previewUrl;
+  if (u) { const c = await fetch(u, { headers: { Origin: O } }); console.log(" clip", c.status, "ACAO:", c.headers.get("access-control-allow-origin"), "type:", c.headers.get("content-type")); }
+} catch (e) { console.log(" search:", e.message); }
+try { const r = await fetch("https://itunes.apple.com/search?term=" + encodeURIComponent(titles[0]) + "&media=music&entity=song&limit=2&callback=cb");
+  console.log(" jsonp", r.status, r.headers.get("content-type"), (await r.text()).trim().slice(0, 40)); } catch (e) { console.log(" jsonp:", e.message); }
