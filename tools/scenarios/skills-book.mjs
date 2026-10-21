@@ -45,7 +45,9 @@ export default async ({ p, w, seed, fail }) => {
     const sideAt = n => SKB.fold ? (SKB.L[n] || {}).f : (SKB.L[n >> 1] || {})[n % 2 ? "b" : "f"];
     out.badNo = [];
     const cont = sides.find(h => h.includes(">Contents<")) || "";
-    for (const [, t, n] of cont.matchAll(/<b>([^<]*)<\/b><span>p\. (\d+)<\/span>/g)) { const h = sideAt(+n) || "";
+    const rows = [...cont.matchAll(/<b>([^<]*)<\/b>[\s\S]*?<span class="pn"><small>p\.<\/small>(\d+)<\/span>/g)];
+    if (rows.length !== SKB.B.length) out.badNo.push(`contents lists ${rows.length} games, the book has ${SKB.B.length}`);
+    for (const [, t, n] of rows) { const h = sideAt(+n) || "";
       if (!h.includes('class="skb-art') || !h.includes(t)) out.badNo.push(`contents: ${t} → p. ${n} isn't its picture`); }
     for (let n = 0; n < sides.length; n++) { const m = (sideAt(n) || "").match(/class="skb-fo">(\d+)</); if (m && +m[1] !== n) out.badNo.push(`page ${n} shows ${m[1]}`); }
     out.oddArt = SKB.fold ? [] : SKB.L.map((x, j) => x.f.includes('class="skb-art') ? "leaf " + j : "").filter(Boolean);
@@ -53,7 +55,7 @@ export default async ({ p, w, seed, fail }) => {
     r.querySelectorAll(".skb-pg .skb-in").forEach(x => { if (x.scrollHeight > x.clientHeight + 2) out.spill.push(`${x.scrollHeight}>${x.clientHeight}: ${x.textContent.trim().slice(0, 30)}`); });
     /* folded, the book's left half sits off the screen on purpose: only the visible page counts */
     r.querySelectorAll(SKB.fold ? ".skb-pg.r" : ".skb-pg").forEach(x => { const b = x.getBoundingClientRect(); if (b.width && (b.left < -1 || b.right > W + 1)) out.edge.push(x.className + " " + Math.round(b.left) + ".." + Math.round(b.right)); });
-    r.querySelectorAll(".skb-pg .skb-kk, .skb-pg .skb-pips span, .skb-pg .skb-sk dt, .skb-pg .skb-art .m").forEach(e => {
+    r.querySelectorAll(".skb-pg .skb-kk, .skb-pg .skb-pips span, .skb-pg .skb-sk dt, .skb-pg .skb-ab .k, .skb-pg .skb-tk small").forEach(e => {
       const lh = parseFloat(getComputedStyle(e).lineHeight) || 16; if (e.getBoundingClientRect().height > lh * 1.6) out.broken.push(e.textContent.trim()); });
     return out;
   });

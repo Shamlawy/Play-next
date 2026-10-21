@@ -28,7 +28,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 21;
+const HELPER_V = 22;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -137,7 +137,7 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE, book: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE, book: !!env.NUDGE, ost: true }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
@@ -147,6 +147,8 @@ async function handle(req, env) {
     if (url.pathname === "/art" && req.method === "POST") return artRoute(req, env, h);
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     if (url.pathname === "/news" && req.method === "POST") return nwRoute(req, env, h);
+    if (url.pathname === "/ost" && req.method === "POST") return ostRoute(req, env, h);
+    if (url.pathname === "/ost/clip" && req.method === "GET") return ostClip(req, url, h);
     if (url.pathname === "/cal/put" && req.method === "POST") return calPut(req, env, h);
     if (url.pathname.startsWith("/cal/") && req.method === "GET") return calGet(env, url);
     /* v5: Nexi's design eye. The app sends a map of one screen (boxes, sizes, colours; titles already replaced by
@@ -1519,4 +1521,77 @@ async function spCron(env) {
       try { await webPush(env, sub.sub, { title: `🎮 ${ended.n.slice(0, 40)} · ${dur}`, body: "I logged your session from Steam. How was it?", tag: "steam-" + ended.k, url: "./?nudge=steam&g=" + ended.k }, 86400); } catch (e) {}
     } catch (e) {}
   }
+}
+
+/* ===== v22: the skills book's game music (app v321, PS5 style: a game's theme plays softly on its pages). Apple's iTunes
+   Search API (free, no key) has each official soundtrack's songs with a 30-second preview. POST /ost {t: title} searches
+   "<title> original soundtrack" and "<title> soundtrack" and ranks the songs: the album must carry the game's name, a
+   soundtrack album, a main/title theme or the first track first; covers, remixes, piano or lo-fi versions out. GET /ost/clip?u=
+   passes a preview on with CORS (Apple's audio host sends none, and the app decodes it with Web Audio to fade it), only from
+   Apple's preview hosts and only for the app. Both go through Cloudflare's cache for a day / a week. ===== */
+const OST_BAD = /\b(cover|covers|tribute|lo-?fi|piano|8[- ]?bit|remix|karaoke|ringtone|guitar|acapella|a cappella|medley|lullaby|music box|chiptune|metal version|instrumental version|epic version|orchestral cover|reaction|arrangement|arranged|rearranged|reimagined|inspired)\b/i;
+const OST_ALB = /\b(sound ?track|ost)\b|original (score|music)|\bmusic from\b/i;
+const OST_MAIN = /\b(main theme|title theme|title screen|main menu)\b/i, OST_THEME = /\b(theme|opening|overture|prologue)\b/i;
+const ostWords = t => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, " ")
+  .replace(/\b(the|a|an|of|and|edition|anniversary|remastered|remaster|deluxe|definitive|complete|hd|game)\b/g, " ").split(/\s+/).filter(w => w.length > 1 || /\d/.test(w));
+/* the words that tell a game from its sequel: numbers and roman numerals, minus "vol. 2", "disc 1" and years */
+const OST_NUM = t => new Set(String(t || "").toLowerCase().replace(/\b(vol(ume)?|disc|cd|part)\.?\s*\w+/g, " ").replace(/\b(19|20)\d\d\b/g, " ")
+  .match(/\b(\d+|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi)\b/g) || []);
+/* words an album name may carry beyond the game's name without being another game */
+const OST_FILL = new Set(["original", "soundtrack", "sound", "track", "ost", "video", "music", "score", "from", "official", "vol", "volume", "disc", "selection", "selections",
+  "collection", "complete", "deluxe", "edition", "expanded", "plus", "special", "best", "songs", "themes", "the", "game", "games", "of", "and", "a", "presents", "arrangements", "album", "single", "ep"]);
+export function ostRank(title, results) {
+  const W = ostWords(title); if (!W.length) return [];
+  const N = OST_NUM(title), same = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
+  const seen = new Set(), out = [], per = {};
+  /* the real soundtrack is the album most of the matches come from (a fan's cover single or arrangement brings one or two) */
+  for (const r of results || []) if (r && r.collectionId) per[r.collectionId] = (per[r.collectionId] || 0) + 1;
+  const top = Math.max(0, ...Object.values(per));
+  for (const r of results || []) {
+    if (!r || !r.previewUrl || !r.trackName || seen.has(r.trackId)) continue; seen.add(r.trackId);
+    const al = String(r.collectionName || ""), tn = String(r.trackName || ""), alW = new Set(ostWords(al)), tnW = new Set(ostWords(tn));
+    const hit = W.filter(w => alW.has(w)).length / W.length;
+    if (hit < .6) continue;   /* the album has to be this game's */
+    if (!same(N, OST_NUM(al.replace(/\(.*?\)|\[.*?\]/g, " ")))) continue;   /* a sequel's number (or the original's lack of one) must match */
+    const extra = [...alW].filter(w => !W.includes(w) && !OST_FILL.has(w) && !/^\d+$/.test(w)).length;   /* "Silksong" on the first game's search */
+    let sc = hit * 4 - extra * 1.5;
+    if (extra === 0 && hit === 1) sc += 3;
+    if (OST_ALB.test(al)) sc += 3;
+    if (OST_MAIN.test(tn)) sc += 3; else if (OST_THEME.test(tn)) sc += 1.5;
+    if (top >= 4 && per[r.collectionId] === top) sc += 2;
+    if (/ - (single|ep)$/i.test(al)) sc -= 3;
+    if (W.some(w => tnW.has(w) && !/^\d+$/.test(w))) sc += 1;
+    if (r.trackNumber === 1 && (r.discNumber || 1) === 1) sc += 1.5;
+    if (OST_BAD.test(tn) || OST_BAD.test(al) || OST_BAD.test(String(r.artistName || ""))) sc -= 8;
+    if ((r.trackTimeMillis || 0) < 40000) sc -= 3;   /* jingles and stingers */
+    if (sc < 4) continue;
+    out.push({ sc, hit, extra, n: cutWf(tn, 80), a: cutWf(r.artistName, 60), al: cutWf(al, 80), u: String(r.previewUrl) });
+  }
+  /* when some album carries every word of the name, the ones that miss a word are another game */
+  /* and when one carries nothing else, those with other words in their name are a sequel or a spin-off */
+  const best = Math.max(0, ...out.map(x => x.hit)), least = Math.min(...out.map(x => x.extra));
+  return out.filter(x => x.hit >= best - .001 && x.extra <= least).sort((x, y) => y.sc - x.sc).slice(0, 6).map(({ sc, hit, extra, ...x }) => x);
+}
+async function ostRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const t = String(b && b.t || "").replace(/[\n"]/g, " ").slice(0, 100).trim(); if (!t) return json({ error: "no title" }, 400, h);
+  const base = ostWords(t).join(" "), all = [];
+  for (const q of [base + " original soundtrack", base + " soundtrack"]) {
+    try { const r = await fetch("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, media: "music", entity: "song", limit: "50", country: "US" }),
+        { cf: { cacheTtl: 86400, cacheEverything: true } });
+      if (r.ok) all.push(...((await r.json()).results || [])); } catch (e) {}
+    if (ostRank(t, all).length >= 3) break;
+  }
+  return json({ ok: true, tracks: ostRank(t, all) }, 200, h);
+}
+const OST_HOST = /^https:\/\/([a-z0-9-]+\.)*(itunes\.apple\.com|mzstatic\.com)\//i;
+async function ostClip(req, url, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  const u = url.searchParams.get("u") || ""; if (!OST_HOST.test(u)) return json({ error: "not an Apple preview" }, 400, h);
+  const r = await fetch(u, { cf: { cacheTtl: 7 * 86400, cacheEverything: true } });
+  if (!r.ok) return json({ error: "preview " + r.status }, 502, h);
+  if (r.url && !OST_HOST.test(r.url)) return json({ error: "moved off Apple" }, 400, h);   /* a redirect may not lead elsewhere */
+  if (+(r.headers.get("content-length") || 0) > 4e6) return json({ error: "too big" }, 413, h);
+  return new Response(r.body, { status: 200, headers: { ...h, "Content-Type": r.headers.get("content-type") || "audio/mp4", "Cache-Control": "public, max-age=604800" } });
 }

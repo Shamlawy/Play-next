@@ -200,6 +200,7 @@ async function phone(browser, base, w, data, { url = base, init = null } = {}) {
     if (FAKE && new URL(u).host === HELPER_HOST) {
       let b = null; try { b = JSON.parse(r.request().postData() || "null"); } catch (e) {}
       const a = fakeHelper(new URL(u).pathname, b, base);
+      if (a.body) return r.fulfill({ status: a.status, contentType: a.type, body: a.body, headers: { "access-control-allow-origin": "*" } });   /* a file (the music clip) */
       return r.fulfill({ status: a.status, contentType: "application/json", body: JSON.stringify(a.json), headers: { "access-control-allow-origin": "*" } });
     }
     /* the pictures those answers point at (Steam's "more like this" headers, store art) are a repo picture, so their cards
@@ -231,7 +232,8 @@ async function phone(browser, base, w, data, { url = base, init = null } = {}) {
   /* real touch (v207: mouse clicks skip the app's touch paths) */
   const cdp = WK ? { send: () => { throw new Error("real touch (p.tap / p.swipe) needs Chromium: drop --browser webkit"); } } : await ctx.newCDPSession(page);
   const pt = (x, y) => [{ x: Math.round(x), y: Math.round(y), radiusX: 4, radiusY: 4, force: 1, id: 1 }];
-  const tap = async (x, y) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x, y) }); await page.waitForTimeout(40);
+  /* WebKit has no CDP: a tap goes through Playwright's touchscreen (hasTouch), a swipe still needs Chromium */
+  const tap = WK ? (x, y) => page.touchscreen.tap(Math.round(x), Math.round(y)) : async (x, y) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x, y) }); await page.waitForTimeout(40);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); };
   const swipe = async (x1, y1, x2, y2, ms = 220, n = 12) => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(x1, y1) });
