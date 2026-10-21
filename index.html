@@ -28229,7 +28229,7 @@ WHATS_NEW.push(
 /* ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through.
    The words for each game are written outside the app (ideas M41/M42) and kept sealed in BOOK_SEALED: the repo is public, so
    an entry's id is a hash of the game's title and its words are encrypted with a key made from that title (tools/book-seal.mjs
-   makes them). The phone opens the ones whose titles it has and keeps them in localStorage gq:book (its own key: not the
+   makes them). That hides them from a plain read, not from someone who tries a list of titles. The phone opens the ones whose titles it has and keeps them in localStorage gq:book (its own key: not the
    backup). Opening the tab: the book rises, the foil cover catches the light and swings open, the pages riffle to the game
    you finished last and its skills fill in. Then swipe (the page follows the finger) or tap a side to turn. Calm / reduced
    motion: it opens straight on that page, no movement. Sounds go through sfx() (bkopen, bkpage, bkland). */
@@ -28478,7 +28478,8 @@ function skbWire(r) {
   stage.addEventListener("pointerup", up); stage.addEventListener("pointercancel", up);
 }
 async function skbMount() {
-  const r = $("#p-taste .skb"); if (!r || r.dataset.on) return; r.dataset.on = "1";
+  /* only on a shown Taste tab: a hidden one (the app starting on another tab) mounts when you go there (onNav below) */
+  const r = $("#p-taste .skb"); if (!r || r.dataset.on || !r.closest(".panel.on")) return; r.dataset.on = "1";
   const B = await bookGames(); if (!r.isConnected) return;
   SKB.el = r; SKB.B = B; SKB.fold = !matchMedia("(min-width: 700px)").matches; r.classList.toggle("fold", SKB.fold);
   const { L, land } = skbPages(B, SKB.fold); SKB.L = L; SKB.land = land; SKB.turns = [];
@@ -28509,7 +28510,11 @@ extend("renderTaste", { before() {
 /* leaving mid-opening ends it at once: no sounds or turning pages on a hidden screen */
 onNav("before", () => { if (SKB.intro) skbSkip(); });
 /* coming back to the tab opens the book again from its cover */
-onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste") === "book") { const r = $("#p-taste .skb[data-on]"); if (r) { delete r.dataset.on; skbMount(); } } });
+onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste") === "book") { const r = $("#p-taste .skb"); if (r) { delete r.dataset.on; skbMount(); } } });
+/* folding or unfolding the phone with the book open lays it out again (one page folded, a spread unfolded) */
+matchMedia("(min-width: 700px)").addEventListener("change", e => { const r = $("#p-taste .skb[data-on]"); if (!r || SKB.fold === !e.matches) return;
+  SKB.run++; (SKB.timers || []).forEach(clearTimeout); SKB.timers = []; SKB.turns.forEach(t => t.o.el.remove()); SKB.turns = []; SKB.intro = 0;
+  delete r.dataset.on; skbMount(); });
 if (subOf("taste") === "book") bootRedraw("renderTaste");
 bootRedraw("renderPill");
 WHATS_NEW.push(
