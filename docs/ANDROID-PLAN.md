@@ -59,13 +59,19 @@ Rough sizes. A "session" = one chat, until it hands off by itself at ~300k token
 | 9 | Runs by itself | Price pings, release days, notifications, cloud backup, Steam sync, Finished it? | 2 |
 | 10 | Switch day | Full review, data switch, the app becomes the main one | 1–2 |
 
-Total: about 25 sessions. At one session a day, about 5 weeks; at two a day, about 3.
+Total: about 25 build sessions, plus two ultracode runs per phase (see below). With the ultracode runs, about 8–10 weeks at a steady pace.
 
 ## Planning sessions and tokens
 
 - I can't see your plan's limits. The usage popup in the Claude app shows them; check it before starting a long phase.
 - **A normal session builds.** Use one session (or two) per phase step. One a day leaves room for your work.
-- **Ultracode (`/perfect`) reviews.** It runs about a dozen helper Claudes at high effort, roughly the cost of several normal sessions. Don't use it while building. Use it once at the end of a big phase (Queue, Game page, Taste, Nexi), on that phase only. That's about 4 ultracode runs in all, plus one on switch day.
+- **Ultracode on every phase** (the owner, Oct 22: "I want to use ultra code to be absolutely sure it's perfect"). Each phase gets two ultracode runs around its normal build sessions:
+  1. **Map, before building.** Helper Claudes read everything the web app does on that screen: every behaviour, every look rule in CLAUDE.md, and every "never bring back" line in docs/LOG.md. They turn it into a checklist (`android/parity/<phase>.md`), so nothing is lost or changed by accident in the rebuild.
+  2. **Perfect, after building.** Like `/perfect` today, rewritten for Android (Phase 0 makes it): review lenses (bugs, frame times, look vs the web app, touch, folded/unfolded, data safety). Each finding is proved by a skeptic, the checklist is ticked line by line, and then a normal session fixes what was proved.
+  - A phase counts as done only when its checklist is fully ticked, its Perfect run's proven findings are fixed, and the frame and picture checks pass.
+  - Switch day gets one more whole-app run.
+- **Cost:** one ultracode run is roughly the cost of several normal sessions (it runs about a dozen helper Claudes at high effort). With 22 runs plus one, the whole rebuild costs about 2–3 times the tokens of building alone, and takes about twice as many days. A steady rhythm that leaves room for work: one day build, the next day that phase's ultracode run, never two ultracode runs in one day. These are estimates; the first phase will show the real numbers, and this file gets updated with them.
+- **Ultracode can't make it certain.** It makes it very likely: many independent eyes, each finding proven, nothing ticked off without evidence. Your phone's own frame reports stay the final judge.
 - **The daily fixer also uses tokens every night.** It fixes the web app (still needed for the friend, and for you until switch day). To save tokens during the rebuild, it could fix only hand-written reports and crashes (see the open questions).
 - Each session starts by reading this file and ends by ticking its phase here, so you can start a session from your phone or your PC at any time and it knows where things stand.
 
