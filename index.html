@@ -28122,8 +28122,8 @@ WHATS_NEW.push(
    apply it now"). A navy book with a foil crest on its cover; each game you finished has a picture page and its skills as
    look A tiles. Pages bend like paper: a turning leaf is cut into strips whose small angles add up, with a shade that runs
    along them. Only transform and opacity move; the bend lives only while a page turns. */
-.skb { --skb-f1: #8aa8ec; --skb-f2: #f4f8ff; --skb-f3: #7d9de6; --skb-f4: #e2ebff; --skb-n1: #22428f; --skb-n2: #11245a; --skb-n3: #081131; --skb-n4: #050a1f;
-  --skb-paper: #10172a; --skb-paper2: #151d35; --skb-edge: #070b17; --skb-ink: #0c1940;
+.skb { --skb-f1: rgb(138, 168, 236); --skb-f2: rgb(244, 248, 255); --skb-f3: rgb(125, 157, 230); --skb-f4: rgb(226, 235, 255); --skb-n1: rgb(34, 66, 143); --skb-n2: rgb(17, 36, 90); --skb-n3: rgb(8, 17, 49); --skb-n4: rgb(5, 10, 31);
+  --skb-paper: rgb(16, 23, 42); --skb-paper2: rgb(21, 29, 53); --skb-edge: rgb(7, 11, 23); --skb-ink: rgb(12, 25, 64);
   --skb-foil: linear-gradient(115deg, var(--skb-f1) 0%, var(--skb-f2) 28%, var(--skb-f3) 46%, var(--skb-f4) 66%, var(--skb-f1) 84%, var(--skb-f2) 100%);
   position: relative; margin: 4px 0 18px; }
 .skb-stage { position: relative; height: min(660px, calc(100dvh - 250px)); min-height: 460px; display: flex; align-items: center; justify-content: center;
@@ -28199,7 +28199,7 @@ WHATS_NEW.push(
 .skb-cv .vo { position: absolute; left: 32px; right: 16px; top: 36px; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .08em; color: rgba(200,220,255,.7); }
 .skb-cv .cr { position: absolute; left: calc(50% + 8px); top: 29%; width: 40%; aspect-ratio: 1; transform: translate(-50%, -50%); }
 .skb-cv .t { position: absolute; left: 48px; right: 32px; top: 51%; text-align: center; font-size: 29px; font-weight: 800; line-height: 1.08; letter-spacing: -.02em; text-wrap: balance;
-  background: var(--skb-foil); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 1.5px 0 rgba(0,0,0,.6)); }
+  background: var(--skb-foil); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .skb-cv .ru { position: absolute; left: calc(50% + 8px); top: calc(51% + 68px); width: 86px; height: 1.5px; margin-left: -43px; background: var(--skb-foil); opacity: .6; }
 .skb-cv .s { position: absolute; left: 48px; right: 32px; top: calc(51% + 80px); text-align: center; color: rgba(214,228,255,.72); font-size: 12px; }
 .skb-cv .bd { position: absolute; left: 44px; right: 28px; bottom: 46px; display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
@@ -28448,7 +28448,7 @@ function skbWire(r) {
   const can = dir => dir > 0 ? SKB.at < SKB.L.length : SKB.at > 0;
   const start = dir => { const j = dir > 0 ? SKB.at : SKB.at - 1;
     if (dir > 0) skbStill(SKB.at - 1, SKB.at + 1); else skbStill(SKB.at - 2, SKB.at);
-    sfx("bkpage", .8); const t = skbTurn(j, dir > 0 ? 0 : 180, dir > 0 ? 0 : 180, { drag: true, a: dir > 0 ? 0 : 180, b: 0, dur: 1 }); return t; };
+    sfx("bkpage", .8); const t = skbTurn(j, dir > 0 ? 0 : 180, dir > 0 ? 0 : 180, { drag: true, cover: false, a: dir > 0 ? 0 : 180, b: 0, dur: 1 }); return t; };
   const finish = (t, dir, done) => { t.drag = false; const a = t.a, to = done ? (dir > 0 ? 180 : 0) : (dir > 0 ? 0 : 180);
     t.a0 = a; t.a1 = to; t.t0 = performance.now(); t.dur = 260 + 520 * Math.abs(to - a) / 180; t.ease = skbOut;
     t.end = () => { if (done) SKB.at += dir; skbRest(); };
@@ -28494,7 +28494,7 @@ async function skbMount() {
 /* Nexi's own checks wait while the book moves (the opening, a turning page, the landing's sparkles), like v235's wait for a
    sliding sheet: a turning leaf sits over the pages under it and holds GPU layers only for that moment */
 const skbBusy = () => !!(SKB.intro || SKB.turns.length || performance.now() < (SKB.calmAt || 0));
-extend("bugLayout", { before() { if (skbBusy() && $("#p-taste .skb")) { clearTimeout(BUG.lt); BUG.lt = setTimeout(bugLayout, 600); return extend.skip(); } } });
+extend("bugLayout", { before() { if (skbBusy() && document.querySelector("#p-taste.on .skb")) { clearTimeout(BUG.lt); BUG.lt = setTimeout(bugLayout, 600); return extend.skip(); } } });
 function skbShell() { return `<div class="skb" aria-label="Your book: what your games taught you"></div>`; }
 SUBS.taste.push(["book", "Book"]); Object.assign(SUBHOME, { book: "taste" });
 extend("renderTaste", { before() {
@@ -28506,6 +28506,8 @@ extend("renderTaste", { before() {
   let out; try { out = EXT.renderTaste.base.apply(this, arguments); } finally { tastePsych = _tp; }
   if (el) el.querySelectorAll(".tins").forEach(x => x.remove());
   skbMount(); return extend.skip(out); } });
+/* leaving mid-opening ends it at once: no sounds or turning pages on a hidden screen */
+onNav("before", () => { if (SKB.intro) skbSkip(); });
 /* coming back to the tab opens the book again from its cover */
 onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste") === "book") { const r = $("#p-taste .skb[data-on]"); if (r) { delete r.dataset.on; skbMount(); } } });
 if (subOf("taste") === "book") bootRedraw("renderTaste");

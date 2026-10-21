@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28519 lines, 2199 KB, 125 scripts, 66 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28521 lines, 2199 KB, 125 scripts, 66 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -52,7 +52,8 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 27141 v297: `onSettings("after", () => srlBuild());`
 - 27967 : `onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.`
 - 28018 : `onNav("after", () => { const p = P(); if (!p) return;`
-- 28510 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
+- 28510 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); });`
+- 28512 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
 
 ## Blocks
 
@@ -248,4 +249,4 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 27769–27828 | script | 6 | — |
 | 27828–28120 | script | 29 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
 | 28120–28228 | style | 12 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
-| 28228–28519 | script | 30 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
+| 28228–28521 | script | 30 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
