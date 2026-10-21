@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "316";
+const APP_V = "317";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -27270,6 +27270,9 @@ html.still .hero.heroin .qk, html.still .hero.heroin .qk *, html.still .hero.her
 /* the turn (WAAPI in qkTurn) replaces the old transition; qkTurn keeps the side that goes away visible until the turn ends
    (backface-visibility hides it once it has swung past edge-on) */
 .hero .hflip.qkf > .plate { transition: none; }
+/* Oct 21 (#333, #72: the phones named this plate as a held layer): at rest the hidden side is visibility: hidden, so the open
+   card needs neither will-change nor backface-visibility until a turn starts; they kept a card-sized GPU layer the whole time */
+.hero .hflip.qkf:not(.qkturn) > .plate { will-change: auto; backface-visibility: visible; -webkit-backface-visibility: visible; }
 .hero .hflip.qkf.qkturn > .plate::after { animation: flShine .42s ease-in-out; }
 html.still .hero .hflip.qkf.qkturn > .plate::after { animation: none; }
 /* ===== v300: the open Queue card's back, round 13 "Controller" (the owner: "A it is"). The game's colour on black: your score fills
@@ -28107,7 +28110,11 @@ WHATS_NEW.push(
   { v: 316, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "insights"); },
     at: () => $("#p-taste .shs-hero") || $("#p-taste .ix-hero") || null,
     say: "<b>Insights has a new top</b>: your three favourite games shattered into one picture with your player type across it, your tarot cards under it, an S‑tier shelf, a sky of the genres you love and the month your backlog is done.",
-    tryIt: "Open Insights and scroll. Dashed stars in Your sky are genres you haven't tried: tap the game under the sky to open the one that would light one. Customise › Top of Insights switches back." }
+    tryIt: "Open Insights and scroll. Dashed stars in Your sky are genres you haven't tried: tap the game under the sky to open the one that would light one. Customise › Top of Insights switches back." },
+  { v: 317, go: () => { closeFull(); dyClose(); nxShut(); nxQueue(); },
+    at: () => $("#p-queue .hero .hflip.qkf") || null,
+    say: "<b>Smoother Queue</b>: the open card no longer keeps an extra picture layer for the phone to redraw while you scroll past it.",
+    tryIt: "Open a card in the Queue, scroll past it, then tap it twice quickly: it still turns over the same way." }
 );
 </script>
 <style>
