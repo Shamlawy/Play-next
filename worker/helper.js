@@ -1649,12 +1649,13 @@ async function ytRoute(req, env, h) {
   /* no key yet: nothing to find, and not an error the phone should report */
   if (!env.YT_KEY) return json({ ok: true, videos: [], nokey: true }, 200, h);
   const base = ostWords(t).join(" "), key = "yt:" + base.toLowerCase().slice(0, 120);
-  if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (c && c.length) return json({ ok: true, videos: c }, 200, h); } catch (e) {} }
+  if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (Array.isArray(c)) return json({ ok: true, videos: c }, 200, h); } catch (e) {} }   /* an empty list too: a game YouTube has nothing for isn't searched again for a day (2 searches = 200 of the 10,000 daily units) */
   const G = "https://www.googleapis.com/youtube/v3/";
   let videos = [], fail = "";
   for (const q of [t + " main theme ost", t + " soundtrack"]) {
     try {
       const r = await fetch(G + "search?" + new URLSearchParams({ part: "snippet", type: "video", videoEmbeddable: "true", maxResults: "15", q, key: env.YT_KEY }));
+      if (r.status === 403 && /quota/i.test(await r.clone().text())) return json({ ok: true, videos: [], busy: true }, 200, h);   /* the day's allowance is spent: a quiet "not now" */
       if (!r.ok) { fail = "search " + r.status; break; }
       const items = ((await r.json()).items || []).filter(x => x && x.id && x.id.videoId && (x.snippet || {}).liveBroadcastContent !== "live");
       if (!items.length) continue;
@@ -1667,7 +1668,7 @@ async function ytRoute(req, env, h) {
     } catch (e) { fail = "YouTube didn't answer"; break; }
   }
   if (!videos.length && fail) return json({ error: "YouTube: " + fail }, 503, h);
-  if (videos.length && env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(videos), { expirationTtl: 30 * 86400 }); } catch (e) {} }
+  if (env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(videos), { expirationTtl: videos.length ? 30 * 86400 : 86400 }); } catch (e) {} }
   return json({ ok: true, videos }, 200, h);
 }
 async function ostClip(req, url, h) {

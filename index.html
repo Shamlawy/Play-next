@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "324";
+const APP_V = "325";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28160,12 +28160,14 @@ WHATS_NEW.push(
 .skb-yt { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); margin: 10px auto 0; padding: 8px; box-sizing: border-box;
   border-radius: var(--u-rs); background: var(--u-card); border: 1px solid var(--u-line); }
 .skb-yt[hidden] { display: none; }
-.skb-ytv { flex: none; width: 200px; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: rgb(0, 0, 0); }
+.skb-ytv { flex: none; width: 200px; height: 200px; border-radius: 10px; overflow: hidden; background: rgb(0, 0, 0); }
 .skb-ytv iframe { display: block; width: 100%; height: 100%; border: 0; }
 .skb-ytt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 0; border: 0; background: none; color: var(--ice);
   font-family: inherit; text-align: left; cursor: pointer; }
 .skb-ytt small { font-size: 11px; font-weight: 600; color: var(--mute); white-space: nowrap; }
 .skb-ytt b { font-size: 13px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.skb-ytt em { display: none; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--volt); }
+.skb-yt.tap .skb-ytt em { display: block; }
 .skb-ytt span { font-size: 11.5px; font-weight: 600; color: var(--volt); white-space: nowrap; }
 /* folded: one page at a time; the book's left half sits off the screen and a turned page leaves to the left */
 .skb.fold .skb-stage { justify-content: flex-start; }
@@ -28651,8 +28653,9 @@ const skbMusWhy = (why, net) => { if (net || navigator.onLine === false) return;
 async function skbOstList(g) {
   const M = skbOstAll(), e = M[g.id];
   /* a found list keeps 30 days; "no soundtrack" 2 hours */
-  /* v324: only lists v324 kept count (w 2): older ones could hold a fan's cover album, and "no music" may now find YouTube */
-  if (e && e.w >= 2 && Date.now() - e.at < (e.l.length ? 30 * 864e5 : 2 * 36e5)) return e;
+  /* v324: only lists v324 kept count (w 2): older ones could hold a fan's cover album, and "no music" may now find YouTube
+     v325 (w 3): v324 kept "no music" while the helper had no YouTube key yet, so every list is asked again */
+  if (e && e.w >= 3 && Date.now() - e.at < (e.l.length ? 30 * 864e5 : 2 * 36e5)) return e;
   const got = j => (Array.isArray(j && j.tracks) ? j.tracks : []).filter(x => x && x.u).slice(0, 6);
   let l = null, why = "";
   const f = { net: true };   /* stays true while every failure is the network's */
@@ -28667,9 +28670,11 @@ async function skbOstList(g) {
   if (!l) { skbMusWhy(why, f.net); return e && e.l.length ? e : { l: [], i: 0 }; }
   /* v324: no soundtrack on Apple (Nintendo keeps its music off it): the helper looks on YouTube */
   if (!l.length) { try { const v = await nxPost("/yt", { t: g.title });
-      l = (Array.isArray(v.videos) ? v.videos : []).filter(x => x && /^[\w-]{11}$/.test(x.y || "")).slice(0, 4).map(x => ({ y: x.y, n: String(x.n || ""), a: String(x.a || "") })); }
-    catch (x) { skbMusWhy("YouTube's search failed: " + x.message, x instanceof TypeError); } }
-  const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 2 }; M[g.id] = n;
+      l = (Array.isArray(v.videos) ? v.videos : []).filter(x => x && /^[\w-]{11}$/.test(x.y || "")).slice(0, 4).map(x => ({ y: x.y, n: String(x.n || ""), a: String(x.a || "") }));
+      /* v325: no key or YouTube's daily allowance spent is no answer: keep nothing, so the next visit asks again */
+      if (!l.length && (v.nokey || v.busy)) { if (v.nokey) skbMusWhy("the helper has no YouTube key"); return { l: [], i: 0 }; } }
+    catch (x) { skbMusWhy("YouTube's search failed: " + x.message, x instanceof TypeError); return { l: [], i: 0 }; } }
+  const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 3 }; M[g.id] = n;
   try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (x) {}
   return n;
 }
@@ -28751,14 +28756,18 @@ function skbYtPlay(tr, many) {
   const el = document.createElement("div"); el.className = "skb-yt";
   el.innerHTML = `<div class="skb-ytv"><iframe src="https://www.youtube-nocookie.com/embed/${tr.y}?enablejsapi=1&playsinline=1&rel=0&loop=1&playlist=${tr.y}&origin=${encodeURIComponent(location.origin)}"
       title="${esc(tr.n)}" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-    <button class="skb-ytt" data-ytn><small>Music from YouTube</small><b>${esc(tr.n)}</b>${many > 1 ? "<span>Tap for another</span>" : ""}</button>`;
+    <button class="skb-ytt" data-ytn><small>Music from YouTube</small><b>${esc(tr.n)}</b>${many > 1 ? "<span>Tap for another</span>" : ""}<em>Tap the player to start the music</em></button>`;
   st.after(el);
   const ifr = el.querySelector("iframe"), y = m.yt = { el, ifr, y: tr.y, v: 0, t: 0, ok: 0 };
   y.cmd = (func, args = []) => { try { ifr.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*"); } catch (e) {} };
   el.querySelector("[data-ytn]").addEventListener("click", skbOstNext);
   ifr.addEventListener("load", () => { if (m.yt !== y) return;
     try { ifr.contentWindow.postMessage(JSON.stringify({ event: "listening", id: "skbyt", channel: "widget" }), "*"); } catch (e) {}
-    y.cmd("setVolume", [0]); y.cmd("playVideo"); skbYtRamp(y, SKB_VOL * 100, 2400); });
+    y.cmd("setVolume", [0]); y.cmd("playVideo");   /* v325: the fade-in starts once it really plays */
+    /* v325: a phone that won't start it by itself (the iPhone wants a tap inside the player) never says so: after 8 s
+       without playing, the card asks for a tap and Nexi files why */
+    y.w = setTimeout(() => { if (m.yt !== y || y.ok) return; el.classList.add("tap");
+      skbMusWhy("YouTube's player didn't start by itself (state " + (y.st == null ? "none" : y.st) + ")"); }, 8000); });
   m.tr = tr; skbOstChip();
 }
 function skbYtRamp(y, to, ms, then) {
@@ -28768,14 +28777,18 @@ function skbYtRamp(y, to, ms, then) {
   y.t = setTimeout(step, 120);
 }
 function skbYtEnd(fade) {
-  const y = SKB_MUS.yt; if (!y) return; SKB_MUS.yt = null; y.el.hidden = true;
+  const y = SKB_MUS.yt; if (!y) return; SKB_MUS.yt = null; clearTimeout(y.w);
+  /* v325: the player stays in sight until its sound has faded (YouTube's rules) */
   const bye = () => { clearTimeout(y.t); y.cmd("pauseVideo"); y.el.remove(); };
   if (fade > .3 && y.ok && !document.hidden) skbYtRamp(y, 0, fade * 1000, bye); else bye();
 }
 addEventListener("message", e => {
   const y = SKB_MUS.yt; if (!y || e.source !== y.ifr.contentWindow) return;
   let d; try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch (x) { return; } if (!d) return;
-  if (d.event === "onStateChange" ? d.info === 1 : d.event === "infoDelivery" && d.info && d.info.playerState === 1) { y.ok = 1; SKB_MUS.ytBad = 0; }
+  const ps = d.event === "onStateChange" ? d.info : d.event === "infoDelivery" && d.info ? d.info.playerState : undefined;
+  if (ps != null) y.st = ps;
+  if (ps === 1 && !y.ok) { y.ok = 1; SKB_MUS.ytBad = 0; y.el.classList.remove("tap");
+    skbYtRamp(y, SKB_VOL * 100, 2400); }
   if (d.event !== "onError") return;
   const m = SKB_MUS, x = SKB.G && SKB.G(SKB.at), e2 = x && skbOstAll()[x.g.id];
   m.ytBad = (m.ytBad || 0) + 1;
@@ -28839,6 +28852,9 @@ WHATS_NEW.push(
     tryIt: "Open Taste › Book: the last game's soundtrack plays. Then keep swiping to the end: the book closes on its back cover, and a swipe back opens it again." },
   { v: 324, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
     say: "<b>Games with no soundtrack on Apple play their music from YouTube now</b> (most Nintendo games), in a small player under your book. Fan covers stay out.",
-    tryIt: "Open Taste › Book on a game Apple has no music for: its main theme plays from YouTube under the book. Tap its name for another video." }
+    tryIt: "Open Taste › Book on a game Apple has no music for: its main theme plays from YouTube under the book. Tap its name for another video." },
+  { v: 325, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
+    say: "<b>The book's YouTube music plays now</b>: the phone had kept \"no music\" from before YouTube was switched on, so every game is asked again.",
+    tryIt: "Open Taste › Book on a Nintendo game you finished. If the phone won't start the music by itself, the card under the book says to tap the player, and I hear about it." }
 );
 </script>

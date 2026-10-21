@@ -48,7 +48,7 @@ export default async ({ p, w, seed, fail }) => {
     if (s.fw < 200) fail(`YouTube's player is ${s.fw}px wide: it must be at least 200`);
     if (s.chip) fail("the Apple track chip shows over a YouTube video");
     if (s.srcs) fail("an Apple clip plays alongside YouTube");
-    if (!/"y":"aaaaaaaaaa2"|"y":"aaaaaaaaaa1"/.test(s.ost || "") || !/"w":2/.test(s.ost || "")) fail("the YouTube list wasn't kept with the v324 mark");
+    if (!/"y":"aaaaaaaaaa2"|"y":"aaaaaaaaaa1"/.test(s.ost || "") || !/"w":3/.test(s.ost || "")) fail("the YouTube list wasn't kept with the v325 mark");
   }
   const fr = p.page.frames().find(f => /youtube-nocookie\.com\/embed\/aaaaaaaaaa2/.test(f.url()));
   const cmds = fr ? await fr.evaluate(() => cmds) : [];
