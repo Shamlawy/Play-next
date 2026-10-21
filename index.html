@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "325";
+const APP_V = "326";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28166,8 +28166,10 @@ WHATS_NEW.push(
   font-family: inherit; text-align: left; cursor: pointer; }
 .skb-ytt small { font-size: 11px; font-weight: 600; color: var(--mute); white-space: nowrap; }
 .skb-ytt b { font-size: 13px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.skb-ytt em { display: none; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--volt); }
-.skb-yt.tap .skb-ytt em { display: block; }
+/* v326: the hint sits outside the button (a tap on it must not skip to the next video), under the words */
+.skb-yt { flex-wrap: wrap; }
+.skb-yth { display: none; flex: 1 0 100%; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--volt); }
+.skb-yt.tap .skb-yth { display: block; }
 .skb-ytt span { font-size: 11.5px; font-weight: 600; color: var(--volt); white-space: nowrap; }
 /* folded: one page at a time; the book's left half sits off the screen and a turned page leaves to the left */
 .skb.fold .skb-stage { justify-content: flex-start; }
@@ -28672,8 +28674,8 @@ async function skbOstList(g) {
   if (!l.length) { try { const v = await nxPost("/yt", { t: g.title });
       l = (Array.isArray(v.videos) ? v.videos : []).filter(x => x && /^[\w-]{11}$/.test(x.y || "")).slice(0, 4).map(x => ({ y: x.y, n: String(x.n || ""), a: String(x.a || "") }));
       /* v325: no key or YouTube's daily allowance spent is no answer: keep nothing, so the next visit asks again */
-      if (!l.length && (v.nokey || v.busy)) { if (v.nokey) skbMusWhy("the helper has no YouTube key"); return { l: [], i: 0 }; } }
-    catch (x) { skbMusWhy("YouTube's search failed: " + x.message, x instanceof TypeError); return { l: [], i: 0 }; } }
+      if (!l.length && (v.nokey || v.busy)) { if (v.nokey) skbMusWhy("the helper has no YouTube key"); return e && e.l.length ? e : { l: [], i: 0 }; } }
+    catch (x) { skbMusWhy("YouTube's search failed: " + x.message, x instanceof TypeError); return e && e.l.length ? e : { l: [], i: 0 }; } }   /* v326: an older list that held music still plays */
   const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 3 }; M[g.id] = n;
   try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (x) {}
   return n;
@@ -28756,7 +28758,7 @@ function skbYtPlay(tr, many) {
   const el = document.createElement("div"); el.className = "skb-yt";
   el.innerHTML = `<div class="skb-ytv"><iframe src="https://www.youtube-nocookie.com/embed/${tr.y}?enablejsapi=1&playsinline=1&rel=0&loop=1&playlist=${tr.y}&origin=${encodeURIComponent(location.origin)}"
       title="${esc(tr.n)}" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-    <button class="skb-ytt" data-ytn><small>Music from YouTube</small><b>${esc(tr.n)}</b>${many > 1 ? "<span>Tap for another</span>" : ""}<em>Tap the player to start the music</em></button>`;
+    <button class="skb-ytt" data-ytn><small>Music from YouTube</small><b>${esc(tr.n)}</b>${many > 1 ? "<span>Tap for another</span>" : ""}</button><em class="skb-yth">Tap the player to start the music</em>`;
   st.after(el);
   const ifr = el.querySelector("iframe"), y = m.yt = { el, ifr, y: tr.y, v: 0, t: 0, ok: 0 };
   y.cmd = (func, args = []) => { try { ifr.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*"); } catch (e) {} };
@@ -28855,6 +28857,9 @@ WHATS_NEW.push(
     tryIt: "Open Taste › Book on a game Apple has no music for: its main theme plays from YouTube under the book. Tap its name for another video." },
   { v: 325, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
     say: "<b>The book's YouTube music plays now</b>: the phone had kept \"no music\" from before YouTube was switched on, so every game is asked again.",
-    tryIt: "Open Taste › Book on a Nintendo game you finished. If the phone won't start the music by itself, the card under the book says to tap the player, and I hear about it." }
+    tryIt: "Open Taste › Book on a Nintendo game you finished. If the phone won't start the music by itself, the card under the book says to tap the player, and I hear about it." },
+  { v: 326, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
+    say: "<b>The book's music holds on better</b>: when YouTube can't be asked, the music it found before still plays, and the \"tap the player\" hint no longer skips the song.",
+    tryIt: "Open Taste › Book on a game you finished and listen; if the card asks you to tap the player, tap the little YouTube player." }
 );
 </script>
