@@ -200,6 +200,7 @@ async function phone(browser, base, w, data, { url = base, init = null } = {}) {
     if (FAKE && new URL(u).host === HELPER_HOST) {
       let b = null; try { b = JSON.parse(r.request().postData() || "null"); } catch (e) {}
       const a = fakeHelper(new URL(u).pathname, b, base);
+      if (a.body) return r.fulfill({ status: a.status, contentType: a.type, body: a.body, headers: { "access-control-allow-origin": "*" } });   /* a file (the music clip) */
       return r.fulfill({ status: a.status, contentType: "application/json", body: JSON.stringify(a.json), headers: { "access-control-allow-origin": "*" } });
     }
     /* the pictures those answers point at (Steam's "more like this" headers, store art) are a repo picture, so their cards

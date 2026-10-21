@@ -1529,14 +1529,17 @@ async function spCron(env) {
    soundtrack album, a main/title theme or the first track first; covers, remixes, piano or lo-fi versions out. GET /ost/clip?u=
    passes a preview on with CORS (Apple's audio host sends none, and the app decodes it with Web Audio to fade it), only from
    Apple's preview hosts and only for the app. Both go through Cloudflare's cache for a day / a week. ===== */
-const OST_BAD = /\b(cover|covers|tribute|lo-?fi|piano|8[- ]?bit|remix|karaoke|ringtone|guitar|acapella|a cappella|medley|lullaby|music box|chiptune|metal version|instrumental version|epic version|orchestral cover|reaction)\b/i;
+const OST_BAD = /\b(cover|covers|tribute|lo-?fi|piano|8[- ]?bit|remix|karaoke|ringtone|guitar|acapella|a cappella|medley|lullaby|music box|chiptune|metal version|instrumental version|epic version|orchestral cover|reaction|arrangement|arranged|rearranged|reimagined|inspired)\b/i;
 const OST_ALB = /\b(sound ?track|ost)\b|original (score|music)|\bmusic from\b/i;
-const OST_THEME = /\b(main theme|title theme|theme|opening|overture|prologue|title screen|main menu)\b/i;
+const OST_MAIN = /\b(main theme|title theme|title screen|main menu)\b/i, OST_THEME = /\b(theme|opening|overture|prologue)\b/i;
 const ostWords = t => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, " ")
   .replace(/\b(the|a|an|of|and|edition|anniversary|remastered|remaster|deluxe|definitive|complete|hd|game)\b/g, " ").split(/\s+/).filter(w => w.length > 1 || /\d/.test(w));
 export function ostRank(title, results) {
   const W = ostWords(title); if (!W.length) return [];
-  const seen = new Set(), out = [];
+  const seen = new Set(), out = [], per = {};
+  /* the real soundtrack is the album most of the matches come from (a fan's cover single or arrangement brings one or two) */
+  for (const r of results || []) if (r && r.collectionId) per[r.collectionId] = (per[r.collectionId] || 0) + 1;
+  const top = Math.max(0, ...Object.values(per));
   for (const r of results || []) {
     if (!r || !r.previewUrl || !r.trackName || seen.has(r.trackId)) continue; seen.add(r.trackId);
     const al = String(r.collectionName || ""), tn = String(r.trackName || ""), alW = new Set(ostWords(al)), tnW = new Set(ostWords(tn));
@@ -1544,7 +1547,9 @@ export function ostRank(title, results) {
     if (hit < .6) continue;   /* the album has to be this game's */
     let sc = hit * 4;
     if (OST_ALB.test(al)) sc += 3;
-    if (OST_THEME.test(tn)) sc += 2;
+    if (OST_MAIN.test(tn)) sc += 3; else if (OST_THEME.test(tn)) sc += 1.5;
+    if (top >= 4 && per[r.collectionId] === top) sc += 2;
+    if (/ - (single|ep)$/i.test(al)) sc -= 3;
     if (W.some(w => tnW.has(w) && !/^\d+$/.test(w))) sc += 1;
     if (r.trackNumber === 1 && (r.discNumber || 1) === 1) sc += 1.5;
     if (OST_BAD.test(tn) || OST_BAD.test(al) || OST_BAD.test(String(r.artistName || ""))) sc -= 8;

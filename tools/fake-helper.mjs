@@ -39,6 +39,16 @@ const RATES = { USD: 1, EUR: .92, GBP: .79, EGP: 48.6, AED: 3.67, SAR: 3.75, JPY
 /* pictures the store route "finds": files already in the repo, served by the kit's own server */
 const PICS = [["cover", "fefw-key-art.jpg", 3445, 3471], ["hero", "FEFT_cast.webp", 1000, 563], ["art", "logo-512.png", 512, 512], ["shot", "FEFT_cast.webp", 1000, 563]];
 
+/* 6 seconds of a quiet A-major chord, mono 16-bit WAV: the music clip the fake helper hands out */
+let WAV = null;
+export function chordWav() {
+  if (WAV) return WAV;
+  const sr = 22050, n = sr * 6, b = Buffer.alloc(44 + n * 2);
+  b.write("RIFF", 0); b.writeUInt32LE(36 + n * 2, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) { const t = i / sr, v = [220, 277.18, 329.63].reduce((a, f) => a + Math.sin(2 * Math.PI * f * t), 0) / 3; b.writeInt16LE(Math.round(v * 6000), 44 + i * 2); }
+  return (WAV = b);
+}
 const unknown = new Set();
 /* (path, parsed body or null, the kit's server address) → { status, json } */
 export function fakeHelper(p, b, base) {
@@ -77,6 +87,9 @@ export function fakeHelper(p, b, base) {
     case "/nudge": case "/nudge/test": case "/usage": return ok({ ok: true });
     case "/cal/put": return ok({ ok: true, n: 3 });
     case "/steam/me": case "/steam/sync": return ok({ ok: true, games: [], sessions: [] });
+    /* the skills book's music (v22): three made-up tracks, each clip a short soft chord (a WAV made here) */
+    case "/ost": return ok({ ok: true, tracks: ["Main Theme", "Harbour at Dusk", "The Long Road"].map((n, i) => ({ n, a: "Test Orchestra", al: "Made-up Original Soundtrack", u: "https://audio-ssl.itunes.apple.com/fake/" + i + ".m4a" })) });
+    case "/ost/clip": return { status: 200, body: chordWav(), type: "audio/wav" };
   }
   if (p.startsWith("/sgdb/")) return ok({ success: true, data: [] });
   /* the backup vault and push keys stay off in the test phones (the seed has cbOn: false) */
