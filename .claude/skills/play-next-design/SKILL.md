@@ -63,6 +63,7 @@ Then keep the pair: `node tools/taste.mjs pair <name> --before=<ours before> --a
 - Big pictures and many layers cost the GPU on the Fold (v264, v287): keep layers few, pictures at the size they're shown.
 - No scroll-linked motion on list rows (v308, #469 item 6): a `view()`/`scroll()` timeline keeps its own GPU layer the whole time it exists, moving or not (Played's rows had four each: 9 screens of layers, now 4). Rows in a long list simply appear; one small piece (a badge shelf) may keep it, near the screen only.
 
+- The book's pages (v321, T53): words never float over a game's picture; they sit on a slanted strap in the game's own colour (the closed Queue row's strap, laid along the foot of the page, a lighter stripe on its edge) with the box art standing straight over the edge and a ticket for the numbers. Lists of games (the contents) are small closed Queue rows.
 - Paper that bends (v318, the skills book): a page that turns is a chain of strips whose small `rotateY` angles add up, and each face is shaded by opacity ramps between its edge angles (one flat value per strip shows as stripes). Strips exist only while the page moves (4 by hand, 3 in a riffle, a stiff cover is 1); at rest the pages are flat, layer-free copies. Nexi's checks wait while it moves (`skbBusy`).
 
 ## 6. Where the code goes

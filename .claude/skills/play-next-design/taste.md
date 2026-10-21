@@ -264,3 +264,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: A it is, make the pages flip slower and better also the make the sounds magical and better and the animations better also the cover image of the book should be better the book should be waaay better
 - rule: Skills cards use look A (Perks). The skills book (M42) turns pages slowly with a paper curl, plays chime/shimmer sounds rather than plain noise, opens with a weighty cover swing, and has an illustrated, game-like cover (embossed frame, foil emblem, foil skill badges).
 - check: tools/demos/skills/book-render.mjs --beats (by eye)
+
+### T53 · v321 · Taste · hate
+- said: the info on them looks bad … organise the game and info better and the game colour maybe like when the queue cards are closed also the info on the game image looks bad upgrade it
+- rule: The book's contents lists each game as a small closed Queue row (picture behind, box art on a slanted strap in the game's colour, name, finished month + skills, big page number); a game's picture page carries its words on a slanted strap in its colour along the foot (box art standing over the edge, kicker, name, a ticket with hours / skills / top skill), the page number in a pill at the top, never loose words over the picture
+- check: node tools/kit.mjs run tools/scenarios/skills-book.mjs --widths 412,859,360

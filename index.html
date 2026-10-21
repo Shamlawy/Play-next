@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "320";
+const APP_V = "321";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28708,6 +28708,9 @@ WHATS_NEW.push(
     tryIt: "Open Taste › Book and read what it trained in you, then try one of the Try lines this week." },
   { v: 320, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
     say: "<b>Three more games have pages in your book</b>, each with four skills, locked so only your phone can read them. A game shows up in the book once you've marked it played. Also fixed: long words no longer get cut off at the foot of a page, every page has its number (the contents points at them), a game with more than four skills keeps all of them, and a game you finished twice appears once.",
-    tryIt: "Open Taste › Book, swipe through, and check the contents page: each game's page number matches the page." }
+    tryIt: "Open Taste › Book, swipe through, and check the contents page: each game's page number matches the page." },
+  { v: 321, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
+    say: "<b>Your book plays each game's music</b>: land on a finished game's pages and a clip of its soundtrack fades in, like a PS5 home screen. Its picture page now carries the game on a strap in its own colour, and the contents lists every game like a closed Queue row.",
+    tryIt: "Turn to a game's picture and listen; tap the track's name at the top for another one. Settings › Sound and reactions › Game music in the book turns it off." }
 );
 </script>
