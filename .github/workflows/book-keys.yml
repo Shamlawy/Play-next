@@ -1,0 +1,25 @@
+# The skills book's lock (v318): prints the public keys the phones sent the helper (POST /book/key), so Claude can seal a
+# game's book pages to the owner's phone with tools/book-seal.mjs. Public halves only; read with the helper's BUG_KEY
+# (sha256 of CLOUDFLARE_API_TOKEN + ":play-next-bugs", as bugs.yml does). Run by hand from the Actions tab or the API.
+name: Book keys
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  keys:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Print the phones' public book keys
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          node -e '
+            const { createHash } = require("crypto");
+            const key = createHash("sha256").update(String(process.env.CF_TOKEN || "").replace(/\s+/g, "") + ":play-next-bugs").digest("hex");
+            fetch("https://playnext-helper.hussamnabil48.workers.dev/book/keys", { headers: { Authorization: "Bearer " + key } })
+              .then(async r => { const t = await r.text(); console.log(r.status); if (!r.ok) { console.log(t.slice(0, 300)); process.exit(1); }
+                for (const k of JSON.parse(t).keys) console.log("BOOKKEY " + JSON.stringify(k)); });'

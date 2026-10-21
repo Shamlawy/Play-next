@@ -21,13 +21,14 @@
    POST /prices       → Steam + PlayStation Store + Nintendo eShop prices for a list of games; with an id it's re-checked daily and drops are pushed.
    POST /vault/put, GET /vault/list, GET /vault/get, POST /vault/del → cloud backup. The phone encrypts everything with a key
         made from its restore code (which never leaves the phone); this only keeps the sealed bytes.
+   POST /book/key, GET /book/keys → the skills book's lock: each phone's public key (v21).
    cron (every 15 min) → sends the nudges that are due, is the backup for new-version pings, checks price drops and Steam sessions.
    Needs: Workers AI binding "AI", KV binding "NUDGE", a cron trigger "*\/15 * * * *". */
 const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 20;
+const HELPER_V = 21;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -136,7 +137,7 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE, book: !!env.NUDGE }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
@@ -186,6 +187,22 @@ Answer with ONLY a JSON array like [{"ids":["e3","e7"],"problem":"max 16 words, 
       if (!env.BUG_KEY || !env.NUDGE) return json({ error: "usage isn't set up (BUG_KEY / NUDGE)" }, 503, h);
       if (!sameKey(req.headers.get("Authorization") || "", "Bearer " + env.BUG_KEY)) return json({ error: "no" }, 401, h);
       return json({ usage: await useList(env) }, 200, h);
+    }
+    /* v21: the skills book's lock. Each phone makes its own key pair and sends only the public half here; the book's words
+       are sealed to it outside the app (tools/book-seal.mjs), so only that phone can open them. The first key a phone id
+       sends is kept (a later, different one is refused); book-keys.yml reads the list with BUG_KEY. */
+    if (url.pathname === "/book/key" && req.method === "POST") {
+      if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "not allowed" }, 403, h);
+      if (!env.NUDGE) return json({ error: "no store" }, 503, h);
+      return json(await bkKeyPut(env, await req.json().catch(() => ({}))), 200, h);
+    }
+    if (url.pathname === "/book/keys" && req.method === "GET") {
+      if (!env.BUG_KEY || !env.NUDGE) return json({ error: "book keys aren't set up (BUG_KEY / NUDGE)" }, 503, h);
+      if (!sameKey(req.headers.get("Authorization") || "", "Bearer " + env.BUG_KEY)) return json({ error: "no" }, 401, h);
+      const out = []; let cur;
+      do { const l = await env.NUDGE.list({ prefix: "bookkey:", cursor: cur }); cur = l.list_complete ? null : l.cursor;
+        for (const k of l.keys) { const v = await env.NUDGE.get(k.name, "json"); if (v) out.push(v); } } while (cur);
+      return json({ keys: out }, 200, h);
     }
     if (url.pathname === "/bugs" || url.pathname === "/bugs/ack") {
       if (!env.BUG_KEY || !env.NUDGE) return json({ error: "reports aren't set up (BUG_KEY / NUDGE)" }, 503, h);
@@ -459,6 +476,17 @@ const cut = (v, n) => String(v == null ? "" : v).slice(0, n);
    the phone marked keep=1 (it had far fewer games than the last one). Every write and read carries
    "Authorization: Bearer <tok>" (from the restore code); the first write keeps its sha256 and anything after must match. */
 async function sha256hex(s) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, "0")).join(""); }
+/* a book key: { uid: the phone's random id, pub: an ECDH P-256 public key (JWK x/y), os, v } */
+async function bkKeyPut(env, b) {
+  const uid = String(b && b.uid || ""), p = b && b.pub || {};
+  if (!/^[a-z0-9]{8,40}$/i.test(uid)) return { error: "bad id" };
+  const b64u = /^[A-Za-z0-9_-]{43}$/;
+  if (p.kty !== "EC" || p.crv !== "P-256" || !b64u.test(p.x || "") || !b64u.test(p.y || "")) return { error: "bad key" };
+  const k = "bookkey:" + uid, cur = await env.NUDGE.get(k, "json");
+  if (cur) return cur.pub.x === p.x && cur.pub.y === p.y ? { ok: true, kept: true } : { error: "this phone already has a key" };
+  await env.NUDGE.put(k, JSON.stringify({ uid, pub: { kty: "EC", crv: "P-256", x: p.x, y: p.y }, os: String(b.os || "").slice(0, 20), v: +b.v || 0, t: Date.now() }));
+  return { ok: true };
+}
 async function vault(req, env, url, h) {
   if (!env.NUDGE) return json({ error: "No KV binding named NUDGE" }, 500, h);
   if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);

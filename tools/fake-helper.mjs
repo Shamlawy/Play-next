@@ -46,8 +46,9 @@ export function fakeHelper(p, b, base) {
   const items = Array.isArray(b.items) ? b.items : [], ok = json => ({ status: 200, json });
   const res = f => Object.fromEntries(items.filter(x => x && x.k).map(x => [x.k, f(x)]));
   switch (p) {
-    case "/version": return ok({ v: HELPER_V, chat: true, similar: true, nudge: true, updates: true, bugs: true, review: true, vault: true, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: true, steamMe: true });
+    case "/version": return ok({ v: HELPER_V, chat: true, similar: true, nudge: true, updates: true, bugs: true, review: true, vault: true, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: true, steamMe: true, book: true });
     case "/chat": return ok({ text: "From what you've scored, the short story game at the top of your queue fits tonight: it's out, it's under 15 hours, and it shares a genre with your favourite. After that, the tactics one coming next month." });
+    case "/book/key": return ok({ ok: true });   /* the skills book's lock (v21): the phone sends its public key */
     case "/chat/memory": return ok({ memory: String(b.memory || "").slice(0, 300) || "Likes RPGs and tactics, plays in the evening, finishes short games." });
     case "/why": return ok({ text: "VERDICT: Good fit\n- You scored the other story-led RPGs on your list 8 and up\n- It is turn-based like your top tactics game\n- The slow first hours might drag, like they did in your 6/10" });
     case "/similar": return ok({ games: [] });   /* the app checks every name on RAWG, which the test phones can't reach */

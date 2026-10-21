@@ -16394,6 +16394,7 @@ function helperCheck() {
     if (!$("#s-helperv")) return;
     el.textContent = ok && j.v === 13 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except prices in your own currency (exchange rates) and PlayStation prices for countries without a PS Store, which need the new helper."
       : ok && j.v >= 11 && j.v < 13 && j.nudge ? "⚠️ The helper on Cloudflare is a version behind: everything works except the newest price fixes (games the store searches miss, short names like “GTA 6”, add-ons picked instead of the game), which need the new helper."
+      : ok && j.v === 20 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except the skills book's private lock (your book's pages can't reach this phone yet), which needs the new helper."
       : ok && j.v >= 15 && j.v < 20 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except Steam sessions logging themselves, which need the new helper."
       : ok && j.v >= 15 && j.nudge ? "✅ Helper is up to date: chat, story recaps, smart similar games (with Steam), notifications, problem reports, design reviews, cloud backup, price alerts (Steam, PlayStation and Nintendo eShop), Steam player reviews, hours to beat and game pictures from the stores are all on."
       : ok && j.v === 14 && j.nudge ? "⚠️ The helper on Cloudflare is one version behind: everything works except game pictures from Steam, Xbox, PlayStation and Nintendo in Browse and choose, which need the new helper."
@@ -28227,34 +28228,62 @@ WHATS_NEW.push(
 </style>
 <script>
 /* ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through.
-   The words for each game are written outside the app (ideas M41/M42) and kept sealed in BOOK_SEALED: the repo is public, so
-   an entry's id is a hash of the game's title and its words are encrypted with a key made from that title (tools/book-seal.mjs
-   makes them). That hides them from a plain read, not from someone who tries a list of titles. The phone opens the ones whose titles it has and keeps them in localStorage gq:book (its own key: not the
-   backup). Opening the tab: the book rises, the foil cover catches the light and swings open, the pages riffle to the game
+   The words for each game are written outside the app (ideas M41/M42) and kept sealed in BOOK_SEALED. The repo is public, so
+   each phone makes its own key pair (ECDH P-256; the private half stays in S.bookKey, which only the encrypted cloud backup
+   carries) and sends the public half to the helper (POST /book/key); tools/book-seal.mjs seals each game's words to that key
+   (a one-off key per entry, AES-GCM), title inside. An entry's id is random and only the phone it was sealed to can open it,
+   so the repo never says which games you finished. Opened entries are kept in localStorage gq:book (not the backup). Opening the tab: the book rises, the foil cover catches the light and swings open, the pages riffle to the game
    you finished last and its skills fill in. Then swipe (the page follows the finger) or tap a side to turn. Calm / reduced
    motion: it opens straight on that page, no movement. Sounds go through sfx() (bkopen, bkpage, bkland). */
-const BOOK_SEALED = {"8644208a8090dc6c":"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"};
+const BOOK_SEALED = {};
 const bookNorm = t => String(t || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
 let bookStore = null;
 function bookLocal() { if (!bookStore) { try { bookStore = JSON.parse(localStorage.getItem("gq:book") || "{}") || {}; } catch (e) { bookStore = {}; } } return bookStore; }
-async function bookOpen(n) {
-  const enc = s => new TextEncoder().encode(s), C = crypto.subtle;
-  const id = [...new Uint8Array(await C.digest("SHA-256", enc("pn-book:" + n)))].map(x => x.toString(16).padStart(2, "0")).join("").slice(0, 16);
-  const sealed = BOOK_SEALED[id]; if (!sealed) return null;
-  const raw = Uint8Array.from(atob(sealed), c => c.charCodeAt(0));
-  const base = await C.importKey("raw", enc(n), "PBKDF2", false, ["deriveKey"]);
-  const key = await C.deriveKey({ name: "PBKDF2", salt: enc("play-next-book-v1"), iterations: 60000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-  return JSON.parse(new TextDecoder().decode(await C.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12) }, key, raw.slice(12))));
+/* this phone's key pair, made once; the public half goes to the helper until it says it has it */
+async function bookKey() {
+  const C = crypto.subtle;
+  if (!S.bookKey) {
+    const k = await C.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    const j = await C.exportKey("jwk", k.privateKey); S.bookKey = { kty: j.kty, crv: j.crv, x: j.x, y: j.y, d: j.d }; saveNow();
+  }
+  return C.importKey("jwk", S.bookKey, { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
 }
+async function bookKeySend() {
+  if (!S.bookKey) return; const { x, y } = S.bookKey;
+  try { if (localStorage.getItem("gq:bookpub") === x) return; } catch (e) { return; }
+  let uid = ""; try { uid = localStorage.getItem("gq:uid") || ""; } catch (e) {}
+  if (!uid) { uid = (Math.random().toString(36).slice(2, 10) + Date.now().toString(36)).slice(0, 24); try { localStorage.setItem("gq:uid", uid); } catch (e) {} }
+  try { const os = /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? "Apple" : /Android/.test(navigator.userAgent) ? "Android" : "other";
+    await nxPost("/book/key", { uid, pub: { kty: "EC", crv: "P-256", x, y }, os, v: APP_V }); localStorage.setItem("gq:bookpub", x); } catch (e) {}
+}
+/* an entry: base64 of [the sender's one-off public key (65) | iv (12) | AES-GCM of {n, skills}], key = HKDF over ECDH */
+async function bookOpen(sealed, priv) {
+  const C = crypto.subtle, raw = Uint8Array.from(atob(sealed), c => c.charCodeAt(0));
+  const eph = await C.importKey("raw", raw.slice(0, 65), { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const bits = await C.deriveBits({ name: "ECDH", public: eph }, priv, 256);
+  const hk = await C.importKey("raw", bits, "HKDF", false, ["deriveKey"]);
+  const key = await C.deriveKey({ name: "HKDF", hash: "SHA-256", salt: raw.slice(0, 65), info: new TextEncoder().encode("play-next-book-v2") }, hk, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await C.decrypt({ name: "AES-GCM", iv: raw.slice(65, 77) }, key, raw.slice(77))));
+}
+/* the key is made and sent soon after the app opens, so pages can be sealed to this phone before the book is ever opened */
+setTimeout(() => { if (window.crypto && crypto.subtle) bookKey().then(bookKeySend).catch(() => {}); }, 9000);
 /* the games you finished that have pages, in the order you finished them */
 async function bookGames() {
-  const L = bookLocal(), out = []; let changed = false;
+  const L = bookLocal(); let changed = false;
+  if (window.crypto && crypto.subtle) try {
+    const priv = await bookKey(); bookKeySend();
+    if (L._k !== S.bookKey.x) { L._k = S.bookKey.x; L._tried = []; }   /* a restored or new key gets another go at every entry */
+    const tried = new Set(L._tried || []);
+    for (const [id, sealed] of Object.entries(BOOK_SEALED)) {
+      if (tried.has(id)) continue; tried.add(id); changed = true;
+      try { const e = await bookOpen(sealed, priv); if (e && e.n) L[e.n] = { skills: e.skills }; } catch (e) {}   /* sealed to another phone */
+    }
+    L._tried = [...tried];
+  } catch (e) {}
+  const out = [];
   for (const p of [...S.played].sort((a, b) => String(a.t || "").localeCompare(String(b.t || "")))) {
     const g = S.games.find(x => x.id === p.id); if (!g) continue;
-    const n = bookNorm(g.title); if (!n) continue;
-    if (!L[n] && window.crypto && crypto.subtle && Object.keys(BOOK_SEALED).length) {
-      try { const e = await bookOpen(n); if (e) { L[n] = e; changed = true; } } catch (e) {} }
-    const e = L[n]; if (e && e.skills && e.skills.length) out.push({ g, p, skills: e.skills });
+    const e = L[bookNorm(g.title)]; if (e && e.skills && e.skills.length) out.push({ g, p, skills: e.skills });
   }
   if (changed) try { localStorage.setItem("gq:book", JSON.stringify(L)); } catch (e) {}
   return out;
