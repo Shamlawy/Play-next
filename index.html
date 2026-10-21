@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "317";
+const APP_V = "318";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28509,4 +28509,9 @@ extend("renderTaste", { before() {
 onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste") === "book") { const r = $("#p-taste .skb[data-on]"); if (r) { delete r.dataset.on; skbMount(); } } });
 if (subOf("taste") === "book") bootRedraw("renderTaste");
 bootRedraw("renderPill");
+WHATS_NEW.push(
+  { v: 318, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
+    say: "<b>Your book is here</b>: Taste › Book is what your finished games taught you. The foil cover swings open, the pages riffle to the last game you finished, and each skill says what you did in the game, what it trains in your head and how it makes you better in life.",
+    tryIt: "Swipe a page (it follows your finger) or tap a side to turn. Only some games have pages yet; more arrive as they're written." }
+);
 </script>
