@@ -179,7 +179,7 @@ async function launch() {
   /* no browser swipe-back: a real finger swiping right on a game page otherwise "goes back" to about:blank (the installed
      app has no browser history gesture) */
   const args = ["--overscroll-history-navigation=0", "--disable-features=OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation"];
-  return chromium.launch(exe && (process.env.CHROME || !process.env.CI) ? {   /* CI uses Playwright's own browser unless CHROME names one (the live music check: real Chrome has AAC) */
+  return chromium.launch(exe && (LIVE || !process.env.CI) ? {   /* CI keeps Playwright's own browser (the plants were tuned on it), except the live music check: CHROME = real Chrome, which has AAC */
     executablePath: exe, args } : { args });
 }
 /* a fresh phone: seeded data, the helper's /bug caught here, every other site blocked (pictures, APIs) */
