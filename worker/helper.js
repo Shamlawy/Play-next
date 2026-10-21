@@ -1563,6 +1563,9 @@ export function ostRank(title, results) {
     if (W.some(w => tnW.has(w) && !/^\d+$/.test(w))) sc += 1;
     if (r.trackNumber === 1 && (r.discNumber || 1) === 1) sc += 1.5;
     if (OST_BAD.test(tn) || OST_BAD.test(al) || OST_BAD.test(String(r.artistName || ""))) sc -= 8;
+    /* a fan's album named just the game, its songs 'Theme (From "<game>")', is a cover with no cover word in it
+       (a chiptune album played for a game Apple has no soundtrack of) */
+    if (/\(from [“"]/i.test(tn) && !OST_ALB.test(al)) continue;
     if ((r.trackTimeMillis || 0) < 40000) sc -= 3;   /* jingles and stingers */
     if (sc < 4) continue;
     out.push({ sc, hit, extra, n: cutWf(tn, 80), a: cutWf(r.artistName, 60), al: cutWf(al, 80), u: String(r.previewUrl) });
