@@ -169,7 +169,7 @@ function serve() {
     const p = path.join(ROOT, f);
     if (!p.startsWith(ROOT) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream" }); fs.createReadStream(p).pipe(res);
-  }).listen(LIVE ? 8765 : 0);   /* live: the helper lets only the app's own page and localhost:8765 in (its ALLOW list) */
+  }).listen(0);
   return { srv, base: `http://localhost:${srv.address().port}/` };
 }
 async function launch() {
@@ -199,7 +199,9 @@ async function phone(browser, base, w, data, { url = base, init = null } = {}) {
       return r.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}', headers: { "access-control-allow-origin": "*" } });
     }
     /* the helper only answers the app's own address: ask as the app, hand the answer to the test page */
-    if (LIVE && /(^|\.)(workers\.dev|itunes\.apple\.com|mzstatic\.com)$/.test(new URL(u).hostname)) {
+    /* only the music: the seeded phone must never post usage counts, a book key or a nudge to the real helper */
+    const lu = new URL(u);
+    if (LIVE && (/(^|\.)(itunes\.apple\.com|mzstatic\.com)$/.test(lu.hostname) || /(^|\.)workers\.dev$/.test(lu.hostname) && /^\/ost(\/clip)?$/.test(lu.pathname))) {
       if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "GET,POST,OPTIONS" } });
       try { const res = await r.fetch({ headers: { ...r.request().headers(), origin: "https://shamlawy.github.io" } });
         return r.fulfill({ response: res, headers: { ...res.headers(), "access-control-allow-origin": "*" } }); } catch (e) { return r.abort(); }
