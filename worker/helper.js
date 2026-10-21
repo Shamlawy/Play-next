@@ -189,8 +189,8 @@ Answer with ONLY a JSON array like [{"ids":["e3","e7"],"problem":"max 16 words, 
       return json({ usage: await useList(env) }, 200, h);
     }
     /* v21: the skills book's lock. Each phone makes its own key pair and sends only the public half here; the book's words
-       are sealed to it outside the app (tools/book-seal.mjs), so only that phone can open them. The first key a phone id
-       sends is kept (a later, different one is refused); book-keys.yml reads the list with BUG_KEY. */
+       are sealed to it outside the app (tools/book-seal.mjs), so only that phone can open them. A phone's newer key
+       replaces its old one; book-keys.yml reads the list with BUG_KEY. */
     if (url.pathname === "/book/key" && req.method === "POST") {
       if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "not allowed" }, 403, h);
       if (!env.NUDGE) return json({ error: "no store" }, 503, h);
@@ -483,8 +483,10 @@ async function bkKeyPut(env, b) {
   const b64u = /^[A-Za-z0-9_-]{43}$/;
   if (p.kty !== "EC" || p.crv !== "P-256" || !b64u.test(p.x || "") || !b64u.test(p.y || "")) return { error: "bad key" };
   const k = "bookkey:" + uid, cur = await env.NUDGE.get(k, "json");
-  if (cur) return cur.pub.x === p.x && cur.pub.y === p.y ? { ok: true, kept: true } : { error: "this phone already has a key" };
-  await env.NUDGE.put(k, JSON.stringify({ uid, pub: { kty: "EC", crv: "P-256", x: p.x, y: p.y }, os: String(b.os || "").slice(0, 20), v: +b.v || 0, t: Date.now() }));
+  if (cur && cur.pub.x === p.x && cur.pub.y === p.y) return { ok: true, kept: true };
+  /* a phone that made a new key (cleared data, an older backup) replaces its old one; the old one stays listed as prev so
+     pages sealed to it can be sealed again */
+  await env.NUDGE.put(k, JSON.stringify({ uid, pub: { kty: "EC", crv: "P-256", x: p.x, y: p.y }, os: String(b.os || "").slice(0, 20), v: +b.v || 0, t: Date.now(), prev: cur ? { x: cur.pub.x, t: cur.t } : undefined }));
   return { ok: true };
 }
 async function vault(req, env, url, h) {
