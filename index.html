@@ -28640,10 +28640,11 @@ async function skbOstList(g) {
   const M = skbOstAll(), e = M[g.id];
   /* a found list keeps 30 days; "no soundtrack" 2 hours */
   if (e && Date.now() - e.at < (e.l.length ? 30 * 864e5 : e.w ? 2 * 36e5 : 0)) return e;
-  const got = j => (j.tracks || []).filter(x => x && x.u).slice(0, 6);
+  const got = j => (Array.isArray(j && j.tracks) ? j.tracks : []).filter(x => x && x.u).slice(0, 6);
   let l = null, why = "";
   const f = { net: true };   /* stays true while every failure is the network's */
-  try { l = got(await nxPost("/ost", { t: g.title })); } catch (x) { why = "the helper said " + x.message; if (!(x instanceof TypeError)) f.net = false; }
+  let j = null; try { j = await nxPost("/ost", { t: g.title }); } catch (x) { why = "the helper said " + x.message; if (!(x instanceof TypeError)) f.net = false; }
+  if (j) { f.net = false; l = got(j); }   /* the helper answered: whatever fails after that is no network's fault */
   if (!l || !l.length) {
     const R = await skbOstApple(g.title, f);
     if (!R) why += (why ? "; " : "") + "Apple didn't answer the phone either";
@@ -28659,7 +28660,9 @@ async function skbOstBuf(a, u) {
   const m = SKB_MUS; if (m.buf.has(u)) return m.buf.get(u);
   /* v323: straight from Apple (its clip host allows any page), through the helper when that fails */
   let r = null; try { r = await fetch(u); if (!r.ok) r = null; } catch (x) {}
-  if (!r) { r = await fetch(HELPER + "/ost/clip?u=" + encodeURIComponent(u)); if (!r.ok) throw new Error("clip " + r.status); }
+  /* the helper sends CORS, so only its fetch failing means the network (a code slip or Apple's refusal is a TypeError too) */
+  if (!r) { try { r = await fetch(HELPER + "/ost/clip?u=" + encodeURIComponent(u)); } catch (x) { const e = new Error("no connection"); e.net = 1; throw e; }
+    if (!r.ok) throw new Error("clip " + r.status); }
   const ab = await r.arrayBuffer(), b = await new Promise((ok, no) => { const pr = a.decodeAudioData(ab, ok, no); if (pr && pr.catch) pr.catch(() => {}); });   /* the callback form (older Safari); newer ones also reject the returned promise */
   m.buf.set(u, b); if (m.buf.size > 2) m.buf.delete(m.buf.keys().next().value);   /* a decoded clip is ~11 MB (the iPhone 11) */
   return b;
@@ -28695,7 +28698,7 @@ async function skbMusPlay(g, keep) {
       s.connect(g2); g2.connect(out); s.start(at); s.stop(at + d + .05); m.srcs.push(s); s.onended = () => { m.srcs = m.srcs.filter(x => x !== s); };
       m.t = setTimeout(() => one(at + d - X), Math.max(0, (at + d - X - a.currentTime - 1) * 1000)); };
     m.out = out; m.tr = tr; one(t0); skbOstChip();
-  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); skbMusWhy("the clip didn't load or decode (" + (x && x.message || x) + ")", x instanceof TypeError); } }
+  } catch (x) { if (run === m.run) { m.g = null; m.tr = null; skbOstChip(); skbMusWhy("the clip didn't load or decode (" + (x && x.message || x) + ")", x && x.net); } }
 }
 /* what the book shows decides the music: a game's pages play its theme, anything else (the cover, the contents, a page still
    turning, a hidden tab or app) is quiet */
