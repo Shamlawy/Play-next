@@ -38,6 +38,9 @@ export default async ({ p, w, seed, fail }) => {
   const st = () => p.page.evaluate(() => { const m = SKB_MUS, c = $("#p-taste .skb-yt:not([hidden])"), f = c && c.querySelector("iframe"), r = f && f.getBoundingClientRect();
     const chip = [...document.querySelectorAll("#p-taste [data-ost]")].some(x => !x.hidden);
     return { y: m.yt && m.yt.y, ok: m.yt && m.yt.ok, v: m.yt && m.yt.v, card: !!c, fw: r ? Math.round(r.width) : 0, fh: r ? Math.round(r.height) : 0, name: c && c.querySelector(".skb-ytt b").textContent,
+      /* v327: the words sit beside the player, the tap hint (on) under both */
+      side: c && r ? (() => { c.classList.add("tap"); const b = c.querySelector(".skb-ytt").getBoundingClientRect(), h = c.querySelector(".skb-yth").getBoundingClientRect(); c.classList.remove("tap");
+        return { beside: b.left >= r.right - 1 && b.top < r.bottom, under: h.top >= r.bottom - 1 && h.height > 0 }; })() : null,
       chip, srcs: m.srcs.length, ost: localStorage.getItem("gq:ost") }; });
   let s = null; for (let i = 0; i < 25 && !((s = await st()).ok && s.v > 20); i++) await p.page.waitForTimeout(300);
   if (!s.card) fail(`no YouTube player under the book (${JSON.stringify(s).slice(0, 300)})`);
@@ -45,6 +48,8 @@ export default async ({ p, w, seed, fail }) => {
     if (s.y !== "aaaaaaaaaa2") fail(`the video that can't be embedded didn't move on to the next (playing ${s.y})`);
     if (!s.ok) fail("the player never said it was playing");
     if (!(s.v > 20)) fail(`the volume didn't fade in (at ${s.v})`);
+    if (s.side && !s.side.beside) fail("the song's name dropped under the player instead of sitting beside it");
+    if (s.side && !s.side.under) fail("the tap hint isn't on its own line under the player");
     if (s.fw < 200) fail(`YouTube's player is ${s.fw}px wide: it must be at least 200`);
     if (s.chip) fail("the Apple track chip shows over a YouTube video");
     if (s.srcs) fail("an Apple clip plays alongside YouTube");
