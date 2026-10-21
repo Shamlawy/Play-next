@@ -28495,13 +28495,14 @@ async function skbMount() {
    sliding sheet: a turning leaf sits over the pages under it and holds GPU layers only for that moment */
 const skbBusy = () => !!(SKB.intro || SKB.turns.length || performance.now() < (SKB.calmAt || 0));
 extend("bugLayout", { before() { if (skbBusy() && $("#p-taste .skb")) { clearTimeout(BUG.lt); BUG.lt = setTimeout(bugLayout, 600); return extend.skip(); } } });
+function skbShell() { return `<div class="skb" aria-label="Your book: what your games taught you"></div>`; }
 SUBS.taste.push(["book", "Book"]); Object.assign(SUBHOME, { book: "taste" });
 extend("renderTaste", { before() {
   if (subOf("taste") !== "book") return;
   const el = $("#p-taste");
   /* a redraw while you read (a save somewhere) keeps the open book and where you are in it */
   if (el && el.querySelector(".skb[data-on]")) return extend.skip();
-  const _tp = tastePsych; tastePsych = () => `<div class="skb" aria-label="Your book: what your games taught you"></div>`;
+  const _tp = tastePsych; tastePsych = skbShell;
   let out; try { out = EXT.renderTaste.base.apply(this, arguments); } finally { tastePsych = _tp; }
   if (el) el.querySelectorAll(".tins").forEach(x => x.remove());
   skbMount(); return extend.skip(out); } });
