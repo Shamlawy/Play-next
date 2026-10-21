@@ -1580,10 +1580,14 @@ async function ostRoute(req, env, h) {
   /* v322: a found list is kept 30 days in KV, so a game asks Apple once a month, not once a phone a day */
   if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (c && c.length) return json({ ok: true, tracks: c }, 200, h); } catch (e) {} }
   /* v323: the songs the phone found on Apple itself (Apple turned the helper's shared address away): rank those, keeping
-     only Apple's own preview links, and keep what's found like any other */
+     only Apple's own preview links and the fields the ranking reads (short strings, plain numbers). A phone's list is
+     anyone's word, so it stays a day, not 30: the next phone after that asks Apple again */
   if (Array.isArray(b.r)) {
-    const tracks = ostRank(t, b.r.slice(0, 120).filter(x => x && typeof x === "object" && OST_HOST.test(String(x.previewUrl || ""))));
-    if (tracks.length && env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(tracks), { expirationTtl: 30 * 86400 }); } catch (e) {} }
+    const str = (v, n) => typeof v === "string" ? v.slice(0, n) : "", num = v => typeof v === "number" && isFinite(v) ? v : 0;
+    const tracks = ostRank(t, b.r.slice(0, 120).filter(x => x && typeof x === "object" && typeof x.previewUrl === "string" && OST_HOST.test(x.previewUrl))
+      .map(x => ({ trackId: num(x.trackId), trackName: str(x.trackName, 200), collectionName: str(x.collectionName, 200), collectionId: num(x.collectionId),
+        artistName: str(x.artistName, 200), previewUrl: str(x.previewUrl, 500), trackNumber: num(x.trackNumber), discNumber: num(x.discNumber), trackTimeMillis: num(x.trackTimeMillis) })));
+    if (tracks.length && env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(tracks), { expirationTtl: 86400 }); } catch (e) {} }
     return json({ ok: true, tracks }, 200, h);
   }
   let fail = 0;
