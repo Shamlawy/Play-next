@@ -25,5 +25,13 @@ export default async ({ p, w, seed, fail }) => {
     await p.page.waitForTimeout(500);
   }
   console.log(`  ${w}: "${T}" → track ${JSON.stringify(st.tr)}, ${st.srcs} source(s), gain ${st.gain}, audio ${st.ac}`);
+  if (!st.srcs || st.gain <= .05) {
+    /* why: the clip's own fetch and decode, step by step (a CORS refusal, a codec the browser lacks) */
+    const why = await p.page.evaluate(async () => { const M = JSON.parse(localStorage.getItem("gq:ost") || "{}"), e = Object.values(M)[0]; if (!e || !e.l.length) return "no tracks";
+      try { const r = await fetch(HELPER + "/ost/clip?u=" + encodeURIComponent(e.l[0].u)); if (!r.ok) return "clip " + r.status;
+        const ab = await r.arrayBuffer(); const b = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(ab); return `decoded ${b.duration.toFixed(1)}s from ${location.origin}`; }
+      catch (x) { return `${x.name}: ${x.message} (page ${location.origin})`; } });
+    console.log("  why: " + why);
+  }
   if (!st.srcs || st.gain <= .05) fail(`no music from the real helper: ${JSON.stringify(st).slice(0, 600)} errors: ${p.errors.join(" | ").slice(0, 400)}`);
 };

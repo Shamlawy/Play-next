@@ -169,7 +169,7 @@ function serve() {
     const p = path.join(ROOT, f);
     if (!p.startsWith(ROOT) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream" }); fs.createReadStream(p).pipe(res);
-  }).listen(0);
+  }).listen(LIVE ? 8765 : 0);   /* live: the helper lets only the app's own page and localhost:8765 in (its ALLOW list) */
   return { srv, base: `http://localhost:${srv.address().port}/` };
 }
 async function launch() {
