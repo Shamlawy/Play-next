@@ -28762,13 +28762,14 @@ function skbYtPlay(tr, many) {
   m.tr = tr; skbOstChip();
 }
 function skbYtRamp(y, to, ms, then) {
-  clearInterval(y.t); const from = y.v, t0 = performance.now();
-  y.t = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / ms); y.v = from + (to - from) * k; y.cmd("setVolume", [Math.round(y.v)]);
-    if (k >= 1) { clearInterval(y.t); if (then) then(); } }, 120);
+  clearTimeout(y.t); const from = y.v, t0 = performance.now();
+  const step = () => { const k = Math.min(1, (performance.now() - t0) / ms); y.v = from + (to - from) * k; y.cmd("setVolume", [Math.round(y.v)]);
+    if (k >= 1) { if (then) then(); } else y.t = setTimeout(step, 120); };
+  y.t = setTimeout(step, 120);
 }
 function skbYtEnd(fade) {
   const y = SKB_MUS.yt; if (!y) return; SKB_MUS.yt = null; y.el.hidden = true;
-  const bye = () => { clearInterval(y.t); y.cmd("pauseVideo"); y.el.remove(); };
+  const bye = () => { clearTimeout(y.t); y.cmd("pauseVideo"); y.el.remove(); };
   if (fade > .3 && y.ok && !document.hidden) skbYtRamp(y, 0, fade * 1000, bye); else bye();
 }
 addEventListener("message", e => {
