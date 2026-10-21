@@ -25,6 +25,12 @@ export default async ({ p, w, seed, fail }) => {
   else if (a.chip !== "Main Theme") bad.push(`the chip says "${a.chip}", expected the first track`);
   await p.page.waitForTimeout(1500);
   if ((await st()).gain <= .05) bad.push("the music didn't fade in");
+  /* the chip shares no corner with the page-number pill (a picture page sits on the left unfolded, so its pill is top-left and the chip top-right; folded the pill stays at the foot) */
+  const hit = await p.page.evaluate(() => [...document.querySelectorAll("#p-taste .skb-art [data-ost]:not([hidden])")].filter(c => c.getClientRects().length).map(c => {
+    const f = c.closest(".skb-art").parentElement.querySelector(":scope > .skb-fo"); if (!f) return null;
+    const a = c.getBoundingClientRect(), b = f.getBoundingClientRect();
+    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom ? `${Math.round(a.left)},${Math.round(a.top)}` : null; }).filter(Boolean));
+  if (hit.length) bad.push(`the page number sits on the music chip (${hit.join(" ")})`);
   /* the chip: another track, same page */
   const cb = await p.page.evaluate(() => { const c = document.querySelector("#p-taste .skb-pg [data-ost]:not([hidden])"); if (!c) return null; const b = c.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
   if (!cb) bad.push("no music chip on the picture page");
