@@ -28601,7 +28601,8 @@ const SKB_VOL = .3;
 const skbOstAll = () => { try { return JSON.parse(localStorage.getItem("gq:ost") || "{}") || {}; } catch (e) { return {}; } };
 async function skbOstList(g) {
   const M = skbOstAll(), e = M[g.id];
-  if (e && Date.now() - e.at < (e.l.length ? 30 : 1) * 864e5) return e;
+  /* a found list keeps 30 days; "no soundtrack" only 2 hours (v322: v321 kept it a day, and a busy helper answered empty) */
+  if (e && Date.now() - e.at < (e.l.length ? 30 * 864e5 : 2 * 36e5)) return e;
   let l; try { const j = await nxPost("/ost", { t: g.title }); l = (j.tracks || []).filter(x => x && x.u).slice(0, 6); } catch (x) { return e || { l: [], i: 0 }; }
   const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now() }; M[g.id] = n;
   try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (x) {}
