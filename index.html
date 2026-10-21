@@ -4305,7 +4305,7 @@ function load() {
   }
 }
 /* installed means no browser chrome to hide, so the toggle would only confuse */
-const APP_V = "323";
+const APP_V = "324";
 function installed() {
   try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
   catch (e) { return false; }
@@ -28155,6 +28155,18 @@ WHATS_NEW.push(
 .skb-blk.l { left: -7px; } .skb-blk.r { right: -7px; }
 .skb-gut { position: absolute; left: 50%; top: 0; bottom: 0; width: 40px; margin-left: -20px; background: linear-gradient(90deg, transparent, rgba(0,0,0,.45) 50%, transparent); pointer-events: none; z-index: 900; }
 .skb-hint { margin: 2px 0 0; text-align: center; font-size: 12.5px; color: var(--mute); }
+/* v324: a game Apple has no soundtrack of plays its music from YouTube, in YouTube's own player under the book (YouTube asks
+   that its player stays on screen); the words beside it name the video, a tap plays another */
+.skb-yt { display: flex; align-items: center; gap: 12px; width: min(520px, 100%); margin: 10px auto 0; padding: 8px; box-sizing: border-box;
+  border-radius: var(--u-rs); background: var(--u-card); border: 1px solid var(--u-line); }
+.skb-yt[hidden] { display: none; }
+.skb-ytv { flex: none; width: 200px; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: rgb(0, 0, 0); }
+.skb-ytv iframe { display: block; width: 100%; height: 100%; border: 0; }
+.skb-ytt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 0; border: 0; background: none; color: var(--ice);
+  font-family: inherit; text-align: left; cursor: pointer; }
+.skb-ytt small { font-size: 11px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+.skb-ytt b { font-size: 13px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.skb-ytt span { font-size: 11.5px; font-weight: 600; color: var(--volt); white-space: nowrap; }
 /* folded: one page at a time; the book's left half sits off the screen and a turned page leaves to the left */
 .skb.fold .skb-stage { justify-content: flex-start; }
 .skb.fold .skb-rise { aspect-ratio: auto; width: 200%; max-width: none; margin-left: -100%; }
@@ -28639,7 +28651,8 @@ const skbMusWhy = (why, net) => { if (net || navigator.onLine === false) return;
 async function skbOstList(g) {
   const M = skbOstAll(), e = M[g.id];
   /* a found list keeps 30 days; "no soundtrack" 2 hours */
-  if (e && Date.now() - e.at < (e.l.length ? 30 * 864e5 : e.w ? 2 * 36e5 : 0)) return e;
+  /* v324: only lists v324 kept count (w 2): older ones could hold a fan's cover album, and "no music" may now find YouTube */
+  if (e && e.w >= 2 && Date.now() - e.at < (e.l.length ? 30 * 864e5 : 2 * 36e5)) return e;
   const got = j => (Array.isArray(j && j.tracks) ? j.tracks : []).filter(x => x && x.u).slice(0, 6);
   let l = null, why = "";
   const f = { net: true };   /* stays true while every failure is the network's */
@@ -28652,7 +28665,11 @@ async function skbOstList(g) {
     else l = [];
   }
   if (!l) { skbMusWhy(why, f.net); return e && e.l.length ? e : { l: [], i: 0 }; }
-  const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 1 }; M[g.id] = n;
+  /* v324: no soundtrack on Apple (Nintendo keeps its music off it): the helper looks on YouTube */
+  if (!l.length) { try { const v = await nxPost("/yt", { t: g.title });
+      l = (Array.isArray(v.videos) ? v.videos : []).filter(x => x && /^[\w-]{11}$/.test(x.y || "")).slice(0, 4).map(x => ({ y: x.y, n: String(x.n || ""), a: String(x.a || "") })); }
+    catch (x) { skbMusWhy("YouTube's search failed: " + x.message, x instanceof TypeError); } }
+  const n = { l, i: e && e.i < l.length ? e.i : 0, at: Date.now(), w: 2 }; M[g.id] = n;
   try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (x) {}
   return n;
 }
@@ -28671,7 +28688,7 @@ function skbMusStop(fade = .8, keep) {
   const m = SKB_MUS; m.run++; m.g = null; if (!keep) m.tr = null; clearTimeout(m.t);
   if (m.out) { const a = m.out.context, t = a.currentTime, o = m.out, ss = m.srcs;
     try { o.gain.cancelScheduledValues(t); o.gain.setValueAtTime(o.gain.value, t); o.gain.linearRampToValueAtTime(0, t + fade); ss.forEach(x => x.stop(t + fade + .05)); } catch (e) {} }
-  m.out = null; m.srcs = []; if (!keep) skbOstChip();   /* keep: another track is on its way, the chip stays (a second tap must not turn the page) */
+  m.out = null; m.srcs = []; skbYtEnd(fade); if (!keep) skbOstChip();   /* keep: another track is on its way, the chip stays (a second tap must not turn the page) */
 }
 /* v322 (the owner: "music doesn't work on any game, I hear nothing"): audio() stays silent while Sounds (the tap sounds) is
    off, and the owner's phone has it off, so the music never started. The book's music answers only to its own switch:
@@ -28681,14 +28698,16 @@ function skbAC() {
   try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state !== "running" && AC.state !== "closed" && AC.resume) AC.resume(); return AC; } catch (e) { return null; }
 }
 async function skbMusPlay(g, keep) {
-  const m = SKB_MUS; if (m.g === g.id) return;
-  skbMusStop(.9, keep);
+  const m = SKB_MUS; if (m.g === g.id && !(m.yt && !m.yt.el.isConnected)) return;   /* the book redrawn under a YouTube player: a new one */
+  skbMusStop(.9, keep); if (!keep) m.ytBad = 0;   /* another game: its YouTube videos get their own tries */
   if (S.bookMusic === false || document.hidden) return;
   const a = skbAC(); if (!a) { if (userTouched) skbMusWhy("the phone gave no sound engine"); return; }
   m.g = g.id; const run = m.run;
   try {
     const e = await skbOstList(g); if (run !== m.run || !e.l.length) return;
-    const tr = e.l[e.i] || e.l[0], buf = await skbOstBuf(a, tr.u); if (run !== m.run) return;
+    const tr = e.l[e.i] || e.l[0];
+    if (tr.y) { skbYtPlay(tr, e.l.length); return; }
+    const buf = await skbOstBuf(a, tr.u); if (run !== m.run) return;
     if (buf.duration < 3) throw new Error("clip too short");
     const out = a.createGain(), t0 = a.currentTime + .05, d = buf.duration, X = Math.min(2.5, d / 4);
     out.gain.setValueAtTime(0, t0); out.gain.linearRampToValueAtTime(SKB_VOL, t0 + 2.4); out.connect(a.destination);
@@ -28713,7 +28732,7 @@ const SKB_NOTE = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true
 function skbOstChip() {
   const m = SKB_MUS;
   document.querySelectorAll("#p-taste .skb-pg .skb-art").forEach(el => { const c = el.querySelector("[data-ost]"); if (!c) return;
-    const on = m.tr && m.g === el.dataset.g; c.hidden = !on;
+    const on = m.tr && !m.tr.y && m.g === el.dataset.g; c.hidden = !on;   /* a YouTube video names itself under the book */
     if (on && c.dataset.u !== m.tr.u) { c.dataset.u = m.tr.u; c.innerHTML = `${SKB_NOTE}<span>${esc(m.tr.n)}</span>`;
       c.setAttribute("aria-label", `Playing ${m.tr.n}. Tap for another track`); } });
 }
@@ -28723,6 +28742,45 @@ function skbOstNext() {
   e.i = (e.i + 1) % e.l.length; try { localStorage.setItem("gq:ost", JSON.stringify(M)); } catch (y) {}
   m.g = null; skbMusPlay(x.g, true);
 }
+/* v324: YouTube's player, driven through its iframe API messages (no script to load): it starts silent, fades in like the
+   clips, fades out when you leave the game's pages, and an unplayable video (removed, not allowed outside YouTube) moves to
+   the next one; when none plays, Nexi files a "music" report */
+function skbYtPlay(tr, many) {
+  const m = SKB_MUS, st = SKB.el && SKB.el.querySelector(".skb-stage"); if (!st) return;
+  skbYtEnd(0);
+  const el = document.createElement("div"); el.className = "skb-yt";
+  el.innerHTML = `<div class="skb-ytv"><iframe src="https://www.youtube-nocookie.com/embed/${tr.y}?enablejsapi=1&playsinline=1&rel=0&loop=1&playlist=${tr.y}&origin=${encodeURIComponent(location.origin)}"
+      title="${esc(tr.n)}" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+    <button class="skb-ytt" data-ytn><small>Music from YouTube</small><b>${esc(tr.n)}</b>${many > 1 ? "<span>Tap for another</span>" : ""}</button>`;
+  st.after(el);
+  const ifr = el.querySelector("iframe"), y = m.yt = { el, ifr, y: tr.y, v: 0, t: 0, ok: 0 };
+  y.cmd = (func, args = []) => { try { ifr.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*"); } catch (e) {} };
+  el.querySelector("[data-ytn]").addEventListener("click", skbOstNext);
+  ifr.addEventListener("load", () => { if (m.yt !== y) return;
+    try { ifr.contentWindow.postMessage(JSON.stringify({ event: "listening", id: "skbyt", channel: "widget" }), "*"); } catch (e) {}
+    y.cmd("setVolume", [0]); y.cmd("playVideo"); skbYtRamp(y, SKB_VOL * 100, 2400); });
+  m.tr = tr; skbOstChip();
+}
+function skbYtRamp(y, to, ms, then) {
+  clearInterval(y.t); const from = y.v, t0 = performance.now();
+  y.t = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / ms); y.v = from + (to - from) * k; y.cmd("setVolume", [Math.round(y.v)]);
+    if (k >= 1) { clearInterval(y.t); if (then) then(); } }, 120);
+}
+function skbYtEnd(fade) {
+  const y = SKB_MUS.yt; if (!y) return; SKB_MUS.yt = null; y.el.hidden = true;
+  const bye = () => { clearInterval(y.t); y.cmd("pauseVideo"); y.el.remove(); };
+  if (fade > .3 && y.ok && !document.hidden) skbYtRamp(y, 0, fade * 1000, bye); else bye();
+}
+addEventListener("message", e => {
+  const y = SKB_MUS.yt; if (!y || e.source !== y.ifr.contentWindow) return;
+  let d; try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch (x) { return; } if (!d) return;
+  if (d.event === "onStateChange" ? d.info === 1 : d.event === "infoDelivery" && d.info && d.info.playerState === 1) { y.ok = 1; SKB_MUS.ytBad = 0; }
+  if (d.event !== "onError") return;
+  const m = SKB_MUS, x = SKB.G && SKB.G(SKB.at), e2 = x && skbOstAll()[x.g.id];
+  m.ytBad = (m.ytBad || 0) + 1;
+  if (e2 && m.ytBad < e2.l.length) skbOstNext();
+  else { m.ytBad = 0; skbYtEnd(0); m.tr = null; skbMusWhy("YouTube wouldn't play the game's music here (error " + d.info + ")"); }
+});
 document.addEventListener("visibilitychange", () => { if (document.hidden) { if (SKB_MUS.g) skbMusStop(.2); SKB_MUS.buf.clear(); } else if (SKB.el) skbMusSync(); });
 /* the tab bar and the rail paint a tab without goTab, so onNav never hears them: leaving the book that way ends its opening
    and its music too */
@@ -28732,7 +28790,7 @@ extend("closeFull", { after() { if (SKB.el) requestAnimationFrame(skbMusSync); }
 onSettings("before", () => { if (SKB_MUS.g) skbMusStop(.5); });
 function skbMusSetHtml() {
   return `<label>Game music in the book</label>
-      <p class="note">On a finished game's pages in Taste › Book, a clip of its soundtrack plays softly, like a PS5 home screen. Tap the track's name for another.</p>
+      <p class="note">On a finished game's pages in Taste › Book, a clip of its soundtrack plays softly, like a PS5 home screen. Tap the track's name for another. A game with no soundtrack on Apple plays its music from YouTube, in a small player under the book.</p>
       <div class="chips" id="s-bkmus">${[["on", "On"], ["off", "Off"]].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${(S.bookMusic === false ? "off" : "on") === v}"><span>${l}</span></button>`).join("")}</div>`;
 }
 onSettings("after", () => { const c = $("#s-bkmus"); if (!c) return;
@@ -28777,6 +28835,9 @@ WHATS_NEW.push(
     tryIt: "Open Taste › Book and turn to a finished game's picture: its soundtrack fades in. On a folded phone the skills start on the next page." },
   { v: 323, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-stage") || null,
     say: "<b>Your book's music finds its way now</b>: when my helper can't reach Apple, your phone asks Apple itself, and if a game still stays quiet I report which step failed. Past the last page the book also <b>shuts on its new back cover</b>.",
-    tryIt: "Open Taste › Book: the last game's soundtrack plays. Then keep swiping to the end: the book closes on its back cover, and a swipe back opens it again." }
+    tryIt: "Open Taste › Book: the last game's soundtrack plays. Then keep swiping to the end: the book closes on its back cover, and a swipe back opens it again." },
+  { v: 324, go: () => { closeFull(); dyClose(); nxShut(); goTab("taste"); goSub("taste", "book"); }, at: () => $("#p-taste .skb-yt") || $("#p-taste .skb-stage") || null,
+    say: "<b>Games with no soundtrack on Apple play their music from YouTube now</b> (most Nintendo games), in a small player under your book. Fan covers stay out.",
+    tryIt: "Open Taste › Book on a game Apple has no music for: its main theme plays from YouTube under the book. Tap its name for another video." }
 );
 </script>

@@ -28,7 +28,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 23;
+const HELPER_V = 24;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -137,7 +137,7 @@ async function handle(req, env) {
     }
 
     /* which helper this is, so the app can tell when it needs updating */
-    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE, book: !!env.NUDGE, ost: true }, 200, h);
+    if (url.pathname === "/version") return json({ v: HELPER_V, chat: true, similar: true, nudge: !!env.NUDGE, updates: !!env.NUDGE, bugs: !!env.NUDGE, review: true, vault: !!env.NUDGE, prices: true, recap: true, eshop: true, steam: true, reviews: true, hours: true, fx: true, art: true, news: true, cal: !!env.NUDGE, steamMe: !!env.NUDGE, book: !!env.NUDGE, ost: true, yt: !!env.YT_KEY }, 200, h);
     if (url.pathname === "/prices" && req.method === "POST") return pxRoute(req, env, h);
     if (url.pathname === "/fx") return json(await fxRates(env), 200, h);
     if (url.pathname === "/steam" && req.method === "POST") return stRoute(req, env, h);
@@ -148,6 +148,7 @@ async function handle(req, env) {
     if (url.pathname.startsWith("/vault/")) return vault(req, env, url, h);
     if (url.pathname === "/news" && req.method === "POST") return nwRoute(req, env, h);
     if (url.pathname === "/ost" && req.method === "POST") return ostRoute(req, env, h);
+    if (url.pathname === "/yt" && req.method === "POST") return ytRoute(req, env, h);
     if (url.pathname === "/ost/clip" && req.method === "GET") return ostClip(req, url, h);
     if (url.pathname === "/cal/put" && req.method === "POST") return calPut(req, env, h);
     if (url.pathname.startsWith("/cal/") && req.method === "GET") return calGet(env, url);
@@ -1579,7 +1580,7 @@ async function ostRoute(req, env, h) {
   if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
   let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
   const t = String(b && b.t || "").replace(/[\n"]/g, " ").slice(0, 100).trim(); if (!t) return json({ error: "no title" }, 400, h);
-  const base = ostWords(t).join(" "), all = [], key = "ost:" + base.toLowerCase().slice(0, 120);
+  const base = ostWords(t).join(" "), all = [], key = "ost2:" + base.toLowerCase().slice(0, 120);   /* v324: ost2, so lists kept before the cover rule are asked again */
   /* v322: a found list is kept 30 days in KV, so a game asks Apple once a month, not once a phone a day */
   if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (c && c.length) return json({ ok: true, tracks: c }, 200, h); } catch (e) {} }
   /* v323: the songs the phone found on Apple itself (Apple turned the helper's shared address away): rank those, keeping
@@ -1609,6 +1610,66 @@ async function ostRoute(req, env, h) {
   return json({ ok: true, tracks }, 200, h);
 }
 const OST_HOST = /^https:\/\/([a-z0-9-]+\.)*(itunes\.apple\.com|mzstatic\.com)\//i;
+/* v324 (the owner, after a game Nintendo keeps off Apple stayed quiet: "maybe other solutions like YouTube"): when Apple has no
+   soundtrack, the book plays one from YouTube in YouTube's own player, kept on screen as YouTube's rules ask. Found through
+   YouTube's official search (the YouTube Data API, key YT_KEY: a worker secret the deploy copies from the repo secret
+   YOUTUBE_KEY): videos whose title names the game and its music, a main theme first, never a cover, a reaction or
+   gameplay, only ones that may be embedded. A search costs 100 of the key's 10,000 daily units, so found lists keep 30 days */
+const YT_MUSIC = /\b(ost|soundtracks?|themes?|music|bgm|main menu|title screen|opening|songs?)\b/i;
+const YT_BAD = /\b(reaction|review|gameplay|walkthrough|playthrough|trailer|teaser|let'?s play|longplay|speedrun|ending|cutscenes?|movie|tutorial|guide|analysis|explained|ranking|top \d+|tier list|mod|asmr|concert|live|vocal|sings?|sung|meme|parody|fan ?made|unused|beta|leak(ed)?)\b/i;
+/* ISO 8601 PT1H2M3S → seconds */
+const ytSecs = t => { const m = String(t || "").match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/); return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0; };
+const ytText = s => String(s || "").replace(/&(amp|quot|#39|lt|gt);/g, (x, k) => ({ amp: "&", quot: '"', "#39": "'", lt: "<", gt: ">" })[k]);
+export function ytRank(title, vids) {
+  const W = ostWords(title); if (!W.length) return [];
+  const N = OST_NUM(title), last = W[W.length - 1].replace(/[^a-z0-9]/g, "");
+  const seq = new RegExp("\\b" + last + "\\s*(\\d+|ii|iii|iv|v|vi|vii|viii|ix|x)\\b", "i"), seen = new Set(), out = [];
+  for (const v of vids || []) {
+    if (!v || !/^[\w-]{11}$/.test(v.y || "") || seen.has(v.y)) continue; seen.add(v.y);
+    const n = String(v.n || ""), nW = new Set(ostWords(n)), d = +v.d || 0;
+    /* the title names the game: every word of a short name ("Three Hopes" isn't "Three Houses") */
+    if (W.filter(w => nW.has(w)).length / W.length < (W.length <= 4 ? 1 : .8)) continue;
+    const nums = OST_NUM(n.replace(/\(.*?\)|\[.*?\]/g, " "));
+    if (N.size ? ![...N].every(x => nums.has(x)) : seq.test(n)) continue;   /* not a sequel's music */
+    if (!YT_MUSIC.test(n) || OST_BAD.test(n) || YT_BAD.test(n) || OST_BAD.test(String(v.a || ""))) continue;
+    if (!d || d < 45 || d > 4 * 3600) continue;   /* a live stream or a jingle */
+    let sc = 0;
+    if (OST_MAIN.test(n)) sc += 3; else if (OST_THEME.test(n)) sc += 1.5;
+    if (/\b(ost|soundtrack)\b/i.test(n)) sc += 2;
+    if (d <= 600) sc += 2; else if (d <= 3600) sc += .5;
+    if (/\bofficial\b/i.test(n) || /\b(nintendo|official|vgm|soundtracks?)\b/i.test(String(v.a || ""))) sc += 1;
+    out.push({ sc, y: v.y, n: cutWf(n, 100), a: cutWf(v.a, 60), d });
+  }
+  return out.sort((x, y) => y.sc - x.sc).slice(0, 4).map(({ sc, ...x }) => x);
+}
+async function ytRoute(req, env, h) {
+  if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
+  let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
+  const t = String(b && b.t || "").replace(/[\n"]/g, " ").slice(0, 100).trim(); if (!t) return json({ error: "no title" }, 400, h);
+  /* no key yet: nothing to find, and not an error the phone should report */
+  if (!env.YT_KEY) return json({ ok: true, videos: [], nokey: true }, 200, h);
+  const base = ostWords(t).join(" "), key = "yt:" + base.toLowerCase().slice(0, 120);
+  if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (c && c.length) return json({ ok: true, videos: c }, 200, h); } catch (e) {} }
+  const G = "https://www.googleapis.com/youtube/v3/";
+  let videos = [], fail = "";
+  for (const q of [t + " main theme ost", t + " soundtrack"]) {
+    try {
+      const r = await fetch(G + "search?" + new URLSearchParams({ part: "snippet", type: "video", videoEmbeddable: "true", maxResults: "15", q, key: env.YT_KEY }));
+      if (!r.ok) { fail = "search " + r.status; break; }
+      const items = ((await r.json()).items || []).filter(x => x && x.id && x.id.videoId && (x.snippet || {}).liveBroadcastContent !== "live");
+      if (!items.length) continue;
+      /* lengths and whether a video may be embedded come from videos.list (1 unit) */
+      const r2 = await fetch(G + "videos?" + new URLSearchParams({ part: "contentDetails,status", id: items.map(x => x.id.videoId).join(","), key: env.YT_KEY }));
+      if (!r2.ok) { fail = "videos " + r2.status; break; }
+      const D = {}; for (const x of (await r2.json()).items || []) if (x.status && x.status.embeddable !== false) D[x.id] = ytSecs(x.contentDetails && x.contentDetails.duration);
+      videos = ytRank(t, items.filter(x => D[x.id.videoId]).map(x => ({ y: x.id.videoId, n: ytText(x.snippet.title), a: ytText(x.snippet.channelTitle), d: D[x.id.videoId] })));
+      if (videos.length) break;
+    } catch (e) { fail = "YouTube didn't answer"; break; }
+  }
+  if (!videos.length && fail) return json({ error: "YouTube: " + fail }, 503, h);
+  if (videos.length && env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(videos), { expirationTtl: 30 * 86400 }); } catch (e) {} }
+  return json({ ok: true, videos }, 200, h);
+}
 async function ostClip(req, url, h) {
   if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
   const u = url.searchParams.get("u") || ""; if (!OST_HOST.test(u)) return json({ error: "not an Apple preview" }, 400, h);

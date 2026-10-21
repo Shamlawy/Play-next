@@ -90,6 +90,8 @@ export function fakeHelper(p, b, base) {
     /* the skills book's music (v22): three made-up tracks, each clip a short soft chord (a WAV made here) */
     case "/ost": return ok({ ok: true, tracks: ["Main Theme", "Harbour at Dusk", "The Long Road"].map((n, i) => ({ n, a: "Test Orchestra", al: "Made-up Original Soundtrack", u: "https://audio-ssl.itunes.apple.com/fake/" + i + ".m4a" })) });
     case "/ost/clip": return { status: 200, body: chordWav(), type: "audio/wav" };
+    /* v324: YouTube, for a game Apple has no soundtrack of (the test phones reach no YouTube: the player stays empty) */
+    case "/yt": return ok({ ok: true, videos: [{ y: "aaaaaaaaaa1", n: "Made-up Quest OST - Main Theme", a: "Test VGM", d: 200 }, { y: "aaaaaaaaaa2", n: "Made-up Quest Soundtrack", a: "Test VGM", d: 3000 }] });
   }
   if (p.startsWith("/sgdb/")) return ok({ success: true, data: [] });
   /* the backup vault and push keys stay off in the test phones (the seed has cbOn: false) */

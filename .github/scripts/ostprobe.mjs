@@ -29,6 +29,11 @@ try {
 console.log("== live helper, every title");
 for (const t of titles) { try { const r = await fetch(req(LIVE, "/ost", { t })); const j = await r.json().catch(() => ({}));
   console.log(` ${t}: ${r.status} ${(j.tracks || []).length} tracks${j.error ? " " + j.error : ""}`); } catch (e) { console.log(` ${t}: ${e.message}`); } }
+// v324: YouTube for games Apple has no soundtrack of, through the live helper (it holds the key; nokey until YOUTUBE_KEY is set)
+console.log("== live helper → YouTube");
+for (const t of titles) { try { const r = await fetch(req(LIVE, "/yt", { t })); const j = await r.json().catch(() => ({}));
+  console.log(` ${t}: ${r.status} ${j.nokey ? "no YOUTUBE_KEY yet" : (j.videos || []).length + " videos"}${j.error ? " " + j.error : ""}`);
+  for (const x of j.videos || []) console.log(`    ${x.y} ${x.d}s | ${x.n} | ${x.a}`); } catch (e) { console.log(` ${t}: ${e.message}`); } }
 console.log("== Apple straight from a browser's point of view");
 try { const r = await fetch("https://itunes.apple.com/search?term=" + encodeURIComponent(titles[0] + " soundtrack") + "&media=music&entity=song&limit=5", { headers: { Origin: O } });
   console.log(" search", r.status, "ACAO:", r.headers.get("access-control-allow-origin"), "type:", r.headers.get("content-type"));
