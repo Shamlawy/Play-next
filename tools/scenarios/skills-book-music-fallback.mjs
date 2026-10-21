@@ -37,7 +37,7 @@ export default async ({ p, w, seed, fail }) => {
   if (!s.srcs) fail(`helper busy + an old "no music": nothing played (${JSON.stringify(s).slice(0, 300)})`);
   else if (s.tr !== "Main Theme") fail(`played "${s.tr}", expected the main theme`);
   if (!rawSeen) fail("the phone never handed Apple's songs to the helper");
-  if (!/"w":1/.test(s.ost || "")) fail("the found list wasn't kept with the v323 mark");
+  if (!/"w":2/.test(s.ost || "")) fail("the found list wasn't kept with the v324 mark");
   /* Apple down too: no music, and Nexi says why */
   apple = "down";
   await p.page.evaluate(() => { localStorage.removeItem("gq:ost"); SKB_MUS.g = null; skbMusStop(0); goTab("home"); }); await p.page.waitForTimeout(300);

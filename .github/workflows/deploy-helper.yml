@@ -3,6 +3,7 @@
 # template, or an account token with Workers Scripts / Workers KV Storage: Edit). The account id is read from
 # `wrangler whoami`; a CLOUDFLARE_ACCOUNT_ID secret overrides it.
 # The SteamGridDB key (SGDB_KEY) stays a secret on the worker itself; deploying never touches it.
+# YOUTUBE_KEY (optional, v324): a YouTube Data API key; each deploy copies it to the worker as YT_KEY.
 name: Deploy Nexi's helper
 on:
   push:
@@ -23,6 +24,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          YT: ${{ secrets.YOUTUBE_KEY }}
         run: |
           if [ -z "$TOKEN" ]; then
             echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret (Settings > Secrets and variables > Actions), then run this workflow again."
@@ -59,6 +61,8 @@ jobs:
           $W deploy --config wrangler.deploy.json
           # the key the "Problem reports" job reads reports with: derived from this token, so nothing else to set up
           printf '%s' "$TOKEN:play-next-bugs" | sha256sum | cut -d' ' -f1 | tr -d '\n' | $W secret put BUG_KEY --config wrangler.deploy.json
+          # v324: the book's YouTube music searches with the owner's YouTube Data API key (repo secret YOUTUBE_KEY)
+          if [ -n "$YT" ]; then printf '%s' "$YT" | tr -d '[:space:]' | $W secret put YT_KEY --config wrangler.deploy.json; else echo "::notice::No YOUTUBE_KEY secret yet: the book's YouTube music stays off"; fi
       - name: Check it's live
         run: |
           sleep 5
