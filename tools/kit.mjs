@@ -62,8 +62,9 @@ const WIDTHS = opt("widths", "412,859,360").split(",").map(Number);
 /* --browser webkit: Safari's engine, for the friend's iPhone 11 / iPad (on GitHub: webkit-check.yml's "scenario" input; this
    container only has Chromium). No CDP there, so p.tap / p.swipe and perf need Chromium */
 const BROWSER = opt("browser", "chromium"), WK = BROWSER === "webkit";
-/* FAKE_HELPER=0: block the helper like every other site (the empty states), instead of tools/fake-helper.mjs's answers */
-const FAKE = process.env.FAKE_HELPER !== "0", STANDIN_PIC = fs.readFileSync(path.join(ROOT, "FEFT_cast.webp"));
+/* FAKE_HELPER=0: block the helper like every other site (the empty states), instead of tools/fake-helper.mjs's answers;
+   FAKE_HELPER=live: the real helper and Apple's music clips go through (ost-probe.yml's end-to-end check, v322) */
+const LIVE = process.env.FAKE_HELPER === "live", FAKE = process.env.FAKE_HELPER !== "0" && !LIVE, STANDIN_PIC = fs.readFileSync(path.join(ROOT, "FEFT_cast.webp"));
 const SIZES = { 412: [412, 915, 2.625], 859: [859, 847, 2.63], 360: [360, 780, 3], 375: [375, 812, 3], 900: [900, 1000, 2],
   414: [414, 896, 2], 810: [810, 1080, 2], 1080: [1080, 810, 2] };   /* 414 = iPhone 11, 810/1080 = iPad 9th gen upright / sideways */
 const html = fs.readFileSync(path.join(ROOT, FILE), "utf8");
@@ -178,7 +179,8 @@ async function launch() {
   /* no browser swipe-back: a real finger swiping right on a game page otherwise "goes back" to about:blank (the installed
      app has no browser history gesture) */
   const args = ["--overscroll-history-navigation=0", "--disable-features=OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation"];
-  return chromium.launch(exe && !process.env.CI ? { executablePath: exe, args } : { args });
+  return chromium.launch(exe && (LIVE || !process.env.CI) ? {   /* CI keeps Playwright's own browser (the plants were tuned on it), except the live music check: CHROME = real Chrome, which has AAC */
+    executablePath: exe, args } : { args });
 }
 /* a fresh phone: seeded data, the helper's /bug caught here, every other site blocked (pictures, APIs) */
 async function phone(browser, base, w, data, { url = base, init = null } = {}) {
@@ -195,6 +197,14 @@ async function phone(browser, base, w, data, { url = base, init = null } = {}) {
     if (/\/bug$/.test(u) && r.request().method() === "POST") {
       try { reports.push(...(JSON.parse(r.request().postData() || "{}").reports || [])); } catch (e) {}
       return r.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}', headers: { "access-control-allow-origin": "*" } });
+    }
+    /* the helper only answers the app's own address: ask as the app, hand the answer to the test page */
+    /* only the music: the seeded phone must never post usage counts, a book key or a nudge to the real helper */
+    const lu = new URL(u);
+    if (LIVE && (/(^|\.)(itunes\.apple\.com|mzstatic\.com)$/.test(lu.hostname) || /(^|\.)workers\.dev$/.test(lu.hostname) && /^\/ost(\/clip)?$/.test(lu.pathname))) {
+      if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "GET,POST,OPTIONS" } });
+      try { const res = await r.fetch({ headers: { ...r.request().headers(), origin: "https://shamlawy.github.io" } });
+        return r.fulfill({ response: res, headers: { ...res.headers(), "access-control-allow-origin": "*" } }); } catch (e) { return r.abort(); }
     }
     /* M3: the helper answers with made-up data in its real shapes (tools/fake-helper.mjs), so filled cards get tested too */
     if (FAKE && new URL(u).host === HELPER_HOST) {

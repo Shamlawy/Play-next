@@ -1576,14 +1576,23 @@ async function ostRoute(req, env, h) {
   if (!ALLOW.includes(req.headers.get("Origin") || "")) return json({ error: "origin" }, 403, h);
   let b; try { b = await req.json(); } catch (e) { return json({ error: "bad json" }, 400, h); }
   const t = String(b && b.t || "").replace(/[\n"]/g, " ").slice(0, 100).trim(); if (!t) return json({ error: "no title" }, 400, h);
-  const base = ostWords(t).join(" "), all = [];
+  const base = ostWords(t).join(" "), all = [], key = "ost:" + base.toLowerCase().slice(0, 120);
+  /* v322: a found list is kept 30 days in KV, so a game asks Apple once a month, not once a phone a day */
+  if (env.NUDGE) { try { const c = await env.NUDGE.get(key, "json"); if (c && c.length) return json({ ok: true, tracks: c }, 200, h); } catch (e) {} }
+  let fail = 0;
   for (const q of [base + " original soundtrack", base + " soundtrack"]) {
+    /* v322: only good answers stay in Cloudflare's cache: Apple turns busy shared addresses away (403/429), and a cached
+       refusal answered "no tracks" for a day (the owner heard nothing on any game) */
     try { const r = await fetch("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, media: "music", entity: "song", limit: "50", country: "US" }),
-        { cf: { cacheTtl: 86400, cacheEverything: true } });
-      if (r.ok) all.push(...((await r.json()).results || [])); } catch (e) {}
+        { cf: { cacheTtlByStatus: { "200-299": 86400, "300-599": 0 }, cacheEverything: true } });
+      if (r.ok) all.push(...((await r.json()).results || [])); else fail++; } catch (e) { fail++; }
     if (ostRank(t, all).length >= 3) break;
   }
-  return json({ ok: true, tracks: ostRank(t, all) }, 200, h);
+  const tracks = ostRank(t, all);
+  /* nothing found because Apple didn't answer: an error, so the phone asks again later instead of keeping "no music" */
+  if (!tracks.length && fail) return json({ error: "Apple's search is busy, try again soon" }, 503, h);
+  if (tracks.length && env.NUDGE) { try { await env.NUDGE.put(key, JSON.stringify(tracks), { expirationTtl: 30 * 86400 }); } catch (e) {} }
+  return json({ ok: true, tracks }, 200, h);
 }
 const OST_HOST = /^https:\/\/([a-z0-9-]+\.)*(itunes\.apple\.com|mzstatic\.com)\//i;
 async function ostClip(req, url, h) {

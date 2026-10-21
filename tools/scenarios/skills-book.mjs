@@ -70,7 +70,7 @@ export default async ({ p, w, seed, fail }) => {
     if (a.oddArt.length) bad.push("a game's picture isn't on a left page: " + a.oddArt.join(", "));
     if (a.folios < 4) bad.push(`only ${a.folios} page numbers in the book`);
     a.badNo.forEach(x => bad.push("page numbers: " + x));
-    if (a.skills < 1) bad.push("no skills beside the landed game's picture");
+    if (!a.fold && a.skills < 1) bad.push("no skills beside the landed game's picture");   /* folded the picture has its own page (v322, T54) */
     a.spill.forEach(x => bad.push("words run out of a page: " + x)); a.edge.forEach(x => bad.push("past the screen edge: " + x)); a.broken.forEach(x => bad.push("broken over lines: " + x));
   }
   /* every page of the book, not only the landed one: words that run out of a page */

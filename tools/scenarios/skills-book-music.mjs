@@ -1,12 +1,12 @@
 /* v321: the skills book's game music (PS5 style). With the fake helper's made-up tracks: landing on a game's pages, its
    clip plays (a gain going up, a source running) and the chip on the picture page names the track; a tap on the chip plays
-   the next track and doesn't turn the page; the contents is quiet; leaving the tab stops it; Sounds off or the book's own
-   music switch off = no music; the switch is in Settings › Sound and reactions.
+   the next track and doesn't turn the page; the contents is quiet; leaving the tab stops it; the book's own
+   music switch off = no music, Sounds (tap sounds) off doesn't matter (v322); the switch is in Settings › Sound and reactions.
      node tools/kit.mjs run tools/scenarios/skills-book-music.mjs --widths 412,859 */
 export default async ({ p, w, seed, fail }) => {
   const bad = [];
   const v = await p.page.evaluate(() => APP_V);
-  await p.page.evaluate(d => localStorage.setItem("gq:data", d), JSON.stringify(Object.assign(seed(v, 60), { nxEvo: 99, sound: true })));
+  await p.page.evaluate(d => localStorage.setItem("gq:data", d), JSON.stringify(Object.assign(seed(v, 60), { nxEvo: 99, sound: false })));
   await p.page.reload(); await p.page.waitForTimeout(3000);
   await p.page.evaluate(() => { const P = [...S.played].sort((a, b) => String(a.t).localeCompare(String(b.t))).slice(-2);
     const sk = n => ({ ic: "time", n, lv: 2, gain: "Better at " + n.toLowerCase(), txt: "A made-up moment.", mind: "A made-up idea.", life: "A made-up change.", tr: "Try a made-up thing." });
@@ -31,6 +31,13 @@ export default async ({ p, w, seed, fail }) => {
     const a = c.getBoundingClientRect(), b = f.getBoundingClientRect();
     return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom ? `${Math.round(a.left)},${Math.round(a.top)}` : null; }).filter(Boolean));
   if (hit.length) bad.push(`the page number sits on the music chip (${hit.join(" ")})`);
+  /* T54 (v322): the picture fills its whole page, folded too, and carries no box art */
+  const pic = await p.page.evaluate(() => [...document.querySelectorAll("#p-taste .skb-art")].filter(a => a.getClientRects().length).map(a => {
+    const pg = a.parentElement.getBoundingClientRect(), b = a.getBoundingClientRect();
+    return { cut: b.height < pg.height - 2, cv: !!a.querySelector(".skb-ab img") }; }));
+  if (!pic.length) bad.push("no picture page showing");
+  if (pic.some(x => x.cut)) bad.push("a game's picture doesn't fill its page");
+  if (pic.some(x => x.cv)) bad.push("the picture page still carries box art");
   /* the chip: another track, same page */
   const cb = await p.page.evaluate(() => { const c = document.querySelector("#p-taste .skb-pg [data-ost]:not([hidden])"); if (!c) return null; const b = c.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
   if (!cb) bad.push("no music chip on the picture page");
@@ -60,12 +67,11 @@ export default async ({ p, w, seed, fail }) => {
   if ((await st()).g) bad.push("music kept playing under Settings");
   await p.page.evaluate(() => closeEdit()); await p.page.waitForTimeout(900);
   if (!(await st()).srcs) bad.push("closing Settings didn't bring the music back");
-  /* the book's own switch, then Sounds */
-  for (const [k, val, what] of [["bookMusic", false, "the book's music switch off"], ["sound", false, "Sounds off"]]) {
-    await p.page.evaluate(([k, val]) => { S.bookMusic = true; S.sound = true; S[k] = val; goTab("taste"); goSub("taste", "insights"); goSub("taste", "book"); }, [k, val]);
-    await p.page.waitForTimeout(1500);
-    if ((await st()).g) bad.push(`music played with ${what}`);
-  }
+  /* everything above ran with Sounds (the tap sounds) off, like the owner's phone (v322: the music used to wait for it);
+     the book's own switch off is the only thing that keeps it quiet */
+  await p.page.evaluate(() => { S.bookMusic = false; goTab("taste"); goSub("taste", "insights"); goSub("taste", "book"); });
+  await p.page.waitForTimeout(1500);
+  if ((await st()).g) bad.push("music played with the book's music switch off");
   await p.page.evaluate(() => { S.sound = true; S.bookMusic = true; openSettings("app"); }); await p.page.waitForTimeout(600);
   if (!(await p.page.evaluate(() => !!document.querySelector("#s-bkmus")))) bad.push("no Game music switch in Settings");
   console.log(`  ${w}: landed on ${a.land}, track "${a.chip}", ${a.srcs} source(s), audio ${a.ac}`);
