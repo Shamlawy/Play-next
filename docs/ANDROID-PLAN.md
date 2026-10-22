@@ -2,8 +2,8 @@
 
 ## Start here (every session reads this first and updates it last)
 
-- **Status:** not started. Waiting for the owner's go, on or after Oct 23 2026 (the fixes-only pause ends after Oct 22).
-- **Next step:** the owner answers question 3 (bottom of this file; 1, 2 and 4 answered Oct 22), then Phase 0's Map run.
+- **Status:** not started. Building starts **Monday Oct 26 2026, 12 PM UAE time** (the owner: "app building starts on Monday 12 pm uae time this is when my weekly reset happens", they had 20% of their weekly limit left on Oct 22). A scheduled task (`trig_011SeTVQUtaJNsxY4dLbXkCi`, one-shot, 08:00 UTC) wakes this plan's Oct 22 chat then to start Phase 0. Don't start build work before it.
+- **Next step:** Phase 0's Map run, on Monday Oct 26, 12 PM UAE time. Every open question is answered.
 - **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and does the next step.
 - **Last session:** Oct 22 2026, 1:40 AM UAE time: an ultracode check of this plan (4 review lenses, a skeptic per lens, a completeness critic). All 49 findings were confirmed, plus 7 from the critic, and the plan was rewritten with them. Nothing is built yet.
 
@@ -19,6 +19,8 @@
 - Oct 22 · "2b": notifications through Firebase, on time. The owner makes a Firebase project once (see "Things only the owner does"); Phase 9 adds what the helper needs to send through it.
 - Oct 22 · on updates: "I want it easy to update the app and fast and auto, ofc I will press install cuz that's android": one Install tap per update is fine; everything else (download, check, timing) stays automatic, as in "How it reaches the phone".
 - Oct 22 · question 4: "not every feature, maybe once a week or something, we will decide on that": after switch day some features also go to the friend's web app, picked together about once a week. Not every feature, not none.
+- Oct 22 · question 3: "no need for updates": (a) the web app gets fixes only until switch day.
+- Oct 22 · start: Monday Oct 26 2026, 12 PM UAE time, when the owner's weekly limit resets.
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features, new ideas go to `learn.mjs add --kind=idea`.
 
 ## What we're building
@@ -147,16 +149,17 @@ Before each phase's Map run, Claude lists the alternate looks and switches on th
 
 These are the agreed exceptions to CLAUDE.md's "never give the owner install steps": Android won't install an app any other way.
 
-## Open questions (answer before Phase 0)
+## The owner's answers in short (Oct 22)
 
-Answered Oct 22 (see Decisions): 1 = (a) back swipe closes what's open first; 2 = (b) Firebase; 4 = some features go to both apps, picked about once a week.
-
-3. **New web features while the app is being built (about 3 months)** (the owner didn't follow the first wording; this is it in plain words, not about how the app updates):
-   - (a) the web app gets fixes only until switch day, so the Android copy isn't chasing something that keeps changing (recommended);
-   - (b) new features can still go into the web app, but each one then has to be built into the Android app too, which makes the rebuild longer.
+1. **Back swipe:** closes what's open first, then goes back a tab, then leaves the app.
+2. **Notifications:** Firebase, on time. The owner makes a Firebase project once, in Phase 9.
+3. **New web features during the rebuild:** none. The web app gets fixes only until switch day.
+4. **After switch day:** some features also go to the friend's web app, picked together about once a week.
+- **Updates:** one Install tap per update is fine. Everything else happens by itself.
+- **Start:** Monday Oct 26, 12 PM UAE time.
 
 ## Progress
 
 - [x] Plan written (Oct 21) and checked by ultracode (Oct 22)
-- [ ] Open questions answered (1, 2, 4 on Oct 22; 3 open)
+- [x] Open questions answered (Oct 22)
 - [ ] Phase 0 · [ ] 1 · [ ] 2 · [ ] 3 · [ ] 4 · [ ] 5 · [ ] 6 · [ ] 7 · [ ] 8a · [ ] 8b · [ ] 9 · [ ] 10
