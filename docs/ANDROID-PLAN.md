@@ -3,7 +3,7 @@
 ## Start here (every session reads this first and updates it last)
 
 - **Status:** not started. Waiting for the owner's go, on or after Oct 23 2026 (the fixes-only pause ends after Oct 22).
-- **Next step:** answer the open questions (bottom of this file), then Phase 0's Map run.
+- **Next step:** the owner answers question 3 (bottom of this file; 1, 2 and 4 answered Oct 22), then Phase 0's Map run.
 - **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and does the next step.
 - **Last session:** Oct 22 2026, 1:40 AM UAE time: an ultracode check of this plan (4 review lenses, a skeptic per lens, a completeness critic). All 49 findings were confirmed, plus 7 from the critic, and the plan was rewritten with them. Nothing is built yet.
 
@@ -15,6 +15,10 @@
 - Oct 21 · "or else why wait? We can build it": the rebuild doesn't wait for the web app's lag reports to reach 0 (this replaces idea M54's condition).
 - Oct 22 · "I want to use ultra code to be absolutely sure it's perfect": two ultracode runs per phase, a Map before and a Perfect after.
 - Oct 22 · "Switch it to light mode": the daily web fixer works only hand-written reports and crashes until switch day (CLAUDE.md, Automation).
+- Oct 22 · "1a": the back swipe closes what's open on top, then goes to the last tab, then leaves the app.
+- Oct 22 · "2b": notifications through Firebase, on time. The owner makes a Firebase project once (see "Things only the owner does"); Phase 9 adds what the helper needs to send through it.
+- Oct 22 · on updates: "I want it easy to update the app and fast and auto, ofc I will press install cuz that's android": one Install tap per update is fine; everything else (download, check, timing) stays automatic, as in "How it reaches the phone".
+- Oct 22 · question 4: "not every feature, maybe once a week or something, we will decide on that": after switch day some features also go to the friend's web app, picked together about once a week. Not every feature, not none.
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features, new ideas go to `learn.mjs add --kind=idea`.
 
 ## What we're building
@@ -136,6 +140,7 @@ Before each phase's Map run, Claude lists the alternate looks and switches on th
 - [ ] Answer the open questions below.
 - [ ] First install (link; Auto Blocker off if asked; allow Chrome to install apps; Install), then allow Play next to install apps when it first updates.
 - [ ] Type your restore code into the app once.
+- [ ] Make a Firebase project once (Phase 9; Claude sends the steps then, about 5 minutes).
 - [ ] Allow notifications when the app asks (Phase 9 or switch day).
 - [ ] If Android ever asks for developer verification (expected 2027): one registration or the one-time advanced setup.
 - [ ] Approve each finished phase on the phone (a GitHub issue lists what to try).
@@ -144,21 +149,14 @@ These are the agreed exceptions to CLAUDE.md's "never give the owner install ste
 
 ## Open questions (answer before Phase 0)
 
-1. **Back swipe in the app:**
-   - (a) closes whatever is open on top (card, sheet, Edit, book, Settings), then goes to the last tab, then leaves the app, like most Android apps (recommended);
-   - (b) leaves the app from anywhere, like the web app does today.
-2. **Notifications:**
-   - (a) no Firebase and nothing for you to set up: Nexi's planned nudges and release days are scheduled on the phone, and price and Steam pings come from a check every few hours (they can arrive up to about an hour late) (recommended);
-   - (b) Firebase: on time, but you make a Firebase project once.
-3. **New web features during the rebuild (about 3 months):**
-   - (a) none: the web app gets fixes only, so the app isn't chasing a moving target (recommended);
-   - (b) allowed: each one must then be ported too.
-4. **After switch day:**
-   - (a) a new feature goes into the app only, and the friend's web app gets fixes;
-   - (b) every new feature goes into both apps (costs about twice the work).
+Answered Oct 22 (see Decisions): 1 = (a) back swipe closes what's open first; 2 = (b) Firebase; 4 = some features go to both apps, picked about once a week.
+
+3. **New web features while the app is being built (about 3 months)** (the owner didn't follow the first wording; this is it in plain words, not about how the app updates):
+   - (a) the web app gets fixes only until switch day, so the Android copy isn't chasing something that keeps changing (recommended);
+   - (b) new features can still go into the web app, but each one then has to be built into the Android app too, which makes the rebuild longer.
 
 ## Progress
 
 - [x] Plan written (Oct 21) and checked by ultracode (Oct 22)
-- [ ] Open questions answered
+- [ ] Open questions answered (1, 2, 4 on Oct 22; 3 open)
 - [ ] Phase 0 · [ ] 1 · [ ] 2 · [ ] 3 · [ ] 4 · [ ] 5 · [ ] 6 · [ ] 7 · [ ] 8a · [ ] 8b · [ ] 9 · [ ] 10
