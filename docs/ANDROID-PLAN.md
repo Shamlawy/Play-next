@@ -3,8 +3,8 @@
 ## Start here (every session reads this first and updates it last)
 
 - **Status:** not started. Building starts **Monday Oct 26 2026, 12 PM UAE time** (the owner: "app building starts on Monday 12 pm uae time this is when my weekly reset happens", they had 20% of their weekly limit left on Oct 22). A scheduled task (`trig_011SeTVQUtaJNsxY4dLbXkCi`, one-shot, 08:00 UTC) wakes this plan's Oct 22 chat then to start Phase 0. Don't start build work before it.
-- **Next step:** Phase 0's Map run, on Monday Oct 26, 12 PM UAE time. Every open question is answered.
-- **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and does the next step.
+- **Next step:** Phase 0's Brief (see "The phases"), on Monday Oct 26, 12 PM UAE time; its Map run only after the owner says go. Every open question is answered.
+- **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and sends that phase's Brief first; it builds nothing until the owner answers it. The Monday scheduled task's prompt still says "its Map run first" (written Oct 22, and it can only be changed from the Oct 22 chat): the Brief comes before it anyway.
 - **Last session:** Oct 22 2026, 1:40 AM UAE time: an ultracode check of this plan (4 review lenses, a skeptic per lens, a completeness critic). All 49 findings were confirmed, plus 7 from the critic, and the plan was rewritten with them. Nothing is built yet.
 
 ## Decisions (date · the owner's words)
@@ -21,6 +21,7 @@
 - Oct 22 · question 4: "not every feature, maybe once a week or something, we will decide on that": after switch day some features also go to the friend's web app, picked together about once a week. Not every feature, not none.
 - Oct 22 · question 3: "no need for updates": (a) the web app gets fixes only until switch day.
 - Oct 22 · start: Monday Oct 26 2026, 12 PM UAE time, when the owner's weekly limit resets.
+- Oct 23 · "I want to test every phase we do and start a tab by tab or a phase by phase … before starting any phase you need to tell me what you will do before building cuz I could remove or change or add": every phase opens with a Brief the owner answers before anything is built, and each piece comes to the phone to test as soon as it works (see "The phases").
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features, new ideas go to `learn.mjs add --kind=idea`.
 
 ## What we're building
@@ -105,7 +106,15 @@ Nothing can make it certain. These gates catch most problems before they reach y
 
 ## The phases
 
-Each phase: **Map** (ultracode) → build sessions → **Perfect** (ultracode) → a fix session → you approve it on the phone. At the end of each phase Claude opens a GitHub issue "Approve Phase N on your phone" with 3–5 things to try. Your approval words go into the Decisions list.
+The phases go tab by tab (Queue, then the game page, Home, Add, Played/Library, Taste, Settings), one phase at a time: the next one starts only after you've approved the last.
+
+Each phase, in this order:
+
+1. **Brief, before anything is built** (the owner, Oct 23). Claude sends a short plain list: every piece the phase will build, the looks and switches on those screens that your backup and the usage issue say you don't use (you tick which stay web-only), what you'll be able to try on the phone after each piece, and how long it will take. You remove, change or add things. Nothing is built, not even the Map run, until you say go. Your changes go into the Decisions list and the phase's checklist; anything left out is marked "not ported (owner, date)". Something you add is built in that phase and noted as a change from "copy it as it is".
+2. **Map** (ultracode) of what you agreed.
+3. **Build, one piece at a time.** Each piece (a tab, or a part of one like the open card) comes to your phone as its own update as soon as it passes the checks, with one line on what to try, so you test as you go. Your notes on a piece get fixed before the next piece starts.
+4. **Perfect** (ultracode), then a fix session.
+5. **You approve it on the phone.** Claude opens a GitHub issue "Approve Phase N on your phone" with 3–5 things to try. Your approval words go into the Decisions list.
 
 Each phase's parity checklist (`android/parity/<phase>.md`) starts with "Mapped at web vN". Every web release that touches a ported screen adds a line under "Web changes since", and each Perfect run checks them.
 
@@ -124,7 +133,7 @@ Each phase's parity checklist (`android/parity/<phase>.md`) starts with "Mapped 
 | 9 | Runs by itself | Notifications (see the open questions); release-date watcher + deal radar, price pings, buy advice / shopping plan / clean-up, colour from art, calendar feed, screenshot prefetch, HowLongToBeat fill, Steam tags/news refresh, Steam sync, Finished it?, while you were away, time capsule, seasons, dusty backlog, crystal ball, on this day / week in review, usage counts (the Map run reads LOG v217, v219–v221, v238, v241, v248, v249, v279, v281, v294) | 3 |
 | 10 | Switch day | The handover above, a whole-app ultracode run, the app becomes "Play next" | 2 |
 
-Before each phase's Map run, Claude lists the alternate looks and switches on that screen that your backup and the usage issue say you don't use. You tick which can stay web-only (nothing is removed from the web app). The rest are ported, and anything left out is marked "not ported (owner, date)" in the checklist.
+Nothing is removed from the web app when you leave something out of the Android app.
 
 ## Time and tokens
 
