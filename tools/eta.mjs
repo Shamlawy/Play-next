@@ -53,10 +53,12 @@ export function guessKind(t) {
 }
 
 const OWN = new Set("I I'll I'm I've UAE AM PM Nexi Queue Home Settings Taste Library Played Replay Plan Insights Duels Book Android GitHub PR CI Phase Chromium WebKit Playwright Claude".split(" "));
+// Plain sentence starts that stay (a capitalised first word is masked like any other unless it's one of these).
+const STARTS = new Set("A An The Then Now Next First One Two Three Four Five Six Each Every All Both This That These Those It We You Your My Running Building Fixing Checking Filming Making Writing Reading Testing Looking Searching Sending Merging Releasing Recording".split(" "));
 export function scrub(s) {
   return String(s).split(/(\s+)/).map((w, i) => {
     const bare = w.replace(/^[^\p{L}\d]+|[^\p{L}\d']+$/gu, "");
-    return i === 0 || !/^\p{Lu}/u.test(bare) || OWN.has(bare) ? w : w.replace(bare, "▢");
+    return !/^\p{Lu}/u.test(bare) || OWN.has(bare) || STARTS.has(bare) ? w : w.replace(bare, "▢");
   }).join("").replace(/▢(\s+▢)+/g, "▢").slice(0, 140);
 }
 
