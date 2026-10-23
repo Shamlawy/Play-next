@@ -197,3 +197,17 @@ export function wrapNote(at: readonly At[], told: Set<string>): string {
   }
   return out.length ? `[learn] Code map (docs/MAP.md):\n${out.join('\n')}` : ''
 }
+
+// "⏱ About 25 min, so around 4:12 PM …" starts a timed estimate (tools/eta.mjs); "⏱ Taking longer: about 5 more min"
+// adds to the open one. A finish time or "background" means the work outlives the turn.
+export type Estimate = { kind: 'start'; min: number; bg: boolean; what: string } | { kind: 'more'; min: number }
+export function estimateIn(text: string): Estimate | undefined {
+  const toMin = (n: string, u: string) => Number(n) * (/^h/i.test(u) ? 60 : 1)
+  const more = text.match(/⏱\s*\**\s*Taking longer:?\**\s*about\s+(\d+(?:\.\d+)?)\s*(?:more\s+)?(min|mins|minutes|h|hours?)\b/i)
+  if (more) return { kind: 'more', min: toMin(more[1], more[2]) }
+  const m = text.match(/⏱\s*\**\s*About\s+(\d+(?:\.\d+)?)(?:\s*[–-]\s*(\d+(?:\.\d+)?))?\s*(min|mins|minutes|h|hours?)\b([^\n]*)/i)
+  if (!m) return undefined
+  const line = m[4] ?? ''
+  const what = line.replace(/^[\s*,.:;)–-]+/, '').replace(/^so (around|done by) [^,:.]+[,:.]?\s*/i, '').trim().slice(0, 140) || 'the task'
+  return { kind: 'start', min: toMin(m[2] ?? m[1], m[3]), bg: /around \d{1,2}:\d\d|should be done|background/i.test(line), what }
+}

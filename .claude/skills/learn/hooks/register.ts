@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 import {
-  checkFamily, deferrals, failed, firstNote, identifiers, parseLessons, promptSignals, recallNote, reflection, relevant, STRONG, wrapNote,
+  checkFamily, deferrals, estimateIn, failed, firstNote, identifiers, parseLessons, promptSignals, recallNote, reflection, relevant, STRONG, wrapNote,
   type At, type Brief, type Lesson, type Reopened, type Signal,
 } from './signals.ts'
 import { herePath, isHere, setHere } from './here.ts'
@@ -13,6 +13,7 @@ let repo = 'shamlawy/Play-next'
 let brief: Brief | undefined
 let reopened: Reopened[] = []
 let told = false
+let etaTip = ''
 let lessons: Lesson[] = []
 let lessonsAt = 0
 const toldLessons = new Set<string>()
@@ -25,6 +26,9 @@ let asked = false
 let askedCommit = false
 let recorded = false
 let committed = false
+let etaId = ''
+let etaBg = false
+let etaReminded = false
 const failing = new Map<string, number>()
 const editMiss = new Map<string, number>()
 
@@ -87,6 +91,7 @@ export const register: Register = on => {
       if (m) repo = `${m[1]}/${m[2]}`
       await loadBrief($)
       await loadReopened($)
+      etaTip = (await run($, ['node', 'tools/eta.mjs', 'tip']).catch(() => undefined))?.stdout.trim() ?? ''
     } catch {
       // No brief this chat; the hooks below still work.
     }
@@ -111,6 +116,7 @@ export const register: Register = on => {
       told = true
       const n = firstNote(brief, reopened)
       if (n) notes.push(n)
+      if (etaTip) notes.push(etaTip)
     }
     if (RETRO_ASK.test(e.text)) {
       notes.push(reflection(sessionSignals.length ? sessionSignals : [{ kind: 'release', text: 'asked for a retrospective of the whole chat' }])
@@ -230,6 +236,26 @@ export const register: Register = on => {
     return ran
   }).catch(($, e, next) => next(e))
 
+  // Time estimates (the owner, Oct 23: "do monitor that and see how well you do and learn"): a "⏱ About N min" in the
+  // main loop's text starts an entry in docs/ETA.md, the end of that turn ends it; work left running in the background
+  // is ended by Claude (a reminder at each turn's end until it is).
+  on('turn.step', async function* ($, e, next) {
+    const res = yield* next(e)
+    if (e.agentId || !isHere()) return res
+    try {
+      const est = estimateIn(res.answer ?? '')
+      if (est?.kind === 'more') await run($, ['node', 'tools/eta.mjs', 'more', `--min=${est.min}`, ...(etaId ? [etaId] : [])])
+      else if (est && !etaId) {
+        const r = await run($, ['node', 'tools/eta.mjs', 'start', `--min=${est.min}`, ...(est.bg ? ['--bg'] : []), est.what])
+        const id = r.exitCode === 0 ? (r.stdout.match(/^(E\d+)/) ?? [])[1] : undefined
+        if (id) { etaId = id; etaBg = est.bg; $.ui.toast(`⏱ ${r.stdout.trim().slice(0, 160)}`, { timeoutMs: 6000 }) }
+      }
+    } catch {
+      // An estimate not recorded only makes the record thinner.
+    }
+    return res
+  })
+
   // The end of a turn: a short retrospective when the turn earned one; lessons committed so the next chat has them.
   on('classic.Stop', async ($, e, next) => {
     if (!isHere()) return next(e)
@@ -241,6 +267,16 @@ export const register: Register = on => {
       if (!recorded && (all.some(s => STRONG.has(s.kind)) || (deferred.length && committed))) {
         asked = true
         return { ...r, block: reflection(all) }
+      }
+    }
+    if (!etaReminded) {
+      const o = await run($, ['node', 'tools/eta.mjs', 'open', '--json']).catch(() => undefined)
+      let open: { id: string; said: string; what: string }[] = []
+      try { open = o?.exitCode === 0 ? JSON.parse(o.stdout) : [] } catch { /* none */ }
+      open = open.filter(x => x.id !== etaId)
+      if (open.length) {
+        etaReminded = true
+        return { ...r, block: `[learn] Time estimate still open (docs/ETA.md): ${open.map(x => `${x.id} "${x.what}" (said ${x.said})`).join(', ')}. If what it promised was delivered in this turn, run \`node tools/eta.mjs end <id>\` (it times it and learns from it); if the work is still running in the background, leave it; if it was abandoned, \`node tools/eta.mjs drop <id>\`. Then finish as usual.` }
       }
     }
     if (recorded && !askedCommit) {
@@ -256,6 +292,9 @@ export const register: Register = on => {
   on('turn.complete', ($, e, next) => {
     if (!isHere()) return next(e)
     if (!e.agentId) {
+      if (etaId && !etaBg) void run($, ['node', 'tools/eta.mjs', 'end', etaId]).catch(() => undefined)
+      etaId = ''
+      etaBg = etaReminded = false
       signals = []
       asked = askedCommit = recorded = committed = false
       failing.clear()
