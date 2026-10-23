@@ -9,6 +9,8 @@
      node tools/eta.mjs drop [E3]               abandoned (the person changed course): not counted
      node tools/eta.mjs add --min=25 --took=9 [--kind=…] [--date="2026-10-23 3:47 PM"] "what"   backfill a closed one
      node tools/eta.mjs tip | list | open [--json]
+   --auto (the mod) scrubs the words first: a capitalised word that isn't the app's own (Queue, Nexi, …) becomes ▢, so a
+   game title never lands in the public repo.
    Kinds (guessed from the words when not given): research, kit, ci, video, release, build, plan, other. */
 import fs from "fs";
 import path from "path";
@@ -48,6 +50,14 @@ export function guessKind(t) {
   if (/build|\bmod\b|tool|feature|screen|tracker/.test(t)) return "build";
   if (/plan|doc|write.?up|brief/.test(t)) return "plan";
   return "other";
+}
+
+const OWN = new Set("I I'll I'm I've UAE AM PM Nexi Queue Home Settings Taste Library Played Replay Plan Insights Duels Book Android GitHub PR CI Phase Chromium WebKit Playwright Claude".split(" "));
+export function scrub(s) {
+  return String(s).split(/(\s+)/).map((w, i) => {
+    const bare = w.replace(/^[^\p{L}\d]+|[^\p{L}\d']+$/gu, "");
+    return i === 0 || !/^\p{Lu}/u.test(bare) || OWN.has(bare) ? w : w.replace(bare, "▢");
+  }).join("").replace(/▢(\s+▢)+/g, "▢").slice(0, 140);
 }
 
 export function parse(text) {
@@ -111,7 +121,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const kind = a.kind || guessKind(what);
     const at = cmd === "add" && a.date ? fromStamp(a.date) : now.getTime();
     if (!Number.isFinite(at)) { console.error('--date must look like "2026-10-23 3:47 PM"'); process.exit(2); }
-    const e = { id: nextId(list), started: stamp(new Date(at)), kind, said: fmt(said), took: "open", what: what.slice(0, 140), at: new Date(at).toISOString() };
+    const e = { id: nextId(list), started: stamp(new Date(at)), kind, said: fmt(said), took: "open", what: a.auto ? scrub(what) : what.slice(0, 140), at: new Date(at).toISOString() };
     if (a.bg) e.bg = "1";
     if (cmd === "add") { const t = mins(a.took); if (!(t >= 0)) { console.error("add needs --took=N"); process.exit(2); } e.took = fmt(t); }
     write([...list, e]);
@@ -123,7 +133,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.log(`${e.id}: +${fmt(+e.more)} on top of ${e.said}`);
   } else if (cmd === "end") {
     const e = pick(list, id); if (!e || e.took !== "open") { console.error("no open estimate"); process.exit(1); }
-    const took = Math.max(1, (now - Date.parse(e.at)) / 60000);
+    const from = e.at ? Date.parse(e.at) : fromStamp(e.started);
+    const took = Math.max(1, (now - from) / 60000);
+    if (!Number.isFinite(took)) { console.error(`${e.id} has no start time: end it by hand (add --took)`); process.exit(1); }
     e.took = fmt(took); if (a.note) e.note = a.note; write(list);
     console.log(`${e.id} done: took ${e.took} vs ${e.said}${e.more ? ` (+${fmt(+e.more)})` : ""} said (${ratio(e).toFixed(2)}×)`);
   } else if (cmd === "drop") {

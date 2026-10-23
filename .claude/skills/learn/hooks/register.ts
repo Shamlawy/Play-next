@@ -14,6 +14,7 @@ let brief: Brief | undefined
 let reopened: Reopened[] = []
 let told = false
 let etaTip = ''
+let etaLast = '' // the newest estimate this chat started: a later "Taking longer" belongs to it
 let lessons: Lesson[] = []
 let lessonsAt = 0
 const toldLessons = new Set<string>()
@@ -244,11 +245,11 @@ export const register: Register = on => {
     if (e.agentId || !isHere()) return res
     try {
       const est = estimateIn(res.answer ?? '')
-      if (est?.kind === 'more') await run($, ['node', 'tools/eta.mjs', 'more', `--min=${est.min}`, ...(etaId ? [etaId] : [])])
+      if (est?.kind === 'more') { if (etaId || etaLast) await run($, ['node', 'tools/eta.mjs', 'more', `--min=${est.min}`, etaId || etaLast]) }
       else if (est && !etaId) {
-        const r = await run($, ['node', 'tools/eta.mjs', 'start', `--min=${est.min}`, ...(est.bg ? ['--bg'] : []), est.what])
+        const r = await run($, ['node', 'tools/eta.mjs', 'start', '--auto', `--min=${est.min}`, ...(est.bg ? ['--bg'] : []), est.what])
         const id = r.exitCode === 0 ? (r.stdout.match(/^(E\d+)/) ?? [])[1] : undefined
-        if (id) { etaId = id; etaBg = est.bg; $.ui.toast(`⏱ ${r.stdout.trim().slice(0, 160)}`, { timeoutMs: 6000 }) }
+        if (id) { etaId = etaLast = id; etaBg = est.bg; $.ui.toast(`⏱ ${r.stdout.trim().slice(0, 160)}`, { timeoutMs: 6000 }) }
       }
     } catch {
       // An estimate not recorded only makes the record thinner.
