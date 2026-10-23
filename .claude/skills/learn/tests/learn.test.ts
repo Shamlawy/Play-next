@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { deferrals, parseLessons, promptSignals, relevant } from '../hooks/signals.ts'
+import { deferrals, estimateIn, parseLessons, promptSignals, relevant } from '../hooks/signals.ts'
 
 const NOW = Date.parse('2026-10-11T12:00:00Z')
 
@@ -23,7 +23,7 @@ const LESSONS = `# Lessons
 const BRIEF = { lessons: 2, promoted: 1, open: [{ id: 'M1', text: 'The WebKit check could import tools/kit.mjs' }], openCount: 1, promote: [{ id: 'L2', n: 3, text: 'Wrappers run around openFull' }], stale: [], big: false }
 const AT = [{ line: 9540, script: 2, fns: [{ name: 'openFull', from: 9537, to: 9766, wrappedAfter: [11564, 12709] }] }]
 
-type W = { lessonsDirty?: boolean; commitDiff?: string; mapCheck?: { code: number; out: string }; reopened?: unknown[] }
+type W = { etaOpen?: unknown[]; etaTip?: string; lessonsDirty?: boolean; commitDiff?: string; mapCheck?: { code: number; out: string }; reopened?: unknown[] }
 function world(on: any, w: W = {}) {
   mock.store(on)
   // The repo carries the mod (.claude/skills/<name>), so it is on.
@@ -45,6 +45,9 @@ function world(on: any, w: W = {}) {
     if (a.startsWith('git show -U0')) return ok(w.commitDiff ?? '')
     if (a.startsWith('git diff --cached --name-only')) return ok('index.html\n')
     if (a === 'node tools/learn.mjs brief') return ok(JSON.stringify(BRIEF))
+    if (a.startsWith('node tools/eta.mjs start')) return ok('E1 started: about 10 min, kit\n')
+    if (a === 'node tools/eta.mjs open --json') return ok(JSON.stringify(w.etaOpen ?? []))
+    if (a === 'node tools/eta.mjs tip') return ok(w.etaTip ?? '')
     if (a.startsWith('node tools/where.mjs --at=')) return ok(JSON.stringify(AT))
     if (a === 'node tools/map.mjs') return ok('docs/MAP.md: 154 blocks\n')
     if (a.startsWith('node tools/where.mjs --check')) return ok(w.mapCheck?.out ?? 'No new hazards', w.mapCheck?.code ?? 0)
@@ -65,13 +68,62 @@ function world(on: any, w: W = {}) {
     if (e.tool === 'Bash' && /tools\/learn\.mjs add/.test(e.command)) return { result: 'x', text: 'Learned L4: something' }
     return { result: 'done', text: 'done' }
   })
-  return { runs, contexts, toasts }
+  const steps: string[] = []
+  on('turn.step', async function* ($: unknown, e: any) {
+    return { turnId: e.turnId, index: e.index, answer: steps.shift() ?? '', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  return { runs, contexts, toasts, steps }
 }
+const step = async ($: any, agentId?: string) => { for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1, agentId } as any)) { /* stream */ } }
 const start = ($: any) => $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
 const stop = ($: any, last = 'Done.') => $.classic.Stop({ stop_hook_active: false, last_assistant_message: last } as any)
 const endTurn = ($: any) => $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't' } as any)
 
 describe('learn', () => {
+  test('time estimates: read from the reply, background work told apart, re-estimates seen', () => {
+    expect(estimateIn("⏱ About 10 min: I'll film both videos and send them.")).toEqual({ kind: 'start', min: 10, bg: false, what: "I'll film both videos and send them." })
+    expect(estimateIn('> ⏱ About 25 min, so around 4:12 PM UAE time. Four helpers search in parallel.')).toMatchObject({ kind: 'start', min: 25, bg: true })
+    expect(estimateIn('⏱ About 1–3 h: a new screen')).toMatchObject({ min: 180 })
+    expect(estimateIn('⏱ Taking longer: about 5 more min, the render is at 76%')).toEqual({ kind: 'more', min: 5 })
+    expect(estimateIn('It took about 10 min last time.')).toBeUndefined()
+  })
+
+  test('a ⏱ estimate is timed by itself: the turn that gave it ends it, background work gets one reminder per turn', async ($, on) => {
+    const w0: W = { etaTip: '[learn] Time estimates (docs/ETA.md): 2 recorded' }
+    const w = world(on, w0)
+    await start($)
+    await $.prompt.submit({ text: 'run the sweep' } as any)
+    expect(w.contexts[0]).toContain('Time estimates (docs/ETA.md)')
+    w.steps.push("⏱ About 10 min: I'll run the sweep and send the sheet.")
+    await step($)
+    expect(w.runs).toContain("node tools/eta.mjs start --min=10 I'll run the sweep and send the sheet.")
+    expect(w.toasts.some(t => t.startsWith('⏱ E1 started'))).toBe(true)
+    expect((await stop($)).block).toBeUndefined()
+    await endTurn($)
+    expect(w.runs).toContain('node tools/eta.mjs end E1')
+    // Background work: not ended by the turn; the next turn's end asks once.
+    await $.prompt.submit({ text: 'film the demo' } as any)
+    w.steps.push('⏱ About 8 min, so around 4:12 PM UAE time: the render runs in the background.')
+    await step($)
+    expect(w.runs.filter(r => r.startsWith('node tools/eta.mjs start')).pop()).toContain('--bg')
+    w0.etaOpen = [{ id: 'E1', said: '8 min', at: '', bg: true, what: 'the render' }]
+    expect((await stop($)).block).toBeUndefined()
+    const ends = w.runs.filter(r => r.startsWith('node tools/eta.mjs end')).length
+    await endTurn($)
+    expect(w.runs.filter(r => r.startsWith('node tools/eta.mjs end')).length).toBe(ends)
+    await $.prompt.submit({ text: 'is it done?' } as any)
+    const r1: any = await stop($)
+    expect(r1.block).toContain('Time estimate still open')
+    expect(r1.block).toContain('node tools/eta.mjs end <id>')
+    expect((await stop($)).block).toBeUndefined()
+    // A helper's own words never start one.
+    await endTurn($)
+    w.steps.push('⏱ About 3 min: checking')
+    const starts = w.runs.filter(r => r.startsWith('node tools/eta.mjs start')).length
+    await step($, 'a1')
+    expect(w.runs.filter(r => r.startsWith('node tools/eta.mjs start')).length).toBe(starts)
+  })
+
   test('the first message knows the lessons, what keeps happening and the fixes that did not hold', async ($, on) => {
     const w = world(on, { reopened: [{ number: 412, title: '🐞 Cut off (Android): A button is cut off [bug:ab12]' }] })
     await start($)
