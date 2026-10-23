@@ -3,8 +3,7 @@
 ## Start here (every session reads this first and updates it last)
 
 - **Status:** not started. Building starts **Monday Oct 26 2026, 12 PM UAE time** (the owner: "app building starts on Monday 12 pm uae time this is when my weekly reset happens", they had 20% of their weekly limit left on Oct 22). A scheduled task (`trig_011SeTVQUtaJNsxY4dLbXkCi`, one-shot, 08:00 UTC) wakes this plan's Oct 22 chat then to start Phase 0. Don't start build work before it.
-- **Waiting on the owner:** which of the 14 new features under "Nothing forgotten" to build.
-- **Next step:** Phase 0's Brief (see "The phases"), on Monday Oct 26, 12 PM UAE time; its Map run only after the owner says go. If the feature pick above is still open then, the Brief asks it first.
+- **Next step:** Phase 0's Brief (see "The phases"), on Monday Oct 26, 12 PM UAE time; its Map run only after the owner says go.
 - **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and sends that phase's Brief first; it builds nothing until the owner answers it. The Monday scheduled task's prompt still says "its Map run first" (written Oct 22, and it can only be changed from the Oct 22 chat): the Brief comes before it anyway.
 - **Last session:** Oct 22 2026, 1:40 AM UAE time: an ultracode check of this plan (4 review lenses, a skeptic per lens, a completeness critic). All 49 findings were confirmed, plus 7 from the critic, and the plan was rewritten with them. Nothing is built yet.
 
@@ -25,6 +24,7 @@
 - Oct 23 · "I want to test every phase we do and start a tab by tab or a phase by phase … before starting any phase you need to tell me what you will do before building cuz I could remove or change or add": every phase opens with a Brief the owner answers before anything is built, and each piece comes to the phone to test as soon as it works (see "The phases").
 - Oct 23 · "also the widgets i do love them so add them if they are not added": home-screen widgets, new (the web app can't have them), built in Phase 3 next to Home. Which widgets is decided in Phase 3's Brief; the first list is there.
 - Oct 23 · "Read out aloud dont need the rest are your choice": read-aloud isn't ported; sounds, share sheet, icon shortcuts and deep links stay in Phase 0 (Claude's call: small, and widgets and notifications need the deep links).
+- Oct 23 · "1 2 4 5 6 7 9 10 11 13 14": the owner's pick of the 14 new features (see "Nothing forgotten"); 3 (PlayStation/Xbox sync), 8 (book music in the background) and 12 (fingerprint lock) are left out.
 - Oct 23 · "if we are building it i want it to be perfect no need to build it then add stuff later": a gap check through 4 lenses (the owner's wishes, what a regular Android app needs, what other apps do, the web app vs this plan). What it found is in "Nothing forgotten" below; the new features in it wait for the owner's pick.
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features unless the owner adds one in a phase's Brief (the widgets, Oct 23, are the first); Claude's own new ideas go to `learn.mjs add --kind=idea`.
 
@@ -146,18 +146,18 @@ Each phase's parity checklist (`android/parity/<phase>.md`) starts with "Mapped 
 
 | # | Phase | What you get | Build sessions |
 |---|---|---|---|
-| 0 | Foundation | The app on your phone as a practice copy: restore code, your games from the backup, black theme, fonts (Poppins, Playfair Display, Archivo bundled), the tab bar, folded/unfolded layouts (window size classes, the hinge, fold mid-scroll keeps state), back gesture and edge-to-edge, self-update + safe mode, signing, release builds + Baseline Profile, the 120 Hz proof, every gate above, the shared kit (sounds ported from the web recipes, haptics, the header card, the view pill, calm motion (`calm()`: Animations off, the phone's reduce-motion or battery saver), the cover-fly transition, share sheet), app shortcuts and deep links | 3 |
+| 0 | Foundation | The app on your phone as a practice copy: restore code, your games from the backup, black theme, fonts (Poppins, Playfair Display, Archivo bundled), the tab bar, folded/unfolded layouts (window size classes, the hinge, fold mid-scroll keeps state), back gesture and edge-to-edge, self-update + safe mode, signing, release builds + Baseline Profile, the 120 Hz proof, every gate above, the shared kit (sounds ported from the web recipes, haptics, the header card, the view pill, calm motion (`calm()`: Animations off, the phone's reduce-motion or battery saver), the cover-fly transition, share sheet), app shortcuts and deep links. **New (picked Oct 23):** richer vibrations for the big moments (CLEAR!, a duel win, the card turn), never on every tap | 3 |
 | 1 | Queue | Rows, open card + back, the bar (tabs, Order, Shuffle, Boss HP), Character select, drag to reorder, swipe to delete, the Game Shuffler deck (a hold on Shuffle), On deck, and Nexi's seat (face, blink, bubble, his place on Home and in the rail) | 3 |
 | 2 | Game page | Pictures, prices, reviews, hours, news, notes, Where was I, story so far, Similar, Edit, the calling card | 4–5 |
 | 3 | Home + rail + widgets | Home, the unfolded rail and its live strip, the opening reel, and home-screen widgets (new, the owner Oct 23; also on the Fold's cover screen if Samsung allows it). First list for the Brief: **Play next** (the top game's picture, name and headline, a tap opens its card), **Countdown** (the next release, "Out in 3 days"), **Nexi** (his face and a line, a tap opens chat), **Top 3** (a bigger one with the Queue's first three). They update by themselves (a backup change, midnight, a release day) and stay read-only until switch day | 4 |
-| 4 | Add a game | Search, Discover, art pickers (SteamGridDB, stores, 4K), share-to-add | 2 |
-| 5 | Played, Library, Replay, Plan | Shelves, Top board, badges, Replay, Month (with its day card, `openPeek`)/Timeline/Plan/Timer, play sessions + heatmap, wrapped + monthly recap, Radar, your lists, dropped, Game room (or you decide at its Map run whether it comes over) | 3–4 |
-| 6 | Taste | Insights (Shattered Sky + its Psychology/Patterns/Analytics sections), Duels + ranking + duel badges, Friend (its sync worker isn't in this repo: read its rules first; the friend's web app must keep working), the skills book (page curl, music: Apple clips natively, YouTube in its own player at least 200px and on screen) | 4 |
+| 4 | Add a game | Search, Discover, art pickers (SteamGridDB, stores, 4K), share-to-add. **New (picked Oct 23):** add a game by pointing the camera at its box or a screenshot, or by dragging a link in from Chrome in split screen | 3 |
+| 5 | Played, Library, Replay, Plan | Shelves, Top board, badges, Replay, Month (with its day card, `openPeek`)/Timeline/Plan/Timer, play sessions + heatmap, wrapped + monthly recap, Radar, your lists, dropped, Game room (or you decide at its Map run whether it comes over). **New (picked Oct 23):** the live timer on the lock screen and Now Bar (Pause / Stop), a Quick Settings tile (What should I play? / start or stop a session), a yearly finish goal with a ring (also a widget), the timer on its own on the half-open Fold | 4–5 |
+| 6 | Taste | Insights (Shattered Sky + its Psychology/Patterns/Analytics sections), Duels + ranking + duel badges, Friend (its sync worker isn't in this repo: read its rules first; the friend's web app must keep working), the skills book (page curl, music: Apple clips natively, YouTube in its own player at least 200px and on screen). **New (picked Oct 23):** the half-open Fold opens the skills book across the fold like a real book | 4 |
 | 7 | Settings | The Settings shell (rail, "On this page", search, Most used, live preview) and the app-wide groups (look, sounds, data/backup, Nexi, This build, Steam, notifications) | 3 |
 | 8a | Nexi, the character | Personalities and faces, his menu, XP/hats/lore/journal, tea break, Grumble/Shadow rules, celebrations | 3 |
 | 8b | Nexi, the brain | Chat and memory, his lines, the notch tour and what's-new, problem reports and the on-phone design checks | 2–3 |
-| 9 | Runs by itself | Notifications (see the open questions); release-date watcher + deal radar, price pings, buy advice / shopping plan / clean-up, colour from art, calendar feed, screenshot prefetch, HowLongToBeat fill, Steam tags/news refresh, Steam sync, Finished it?, while you were away, seasons, dusty backlog, crystal ball, on this day / week in review, usage counts (the Map run reads LOG v217, v219–v221, v238, v241, v248, v249, v279, v281, v294) | 3 |
-| 10 | Switch day | The handover above, a whole-app ultracode run, the app becomes "Play next" | 2 |
+| 9 | Runs by itself | Notifications (Firebase, on time); release-date watcher + deal radar, price pings, buy advice / shopping plan / clean-up, colour from art, calendar feed, screenshot prefetch, HowLongToBeat fill, Steam tags/news refresh, Steam sync, Finished it?, while you were away, seasons, dusty backlog, crystal ball, on this day / week in review, usage counts (the Map run reads LOG v217, v219–v221, v238, v241, v248, v249, v279, v281, v294). **New (picked Oct 23):** release day as a live countdown, buttons on notifications (Played it / Snooze / Buy) sent at the hour you usually play, release days written into the phone's calendar (replacing the .ics feed on switch day), Game Pass catalogue pings like the PS Plus ones, Nexi's weekly "what you played" recap (M38), bundle and sale-ending price alerts (M39) | 4–5 |
+| 10 | Switch day | The handover above, a whole-app ultracode run, the app becomes "Play next". **New (picked Oct 23):** widgets you can tap (Played it, start a session) | 2 |
 
 Nothing is removed from the web app when you leave something out of the Android app.
 
@@ -175,28 +175,28 @@ Each phase's Brief and checklist must include these. They're web app features th
 - **Phase 8a:** Grumble's launch cutscene, Hot take, Seasons' hats (Seasons itself is Phase 9).
 - **Phase 9:** the release-day card ("The wait is over"), battery saver (read from Android's power saving), Reviews are in, Still playing?, Where was I? on coming back, the Now playing theme, notifications' 2-a-day plan inside your usual hours and the Ramadan shift; the helper's version-update pings become the app's own "updated" notification.
 
-### New features waiting for the owner's pick (asked Oct 23)
+### New features from the Oct 23 check: the owner's pick
 
-None is built unless the owner picks it; picked ones move into their phase's row.
+The owner picked 1, 2, 4, 5, 6, 7, 9, 10, 11, 13 and 14 ("wow claude those were fantastic ideas"); they're in their phases' rows above. 3, 8 and 12 were not picked: not ported, not built. Until switch day the picked ones that write (calendar, notifications) stay off, like every other writing route.
 
 1. Live timer on the lock screen and the Now Bar ("Playing · 1h 12m", Pause / Stop), and release day as a live countdown (Phase 5, Phase 9).
 2. A Quick Settings tile: "What should I play?" or start/stop a session (Phase 5).
-3. PlayStation and Xbox play time and trophies filled in by themselves, like Steam sync (Phase 9). PlayStation has no official way in: it needs a code pasted once and can break.
+3. PlayStation and Xbox play time and trophies filled in by themselves, like Steam sync (Phase 9). PlayStation has no official way in: it needs a code pasted once and can break. *Not picked.*
 4. Half-open Fold layouts: the book opens across the fold like a real book, the timer stands on its own (Phases 5, 6).
 5. Buttons on notifications ("Played it", "Snooze", "Buy"), sent at the hour you usually play (Phase 9).
 6. Add a game by pointing the camera at its box or a screenshot, or by dragging a link in from Chrome in split screen (Phase 4).
 7. A yearly finish goal with a ring ("12 of 20, 2 ahead"), also as a widget (Phase 5).
-8. The book's music with lock-screen controls, playing on when you leave the app (Phase 6). The web app goes quiet instead.
+8. The book's music with lock-screen controls, playing on when you leave the app (Phase 6). The web app goes quiet instead. *Not picked.*
 9. Widgets you can tap after switch day: "Played it" or start a session right from the home screen (Phase 10).
 10. Release days written straight into the phone's calendar (Phase 9).
 11. Richer vibrations for the big moments (CLEAR!, a duel win, the card turn), never on every tap (Phase 0).
-12. A fingerprint lock and a hidden preview in Recents (Phase 7).
+12. A fingerprint lock and a hidden preview in Recents (Phase 7). *Not picked.*
 13. Game Pass catalogue pings like the PS Plus ones (Phase 9), only if you have Game Pass.
 14. Ideas M38 (Nexi's weekly "what you played" recap) and M39 (bundle and sale-ending price alerts) (Phase 9).
 
 ## Time and tokens
 
-- **Count:** about 38–44 build sessions (more after the Oct 23 check; the new features picked add to it), about 11 fix sessions and 23 ultracode runs (2 per phase + switch day). That's about 60 working days: roughly 3 months at 5 days a week, re-estimated after Phase 1 from the real pace.
+- **Count:** about 46–53 build sessions (after the Oct 23 check and the owner's 11 picks), about 11 fix sessions and 23 ultracode runs (2 per phase + switch day). That's about 70 working days: roughly 3½ months at 5 days a week, re-estimated after Phase 1 from the real pace.
 - **Rhythm that leaves room for work:** one day build, the next day that phase's ultracode run. Never two ultracode runs in one day.
 - **Cost:**
   - One ultracode run costs roughly several normal sessions. The plan check on Oct 22 used 9 helper Claudes, about 1.3 million tokens and 22 minutes.
