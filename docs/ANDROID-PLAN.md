@@ -22,6 +22,7 @@
 - Oct 22 · question 3: "no need for updates": (a) the web app gets fixes only until switch day.
 - Oct 22 · start: Monday Oct 26 2026, 12 PM UAE time, when the owner's weekly limit resets.
 - Oct 23 · "I want to test every phase we do and start a tab by tab or a phase by phase … before starting any phase you need to tell me what you will do before building cuz I could remove or change or add": every phase opens with a Brief the owner answers before anything is built, and each piece comes to the phone to test as soon as it works (see "The phases").
+- Oct 23 · "also the widgets i do love them so add them if they are not added": home-screen widgets, new (the web app can't have them), built in Phase 3 next to Home. Which widgets is decided in Phase 3's Brief; the first list is there.
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features, new ideas go to `learn.mjs add --kind=idea`.
 
 ## What we're building
@@ -123,7 +124,7 @@ Each phase's parity checklist (`android/parity/<phase>.md`) starts with "Mapped 
 | 0 | Foundation | The app on your phone as a practice copy: restore code, your games from the backup, black theme, fonts (Poppins, Playfair Display, Archivo bundled), the tab bar, folded/unfolded layouts (window size classes, the hinge, fold mid-scroll keeps state), back gesture and edge-to-edge, self-update + safe mode, signing, release builds + Baseline Profile, the 120 Hz proof, every gate above, the shared kit (sounds ported from the web recipes, haptics, the header card, the view pill, calm mode, the cover-fly transition, share sheet, read-aloud), app shortcuts and deep links | 3 |
 | 1 | Queue | Rows, open card + back, the bar (tabs, Order, Shuffle, Boss HP), Character select, drag to reorder, swipe to delete, peek, On deck, and Nexi's seat (face, blink, bubble, his place on Home and in the rail) | 3 |
 | 2 | Game page | Pictures, prices, reviews, hours, news, notes, Where was I, story so far, Similar, Edit, the calling card | 4–5 |
-| 3 | Home + rail | Home, the unfolded rail and its live strip, the opening reel | 3 |
+| 3 | Home + rail + widgets | Home, the unfolded rail and its live strip, the opening reel, and home-screen widgets (new, the owner Oct 23; also on the Fold's cover screen if Samsung allows it). First list for the Brief: **Play next** (the top game's picture, name and headline, a tap opens its card), **Countdown** (the next release, "Out in 3 days"), **Nexi** (his face and a line, a tap opens chat), **Top 3** (a bigger one with the Queue's first three). They update by themselves (a backup change, midnight, a release day) and stay read-only until switch day | 4 |
 | 4 | Add a game | Search, Discover, art pickers (SteamGridDB, stores, 4K), share-to-add | 2 |
 | 5 | Played, Library, Replay, Plan | Shelves, Top board, badges, Replay, Month/Timeline/Plan/Timer, play sessions + heatmap, wrapped + monthly recap, Radar, your lists, dropped, Game room (or you decide at its Map run whether it comes over) | 3–4 |
 | 6 | Taste | Insights (Shattered Sky + Psychology/Patterns/Analytics), Duels + ranking + duel badges, Friend (its sync worker isn't in this repo: read its rules first; the friend's web app must keep working), the skills book (page curl, music: Apple clips natively, YouTube in its own player at least 200px and on screen) | 4 |
@@ -137,7 +138,7 @@ Nothing is removed from the web app when you leave something out of the Android 
 
 ## Time and tokens
 
-- **Count:** about 35–40 build sessions, about 11 fix sessions and 23 ultracode runs (2 per phase + switch day). That's about 60 working days: roughly 3 months at 5 days a week, re-estimated after Phase 1 from the real pace.
+- **Count:** about 36–41 build sessions, about 11 fix sessions and 23 ultracode runs (2 per phase + switch day). That's about 60 working days: roughly 3 months at 5 days a week, re-estimated after Phase 1 from the real pace.
 - **Rhythm that leaves room for work:** one day build, the next day that phase's ultracode run. Never two ultracode runs in one day.
 - **Cost:**
   - One ultracode run costs roughly several normal sessions. The plan check on Oct 22 used 9 helper Claudes, about 1.3 million tokens and 22 minutes.
