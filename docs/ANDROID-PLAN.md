@@ -4,7 +4,7 @@
 
 - **Status:** not started. Building starts **Monday Oct 26 2026, 12 PM UAE time** (the owner: "app building starts on Monday 12 pm uae time this is when my weekly reset happens", they had 20% of their weekly limit left on Oct 22). A scheduled task (`trig_011SeTVQUtaJNsxY4dLbXkCi`, one-shot, 08:00 UTC) wakes this plan's Oct 22 chat then to start Phase 0. Don't start build work before it.
 - **Waiting on the owner:** which of the 14 new features under "Nothing forgotten" to build.
-- **Next step:** Phase 0's Brief (see "The phases"), on Monday Oct 26, 12 PM UAE time; its Map run only after the owner says go. Every open question is answered.
+- **Next step:** Phase 0's Brief (see "The phases"), on Monday Oct 26, 12 PM UAE time; its Map run only after the owner says go. If the feature pick above is still open then, the Brief asks it first.
 - **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and sends that phase's Brief first; it builds nothing until the owner answers it. The Monday scheduled task's prompt still says "its Map run first" (written Oct 22, and it can only be changed from the Oct 22 chat): the Brief comes before it anyway.
 - **Last session:** Oct 22 2026, 1:40 AM UAE time: an ultracode check of this plan (4 review lenses, a skeptic per lens, a completeness critic). All 49 findings were confirmed, plus 7 from the critic, and the plan was rewritten with them. Nothing is built yet.
 
@@ -156,7 +156,7 @@ Each phase's parity checklist (`android/parity/<phase>.md`) starts with "Mapped 
 | 7 | Settings | The Settings shell (rail, "On this page", search, Most used, live preview) and the app-wide groups (look, sounds, data/backup, Nexi, This build, Steam, notifications) | 3 |
 | 8a | Nexi, the character | Personalities and faces, his menu, XP/hats/lore/journal, tea break, Grumble/Shadow rules, celebrations | 3 |
 | 8b | Nexi, the brain | Chat and memory, his lines, the notch tour and what's-new, problem reports and the on-phone design checks | 2–3 |
-| 9 | Runs by itself | Notifications (see the open questions); release-date watcher + deal radar, price pings, buy advice / shopping plan / clean-up, colour from art, calendar feed, screenshot prefetch, HowLongToBeat fill, Steam tags/news refresh, Steam sync, Finished it?, while you were away, Then & now (`capCard`), seasons, dusty backlog, crystal ball, on this day / week in review, usage counts (the Map run reads LOG v217, v219–v221, v238, v241, v248, v249, v279, v281, v294) | 3 |
+| 9 | Runs by itself | Notifications (see the open questions); release-date watcher + deal radar, price pings, buy advice / shopping plan / clean-up, colour from art, calendar feed, screenshot prefetch, HowLongToBeat fill, Steam tags/news refresh, Steam sync, Finished it?, while you were away, seasons, dusty backlog, crystal ball, on this day / week in review, usage counts (the Map run reads LOG v217, v219–v221, v238, v241, v248, v249, v279, v281, v294) | 3 |
 | 10 | Switch day | The handover above, a whole-app ultracode run, the app becomes "Play next" | 2 |
 
 Nothing is removed from the web app when you leave something out of the Android app.
