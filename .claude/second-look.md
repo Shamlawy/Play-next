@@ -6,6 +6,6 @@ localStorage S or the cloud backup (/vault) lost or corrupted; game titles, scor
 in CLAUDE.md (press animation, animating anything but transform/opacity, looping blur, hex colours, native date inputs, a doctype,
 reassigning a wrapped const, layout read right after innerHTML, a fill-forwards animation never cancelled, *.json committed, a
 repo-root file deleted); APP_V bumped without a WHATS_NEW entry with go/at/say/tryIt; a helper route the app calls that
-worker/helper.js lacks.
+worker/helper.js lacks; a new rule or decision (CLAUDE.md, docs/ANDROID-PLAN.md, a skill, a mod's prompts) that leaves an older rule saying the opposite standing: the same change must amend the older one (L165, it took a follow-up PR three times).
 first: index.html sw.js worker manifest.webmanifest
 skip: docs/MAP.md docs/LESSONS.md

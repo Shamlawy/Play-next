@@ -163,7 +163,7 @@ export function reflection(sig: readonly Signal[]): string {
     '  node tools/learn.mjs add --kind=idea --anchors=<…> "<the idea>"',
     ...(deferred.length ? ['  Anything you put off goes in as an idea so it is not lost.'] : []),
     // The owner (Oct 24), after asking for estimate tracking themselves: "am kinda sad you didnt discover it on your own".
-    '  Self-check: did this turn promise or repeat something nothing measures yet (a time, a size, a count, a rule you follow)? If so, an idea for how to measure it, built right away when it is small: the owner wants Claude to find these on its own.',
+    '  Self-check: did this turn promise or repeat something nothing measures yet (a time, a size, a count, a rule you follow)? If so, an idea for how to measure it, built right away when it is small and only measures your own work (tools, docs, mods; never the app itself or anything the owner sees): the owner wants Claude to find these on its own.',
     ...(fixed.length ? ["  CLAUDE.md: say in the fix's comment whether Nexi learned to spot it himself, or why it can't be detected."] : []),
     "If tools/learn.mjs answers ×3 or more, the reminder isn't working: turn it into a check (release-guard rule, where.mjs --check, a kit.mjs sweep --plant) and `node tools/learn.mjs promote <id> --to=\"<check>\"`.",
     'Skip anything trivial or one-off; if nothing is worth keeping, just finish. No game titles, scores or personal data (public repo).',
