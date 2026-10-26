@@ -1,3 +1,4 @@
 # Every text file checks out with LF, also on the owner's Windows PC (core.autocrlf=true there): the tools and mods
 # split lines on "\n", and a stray "\r" made tools/learn.mjs see no lessons and write the file back empty.
 * text=auto eol=lf
+*.bat text eol=crlf

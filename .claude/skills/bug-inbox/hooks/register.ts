@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { firstNote, listing, LOUD, line, parse, status, type Issue, type Report } from './inbox.ts'
+import { firstNote, listing, LOUD, line, parse, status, type App, type Issue, type Report } from './inbox.ts'
 import { herePath, isHere, setHere } from './here.ts'
 
 type $ = EngineInterface
@@ -14,21 +14,31 @@ let reports: Report[] | undefined
 let told = false
 const pending: string[] = []
 
-async function load($: $): Promise<Report[] | undefined> {
+// One label's open issues (undefined when GitHub didn't answer the first page).
+async function loadLabel($: $, label: string, app: App): Promise<Report[] | undefined> {
   const out: Report[] = []
   for (let page = 1; page <= 3; page++) {
-    const res = await $.http.fetch(`https://api.github.com/repos/${repo}/issues?labels=auto-bug&state=open&per_page=100&page=${page}`, {
+    const res = await $.http.fetch(`https://api.github.com/repos/${repo}/issues?labels=${label}&state=open&per_page=100&page=${page}`, {
       headers: { accept: 'application/vnd.github+json', 'user-agent': 'play-next-bug-inbox' },
     })
     if (!res.ok) return page === 1 ? undefined : out
     const got = JSON.parse(res.text) as Issue[]
     for (const i of got) {
-      const r = parse(i)
+      const r = parse(i, app)
       if (r) out.push(r)
     }
     if (got.length < 100) break
   }
   return out
+}
+
+// The web app's reports (auto-bug) and the Android app's (android-bug); an issue carrying both counts as Android.
+async function load($: $): Promise<Report[] | undefined> {
+  const web = await loadLabel($, 'auto-bug', 'web')
+  if (!web) return undefined
+  const droid = (await loadLabel($, 'android-bug', 'android').catch(() => undefined)) ?? []
+  const both = new Set(droid.map(r => r.n))
+  return [...web.filter(r => !both.has(r.n)), ...droid]
 }
 
 // Reports nobody here has heard of yet; remembers the rest.
@@ -48,7 +58,7 @@ async function refresh($: $) {
     reports = rs
     $.ui.status(status(rs))
     if (news.length) {
-      const text = `New problem report${news.length > 1 ? 's' : ''}: ${news.slice(0, 3).map(line).join(' · ')}`
+      const text = `New problem report${news.length > 1 ? 's' : ''}: ${news.slice(0, 3).map(r => line(r, true)).join(' · ')}`
       $.ui.toast(text, { timeoutMs: 12_000 })
       pending.push(text)
     }
@@ -82,7 +92,7 @@ export const register: Register = on => {
       // No inbox this chat; nothing else depends on it.
     }
     $.clock.every(REFRESH, () => void refresh($))
-    await $.command.register({ name: 'inbox', description: 'List the open problem reports (auto-bug issues), hand-filed ones first.' })
+    await $.command.register({ name: 'inbox', description: 'List the open problem reports (auto-bug issues, then the Android app\'s android-bug issues), hand-filed ones first.' })
     return next(e)
   })
 

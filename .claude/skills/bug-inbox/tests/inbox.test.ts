@@ -11,15 +11,25 @@ const ISSUES = [
   { number: 99, title: 'A pull request', created_at: ago(1), pull_request: {} },
 ]
 
-function world(on: any, issues: unknown[], store?: Record<string, unknown>) {
+const DROID = [
+  { number: 702, title: '🐞 Crash (App): The probe screen closed at start [bug:dd44ee55]', created_at: ago(2) },
+  { number: 701, title: '🐞 Slow (App): A 230ms stutter on Queue [bug:ff66aa77]', created_at: ago(50) },
+]
+
+function world(on: any, issues: unknown[], store?: Record<string, unknown>, android: unknown[] = []) {
   mock.store(on, store)
   // The repo carries the mod (.claude/skills/<name>), so it is on.
   on('fs.exists', () => ({ value: true }))
   const clock = mock.clock(on, { now: NOW })
   let list = issues
+  let droid = android
+  const urls: string[] = []
   const contexts: string[] = []
   on('process.run', () => ({ value: { exitCode: 0, stdout: 'https://github.com/shamlawy/Play-next.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
-  on('http.fetch', () => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify(list) } }))
+  on('http.fetch', ($: unknown, e: any) => {
+    urls.push(e.url)
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(e.url.includes('labels=android-bug') ? droid : list) } }
+  })
   on('session.start', ($: unknown, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('ui.status', () => ({ value: undefined }))
@@ -27,7 +37,7 @@ function world(on: any, issues: unknown[], store?: Record<string, unknown>) {
     contexts.push((e.context ?? []).join('\n'))
     return { text: e.text, context: e.context }
   })
-  return { clock, contexts, set: (l: unknown[]) => { list = l } }
+  return { clock, contexts, urls, set: (l: unknown[]) => { list = l }, setDroid: (l: unknown[]) => { droid = l } }
 }
 
 const start = ($: any) => $.session.start({ cwd: '/repo', surface: null, isInteractive: false })
@@ -71,5 +81,50 @@ describe('bug-inbox', () => {
     const r: any = await $.command.run({ command: 'inbox', args: '' } as any)
     expect(r.text).toMatch(/^4 open problem reports/)
     expect(r.text.indexOf('Crash (1)')).toBeLessThan(r.text.indexOf('Slow (1)'))
+  })
+
+  test("the Android app's reports (android-bug) get their own line and their loud ones are listed like the web's", async ($, on) => {
+    const w = world(on, ISSUES, undefined, DROID)
+    await start($)
+    await $.prompt.submit({ text: 'hi' } as any)
+    expect(w.urls.some(u => u.includes('labels=android-bug'))).toBe(true)
+    // The web count is unchanged by the Android issues.
+    expect(w.contexts[0]).toContain('Open problem reports (auto-bug issues): 4 (')
+    expect(w.contexts[0]).toContain('Android app: 2 open (android-bug issues: ')
+    expect(w.contexts[0]).toContain('Android hand-filed / crash ones, newest first:\n- #702 Crash (App): The probe screen closed at start')
+    // In the mixed "new" list an Android report says so.
+    expect(w.contexts[0]).toContain('- #702 Android app · Crash (App)')
+  })
+
+  test('only Android reports open: the web part says none, the Android line still shows', async ($, on) => {
+    const w = world(on, [], undefined, DROID)
+    await start($)
+    await $.prompt.submit({ text: 'hi' } as any)
+    expect(w.contexts[0]).toContain('No open problem reports from the web app')
+    expect(w.contexts[0]).toContain('Android app: 2 open')
+  })
+
+  test('an Android crash arriving mid-chat is passed on once, tagged as the Android app', async ($, on) => {
+    const w = world(on, ISSUES, { seen: [330, 314, 215, 120] })
+    await start($)
+    await $.prompt.submit({ text: 'hi' } as any)
+    w.setDroid([{ number: 703, title: '🐞 Crash (App): Update check threw [bug:0a0b0c0d]', created_at: ago(0) }])
+    await w.clock.advance(31 * 60_000)
+    await $.prompt.submit({ text: 'next' } as any)
+    await $.prompt.submit({ text: 'and' } as any)
+    expect(w.contexts[1]).toContain('#703 Android app · Crash (App): Update check threw')
+    expect(w.contexts[2]).toBe('')
+  })
+
+  test("/inbox shows the Android app's reports in their own group, after the web's", async ($, on) => {
+    world(on, ISSUES, undefined, [...DROID, { number: 330, title: ISSUES[0]!.title, created_at: ago(3) }])
+    await start($)
+    const r: any = await $.command.run({ command: 'inbox', args: '' } as any)
+    // #330 carries both labels: it counts once, as Android.
+    expect(r.text).toMatch(/^3 open problem reports/)
+    const at = r.text.indexOf('Android app (android-bug): 3 open')
+    expect(at).toBeGreaterThan(r.text.indexOf('Slow (1)'))
+    expect(r.text.indexOf('  Crash (1)', at)).toBeGreaterThan(at)
+    expect(r.text.indexOf('#702 Crash (App)', at)).toBeGreaterThan(at)
   })
 })

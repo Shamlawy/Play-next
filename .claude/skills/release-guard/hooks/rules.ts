@@ -126,16 +126,129 @@ export function parsePorcelain(out: string): Change[] {
 export const rootDeleted = (changes: readonly Change[]) => changes.filter(c => c.status === 'D' && !c.path.includes('/')).map(c => c.path)
 
 const MANIFEST = /^(?:(?:\.claude\/skills|mods)\/[^/]+\/(?:\.claude-plugin\/plugin|hooks\/hooks)|\.claude-plugin\/marketplace|\.claude\/settings)\.json$/
+// The Android app's signing key and machine-local files, anywhere in the repo: never committed.
+export const SECRET_FILE = /(?:^|\/)(?:[^/]+\.(?:jks|keystore|p12)|key\.properties|local\.properties|google-services\.json)$/i
 
 // Files that must never be committed or deleted, whatever the release.
 export function fileProblems(changes: readonly Change[], deleted: readonly string[] = []): string[] {
   const out: string[] = []
   for (const c of changes) {
-    if (c.status !== 'D' && /\.json$/i.test(c.path) && !MANIFEST.test(c.path))
+    if (c.status === 'D') continue
+    if (SECRET_FILE.test(c.path))
+      out.push(`${c.path}: keystores, key.properties, local.properties and google-services.json are never committed (the signing key lives only in Cloudflare KV; the rest is machine-local or made in CI)`)
+    else if (/\.json$/i.test(c.path) && !MANIFEST.test(c.path))
       out.push(`${c.path}: .json files are never committed (backups hold private data)`)
   }
   for (const p of deleted) out.push(`${p}: files in the repo root are never deleted (saved games can link to them)`)
   return out
+}
+
+// ---- The Android app (android/, Kotlin + Compose) ----
+// android/parity/ is documentation; everything else under android/ is the app and ships through android-release.yml.
+export const ANDROID_VERSION = 'android/version.properties'
+export const ANDROID_WHATSNEW = 'android/app/src/main/assets/whatsnew.txt'
+export const isAndroidShip = (path: string) => path.startsWith('android/') && !path.startsWith('android/parity/')
+export const isWebShip = (path: string) => path === 'index.html' || path === 'sw.js' || path === 'manifest.webmanifest' || path.startsWith('worker/')
+
+// `release=N` in android/version.properties: the release counter (a merge that raises it is a release).
+export const androidRelease = (props: string | undefined) => props?.match(/^[ \t]*release[ \t]*=[ \t]*(\d+)[ \t]*\r?$/m)?.[1]
+
+// whatsnew.txt: `#` comment lines, blocks split by blank lines, `key=value` lines (v, go, at, say, tryIt).
+export function androidWhatsNewBlocks(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter(l => !/^\s*#/.test(l))
+  const blocks: Record<string, string>[] = []
+  let cur: Record<string, string> | undefined
+  for (const l of lines) {
+    if (!l.trim()) {
+      cur = undefined
+      continue
+    }
+    const at = l.indexOf('=')
+    if (at < 0) continue
+    if (!cur) blocks.push((cur = {}))
+    cur[l.slice(0, at).trim()] = l.slice(at + 1).trim()
+  }
+  return blocks
+}
+
+// Every what's-new block for release `n` and what each is missing (go, say and tryIt must say something; at may be empty).
+export function androidWhatsNew(text: string, n: string): { count: number; missing: string[] } {
+  const of = androidWhatsNewBlocks(text).filter(b => b.v === n)
+  const missing: string[] = []
+  of.forEach((b, i) => {
+    const lack = ['go', 'say', 'tryIt'].filter(k => !b[k])
+    if (lack.length) missing.push(`block ${i + 1} lacks ${lack.join(', ')}`)
+  })
+  return { count: of.length, missing }
+}
+
+// android-check.yml on one commit, as GitHub's runs API reports it.
+export type CheckRun = { state: 'success' | 'running' | 'failed' | 'missing' | 'unknown'; conclusion?: string; url?: string }
+type ApiRun = { status?: string; conclusion?: string | null; head_sha?: string; created_at?: string; html_url?: string }
+
+// The newest run decides (a re-run replaces an older failure).
+export function checkState(runs: readonly ApiRun[], sha?: string): CheckRun {
+  const of = runs.filter(r => !sha || !r.head_sha || r.head_sha === sha).sort((a, b) => Date.parse(b.created_at ?? '') - Date.parse(a.created_at ?? ''))
+  const r = of[0]
+  if (!r) return { state: 'missing' }
+  if (r.status !== 'completed') return { state: 'running', url: r.html_url }
+  return r.conclusion === 'success' ? { state: 'success', url: r.html_url } : { state: 'failed', conclusion: r.conclusion ?? 'failed', url: r.html_url }
+}
+
+// What a range does to the Android app: shipped at all, the release it makes (when release=N went up), else the unchanged N.
+export function androidStep(r: Pick<Range, 'changes' | 'baseAndroid' | 'headAndroid'>): { shipped: boolean; release?: string; same?: string } {
+  const shipped = r.changes.some(c => isAndroidShip(c.path))
+  if (!shipped) return { shipped }
+  const head = androidRelease(r.headAndroid)
+  const base = androidRelease(r.baseAndroid)
+  if (head && base && Number(head) <= Number(base)) return { shipped, same: head === base ? head : undefined }
+  return head ? { shipped, release: head } : { shipped }
+}
+
+// `gh pr merge …` in a shell command (Bash or PowerShell): which PR it merges. undefined = not a gh merge.
+export type GhMerge = { arg?: string; number?: number; owner?: string; name?: string; repo?: string }
+const VALUE_FLAGS = new Set(['-t', '--subject', '-b', '--body', '-F', '--body-file', '-R', '--repo', '--match-head-commit', '-A', '--author-email'])
+export function ghMerge(cmd: string): GhMerge | undefined {
+  // Quoted text (a subject, a commit message that mentions gh) is never the PR.
+  const bare = cmd.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""')
+  const m = bare.match(/(?:^|[\s;&|(])gh(?:\.exe)?\s+pr\s+merge\b([^&;|\n]*)/)
+  if (!m) return undefined
+  const toks = (m[1] ?? '').trim().split(/\s+/).filter(t => t && !/^\d*[<>]/.test(t))
+  const out: GhMerge = {}
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i] ?? ''
+    if (VALUE_FLAGS.has(t)) {
+      if (t === '-R' || t === '--repo') out.repo = toks[i + 1]
+      i++
+      continue
+    }
+    if (t.startsWith('--repo=')) out.repo = t.slice(7)
+    if (t.startsWith('-')) continue
+    if (out.arg === undefined) out.arg = t
+  }
+  const a = out.arg
+  const url = a?.match(/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/)
+  if (url) Object.assign(out, { owner: url[1], name: url[2], number: Number(url[3]) })
+  else if (a && /^#?\d+$/.test(a)) out.number = Number(a.replace('#', ''))
+  if (out.repo) {
+    const parts = out.repo.replace(/^https?:\/\//, '').split('/').filter(Boolean)
+    if (parts.length >= 2) {
+      out.owner = parts[parts.length - 2]
+      out.name = parts[parts.length - 1]
+    }
+  }
+  return out
+}
+
+// A file path from the Edit/Write tools, relative to the repo root with forward slashes ('' outside the repo).
+// Windows gives C:\Users\…, Git Bash /c/Users/…, git itself C:/Users/….
+export function repoPath(file: string, root: string): string {
+  const norm = (p: string) => String(p ?? '').replace(/\\/g, '/').replace(/^\/([a-zA-Z])\//, '$1:/').replace(/\/+$/, '')
+  const f = norm(file)
+  const r = norm(root)
+  if (r && f.toLowerCase().startsWith(`${r.toLowerCase()}/`)) return f.slice(r.length + 1)
+  if (/^(?:[a-zA-Z]:)?\//.test(f)) return ''
+  return f.replace(/^\.\//, '')
 }
 
 export type Range = {
@@ -147,6 +260,49 @@ export type Range = {
   baseHelper?: string
   headHelper?: string
   helperCheck?: string // why the helper failed node --check / import, if it did
+  // The Android app, read only when the range touches android/ (outside android/parity/).
+  baseAndroid?: string // android/version.properties at the base
+  headAndroid?: string
+  mainAndroid?: string // origin/main's now: main can make a release while the branch is being built
+  androidWhatsNew?: string // whatsnew.txt at the head
+  androidCheck?: CheckRun // android-check.yml on the head commit
+}
+
+// The android-check items that only mean "CI hasn't finished yet" (a branch push hears nothing about them).
+export const isCheckWait = (text: string) => /^android-check (?:hasn't run|is still running|couldn't be read)/.test(text)
+
+// The Android half of a release: release=N up, above main's, a what's-new block, an `android-vN` LOG line, android-check green.
+function androidProblems(r: Range, block: string[], notes: string[]) {
+  const step = androidStep(r)
+  if (!step.shipped) return
+  const head = androidRelease(r.headAndroid)
+  const base = androidRelease(r.baseAndroid)
+  const main = androidRelease(r.mainAndroid)
+  const ck = r.androidCheck ?? { state: 'unknown' as const }
+  if (!head) {
+    block.push(`${ANDROID_VERSION} has no "release=N" line: the Android app's release counter must exist (it keys the what's-new and the LOG line)`)
+    return
+  }
+  if (!step.release) {
+    if (base && Number(head) < Number(base)) block.push(`${ANDROID_VERSION}: release went from ${base} to ${head}: it never goes down`)
+    else notes.push(`no Android release (release=${head} unchanged): a build-only change, nothing new reaches the phone. Raise release= in ${ANDROID_VERSION} (with a what's-new block and an android-v${Number(head) + 1} LOG line) if the owner should see it.${ck.state === 'success' ? '' : ` android-check on this commit: ${ck.state === 'failed' ? ck.conclusion : ck.state}.`}`)
+    return
+  }
+  if (main && Number(head) <= Number(main)) {
+    block.push(`main already made android-v${main} while this branch was built (it has release=${head}): merge origin/main, raise release= above ${main} and move the what's-new block and the LOG line to the new number`)
+    return
+  }
+  if (r.androidWhatsNew === undefined) block.push(`${ANDROID_WHATSNEW} is missing: the Android what's-new lives there`)
+  else {
+    const wn = androidWhatsNew(r.androidWhatsNew, head)
+    if (!wn.count) block.push(`whatsnew.txt has no block with v=${head}: every Android release gets one (go, say, tryIt; at may be empty) or the tour skips it`)
+    for (const m of wn.missing) block.push(`whatsnew.txt v=${head} ${m}`)
+  }
+  if (!new RegExp(`\\bandroid-v${head}\\b`).test(r.logAdded)) block.push(`docs/LOG.md has no "android-v${head}" line`)
+  if (ck.state === 'missing') block.push("android-check hasn't run on this commit yet: wait for android-check, then merge (it runs on the PR, so open one if there isn't)")
+  else if (ck.state === 'running') block.push(`android-check is still running on this commit: wait for android-check, then merge${ck.url ? ` (${ck.url})` : ''}`)
+  else if (ck.state === 'unknown') block.push("android-check couldn't be read from GitHub just now (network or rate limit): wait for android-check, then merge")
+  else if (ck.state === 'failed') block.push(`android-check ${ck.conclusion ?? 'failed'} on this commit: fix it on the branch, push, wait for android-check, then merge${ck.url ? ` (${ck.url})` : ''}`)
 }
 
 // What a branch brings to main: what blocks a merge, and what is worth a look.
@@ -155,8 +311,9 @@ export function releaseProblems(r: Range): { block: string[]; notes: string[] } 
   const notes: string[] = []
   const has = (p: string) => r.changes.some(c => c.path === p)
   block.push(...fileProblems(r.changes, rootDeleted(r.changes)))
+  androidProblems(r, block, notes)
 
-  const shipped = r.changes.some(c => c.path === 'index.html' || c.path === 'sw.js' || c.path === 'manifest.webmanifest' || c.path.startsWith('worker/'))
+  const shipped = r.changes.some(c => isWebShip(c.path))
   if (shipped && !r.logAdded.trim()) block.push('docs/LOG.md has no new line: every release and no-version fix gets one')
 
   if (has('index.html') && r.headHtml) {

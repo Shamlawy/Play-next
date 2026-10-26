@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Always black: no Material You colours, no white flash at start. -->
+    <color name="pn_black">#FF000000</color>
+    <color name="pn_icon_bg">#FF0A1030</color>
+
+    <style name="Theme.PlayNext" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/pn_black</item>
+        <item name="android:colorBackground">@color/pn_black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
+    </style>
+
+    <!-- The splash: black, a still icon, no animation, gone as soon as the first frame is ready. -->
+    <style name="Theme.PlayNext.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/pn_black</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.PlayNext</item>
+    </style>
+</resources>

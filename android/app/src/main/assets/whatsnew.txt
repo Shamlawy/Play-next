@@ -1,0 +1,10 @@
+# The Android app's what's new, the web app's WHATS_NEW for the app: one block per release, blocks split by blank lines.
+# v = the release (release= in android/version.properties), go = the screen the tour opens (home, probe), at = what it
+# points at (may be empty), say = one line pitch (release v's say= is also its GitHub release notes), tryIt = what to try.
+# release-guard holds a release without its block (go, say and tryIt filled in).
+
+v=1
+go=home
+at=
+say=Play next is on your phone as its own app now, and from here on it updates itself.
+tryIt=Run the 120 Hz test folded, then again unfolded. Each result goes to Claude by itself.

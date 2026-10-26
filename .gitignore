@@ -19,3 +19,19 @@ tools/.cache/
 
 # test tools installed with npm i --no-save (ESLint, Playwright): never committed
 node_modules/
+
+# Android (android/): build output, IDE files and anything that could hold a signing key
+android/**/build/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/.idea/
+android/captures/
+*.iml
+*.jks
+*.keystore
+*.p12
+key.properties
+*.apk
+*.aab
+android/app/src/release/generated/
