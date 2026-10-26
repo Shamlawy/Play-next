@@ -3,7 +3,7 @@
 ## Start here (every session reads this first and updates it last)
 
 - **Status:** not started. Building starts **Monday Oct 26 2026, 12 PM UAE time** (the owner: "app building starts on Monday 12 pm uae time this is when my weekly reset happens", they had 20% of their weekly limit left on Oct 22). A scheduled task (`trig_011SeTVQUtaJNsxY4dLbXkCi`, one-shot, 08:00 UTC) wakes this plan's Oct 22 chat then to start Phase 0. Don't start build work before it.
-- **Next step:** Phase 0's Brief (see "The phases"), on Monday Oct 26, 12 PM UAE time; its Map run only after the owner says go.
+- **Next step:** the owner answers Phase 0's Brief (sent Oct 26, 12:05 PM UAE time, in the Oct 22 chat: 3 pieces, the header card question, "go" with the word ultracode). Then the Map run. `dl.google.com` was still blocked on Oct 26.
 - **How to start:** the owner says "start Phase 0" (or "next phase") in any chat. That chat reads this file and sends that phase's Brief first; it builds nothing until the owner answers it. The Monday scheduled task's prompt still says "its Map run first" (written Oct 22, and it can only be changed from the Oct 22 chat): the Brief comes before it anyway.
 - **Last session:** Oct 22 2026, 1:40 AM UAE time: an ultracode check of this plan (4 review lenses, a skeptic per lens, a completeness critic). All 49 findings were confirmed, plus 7 from the critic, and the plan was rewritten with them. Nothing is built yet.
 
