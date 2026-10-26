@@ -1,6 +1,6 @@
 ---
 name: play-next-design
-description: Play next's house style for any screen, sheet, card, button or other UI change in index.html, and for turning a reference design the owner shares into our look. Use before designing or restyling anything visible in the app ("make it look better", "copy this design", a new screen, a new card, a Settings group), and run its checks (design-check.mjs, the design eye `kit.mjs eye`) before a UI change ships. Also use it whenever the owner picks a look, calls something ugly or shares a reference: record it in the taste log (tools/taste.mjs) so the skill keeps learning. Our rules win over the outside design and motion skills.
+description: Play next's house style for any screen, sheet, card, button or other UI change in index.html or in the native Android app's Jetpack Compose screens (android/, Kotlin), and for turning a reference design the owner shares into our look. Use before designing or restyling anything visible in either app ("make it look better", "copy this design", a new screen, a new card, a Settings group, a new composable), and run its checks before a UI change ships (web: design-check.mjs and the design eye `kit.mjs eye`; Android: the Gradle lint and screenshot tests). Also use it whenever the owner picks a look, calls something ugly or shares a reference: record it in the taste log (tools/taste.mjs) so the skill keeps learning. Our rules win over the outside design and motion skills.
 ---
 
 # Play next house style
@@ -114,3 +114,16 @@ Whenever the owner picks a look, calls something ugly, or says "I hate how it lo
 4. `node tools/taste.mjs gaps` lists the rules nothing checks yet: the next things to teach the eye when there's time (open cards of equal height, one main action on a game page, an effect too subtle to spot…).
 
 Ways to grow it next (offer, don't start unasked): a "same height" kind for cards meant to match (T8); a "one main action" count on the game page (T10); an "effect visible" pixel diff for game-page colour effects (T18); before/after pairs for every look the owner picks from demos.
+
+## 10. Android (Compose)
+
+The native app in `android/` (Kotlin + Jetpack Compose, the owner's Fold only) wears the same look: sections 1-5 and the taste log apply as written. What changes is how the rules are kept in Compose (docs/ANDROID-PLAN.md gate 6 makes each one a named lint check where code can check it):
+
+- Colours only from the token list generated from index.html (the `:root` / `html.ui2` tokens, `PALETTE`, `BG_BASES`), never a `Color(0x…)` literal in a screen. No Material You dynamic colour (`dynamicDarkColorScheme` / `dynamicLightColorScheme`): we're always black.
+- No ripple and no touch effect: the root `LocalIndication` is none, so nothing draws under the finger; never pass a ripple or Material indication to `clickable` / `combinedClickable`. No press scale, lift or fade (#309): nothing reacts to a press but the action itself.
+- Animate only `graphicsLayer` translation, scale, alpha and rotation, and read the animated value in the draw/layer phase (the lambda `Modifier.graphicsLayer { … }` / `Modifier.offset { … }` forms), never in composition or layout. No animated size, padding, colour of a large surface, blur or shader.
+- One still background layer (the base colour + the soft gradient, section 3), nothing moving behind the screens. No overscroll stretch or glow (`LocalOverscrollFactory` provides null).
+- Icons are drawn (`GICON`, 24x24, one part at 35%), never emoji, and every icon that carries meaning has a TalkBack `contentDescription` (null only when a text label beside it already says it).
+- Touch targets are at least 48dp, even when the drawn thing is smaller.
+- Font scale is capped at 1.3 for fixed-size labels (tab labels, header stats, straps, tickets); body text follows the phone's setting. Short things stay whole (`softWrap = false, maxLines = 1`, section 4).
+- Headlines are balanced: `TextStyle(lineBreak = LineBreak.Heading)`.
