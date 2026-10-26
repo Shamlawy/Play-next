@@ -1,0 +1,195 @@
+# One-time, by hand (Actions tab > "Android signing key: copy to Cloudflare" > Run workflow, type COPY-THE-KEY).
+# It does NOT make a key. The owner's PC made the Android release signing key and put it in two repository secrets:
+# ANDROID_SIGNING_P12_B64 (the PKCS12 .p12 as base64) and ANDROID_SIGNING_PASSWORD. This copies both into two Cloudflare KV
+# namespaces with these exact titles: playnext-android-signing and playnext-android-signing-copy (made when missing;
+# never a title with "nudge" in it, which deploy-helper.yml takes for the helper's own namespace). Keys: keystore, password.
+# It refuses when either namespace already holds a different keystore (losing the old key means phones stop updating),
+# says so and stops cleanly when both already hold this one, reads both copies back and compares, and at the end prints
+# only the certificate's SHA-256 (public) for android/signing-cert.txt. Values never go on a command line or into the log.
+# Needs CLOUDFLARE_API_TOKEN (Workers KV Storage: Edit); CLOUDFLARE_ACCOUNT_ID is optional, as in deploy-helper.yml.
+name: "Android signing key: copy to Cloudflare"
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type COPY-THE-KEY to copy the signing key from the GitHub secrets into Cloudflare KV"
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: android-signing-key
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+jobs:
+  copy:
+    name: Copy the signing key into Cloudflare KV
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Check the key, copy it into both namespaces, read both back
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          P12_B64: ${{ secrets.ANDROID_SIGNING_P12_B64 }}
+          P12_PASS: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ "$CONFIRM" != "COPY-THE-KEY" ]; then echo "::error::Type COPY-THE-KEY in the confirm box to run this."; exit 1; fi
+          if [ -z "$P12_B64" ]; then echo "::error::The ANDROID_SIGNING_P12_B64 secret is missing or empty."; exit 1; fi
+          if [ -z "$P12_PASS" ]; then echo "::error::The ANDROID_SIGNING_PASSWORD secret is missing or empty."; exit 1; fi
+          if [ -z "$TOKEN" ]; then echo "::error::The CLOUDFLARE_API_TOKEN secret is missing or empty."; exit 1; fi
+          T=$(mktemp -d "$RUNNER_TEMP/signing.XXXXXX")
+          trap 'rm -rf "$T"' EXIT
+          cd "$T"   # an empty folder: wrangler finds no config file here, so namespace titles stay exactly as given
+
+          # The key as the release workflow reads it: base64 with no spaces or line breaks (certutil's BEGIN/END lines
+          # dropped), the password with no line breaks. Kept in files and an unexported variable from here on.
+          printf '%s' "$P12_PASS" | tr -d '\r\n' > p.txt
+          PASS=$(cat p.txt)
+          if [ -z "$PASS" ]; then echo "::error::ANDROID_SIGNING_PASSWORD is only line breaks."; exit 1; fi
+          echo "::add-mask::$PASS"
+          printf '%s\n' "$P12_B64" | { grep -v -e '^-----' || true; } | tr -d '[:space:]' > k.b64
+          unset P12_B64 P12_PASS   # nothing started from here on (npx, wrangler) needs them
+          if ! grep -Eq '^[A-Za-z0-9+/]+={0,2}$' k.b64; then echo "::error::ANDROID_SIGNING_P12_B64 isn't base64 text."; exit 1; fi
+          if ! base64 -d k.b64 > k.p12 2>/dev/null; then echo "::error::ANDROID_SIGNING_P12_B64 doesn't decode as base64."; exit 1; fi
+          if ! PN_PASS="$PASS" keytool -list -keystore k.p12 -storetype PKCS12 -storepass:env PN_PASS -alias playnext >/dev/null 2>&1; then
+            echo "::error::The secrets don't fit together: ANDROID_SIGNING_P12_B64 must be a PKCS12 keystore holding the alias playnext that ANDROID_SIGNING_PASSWORD opens."
+            exit 1
+          fi
+          # the release build uses the store password as the key password too: prove the private key opens with it
+          if ! PN_PASS="$PASS" keytool -certreq -keystore k.p12 -storetype PKCS12 -storepass:env PN_PASS -keypass:env PN_PASS -alias playnext -file req.csr >/dev/null 2>&1; then
+            echo "::error::The private key inside doesn't open with ANDROID_SIGNING_PASSWORD (the release build uses it as the key password too)."
+            exit 1
+          fi
+          rm -f req.csr
+          want_k=$(sha256sum < k.b64 | cut -d' ' -f1)
+          want_p=$(sha256sum < p.txt | cut -d' ' -f1)
+          echo "The secrets hold a PKCS12 keystore with the alias playnext, and the password opens it."
+
+          # Cloudflare: the same token handling as deploy-helper.yml
+          W="npx --yes wrangler@4.152.0"
+          export WRANGLER_SEND_METRICS=false
+          TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:]'); ACCOUNT=$(printf '%s' "$ACCOUNT" | tr -d '[:space:]')
+          if printf '%s' "$TOKEN" | grep -Eq '^[0-9a-f]{32}$'; then
+            echo "::error::CLOUDFLARE_API_TOKEN holds a 32-character ID, not the token itself."
+            exit 1
+          fi
+          export CLOUDFLARE_API_TOKEN="$TOKEN"
+          if [ -z "$ACCOUNT" ]; then
+            if ! $W whoami > who.txt 2>&1; then tail -n 5 who.txt; echo "::error::Cloudflare didn't accept CLOUDFLARE_API_TOKEN."; exit 1; fi
+            ACCOUNT=$(grep -Eo '[0-9a-f]{32}' who.txt | head -n 1 || true)
+          fi
+          if [ -z "$ACCOUNT" ]; then echo "::error::Couldn't tell which Cloudflare account to use. Add a CLOUDFLARE_ACCOUNT_ID secret."; exit 1; fi
+          export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT"
+
+          ns_id() { # $1 = exact namespace title -> its id, or nothing when there's none
+            $W kv namespace list > ns.json 2> ns.err || { tail -n 5 ns.err >&2; return 1; }
+            node -e '
+              const s = require("fs").readFileSync(process.argv[2], "utf8");
+              const a = JSON.parse(s.slice(s.indexOf("[")));
+              const hit = a.filter(x => x.title === process.argv[1]);
+              if (hit.length > 1) { console.error("More than one namespace is titled " + process.argv[1]); process.exit(2); }
+              process.stdout.write(hit.length ? String(hit[0].id) : "");
+            ' "$1" "$T/ns.json"
+          }
+          ensure_ns() { # $1 = exact title -> its id, making the namespace when it's missing
+            local id
+            id=$(ns_id "$1") || return 1
+            if [ -z "$id" ]; then
+              echo "Making the KV namespace $1" >&2
+              $W kv namespace create "$1" > create.log 2>&1 || { tail -n 10 create.log >&2; return 1; }
+              id=$(ns_id "$1") || return 1
+            fi
+            [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo "No usable id for $1" >&2; return 1; }
+            printf '%s' "$id"
+          }
+          has_key() { # $1 = namespace id, $2 = key name -> 0 there, 1 not there, 2 couldn't tell (names only, never values)
+            $W kv key list --namespace-id "$1" --remote --prefix "$2" > keys.json 2> keys.err || { tail -n 5 keys.err >&2; return 2; }
+            node -e '
+              const s = require("fs").readFileSync(process.argv[2], "utf8");
+              let a; try { a = JSON.parse(s.slice(s.indexOf("["))); } catch (e) { process.exit(2); }
+              process.exit(Array.isArray(a) && a.some(k => k.name === process.argv[1]) ? 0 : 1);
+            ' "$2" "$T/keys.json"
+          }
+          get_hash() { # $1 = namespace id, $2 = key -> sha256 of the stored value (normalised like the secret), read into a file
+            $W kv key get "$2" --namespace-id "$1" --remote > got.raw 2> got.err || { tail -n 5 got.err >&2; rm -f got.raw; return 1; }
+            if [ "$2" = keystore ]; then tr -d '[:space:]' < got.raw > got.val; else tr -d '\r\n' < got.raw > got.val; fi
+            sha256sum < got.val | cut -d' ' -f1
+            rm -f got.raw got.val
+          }
+          state() { # $1 = namespace id, $2 = key, $3 = wanted sha256 -> none | same | differs
+            local rc=0 h
+            has_key "$1" "$2" || rc=$?
+            if [ "$rc" = 1 ]; then echo none; return 0; fi
+            if [ "$rc" != 0 ]; then return 1; fi
+            h=$(get_hash "$1" "$2") || return 1
+            if [ "$h" = "$3" ]; then echo same; else echo differs; fi
+          }
+
+          ids=""; todo=""; refuse=""
+          for title in playnext-android-signing playnext-android-signing-copy; do
+            id=$(ensure_ns "$title") || { echo "::error::Couldn't find or make the KV namespace $title."; exit 1; }
+            ks=$(state "$id" keystore "$want_k") || { echo "::error::Couldn't read the keystore entry of $title."; exit 1; }
+            pw=$(state "$id" password "$want_p") || { echo "::error::Couldn't read the password entry of $title."; exit 1; }
+            echo "$title: keystore $ks, password $pw"
+            ids="$ids $title=$id"
+            if [ "$ks" = differs ]; then refuse="$refuse $title"; fi
+            if [ "$ks" != same ] || [ "$pw" != same ]; then todo="$todo $title=$id"; fi
+          done
+          if [ -n "$refuse" ]; then
+            echo "::error::A different signing key is already stored in:$refuse. Nothing was changed. Phones only install updates signed with the key they already have, so find out which key the installed app uses before replacing anything."
+            exit 1
+          fi
+
+          if [ -z "$todo" ]; then
+            echo "Both copies already hold this key and its password: nothing to write."
+          else
+            for pair in $todo; do
+              title=${pair%%=*}; id=${pair#*=}
+              $W kv key put keystore --path "$T/k.b64" --namespace-id "$id" --remote > put.log 2>&1 \
+                || { tail -n 5 put.log; echo "::error::Couldn't write the keystore into $title."; exit 1; }
+              $W kv key put password --path "$T/p.txt" --namespace-id "$id" --remote > put.log 2>&1 \
+                || { tail -n 5 put.log; echo "::error::Couldn't write the password into $title."; exit 1; }
+              echo "$title: written"
+            done
+            # read both copies back (KV can take a moment to show a new value)
+            for pair in $ids; do
+              title=${pair%%=*}; id=${pair#*=}
+              ok=""
+              for try in 1 2 3 4 5 6; do
+                hk=$(get_hash "$id" keystore || true)
+                hp=$(get_hash "$id" password || true)
+                if [ "$hk" = "$want_k" ] && [ "$hp" = "$want_p" ]; then ok=1; break; fi
+                if [ "$try" -lt 6 ]; then sleep 10; fi
+              done
+              if [ -z "$ok" ]; then echo "::error::$title read back: differs"; exit 1; fi
+              echo "$title read back: same"
+            done
+          fi
+
+          # the certificate fingerprint is public: it goes into android/signing-cert.txt so every release can check its key
+          SHA=$(PN_PASS="$PASS" keytool -list -v -keystore k.p12 -storetype PKCS12 -storepass:env PN_PASS -alias playnext 2>/dev/null \
+            | awk '/^[[:space:]]*SHA256:/ && !f { print $2; f = 1 }' || true)
+          if [ -z "$SHA" ]; then echo "::error::Couldn't read the certificate's SHA-256."; exit 1; fi
+          echo "Signing certificate SHA-256: $SHA"
+          {
+            echo "### Android signing key"
+            echo
+            echo "Both Cloudflare KV copies (playnext-android-signing, playnext-android-signing-copy) hold the key."
+            echo "Certificate SHA-256, the line for android/signing-cert.txt:"
+            echo
+            echo '```'
+            echo "$SHA"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

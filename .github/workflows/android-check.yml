@@ -1,0 +1,209 @@
+# Checks the Android app (android/) on every pull request that touches it: the Gradle wrapper is the real one, unit tests,
+# lint and a release build (R8, signed with the debug key: a throwaway, so a PR never sees the real key), the APK has no
+# native code or is 16 KB aligned, and it stays under 30 MB. The live helper must still answer the app's Origin and refuse
+# another one, and the problem-report filing rules (tools/bugsync-check.mjs) must still hold.
+# A PR that only changes android/parity/ (notes) skips the build and the helper call, so it stays cheap, but the run still
+# ends green on its head commit. No secrets, read-only token. Every action is pinned to a commit (public repo).
+name: Android check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-*.yml"
+      - ".github/scripts/bugsync.mjs"
+      - "tools/bugsync-check.mjs"
+permissions:
+  contents: read
+concurrency:
+  group: android-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.what.outputs.app }}
+    steps:
+      # The merge commit and its two parents, trees only: enough to list what the PR changes, without the repo's files.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          filter: blob:none
+          sparse-checkout: /.github/workflows/android-check.yml
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: "App code changed (more than android/parity notes)"
+        id: what
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          app=true
+          if [ "$EVENT" = "pull_request" ] && git rev-parse -q --verify 'HEAD^2' >/dev/null; then
+            # HEAD is GitHub's merge of the PR into its base: parent 1 = the base, so this is exactly what the PR changes
+            git diff --no-renames --name-only 'HEAD^1' HEAD > "$RUNNER_TEMP/changed.txt"
+            grep -v '^android/parity/' "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/rest.txt" || true
+            if grep -Eq '^(android/|\.github/workflows/android-)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
+            echo "$(wc -l < "$RUNNER_TEMP/changed.txt") files changed; app build needed: $app"
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build, unit tests, lint (release, debug-signed)
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      # validates every gradle-wrapper.jar against Gradle's published checksums (validate-wrappers defaults to true);
+      # the open-source cache provider, read-only on PR branches (its default)
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+          validate-wrappers: true
+      - name: "SDK packages (best effort: Gradle fetches anything missing by itself)"
+        run: |
+          set -uo pipefail
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then
+            yes 2>/dev/null | "$SDKM" --licenses >/dev/null 2>&1 || true
+            "$SDKM" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null 2>&1 \
+              || echo "::notice::sdkmanager couldn't preinstall platform 37.0 / build-tools 37.0.0; Gradle will fetch them"
+          else
+            echo "::notice::No sdkmanager at $SDKM; Gradle will fetch what it needs"
+          fi
+          exit 0
+      - name: "Unit tests, lint and the release build"
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          # no PN_SIGNING_* here: the release build signs with the debug key, the throwaway key for PRs
+          ./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease --stacktrace
+      - name: "16 KB pages: no native code in the APK, or it is 16 KB aligned"
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+          [ -f "$APK" ] || { echo "::error::No APK at android/$APK"; exit 1; }
+          unzip -Z1 "$APK" > "$RUNNER_TEMP/apk-files.txt"
+          grep -E '\.so$' "$RUNNER_TEMP/apk-files.txt" > "$RUNNER_TEMP/apk-so.txt" || true
+          if [ ! -s "$RUNNER_TEMP/apk-so.txt" ]; then
+            echo "No native libraries (.so) in the APK: nothing to align, 16 KB pages are fine."
+            exit 0
+          fi
+          echo "Native libraries in the APK:"; cat "$RUNNER_TEMP/apk-so.txt"
+          BT="$ANDROID_HOME/build-tools/37.0.0"
+          if [ ! -x "$BT/zipalign" ]; then BT=$( (ls -d "$ANDROID_HOME"/build-tools/*/ 2>/dev/null || true) | sort -V | tail -n 1); BT="${BT%/}"; fi
+          [ -n "$BT" ] && [ -x "$BT/zipalign" ] || { echo "::error::No zipalign in $ANDROID_HOME/build-tools"; exit 1; }
+          if "$BT/zipalign" -c -P 16 -v 4 "$APK" > "$RUNNER_TEMP/zipalign.txt" 2>&1; then
+            tail -n 1 "$RUNNER_TEMP/zipalign.txt"
+          else
+            tail -n 30 "$RUNNER_TEMP/zipalign.txt"
+            echo "::error::The APK has native libraries that aren't 16 KB aligned (zipalign -c -P 16 failed). Android 15+ phones with 16 KB pages can't load them."
+            exit 1
+          fi
+      - name: "Size budget: 30 MB"
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+          SIZE=$(stat -c %s "$APK")
+          MAX=$((30 * 1024 * 1024))
+          MB=$(awk -v s="$SIZE" 'BEGIN { printf "%.2f", s / 1048576 }')
+          echo "APK size: $SIZE bytes ($MB MB), budget 30 MB"
+          echo "APK size: **$MB MB** ($SIZE bytes), budget 30 MB" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "::error::The APK is $MB MB, over the 30 MB budget."
+            exit 1
+          fi
+      - name: Keep the APK (debug-signed, for trying the PR)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Keep the lint and test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  helper:
+    name: "Live helper: Origin rule"
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: "The live helper answers our Origin and refuses another"
+        run: |
+          set -euo pipefail
+          # The app sends Origin: https://shamlawy.github.io on every helper call. A read-only probe: an all-zero backup id
+          # and token (the helper reads the token from Authorization: Bearer, not from the query string).
+          H="https://playnext-helper.hussamnabil48.workers.dev"
+          ID=$(printf '%024d' 0)
+          TOK=$(printf '%064d' 0)
+          probe() { # $1 = Origin, $2 = file for the body -> prints the HTTP status, 000 when nothing answered
+            local code
+            code=$(curl -sS -m 20 -o "$2" -w '%{http_code}' -H "Origin: $1" -H "Authorization: Bearer $TOK" \
+              "$H/vault/list?id=$ID" 2>>"$RUNNER_TEMP/curl.err") || code=000
+            printf '%s' "$code"
+          }
+          down() { case "$1" in 000|429|5??) return 0 ;; *) return 1 ;; esac; }
+          GOOD="$RUNNER_TEMP/good.json"; BAD="$RUNNER_TEMP/bad.json"
+          good=000; bad=000
+          for try in 1 2 3; do
+            : > "$GOOD"; : > "$BAD"
+            good=$(probe "https://shamlawy.github.io" "$GOOD")
+            bad=$(probe "https://example.com" "$BAD")
+            echo "Try $try: Origin shamlawy.github.io -> $good, Origin example.com -> $bad"
+            if [ "$good" = 200 ] && [ "$bad" = 403 ]; then
+              if jq -e '.list | type == "array"' "$GOOD" >/dev/null 2>&1 && jq -e '.error == "origin"' "$BAD" >/dev/null 2>&1; then
+                echo "The helper answers the app's Origin (200, a backup list) and refuses another Origin (403 origin)."
+                exit 0
+              fi
+              echo "Unexpected bodies: $(head -c 200 "$GOOD") / $(head -c 200 "$BAD")"
+            fi
+            if ! down "$good" && ! down "$bad"; then break; fi
+            if [ "$try" -lt 3 ]; then sleep 15; fi
+          done
+          if down "$good" || down "$bad"; then
+            [ -s "$RUNNER_TEMP/curl.err" ] && tail -n 3 "$RUNNER_TEMP/curl.err"
+            echo "::error::Helper down: playnext-helper.hussamnabil48.workers.dev didn't answer properly 3 times (statuses $good / $bad). Not a problem in this PR: re-run this job once the helper is back."
+          else
+            echo "::error::The helper answered, but not the way the app relies on: our Origin got $good (want 200 with a {\"list\":[...]} body), another Origin got $bad (want 403 with {\"error\":\"origin\"}). Check ALLOW and vault() in worker/helper.js and the deployed helper."
+          fi
+          exit 1
+
+  bugsync:
+    name: Problem-report filing rules (bugsync-check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+      - name: "bugsync.mjs files, holds and folds reports the right way (offline, made-up reports)"
+        run: node tools/bugsync-check.mjs

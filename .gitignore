@@ -34,3 +34,4 @@ android/captures/
 key.properties
 *.apk
 *.aab
+android/app/src/release/generated/
