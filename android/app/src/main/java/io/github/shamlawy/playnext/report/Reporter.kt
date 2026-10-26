@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.shamlawy.playnext.Device
 import io.github.shamlawy.playnext.Screen
 import io.github.shamlawy.playnext.Store
+import io.github.shamlawy.playnext.crash.swapIn
 import io.github.shamlawy.playnext.net.Net
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,7 @@ object Reporter {
 
     /** Builds the report the way index.html does. Returns null when it was already sent today. */
     fun build(kind: String, msg: String, stack: String = "", at: String = "", note: String = "", screen: String = Screen.current, now: Long = System.currentTimeMillis()): Report? {
+        if (Device.emulator) return null
         val m = Scrub.text(msg, names, secrets).trim()
         if (m.isEmpty()) return null
         val a = Scrub.text(at, names, secrets)
@@ -119,7 +121,7 @@ object Reporter {
     private fun write(rs: List<Report>) {
         val tmp = File(queueFile.parentFile, "queue.tmp")
         tmp.writeText(json.encodeToString(ListSerializer(Report.serializer()), rs))
-        tmp.renameTo(queueFile)
+        swapIn(tmp, queueFile)
     }
 
     private val sentSer = MapSerializer(String.serializer(), String.serializer())

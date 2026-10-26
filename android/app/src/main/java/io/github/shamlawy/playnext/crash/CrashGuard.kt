@@ -7,12 +7,13 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
-import io.github.shamlawy.playnext.Screen
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.report.Report
 import io.github.shamlawy.playnext.report.Reporter
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Never stuck on a bad version: a crash within a minute of start counts, a minute of calm clears the count, and two in a
@@ -35,12 +36,17 @@ class CrashCounter(private val dir: File) {
         dir.mkdirs()
         val tmp = File(dir, "early.tmp")
         tmp.writeText(n.toString())
-        tmp.renameTo(file)
+        swapIn(tmp, file)
     }
 
     companion object {
         const val WINDOW_MS = 60_000L
     }
+}
+
+/** Write a new file, then swap it in: a crash mid-write never leaves half a file (renameTo won't replace on every JVM). */
+fun swapIn(tmp: File, dest: File) {
+    Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
 }
 
 object CrashGuard {
@@ -103,6 +109,5 @@ object CrashGuard {
                 else -> Unit
             }
         }
-        Screen.set(ctx, Screen.current)
     }
 }

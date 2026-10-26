@@ -63,6 +63,6 @@
             </intent-filter>
         </receiver>
 
-        <profileable android:shell="true" tools:targetApi="29" />
+        <profileable android:shell="true" />
     </application>
 </manifest>

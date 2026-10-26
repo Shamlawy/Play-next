@@ -80,6 +80,12 @@ android {
     }
 }
 
+// Unit tests read repo files the app must agree with (worker/helper.js's routes, the what's-new file).
+val repoDir: String = rootDir.parentFile.absolutePath
+tasks.withType<Test>().configureEach {
+    systemProperty("pn.repo", repoDir)
+}
+
 baselineProfile {
     // Generated on the CI emulator by android-release.yml, never committed.
     saveInSrc = true

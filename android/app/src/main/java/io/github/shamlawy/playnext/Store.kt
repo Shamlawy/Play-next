@@ -18,7 +18,7 @@ object Store {
 /** Which screen is open: reports name it, and Android's exit records keep it (setProcessStateSummary). */
 object Screen {
     @Volatile
-    var current: String = "home"
+    var current: String = "" // "" = still starting; the first set() always writes
         private set
 
     fun set(ctx: Context, name: String) {
@@ -41,4 +41,8 @@ object Device {
         ("App Android ${Build.VERSION.RELEASE} ${Build.MODEL} " + if (unfolded(ctx)) "unfolded" else "folded").take(40)
 
     val versionCode: Int get() = BuildConfig.VERSION_CODE
+
+    /** CI's emulators (the smoke test, the Baseline Profile run) file nothing: their reports would only be noise. */
+    val emulator: Boolean
+        get() = Build.HARDWARE == "ranchu" || Build.HARDWARE == "goldfish" || Build.FINGERPRINT?.startsWith("generic") == true
 }

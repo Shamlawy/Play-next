@@ -1,0 +1,10 @@
+# The Android app's own what's new (the web app's WHATS_NEW is generated separately from index.html).
+# One block per release=N in android/version.properties, newest last, a blank line between blocks:
+#   v = the release, go = the screen it opens, at = what it points at, say = the one-line pitch (also the
+#   GitHub release notes), tryIt = what to try. release-guard holds an Android release without its block.
+
+v=1
+go=home
+at=probe
+say=Play next as a real Android app: it keeps itself up to date and starts with a 120 Hz smoothness test.
+tryIt=Let the 120 Hz test run once without touching it (about 16 seconds), then tap Allow under Updates so new versions install by themselves.

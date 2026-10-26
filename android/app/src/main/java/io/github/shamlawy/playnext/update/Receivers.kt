@@ -46,6 +46,7 @@ class InstallResultReceiver : BroadcastReceiver() {
 /** Runs in the new version right after an update: the next open says "Updated to vN" and the crash count starts over. */
 class PackageReplacedReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         Store.init(ctx)
         Store.prefs.edit().putInt("updatedTo", BuildConfig.VERSION_CODE).remove("updSession").apply()
         runCatching { CrashGuard.counter.calm() }
