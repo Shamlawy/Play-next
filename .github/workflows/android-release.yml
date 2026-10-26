@@ -87,7 +87,7 @@ jobs:
             fi
             go=false
           fi
-          # Until the one-time key step has run (the key made on the owner's PC, its certificate SHA-256 written to
+          # Until the one-time key step has run (android-signing-key.yml made the key, its certificate SHA-256 written to
           # android/signing-cert.txt) there is nothing to sign with: wait quietly instead of failing 20 minutes in.
           # The commit that fills signing-cert.txt touches android/, so it starts this release by itself.
           CERT=$(tr -d ':[:space:]' < android/signing-cert.txt 2>/dev/null || true)

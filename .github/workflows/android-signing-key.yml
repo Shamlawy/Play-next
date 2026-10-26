@@ -1,18 +1,22 @@
-# One-time, by hand (Actions tab > "Android signing key: copy to Cloudflare" > Run workflow, type COPY-THE-KEY).
-# It does NOT make a key. The owner's PC made the Android release signing key and put it in two repository secrets:
-# ANDROID_SIGNING_P12_B64 (the PKCS12 .p12 as base64) and ANDROID_SIGNING_PASSWORD. This copies both into two Cloudflare KV
-# namespaces with these exact titles: playnext-android-signing and playnext-android-signing-copy (made when missing;
+# One-time, by hand (Actions tab > "Android signing key: copy to Cloudflare" > Run workflow), with one of two words:
+#   COPY-THE-KEY: a key already sits in two repository secrets, ANDROID_SIGNING_P12_B64 (the PKCS12 .p12 as base64) and
+#     ANDROID_SIGNING_PASSWORD (made on a computer); this copies both into the two Cloudflare KV namespaces.
+#   MAKE-THE-KEY (Oct 26, docs/ANDROID-PLAN.md Decisions: a cloud chat can't write repository secrets): only when both
+#     secrets are empty, it makes the key on this runner (RSA 4096, alias playnext, 100 years, a random 40-character
+#     password that is the key password too) and writes it into the two namespaces, which are then its only copies.
+# The namespaces have these exact titles: playnext-android-signing and playnext-android-signing-copy (made when missing;
 # never a title with "nudge" in it, which deploy-helper.yml takes for the helper's own namespace). Keys: keystore, password.
 # It refuses when either namespace already holds a different keystore (losing the old key means phones stop updating),
 # says so and stops cleanly when both already hold this one, reads both copies back and compares, and at the end prints
-# only the certificate's SHA-256 (public) for android/signing-cert.txt. Values never go on a command line or into the log.
+# only the certificate's SHA-256 (public) for android/signing-cert.txt. Values never go on a command line or into the log
+# (public repo: anyone can read this log). The key files live in a runner temp folder deleted at the end of the step.
 # Needs CLOUDFLARE_API_TOKEN (Workers KV Storage: Edit); CLOUDFLARE_ACCOUNT_ID is optional, as in deploy-helper.yml.
 name: "Android signing key: copy to Cloudflare"
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type COPY-THE-KEY to copy the signing key from the GitHub secrets into Cloudflare KV"
+        description: "COPY-THE-KEY copies the key from the GitHub secrets into Cloudflare KV; MAKE-THE-KEY makes it here, only when both secrets are empty"
         required: true
         type: string
 permissions: {}
@@ -45,24 +49,55 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          if [ "$CONFIRM" != "COPY-THE-KEY" ]; then echo "::error::Type COPY-THE-KEY in the confirm box to run this."; exit 1; fi
-          if [ -z "$P12_B64" ]; then echo "::error::The ANDROID_SIGNING_P12_B64 secret is missing or empty."; exit 1; fi
-          if [ -z "$P12_PASS" ]; then echo "::error::The ANDROID_SIGNING_PASSWORD secret is missing or empty."; exit 1; fi
+          case "$CONFIRM" in
+            COPY-THE-KEY) MODE=copy ;;
+            MAKE-THE-KEY) MODE=make ;;
+            *) echo "::error::Type COPY-THE-KEY (or MAKE-THE-KEY when there are no key secrets) in the confirm box to run this."; exit 1 ;;
+          esac
+          if [ "$MODE" = copy ]; then
+            if [ -z "$P12_B64" ]; then echo "::error::The ANDROID_SIGNING_P12_B64 secret is missing or empty."; exit 1; fi
+            if [ -z "$P12_PASS" ]; then echo "::error::The ANDROID_SIGNING_PASSWORD secret is missing or empty."; exit 1; fi
+          elif [ -n "$P12_B64" ] || [ -n "$P12_PASS" ]; then
+            echo "::error::The GitHub secrets already hold a signing key, so nothing was made. Run this with COPY-THE-KEY to copy that key instead."
+            exit 1
+          fi
           if [ -z "$TOKEN" ]; then echo "::error::The CLOUDFLARE_API_TOKEN secret is missing or empty."; exit 1; fi
           T=$(mktemp -d "$RUNNER_TEMP/signing.XXXXXX")
           trap 'rm -rf "$T"' EXIT
           cd "$T"   # an empty folder: wrangler finds no config file here, so namespace titles stay exactly as given
 
-          # The key as the release workflow reads it: base64 with no spaces or line breaks (certutil's BEGIN/END lines
-          # dropped), the password with no line breaks. Kept in files and an unexported variable from here on.
-          printf '%s' "$P12_PASS" | tr -d '\r\n' > p.txt
-          PASS=$(cat p.txt)
-          if [ -z "$PASS" ]; then echo "::error::ANDROID_SIGNING_PASSWORD is only line breaks."; exit 1; fi
-          echo "::add-mask::$PASS"
-          printf '%s\n' "$P12_B64" | { grep -v -e '^-----' || true; } | tr -d '[:space:]' > k.b64
-          unset P12_B64 P12_PASS   # nothing started from here on (npx, wrangler) needs them
-          if ! grep -Eq '^[A-Za-z0-9+/]+={0,2}$' k.b64; then echo "::error::ANDROID_SIGNING_P12_B64 isn't base64 text."; exit 1; fi
-          if ! base64 -d k.b64 > k.p12 2>/dev/null; then echo "::error::ANDROID_SIGNING_P12_B64 doesn't decode as base64."; exit 1; fi
+          if [ "$MODE" = make ]; then
+            # a random 40-character password straight into a file (letters and digits, crypto.randomInt: no bias)
+            node -e '
+              const c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", r = require("crypto");
+              let s = ""; for (let i = 0; i < 40; i++) s += c[r.randomInt(c.length)];
+              require("fs").writeFileSync("p.txt", s, { mode: 0o600 });
+            '
+            PASS=$(cat p.txt)
+            if [ "${#PASS}" != 40 ]; then echo "::error::Couldn't make the password."; exit 1; fi
+            echo "::add-mask::$PASS"
+            if ! PN_PASS="$PASS" keytool -genkeypair -storetype PKCS12 -keystore k.p12 -alias playnext -keyalg RSA -keysize 4096 \
+              -validity 36500 -dname "CN=Play next" -storepass:env PN_PASS -keypass:env PN_PASS > gen.log 2>&1; then
+              grep -v -i pass gen.log | tail -n 5 || true
+              echo "::error::keytool couldn't make the key."
+              exit 1
+            fi
+            rm -f gen.log
+            base64 -w 0 k.p12 > k.b64
+            unset P12_B64 P12_PASS
+            echo "Made a new signing key on this runner (RSA 4096, alias playnext, valid 100 years)."
+          else
+            # The key as the release workflow reads it: base64 with no spaces or line breaks (certutil's BEGIN/END lines
+            # dropped), the password with no line breaks. Kept in files and an unexported variable from here on.
+            printf '%s' "$P12_PASS" | tr -d '\r\n' > p.txt
+            PASS=$(cat p.txt)
+            if [ -z "$PASS" ]; then echo "::error::ANDROID_SIGNING_PASSWORD is only line breaks."; exit 1; fi
+            echo "::add-mask::$PASS"
+            printf '%s\n' "$P12_B64" | { grep -v -e '^-----' || true; } | tr -d '[:space:]' > k.b64
+            unset P12_B64 P12_PASS   # nothing started from here on (npx, wrangler) needs them
+            if ! grep -Eq '^[A-Za-z0-9+/]+={0,2}$' k.b64; then echo "::error::ANDROID_SIGNING_P12_B64 isn't base64 text."; exit 1; fi
+            if ! base64 -d k.b64 > k.p12 2>/dev/null; then echo "::error::ANDROID_SIGNING_P12_B64 doesn't decode as base64."; exit 1; fi
+          fi
           if ! PN_PASS="$PASS" keytool -list -keystore k.p12 -storetype PKCS12 -storepass:env PN_PASS -alias playnext >/dev/null 2>&1; then
             echo "::error::The secrets don't fit together: ANDROID_SIGNING_P12_B64 must be a PKCS12 keystore holding the alias playnext that ANDROID_SIGNING_PASSWORD opens."
             exit 1
@@ -75,7 +110,7 @@ jobs:
           rm -f req.csr
           want_k=$(sha256sum < k.b64 | cut -d' ' -f1)
           want_p=$(sha256sum < p.txt | cut -d' ' -f1)
-          echo "The secrets hold a PKCS12 keystore with the alias playnext, and the password opens it."
+          echo "The key is a PKCS12 keystore with the alias playnext, and the password opens it."
 
           # Cloudflare: the same token handling as deploy-helper.yml
           W="npx --yes wrangler@4.152.0"
@@ -148,7 +183,11 @@ jobs:
             if [ "$ks" != same ] || [ "$pw" != same ]; then todo="$todo $title=$id"; fi
           done
           if [ -n "$refuse" ]; then
-            echo "::error::A different signing key is already stored in:$refuse. Nothing was changed. Phones only install updates signed with the key they already have, so find out which key the installed app uses before replacing anything."
+            if [ "$MODE" = make ]; then
+              echo "::error::A signing key is already stored in:$refuse, so the new one was thrown away and nothing was changed. The key was made before: put its certificate SHA-256 in android/signing-cert.txt."
+            else
+              echo "::error::A different signing key is already stored in:$refuse. Nothing was changed. Phones only install updates signed with the key they already have, so find out which key the installed app uses before replacing anything."
+            fi
             exit 1
           fi
 
@@ -187,6 +226,7 @@ jobs:
             echo "### Android signing key"
             echo
             echo "Both Cloudflare KV copies (playnext-android-signing, playnext-android-signing-copy) hold the key."
+            if [ "$MODE" = make ]; then echo "The key was made on this runner: those two copies are its only copies."; fi
             echo "Certificate SHA-256, the line for android/signing-cert.txt:"
             echo
             echo '```'
