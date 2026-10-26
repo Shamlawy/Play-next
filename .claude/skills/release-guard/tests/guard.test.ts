@@ -24,6 +24,8 @@ type World = {
   // android-check.yml's runs on the head commit; 404 = GitHub doesn't know the workflow by name yet
   checkRuns?: unknown[]
   check404?: boolean
+  // GitHub's releases list (android-vN tags the release run published)
+  releases?: unknown[]
   // what `gh pr view --json …` answers (undefined = gh finds no PR)
   ghView?: unknown
   // false: a repo that doesn't carry the Play next mods (another project)
@@ -71,6 +73,7 @@ function world(on: any, w: World) {
     if (e.url.includes('/actions/workflows/android-check.yml/runs')) return w.check404 ? { value: { status: 404, ok: false, headers: {}, text: '' } } : ok(JSON.stringify({ workflow_runs: w.checkRuns ?? [] }))
     if (e.url.includes('/actions/runs?head_sha=')) return ok(JSON.stringify({ workflow_runs: w.checkRuns ?? [] }))
     if (e.url.includes('/pulls/')) return ok(JSON.stringify({ head: { sha: 'feed', ref: 'claude/x' }, base: { ref: 'main' } }))
+    if (e.url.includes('/releases')) return ok(JSON.stringify(w.releases ?? []))
     if (e.url.includes('/actions/runs')) return ok(JSON.stringify({ workflow_runs: w.runs ?? [] }))
     if (e.url.includes('raw.githubusercontent.com')) return ok(w.headHtml ?? '')
     return { value: { status: 404, ok: false, headers: {}, text: '' } }
@@ -251,6 +254,7 @@ describe('release-guard', () => {
         { name: 'pages build and deployment', status: 'completed', conclusion: 'success', head_sha: 'm1', created_at: new Date(NOW + 60_000).toISOString() },
         { name: 'Android release', path: '.github/workflows/android-release.yml', status: 'completed', conclusion: 'success', head_sha: 'm1', created_at: new Date(NOW + 60_000).toISOString() },
       ],
+      releases: [{ tag_name: 'android-v4', draft: false, published_at: new Date(NOW + 90_000).toISOString() }],
     })
     await start($)
     const r: any = await $.tool.call({ tool: 'mcp__github__merge_pull_request', owner: 'shamlawy', repo: 'Play-next', pullNumber: 9 } as any)
@@ -261,6 +265,24 @@ describe('release-guard', () => {
     expect(w.contexts[0]).toContain('android-v4 is released (the phone updates itself)')
     // An Android-only merge changes nothing the web app serves: no Pages news.
     expect(w.contexts[0]).not.toContain('GitHub Pages')
+  })
+
+  test('a green Android release run that published nothing (no signing key yet) is not told as released', async ($, on) => {
+    const w = world(on, {
+      names: 'M\tandroid/app/src/main/java/io/x/Probe.kt\nM\tandroid/version.properties\nM\tandroid/app/src/main/assets/whatsnew.txt\nM\tdocs/LOG.md\n',
+      log: '+- android-v4: the probe screen\n', baseAndroid: 'release=3\n', headAndroid: 'release=4\n',
+      whatsnew: 'v=4\ngo=probe\nat=\nsay=A 120 Hz check\ntryIt=Open the probe\n',
+      checkRuns: [{ status: 'completed', conclusion: 'success', head_sha: 'feed', created_at: new Date(NOW - 600_000).toISOString() }],
+      runs: [{ name: 'Android release', path: '.github/workflows/android-release.yml', status: 'completed', conclusion: 'success', head_sha: 'm1', created_at: new Date(NOW + 60_000).toISOString() }],
+      // only an older release, published before this merge
+      releases: [{ tag_name: 'android-v3', draft: false, published_at: new Date(NOW - 86_400_000).toISOString() }],
+    })
+    await start($)
+    await $.tool.call({ tool: 'mcp__github__merge_pull_request', owner: 'shamlawy', repo: 'Play-next', pullNumber: 9 } as any)
+    await w.clock.advance(95_000)
+    await $.prompt.submit({ text: 'hi' } as any)
+    expect(w.contexts[0]).toContain('published nothing (release=4)')
+    expect(w.contexts[0]).not.toContain('is released')
   })
 
   test('an Android release without its what\'s-new block, LOG line or a finished android-check is stopped', async ($, on) => {

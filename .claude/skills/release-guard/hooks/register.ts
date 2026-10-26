@@ -195,10 +195,17 @@ async function poll($: $) {
       w.androidDone = true
       const c = release.conclusion ?? 'failed'
       const quiet = c === 'skipped' || c === 'neutral'
-      if (w.androidV) {
-        await tell($, c === 'success'
-          ? `android-v${w.androidV} is released (the phone updates itself).`
-          : `The Android release run ended "${c}": android-v${w.androidV} is NOT released. ${release.html_url ?? ''}`.trim())
+      if (w.androidV && c === 'success') {
+        // The run ends "success" even when its release job was skipped (no signing key yet, or N didn't beat an
+        // existing tag), and the tag it publishes can be LATEST+1, not N: only a published release since the merge counts.
+        const rel = await $.http.fetch(`https://api.github.com/repos/${repo}/releases?per_page=10`, { headers: GH_HEADERS }).catch(() => undefined)
+        const list = rel?.ok ? (JSON.parse(rel.text) as { tag_name?: string; draft?: boolean; published_at?: string | null }[]) : []
+        const pub = list.find(r => /^android-v\d+$/.test(r.tag_name ?? '') && !r.draft && Date.parse(r.published_at ?? '') >= w.since - 120_000)
+        await tell($, pub
+          ? `${pub.tag_name} is released (the phone updates itself).`
+          : `The Android release run finished but published nothing (release=${w.androidV}): no signing key yet, or the version didn't beat an existing tag. ${release.html_url ?? ''}`.trim())
+      } else if (w.androidV) {
+        await tell($, `The Android release run ended "${c}": android-v${w.androidV} is NOT released. ${release.html_url ?? ''}`.trim())
       } else {
         await tell($, c === 'success' || quiet
           ? `No new Android release (release=${w.androidSame ?? '?'} unchanged): a build-only change, the phone gets nothing new.`
