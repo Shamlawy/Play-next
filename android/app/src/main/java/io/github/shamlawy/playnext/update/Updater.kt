@@ -17,6 +17,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.shamlawy.playnext.BuildConfig
 import io.github.shamlawy.playnext.Store
+import io.github.shamlawy.playnext.crash.swapIn
 import io.github.shamlawy.playnext.net.Net
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -152,7 +153,7 @@ object Updater {
             }
         }
         if (sha256(part) != sha) { part.delete(); throw IOException("the download didn't match its SHA-256") }
-        part.renameTo(done)
+        swapIn(part, done)
         done
     }
 
