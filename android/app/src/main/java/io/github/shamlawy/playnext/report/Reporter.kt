@@ -44,6 +44,7 @@ object Reporter {
 
     /** Builds the report the way index.html does. Returns null when it was already sent today. */
     fun build(kind: String, msg: String, stack: String = "", at: String = "", note: String = "", screen: String = Screen.current, now: Long = System.currentTimeMillis()): Report? {
+        if (Device.emulator) return null
         val m = Scrub.text(msg, names, secrets).trim()
         if (m.isEmpty()) return null
         val a = Scrub.text(at, names, secrets)

@@ -45,7 +45,9 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
           filter: blob:none
-          sparse-checkout: /android/version.properties
+          sparse-checkout: |
+            /android/version.properties
+            /android/signing-cert.txt
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: "release=N, the newest android-v release (drafts too), the version code"
@@ -83,6 +85,15 @@ jobs:
             if [ -n "$STUCK" ]; then
               echo "::notice::Draft releases that never went out: ${STUCK}(a failed smoke test?). Raise release= in $F, or run this workflow by hand."
             fi
+            go=false
+          fi
+          # Until the one-time key step has run (the key made on the owner's PC, its certificate SHA-256 written to
+          # android/signing-cert.txt) there is nothing to sign with: wait quietly instead of failing 20 minutes in.
+          # The commit that fills signing-cert.txt touches android/, so it starts this release by itself.
+          CERT=$(tr -d ':[:space:]' < android/signing-cert.txt 2>/dev/null || true)
+          if [ "$go" = true ] && [ -z "$CERT" ]; then
+            echo "::notice::No release yet: android/signing-cert.txt is empty, so the signing key hasn't been made. The release starts by itself once that commit lands (docs/ANDROID-PLAN.md, Decisions, question 1)."
+            echo "No release: the signing key hasn't been made yet (android/signing-cert.txt is empty)." >> "$GITHUB_STEP_SUMMARY"
             go=false
           fi
           if [ "$go" = true ]; then

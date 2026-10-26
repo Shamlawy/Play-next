@@ -41,4 +41,9 @@ object Device {
         ("App Android ${Build.VERSION.RELEASE} ${Build.MODEL} " + if (unfolded(ctx)) "unfolded" else "folded").take(40)
 
     val versionCode: Int get() = BuildConfig.VERSION_CODE
+
+    /** CI's emulators (the Baseline Profile and the smoke test) run the app too; their runs must never count as the phone's. */
+    val emulator: Boolean by lazy {
+        Build.HARDWARE in setOf("ranchu", "goldfish") || Build.PRODUCT.startsWith("sdk_") || Build.FINGERPRINT.startsWith("generic")
+    }
 }

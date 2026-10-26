@@ -85,8 +85,12 @@ object Updater {
     suspend fun run(ctx: Context, now: Boolean) = busy.withLock {
         set(State.Checking)
         try {
-            val rel = find() ?: run { set(State.UpToDate); return@withLock }
+            val rel = find()
             Store.prefs.edit().putLong("updChecked", System.currentTimeMillis()).apply()
+            if (rel == null) {
+                set(State.UpToDate)
+                return@withLock
+            }
             val apk = download(ctx, rel)
             verify(ctx, apk, rel.code)?.let { why -> apk.delete(); set(State.Failed(why)); return@withLock }
             Install.start(ctx, apk, rel.code, now)

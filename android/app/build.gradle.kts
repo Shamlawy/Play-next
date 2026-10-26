@@ -17,6 +17,7 @@ val code: Int = providers.gradleProperty("pn.versionCode").orNull?.trim()?.toInt
 // The real key only exists on main's release builds (android-release.yml). Without it the release
 // build signs with the debug key: a throwaway that can never update the phone's app.
 val storeFilePath: String? = System.getenv("PN_SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
+val repoDir: String = rootDir.parentFile.absolutePath
 
 android {
     namespace = "io.github.shamlawy.playnext"
@@ -77,6 +78,8 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // the tests read the repo's own files (worker/helper.js, whatsnew.txt, version.properties)
+        unitTests.all { it.systemProperty("pn.repo", repoDir) }
     }
 }
 
