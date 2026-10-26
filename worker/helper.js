@@ -1288,7 +1288,9 @@ async function bugTake(env, body) {
     const sig = cut(r.sig, 8); if (!/^[0-9a-f]{8}$/.test(sig)) continue;
     const sample = { kind: cut(r.kind, 16), msg: cut(r.msg, 600), stack: cut(r.stack, 1500), at: cut(r.at, 200), screen: cut(r.screen, 60),
       w: +r.w || 0, h: +r.h || 0, dpr: +r.dpr || 1, dev: cut(r.dev, 40), v: cut(r.v, 8), style: cut(r.style, 12), note: cut(r.note, 800),
-      crumbs: (Array.isArray(r.crumbs) ? r.crumbs : []).slice(-10).map(c => cut(c, 60)), lib: cut(r.lib, 200), t: Date.now() };
+      crumbs: (Array.isArray(r.crumbs) ? r.crumbs : []).slice(-10).map(c => cut(c, 60)), lib: cut(r.lib, 200), t: Date.now(),
+      /* the native Android app says so (bugsync files its reports as android-bug); anything else isn't kept */
+      ...(r.app === "android" ? { app: "android" } : {}) };
     const key = "bug:" + sig, old = await env.NUDGE.get(key, "json");
     if (!old) {
       if (count == null) count = (await env.NUDGE.list({ prefix: "bug:", limit: 1000 })).keys.length;
@@ -1297,7 +1299,7 @@ async function bugTake(env, body) {
     }
     const add = (a, v) => (a || []).includes(v) ? a : (a || []).concat(v).slice(-8);
     const rec = old ? { ...old, n: old.n + 1, last: sample.t, vs: add(old.vs, sample.v), devs: add(old.devs, sample.dev), screens: add(old.screens, sample.screen), sample }
-      : { sig, kind: sample.kind, msg: sample.msg, n: 1, seen: 0, first: sample.t, last: sample.t, vs: [sample.v], devs: [sample.dev], screens: [sample.screen], sample };
+      : { sig, kind: sample.kind, msg: sample.msg, n: 1, seen: 0, first: sample.t, last: sample.t, vs: [sample.v], devs: [sample.dev], screens: [sample.screen], sample, ...(sample.app ? { app: sample.app } : {}) };
     await env.NUDGE.put(key, JSON.stringify(rec), { expirationTtl: BUG_TTL });
     took++;
   }

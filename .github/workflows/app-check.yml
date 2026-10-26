@@ -9,6 +9,8 @@
 # (one after another they took 22 min, the design eye alone 10.5, so it is split by width): ~5 min. Each job installs
 # Chromium itself (~25s). A new part of `kit.mjs all` needs its own line here too.
 # Since Oct 20: what Nexi's own problem checks cost (kit.mjs detectors, lesson L1), its own job; its plant runs with the others.
+# Since Oct 26: the Problem reports job's filing rules (tools/bugsync-check.mjs, in the code job), so a change to bugsync.mjs or its
+# check is tested: the web app's auto-bug issues and the Android app's android-bug ones never mix.
 name: App check
 on:
   workflow_dispatch:
@@ -18,7 +20,7 @@ on:
       - "sw.js"
       - "worker/**"
       - "tools/**"
-      - ".github/scripts/swcheck.mjs"
+      - ".github/scripts/**"
       - ".github/workflows/app-check.yml"
 permissions:
   contents: read
@@ -60,6 +62,9 @@ jobs:
         env:
           CI: "1"
         run: node tools/kit.mjs syntax && node tools/kit.mjs audit && node tools/kit.mjs sw
+      - name: "Problem reports are filed by the rules (tools/bugsync-check.mjs: holds, families, proof, web and Android app apart)"
+        if: matrix.id == 'code'
+        run: node tools/bugsync-check.mjs
       - name: "The design check on what this PR adds to index.html"
         if: matrix.id == 'code' && github.event_name == 'pull_request'
         env:
