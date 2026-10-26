@@ -1,0 +1,21 @@
+import fs from "node:fs";
+const src = fs.readFileSync(new URL("../../../index.html", import.meta.url), "utf8");
+const a = src.indexOf('const CB_KEY = "gq:cloud"'), b = src.indexOf("/* what goes up: the RAWG key");
+let code = src.slice(a, b).replace(/let CB = \{\};[\s\S]*?const cbOn[^\n]*\n/, "const CB={};\n");
+const f = new Function("localStorage", code + "; return { cbNorm, cbFmt, cbKeys, cbSeal, cbOpen, cbHex, CB_ALPHA };");
+const W = f({ getItem: () => null, setItem() {} });
+const C = "PN-AB2C-DEF3-GH4J-KLM5-NPQ6";
+const k = await W.cbKeys(C);
+const raw = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("pn-vault-key:" + W.cbNorm(C))));
+const orig = crypto.getRandomValues.bind(crypto);
+crypto.getRandomValues = arr => { arr.set(Array.from({ length: arr.length }, (_, i) => i + 1)); return arr; };
+const text = JSON.stringify({ rk: "" }) + "\n" + JSON.stringify({ games: [{ id: "g0", title: "Test Game", date: "2026-01-15", state: "backlog" }], played: [], duels: [], lastV: "327" });
+const sealed = await W.cbSeal(text, k.key);
+crypto.getRandomValues = orig;
+const back = await W.cbOpen(sealed, k.key);
+console.log(JSON.stringify({ code: C, norm: W.cbNorm(C), fmt: W.cbFmt(C), id: k.id, tok: k.tok, keyHex: W.cbHex(raw), ivHex: "0102030405060708090a0b0c", plaintext: text, sealedHex: W.cbHex(sealed), sealedLen: sealed.length, roundTrip: back === text }, null, 1));
+// uncompressed variant (z=0)
+const iv = new Uint8Array(12).map((_, i) => i + 1);
+const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new Uint8Array([1, 0]) }, k.key, new TextEncoder().encode(text)));
+const out = new Uint8Array(14 + ct.length); out[0] = 1; out[1] = 0; out.set(iv, 2); out.set(ct, 14);
+console.log("z0 sealedHex:", W.cbHex(out), "roundTrip:", (await W.cbOpen(out, k.key)) === text);
