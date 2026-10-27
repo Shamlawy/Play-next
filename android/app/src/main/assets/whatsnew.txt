@@ -8,3 +8,9 @@ go=home
 at=
 say=Play next is on your phone as its own app now, and from here on it updates itself.
 tryIt=Run the 120 Hz test folded, then again unfolded. Each result goes to Claude by itself.
+
+v=2
+go=home
+at=
+say=Play next just updated itself: this version is the test that proves it.
+tryIt=Run the 120 Hz test folded. Tell Claude whether this update asked you for a tap.
