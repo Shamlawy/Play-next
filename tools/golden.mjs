@@ -3,7 +3,8 @@
    where JavaScript's UTC reading of plain dates bites), restores a made-up backup through readBackup/applyBackup, lets
    load() do its start-up changes, and writes what came out, plus restore codes sealed by the web app's own cbSeal.
    node tools/golden.mjs [--out android/app/build/golden/golden.json]   (generated, never committed; android-check runs it)
-   Phase 0 Piece 2 covers the restore, the load-time changes and the date rules; later phases add their numbers here. */
+   Phase 0 Piece 2 covers the restore, the load-time changes and the date rules; Piece 3 the header cards (shxData, shxExtra,
+   so the ranking, Elo, On deck and hours to beat behind them); later phases add their numbers here. */
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -59,6 +60,33 @@ const FIXTURE = {
   syncTok: "made-up-sync-token", syncOn: true, rawgKey: "made-up-rawg", v: 11,
   lastV: APP_V, scoreMig: 1, gdMig: 1, rowGlowMig: 1, pxKindMig: 1, pxMig229: 1, genDedup: 1,
   tourFrom: +APP_V, tourRedo: 1, nxAsked: 1, fxSeen: 1, fxCal: 1, pxOff: true, cbOn: false, somethingNew: { x: 1 },
+};
+/* Made-up games for the header cards (Piece 3: shxData + shxExtra per screen): genres, platforms, hours, added days,
+   pictures, scores, a replay, duels (a win, a slight edge, a draw), a dropped and a competitive game. */
+const SHX_FIX = {
+  games: [
+    { id: "s1", title: "Neon Drift", state: "backlog", date: "2026-05-01", genres: "Racing, Action", platforms: "Switch, PC", hype: 8, hours: 12, hoursX: 20, added: "2026-10-25", img: "https://example.com/s1.jpg", colour: "#FF5470", ord: 1 },
+    { id: "s2", title: "Moss Garden", state: "playing", date: "2026-01-15", genres: "Puzzle, Adventure", platforms: "PS5", hype: 6, hours: 30, added: "2026-09-10", steamId: 12345, colour: "#4DA3FF", ord: 2 },
+    { id: "s3", title: "Star Harbor", state: "upcoming", date: "2026-11-02", genres: ["RPG", "Action"], platforms: "Switch", hype: 9, hours: 60, added: "2026-10-01", ord: 3 },
+    { id: "s4", title: "Iron Choir", state: "upcoming", date: "2026-11-20", genres: "Action", platforms: "PC", added: "2026-08-15", hero: "https://example.com/s4-hero.jpg", ord: 4 },
+    { id: "s5", title: "Paper Moons", state: "upcoming", date: "2027-02-01", genres: "RPG", added: "2026-07-04", ord: 5 },
+    { id: "s6", title: "Old Lantern", state: "backlog", date: "2025-02-02", genres: "RPG, Adventure", added: "2026-03-03", hours: 40, art: "https://example.com/s6-art.jpg", ord: 6 },
+    { id: "s7", title: "Glass Tide", state: "backlog", date: "2025-06-06", genres: "Action, RPG", added: "2025-12-12", ord: 7 },
+    { id: "s8", title: "Quiet Fields", state: "backlog", date: "2026-04-04", genres: "Puzzle", added: "2026-10-27", bgOff: true, ord: 8 },
+    { id: "s9", title: "Rust Belt", state: "dropped", date: "2024-01-01", genres: "Action", ord: 9 },
+    { id: "s10", title: "Arena Ten", state: "backlog", comp: true, date: "2023-03-03", genres: "Shooter", hours: 99, ord: 10 },
+    { id: "s11", title: "Fog Line", state: "upcoming", date: "", status: "tba", added: "2026-10-26", ord: 11 },
+    { id: "s12", title: "Late Train", state: "upcoming", date: "2026-10-27", genres: "Adventure", ord: 12 },
+    { id: "s13", title: "Bright Ash", state: "backlog", date: "2026-10-20", genres: "RPG", hype: 4, platforms: "Switch", ord: 13 },
+  ],
+  played: [
+    { id: "s6", real: 9.5, t: "2026-06-10", runs: 1 },
+    { id: "s7", real: 8, t: "2026-09-02", again: true, runs: 1 },
+    { id: "s8", real: 6.5, t: "2026-10-05", runs: 1 },
+    { id: "s6", real: 9, t: "2026-10-10", runs: 2 },
+  ],
+  duels: [{ a: "s6", b: "s7", w: "s6", t: "2026-10-11" }, { a: "s7", b: "s8", w: "s7", e: 1, t: "2026-09-20" }, { a: "s6", b: "s8", w: "draw", t: "2026-08-01" }],
+  curPlat: "Switch", v: 11, lastV: APP_V, tourFrom: +APP_V, tourRedo: 1, nxAsked: 1, fxSeen: 1, fxCal: 1, pxOff: true, cbOn: false,
 };
 const CLOCKS = [["noon", "2026-10-27T08:00:00Z"], ["late", "2026-10-27T19:30:00Z"], ["early", "2026-10-27T20:30:00Z"]];
 const READS = ["", "   ", "GAME QUEUE export", "[1,2]", "{\"games\":[{\"id\":\"x\"", "{\"games\":5}", "{\"games\":[{\"id\":\"x\"}]}",
@@ -130,10 +158,29 @@ for (const [name, at] of CLOCKS) {
   out.cases.push({ name, at, now: Date.parse(at), raw, ...applied, loaded });
   await ctx.close();
 }
+/* the header cards: the web app's own numbers, line, genres, mix bar, chart and backdrop for each screen */
+out.shx = [];
+for (const [name, at] of CLOCKS) {
+  const { ctx, page } = await phone(at);
+  const raw = JSON.stringify(SHX_FIX);
+  await page.evaluate(raw => { const rb = readBackup(raw); applyBackup(rb.data); saveNow(); }, raw);
+  await page.reload();
+  await page.waitForFunction(() => typeof shxData === "function" && typeof S === "object" && S.games.length > 0, null, { timeout: 30000 });
+  await page.waitForTimeout(500);
+  const kinds = await page.evaluate(() => Object.fromEntries(["queue", "lib", "played", "replay", "plan", "taste", "add"].map(k => {
+    const d = shxData(k), cv = d.c.filter(Boolean).slice(0, 4), x = shxExtra(k, cv[0]);
+    return [k, { c: cv.map(g => g.id), st: d.st.map(([v, l]) => [String(v), l]),
+      line: x.line && { id: x.line.g.id, k: x.line.k, x: x.line.x }, tags: x.tags,
+      bar: x.bar && x.bar.map(([n, l], i) => [n, l, i]).filter(b => b[0] > 0), chart: x.chart && { v: x.chart.v, cap: x.chart.cap },
+      art: /^data:image\/svg/.test(x.art || "") ? "drawn" : x.art || "" }];
+  })));
+  out.shx.push({ name, at, now: Date.parse(at), raw, kinds });
+  await ctx.close();
+}
 await browser.close();
 srv.close();
 if (errors.length) { console.error("golden: the page threw:\n  " + [...new Set(errors)].join("\n  ")); process.exit(1); }
 for (const c of out.cases) if (c.loaded.now !== c.now) { console.error(`golden: the ${c.name} clock didn't hold (${c.loaded.now} vs ${c.now})`); process.exit(1); }
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(out, null, 1));
-console.log(`golden: web v${APP_V}, ${out.codes.length} codes, ${out.reads.length} reads, ${out.cases.length} clocks → ${path.relative(ROOT, OUT)}`);
+console.log(`golden: web v${APP_V}, ${out.codes.length} codes, ${out.reads.length} reads, ${out.cases.length} clocks, ${out.shx.length} header-card clocks → ${path.relative(ROOT, OUT)}`);

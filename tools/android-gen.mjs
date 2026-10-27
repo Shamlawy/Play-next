@@ -61,6 +61,36 @@ need(Array.isArray(STATES) && STATES.every(s => Array.isArray(s) && s.length ===
 const APP_V = (/^const APP_V = "(\d+)"/m.exec(src) || [])[1];
 need(APP_V, "APP_V");
 
+/* ---------- the views inside a tab (SUBS / SUBDEF / SUBKEY), with the later scripts' changes applied in order
+   (v205 swapped Taste's views for Insights, the book added Book): every top-level SUBS.x.splice/push and SUBDEF.x = "…" ---------- */
+const VIEWS = (() => {
+  const ctx = vm.createContext(Object.create(null));
+  const later = [...src.matchAll(/^(SUBS\.\w+\.(?:splice|push)\([^;\n]*\);|SUBDEF\.\w+ = "[^"\n]*";)/gm)].map(m => m[1]);
+  try { vm.runInContext([statement("SUBS"), statement("SUBDEF"), ...later].join("\n").replace(/^const /gm, "var "), ctx, { timeout: 1000 }); }
+  catch (e) { fail(`SUBS/SUBDEF and their later changes no longer run as plain literals (${e.message})`); }
+  return { subs: JSON.parse(JSON.stringify(ctx.SUBS)), def: JSON.parse(JSON.stringify(ctx.SUBDEF)) };
+})();
+const SUBKEY = table("SUBKEY");
+need(["games", "plan", "taste"].every(t => Array.isArray(VIEWS.subs[t]) && VIEWS.subs[t].every(v => Array.isArray(v) && v.length === 2)
+  && VIEWS.subs[t].some(v => v[0] === VIEWS.def[t]) && typeof SUBKEY[t] === "string"), "SUBS / SUBDEF / SUBKEY: games, plan and taste, each default one of its views");
+need(VIEWS.subs.plan.some(v => v[0] === "timer"), "SUBS.plan holds timer (shown only with S.timerOn)");
+
+/* ---------- colours written straight into a CSS rule (the pill, the header card): the first "<selector> {" block with the
+   property, its first #hex or rgba() ---------- */
+function cssColour(sel, prop) {
+  const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const m of src.matchAll(new RegExp("(?:^|[\\s},])" + esc + "\\s*\\{([^}]*)\\}", "g"))) {
+    const d = new RegExp("(?:^|[;{\\s])" + prop + "\\s*:\\s*([^;}]+)").exec(m[1]);
+    const c = d && /#[0-9A-Fa-f]{6}\b|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)/.exec(d[1]);
+    if (c) return argb(c[0].replace(/\s+/g, ""), `${sel} ${prop}`);
+  }
+  fail(`no colour for ${prop} in "${sel} { … }"`);
+}
+const PLACEHOLDER_BG = (/function placeholder\(g\)[\s\S]{0,400}?<rect width="300" height="400" fill="(#[0-9A-Fa-f]{6})"/.exec(src) || [])[1];
+need(PLACEHOLDER_BG, "placeholder(): the cover's #hex ground");
+const STEAM_CDN = table("STEAM_CDN");
+need(/^https:\/\/[^"]+\/$/.test(STEAM_CDN), "STEAM_CDN: an https address ending in /");
+
 /* ---------- colour tokens (CSS custom properties) ---------- */
 function cssVars(selector) {
   const m = new RegExp("(^|\\n)\\s*" + selector.replace(/[.]/g, "\\.") + "\\s*\\{([^}]*)\\}").exec(src);
@@ -80,6 +110,15 @@ for (const k of ["void", "ink", "steel", "edge", "volt", "volt2", "ice", "mute",
 for (const k of ["u-pan", "u-card", "u-card2", "u-line", "u-line2"]) { need(UI2[k], `html.ui2 --${k}`); COLOURS[k] = argb(UI2[k], k); }
 const RADII = {};
 for (const k of ["u-r", "u-rs"]) { const m = /^(\d+)px$/.exec(UI2[k] || ""); need(m, `html.ui2 --${k}: Npx`); RADII[k] = +m[1]; }
+/* the view pill (Speed boost's solid ground: no blur natively) and the header card (v194/v210) */
+const RULES = {
+  PILL_BG: cssColour("html.fast .vpill", "background"), PILL_EDGE: cssColour(".vpill", "border"),
+  SHX_EDGE: cssColour("html.ui2 .tabbar.shx", "border"), SHX_COVER: cssColour(".shx-fan button", "background"),
+  SHX_TAG: cssColour(".shx-tg span", "background"), SHX_TAG_EDGE: cssColour(".shx-tg span", "border"),
+  SHX_BAR: cssColour(".shx-ch > div i", "background"),
+  SHX_MIX3: cssColour('.shx-mx i[data-c="3"]', "background"), SHX_MIX4: cssColour('.shx-mx i[data-c="4"]', "background"),
+  COVER_BG: argb(PLACEHOLDER_BG, "placeholder"),
+};
 
 /* ---------- the tab bar's icons (the web nav's inline SVGs, v247 style) ---------- */
 const NAV = (/\n  <nav>([\s\S]*?)<\/nav>/.exec(src) || [])[1];
@@ -138,6 +177,7 @@ const lines = [
   "",
   "    // colour tokens: :root and html.ui2 (ARGB)",
   ...Object.entries(COLOURS).map(([k, v]) => `    const val ${k.toUpperCase().replace(/-/g, "_")} = ${v}L`),
+  ...Object.entries(RULES).map(([k, v]) => `    const val ${k} = ${v}L`),
   `    const val U_R = ${RADII["u-r"]} // px = dp`,
   `    const val U_RS = ${RADII["u-rs"]}`,
   "",
@@ -149,10 +189,18 @@ const lines = [
   `    val PALETTE: List<Long> = ${kl(PALETTE.map(h => argb(h) + "L"))}`,
   `    val THEMES: List<WebTheme> = listOf(\n${Object.entries(THEMES).map(([k, t]) => `        WebTheme(${ks(k)}, ${ks(t.n)}, ${argb(t.a)}L, ${argb(t.b)}L),`).join("\n")}\n    )`,
   "",
+  "    // pictures: Steam's picture store (bgSource's hero), and where the web app's own files live",
+  `    const val STEAM_CDN = ${ks(STEAM_CDN)}`,
+  "",
   "    // the cloud backup (v211)",
   `    const val CB_ALPHA = ${ks(CB_ALPHA)}`,
   `    val BK_SECRET: List<String> = ${kl(BK_SECRET.map(ks))}`,
   `    val STATES: List<Pair<String, String>> = ${kl(STATES.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
+  "",
+  "    // the views inside a tab, in the pill's order (SUBS after the later scripts' changes), each tab's default and its saved key",
+  `    val VIEWS: Map<String, List<Pair<String, String>>> = mapOf(${Object.entries(VIEWS.subs).map(([t, l]) => `${ks(t)} to ${kl(l.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`).join(", ")})`,
+  `    val VIEW_DEF: Map<String, String> = mapOf(${Object.entries(VIEWS.def).map(([t, v]) => `${ks(t)} to ${ks(v)}`).join(", ")})`,
+  `    val VIEW_KEY: Map<String, String> = mapOf(${Object.entries(SUBKEY).map(([t, v]) => `${ks(t)} to ${ks(v)}`).join(", ")})`,
   "",
   "    // the tab bar (index.html <nav>): the five tabs in order, then Settings",
   `    val TABS: List<WebTab> = ${kl(TABS.map(t => `WebTab(${ks(t.key)}, ${ks(t.label)})`))}`,

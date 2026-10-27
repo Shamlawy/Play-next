@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
@@ -104,6 +105,39 @@ class GoldenTest {
                 assertEquals("$name ${g.id}: isFresh", p["isFresh"]!!.jsonPrimitive.boolean, g.isFresh(now, zone))
             }
             assertEquals("$name: a game's unknown fields survive", rb.data["games"]!!.jsonArray[0].jsonObject["xUnknown"], lib.games[0]["xUnknown"])
+        }
+    }
+
+    /** The header cards (Piece 3): each screen's covers, numbers, line, genres, mix bar, chart and backdrop. */
+    @Test
+    fun headerCardsMatchAtEveryClock() {
+        val zone = ZoneId.of(golden()["zone"]!!.s)
+        val cases = golden()["shx"]?.jsonArray
+        assertTrue("the golden file has header-card cases", !cases.isNullOrEmpty())
+        for (c in cases!!.map { it.jsonObject }) {
+            val name = c["name"]!!.s
+            val now = c["now"]!!.jsonPrimitive.long
+            val lib = Library(Backup.load(Backup.apply(Backup.read(c["raw"]!!.s).data!!), now, zone))
+            val kinds = c["kinds"]!!.jsonObject
+            assertEquals("$name: every screen", Shx.KINDS.toSet(), kinds.keys)
+            for (k in Shx.KINDS) {
+                val w = kinds[k]!!.jsonObject
+                val got = Shx.of(k, lib, now, zone)
+                val at = "$name $k"
+                assertEquals("$at: covers", w["c"]!!.jsonArray.map { it.s }, got.covers.map { it.id })
+                assertEquals("$at: numbers", w["st"]!!.jsonArray.map { it.jsonArray.let { s -> s[0].s to s[1].s } },
+                    got.stats.map { (it.value + (it.unit?.let { u -> "<em>$u</em>" } ?: "")) to it.label })
+                val line = w["line"]?.takeIf { it !is JsonNull }?.jsonObject
+                assertEquals("$at: line", line?.let { listOf(it["id"]!!.s, it["k"]!!.s, it["x"]!!.s) }, got.line?.let { listOf(it.g.id, it.k, it.x) })
+                assertEquals("$at: genres", w["tags"]!!.jsonArray.map { it.jsonArray.let { t -> t[0].s to t[1].jsonPrimitive.long.toInt() } }, got.tags)
+                val bar = w["bar"]?.takeIf { it !is JsonNull }?.jsonArray
+                assertEquals("$at: mix bar", bar?.map { it.jsonArray.let { b -> Triple(b[0].jsonPrimitive.long.toInt(), b[1].s, b[2].jsonPrimitive.long.toInt()) } },
+                    got.bar?.map { Triple(it.n, it.label, it.c) })
+                val chart = w["chart"]?.takeIf { it !is JsonNull }?.jsonObject
+                assertEquals("$at: chart", chart?.let { it["v"]!!.jsonArray.map { v -> v.jsonPrimitive.long.toInt() } to it["cap"]!!.s }, got.chart?.let { it.v to it.cap })
+                val art = when (val a = got.art) { null -> ""; is Pic.Drawn -> "drawn"; is Pic.Url -> a.url }
+                assertEquals("$at: backdrop", w["art"]!!.s, art)
+            }
         }
     }
 
