@@ -12,4 +12,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E4 | 2026-10-26 1:23 PM | ci | 12 min | 19 min | 1.58 | PR #650 checks (another chat; merged 1:42 PM) | <!-- at=2026-10-26T09:23:00.000Z -->
 | E5 | 2026-10-26 1:24 PM | build | 60 min | 31 min | 0.52 | Rest of Android Piece 1 on the PC, built and pushed (a duplicate of #650) | <!-- at=2026-10-26T09:24:00.000Z -->
 | E6 | 2026-10-27 10:25 AM | release | 60 min | 54 min | 0.90 | android-v1: cert PR #654, release check fix #655, release run by hand (this cloud chat) | <!-- at=2026-10-27T06:25:00.000Z -->
-| E7 | 2026-10-27 2:18 PM | video | 60 min | open |  | I'll finish the screenshot tests, CI, the release checks, then merge android-v6 and send you what to try. | <!-- at=2026-10-27T10:18:28.661Z -->
+| E7 | 2026-10-27 2:18 PM | release | 60 min | 29 min | 0.48 | I'll finish the screenshot tests, CI, the release checks, then merge android-v6 and send you what to try. | <!-- at=2026-10-27T10:18:28.661Z -->
