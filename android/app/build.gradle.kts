@@ -143,6 +143,8 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     "baselineProfile"(project(":baselineprofile"))
 
     testImplementation(libs.junit)

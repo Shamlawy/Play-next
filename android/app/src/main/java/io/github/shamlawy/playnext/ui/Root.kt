@@ -31,22 +31,32 @@ import io.github.shamlawy.playnext.probe.ProbeScreen
 enum class Route { Home, Probe }
 
 /**
- * Which tab is open, what's open on top of it and the tabs you came through. Saved with the screen, so a fold, a
- * rotation or Samsung closing the app in the background never loses it.
+ * Which tab is open, what's open on top of it, the tabs you came through and the view you picked in each tab (Queue,
+ * Library…; until you pick one, a tab opens on the view the web app last had, see [Prefs.viewOf]). Saved with the
+ * screen, so a fold, a rotation or Samsung closing the app in the background never loses it.
  *
  * Back (the owner, Oct 22, "1a"): it closes what's open on top first, then goes to the last tab you were on (each tab
- * once, newest first), then leaves the app.
+ * once, newest first), then leaves the app. Views aren't steps back, as on the web.
  */
-data class Nav(val tab: String = "home", val history: List<String> = emptyList(), val overlay: String? = null) {
-    fun go(t: String) = if (t == tab) copy(overlay = null) else Nav(t, (history - t - tab) + tab, null)
-    fun back() = if (overlay != null) copy(overlay = null) else Nav(history.last(), history.dropLast(1), null)
+data class Nav(
+    val tab: String = "home",
+    val history: List<String> = emptyList(),
+    val overlay: String? = null,
+    val views: Map<String, String> = emptyMap(),
+) {
+    fun go(t: String) = if (t == tab) copy(overlay = null) else Nav(t, (history - t - tab) + tab, null, views)
+    fun back() = if (overlay != null) copy(overlay = null) else Nav(history.last(), history.dropLast(1), null, views)
     fun open(o: String) = copy(overlay = o)
+    fun view(t: String, v: String) = copy(views = views + (t to v))
     val canGoBack get() = overlay != null || history.isNotEmpty()
 
     companion object {
         val Saver = listSaver<Nav, String>(
-            save = { listOf(it.tab, it.overlay.orEmpty()) + it.history },
-            restore = { Nav(it[0], it.drop(2), it[1].ifEmpty { null }) },
+            save = { listOf(it.tab, it.overlay.orEmpty(), it.views.entries.joinToString(";") { (t, v) -> "$t=$v" }) + it.history },
+            restore = {
+                val views = it[2].split(';').filter { p -> '=' in p }.associate { p -> p.substringBefore('=') to p.substringAfter('=') }
+                Nav(it[0], it.drop(3), it[1].ifEmpty { null }, views)
+            },
         )
     }
 }
@@ -57,6 +67,7 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
     val games by Games.state.collectAsStateWithLifecycle()
     val lib = (games as? Games.State.Ready)?.lib
     val look = remember(lib) { Look.of(lib) }
+    val prefs = remember(lib) { Prefs.of(lib) }
     var nav by rememberSaveable(stateSaver = Nav.Saver) { mutableStateOf(Nav()) }
     // "Not now" on the restore screen: the tabs without your games, until the next start
     var skipped by rememberSaveable { mutableStateOf(false) }
@@ -74,7 +85,7 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
         linkDone()
     }
 
-    Frame(look) {
+    Frame(look, prefs) {
             when {
                 nav.overlay == "probe" -> {
                     BackHandler { nav = nav.back() }
@@ -97,14 +108,17 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
 
 /**
  * Every screen's surroundings: no touch effect anywhere (#309, v280: the root indication draws nothing), no overscroll
- * stretch or glow, your theme's accent, the clock, and the one still background in your colours.
+ * stretch or glow, your theme's accent, your settings and whether the app is calm, the clock, and the one still
+ * background in your colours.
  */
 @Composable
-fun Frame(look: Look, now: () -> Long = System::currentTimeMillis, content: @Composable BoxScope.() -> Unit) {
+fun Frame(look: Look, prefs: Prefs = Prefs(), now: () -> Long = System::currentTimeMillis, content: @Composable BoxScope.() -> Unit) {
     CompositionLocalProvider(
         LocalIndication provides NoIndication,
         LocalOverscrollFactory provides null,
         LocalLook provides look,
+        LocalPrefs provides prefs,
+        LocalCalm provides rememberCalm(prefs),
         LocalNow provides now,
         LocalTextSelectionColors provides TextSelectionColors(handleColor = look.volt, backgroundColor = look.volt.copy(alpha = 0.3f)),
     ) {

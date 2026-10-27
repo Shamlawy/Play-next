@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -36,7 +39,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -46,6 +57,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -55,33 +68,119 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.gen.Web
+import kotlin.math.abs
 
 /** Below this width the tab bar sits at the top of the page; from it Nexi's rail replaces it (the web app's 620px). */
 val RAIL_FROM = 620.dp
 
 /**
  * The tabs: the page in the web app's `.wrap` (max 880 wide, centred), with the tab bar at its top when folded, or the
- * rail on the right when unfolded. Each tab keeps its own scroll spot, also across a fold or unfold.
+ * rail on the right when unfolded. Each tab keeps its own scroll spot, also across a fold or unfold. A tab with views
+ * (Games, Plan, Taste) has the view pill floating at the foot; a sideways swipe with one finger walks the views, with
+ * two the tabs. Switching tabs plays your Switching tabs choice (the slash by default), never when calm.
  */
 @Composable
 fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val holder = rememberSaveableStateHolder()
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val w = maxWidth
-        val wide = w >= RAIL_FROM
-        val pick = { t: String -> go(nav.go(t)) }
-        val settings = { go(nav.open("settings")) }
-        holder.SaveableStateProvider(nav.tab) {
-            Page(w) {
-                if (!wide) TabBar(nav.tab, pick, settings)
-                TabPage(nav.tab, games, wide, askCode = { go(nav.open("code")) })
+    val prefs = LocalPrefs.current
+    val calm = LocalCalm.current
+    val guard = remember { SwipeGuard() }
+    val view = prefs.viewOf(nav.tab, nav.views)
+    // the tab this screen showed last time it was drawn: a different one now means a tab switch
+    val last = remember { arrayOf(nav.tab) }
+    val from = last[0]
+    val switched = from != nav.tab
+    var wipeFor by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        if (switched && !calm && prefs.tabFade == TabFade.Slash) wipeFor = nav.tab
+        last[0] = nav.tab
+    }
+    val entrance = when {
+        calm -> null
+        prefs.tabFade == TabFade.Slash -> Entrance.Slash
+        prefs.tabFade == TabFade.Fade -> Entrance.Cut
+        // Instant still slides 26 by tab order (the web's v110 slide); a view change inside a tab doesn't
+        switched -> if (TAB_ORDER.indexOf(nav.tab) >= TAB_ORDER.indexOf(from)) Entrance.Right else Entrance.Left
+        else -> null
+    }
+    // one finger walks the open tab's views (none past either end), two fingers or a tab without views the tabs
+    val swipe by rememberUpdatedState { two: Boolean, dir: Int ->
+        val set = prefs.views(nav.tab).map { it.first }
+        if (nav.overlay == null) {
+            if (!two && set.isNotEmpty()) {
+                set.getOrNull(set.indexOf(view) + dir)?.let { go(nav.view(nav.tab, it)) }
+            } else {
+                TAB_ORDER.getOrNull(TAB_ORDER.indexOf(nav.tab) + dir)?.let { go(nav.go(it)) }
             }
         }
-        if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
-        if (nav.overlay == "settings") {
-            BackHandler { go(nav.back()) }
-            SettingsSheet(games, wide, close = { go(nav.back()) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
+    }
+    CompositionLocalProvider(LocalSwipeGuard provides guard) {
+        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard) { two, dir -> swipe(two, dir) }) {
+            val w = maxWidth
+            val wide = w >= RAIL_FROM
+            val pick = { t: String -> go(nav.go(t)) }
+            val pickView = { v: String -> go(nav.view(nav.tab, v)) }
+            val settings = { go(nav.open("settings")) }
+            holder.SaveableStateProvider(nav.tab) {
+                Page(w) {
+                    if (!wide) TabBar(nav.tab, pick, settings)
+                    // Games swaps its whole page per view (the web's four panels); Plan and Taste redraw in place
+                    val key = nav.tab + "/" + if (nav.tab == "games") view else ""
+                    Column(Modifier.entrance(key, entrance)) {
+                        TabPage(nav.tab, view, games, wide, w, askCode = { go(nav.open("code")) }, pickView = pickView)
+                    }
+                }
+            }
+            if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
+            val views = prefs.views(nav.tab)
+            if (prefs.pill && view != null && views.isNotEmpty()) {
+                ViewPill(
+                    views, view, w, pickView,
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(bottom = 18.dp)
+                        // unfolded the web's pill sits 13 right of the middle (`html.rail.railoff .vpill`)
+                        .offset(x = if (wide) 13.dp else 0.dp),
+                )
+            }
+            if (nav.overlay == "settings") {
+                BackHandler { go(nav.back()) }
+                SettingsSheet(games, wide, close = { go(nav.back()) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
+            }
+            wipeFor?.let { t ->
+                key(t) { SlashWipe(Web.TABS.firstOrNull { it.key == t }?.label ?: t, t.hashCode()) { if (wipeFor == t) wipeFor = null } }
+            }
         }
+    }
+}
+
+/** The tabs in the web app's order (`TABS`), for the swipes and the slide's direction. */
+private val TAB_ORDER = Web.TABS.map { it.key }
+
+/**
+ * The web's touchend swipe (index.html 11003): from the first finger's start to where it lifts, at least 70 across and
+ * at most 45 up or down. Only watches (nothing is consumed, scrolling and taps work as before); a touch that started on
+ * something scrolling sideways is left alone.
+ */
+private fun Modifier.swipes(guard: SwipeGuard, act: (two: Boolean, dir: Int) -> Unit) = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        // cleared here, before the touched things see it: a side scroller sets it in this same pass
+        guard.inScroller = false
+        var end = down.position
+        var two = false
+        while (true) {
+            val e = awaitPointerEvent(PointerEventPass.Initial)
+            if (e.changes.count { it.pressed } > 1) two = true
+            e.changes.firstOrNull { it.id == down.id }?.let { end = it.position }
+            if (e.changes.none { it.pressed }) break
+        }
+        if (guard.inScroller) return@awaitEachGesture
+        val dx = end.x - down.position.x
+        val dy = end.y - down.position.y
+        if (abs(dx) < 70.dp.toPx() || abs(dy) > 45.dp.toPx()) return@awaitEachGesture
+        act(two, if (dx < 0) 1 else -1)
     }
 }
 

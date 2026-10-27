@@ -22,6 +22,9 @@ class Library(val state: JsonObject) {
     /** A saved setting as the web app reads it (`S[key]`): absent → null. */
     operator fun get(key: String): JsonElement? = state[key]
 
+    /** `S[key] === false`: a switch you turned off (absent means it was never touched, so it's on). */
+    fun off(key: String): Boolean = (state[key] as? JsonPrimitive)?.let { !it.isString && it.content == "false" } ?: false
+
     /** Settings that change how the whole app looks (Settings › Look of the app). */
     val theme: String get() = Backup.str(state["theme"])
     val bgBase: String get() = Backup.str(state["bgBase"])
