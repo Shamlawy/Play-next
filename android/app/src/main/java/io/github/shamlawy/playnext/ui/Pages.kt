@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.BuildConfig
 import io.github.shamlawy.playnext.Store
@@ -31,19 +32,51 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * What each tab shows until its own phase builds it: Home your games at a glance, Games the list as it came from the
- * backup, the others what's coming. Every tab already has its place, its icon and its scroll spot.
+ * What each tab shows until its own phase builds it: Home your games at a glance; every view of Games, Plan and Taste,
+ * and Add, its header card and what's coming (the Queue, until phase 1, your games as they came from the backup).
+ * Every tab and view already has its place, its icon and its scroll spot.
  */
 @Composable
-fun TabPage(tab: String, games: Games.State, wide: Boolean, askCode: () -> Unit) {
-    when (tab) {
-        "home" -> HomePage(games, wide, askCode)
-        "games" -> GamesPage(games, wide, askCode)
-        "plan" -> Later("Plan", "Month, Timeline, Plan and Timer arrive in phase 5.", wide)
-        "taste" -> Later("Taste", "Insights, Duels, Friend and the skills book arrive in phase 6.", wide)
-        "add" -> Later("Add a game", "Search, Discover and the art pickers arrive in phase 4.", wide)
+fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp, askCode: () -> Unit, pickView: (String) -> Unit) {
+    if (tab == "home") {
+        HomePage(games, wide, askCode)
+        return
     }
+    val prefs = LocalPrefs.current
+    val views = prefs.views(tab)
+    val v = view ?: tab
+    val title = if (tab == "add") "Add" else views.firstOrNull { it.first == v }?.second ?: v
+    // the header card's screen (`SHX_PANELS`): each Games view its own, Plan and Taste one each; the book has none
+    val kind = when (tab) {
+        "games" -> v
+        "taste" -> if (v == "book") null else "taste"
+        else -> tab
+    }
+    val ready = games as? Games.State.Ready
+    if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen) else PlainTitle(title, wide)
+    if (!prefs.pill && views.isNotEmpty()) ViewChips(views, v, pickView)
+    if (ready == null) {
+        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting((games as? Games.State.Fetching)?.why, askCode) }
+        return
+    }
+    if (v == "queue") QueueSoon(ready) else Card { BasicText(SOON[v] ?: "", style = Type.note) }
 }
+
+/** Where each view is built (docs/ANDROID-PLAN.md, the phases). */
+private val SOON = mapOf(
+    "lib" to "Your library arrives in phase 5.",
+    "played" to "Played arrives in phase 5.",
+    "replay" to "Replay arrives in phase 5.",
+    "month" to "The month calendar arrives in phase 5.",
+    "flow" to "The timeline arrives in phase 5.",
+    "plan" to "Plan arrives in phase 5.",
+    "timer" to "The timer arrives in phase 5.",
+    "insights" to "Insights arrive in phase 6.",
+    "duels" to "Duels arrive in phase 6.",
+    "friend" to "Friend arrives in phase 6.",
+    "book" to "The skills book arrives in phase 6.",
+    "add" to "Search, Discover and the art pickers arrive in phase 4.",
+)
 
 /** Home's panel (`.dxw`: `--u-pan`, round 28): the folded tab bar's open tile runs into its top. */
 @Composable
@@ -146,19 +179,10 @@ private fun NoGames(askCode: () -> Unit) {
     Btn("Type my restore code", primary = true, onClick = askCode)
 }
 
-/** Games: the Queue arrives in phase 1; until then, every game in the backup by state, in your order. */
+/** The Queue arrives in phase 1; until then, every game in the backup by state, in your order. */
 @Composable
-private fun GamesPage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
-    val ready = games as? Games.State.Ready
+private fun QueueSoon(ready: Games.State.Ready) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BasicText("Games", style = Type.title(wide))
-            if (ready != null) BasicText(ready.lib.games.size.toString(), style = Type.label.copy(fontWeight = Type.label.fontWeight), modifier = Modifier.padding(bottom = 4.dp))
-        }
-        if (ready == null) {
-            Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting((games as? Games.State.Fetching)?.why, askCode) }
-            return@Column
-        }
         BasicText("The Queue arrives in phase 1. Until then, your games as they came from the backup:", style = Type.note)
         val now = LocalNow.current()
         for ((key, label) in Web.STATES) {
@@ -184,10 +208,3 @@ private fun GameLine(g: Game, sub: String) {
     }
 }
 
-@Composable
-private fun Later(title: String, what: String, wide: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        BasicText(title, style = Type.title(wide))
-        Card { BasicText(what, style = Type.note) }
-    }
-}

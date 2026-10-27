@@ -38,3 +38,9 @@ go=home
 at=
 say=Your games are in the app now: type your restore code once and they come from the cloud backup.
 tryIt=Type your restore code (web app: Settings › Your data › Cloud backup). Open the tabs folded and unfolded, swipe back, and tap Check now: it says when it last looked.
+
+v=7
+go=home
+at=
+say=Switching tabs plays the slash now, and Games, Plan and Taste have their views: each with its header card, the floating pill to switch them.
+tryIt=Switch tabs, tap the pill, and swipe sideways: one finger walks a tab's views, two fingers walk the tabs. Folded and unfolded. With Battery saver on, nothing moves.

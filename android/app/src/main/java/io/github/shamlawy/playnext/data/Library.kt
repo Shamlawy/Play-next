@@ -15,6 +15,16 @@ import java.time.ZoneId
 class Library(val state: JsonObject) {
     val games: List<Game> = (state["games"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Game) }
 
+    /** `S.played` (one record per finish; a replay adds another) and `S.duels`. */
+    val played: List<Played> = (state["played"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Played) }
+    val duels: List<Duel> = (state["duels"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Duel) }
+
+    /** A saved setting as the web app reads it (`S[key]`): absent → null. */
+    operator fun get(key: String): JsonElement? = state[key]
+
+    /** `S[key] === false`: a switch you turned off (absent means it was never touched, so it's on). */
+    fun off(key: String): Boolean = (state[key] as? JsonPrimitive)?.let { !it.isString && it.content == "false" } ?: false
+
     /** Settings that change how the whole app looks (Settings › Look of the app). */
     val theme: String get() = Backup.str(state["theme"])
     val bgBase: String get() = Backup.str(state["bgBase"])
@@ -36,6 +46,12 @@ class Library(val state: JsonObject) {
 class Game(val o: JsonObject) {
     val id: String get() = Backup.str(o["id"])
     val title: String get() = Backup.str(o["title"])
+
+    /** The state as saved, "" when there's none (the web app's raw `g.state`). */
+    val rawState: String get() = Backup.str(o["state"])
+
+    /** Competitive games are never finished (`g.comp`). */
+    val comp: Boolean get() = Backup.truthy(o["comp"])
 
     /** `g.state || "upcoming"` */
     val state: String get() = Backup.str(o["state"]).ifEmpty { "upcoming" }
