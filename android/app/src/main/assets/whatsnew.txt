@@ -32,3 +32,9 @@ go=home
 at=
 say=Play next updated itself again while you were away.
 tryIt=Tell Claude whether Google Play Protect's pop-up showed again for this update.
+
+v=6
+go=home
+at=
+say=Your games are in the app now: type your restore code once and they come from the cloud backup.
+tryIt=Type your restore code (web app: Settings › Your data › Cloud backup). Then open the tabs folded and unfolded, and swipe back.

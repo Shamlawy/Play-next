@@ -1,7 +1,8 @@
-# Checks the Android app (android/) on every pull request that touches it: the Gradle wrapper is the real one, unit tests,
-# lint and a release build (R8, signed with the debug key: a throwaway, so a PR never sees the real key), the APK has no
-# native code or is 16 KB aligned, and it stays under 30 MB. The live helper must still answer the app's Origin and refuse
-# another one, and the problem-report filing rules (tools/bugsync-check.mjs) must still hold.
+# Checks the Android app (android/) on every pull request that touches it: the Gradle wrapper is the real one, unit tests
+# (also against the web app's own numbers from tools/golden.mjs), the screens against their approved pictures (Roborazzi,
+# android/app/src/test/screenshots), lint and a release build (R8, signed with the debug key: a throwaway, so a PR never
+# sees the real key), the APK has no native code or is 16 KB aligned, and it stays under 30 MB. The live helper must still
+# answer the app's Origin and refuse another one, and the problem-report filing rules (tools/bugsync-check.mjs) must hold.
 # A PR that only changes android/parity/ (notes) skips the build and the helper call, so it stays cheap, but the run still
 # ends green on its head commit. No secrets, read-only token. Every action is pinned to a commit (public repo).
 name: Android check
@@ -13,6 +14,8 @@ on:
       - ".github/workflows/android-*.yml"
       - ".github/scripts/bugsync.mjs"
       - "tools/bugsync-check.mjs"
+      - "tools/golden.mjs"
+      - "tools/android-gen.mjs"
 permissions:
   contents: read
 concurrency:
@@ -48,7 +51,7 @@ jobs:
             # HEAD is GitHub's merge of the PR into its base: parent 1 = the base, so this is exactly what the PR changes
             git diff --no-renames --name-only 'HEAD^1' HEAD > "$RUNNER_TEMP/changed.txt"
             grep -v '^android/parity/' "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/rest.txt" || true
-            if grep -Eq '^(android/|\.github/workflows/android-)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
+            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
             echo "$(wc -l < "$RUNNER_TEMP/changed.txt") files changed; app build needed: $app"
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
@@ -88,12 +91,36 @@ jobs:
             echo "::notice::No sdkmanager at $SDKM; Gradle will fetch what it needs"
           fi
           exit 0
-      - name: "Unit tests, lint and the release build"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+      - name: "The web app's own numbers (tools/golden.mjs: restore codes, reads, clocks)"
+        working-directory: .
+        run: |
+          set -euo pipefail
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tools/golden.mjs
+      - name: "Unit tests, screenshots, lint and the release build"
+        env:
+          PN_GOLDEN: required
         run: |
           set -euo pipefail
           chmod +x gradlew
           # no PN_SIGNING_* here: the release build signs with the debug key, the throwaway key for PRs
-          ./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease --stacktrace
+          # verifyRoborazziDebug runs every unit test and compares the screens with src/test/screenshots
+          ./gradlew :app:verifyRoborazziDebug :app:lintRelease :app:assembleRelease --stacktrace
+      - name: Keep the screenshot differences
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-screenshot-diffs
+          path: |
+            android/app/build/outputs/roborazzi/
+            android/app/src/test/screenshots/*_compare.png
+            android/app/src/test/screenshots/*_actual.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: "16 KB pages: no native code in the APK, or it is 16 KB aligned"
         run: |
           set -euo pipefail

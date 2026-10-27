@@ -107,7 +107,11 @@ android {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true // Roborazzi: the fonts and icons draw as on the phone
         // the tests read the repo's own files (worker/helper.js, whatsnew.txt, version.properties)
-        unitTests.all { it.systemProperty("pn.repo", repoDir) }
+        unitTests.all {
+            it.systemProperty("pn.repo", repoDir)
+            // Robolectric's SDK 36 sets up shared memory through a JDK internal (ApplicationSharedMemory)
+            it.jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED", "--add-opens=java.base/java.io=ALL-UNNAMED")
+        }
     }
 }
 

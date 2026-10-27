@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -69,8 +70,11 @@ fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProb
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = 12.dp, bottom = if (wide) 12.dp else 0.dp)
+                // unfolded: the rail's 96 stays clear, as the page leaves it (the sheet ran under the rail's edge)
+                .padding(end = if (wide) 96.dp else 0.dp)
                 .widthIn(max = 720.dp)
                 .fillMaxWidth()
+                .clip(shape) // the cards scroll under the rounded corners, never past them
                 .background(Pn.pan, shape)
                 .border(1.dp, Pn.line2, shape)
                 .clickable(onClick = {}, indication = null, interactionSource = null),
