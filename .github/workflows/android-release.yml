@@ -263,10 +263,15 @@ jobs:
           if [ ! -x "$BT/apksigner" ]; then BT=$( (ls -d "$ANDROID_HOME"/build-tools/*/ 2>/dev/null || true) | sort -V | tail -n 1); BT="${BT%/}"; fi
           if [ -z "$BT" ] || [ ! -x "$BT/apksigner" ]; then echo "::error::No apksigner in $ANDROID_HOME/build-tools"; exit 1; fi
           "$BT/apksigner" verify --print-certs "$APK" > "$RUNNER_TEMP/certs.txt"
-          signers=$(grep -c '^Signer #[0-9]* certificate SHA-256 digest:' "$RUNNER_TEMP/certs.txt" || true)
-          if [ "$signers" != 1 ]; then cat "$RUNNER_TEMP/certs.txt"; echo "::error::The APK should have exactly one signer, it has $signers."; exit 1; fi
-          dn=$(sed -n 's/^Signer #1 certificate DN: *//p' "$RUNNER_TEMP/certs.txt")
-          got=$(sed -n 's/^Signer #1 certificate SHA-256 digest: *//p' "$RUNNER_TEMP/certs.txt" | tr -d ':[:space:]' | tr 'A-F' 'a-f')
+          # apksigner labels its lines "Signer #1 …" or, per signing scheme, "V2 Signer: …" / "V3 Signer: …" (build-tools 37
+          # with no v1 signature: android-v1's first run failed on this). One scheme or several, every label must name the
+          # same single certificate; the source stamp's own "Source Stamp Signer" lines aren't the app's key.
+          LBL='^(Signer #[0-9]+|V[0-9.]+ Signer( #[0-9]+)?):? certificate'
+          sed -En "s/$LBL SHA-256 digest: *//p" "$RUNNER_TEMP/certs.txt" | tr -d ': \t\r' | tr 'A-F' 'a-f' | sort -u > "$RUNNER_TEMP/digests.txt"
+          signers=$(grep -c . "$RUNNER_TEMP/digests.txt" || true)
+          if [ "$signers" != 1 ]; then cat "$RUNNER_TEMP/certs.txt"; echo "::error::The APK should have exactly one signing certificate, it has $signers."; exit 1; fi
+          dn=$(sed -En "s/$LBL DN: *//p" "$RUNNER_TEMP/certs.txt" | sort -u)
+          got=$(cat "$RUNNER_TEMP/digests.txt")
           case "$dn" in *"CN=Android Debug"*) echo "::error::The APK is signed with a debug key, not the release key."; exit 1 ;; esac
           if ! [[ "$got" =~ ^[0-9a-f]{64}$ ]]; then cat "$RUNNER_TEMP/certs.txt"; echo "::error::Couldn't read the APK's certificate SHA-256."; exit 1; fi
           want=""
