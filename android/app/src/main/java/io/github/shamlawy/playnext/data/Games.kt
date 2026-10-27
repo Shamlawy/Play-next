@@ -84,8 +84,9 @@ object Games {
         if (c.isEmpty()) return@withLock "That isn't a restore code. It looks like PN-XXXX-XXXX-XXXX-XXXX-XXXX."
         val k = Code.keys(c)
         val why = fetch(ctx, k, c) ?: run {
-            withContext(Dispatchers.IO) { CodeStore.save(ctx, c) }
-            return@withLock null
+            // a key store that won't make a key must not crash the screen your games just came to
+            val saved = withContext(Dispatchers.IO) { runCatching { CodeStore.save(ctx, c) } }
+            return@withLock if (saved.isSuccess) null else "Your games came, but this phone couldn't keep the code locked, so it asks again next time."
         }
         why
     }
@@ -129,6 +130,7 @@ object Games {
             _state.value = State.Fetching()
             return
         }
+        hold(k, c) // again, now that build() has read the backup's RAWG key: reports scrub it too
         _state.value = State.Ready(lib, t)
     }
 

@@ -3,7 +3,6 @@ package io.github.shamlawy.playnext.data
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.security.keystore.StrongBoxUnavailableException
 import io.github.shamlawy.playnext.crash.swapIn
 import java.io.File
 import java.security.KeyStore
@@ -36,7 +35,8 @@ object CodeStore {
             )
             generateKey()
         }
-        return try { make(true) } catch (e: StrongBoxUnavailableException) { make(false) }
+        // no StrongBox, or a key store that refuses it (a ProviderException on some builds): the phone's ordinary secure key
+        return try { make(true) } catch (e: Exception) { make(false) }
     }
 
     fun save(ctx: Context, code: String) {
