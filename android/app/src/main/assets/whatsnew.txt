@@ -20,3 +20,9 @@ go=home
 at=
 say=Fixed: an update could wait forever. Now Android's install question shows right in the app, one tap.
 tryIt=When Claude says v4 is out, tap Check now: Android asks once, then later updates install by themselves.
+
+v=4
+go=home
+at=
+say=Play next updated itself with one tap: the install question showed right in the app.
+tryIt=Leave the app open in the background when Claude says v5 is out: it should update by itself, no tap.
