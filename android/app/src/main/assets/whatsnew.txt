@@ -26,3 +26,9 @@ go=home
 at=
 say=Play next updated itself with one tap: the install question showed right in the app.
 tryIt=Leave the app open in the background when Claude says v5 is out: it should update by itself, no tap.
+
+v=5
+go=home
+at=
+say=Play next updated itself again while you were away.
+tryIt=Tell Claude whether Google Play Protect's pop-up showed again for this update.
