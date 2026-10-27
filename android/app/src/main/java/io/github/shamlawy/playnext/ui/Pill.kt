@@ -10,11 +10,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,10 +19,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +29,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
@@ -42,21 +38,18 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.shamlawy.playnext.gen.Web
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
@@ -74,6 +67,7 @@ val LocalSwipeGuard = staticCompositionLocalOf { SwipeGuard() }
  * backdrop blur): the open tab's views, the lit one on a sliding accent segment. Over three views it scrolls sideways
  * (at most 92% of the screen or 560 wide). The segment takes its new width at once and slides from the old spot in
  * 280ms (translate + scaleX from the old width, as v261); each label swaps colour by crossfading two drawn layers.
+ * The buttons and the segment are placed in one layout pass, so the segment is never a frame late or the wrong size.
  */
 @Composable
 fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -83,26 +77,12 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
     val shape = RoundedCornerShape(999.dp)
     val scroll = rememberScrollState()
     val wide = views.size > 3
-    // each button's spot inside the row, in px, measured where it's placed (no layout read of its own)
-    val spots = remember(views) { mutableStateMapOf<String, Pair<Float, Float>>() }
-    // a new set of views (another tab) draws its segment in place first, like the web's rebuilt pill
-    val x = remember(views) { Animatable(0f) }
-    val sx = remember(views) { Animatable(1f) }
-    val lit = spots[on]
-    var shown by remember(views) { mutableStateOf<Pair<Float, Float>?>(null) }
-    LaunchedEffect(on, lit) {
-        val to = lit ?: return@LaunchedEffect
-        val was = shown
-        shown = to
-        if (was == null || calm || was == to) { x.snapTo(to.first); sx.snapTo(1f); return@LaunchedEffect }
-        x.snapTo(was.first)
-        sx.snapTo(was.second / to.second)
-        coroutineScope {
-            launch { x.animateTo(to.first, tween(280, easing = Ease.slide)) }
-            launch { sx.animateTo(1f, tween(280, easing = Ease.slide)) }
-        }
-    }
-    val density = LocalDensity.current
+    // where the segment was last placed; a new set of views (another tab) has none and draws it in place, like the
+    // web's rebuilt pill
+    val placed = remember(views) { Spot() }
+    // one slide per pick, made while composing: the frame the pick lands in already draws the segment at its old spot
+    val slide = remember(views, on) { Slide(placed.x, placed.w, still = calm || placed.w == 0f) }
+    LaunchedEffect(slide) { slide.play() }
     Box(
         modifier
             .widthIn(max = if (wide) minOf(screen * .92f, 560.dp) else Dp.Unspecified)
@@ -119,44 +99,70 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
                 }
             },
     ) {
-        Box(Modifier.then(if (wide) Modifier.horizontalScroll(scroll) else Modifier).padding(6.dp)) {
-            // the lit segment: under the labels, top and bottom 6 in, sliding on its own layer
-            shown?.let { (_, w) ->
-                Box(Modifier.matchParentSize()) {
-                Box(
-                    Modifier
-                        .width(with(density) { w.toDp() })
-                        .fillMaxHeight()
-                        .graphicsLayer {
-                            translationX = x.value
-                            scaleX = sx.value
-                            transformOrigin = TransformOrigin(0f, .5f)
-                        }
-                        .shadow(7.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
-                        .background(look.volt, shape)
-                        .topLight(shape, .5f),
-                )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Layout(
+            content = {
+                // the lit segment: under the labels, top and bottom 6 in, sliding on its own layer
+                Box(Modifier.shadow(7.dp, shape, ambientColor = Color.Black, spotColor = Color.Black).background(look.volt, shape).topLight(shape, .5f))
                 for ((k, label) in views) {
-                    val sel = k == on
-                    val a by animateFloatAsState(if (sel) 1f else 0f, tween(if (calm) 0 else 180), label = "pill")
-                    Box(
-                        Modifier
-                            .onPlaced { c -> spots[k] = c.positionInParent().x to c.size.width.toFloat() }
-                            .clickable(role = Role.Tab) { if (!sel) pick(k) }
-                            .semantics { selected = sel; contentDescription = label }
-                            .padding(horizontal = 15.dp, vertical = 9.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val text = label.uppercase(Locale.ROOT)
-                        BasicText(text, style = PILL.copy(color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = 1f - a })
-                        BasicText(text, style = PILL.copy(color = Pn.void), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = a })
+                    // keyed by view: another tab's labels start at their own colours instead of fading from these
+                    key(k) {
+                        val sel = k == on
+                        val a by animateFloatAsState(if (sel) 1f else 0f, tween(if (calm) 0 else 180), label = "pill")
+                        Box(
+                            Modifier
+                                .clickable(role = Role.Tab) { if (!sel) pick(k) }
+                                .semantics { selected = sel; contentDescription = label }
+                                .padding(horizontal = 15.dp, vertical = 9.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            val text = label.uppercase(Locale.ROOT)
+                            BasicText(text, style = PILL.copy(color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = 1f - a })
+                            BasicText(text, style = PILL.copy(color = Pn.void), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = a })
+                        }
                     }
                 }
+            },
+            modifier = Modifier.then(if (wide) Modifier.horizontalScroll(scroll) else Modifier).padding(6.dp),
+        ) { parts, _ ->
+            val buttons = parts.drop(1).map { it.measure(Constraints()) }
+            val gap = 4.dp.roundToPx()
+            val xs = buttons.runningFold(0) { x, b -> x + b.width + gap }
+            val h = buttons.maxOfOrNull { it.height } ?: 0
+            val i = views.indexOfFirst { it.first == on }
+            val lit = buttons.getOrNull(i)
+            val segment = lit?.let { parts[0].measure(Constraints.fixed(it.width, h)) }
+            layout((xs.last() - gap).coerceAtLeast(0), h) {
+                if (lit != null && segment != null) {
+                    placed.x = xs[i].toFloat()
+                    placed.w = lit.width.toFloat()
+                    segment.placeWithLayer(xs[i], 0) { with(slide) { draw(xs[i].toFloat(), lit.width.toFloat()) } }
+                }
+                buttons.forEachIndexed { j, b -> b.place(xs[j], 0) }
             }
         }
+    }
+}
+
+/** Where the lit segment sits in the pill (px), kept by the layout. Not state: only the next pick reads it. */
+private class Spot {
+    var x = 0f
+    var w = 0f
+}
+
+/** One move of the lit segment from where it was ([fromX], [fromW]) to its new spot: 280ms, translate + scaleX. */
+private class Slide(private val fromX: Float, private val fromW: Float, still: Boolean) {
+    private val p = Animatable(if (still) 1f else 0f)
+
+    suspend fun play() {
+        if (p.value < 1f) p.animateTo(1f, tween(280, easing = Ease.slide))
+    }
+
+    fun GraphicsLayerScope.draw(x: Float, w: Float) {
+        val v = p.value
+        if (v >= 1f || w <= 0f) return
+        translationX = (fromX - x) * (1f - v)
+        scaleX = fromW / w + (1f - fromW / w) * v
+        transformOrigin = TransformOrigin(0f, .5f)
     }
 }
 

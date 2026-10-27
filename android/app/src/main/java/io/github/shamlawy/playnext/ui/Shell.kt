@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -86,23 +87,29 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val calm = LocalCalm.current
     val guard = remember { SwipeGuard() }
     val view = prefs.viewOf(nav.tab, nav.views)
-    // the tab this screen showed last time it was drawn: a different one now means a tab switch
-    val last = remember { arrayOf(nav.tab) }
-    val from = last[0]
-    val switched = from != nav.tab
-    var wipeFor by remember { mutableStateOf<String?>(null) }
-    SideEffect {
-        if (switched && !calm && prefs.tabFade == TabFade.Slash) wipeFor = nav.tab
-        last[0] = nav.tab
+    // the tab drawn last time (none before the first draw), read while composing: a switch shows from its very first
+    // frame (the slab over the new tab, the page at the start of its entrance), never a frame later from an effect
+    val shown = remember { arrayOf<String?>(null) }
+    val from = shown[0]
+    SideEffect { shown[0] = nav.tab }
+    // Games swaps its whole page per view (the web's four panels); Plan and Taste redraw in place
+    val page = nav.tab + "/" + if (nav.tab == "games") view else ""
+    // made here, above the tabs' saved state (a new tab starts its own fresh, so a run kept in there never played)
+    val enter = remember(page) {
+        Enter(
+            when {
+                from == null || calm -> null
+                prefs.tabFade == TabFade.Slash -> Entrance.Slash
+                prefs.tabFade == TabFade.Fade -> Entrance.Cut
+                // Instant still slides 26 by tab order (the web's v110 slide); a view change inside a tab doesn't
+                from != nav.tab -> if (TAB_ORDER.indexOf(nav.tab) >= TAB_ORDER.indexOf(from)) Entrance.Right else Entrance.Left
+                else -> null
+            },
+        )
     }
-    val entrance = when {
-        calm -> null
-        prefs.tabFade == TabFade.Slash -> Entrance.Slash
-        prefs.tabFade == TabFade.Fade -> Entrance.Cut
-        // Instant still slides 26 by tab order (the web's v110 slide); a view change inside a tab doesn't
-        switched -> if (TAB_ORDER.indexOf(nav.tab) >= TAB_ORDER.indexOf(from)) Entrance.Right else Entrance.Left
-        else -> null
-    }
+    LaunchedEffect(enter) { enter.play() }
+    val wipe = remember(nav.tab) { from != null && from != nav.tab && !calm && prefs.tabFade == TabFade.Slash }
+    var wiped by remember(nav.tab) { mutableStateOf(false) }
     // one finger walks the open tab's views (none past either end), two fingers or a tab without views the tabs
     val swipe by rememberUpdatedState { two: Boolean, dir: Int ->
         val set = prefs.views(nav.tab).map { it.first }
@@ -124,9 +131,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             holder.SaveableStateProvider(nav.tab) {
                 Page(w) {
                     if (!wide) TabBar(nav.tab, pick, settings)
-                    // Games swaps its whole page per view (the web's four panels); Plan and Taste redraw in place
-                    val key = nav.tab + "/" + if (nav.tab == "games") view else ""
-                    Column(Modifier.entrance(key, entrance)) {
+                    Column(Modifier.entrance(enter)) {
                         TabPage(nav.tab, view, games, wide, w, askCode = { go(nav.open("code")) }, pickView = pickView)
                     }
                 }
@@ -148,8 +153,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 BackHandler { go(nav.back()) }
                 SettingsSheet(games, wide, close = { go(nav.back()) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
             }
-            wipeFor?.let { t ->
-                key(t) { SlashWipe(Web.TABS.firstOrNull { it.key == t }?.label ?: t, t.hashCode()) { if (wipeFor == t) wipeFor = null } }
+            if (wipe && !wiped) {
+                key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
             }
         }
     }
@@ -160,8 +165,9 @@ private val TAB_ORDER = Web.TABS.map { it.key }
 
 /**
  * The web's touchend swipe (index.html 11003): from the first finger's start to where it lifts, at least 70 across and
- * at most 45 up or down. Only watches (nothing is consumed, scrolling and taps work as before); a touch that started on
- * something scrolling sideways is left alone.
+ * at most 45 up or down. It watches (scrolling works as before) until the lift; a lift that makes a swipe is taken here,
+ * before the touched things see it, so the button the finger slid across isn't tapped too (a browser drops that click).
+ * A touch that started on something scrolling sideways is left alone.
  */
 private fun Modifier.swipes(guard: SwipeGuard, act: (two: Boolean, dir: Int) -> Unit) = pointerInput(Unit) {
     awaitEachGesture {
@@ -174,13 +180,15 @@ private fun Modifier.swipes(guard: SwipeGuard, act: (two: Boolean, dir: Int) -> 
             val e = awaitPointerEvent(PointerEventPass.Initial)
             if (e.changes.count { it.pressed } > 1) two = true
             e.changes.firstOrNull { it.id == down.id }?.let { end = it.position }
-            if (e.changes.none { it.pressed }) break
+            if (e.changes.any { it.pressed }) continue
+            val dx = end.x - down.position.x
+            val dy = end.y - down.position.y
+            if (!guard.inScroller && abs(dx) >= 70.dp.toPx() && abs(dy) <= 45.dp.toPx()) {
+                e.changes.forEach { it.consume() }
+                act(two, if (dx < 0) 1 else -1)
+            }
+            break
         }
-        if (guard.inScroller) return@awaitEachGesture
-        val dx = end.x - down.position.x
-        val dy = end.y - down.position.y
-        if (abs(dx) < 70.dp.toPx() || abs(dy) > 45.dp.toPx()) return@awaitEachGesture
-        act(two, if (dx < 0) 1 else -1)
     }
 }
 

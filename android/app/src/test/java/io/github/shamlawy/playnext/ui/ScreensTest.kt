@@ -8,7 +8,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -24,6 +26,8 @@ import io.github.shamlawy.playnext.update.Updater
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -122,6 +126,43 @@ class ScreensTest {
         Snapshot.sendApplyNotifications()
         rule.mainClock.advanceTimeBy(250)
         rule.onRoot().captureRoboImage("src/test/screenshots/slash-412.png")
+    }
+
+    /**
+     * Instant still slides a new tab in (the web's v110 slide, 26 from the right): 100ms after the tap the page is on
+     * its way, a second later at rest. (v7's first build kept the entrance inside the tab's own state, which a new tab
+     * starts fresh, so no tab switch ever played it.)
+     */
+    @Test fun pageEntersOnATabSwitch() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        val l = lib(""","tabFade":false""")
+        var nav by mutableStateOf(Nav("home"))
+        rule.setContent { Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, Games.State.Ready(l, now - 3 * 3_600_000L), go = { nav = it }) } }
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription("Games").performClick()
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        // the Queue's header card (the widest node named Queue: the pill's button is the other)
+        fun cardX() = rule.onAllNodesWithContentDescription("Queue").fetchSemanticsNodes().maxBy { it.size.width }.positionInRoot.x
+        val mid = cardX()
+        rule.mainClock.advanceTimeBy(1000)
+        val rest = cardX()
+        assertTrue("the page slides in from the right: ${mid}px mid-way, ${rest}px at rest", mid - rest > 6f)
+    }
+
+    /** A swipe across a button walks the views and doesn't tap the button too (no code yet: Games' wide button). */
+    @Test fun swipeAcrossAButtonDoesNotTapIt() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        var nav by mutableStateOf(Nav("games"))
+        val prefs = Prefs.of(null)
+        rule.setContent { Frame(Look.of(null), prefs, now = { now }) { Shell(nav, Games.State.NoCode, go = { nav = it }) } }
+        val b = rule.onNodeWithText("Type my restore code").fetchSemanticsNode().boundsInRoot
+        rule.onRoot().performTouchInput { swipe(Offset(b.right - 20f, b.center.y), Offset(b.left + 20f, b.center.y)) }
+        rule.runOnIdle {
+            assertEquals("lib", prefs.viewOf("games", nav.views))
+            assertNull("the button under the swipe opened ${nav.overlay}", nav.overlay)
+        }
     }
 
     /** Real touches: one finger walks Games' views (none past the first), two fingers walk the tabs. */

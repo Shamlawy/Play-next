@@ -54,7 +54,8 @@ data class Nav(
         val Saver = listSaver<Nav, String>(
             save = { listOf(it.tab, it.overlay.orEmpty(), it.views.entries.joinToString(";") { (t, v) -> "$t=$v" }) + it.history },
             restore = {
-                val views = it[2].split(';').filter { p -> '=' in p }.associate { p -> p.substringBefore('=') to p.substringAfter('=') }
+                // a list saved by an older version can be shorter: no views then
+                val views = it.getOrNull(2).orEmpty().split(';').filter { p -> '=' in p }.associate { p -> p.substringBefore('=') to p.substringAfter('=') }
                 Nav(it[0], it.drop(3), it[1].ifEmpty { null }, views)
             },
         )

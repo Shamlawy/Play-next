@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -23,7 +26,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -33,7 +35,8 @@ private const val LEAN = 0.21255656f
 /**
  * The Persona slash between tabs (`pnWipe`, v142; index.html 2674-2680): a black slab, 160% of the screen wide and
  * leaning 12°, covers the screen with the new tab's name popping in (Archivo italic 900, turned -7°); after 120ms it
- * sweeps off to the left in 360ms, trailing an accent stripe and a thin ice one. Gone at 560ms. Only transform and
+ * sweeps off to the left in 360ms, trailing an accent stripe and a thin ice one. It goes once it has swept off (the
+ * web removes it at 560ms, by then off screen), so it keeps pace with the phone's animation speed. Only transform and
  * opacity move: the slab is drawn once and its layer slides.
  */
 @Composable
@@ -41,11 +44,12 @@ fun SlashWipe(label: String, key: Int, done: () -> Unit) {
     val look = LocalLook.current
     val slide = remember(key) { Animatable(0f) }
     val pop = remember(key) { Animatable(0f) }
+    val end by rememberUpdatedState(done)
     LaunchedEffect(key) {
-        launch { pop.animateTo(1f, tween(220, easing = Ease.pop)) }
-        launch { slide.animateTo(1f, tween(360, delayMillis = 120, easing = Ease.wipe)) }
-        delay(560)
-        done()
+        val name = launch { pop.animateTo(1f, tween(220, easing = Ease.pop)) }
+        slide.animateTo(1f, tween(360, delayMillis = 120, easing = Ease.wipe))
+        name.join()
+        end()
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val big = (maxWidth.value * .17f).coerceIn(56f, 112f).sp // clamp(56px, 17vw, 112px)
@@ -103,23 +107,24 @@ private fun DrawScope.slab(volt: Color) {
 enum class Entrance(val ms: Int) { Slash(380), Cut(280), Right(420), Left(420) }
 
 /**
- * Plays [kind] each time [key] changes (not on the first draw): `slashin` (-24 → 0 and a fade), `cut` (14 up, .99 →
- * 1 and a fade) or the v110 slide (±26 and a fade). Transform and opacity only, on the entrance curve.
+ * One page entrance: its [kind] (none for the first draw, calm, or Instant inside a tab) and how far it has come. The
+ * shell makes one each time the page changes, while composing and above the tabs' saved state: a new tab starts its
+ * own state fresh, and the run must outlive that and draw its very first frame at the start.
  */
-@Composable
-fun Modifier.entrance(key: Any, kind: Entrance?): Modifier {
-    val p = remember { Animatable(1f) }
-    val seen = remember { arrayOf<Any?>(key) }
-    LaunchedEffect(key) {
-        if (seen[0] == key) return@LaunchedEffect
-        seen[0] = key
-        if (kind == null) { p.snapTo(1f); return@LaunchedEffect }
-        p.snapTo(0f)
-        p.animateTo(1f, tween(kind.ms, easing = Ease.enter))
+class Enter(val kind: Entrance?) {
+    private val p = Animatable(if (kind == null) 1f else 0f)
+
+    suspend fun play() {
+        if (kind != null) p.animateTo(1f, tween(kind.ms, easing = Ease.enter))
     }
-    return graphicsLayer {
+
+    /**
+     * `slashin` (-24 → 0 and a fade), `cut` (14 up, .99 → 1 and a fade) or the v110 slide (±26 and a fade). Transform
+     * and opacity only, on the entrance curve.
+     */
+    fun GraphicsLayerScope.draw() {
         val v = p.value
-        if (v >= 1f) return@graphicsLayer
+        if (v >= 1f) return
         alpha = v.coerceIn(0f, 1f)
         val left = 1f - v
         when (kind) {
@@ -135,3 +140,6 @@ fun Modifier.entrance(key: Any, kind: Entrance?): Modifier {
         }
     }
 }
+
+/** Draws [run] on this page's layer; the shell plays it. */
+fun Modifier.entrance(run: Enter): Modifier = graphicsLayer { with(run) { draw() } }
