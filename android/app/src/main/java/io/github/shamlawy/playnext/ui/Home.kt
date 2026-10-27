@@ -48,6 +48,7 @@ import androidx.profileinstaller.ProfileVerifier
 import io.github.shamlawy.playnext.BuildConfig
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.report.Reporter
+import io.github.shamlawy.playnext.update.UpdatePlan
 import io.github.shamlawy.playnext.update.Updater
 import io.github.shamlawy.playnext.update.WhatsNew
 import kotlinx.coroutines.Dispatchers
@@ -115,9 +116,9 @@ fun HomeScreen(openProbe: () -> Unit) {
                 BasicText("Updates", style = title)
                 BasicText(updateLine(update, code), style = body)
                 when (val s = update) {
-                    is Updater.State.NeedsTap -> Button("Install v${s.code}", primary = true) { scope.launch { Updater.run(ctx, now = true) } }
+                    is Updater.State.NeedsTap -> Button("Install v${s.code}", primary = true) { scope.launch { Updater.run(ctx, UpdatePlan.Ask.Install) } }
                     is Updater.State.Failed, is Updater.State.Blocked, Updater.State.UpToDate, Updater.State.Idle ->
-                        Button("Check now") { scope.launch { Updater.checkInBackground(ctx, force = true) } }
+                        Button("Check now") { scope.launch { Updater.run(ctx, UpdatePlan.Ask.Check) } }
                     else -> Unit
                 }
             }
@@ -202,7 +203,8 @@ private fun updateLine(s: Updater.State, code: Int): String = when (s) {
     Updater.State.UpToDate -> "You have the newest version, v$code."
     is Updater.State.Downloading -> "Downloading v${s.code} · ${s.pct}%"
     is Updater.State.Waiting -> "v${s.code} is ready. It installs by itself when you leave the app."
-    is Updater.State.NeedsTap -> "v${s.code} is ready and Android wants one tap to install it."
+    is Updater.State.NeedsTap -> "v${s.code} is ready. Tap Install, then Install on Android's screen."
+    is Updater.State.Installing -> "Installing v${s.code}…"
     is Updater.State.Blocked -> s.why
     is Updater.State.Failed -> "Couldn't update: ${s.why}"
 }
