@@ -2,6 +2,7 @@ package io.github.shamlawy.playnext
 
 import android.app.Application
 import io.github.shamlawy.playnext.crash.CrashGuard
+import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.report.Reporter
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +22,8 @@ class PlayNextApp : Application() {
         // reports a crashed run left behind join the queue; safe mode sends them, a normal start a few seconds in
         Reporter.adopt(CrashGuard.pendingFiles())
         if (CrashGuard.counter.safeMode) return
+        // your games: this phone's copy first, then a look for a newer backup
+        Games.start(this)
         scope.launch {
             runCatching { CrashGuard.readExits(this@PlayNextApp) }
             Reporter.ranOnce()

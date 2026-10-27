@@ -1,10 +1,12 @@
 import java.util.Properties
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.roborazzi)
 }
 
 // The release counter (android/version.properties) is the version; the release workflow passes
@@ -18,6 +20,31 @@ val code: Int = providers.gradleProperty("pn.versionCode").orNull?.trim()?.toInt
 // build signs with the debug key: a throwaway that can never update the phone's app.
 val storeFilePath: String? = System.getenv("PN_SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
 val repoDir: String = rootDir.parentFile.absolutePath
+
+/**
+ * The app's content from index.html (colours, themes, the backup alphabet, the tab icons…): tools/android-gen.mjs
+ * writes it as Kotlin into build/generated/pn before every compile, so it's never typed twice and a table that changes
+ * shape fails the build (docs/ANDROID-PLAN.md gate 7). Needs `node` on the PATH.
+ */
+abstract class PnGen : DefaultTask() {
+    @get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE) abstract val page: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE) abstract val script: RegularFileProperty
+    @get:OutputDirectory abstract val out: DirectoryProperty
+    @get:Inject abstract val exec: ExecOperations
+
+    @TaskAction
+    fun run() {
+        exec.exec {
+            commandLine("node", script.get().asFile.absolutePath, "--page", page.get().asFile.absolutePath, "--out", out.get().asFile.absolutePath)
+        }
+    }
+}
+
+val pnGen = tasks.register<PnGen>("pnGen") {
+    page.set(rootProject.layout.projectDirectory.file("../index.html"))
+    script.set(rootProject.layout.projectDirectory.file("../tools/android-gen.mjs"))
+    out.set(layout.buildDirectory.dir("generated/pn"))
+}
 
 android {
     namespace = "io.github.shamlawy.playnext"
@@ -78,9 +105,14 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true // Roborazzi: the fonts and icons draw as on the phone
         // the tests read the repo's own files (worker/helper.js, whatsnew.txt, version.properties)
         unitTests.all { it.systemProperty("pn.repo", repoDir) }
     }
+}
+
+androidComponents {
+    onVariants { v -> v.sources.kotlin?.addGeneratedSourceDirectory(pnGen, PnGen::out) }
 }
 
 baselineProfile {
@@ -112,4 +144,14 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.mockwebserver)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
+}
+
+roborazzi {
+    // the approved pictures live in the repo; android-check compares every run with them (verifyRoborazziDebug)
+    outputDir.set(file("src/test/screenshots"))
 }

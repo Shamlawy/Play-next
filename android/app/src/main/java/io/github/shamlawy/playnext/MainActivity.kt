@@ -3,6 +3,7 @@ package io.github.shamlawy.playnext
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -14,6 +15,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import io.github.shamlawy.playnext.crash.CrashGuard
 import io.github.shamlawy.playnext.crash.SafeModeActivity
+import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.report.FrameGate
 import io.github.shamlawy.playnext.ui.PlayNextRoot
 import io.github.shamlawy.playnext.ui.Route
@@ -21,12 +23,15 @@ import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private var route by mutableStateOf(Route.Home)
+    /** A link that opened the app (a shortcut, the 120 Hz test's link): the screen takes it, then clears it. */
+    private var link by mutableStateOf<Route?>(null)
     private var gate: FrameGate? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // the splash is black with a still icon and goes with the first frame: nothing to wait for here (G7)
-        installSplashScreen()
+        // the splash is black with a still icon; it waits for this phone's copy of your games (a moment, never the
+        // network, at most 1.5 s) so the first screen isn't a flash of "opening" (G7)
+        val t0 = SystemClock.uptimeMillis()
+        installSplashScreen().setKeepOnScreenCondition { Games.state.value is Games.State.Starting && SystemClock.uptimeMillis() - t0 < 1500 }
         if (CrashGuard.counter.safeMode) {
             super.onCreate(savedInstanceState)
             startActivity(Intent(this, SafeModeActivity::class.java))
@@ -35,14 +40,14 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        go(Links.route(intent?.dataString) ?: Route.Home)
-        setContent { PlayNextRoot(route, ::go) }
+        link = Links.route(intent?.dataString)
+        setContent { PlayNextRoot(link) { link = null } }
         gate = FrameGate.track(this)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Links.route(intent.dataString)?.let(::go)
+        Links.route(intent.dataString)?.let { link = it }
     }
 
     override fun onStart() {
@@ -50,6 +55,8 @@ class MainActivity : ComponentActivity() {
         // at start and on coming back: an update waiting for Android's tap asks for it now (once per version), else the
         // check after 10+ min, in the background: never blocks a screen (critic §3.7)
         lifecycleScope.launch { Updater.onOpen(applicationContext) }
+        // your games: a newer backup since the last look (over a minute ago)?
+        Games.onOpen(applicationContext)
     }
 
     override fun onResume() {
@@ -60,10 +67,5 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         gate?.on(false)
         super.onPause()
-    }
-
-    private fun go(r: Route) {
-        route = r
-        Screen.set(this, r.name.lowercase())
     }
 }
