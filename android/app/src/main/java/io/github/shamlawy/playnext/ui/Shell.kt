@@ -69,6 +69,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.gen.Web
+import io.github.shamlawy.playnext.kit.Sfx
+import io.github.shamlawy.playnext.kit.Sounds
+import io.github.shamlawy.playnext.report.Crumbs
 import kotlin.math.abs
 
 /** Below this width the tab bar sits at the top of the page; from it Nexi's rail replaces it (the web app's 620px). */
@@ -110,24 +113,51 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     LaunchedEffect(enter) { enter.play() }
     val wipe = remember(nav.tab) { from != null && from != nav.tab && !calm && prefs.tabFade == TabFade.Slash }
     var wiped by remember(nav.tab) { mutableStateOf(false) }
+    val here = nav.tab + (view?.let { "/$it" } ?: "")
     // one finger walks the open tab's views (none past either end), two fingers or a tab without views the tabs
     val swipe by rememberUpdatedState { two: Boolean, dir: Int ->
         val set = prefs.views(nav.tab).map { it.first }
         if (nav.overlay == null) {
-            if (!two && set.isNotEmpty()) {
-                set.getOrNull(set.indexOf(view) + dir)?.let { go(nav.view(nav.tab, it)) }
-            } else {
-                TAB_ORDER.getOrNull(TAB_ORDER.indexOf(nav.tab) + dir)?.let { go(nav.go(it)) }
+            val to = if (!two && set.isNotEmpty()) set.getOrNull(set.indexOf(view) + dir)?.let { nav.view(nav.tab, it) }
+            else TAB_ORDER.getOrNull(TAB_ORDER.indexOf(nav.tab) + dir)?.let { nav.go(it) }
+            if (to != null) {
+                Sounds.play(Sfx.Swipe)
+                Crumbs.add("swipe " + (if (to.tab != nav.tab) "tabs" else "views") + " on $here")
+                go(to)
             }
         }
     }
-    CompositionLocalProvider(LocalSwipeGuard provides guard) {
-        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard) { two, dir -> swipe(two, dir) }) {
+    // where the last finger came down (a game's page grows from it), and the cover a page was opened from
+    val down = remember { arrayOf(Offset.Unspecified) }
+    var tapAt by remember { mutableStateOf(Offset.Unspecified) }
+    var fly by remember { mutableStateOf<FlyFrom?>(null) }
+    val openGame by rememberUpdatedState { id: String, from: FlyFrom? ->
+        Sounds.play(Sfx.Open)
+        Crumbs.tap(if (from != null) "cover" else "game", here)
+        tapAt = down[0]
+        fly = from
+        go(nav.open("game:$id"))
+    }
+    val opener = remember { { id: String, from: FlyFrom? -> openGame(id, from) } }
+    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener) {
+        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
             val w = maxWidth
             val wide = w >= RAIL_FROM
-            val pick = { t: String -> go(nav.go(t)) }
-            val pickView = { v: String -> go(nav.view(nav.tab, v)) }
-            val settings = { go(nav.open("settings")) }
+            val pick = { t: String ->
+                if (t != nav.tab) Sounds.play(Sfx.Tap)
+                Crumbs.tap("tab", here)
+                go(nav.go(t))
+            }
+            val pickView = { v: String ->
+                Sounds.play(Sfx.Tap)
+                Crumbs.tap("view", here)
+                go(nav.view(nav.tab, v))
+            }
+            val settings = {
+                Sounds.play(Sfx.Open)
+                Crumbs.tap("settings", here)
+                go(nav.open("settings"))
+            }
             holder.SaveableStateProvider(nav.tab) {
                 Page(w) {
                     if (!wide) TabBar(nav.tab, pick, settings)
@@ -153,6 +183,11 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 BackHandler { go(nav.back()) }
                 SettingsSheet(games, wide, close = { go(nav.back()) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
             }
+            val gameId = nav.overlay?.takeIf { it.startsWith("game:") }?.removePrefix("game:")
+            val game = gameId?.let { id -> (games as? Games.State.Ready)?.lib?.games?.firstOrNull { it.id == id } }
+            if (game != null) {
+                key(game.id) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.back()) }) }
+            }
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
             }
@@ -169,9 +204,10 @@ private val TAB_ORDER = Web.TABS.map { it.key }
  * before the touched things see it, so the button the finger slid across isn't tapped too (a browser drops that click).
  * A touch that started on something scrolling sideways is left alone.
  */
-private fun Modifier.swipes(guard: SwipeGuard, act: (two: Boolean, dir: Int) -> Unit) = pointerInput(Unit) {
+private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (two: Boolean, dir: Int) -> Unit) = pointerInput(Unit) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        touched(down.position)
         // cleared here, before the touched things see it: a side scroller sets it in this same pass
         guard.inScroller = false
         var end = down.position
@@ -291,7 +327,7 @@ fun Rail(tab: String, pick: (String) -> Unit, settings: () -> Unit, modifier: Mo
             .padding(12.dp)
             .fillMaxHeight()
             .width(72.dp)
-            .shadow(20.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+            .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.ink, shape)
             .border(1.dp, Pn.edge, shape)
             .padding(vertical = 14.dp),

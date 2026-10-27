@@ -25,6 +25,7 @@ import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.JsDate
 import io.github.shamlawy.playnext.gen.Web
+import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.update.WhatsNew
 import java.time.Instant
 import java.time.ZoneId
@@ -59,7 +60,18 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
         Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting((games as? Games.State.Fetching)?.why, askCode) }
         return
     }
+    if (tab == "add") LocalShared.current?.let { SharedCard(it) }
     if (v == "queue") QueueSoon(ready) else Card { BasicText(SOON[v] ?: "", style = Type.note) }
+}
+
+/** Something shared into the app (a store page, a trailer, a name): the game it names; adding it comes with Add's phase. */
+@Composable
+private fun SharedCard(s: Shared) {
+    Card(Modifier.padding(bottom = 12.dp)) {
+        BasicText("From your share", style = Type.kicker)
+        BasicText(s.name, style = Type.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        BasicText("Finding it and adding it from here comes in phase 4, with Search.", style = Type.note)
+    }
 }
 
 /** Where each view is built (docs/ANDROID-PLAN.md, the phases). */

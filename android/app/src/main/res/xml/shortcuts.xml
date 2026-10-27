@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The web app's three icon shortcuts (manifest.webmanifest), each a playnext://open?nudge= link into the one router. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add"
+        android:enabled="true"
+        android:icon="@drawable/sc_add"
+        android:shortcutShortLabel="@string/sc_add_short"
+        android:shortcutLongLabel="@string/sc_add">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="playnext://open?nudge=add"
+            android:targetPackage="io.github.shamlawy.playnext"
+            android:targetClass="io.github.shamlawy.playnext.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="next"
+        android:enabled="true"
+        android:icon="@drawable/sc_pick"
+        android:shortcutShortLabel="@string/sc_next_short"
+        android:shortcutLongLabel="@string/sc_next">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="playnext://open?nudge=next"
+            android:targetPackage="io.github.shamlawy.playnext"
+            android:targetClass="io.github.shamlawy.playnext.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="queue"
+        android:enabled="true"
+        android:icon="@drawable/sc_queue"
+        android:shortcutShortLabel="@string/sc_queue"
+        android:shortcutLongLabel="@string/sc_queue">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="playnext://open?nudge=queue"
+            android:targetPackage="io.github.shamlawy.playnext"
+            android:targetClass="io.github.shamlawy.playnext.MainActivity" />
+    </shortcut>
+</shortcuts>

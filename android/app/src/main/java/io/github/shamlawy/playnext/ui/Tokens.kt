@@ -34,6 +34,8 @@ object Pn {
     val volt2 = Color(Web.VOLT2) // --volt2: Midnight's second accent
     val void = Color(Web.VOID) // --void: text on an accent fill
     val white = Color.White // the folded tab bar's current label (#fff)
+    val slab = Color(Web.SLAB) // the tab-switch slash's slab (`.pnw-slab`, #000)
+    val shade = Color(Web.SHADOW).copy(alpha = 1f) // the web's black shadows; natively the elevation sets their strength
 
     // the background defaults (S.bgBase / S.bgTint / S.bgGrad)
     val bgBase = Color(Web.BG_BASE)

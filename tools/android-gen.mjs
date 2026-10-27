@@ -81,7 +81,7 @@ function cssColour(sel, prop) {
   const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   for (const m of src.matchAll(new RegExp("(?:^|[\\s},])" + esc + "\\s*\\{([^}]*)\\}", "g"))) {
     const d = new RegExp("(?:^|[;{\\s])" + prop + "\\s*:\\s*([^;}]+)").exec(m[1]);
-    const c = d && /#[0-9A-Fa-f]{6}\b|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)/.exec(d[1]);
+    const c = d && /#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)/.exec(d[1]);
     if (c) return argb(c[0].replace(/\s+/g, ""), `${sel} ${prop}`);
   }
   fail(`no colour for ${prop} in "${sel} { … }"`);
@@ -98,6 +98,7 @@ function cssVars(selector) {
   return Object.fromEntries([...m[2].matchAll(/--([\w-]+):\s*([^;]+);/g)].map(x => [x[1], x[2].trim()]));
 }
 function argb(v, name) {
+  if (/^#[0-9a-f]{3}$/i.test(v)) v = "#" + [...v.slice(1)].map(c => c + c).join("");
   let m = /^#([0-9a-f]{6})$/i.exec(v);
   if (m) return "0xFF" + m[1].toUpperCase();
   m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(v);
@@ -118,6 +119,9 @@ const RULES = {
   SHX_BAR: cssColour(".shx-ch > div i", "background"),
   SHX_MIX3: cssColour('.shx-mx i[data-c="3"]', "background"), SHX_MIX4: cssColour('.shx-mx i[data-c="4"]', "background"),
   COVER_BG: argb(PLACEHOLDER_BG, "placeholder"),
+  /* the slash's slab (#000) and the shadows under covers, the pill and the cards (rgba(0,0,0,a): black, the strength
+     comes from the elevation natively) */
+  SLAB: cssColour(".pnw-slab", "background"), SHADOW: cssColour(".shx-fan button", "box-shadow"),
 };
 
 /* ---------- the tab bar's icons (the web nav's inline SVGs, v247 style) ---------- */

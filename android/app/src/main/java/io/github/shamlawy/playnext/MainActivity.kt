@@ -23,7 +23,7 @@ import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    /** A link that opened the app (a shortcut, the 120 Hz test's link): the screen takes it, then clears it. */
+    /** A link that opened the app (a shortcut, the 120 Hz test's link) or something shared into it: the screen takes it, then clears it. */
     private var link by mutableStateOf<Route?>(null)
     private var gate: FrameGate? = null
 
@@ -40,14 +40,14 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        link = Links.route(intent?.dataString)
+        link = Links.of(intent)
         setContent { PlayNextRoot(link) { link = null } }
         gate = FrameGate.track(this)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Links.route(intent.dataString)?.let { link = it }
+        Links.of(intent)?.let { link = it }
     }
 
     override fun onStart() {

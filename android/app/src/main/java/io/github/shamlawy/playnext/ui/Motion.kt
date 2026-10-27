@@ -67,6 +67,14 @@ data class Prefs(
     val timerOn: Boolean = false,
     /** The view each tab was last on in the web app (`S.gamesView`, `S.calView`, `S.tasteView`). */
     val saved: Map<String, String> = emptyMap(),
+    /** Settings › Sounds (`S.sound`, off unless switched on). */
+    val sound: Boolean = false,
+    /** Nexi's blips (`S.pnVoice !== "mute"`; before it, `S.pnMute`). */
+    val nexiVoice: Boolean = true,
+    /** "Buzz as each cover lands" (`S.buzz !== false`): only the swipe ticks. */
+    val buzz: Boolean = true,
+    /** Customise › A game's own page › Motion on this page (`S.hubAnim !== false`): the cover's flight onto it. */
+    val hubAnim: Boolean = true,
 ) {
     /** A tab's views in the pill's order (Plan's Timer only while it's switched on); empty for Home and Add. */
     fun views(tab: String): List<Pair<String, String>> = Web.VIEWS[tab].orEmpty().filter { it.first != "timer" || timerOn }
@@ -101,6 +109,14 @@ data class Prefs(
                 shx = x?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content } ?: SHX_FULL,
                 timerOn = Backup.truthy(lib["timerOn"]),
                 saved = Web.VIEW_KEY.mapNotNull { (tab, key) -> Backup.str(lib[key]).ifEmpty { null }?.let { tab to it } }.toMap(),
+                sound = Backup.truthy(lib["sound"]),
+                nexiVoice = when (Backup.str(lib["pnVoice"])) {
+                    "mute" -> false
+                    "" -> !Backup.truthy(lib["pnMute"])
+                    else -> true
+                },
+                buzz = !lib.off("buzz"),
+                hubAnim = !lib.off("hubAnim"),
             )
         }
     }

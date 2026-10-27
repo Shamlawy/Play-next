@@ -1,6 +1,9 @@
 package io.github.shamlawy.playnext.report
 
+import io.github.shamlawy.playnext.data.Library
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 
 /** The web app's report shape (index.html bugReport), plus `app`, which the helper keeps for "android". */
 @Serializable
@@ -47,6 +50,28 @@ object ReportRules {
 
     /** Kinds bugsync logs and acks without ever opening an issue. */
     val LOG_ONLY = setOf("ran", "probe", "killed")
+
+    /**
+     * The report's library line (`bugLib`, index.html 17527): sizes only, never names. "Out" counts games that are out
+     * and not finished or dropped (the web's line reads `g.status`, which holds the date's certainty, so it always says
+     * 0 out, 0 coming).
+     */
+    fun libLine(lib: Library, now: Long): String {
+        var up = 0
+        var kb = 0.0
+        var long = 0
+        for (g in lib.games) {
+            long = maxOf(long, g.title.length)
+            for (k in listOf("img", "key", "art")) {
+                val v = (g[k] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: continue
+                if (v.startsWith("data:")) { up++; kb += v.length * .75 / 1024 }
+            }
+        }
+        val coming = lib.games.count { it.isUpcoming(now) }
+        val out = lib.games.count { it.state != "played" && it.state != "dropped" && !it.isUpcoming(now) }
+        val lists = (lib["lists"] as? JsonArray)?.size ?: 0
+        return "${lib.games.size} games ($out out, $coming coming), $lists lists, $up uploaded pictures (${Math.round(kb)}KB), longest title $long chars"
+    }
 }
 
 /** Titles, list names, keys and the restore code never leave the phone. */

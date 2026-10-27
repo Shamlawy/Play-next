@@ -53,11 +53,29 @@ class ProbeAndLinksTest {
         assertEquals("probe", Links.nudge("playnext://open?nudge=probe"))
         assertEquals(Route.Probe, Links.route("playnext://open?x=1&nudge=probe"))
         assertEquals("What should I play", Links.nudge("playnext://open?nudge=What%20should%20I%20play"))
-        assertEquals("a newer link opens Home, never crashes", Route.Home, Links.route("playnext://open?nudge=next"))
+        assertEquals("a link this app doesn't know opens Home, never crashes", Route.Tab("home"), Links.route("playnext://open?nudge=someday"))
         assertNull(Links.route("playnext://open"))
         assertNull(Links.route("https://open?nudge=probe"))
         assertNull(Links.route("playnext://elsewhere?nudge=probe"))
         assertNull(Links.route("::: not a link"))
         assertNull(Links.route(null))
+    }
+
+    /** Every `?nudge=` the web app sends (shortcuts, pings, the calendar feed) opens its screen, or the nearest one built. */
+    @Test
+    fun everyNudgeOpensItsScreen() {
+        fun r(q: String) = Links.route("playnext://open?$q")
+        assertEquals(Route.Tab("add"), r("nudge=add"))
+        assertEquals(Route.Tab("games", "queue"), r("nudge=queue"))
+        assertEquals("What should I play?: On deck's first, whatever g says", Route.Game(null), r("nudge=next&g=x"))
+        for (n in listOf("release", "game", "finish", "reviews", "steam")) {
+            assertEquals(n, Route.Game("g7"), r("nudge=$n&g=g7"))
+            assertEquals("$n without a game", Route.Tab("home"), r("nudge=$n"))
+        }
+        assertEquals(Route.Tab("taste", "duels"), r("nudge=duel"))
+        assertEquals(Route.Tab("games", "played"), r("nudge=badge"))
+        assertEquals(Route.Tab("games", "played"), r("nudge=verdict"))
+        for (n in listOf("recap&m=2026-09", "deals", "update", "tip")) assertEquals(n, Route.Tab("home"), r("nudge=$n"))
+        assertEquals("a game id is decoded", Route.Game("a b"), r("nudge=game&g=a%20b"))
     }
 }

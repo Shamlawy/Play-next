@@ -1,12 +1,18 @@
 package io.github.shamlawy.playnext
 
+import io.github.shamlawy.playnext.data.Library
+import io.github.shamlawy.playnext.report.Crumbs
 import io.github.shamlawy.playnext.report.ReportRules
 import io.github.shamlawy.playnext.report.Scrub
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
+import java.time.ZoneId
 
 class ReportRulesTest {
     /** Values from index.html's own bugHash (node, Oct 26 2026): the app's signatures are made the web app's way. */
@@ -54,5 +60,37 @@ class ReportRulesTest {
         assertTrue(out.contains("‹game›"))
         assertTrue("short names are left alone", Scrub.text("tab", names = listOf("ab")) == "tab")
         assertTrue(Scrub.text("x".repeat(5000)).length <= 2000)
+    }
+
+    /** The library line: sizes only, never a name, and "out" counts games that are out and not finished (made-up games). */
+    @Test
+    fun libraryLineCountsWithoutNames() {
+        val now = Instant.parse("2026-10-27T08:00:00Z").toEpochMilli()
+        val pic = "data:image/png;base64," + "A".repeat(4096)
+        val lib = Library(
+            Json.parseToJsonElement(
+                """{"games":[
+                  {"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","img":"$pic"},
+                  {"id":"b","title":"Hollow Tide","state":"playing","date":"2026-08-02"},
+                  {"id":"c","title":"Ninefold Gate","state":"upcoming","date":"2026-11-14"},
+                  {"id":"d","title":"Quiet Orbit","state":"upcoming","date":""},
+                  {"id":"e","title":"Paper Kingdom","state":"played","date":"2025-12-01"}],
+                 "lists":[{"n":"Couch co-op"}],"played":[],"duels":[]}""",
+            ).jsonObject,
+        )
+        val line = ReportRules.libLine(lib, now)
+        assertEquals("5 games (2 out, 2 coming), 1 lists, 1 uploaded pictures (3KB), longest title 16 chars", line)
+        assertFalse(line.contains("Lantern") || line.contains("Couch"))
+    }
+
+    @Test
+    fun crumbsKeepTheLast14InOrder() {
+        Crumbs.clear()
+        repeat(16) { Crumbs.add("tap [tab] on games/queue $it", 1_700_000_000_000L + it * 1000L, ZoneId.of("UTC")) }
+        assertEquals(10, Crumbs.last().size)
+        assertEquals("22:13:35 tap [tab] on games/queue 15", Crumbs.last().last())
+        assertEquals("the oldest two went", 14, Crumbs.last(99).size)
+        assertEquals("22:13:22 tap [tab] on games/queue 2", Crumbs.last(99).first())
+        Crumbs.clear()
     }
 }

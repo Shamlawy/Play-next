@@ -113,6 +113,8 @@ async function phone(at) {
   const start = { ...seed(APP_V, 1, { bare: true }), bugOff: true };
   await ctx.addInitScript(s => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("gq:data", s); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(start));
   const page = await ctx.newPage();
+  /* a busy CI runner (apt crawling beside it) once took over 30s to fire a reload's load event; the numbers don't care how long */
+  page.setDefaultNavigationTimeout(120000);
   page.on("pageerror", e => errors.push(String(e.message || e).split("\n")[0]));
   await page.goto(base);
   await page.waitForFunction(() => typeof readBackup === "function" && typeof S === "object" && S.games.length > 0, null, { timeout: 30000 });

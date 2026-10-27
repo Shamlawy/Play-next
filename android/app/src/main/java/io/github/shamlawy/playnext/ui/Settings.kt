@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -49,6 +51,10 @@ import androidx.profileinstaller.ProfileVerifier
 import io.github.shamlawy.playnext.BuildConfig
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
+import io.github.shamlawy.playnext.kit.Big
+import io.github.shamlawy.playnext.kit.Buzz
+import io.github.shamlawy.playnext.kit.Sfx
+import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.report.Reporter
 import io.github.shamlawy.playnext.update.UpdatePlan
 import io.github.shamlawy.playnext.update.Updater
@@ -103,6 +109,7 @@ fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProb
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 BackupCard(games, askCode)
+                SoundsCard()
                 BuildCards(openProbe)
             }
         }
@@ -271,6 +278,60 @@ private fun ReportCard() {
                 said = if (sent) "Sent. Thanks!" else "Saved. It goes as soon as you're online."
                 if (sent) text = ""
             }
+        }
+    }
+}
+
+/**
+ * Sounds and buzzes (Settings › Sound and reactions on the web): every sound the app makes and the big moments'
+ * buzzes, each a tap away to try. They play here whatever your Sounds switch says; everywhere else Sounds decides
+ * (the owner, Oct 26: off means silent, the duel, CLEAR! and Out now too). The switch itself moves over with Settings
+ * (phase 7); until then it's the web app's.
+ */
+@Composable
+private fun SoundsCard() {
+    val prefs = LocalPrefs.current
+    val ready by Sounds.ready.collectAsStateWithLifecycle()
+    // a tap before the sounds are made (a second, the first time) says so instead of doing nothing
+    var early by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { Sounds.warm() }
+    Card {
+        BasicText("Sounds and buzzes", style = Type.head)
+        BasicText(
+            if (prefs.sound) "Sounds is on in your backup, so the app makes these as you use it. Tap one to hear it."
+            else "Sounds is off in your backup, so the app stays quiet. Tap one to hear it anyway: it plays here only.",
+            style = Type.note,
+        )
+        if (early && !ready) BasicText("Getting the sounds ready: try again in a moment.", style = Type.note)
+        for ((group, list) in SOUND_GROUPS) {
+            BasicText(group, style = Type.kicker, modifier = Modifier.padding(top = 4.dp))
+            TryRow(list.map { s -> s.label to { if (!Sounds.now(s)) early = true } })
+        }
+        BasicText("Buzzes for the big moments", style = Type.kicker, modifier = Modifier.padding(top = 4.dp))
+        TryRow(Big.entries.map { b -> b.label to { Buzz.big(b) } } + ("Swipe tick" to { Buzz.ms(9) }))
+    }
+}
+
+/** The sounds by where the web app plays them. */
+private val SOUND_GROUPS = listOf(
+    "Taps" to listOf(Sfx.Tap, Sfx.Open, Sfx.Back, Sfx.Add, Sfx.Swipe, Sfx.Nudge),
+    "Tonight's pick" to listOf(Sfx.Hit, Sfx.Slash, Sfx.Tick, Sfx.Slam, Sfx.Crack, Sfx.Shatter, Sfx.Cheer),
+    "The Queue card" to listOf(Sfx.CardOpen, Sfx.CardTear, Sfx.CardFlip, Sfx.CardFlipBack, Sfx.CardShut, Sfx.CardBack),
+    "Big moments" to listOf(Sfx.Zing, Sfx.Boom, Sfx.Clang, Sfx.Fanfare, Sfx.Day, Sfx.Chime),
+)
+
+@Composable
+private fun TryRow(items: List<Pair<String, () -> Unit>>) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((label, play) in items) {
+            Box(
+                Modifier
+                    .sizeIn(minHeight = 40.dp)
+                    .background(Pn.card2, Pn.pill)
+                    .clickable(role = Role.Button, onClick = play)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) { BasicText(label, style = Type.label.copy(color = Pn.ice), softWrap = false, maxLines = 1) }
         }
     }
 }

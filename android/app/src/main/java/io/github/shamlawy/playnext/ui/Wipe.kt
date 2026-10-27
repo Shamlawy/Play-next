@@ -98,7 +98,7 @@ private fun DrawScope.slab(volt: Color) {
         drawPath(p, c, alpha = a)
     }
     val right = 1.3f * w
-    band(-.3f * w, right, Color.Black) // the web's #000 slab
+    band(-.3f * w, right, Pn.slab)
     band(right, right + .06f * w, volt)
     band(right + .078f * w, right + .09f * w, Pn.ice, .8f)
 }
