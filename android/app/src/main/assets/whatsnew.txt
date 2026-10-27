@@ -14,3 +14,9 @@ go=home
 at=
 say=Play next just updated itself: this version is the test that proves it.
 tryIt=Run the 120 Hz test folded. Tell Claude whether this update asked you for a tap.
+
+v=3
+go=home
+at=
+say=Fixed: an update could wait forever. Now Android's install question shows right in the app, one tap.
+tryIt=When Claude says v4 is out, tap Check now: Android asks once, then later updates install by themselves.

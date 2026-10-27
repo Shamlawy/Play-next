@@ -47,8 +47,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // at start and on coming back after 10+ min, in the background: never blocks a screen (critic §3.7)
-        lifecycleScope.launch { Updater.checkInBackground(applicationContext) }
+        // at start and on coming back: an update waiting for Android's tap asks for it now (once per version), else the
+        // check after 10+ min, in the background: never blocks a screen (critic §3.7)
+        lifecycleScope.launch { Updater.onOpen(applicationContext) }
     }
 
     override fun onResume() {
