@@ -28,6 +28,7 @@ describe('auto-handoff', () => {
     await $.prompt.submit({ text: 'thanks' })
     expect(seen[0]).toContain('past the 300k line')
     expect(seen[0]).toContain('create_session')
+    expect(seen[0]).toContain('/effort')
     expect(seen[1]).toBe('')
   })
 

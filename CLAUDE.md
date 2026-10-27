@@ -130,7 +130,7 @@
 - Check in a new chat: `claude plugin list` (all 9 under "Installed") or type `/heads-up`. On the owner's PC (a Local chat, folder trusted) `.claude/skills/` loads by itself; don't also install them there (they'd load twice).
 
 ## Claude mod: auto-handoff
-- `.claude/skills/auto-handoff/` loads by itself in every chat on this repo (replaced usage-guard: the app's own context/limits popup already shows usage, so no meter). Once a chat passes 300k tokens, the next message gets a hidden note: Claude answers it, then without asking records the chat's lessons (tools/learn.mjs), commits + pushes, writes a handoff note and starts a new cloud session with it (create_session). Once per chat (kept in `$.state`). Typing "handoff" (or `/handoff`) does the same at any size.
+- `.claude/skills/auto-handoff/` loads by itself in every chat on this repo (replaced usage-guard: the app's own context/limits popup already shows usage, so no meter). Once a chat passes 300k tokens, the next message gets a hidden note: Claude answers it, then without asking records the chat's lessons (tools/learn.mjs), commits + pushes, writes a handoff note and starts a new cloud session with it (create_session). Once per chat (kept in `$.state`). The new chat starts at this chat's effort (0.2.2, the owner: a handoff from xhigh opened at high): create_session has no effort field, so its first message is `/effort <level>` (from get_session's `effort_level`, xhigh when unset) and the note follows by send_message. Typing "handoff" (or `/handoff`) does the same at any size.
 - Test it with `claude plugin test .claude/skills/auto-handoff` (3 tests) and `claude plugin validate …`. `.gitignore` lets its two `.json` manifests through.
 
 ## Claude mod: release-guard
