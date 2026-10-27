@@ -13,7 +13,9 @@ const done = atom({ plugin: 'auto-handoff', key: 'done' } as const, false)
 const STEPS = [
   '1. Record what this chat learned that the next one should know (node tools/learn.mjs add --kind=mistake|idea --anchors=… "…"), then make sure every change, docs/LESSONS.md included, is committed and pushed (say so plainly if something can\'t be).',
   '2. Write a handoff note (under 300 words) for the new chat, its first line "Handoff note from an earlier chat" (so the new chat\'s mods know these are not the person\'s words): the goal, what is done (commits, APP_V), what is left next, open questions, the branch, and gotchas learned in this chat. Don\'t repeat what CLAUDE.md already says.',
-  '3. Start the new cloud session with the claude-code-remote create_session tool: source_url = this repo\'s GitHub URL, title starting "Play next · ", prompt = the handoff note.',
+  // create_session has no effort field, so a new chat opened at the app's default (high) though this one ran at
+  // xhigh (the owner, Oct 27); a first message of /effort <level> sets it there (tested: "Set effort level to xhigh")
+  '3. Start the new cloud session at this chat\'s effort: read this chat\'s level with the claude-code-remote get_session tool (no session_id; session_context.effort_level, else external_metadata.effort_level; xhigh when neither is set, the person\'s usual), then create_session with source_url = this repo\'s GitHub URL, title starting "Play next · ", prompt = "/effort <that level>" and nothing else, then send_message to the new session_id with the handoff note.',
   '4. End with the new chat\'s title and a 2-line summary, and say this chat can be left now.',
   'If create_session is not available, give the note as one block they can paste into a new chat.',
 ].join('\n')
