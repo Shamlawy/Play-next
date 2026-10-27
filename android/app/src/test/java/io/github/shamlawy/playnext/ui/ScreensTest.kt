@@ -9,6 +9,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
+import io.github.shamlawy.playnext.update.Updater
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Before
@@ -77,6 +78,17 @@ class ScreensTest {
     @Test fun games859() = shot("games", 859) { Shell(Nav("games"), ready, go = {}) }
     @Test fun settings412() = shot("settings", 412) { Shell(Nav("home", overlay = "settings"), ready, go = {}) }
     @Test fun settings859() = shot("settings", 859) { Shell(Nav("home", overlay = "settings"), ready, go = {}) }
+    /** After Check now found nothing newer: the card says when it looked (the owner on v5: the tap seemed to do nothing). */
+    @Test fun checked412() {
+        Store.prefs.edit().putLong("updChecked", now - 20 * 60_000L).commit()
+        Updater.set(Updater.State.UpToDate)
+        try {
+            shot("settings-checked", 412) { Shell(Nav("home", overlay = "settings"), ready, go = {}) }
+        } finally {
+            Updater.set(Updater.State.Idle)
+        }
+    }
+
     @Test fun noCode412() = shot("no-code", 412, yours = false) { Shell(Nav("home"), Games.State.NoCode, go = {}) }
     @Test fun noCode859() = shot("no-code", 859, yours = false) { Shell(Nav("home"), Games.State.NoCode, go = {}) }
 }

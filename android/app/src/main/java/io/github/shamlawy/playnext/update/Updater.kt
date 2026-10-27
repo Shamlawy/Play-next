@@ -73,6 +73,9 @@ object Updater {
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state
     private val busy = Mutex()
+
+    /** A run (a check, a download, an install) holds the lock: Check now says so instead of waiting on it in silence. */
+    val running: Boolean get() = busy.isLocked
     private const val API = "https://api.github.com/repos/${BuildConfig.REPO}/releases?per_page=10"
     private const val LATEST_TXT = "${ReleaseFeed.REPO_URL}/releases/latest/download/android-latest.txt"
 

@@ -37,4 +37,4 @@ v=6
 go=home
 at=
 say=Your games are in the app now: type your restore code once and they come from the cloud backup.
-tryIt=Type your restore code (web app: Settings › Your data › Cloud backup). Then open the tabs folded and unfolded, and swipe back.
+tryIt=Type your restore code (web app: Settings › Your data › Cloud backup). Open the tabs folded and unfolded, swipe back, and tap Check now: it says when it last looked.

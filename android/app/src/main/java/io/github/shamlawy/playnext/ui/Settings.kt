@@ -53,8 +53,13 @@ import io.github.shamlawy.playnext.report.Reporter
 import io.github.shamlawy.playnext.update.UpdatePlan
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Settings, until its own phase (7) brings the real one: your backup, updates, the one-time install switch, the 120 Hz
@@ -160,13 +165,39 @@ private fun BuildCards(openProbe: () -> Unit) {
         }
     }
 
+    // Check now always shows that it did something (the owner on v5: "when I press check for update it doesn't do it"):
+    // "Looking…" for at least HOLD even when the answer comes back at once, then when it looked; "Already checking…"
+    // when another run holds the lock
+    var looking by remember { mutableStateOf(false) }
+    var already by remember { mutableStateOf(false) }
+    val now = LocalNow.current
     Card {
         BasicText("Updates", style = Type.head)
-        BasicText(updateLine(update, code), style = Type.note)
+        val line = when {
+            already -> "Already checking…"
+            looking -> updateLine(Updater.State.Checking, code)
+            else -> updateLine(update, code, Store.prefs.getLong("updChecked", 0L), now())
+        }
+        BasicText(line, style = Type.note)
         when (val s = update) {
             is Updater.State.NeedsTap -> Btn("Install v${s.code}", primary = true) { scope.launch { Updater.run(ctx, UpdatePlan.Ask.Install) } }
-            is Updater.State.Failed, is Updater.State.Blocked, Updater.State.UpToDate, Updater.State.Idle ->
-                Btn("Check now") { scope.launch { Updater.run(ctx, UpdatePlan.Ask.Check) } }
+            is Updater.State.Failed, is Updater.State.Blocked, Updater.State.UpToDate, Updater.State.Idle -> if (!looking) Btn("Check now") {
+                if (Updater.running) {
+                    already = true
+                    scope.launch { delay(HOLD); already = false }
+                } else {
+                    looking = true
+                    scope.launch {
+                        val t0 = System.currentTimeMillis()
+                        try {
+                            Updater.run(ctx, UpdatePlan.Ask.Check)
+                        } finally {
+                            delay((HOLD - (System.currentTimeMillis() - t0)).coerceAtLeast(0))
+                            looking = false
+                        }
+                    }
+                }
+            }
             else -> Unit
         }
     }
@@ -244,14 +275,25 @@ private fun ReportCard() {
     }
 }
 
-private fun updateLine(s: Updater.State, code: Int): String = when (s) {
-    Updater.State.Idle -> "You have v$code. It checks for a new version by itself."
+/** How long Check now's "Looking…" stays up at least, so a quick answer still reads as a tap that did something. */
+private const val HOLD = 700L
+
+/** The Updates card's line; [checkedAt] = the last look (Store "updChecked"), 0 when it never looked. */
+internal fun updateLine(s: Updater.State, code: Int, checkedAt: Long = 0L, now: Long = 0L, zone: ZoneId = ZoneId.systemDefault()): String = when (s) {
+    Updater.State.Idle -> if (checkedAt > 0) "You have v$code. Last looked ${atTime(checkedAt, now, zone)}; it checks by itself." else "You have v$code. It checks for a new version by itself."
     Updater.State.Checking -> "Looking for a new version…"
-    Updater.State.UpToDate -> "You have the newest version, v$code."
+    Updater.State.UpToDate -> if (checkedAt > 0) "Checked ${atTime(checkedAt, now, zone)}: v$code is the newest." else "You have the newest version, v$code."
     is Updater.State.Downloading -> "Downloading v${s.code} · ${s.pct}%"
     is Updater.State.Waiting -> "v${s.code} is ready. It installs by itself when you leave the app."
     is Updater.State.NeedsTap -> "v${s.code} is ready. Tap Install, then Install on Android's screen."
     is Updater.State.Installing -> "Installing v${s.code}…"
     is Updater.State.Blocked -> s.why
     is Updater.State.Failed -> "Couldn't update: ${s.why}"
+}
+
+/** "at 2:54 PM" today, "Oct 26 at 2:54 PM" on another day (the phone's zone, 12-hour, as the web app). */
+private fun atTime(at: Long, now: Long, zone: ZoneId): String {
+    val t = Instant.ofEpochMilli(at).atZone(zone)
+    val time = "at " + t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+    return if (t.toLocalDate() == Instant.ofEpochMilli(now).atZone(zone).toLocalDate()) time else t.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) + " " + time
 }
