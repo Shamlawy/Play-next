@@ -95,8 +95,8 @@ import java.util.Locale
  * early.
  */
 @Composable
-fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
+fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
+    BoxWithConstraints(modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
         val round = maxWidth >= 660.dp
         val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
         val gap = maxHeight * .04f

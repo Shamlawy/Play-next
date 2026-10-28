@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -101,7 +102,7 @@ private val FLY = CubicBezierEasing(.3f, .9f, .35f, 1f)
  * this page" off (`S.hubAnim`), it simply opens and closes.
  */
 @Composable
-fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () -> Unit = {}, close: () -> Unit) {
+fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () -> Unit = {}, covers: (Boolean) -> Unit = {}, close: () -> Unit) {
     val calm = LocalCalm.current
     val motion = !calm && LocalPrefs.current.hubAnim
     // a page you come back to (back from one opened on top of it) is already open: no second grow or flight
@@ -113,9 +114,14 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () 
     LaunchedEffect(Unit) {
         opened = true
         grow.animateTo(1f, tween(300, easing = Ease.house))
+        // grown: the page hides all that's under it, so that stops drawing (Android draws covered layers every frame);
+        // not when back came during the grow (the page is already shrinking off what's under it)
+        if (!closing) covers(true)
     }
+    DisposableEffect(Unit) { onDispose { covers(false) } }
     LaunchedEffect(closing) {
         if (!closing) return@LaunchedEffect
+        covers(false)
         shrinking()
         if (!calm) shut.animateTo(1f, tween(220, easing = SHUT))
         end()
