@@ -285,7 +285,7 @@ class ScreensTest {
         Updater.set(Updater.State.UpToDate)
         try {
             // the Updates card sits below the first screenful: scrolled to, so the picture shows the line it's about
-            shot("settings-checked", 412, ready = { rule.onNodeWithText("Updates").performScrollTo() }) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
+            shot("settings-checked", 412, ready = { rule.onNodeWithText("Check now").performScrollTo() }) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
         } finally {
             Updater.set(Updater.State.Idle)
         }
