@@ -40,13 +40,16 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        link = Links.of(intent)
+        // a launch link counts once: unfolding, turning or coming back after Android let the app go recreates it with
+        // the same intent, and reading it again would jump back to where the link pointed
+        if (savedInstanceState == null) link = Links.of(intent)
         setContent { PlayNextRoot(link) { link = null } }
         gate = FrameGate.track(this)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         Links.of(intent)?.let { link = it }
     }
 

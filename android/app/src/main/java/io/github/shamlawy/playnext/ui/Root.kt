@@ -127,7 +127,13 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                 if (l != null && l.games.any { it.id == id }) nav.copy(overlay = null).open("game:$id") else nav.go("home")
             }
         }
-        Crumbs.add("link " + r::class.simpleName.orEmpty().lowercase())
+        // named by hand: a class name can change in the release build
+        Crumbs.add("link " + when (r) {
+            Route.Probe -> "probe"
+            is Route.Tab -> "tab"
+            is Route.Game -> "game"
+            is Route.Add -> "add"
+        })
         linkDone()
     }
 
