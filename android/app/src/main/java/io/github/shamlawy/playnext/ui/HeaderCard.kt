@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,7 +44,10 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.Placeholder
@@ -175,7 +179,7 @@ fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp) {
             .padding(bottom = 16.dp)
             .fillMaxWidth()
             .heightIn(min = minH)
-            .shadow(14.dp, shape, ambientColor = Color.Transparent, spotColor = Color.Black)
+            .shadow(14.dp, shape, ambientColor = Color.Transparent, spotColor = Pn.shade)
             .clip(shape)
             .cardGround(art != null, shc)
             .border(1.dp, Color(Web.SHX_EDGE), shape)
@@ -296,6 +300,9 @@ private val POS = listOf(Triple(3, 14f, 10f), Triple(2, 4f, 1f), Triple(1, -6f, 
 @Composable
 private fun Fan(covers: List<Game>, d: Dims, t: Animatable<Float, AnimationVector1D>, modifier: Modifier) {
     val n = covers.size
+    val open = LocalOpenGame.current
+    // each cover where it's drawn (turned and dealt): a tap flies that copy onto the game's page
+    val at = remember { arrayOfNulls<LayoutCoordinates>(4) }
     Box(modifier.size(d.fw, d.fanH)) {
         // drawn back to front: the first cover last, on top (z-index 9 - i)
         for (i in covers.indices.reversed()) {
@@ -320,7 +327,10 @@ private fun Fan(covers: List<Game>, d: Dims, t: Animatable<Float, AnimationVecto
                         alpha = p
                         transformOrigin = TransformOrigin(.5f, 1.1f)
                     }
-                    .shadow(12.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+                    .onGloballyPositioned { at[i] = it }
+                    .clickable(role = Role.Button) { open(g.id, at[i]?.takeIf { it.isAttached }?.let { FlyFrom(it.boxInWindow(), g) }) }
+                    .semantics { contentDescription = g.title }
+                    .shadow(12.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
                     .clip(shape)
                     .border(1.dp, Pn.white.copy(alpha = .09f), shape),
             ) {
@@ -389,8 +399,10 @@ private fun ShrinkRow(gap: Dp, modifier: Modifier, content: @Composable () -> Un
 @Composable
 private fun Spotlight(l: Shx.Line, d: Dims, volt: Color) {
     val base = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.line, lineHeight = d.line * 1.3f, color = Pn.ice)
+    val open = LocalOpenGame.current
+    // a line, not a cover: the page grows in without a flight (the web finds no cover-shaped picture in it)
     Row(
-        Modifier.heightIn(min = 26.dp).padding(top = d.lineTop).padding(vertical = 2.dp),
+        Modifier.heightIn(min = 26.dp).padding(top = d.lineTop).clickable(role = Role.Button) { open(l.g.id, null) }.padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

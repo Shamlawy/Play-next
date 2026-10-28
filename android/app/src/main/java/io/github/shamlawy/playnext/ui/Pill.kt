@@ -86,7 +86,7 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
     Box(
         modifier
             .widthIn(max = if (wide) minOf(screen * .92f, 560.dp) else Dp.Unspecified)
-            .shadow(19.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+            .shadow(19.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Color(Web.PILL_BG), shape)
             .border(1.dp, Color(Web.PILL_EDGE), shape)
             .topLight(shape, .22f, sheen = true)
@@ -102,7 +102,7 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
         Layout(
             content = {
                 // the lit segment: under the labels, top and bottom 6 in, sliding on its own layer
-                Box(Modifier.shadow(7.dp, shape, ambientColor = Color.Black, spotColor = Color.Black).background(look.volt, shape).topLight(shape, .5f))
+                Box(Modifier.shadow(7.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade).background(look.volt, shape).topLight(shape, .5f))
                 for ((k, label) in views) {
                     // keyed by view: another tab's labels start at their own colours instead of fading from these
                     key(k) {

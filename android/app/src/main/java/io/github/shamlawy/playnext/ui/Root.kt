@@ -25,10 +25,26 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.shamlawy.playnext.Screen
 import io.github.shamlawy.playnext.data.Games
+import io.github.shamlawy.playnext.data.Rank
+import io.github.shamlawy.playnext.kit.Buzz
+import io.github.shamlawy.playnext.kit.Shared
+import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.probe.ProbeScreen
+import io.github.shamlawy.playnext.report.Crumbs
+import java.time.ZoneId
 
-/** Where a link opens (Links): the tabs at Home, or the 120 Hz test. */
-enum class Route { Home, Probe }
+/** Where a link opens (Links): a tab and its view, a game's page, Add with something shared, or the 120 Hz test. */
+sealed interface Route {
+    data object Probe : Route
+
+    data class Tab(val tab: String, val view: String? = null) : Route
+
+    /** A game's page; [id] null = On deck's first game ("What should I play?"). */
+    data class Game(val id: String?) : Route
+
+    /** Add, with the game named in what was shared into the app (null when it named none). */
+    data class Add(val shared: Shared?) : Route
+}
 
 /**
  * Which tab is open, what's open on top of it, the tabs you came through and the view you picked in each tab (Queue,
@@ -73,16 +89,45 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
     // "Not now" on the restore screen: the tabs without your games, until the next start
     var skipped by rememberSaveable { mutableStateOf(false) }
 
-    // reports and Android's exit records name the open screen
-    val ctx = LocalContext.current
-    LaunchedEffect(nav.tab, nav.overlay) { Screen.set(ctx, nav.overlay ?: nav.tab) }
+    // something shared into the app: Add shows the game it names (adding it comes with Add's phase)
+    var shared by remember { mutableStateOf<Shared?>(null) }
 
-    LaunchedEffect(link) {
-        when (link) {
-            Route.Probe -> nav = nav.open("probe")
-            Route.Home -> nav = nav.go("home")
-            null -> return@LaunchedEffect
+    // the switches the kit reads away from the screens: Sounds, Nexi's voice, the swipe buzz
+    LaunchedEffect(prefs) {
+        Sounds.on = prefs.sound
+        Sounds.nexi = prefs.nexiVoice
+        Buzz.swipes = prefs.buzz
+        if (prefs.sound) Sounds.warm()
+    }
+
+    // reports and Android's exit records name the open screen as the web app does ("games/queue", "settings")
+    val ctx = LocalContext.current
+    val screen = nav.overlay?.let { if (it.startsWith("game:")) "game page" else it }
+        ?: (nav.tab + (prefs.viewOf(nav.tab, nav.views)?.let { "/$it" } ?: ""))
+    LaunchedEffect(screen) {
+        Screen.set(ctx, screen)
+        Crumbs.screen(screen)
+    }
+
+    LaunchedEffect(link, games) {
+        val r = link ?: return@LaunchedEffect
+        val st = games
+        // a game's link waits for your games (a moment at start), unless there are none to wait for
+        if (r is Route.Game && (st is Games.State.Starting || st is Games.State.Fetching && st.why == null)) return@LaunchedEffect
+        nav = when (r) {
+            Route.Probe -> nav.open("probe")
+            is Route.Tab -> nav.go(r.tab).let { n -> r.view?.let { n.view(r.tab, it) } ?: n }
+            is Route.Add -> {
+                shared = r.shared
+                nav.go("add")
+            }
+            is Route.Game -> {
+                val l = (st as? Games.State.Ready)?.lib
+                val id = r.id ?: l?.let { Rank(it, System.currentTimeMillis(), ZoneId.systemDefault()).onDeck(1).firstOrNull()?.id }
+                if (l != null && l.games.any { it.id == id }) nav.copy(overlay = null).open("game:$id") else nav.go("home")
+            }
         }
+        Crumbs.add("link " + r::class.simpleName.orEmpty().lowercase())
         linkDone()
     }
 
@@ -101,7 +146,9 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                 }
                 else -> {
                     BackHandler(enabled = nav.canGoBack) { nav = nav.back() }
-                    Shell(nav, games, go = { nav = it })
+                    CompositionLocalProvider(LocalShared provides shared) {
+                        Shell(nav, games, go = { nav = it })
+                    }
                 }
             }
     }
@@ -129,6 +176,9 @@ fun Frame(look: Look, prefs: Prefs = Prefs(), now: () -> Long = System::currentT
 
 /** The time "now" for what a screen says (as of, days away): the phone's clock, a fixed one in the screenshot tests. */
 val LocalNow = staticCompositionLocalOf<() -> Long> { System::currentTimeMillis }
+
+/** The game named in what was last shared into the app, for Add (null: nothing shared, or it named no game). */
+val LocalShared = staticCompositionLocalOf<Shared?> { null }
 
 /** An indication that draws nothing: a tap shows only its result. */
 private object NoIndication : IndicationNodeFactory {

@@ -7,6 +7,8 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import io.github.shamlawy.playnext.crash.CrashGuard
 import io.github.shamlawy.playnext.data.Games
+import io.github.shamlawy.playnext.kit.Buzz
+import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.net.Net
 import io.github.shamlawy.playnext.report.Reporter
 import io.github.shamlawy.playnext.update.Updater
@@ -24,6 +26,8 @@ class PlayNextApp : Application(), SingletonImageLoader.Factory {
         Store.init(this)
         Reporter.init(this)
         CrashGuard.install(this)
+        Sounds.init(this)
+        Buzz.init(this)
         // reports a crashed run left behind join the queue; safe mode sends them, a normal start a few seconds in
         Reporter.adopt(CrashGuard.pendingFiles())
         if (CrashGuard.counter.safeMode) return

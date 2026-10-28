@@ -44,3 +44,9 @@ go=home
 at=
 say=Switching tabs plays the slash now, and Games, Plan and Taste have their views: each with its header card, the floating pill to switch them.
 tryIt=Switch tabs, tap the pill, and swipe sideways: one finger walks a tab's views, two fingers walk the tabs. Folded and unfolded. With Battery saver on, nothing moves.
+
+v=8
+go=home
+at=
+say=Sounds and buzzes are in, the app icon has its three shortcuts, and a cover on a header card flies onto its game's page.
+tryIt=Hold the app's icon: Add a game, What should I play? and Queue. Tap a cover on a header card. In Settings, try each sound and buzz (Sounds is off in your backup, so the app stays quiet elsewhere). Share a Steam link to Play next ·new: Add names the game.

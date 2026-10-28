@@ -2,4 +2,10 @@
 <resources>
     <!-- "·new" until switch day (Phase 10), so it isn't mixed up with the web app's icon. -->
     <string name="app_name">Play next ·new</string>
+    <!-- The icon shortcuts, worded as the web app's (manifest.webmanifest). -->
+    <string name="sc_add">Add a game</string>
+    <string name="sc_add_short">Add</string>
+    <string name="sc_next">What should I play?</string>
+    <string name="sc_next_short">Play next</string>
+    <string name="sc_queue">Queue</string>
 </resources>

@@ -38,6 +38,9 @@ object Reporter {
     @Volatile var names: Collection<String> = emptyList()
     @Volatile var secrets: Collection<String> = emptyList()
 
+    /** The library line for reports ([ReportRules.libLine]), from the copy of your games the app has open. */
+    @Volatile var lib: String = ""
+
     fun init(ctx: Context) {
         app = ctx.applicationContext
         queueFile = File(app.filesDir, "reports/queue.txt").apply { parentFile?.mkdirs() }
@@ -57,6 +60,7 @@ object Reporter {
             at = a, screen = screen, note = if (note.isNotBlank()) Scrub.text(note, names, secrets) else "",
             w = Device.widthDp(app), h = Device.heightDp(app), dpr = Math.round(Device.density(app) * 100) / 100.0,
             dev = Device.dev(app), v = Device.versionCode.toString(),
+            crumbs = Crumbs.last(10), lib = lib,
         )
     }
 

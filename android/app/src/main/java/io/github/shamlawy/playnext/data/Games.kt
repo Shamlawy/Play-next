@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.crash.swapIn
 import io.github.shamlawy.playnext.net.Net
+import io.github.shamlawy.playnext.report.ReportRules
 import io.github.shamlawy.playnext.report.Reporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -102,6 +103,7 @@ object Games {
                 code = ""
                 Reporter.names = emptyList()
                 Reporter.secrets = emptyList()
+                Reporter.lib = ""
                 _state.value = State.NoCode
             }
         }
@@ -228,6 +230,7 @@ object Games {
         val lib = Library(Backup.load(Backup.apply(rb.data), System.currentTimeMillis(), ZoneId.systemDefault()))
         rawg = parts.rawgKey
         Reporter.names = lib.privateNames
+        Reporter.lib = ReportRules.libLine(lib, System.currentTimeMillis())
         return lib
     }
 

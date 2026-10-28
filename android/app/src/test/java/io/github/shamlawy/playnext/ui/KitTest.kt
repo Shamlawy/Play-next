@@ -27,6 +27,22 @@ class KitTest {
         assertEquals(listOf("insights", "duels", "friend", "book"), p.views("taste").map { it.first })
     }
 
+    /** Sounds is off unless switched on; Nexi blips unless muted (now or by the older switch); buzz and page motion on. */
+    @Test fun soundBuzzAndPageMotionAsSaved() {
+        val none = Prefs.of(lib(""))
+        assertFalse(none.sound)
+        assertTrue(none.nexiVoice)
+        assertTrue(none.buzz)
+        assertTrue(none.hubAnim)
+        assertTrue(Prefs.of(lib(""","sound":true""")).sound)
+        assertFalse(Prefs.of(lib(""","pnVoice":"mute"""")).nexiVoice)
+        assertFalse("the older switch, while pnVoice was never set", Prefs.of(lib(""","pnMute":true""")).nexiVoice)
+        assertTrue("pnVoice wins over the older switch", Prefs.of(lib(""","pnVoice":"blip","pnMute":true""")).nexiVoice)
+        val off = Prefs.of(lib(""","buzz":false,"hubAnim":false"""))
+        assertFalse(off.buzz)
+        assertFalse(off.hubAnim)
+    }
+
     @Test fun tabFadeReadsLikeApplyLook() {
         assertEquals(TabFade.Fade, Prefs.of(lib(""","tabFade":true""")).tabFade)
         assertEquals(TabFade.Slash, Prefs.of(lib(""","tabFade":"slash"""")).tabFade)

@@ -2,6 +2,7 @@ package io.github.shamlawy.playnext.ui
 
 import android.app.Application
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +23,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
+import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -107,6 +109,37 @@ class ScreensTest {
     @Test fun plan859() = shot("plan", 859, content = tab("plan"))
     @Test fun taste412() = shot("taste", 412, content = tab("taste"))
     @Test fun add859() = shot("add", 859, content = tab("add"))
+
+    /** A Steam link shared into the app: Add names the game it points at. */
+    @Test fun shared412() = shot("shared", 412) {
+        CompositionLocalProvider(LocalShared provides Shared("Lantern Hollow", 123450)) { tab("add")() }
+    }
+
+    /** A game's page (a placeholder until phase 2): its picture, the tilted cover, its state and name. */
+    @Test fun game412() = shot("game", 412) { Shell(Nav("games", overlay = "game:b"), ready, go = {}) }
+    @Test fun game859() = shot("game", 859) { Shell(Nav("games", overlay = "game:b"), ready, go = {}) }
+
+    /**
+     * A tap on a header card's cover opens its game: 60ms in, the page is growing from the tap and the cover's copy is
+     * on its way from the fan to the page's cover; once it lands the page is open and Close takes it away.
+     */
+    @Test fun coverFliesOntoItsPage() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        var nav by mutableStateOf(Nav("games"))
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.waitForIdle()
+        // the Queue's fan holds the games On deck picks; tap whichever made it in front
+        val g = lib.games.first { rule.onAllNodesWithContentDescription(it.title).fetchSemanticsNodes().isNotEmpty() }
+        rule.mainClock.autoAdvance = false
+        rule.onAllNodesWithContentDescription(g.title)[0].performClick()
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(60)
+        rule.onRoot().captureRoboImage("src/test/screenshots/fly-412.png")
+        rule.mainClock.autoAdvance = true
+        rule.runOnIdle { assertEquals("game:${g.id}", nav.overlay) }
+        rule.onNodeWithContentDescription("Close").performClick()
+        rule.runOnIdle { assertNull(nav.overlay) }
+    }
 
     /** The pill off: the views as chips under the card; header cards Simple (numbers and covers). */
     @Test fun chips412() = lib(""","pill":false,"shxX":["fan"]""").let { l -> shot("chips", 412, l = l, content = tab("games", "replay", l)) }

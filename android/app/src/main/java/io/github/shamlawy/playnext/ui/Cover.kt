@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -81,8 +82,9 @@ fun DrawnCover(g: Game, modifier: Modifier = Modifier, alpha: Float = 1f) {
     val c = Color(g.colour)
     val ini = remember(g.title) { g.title.split(Regex("\\s+")).filter { it.isNotEmpty() }.take(2).joinToString("") { it.take(1) }.uppercase(Locale.ROOT) }
     val measurer = rememberTextMeasurer()
+    // cropped to its box like the web's <img> (object-fit: cover): a box that isn't 3:4 never shows the picture's edges
     Box(
-        modifier.drawWithCache {
+        modifier.clipToBounds().drawWithCache {
             val s = maxOf(size.width / 300f, size.height / 400f)
             val ox = (size.width - 300f * s) / 2
             val oy = (size.height - 400f * s) / 2

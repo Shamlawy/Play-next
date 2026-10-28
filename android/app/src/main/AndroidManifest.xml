@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- The big moments' buzzes and the swipe ticks (the web app's navigator.vibrate). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- The app updates itself from GitHub releases (no store). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
@@ -43,7 +45,24 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="playnext" android:host="open" />
             </intent-filter>
+            <!-- A link or words shared from another app open Add with the game they name (the web app's share target). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- The three icon shortcuts: Add a game, What should I play?, Queue. -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Pictures the app shares (a calling card, a wrapped card) are handed to the share sheet from here. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.share"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/share_paths" />
+        </provider>
 
         <!-- Plain Views, no Compose and no data load: it must work when everything else crashes. -->
         <activity
