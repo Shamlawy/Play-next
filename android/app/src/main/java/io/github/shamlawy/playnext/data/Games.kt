@@ -1,6 +1,10 @@
 package io.github.shamlawy.playnext.data
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.crash.swapIn
 import io.github.shamlawy.playnext.net.Net
@@ -9,7 +13,9 @@ import io.github.shamlawy.playnext.report.Reporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +31,9 @@ import kotlinx.serialization.json.longOrNull
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
+import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Your games from the cloud backup (docs/ANDROID-PLAN.md "Your games come with you"). Until switch day the app only
@@ -44,8 +52,11 @@ object Games {
         /** A code, but no copy on the phone yet (fetching, or [why] it didn't come). */
         data class Fetching(val why: String? = null) : State
 
-        /** Your games. [copyAt] is when the web app made this copy (the helper's time), [checking] while looking for a newer one. */
-        data class Ready(val lib: Library, val copyAt: Long, val checking: Boolean = false, val note: String? = null) : State
+        /**
+         * Your games. [copyAt] is when the web app made this copy (the helper's time), [checking] while looking for a newer
+         * one. [cards]: every screen's header-card numbers, worked out with [lib] off Main (null only in a Ready made by hand).
+         */
+        data class Ready(val lib: Library, val copyAt: Long, val checking: Boolean = false, val note: String? = null, val cards: Shx.Cards? = null) : State
     }
 
     /** One copy in the vault (`/vault/list`). */
@@ -68,6 +79,7 @@ object Games {
     /** At start: this phone's copy first (the splash waits for it, never for the network), then a check. */
     fun start(ctx: Context) {
         val app = ctx.applicationContext
+        watchClock(app)
         scope.launch {
             lock.withLock { openLocal(app) }
             if (_state.value !is State.NoCode) check(app, force = true)
@@ -76,6 +88,7 @@ object Games {
 
     /** Coming back to the app: look for a newer copy if the last look was over a minute ago. */
     fun onOpen(ctx: Context) {
+        catchUp()
         if (keys == null) return
         if (System.currentTimeMillis() - Store.prefs.getLong("copyChecked", 0) < CHECK_GAP) return
         scope.launch { check(ctx.applicationContext, force = false) }
@@ -103,6 +116,7 @@ object Games {
                 Store.prefs.edit().remove("copyT").remove("copyChecked").apply()
                 keys = null
                 code = ""
+                day = null
                 Reporter.names = emptyList()
                 Reporter.secrets = emptyList()
                 Reporter.lib = ""
@@ -135,7 +149,7 @@ object Games {
             return
         }
         hold(k, c) // again, now that build() has read the backup's RAWG key: reports scrub it too
-        _state.value = State.Ready(lib, t)
+        _state.value = ready(lib, t)
     }
 
     private suspend fun check(ctx: Context, force: Boolean) {
@@ -206,7 +220,7 @@ object Games {
         }
         Store.prefs.edit().putLong("copyT", latest.t).apply()
         hold(k, c)
-        _state.value = State.Ready(lib, latest.t)
+        _state.value = ready(lib, latest.t)
         return null
     }
 
@@ -224,16 +238,111 @@ object Games {
 
     private class BadBackup(val why: String) : Exception(why)
 
-    /** The opened text → your games, the way the web app restores them (Backup). */
+    /**
+     * The opened text → your games, the way the web app restores them (Backup), with every header card's numbers. Always
+     * off Main (its callers run on IO or Default): the rank table is the slow part.
+     */
     private fun build(text: String): Library {
         val parts = Seal.split(text)
         val rb = Backup.read(parts.state)
         if (!rb.ok || rb.data == null) throw BadBackup(rb.msg)
-        val lib = Library(Backup.load(Backup.apply(rb.data), System.currentTimeMillis(), ZoneId.systemDefault()))
+        val d = make(Backup.apply(rb.data), clock(), zone())
         rawg = parts.rawgKey
-        Reporter.names = lib.privateNames
-        Reporter.lib = ReportRules.libLine(lib, System.currentTimeMillis())
-        return lib
+        Reporter.names = d.lib.privateNames
+        keep(d)
+        return d.lib
+    }
+
+    /** [lib] as Ready, with the cards build() worked out for it. */
+    private fun ready(lib: Library, copyAt: Long) = State.Ready(lib, copyAt, cards = day?.takeIf { it.lib === lib }?.cards)
+
+    // ---- the day: release days flip at midnight, and the numbers follow (no new backup or restart needed) ----
+
+    /** The phone's clock and zone; a test turns them. */
+    internal var clock: () -> Long = System::currentTimeMillis
+    internal var zone: () -> ZoneId = ZoneId::systemDefault
+
+    /**
+     * Your games for one stretch of the day: the opened copy as the web app restores it ([applied], before `load()`'s
+     * changes for today), kept in memory so a new day rebuilds from it, never from the disk; and [lib] and [cards] made
+     * from it at [at] in [zone].
+     */
+    private class Day(val applied: JsonObject, val at: Long, val zone: ZoneId, val lib: Library, val cards: Shx.Cards) {
+        val until = nextFlip(at, zone)
+
+        fun fits(now: Long, zone: ZoneId) = zone == this.zone && now >= at && now < until
+    }
+
+    @Volatile private var day: Day? = null
+    private var tick: Job? = null
+    private val watching = AtomicBoolean(false)
+
+    /**
+     * When what the screens say can next change: the phone's midnight ("today", the 30-day flip, Plan's days) or UTC
+     * midnight (the web reads a game's "YYYY-MM-DD" as UTC midnight for out or coming).
+     */
+    internal fun nextFlip(now: Long, zone: ZoneId): Long {
+        val local = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val utc = (Math.floorDiv(now, JsDate.DAY) + 1) * JsDate.DAY
+        return minOf(local, utc)
+    }
+
+    private fun make(applied: JsonObject, now: Long, zone: ZoneId): Day {
+        val lib = Library(Backup.load(applied, now, zone))
+        return Day(applied, now, zone, lib, Shx.all(lib, now, zone))
+    }
+
+    /** The day in use, and a wake-up at its end. Runs under [lock]. */
+    private fun keep(d: Day) {
+        day = d
+        Reporter.lib = ReportRules.libLine(d.lib, d.at)
+        tick?.cancel()
+        tick = scope.launch {
+            // a wall-clock wait: the phone's sleep stretches it, so coming back to the app ([catchUp]) checks too
+            while (clock() < d.until) delay(d.until - clock())
+            // its own job: the new day's wake-up cancels this one
+            scope.launch { rollover() }
+        }
+    }
+
+    /**
+     * A new day or a changed clock: your games rebuilt from the copy in memory, off Main, so a coming game is out on its
+     * release day and the header numbers follow. True when it rebuilt.
+     */
+    internal suspend fun rollover(): Boolean = lock.withLock {
+        val d = day ?: return false
+        val cur = _state.value as? State.Ready ?: return false
+        if (cur.lib !== d.lib) return false
+        val now = clock()
+        val z = zone()
+        if (d.fits(now, z)) return false
+        val next = withContext(Dispatchers.Default) { make(d.applied, now, z) }
+        keep(next)
+        _state.value = cur.copy(lib = next.lib, cards = next.cards)
+        true
+    }
+
+    /** Coming back to the app: the timer can't run while the phone sleeps, so a day that ended meanwhile rebuilds now. */
+    private fun catchUp() {
+        val d = day ?: return
+        if (!d.fits(clock(), zone())) scope.launch { rollover() }
+    }
+
+    /** Setting the time or the zone by hand, or flying somewhere: "today" moves at once. */
+    internal fun watchClock(app: Context) {
+        if (!watching.compareAndSet(false, true)) return
+        val f = IntentFilter().apply {
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+        }
+        val rx = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                scope.launch { rollover() }
+            }
+        }
+        // the system's own broadcasts reach a receiver that isn't exported
+        ContextCompat.registerReceiver(app, rx, f, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     // ---- the helper's vault, read-only (1-data.md §1.6, the web app's cbFetch) ----

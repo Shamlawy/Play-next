@@ -54,7 +54,7 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
         else -> tab
     }
     val ready = games as? Games.State.Ready
-    if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen) else PlainTitle(title, wide)
+    if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen, ready.cards) else PlainTitle(title, wide)
     if (!prefs.pill && views.isNotEmpty()) ViewChips(views, v, pickView)
     if (ready == null) {
         Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting((games as? Games.State.Fetching)?.why, askCode) }

@@ -117,17 +117,21 @@ private class Dims(screen: Dp) {
 private const val DEAL_MS = 1000f
 
 /**
- * Each screen's numbers for this copy of your games and this day, worked out once: a tab switch draws its card from
- * here instead of redoing the rankings while the slash plays.
+ * The numbers for a copy of your games that came without them (only a Ready made by hand, in the tests: Games works
+ * them out off Main), once per copy and day.
  */
 private object Numbers {
     var lib: Library? = null
-    val got = HashMap<String, Shx?>()
+    var day = ""
+    var cards: Shx.Cards? = null
 }
 
-private fun numbers(kind: String, lib: Library, now: Long, zone: ZoneId, day: String): Shx? = synchronized(Numbers) {
-    if (Numbers.lib !== lib) { Numbers.lib = lib; Numbers.got.clear() }
-    Numbers.got.getOrPut("$kind@$day") { runCatching { Shx.of(kind, lib, now, zone) }.getOrNull() }
+private fun numbers(lib: Library, now: Long, zone: ZoneId, day: String): Shx.Cards = synchronized(Numbers) {
+    Numbers.cards?.takeIf { Numbers.lib === lib && Numbers.day == day } ?: Shx.all(lib, now, zone).also {
+        Numbers.lib = lib
+        Numbers.day = day
+        Numbers.cards = it
+    }
 }
 
 /** Each screen's cover set when its card was last drawn (`SHX_SEEN`): the deal plays only when it changes. */
@@ -137,20 +141,24 @@ private val SEEN = HashMap<String, String>()
  * A screen's header card (v194 + v210): its title, live numbers, a fanned hand of that screen's covers and a glow in
  * the first game's colour, plus the extras you keep on (`S.shxX`): the spotlight line, top genres, the 6-month chart,
  * the mix bar and the backdrop art. Off (`S.shxOff`), a plain title. The covers deal in and the chart grows only when
- * the screen's covers changed (never when calm), on transform and opacity.
+ * the screen's covers changed (never when calm), on transform and opacity. [cards]: the numbers Games worked out with
+ * your games, off Main, so drawing the card (the slash's first frame) does no maths.
  */
 @Composable
-fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp) {
+fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp, cards: Shx.Cards? = null) {
     val prefs = LocalPrefs.current
     if (prefs.shxOff) {
         PlainTitle(title, screen >= RAIL_FROM)
         return
     }
-    val now = LocalNow.current()
-    val zone = remember { ZoneId.systemDefault() }
-    val day = JsDate.todayLocal(now, zone)
+    val all = if (cards != null && cards.lib === lib) cards else {
+        val now = LocalNow.current()
+        val zone = remember { ZoneId.systemDefault() }
+        val day = JsDate.todayLocal(now, zone)
+        remember(lib, day) { numbers(lib, now, zone, day) }
+    }
     // a record the maths can't read leaves a plain title, as the web's try/catch around shxData does
-    val shx = remember(kind, lib, day) { numbers(kind, lib, now, zone, day) }
+    val shx = all[kind]
     if (shx == null) {
         PlainTitle(title, screen >= RAIL_FROM)
         return
