@@ -1,0 +1,37 @@
+# Composable parameters Compose compares by identity (unstable types; tools/compose-check.mjs). Each was
+# checked: the caller passes the same object until it really changes (a new backup, a new day, a new list).
+AsOf.r: Ready
+BackupCard.games: State
+Chart.c: Chart
+Chart.t: Animatable<Float, AnimationVector1D>
+Counts.counts: List<Pair<String, Int>>
+DrawnCover.g: Game
+Fan.covers: List<Game>
+Fan.t: Animatable<Float, AnimationVector1D>
+FlyingCover.f: Flight
+FlyingCover.g: Game
+GameLine.g: Game
+GamePage.from: FlyFrom?
+GamePage.g: Game
+Genres.tags: List<Pair<String, Int>>
+HeaderCard.cards: Cards?
+HeaderCard.lib: Library
+HomePage.games: State
+MixBar.segs: List<Seg>
+Panel.lines: List<String>
+PicBox.g: Game?
+PicBox.pic: Pic
+PictureCard.picture: ImageBitmap?
+PlayNextRoot.link: Route?
+QueueSoon.ready: Ready
+SettingsSheet.games: State
+SharedCard.s: Shared
+Shell.games: State
+Shell.nav: Nav
+Spotlight.l: Line
+Stats.stats: List<Stat>
+TabPage.games: State
+TryRow.items: List<Pair<String, Function0<Unit>>>
+ViewChips.views: List<Pair<String, String>>
+ViewPill.views: List<Pair<String, String>>
+Waiting.f: Fetching?

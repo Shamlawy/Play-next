@@ -92,12 +92,14 @@ A phase counts as done only when all of these pass, and the owner approves it on
    - the Baseline Profile present and applied.
 
    The emulator's Macrobenchmark runs the same journeys on main's build and the PR's build. Its numbers are hints, except a clear slowdown against main, which fails.
+
+   Phase 0 built the stability check (`tools/compose-check.mjs`), the main-thread check (StrictMode's findings from the release build's walk, `tools/android-smoke.sh`) and the Baseline Profile walking real screens; the Macrobenchmark and redraw counts move to the start of Phase 1, which has the first real list (android/parity/0.md "Gates").
 4. **Pictures:**
    - **Screenshot tests** at the phone's real folded and unfolded widths, compared with the approved ones.
    - **Parity sheets:** for each finished screen, CI shows the web app (`kit.mjs look`, same seed) and the app side by side with a difference overlay. Claude reads every sheet before the phase's Perfect run, and your approval message links them.
    - **Text calibration in Phase 0:** text size and font scale are measured on your Fold, so one web pixel = one app dp at your settings.
 5. **The same numbers as the web app.** A golden file, made in CI by running the web app's own functions with the shared seed: game states, days left, headlines, ranks, scores, order, and Nexi's guesses. It includes edge cases such as a release at 11:30 PM and 12:30 AM UAE time, because JavaScript reads plain dates as UTC. The app's unit tests must match it exactly, with a fixed clock. Random picks take a seed.
-6. **House rules as code checks:** no press animation, no touch glow or ripple, colours only from the token list, one still background layer, no emoji icons, and animations only on transform/opacity, with animated values read only where they don't redraw the screen. Each look rule in CLAUDE.md that code can check gets a named lint check. The rest stay screenshot-review items from the taste log.
+6. **House rules as code checks:** no press animation, no touch glow or ripple, colours only from the token list, one still background layer, no emoji icons, and animations only on transform/opacity, with animated values read only where they don't redraw the screen. Each look rule in CLAUDE.md that code can check gets a named lint check. The rest stay screenshot-review items from the taste log. The named lint checks move to the start of Phase 1 (android/parity/0.md "Gates"); until then the look lens of each Perfect run checks these by reading the code.
 7. **Content comes from index.html, never typed twice.** At build time a script reads the web app's data tables into generated files (never committed): Nexi's lines and persona, the drawn icons (GICON), the background colours, colour tokens, the what's-new entries and the sealed book. A test fails if a table the app uses disappears or changes shape.
 8. **Merges are held by checks, not memory:**
    - `android-check.yml` runs on every PR touching `android/**`.
@@ -112,7 +114,7 @@ A phase counts as done only when all of these pass, and the owner approves it on
     - Back: Android 16's predictive back runs the back rule (Oct 28: what you opened, newest first, then out of the app from your tab) per layer, with its shrinking preview turned off (#309: nothing shrinks). Also off: the stretch at a list's end and the splash icon animation. No Material You colours: the app keeps its own.
     - Data: saved safely (write a new file, then swap it in), a full phone never breaks it, a data version with a migration for each app version.
     - Opens instantly from the last copy, works with no signal, then refreshes. Network timeouts, retries and a size cap on the picture cache. Every game's pictures fetched ahead on Wi-Fi (the owner, v238: "instant and always ready") from Phase 2.
-    - Cold start timed in CI and on the phone (the open-time freeze, #334, stayed open across many releases). A battery and memory budget (taste T19: "I don't want the app to be a monster of battery and RAM").
+    - Cold start timed in CI and on the phone (the open-time freeze, #334, stayed open across many releases). Phase 0: the walk notes the emulator's time as a hint; the phone's timing comes with Phase 1. A battery and memory budget (taste T19: "I don't want the app to be a monster of battery and RAM").
     - Self-update details: the first self-update probably asks once (Chrome installed the app); the download is checked (SHA-256) and resumes; Phase 0 tests whether updates still install with Auto Blocker back on.
     - An "updated" notification after a self-update carries the release's first what's-new line; the tour runs at the next open.
     - Crash detail: each release's R8 mapping kept (so reports read clearly), Android's exit reasons (freeze, memory kill) read at start, debug-only StrictMode and LeakCanary, no secrets in logs, cleartext traffic off.
@@ -179,10 +181,10 @@ Nothing is removed from the web app when you leave something out of the Android 
 
 Each phase's Brief and checklist must include these. They're web app features the table above doesn't name, so a Brief made from the table alone would drop them.
 
-- **Phase 0:** restore reads the RAWG key from the backup (search, Similar and critic scores use it). The header card is Full / Simple / Off with five extras (spotlight, top genres, 6-month chart, mix bar, backdrop). The "Pick for me" reveal comes early, because the "What should I play?" shortcut needs it.
+- **Phase 0:** restore reads the RAWG key from the backup (search, Similar and critic scores use it). The header card is Full / Simple / Off with five extras (spotlight, top genres, 6-month chart, mix bar, backdrop). The "What should I play?" shortcut opens On deck's first game; the "Pick for me" reveal itself moved to Phase 3 with Home (android/parity/0.md).
 - **Phase 1:** Dusty backlog's mark on Queue rows (its logic is Phase 9).
 - **Phase 2:** Why you'll love it, reset one game's scores, the three page styles (New / Showcase / Plain), character art and the hub figure (size, float, glow, strength), swipe sideways to the next game, Then & now, Finish forecast, Drifting games. Edit has 16 groups, all of them, including the release-date and finish-month pickers and play style.
-- **Phase 3:** all 18 Home tiles, More for you (hold to choose and order), the orb, search from Home, the Playing now colour cards.
+- **Phase 3:** all 18 Home tiles, More for you (hold to choose and order), the orb, search from Home, the Playing now colour cards, the "Pick for me" reveal (`pnReveal`, moved from Phase 0) and its sounds.
 - **Phase 4:** auto-pick art for new games, fill missing art for every game, refresh scores, dates and tags.
 - **Phase 5:** the play diary (timer and Steam sessions open it), play style (main / extras / 100%, every hours and Plan number uses it), competitive games (never finish: a rule on every screen), Library's Grid / Swipe, columns, the four cover-corner tags and reel width.
 - **Phase 7:** the groups the table leaves out: Extra features (about 17 switches), Motion, Header cards, Getting around, Games database, Price alerts (region, currency, PS Plus), Your data (file backup with "Add what's missing" vs replace, "For Claude", the resets, Your usage). "Look" means all six themes plus Now playing, Clean / Arcade, Add screen style, Pictures (HQ), corners and the background colours.
@@ -214,7 +216,7 @@ The owner picked 1, 2, 4, 5, 6, 7, 9, 10, 11, 13 and 14 ("wow claude those were 
 - **Rhythm that leaves room for work:** one day build, the next day that phase's ultracode run. Never two ultracode runs in one day.
 - **Cost:**
   - One ultracode run costs roughly several normal sessions. The plan check on Oct 22 used 9 helper Claudes, about 1.3 million tokens and 22 minutes.
-  - Phase 0 builds the Android Map and Perfect workflows and records their real time and tokens here.
+  - Phase 0's Map and Perfect ran as parallel helper Claudes, since the Workflow tool isn't offered in cloud chats: the Map as 5 mappers and a critic (Oct 26), the Perfect run as 7 review lenses and three fix sessions (Oct 28). The 7 lenses hit the 5-hour usage limit twice, and the chats can't read their own token counts, so: at most 1–2 helpers at a time, and check the limit first (L201).
   - If limits bite, the small phases (3, 4, 5, 7) can share one combined ultracode run.
 - **Limits:** Claude can't see your plan's limits. Check the usage popup in the Claude app before a long phase. Each session updates "Start here", so any chat on your phone or PC can pick up.
 
@@ -233,7 +235,7 @@ These are the agreed exceptions to CLAUDE.md's "never give the owner install ste
 
 ## The owner's answers in short (Oct 22)
 
-1. **Back swipe:** closes what's open first, then goes back a tab, then leaves the app.
+1. **Back swipe:** closes what you opened, newest first, until you're on the tab you were in; there it leaves the app (Oct 28, replacing Oct 22's "then goes back a tab").
 2. **Notifications:** Firebase, on time. The owner makes a Firebase project once, in Phase 9.
 3. **New web features during the rebuild:** none. The web app gets fixes only until switch day.
 4. **After switch day:** some features also go to the friend's web app, picked together about once a week.

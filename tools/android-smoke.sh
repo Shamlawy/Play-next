@@ -3,9 +3,10 @@
 # on every PR's release build (R8, debug-signed), so a walk that would block a release fails the PR first.
 # It installs the APK, sets the made-up backup's switch (the app's Demo: a global setting only the shell can write, read
 # only on an emulator), opens the app and walks Home, every tab, a one-finger view swipe, a game page (a header card
-# cover) and Settings, then the 120 Hz test, and checks the app is alive 20 s later with no crash. A picture of each
-# screen, the screens' nodes and the logcat go to the logs folder. "probe" as the third argument skips the walk (a
-# rollback to an app from before the made-up backup, android-v10, would only show the restore screen).
+# cover) and Settings, checks the tab and view come back after Android closes the app in the background, then opens the
+# 120 Hz test and checks the app is alive 20 s later with no crash. A picture of each screen, the screens' nodes, the
+# logcat and StrictMode's findings (strictmode.txt: a warning, not a failure) go to the logs folder. "probe" as the third
+# argument skips the walk (a rollback to an app from before the made-up backup, android-v10, shows only the restore screen).
 #   tools/android-smoke.sh <apk> <logs dir> [walk|probe]
 set -euo pipefail
 PKG=io.github.shamlawy.playnext
@@ -20,6 +21,8 @@ DEMO='(Starfall|Hollow|Copper|Ninefold|Quiet|Paper|Lumen|Ember|Glass|Velvet|Iron
 adb wait-for-device
 adb install -r "$APK" 2>&1 | tee "$LOGS/install.txt"
 adb shell settings put global playnext_demo 1
+# a bigger log, so StrictMode's lines from the start are still there at the end
+adb logcat -G 16M > /dev/null 2>&1 || true
 adb logcat -c || true
 
 # The screen's nodes (uiautomator's dump: Compose's content descriptions, texts, selected and bounds), retried while it moves.
@@ -73,6 +76,10 @@ lit() { { grep -oE 'content-desc="[^"]*"[^>]*selected="true"' "$LOGS/ui.xml" || 
 if [ "$WALK" = walk ]; then
   { adb shell am start -W -n "$PKG/.MainActivity" 2>&1 || true; } | tr -d '\r' | tee "$LOGS/am-start.txt"
   if grep -q '^Error' "$LOGS/am-start.txt"; then err "The app didn't open."; fi
+  # a hint only: the emulator draws in software and its timings are noisy (the phone's own start time is the judge)
+  cold=$(sed -n 's/^TotalTime: *//p' "$LOGS/am-start.txt" | head -n 1)
+  echo "Cold start to the first frame: ${cold:-?} ms (emulator, a hint)"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then echo "Cold start on the emulator: **${cold:-?} ms** (a hint)" >> "$GITHUB_STEP_SUMMARY"; fi
 
   # Home: the tabs show, and not the restore screen (the made-up backup opened in this build)
   if wait_for content-desc Games 40 > /dev/null && [ -z "$(at content-desc 'Restore code')" ]; then
@@ -128,6 +135,29 @@ if [ "$WALK" = walk ]; then
     else
       err "No Settings button to tap."
     fi
+
+    # Android closing the app in the background (Samsung does it often): the tab and view come back as you left them
+    tap content-desc Games || true
+    shot before-kill 1
+    was=$(lit)
+    adb shell input keyevent KEYCODE_HOME
+    sleep 2
+    adb shell am kill "$PKG" || true
+    sleep 2
+    if [ -n "$(adb shell pidof "$PKG" 2> /dev/null | tr -d '[:space:]' || true)" ]; then
+      echo "::warning::am kill didn't stop the app in the background, so the reopen check didn't run."
+    else
+      adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n "$PKG/.MainActivity" > /dev/null 2>&1 || true
+      if wait_for content-desc Games 30 > /dev/null; then
+        shot reopened
+        now=$(lit)
+        echo "Lit before Android closed the app: $was after reopening: $now"
+        if [ "$was" != "$now" ]; then err "After Android closed the app in the background it came back on '$now', not '$was'."; fi
+      else
+        err "The app didn't come back after Android closed it in the background."
+        shot reopened-missing 0
+      fi
+    fi
   fi
 fi
 
@@ -144,6 +174,19 @@ if awk -v p="Process: $PKG" '/FATAL EXCEPTION/ { w = 4; next } w > 0 { w--; if (
   err "logcat has a FATAL EXCEPTION in $PKG."
   { grep -A 25 'FATAL EXCEPTION' "$LOGS/crash.txt" || true; } | head -n 80 || true
 fi
+# StrictMode (on in this build only because of the made-up backup's switch, the app's Strict object): main-thread disk and
+# network work and leaks, one line per kind and the first frame in the app's own code (R8 keeps the names)
+awk -v pkg="$PKG" '
+  function flush() { if (v != "") print v " | " (f == "" ? "(no app frame)" : f); v = ""; f = "" }
+  /StrictMode: StrictMode (policy|VmPolicy) violation/ { flush(); v = "?"; if (match($0, /android\.os\.strictmode\.[A-Za-z]+/)) v = substr($0, RSTART + 22, RLENGTH - 22); next }
+  /StrictMode:[[:space:]]+at / { if (v != "" && f == "" && index($0, pkg)) { f = $0; sub(/.*[[:space:]]at /, "", f) } next }
+  /StrictMode:/ { next }
+  { flush() }
+  END { flush() }' "$LOGS/logcat.txt" | sort | uniq -c | sort -rn > "$LOGS/strictmode.txt" || true
+mine=$(grep -vc '(no app frame)' "$LOGS/strictmode.txt" || true)
+echo "StrictMode on the walk: $(wc -l < "$LOGS/strictmode.txt") kinds, ${mine:-0} with a frame in the app's code (strictmode.txt):"
+head -n 40 "$LOGS/strictmode.txt" || true
+if [ "${mine:-0}" -gt 0 ]; then echo "::warning::StrictMode saw ${mine} kinds of main-thread work or leaks in the app's own code during the walk (strictmode.txt in the logs)."; fi
 if grep -q "ANR in $PKG" "$LOGS/logcat.txt"; then echo "::warning::An ANR for $PKG during the walk (the emulator draws in software; check the logcat in the logs)."; fi
 if [ -n "$fail" ]; then exit 1; fi
 if [ "$WALK" = walk ]; then echo "Smoke test passed: Home, every tab, a view swipe, a game page, Settings and the 120 Hz test"; else echo "Smoke test passed: the 120 Hz test"; fi

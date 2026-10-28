@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class PlayNextApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
+        Strict.install(this)
         // the crash guard first: everything after it is covered (the two stores it writes through come before it)
         Store.init(this)
         Reporter.init(this)

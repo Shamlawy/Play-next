@@ -1,9 +1,10 @@
 # Checks the Android app (android/) on every pull request that touches it: the Gradle wrapper is the real one, unit tests
 # (also against the web app's own numbers from tools/golden.mjs), the screens against their approved pictures (Roborazzi,
-# android/app/src/test/screenshots), lint and a release build (R8, signed with the debug key: a throwaway, so a PR never
-# sees the real key), the APK has no native code or is 16 KB aligned, it stays under 30 MB, and it walks every screen on an
-# emulator with a made-up backup (tools/android-smoke.sh, the release's smoke test). The live helper must still
-# answer the app's Origin and refuse another one, and the problem-report filing rules (tools/bugsync-check.mjs) must hold.
+# android/app/src/test/screenshots), lint, Compose's stability report (tools/compose-check.mjs) and a release build (R8,
+# signed with the debug key: a throwaway, so a PR never sees the real key), the APK has no native code or is 16 KB
+# aligned, it stays under 30 MB, and it walks every screen on an emulator with a made-up backup (tools/android-smoke.sh,
+# the release's smoke test, which also lists StrictMode's main-thread findings). The live helper must still answer the
+# app's Origin and refuse another one, and the problem-report filing rules (tools/bugsync-check.mjs) must hold.
 # A PR that only changes android/parity/ (notes) skips the build and the helper call, so it stays cheap, but the run still
 # ends green on its head commit. No secrets, read-only token. Every action is pinned to a commit (public repo).
 name: Android check
@@ -18,6 +19,7 @@ on:
       - "tools/golden.mjs"
       - "tools/android-gen.mjs"
       - "tools/android-smoke.sh"
+      - "tools/compose-check.mjs"
 permissions:
   contents: read
 concurrency:
@@ -53,7 +55,7 @@ jobs:
             # HEAD is GitHub's merge of the PR into its base: parent 1 = the base, so this is exactly what the PR changes
             git diff --no-renames --name-only 'HEAD^1' HEAD > "$RUNNER_TEMP/changed.txt"
             grep -v '^android/parity/' "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/rest.txt" || true
-            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$|tools/android-smoke\.sh$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
+            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$|tools/(android-smoke\.sh|compose-check\.mjs)$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
             echo "$(wc -l < "$RUNNER_TEMP/changed.txt") files changed; app build needed: $app"
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
@@ -111,7 +113,9 @@ jobs:
           chmod +x gradlew
           # no PN_SIGNING_* here: the release build signs with the debug key, the throwaway key for PRs
           # verifyRoborazziDebug runs every unit test and compares the screens with src/test/screenshots
-          ./gradlew :app:verifyRoborazziDebug :app:lintRelease :app:assembleRelease --stacktrace
+          ./gradlew :app:verifyRoborazziDebug :app:lintRelease :app:assembleRelease -Ppn.composeReports --stacktrace
+      - name: "Compose stability: every composable skippable, identity-compared parameters listed (tools/compose-check.mjs)"
+        run: node ../tools/compose-check.mjs
       - name: Keep the screenshot differences
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -132,6 +132,8 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
+    // debug builds only (with StrictMode, the Strict object): a leaked screen shows as a notification
+    debugImplementation(libs.leakcanary)
     implementation(libs.activity.compose)
     implementation(libs.core.ktx)
     implementation(libs.core.splashscreen)
@@ -160,4 +162,12 @@ dependencies {
 roborazzi {
     // the approved pictures live in the repo; android-check compares every run with them (verifyRoborazziDebug)
     outputDir.set(file("src/test/screenshots"))
+}
+
+// Compose's own report of what it can skip and compare (gate 3's stability check: tools/compose-check.mjs in android-check)
+composeCompiler {
+    if (providers.gradleProperty("pn.composeReports").isPresent) {
+        reportsDestination.set(layout.buildDirectory.dir("compose-reports"))
+        metricsDestination.set(layout.buildDirectory.dir("compose-reports"))
+    }
 }
