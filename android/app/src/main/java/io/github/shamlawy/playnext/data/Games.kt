@@ -76,6 +76,12 @@ object Games {
     fun start(ctx: Context) {
         val app = ctx.applicationContext
         scope.launch {
+            // CI's emulators with the shell's switch: the made-up backup, no code, no copy, no network (Demo)
+            if (Demo.on(app)) {
+                val now = System.currentTimeMillis()
+                lock.withLock { _state.value = State.Ready(build(Demo.text(now)), now) }
+                return@launch
+            }
             lock.withLock { openLocal(app) }
             if (_state.value !is State.NoCode) check(app, force = true)
         }

@@ -1,7 +1,8 @@
 # Checks the Android app (android/) on every pull request that touches it: the Gradle wrapper is the real one, unit tests
 # (also against the web app's own numbers from tools/golden.mjs), the screens against their approved pictures (Roborazzi,
 # android/app/src/test/screenshots), lint and a release build (R8, signed with the debug key: a throwaway, so a PR never
-# sees the real key), the APK has no native code or is 16 KB aligned, and it stays under 30 MB. The live helper must still
+# sees the real key), the APK has no native code or is 16 KB aligned, it stays under 30 MB, and it walks every screen on an
+# emulator with a made-up backup (tools/android-smoke.sh, the release's smoke test). The live helper must still
 # answer the app's Origin and refuse another one, and the problem-report filing rules (tools/bugsync-check.mjs) must hold.
 # A PR that only changes android/parity/ (notes) skips the build and the helper call, so it stays cheap, but the run still
 # ends green on its head commit. No secrets, read-only token. Every action is pinned to a commit (public repo).
@@ -16,6 +17,7 @@ on:
       - "tools/bugsync-check.mjs"
       - "tools/golden.mjs"
       - "tools/android-gen.mjs"
+      - "tools/android-smoke.sh"
 permissions:
   contents: read
 concurrency:
@@ -51,7 +53,7 @@ jobs:
             # HEAD is GitHub's merge of the PR into its base: parent 1 = the base, so this is exactly what the PR changes
             git diff --no-renames --name-only 'HEAD^1' HEAD > "$RUNNER_TEMP/changed.txt"
             grep -v '^android/parity/' "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/rest.txt" || true
-            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
+            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$|tools/android-smoke\.sh$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
             echo "$(wc -l < "$RUNNER_TEMP/changed.txt") files changed; app build needed: $app"
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
@@ -156,6 +158,33 @@ jobs:
             echo "::error::The APK is $MB MB, over the 30 MB budget."
             exit 1
           fi
+      # The release smoke test's walk on this release build (R8), so a walk that would hold a release back fails here first
+      - name: Let the emulator use KVM
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: "Walk the release build on an emulator: Home, every tab, a view swipe, a game page, Settings, the probe"
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          cores: 4
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/tools/android-smoke.sh" "$GITHUB_WORKSPACE/android/app/build/outputs/apk/release/app-release.apk" "$RUNNER_TEMP/smoke"
+      - name: Keep the walk's pictures and logcat
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-walk
+          path: ${{ runner.temp }}/smoke/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Keep the APK (debug-signed, for trying the PR)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

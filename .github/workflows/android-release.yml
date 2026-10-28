@@ -5,9 +5,11 @@
 # On an emulator (16 KB pages when that image exists) it makes the Baseline Profile with the debug-signed build, then builds
 # the release signed with the real key (the GitHub secrets, or the Cloudflare KV copy when they're empty), checks the APK's
 # certificate against android/signing-cert.txt, creates a DRAFT release (invisible to the phone) with the APK, its .sha256,
-# android-latest.txt and the R8 mapping, installs that exact APK on a fresh emulator, opens the 120 Hz probe and checks the
-# app is still alive 20 s later with no crash. Only then is the release published as "latest". A failed smoke test leaves
-# the draft and fails the run. The key file is deleted after the build, before any later step runs.
+# android-latest.txt and the R8 mapping, installs that exact APK on a fresh emulator, walks Home, every tab, a view swipe,
+# a game page and Settings with a made-up backup (tools/android-smoke.sh; android-check walks every PR the same way), opens
+# the 120 Hz probe and checks the app is still alive 20 s later with no crash. Only then is the release published as
+# "latest". A failed smoke test leaves the draft and fails the run. The key file is deleted after the build, before any
+# later step runs.
 name: Android release
 on:
   push:
@@ -337,40 +339,23 @@ jobs:
             "$OUT/play-next-android-v$CODE.apk" "$OUT/play-next-android-v$CODE.apk.sha256" \
             "$OUT/android-latest.txt" "$OUT/mapping-android-v$CODE.txt"
           echo "Draft $TAG made with its 4 files"
-      - name: Write the smoke test
+      # The walk comes from this workflow's own commit, so a rollback (an older ref) is checked the same way; a ref from
+      # before the made-up backup (Demo.kt, android-v10) can't open the screens on an emulator, so it gets the probe only.
+      - name: The smoke test (tools/android-smoke.sh from this workflow's commit)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .smoke
+          sparse-checkout: tools/android-smoke.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Walk the screens, or the probe only on a ref without the made-up backup
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/smoke.sh" <<'SMOKE'
-          #!/usr/bin/env bash
-          # Installs the exact release APK, opens the 120 Hz probe (it flings for ~15 s) and checks the app is alive 20 s later.
-          set -euo pipefail
-          PKG=io.github.shamlawy.playnext
-          APK="$RUNNER_TEMP/release/play-next-android-v$CODE.apk"
-          LOGS="$RUNNER_TEMP/smoke"
-          mkdir -p "$LOGS"
-          fail=""
-          adb wait-for-device
-          adb install -r "$APK" 2>&1 | tee "$LOGS/install.txt"
-          adb logcat -c || true
-          { adb shell am start -W -a android.intent.action.VIEW -d "playnext://open?nudge=probe" "$PKG" 2>&1 || true; } | tr -d '\r' | tee "$LOGS/am-start.txt"
-          if grep -q '^Error' "$LOGS/am-start.txt"; then echo "::error::The probe deep link didn't open the app."; fail=1; fi
-          sleep 20
-          adb logcat -d -v threadtime > "$LOGS/logcat.txt" 2>&1 || true
-          adb logcat -d -b crash -v threadtime > "$LOGS/crash.txt" 2>&1 || true
-          adb exec-out screencap -p > "$LOGS/screen.png" 2>/dev/null || true
-          pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '[:space:]' || true)
-          if [ -z "$pid" ]; then echo "::error::The app's process is gone 20 s after the probe opened."; fail=1; else echo "Still running after 20 s (pid $pid)"; fi
-          if awk -v p="Process: $PKG" '/FATAL EXCEPTION/ { w = 4; next } w > 0 { w--; if (index($0, p)) f = 1 } END { exit (f ? 0 : 1) }' "$LOGS/logcat.txt" "$LOGS/crash.txt"; then
-            echo "::error::logcat has a FATAL EXCEPTION in $PKG."
-            { grep -A 25 'FATAL EXCEPTION' "$LOGS/crash.txt" || true; } | head -n 80 || true
-            fail=1
-          fi
-          if grep -q "ANR in $PKG" "$LOGS/logcat.txt"; then echo "::warning::An ANR for $PKG during the probe (the emulator draws in software; check the logcat artifact)."; fi
-          if [ -n "$fail" ]; then exit 1; fi
-          echo "Smoke test passed"
-          SMOKE
-          chmod +x "$RUNNER_TEMP/smoke.sh"
-      - name: "Smoke test: the signed APK on a fresh emulator, the probe, alive after 20 s"
+          if [ -f android/app/src/main/java/io/github/shamlawy/playnext/data/Demo.kt ]; then w=walk; else w=probe; fi
+          echo "SMOKE_WALK=$w" >> "$GITHUB_ENV"
+          echo "Smoke test: $w"
+      - name: "Smoke test: the signed APK on a fresh emulator walks every screen and the probe, alive after 20 s"
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
@@ -382,7 +367,7 @@ jobs:
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash "$RUNNER_TEMP/smoke.sh"
+          script: bash .smoke/tools/android-smoke.sh "$RUNNER_TEMP/release/play-next-android-v$CODE.apk" "$RUNNER_TEMP/smoke" "$SMOKE_WALK"
       - name: Keep the smoke test's logcat and screenshot
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
