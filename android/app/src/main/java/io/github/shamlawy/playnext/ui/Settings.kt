@@ -95,8 +95,8 @@ import java.util.Locale
  * early.
  */
 @Composable
-fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
+fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
+    BoxWithConstraints(modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
         val round = maxWidth >= 660.dp
         val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
         val gap = maxHeight * .04f
@@ -204,10 +204,10 @@ private fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
 }
 
 /**
- * A tap on the sheet itself (between its buttons) is taken here, so the scrim's [scrimTap] leaves the sheet open. Not
- * a clickable: that would merge every word in the sheet into one node, read by TalkBack as one long button.
+ * A tap on a sheet or page itself (between its buttons) is taken here, so nothing under it (Settings' scrim, a page's
+ * tab) takes it. Not a clickable: that merges every word inside into one node, read by TalkBack as one long button.
  */
-private fun Modifier.ownTaps() = pointerInput(Unit) {
+internal fun Modifier.ownTaps() = pointerInput(Unit) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
         waitForUpOrCancellation()?.consume()
@@ -227,13 +227,17 @@ private fun BackupCard(games: Games.State, askCode: () -> Unit) {
                     "This app is a practice copy until switch day: it reads your games from the web app's cloud backup and changes nothing there.",
                     style = Type.note,
                 )
+                val (busy, again) = lookAgain(games.checking)
                 games.note?.let { BasicText(it, style = Type.note.copy(color = Pn.hot)) }
-                Btn(if (games.checking) "Looking for a newer copy…" else "Check for a newer copy") { if (!games.checking) Games.checkNow(ctx) }
+                lookedLine(ok = games.note == null)?.let { BasicText(it, style = Type.note) }
+                Btn(if (busy) "Looking for a newer copy…" else "Check for a newer copy", onClick = again)
                 Btn("Use a different restore code") { Games.forget(ctx); askCode() }
             }
             is Games.State.Fetching -> {
-                BasicText(games.why ?: "Fetching your games…", style = Type.note)
-                Btn("Try again", primary = true) { Games.checkNow(ctx) }
+                val (busy, again) = lookAgain(games.checking)
+                BasicText(if (busy || games.why == null) "Fetching your games…" else games.why, style = Type.note)
+                if (games.why != null) lookedLine(ok = false)?.let { BasicText(it, style = Type.note) }
+                Btn(if (busy) "Trying again…" else "Try again", primary = true, onClick = again)
                 Btn("Use a different restore code") { Games.forget(ctx); askCode() }
             }
             Games.State.Starting -> BasicText("Opening your games…", style = Type.note)
@@ -243,6 +247,37 @@ private fun BackupCard(games: Games.State, askCode: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * "Check for a newer copy" and "Try again" (L184): busy from the tap until the look is done, and for at least [HOLD],
+ * so a quick answer, or the same error coming back, still reads as a tap that did something. The second is the tap.
+ */
+@Composable
+internal fun lookAgain(checking: Boolean): Pair<Boolean, () -> Unit> {
+    val ctx = LocalContext.current
+    var tapped by remember { mutableStateOf(false) }
+    LaunchedEffect(tapped) {
+        if (tapped) {
+            delay(HOLD)
+            tapped = false
+        }
+    }
+    val busy = tapped || checking
+    return busy to {
+        if (!busy) {
+            tapped = true
+            Games.checkNow(ctx)
+        }
+    }
+}
+
+/** When it last looked for a copy (Store "copyLooked"), null before the first look: [ok] when nothing went wrong. */
+@Composable
+internal fun lookedLine(ok: Boolean): String? {
+    val at = Store.prefs.getLong("copyLooked", 0L).takeIf { it > 0 } ?: return null
+    val now = LocalNow.current()
+    return if (ok) "Checked ${atTime(at, now, ZoneId.systemDefault())}: this is the newest copy." else "Tried ${atTime(at, now, ZoneId.systemDefault())}."
 }
 
 /** Piece 1's cards: updates, the one-time install switch, the 120 Hz test, Report a problem and the build line. */

@@ -49,8 +49,11 @@ object Games {
         /** No restore code yet: the restore screen. */
         data object NoCode : State
 
-        /** A code, but no copy on the phone yet (fetching, or [why] it didn't come). */
-        data class Fetching(val why: String? = null) : State
+        /**
+         * A code, but no copy on the phone yet (fetching, or [why] it didn't come). [checking] while trying again, so the
+         * same answer coming back is still a change the screen sees.
+         */
+        data class Fetching(val why: String? = null, val checking: Boolean = false) : State
 
         /**
          * Your games. [copyAt] is when the web app made this copy (the helper's time), [checking] while looking for a newer
@@ -69,9 +72,13 @@ object Games {
     val state: StateFlow<State> = _state.asStateFlow()
 
     const val NOT_A_CODE = "That isn't a restore code. It looks like PN-XXXX-XXXX-XXXX-XXXX-XXXX."
+    const val KEY_LATER = "This phone didn't unlock your restore code just now. Nothing is lost: it tries again when you come back, or tap Try again."
 
     private var keys: Code.Keys? = null
     private var code: String = ""
+
+    /** The key store didn't answer at start: the code and the copy wait on the phone for the next try. */
+    @Volatile private var unread = false
     private const val CHECK_GAP = 60_000L
 
     private fun cache(ctx: Context) = File(ctx.filesDir, "backup/latest.bin")
@@ -89,9 +96,9 @@ object Games {
     /** Coming back to the app: look for a newer copy if the last look was over a minute ago. */
     fun onOpen(ctx: Context) {
         catchUp()
-        if (keys == null) return
-        if (System.currentTimeMillis() - Store.prefs.getLong("copyChecked", 0) < CHECK_GAP) return
-        scope.launch { check(ctx.applicationContext, force = false) }
+        if (keys == null && !unread) return
+        if (!unread && System.currentTimeMillis() - Store.prefs.getLong("copyChecked", 0) < CHECK_GAP) return
+        scope.launch { check(ctx.applicationContext, force = unread) }
     }
 
     /** The restore screen: null when your games came, else the line to show. */
@@ -113,9 +120,10 @@ object Games {
             lock.withLock {
                 CodeStore.clear(ctx)
                 cache(ctx).delete()
-                Store.prefs.edit().remove("copyT").remove("copyChecked").apply()
+                Store.prefs.edit().remove("copyT").remove("copyChecked").remove("copyLooked").apply()
                 keys = null
                 code = ""
+                unread = false
                 day = null
                 Reporter.names = emptyList()
                 Reporter.secrets = emptyList()
@@ -125,18 +133,28 @@ object Games {
         }
     }
 
-    /** "Check for a newer copy" in Settings. */
+    /** "Check for a newer copy" in Settings, "Try again" wherever a copy didn't come. */
     fun checkNow(ctx: Context) {
         scope.launch { check(ctx.applicationContext, force = true) }
     }
 
     private suspend fun openLocal(ctx: Context) {
-        val c = withContext(Dispatchers.IO) { CodeStore.read(ctx) }
-        if (c == null) {
-            cache(ctx).delete()
-            _state.value = State.NoCode
-            return
+        val c = when (val r = withContext(Dispatchers.IO) { CodeStore.read(ctx) }) {
+            is CodeStore.Read.Got -> r.code
+            CodeStore.Read.None -> {
+                unread = false
+                cache(ctx).delete()
+                _state.value = State.NoCode
+                return
+            }
+            // a key store hiccup: the copy stays (it opens with the code once the key store answers)
+            CodeStore.Read.Later -> {
+                unread = true
+                _state.value = State.Fetching(KEY_LATER)
+                return
+            }
         }
+        unread = false
         val k = Code.keys(c)
         hold(k, c)
         val f = cache(ctx)
@@ -154,14 +172,24 @@ object Games {
 
     private suspend fun check(ctx: Context, force: Boolean) {
         lock.withLock {
-            val k = keys ?: return
-            val cur = _state.value
+            if (keys == null && !unread) return
             if (!force && System.currentTimeMillis() - Store.prefs.getLong("copyChecked", 0) < CHECK_GAP) return
-            if (cur is State.Ready) _state.value = cur.copy(checking = true, note = null)
-            val why = fetch(ctx, k, code)
+            when (val cur = _state.value) {
+                is State.Ready -> _state.value = cur.copy(checking = true, note = null)
+                is State.Fetching -> _state.value = cur.copy(checking = true)
+                else -> Unit
+            }
+            // the key store didn't answer before: ask it again first
+            if (unread) openLocal(ctx)
+            val k = keys
+            val why = if (k != null) fetch(ctx, k, code) else null
+            // when it last looked, whatever came of it: Settings and "Try again" say so (L184)
+            Store.prefs.edit().putLong("copyLooked", System.currentTimeMillis()).apply()
             val now = _state.value
-            if (why != null) {
-                _state.value = if (now is State.Ready) now.copy(checking = false, note = why) else State.Fetching(why)
+            _state.value = when {
+                why != null -> if (now is State.Ready) now.copy(checking = false, note = why) else State.Fetching(why)
+                now is State.Fetching -> now.copy(checking = false)
+                else -> now
             }
         }
     }
@@ -212,16 +240,22 @@ object Games {
         } catch (e: Exception) {
             return "That copy didn't open: ${e.javaClass.simpleName}."
         }
-        withContext(Dispatchers.IO) {
-            val f = cache(ctx).apply { parentFile?.mkdirs() }
-            val tmp = File(f.parentFile, "latest.new")
-            tmp.writeBytes(bytes)
-            swapIn(tmp, f)
-        }
-        Store.prefs.edit().putLong("copyT", latest.t).apply()
+        // a full phone can't keep it: your games still show from memory, and as "copyT" stays the old time, the next
+        // fetch brings the copy again and tries the write again
+        if (withContext(Dispatchers.IO) { keep(cache(ctx), bytes) }) Store.prefs.edit().putLong("copyT", latest.t).apply()
         hold(k, c)
         _state.value = ready(lib, latest.t)
         return null
+    }
+
+    /** The fetched copy, swapped in whole; false (nothing half-written left) when the phone can't write it. */
+    internal fun keep(f: File, bytes: ByteArray): Boolean {
+        val tmp = File(f.parentFile, "latest.new")
+        return runCatching {
+            f.parentFile?.mkdirs()
+            tmp.writeBytes(bytes)
+            swapIn(tmp, f)
+        }.onFailure { tmp.delete() }.isSuccess
     }
 
     /** The code in use, in memory only; everything secret about it is scrubbed from reports. */
@@ -249,7 +283,7 @@ object Games {
         val d = make(Backup.apply(rb.data), clock(), zone())
         rawg = parts.rawgKey
         Reporter.names = d.lib.privateNames
-        keep(d)
+        setDay(d)
         return d.lib
     }
 
@@ -293,7 +327,7 @@ object Games {
     }
 
     /** The day in use, and a wake-up at its end. Runs under [lock]. */
-    private fun keep(d: Day) {
+    private fun setDay(d: Day) {
         day = d
         Reporter.lib = ReportRules.libLine(d.lib, d.at)
         tick?.cancel()
@@ -317,7 +351,7 @@ object Games {
         val z = zone()
         if (d.fits(now, z)) return false
         val next = withContext(Dispatchers.Default) { make(d.applied, now, z) }
-        keep(next)
+        setDay(next)
         _state.value = cur.copy(lib = next.lib, cards = next.cards)
         true
     }

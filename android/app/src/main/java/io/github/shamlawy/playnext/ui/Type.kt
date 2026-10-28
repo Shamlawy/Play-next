@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -50,6 +52,16 @@ object Fonts {
         Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(900), FontVariation.width(100f))),
         Font(R.font.archivo, weight = FontWeight.ExtraBold, style = FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(800), FontVariation.width(100f))),
     )
+
+    /**
+     * Reads the fonts the first screens draw, once, off the main thread (in Compose's shared cache): the first tab switch
+     * read the 741 KB Archivo italic on the main thread mid-slash.
+     */
+    fun warm(ctx: Context) {
+        val r = createFontFamilyResolver(ctx)
+        r.resolve(archivo, FontWeight.Black, FontStyle.Italic)
+        for (w in listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold)) r.resolve(poppins, w)
+    }
 
     val playfair = FontFamily(
         Font(R.font.playfair, weight = FontWeight.SemiBold, style = FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(600))),

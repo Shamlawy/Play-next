@@ -11,6 +11,7 @@ import io.github.shamlawy.playnext.kit.Buzz
 import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.net.Net
 import io.github.shamlawy.playnext.report.Reporter
+import io.github.shamlawy.playnext.ui.Fonts
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,7 @@ class PlayNextApp : Application(), SingletonImageLoader.Factory {
             if (!started.compareAndSet(false, true)) return
             Games.start(app)
             scope.launch {
+                runCatching { Fonts.warm(app) }
                 runCatching { CrashGuard.readExits(app) }
                 Reporter.ranOnce()
             }

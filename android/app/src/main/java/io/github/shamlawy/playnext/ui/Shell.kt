@@ -61,6 +61,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -140,6 +141,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     var launch by remember { mutableStateOf<Launch?>(null) }
     // the game page that's shrinking away (its step's key): the rail is over it, so a tap there takes it off first
     var shutting by remember { mutableStateOf<String?>(null) }
+    // a game page has fully grown over everything: what's under it (the tab, the pill, Settings) stops drawing until it
+    // starts to close (read only while drawing, so it changes no layout and keeps every scroll spot)
+    var covered by remember { mutableStateOf(false) }
     // a tap that opens or closes something settles the screen for a moment: a quick second tap (a double tap) lands on
     // nothing, instead of closing what the first opened or opening what it closed (a game page closing after its shrink
     // needs none: it holds every touch while it shrinks)
@@ -177,7 +181,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 step((if (i != null) nav.closeAt(i) else nav).open("settings"))
             }
             holder.SaveableStateProvider(nav.tab) {
-                Page(w) {
+                Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
                     if (!wide) TabBar(nav.tab, pick, settings)
                     Column(Modifier.entrance(enter)) {
                         TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }, pickView = pickView)
@@ -189,6 +193,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 ViewPill(
                     views, view, w, pickView,
                     Modifier
+                        .graphicsLayer { alpha = if (covered) 0f else 1f }
                         .align(Alignment.BottomCenter)
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(bottom = 18.dp)
@@ -210,7 +215,10 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 BackHandler(enabled = nav.overlay == "settings") { go(nav.closeAt(s)) }
                 key(k) {
                     pages.SaveableStateProvider(k) {
-                        SettingsSheet(games, wide, close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) })
+                        SettingsSheet(
+                            Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, games, wide,
+                            close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) },
+                        )
                     }
                 }
             }
@@ -222,7 +230,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 val k = keys[at]
                 pagesKept += k
                 val l = launch?.takeIf { it.key == k }
-                key(k) { pages.SaveableStateProvider(k) { GamePage(game, l?.tap ?: Offset.Unspecified, l?.from?.takeIf { it.g.id == game.id }, wide, shrinking = { shutting = k }, close = { go(nav.closeAt(at)) }) } }
+                key(k) { pages.SaveableStateProvider(k) { GamePage(game, l?.tap ?: Offset.Unspecified, l?.from?.takeIf { it.g.id == game.id }, wide, shrinking = { shutting = k }, covers = { covered = it }, close = { go(nav.closeAt(at)) }) } }
             }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away
@@ -286,14 +294,14 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
  * 96 on the right for the rail, which floats over the wider screens. Under the status bar and the cutout, edge to edge.
  */
 @Composable
-private fun Page(w: Dp, content: @Composable () -> Unit) {
+private fun Page(w: Dp, modifier: Modifier, content: @Composable () -> Unit) {
     val big = w >= 700.dp
     val side = if (big) 22.dp else 16.dp
     val railRoom = if (w >= RAIL_FROM && w < 1100.dp) 96.dp else side
     val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val dir = LocalLayoutDirection.current
     Column(
-        Modifier
+        modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(

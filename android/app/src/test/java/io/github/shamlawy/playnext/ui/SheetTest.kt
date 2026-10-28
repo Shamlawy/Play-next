@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
@@ -55,6 +56,13 @@ class SheetTest {
         rule.setContent { Frame(Look.of(lib), Prefs.of(lib)) { Shell(Nav("home", listOf("settings")), Games.State.Ready(lib, 0), go = {}) } }
         val b = rule.onNodeWithText("Updates").fetchSemanticsNode().boundsInRoot
         assertTrue("\"Updates\" is ${b.height} tall: merged into the sheet", b.height < 200f)
+    }
+
+    /** The game page too: its words were one node with the whole page's size. */
+    @Test fun aGamePageIsReadPartByPart() {
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib)) { Shell(Nav("home", listOf("game:a")), Games.State.Ready(lib, 0), go = {}) } }
+        val b = rule.onAllNodesWithText("Starfall Lantern").fetchSemanticsNodes().maxBy { it.boundsInRoot.height }.boundsInRoot
+        assertTrue("the title is ${b.height} tall: merged into the page", b.height < 400f)
     }
 
     /** A tap on the sheet between its buttons leaves it open; only the dimmed space round it closes it. */
