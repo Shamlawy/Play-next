@@ -155,7 +155,9 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
             }
             is Route.Game -> {
                 val l = (st as? Games.State.Ready)?.lib
-                val id = r.id ?: l?.let { Rank(it, System.currentTimeMillis(), ZoneId.systemDefault()).onDeck(1).firstOrNull()?.id }
+                // On deck's first game: the Queue card's "Up next", already worked out off the main thread with your games
+                val id = r.id ?: (st as? Games.State.Ready)?.cards?.get("queue")?.line?.g?.id
+                    ?: l?.let { Rank(it, System.currentTimeMillis(), ZoneId.systemDefault()).onDeck(1).firstOrNull()?.id }
                 // on top of where you were: back returns there
                 if (l != null && l.games.any { it.id == id }) nav.open("game:$id") else nav.go("home")
             }

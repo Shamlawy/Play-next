@@ -36,6 +36,14 @@ class DemoTest {
         assertTrue("a duel's winner is one of its two", lib.duels.all { it.w == it.a || it.w == it.b })
     }
 
+    /** "What should I play?" opens the Queue card's "Up next" (worked out with your games) as On deck's first game. */
+    @Test
+    fun upNextIsOnDecksFirst() {
+        val lib = Library(Backup.load(Backup.apply(Backup.read(Demo.text(now, zone)).data!!), now, zone))
+        val first = Rank(lib, now, zone).onDeck(1).first().id
+        assertEquals(first, Shx.all(lib, now, zone)["queue"]?.line?.g?.id)
+    }
+
     @Test
     fun neverOnAPhoneEvenWithTheSwitch() {
         val app = ApplicationProvider.getApplicationContext<Application>()
