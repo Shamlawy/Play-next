@@ -9,6 +9,7 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 /** A picture: an address (a link, a repo file, an uploaded data: picture) or the drawn cover a game without one gets. */
 sealed interface Pic {
@@ -61,14 +62,35 @@ class Shx(
         /** "Oct 27" (the web app's `toLocaleDateString(undefined, { day: "numeric", month: "short" })`). */
         val US_SHORT: (LocalDate) -> String = { it.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) }
 
-        fun of(kind: String, lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = US_SHORT): Shx = Build(kind, lib, now, zone, short).run()
+        /** One screen's card, with its own Rank. */
+        fun of(kind: String, lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = US_SHORT): Shx =
+            Build(kind, Rank(lib, now, zone), now, zone, short).run()
+
+        /**
+         * Every screen's card at once, sharing one Rank (the rank table is worked out once, not per screen). Games does
+         * this off Main with each copy and each new day, so a tab switch only draws.
+         */
+        fun all(lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = US_SHORT): Cards {
+            val rk = Rank(lib, now, zone)
+            // a record the maths can't read leaves that screen a plain title, as the web's try/catch around shxData does
+            return Cards(lib, now, KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() })
+        }
+
+        /** How many cards have been worked out: a test checks that drawing a screen never does it. */
+        internal val built = AtomicInteger()
     }
 
-    private class Build(val kind: String, val lib: Library, val now: Long, val zone: ZoneId, val shortFmt: (LocalDate) -> String) {
-        val rk = Rank(lib, now, zone)
+    /** Each screen's card for one copy of your games ([lib]) at one moment ([at]); null for a screen whose maths failed. */
+    class Cards(val lib: Library, val at: Long, private val got: Map<String, Shx?>) {
+        fun has(kind: String) = kind in got
+        operator fun get(kind: String): Shx? = got[kind]
+    }
+
+    private class Build(val kind: String, val rk: Rank, val now: Long, val zone: ZoneId, val shortFmt: (LocalDate) -> String) {
+        val lib = rk.lib
         val games = lib.games
         val day0 = JsDate.today0(now, zone)
-        val waiting = games.filter { !rk.isPlayed(it) && !rk.isDropped(it) }
+        val waiting by lazy { games.filter { !rk.isPlayed(it) && !rk.isDropped(it) } }
         val at = { s: String -> JsDate.localMidnight(s, zone) }
         fun short(s: String) = at(s)?.let { shortFmt(Instant.ofEpochMilli(it).atZone(zone).toLocalDate()) } ?: "Invalid Date"
 
@@ -79,6 +101,7 @@ class Shx(
         val playedN = lib.played.size
 
         fun run(): Shx {
+            built.incrementAndGet()
             val (covers, stats) = data()
             val cv = covers.take(4)
             return extra(cv, stats, cv.firstOrNull())
@@ -88,8 +111,8 @@ class Shx(
 
         /** `shxData(kind)` (index.html 16830): the covers and the numbers. */
         fun data(): Pair<List<Game>, List<Stat>> {
-            val t = rk.table
-            val sTier = t.sc.values.count { it >= 9 }
+            // the rank table only for the screens that show it
+            val sTier by lazy { rk.table.sc.values.count { it >= 9 } }
             return when (kind) {
                 "queue" -> {
                     val hrs = Rank.jsRound(waiting.sumOf { rk.hrsOf(it) }).toLong()
@@ -113,7 +136,7 @@ class Shx(
                         n(next.count { at(it.date)!! - day0 < 31 * JsDate.DAY }, "in 30 days"),
                     )
                 }
-                "taste" -> rk.rankedOrPlayed.take(4) to listOf(n(t.order.size, "ranked"), n(lib.duels.size, "duels"), n(sTier, "S‑tier"))
+                "taste" -> rk.rankedOrPlayed.take(4) to listOf(n(rk.table.order.size, "ranked"), n(lib.duels.size, "duels"), n(sTier, "S‑tier"))
                 else -> {
                     val ym = YearMonth.from(Instant.ofEpochMilli(now).atZone(zone)).toString()
                     recent() to listOf(n(games.size, "in your library"), n(games.count { Backup.str(it["added"]).startsWith(ym) }, "added this month"))
