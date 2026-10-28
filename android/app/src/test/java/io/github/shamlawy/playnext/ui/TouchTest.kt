@@ -221,6 +221,11 @@ class TouchTest {
         val trail2 = mutableListOf<Int>()
         repeat(4) { rule.mainClock.advanceTimeBy(16); trail2 += segLeft() }
         rule.mainClock.autoAdvance = true
-        assertTrue("the segment jumped from ${trail.last()} to ${trail2.first()} ($trail then $trail2)", abs(trail2.first() - trail.last()) < 40)
+        // the frames the second tap itself takes keep the first slide moving, so the second starts a little further on,
+        // never back where the first began and never at the first one's end (the old jump: it restarted from there)
+        val end1 = b1.left.toInt()
+        val all = trail + trail2
+        assertTrue("the segment jumped from ${trail.last()} to ${trail2.first()} ($trail then $trail2)", trail2.first() < end1 - 40)
+        assertTrue("the segment went back ($trail then $trail2)", all.zipWithNext().all { (a, b) -> b >= a - 2 })
     }
 }

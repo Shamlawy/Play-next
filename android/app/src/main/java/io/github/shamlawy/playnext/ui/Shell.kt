@@ -53,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -321,8 +322,11 @@ fun TabBar(tab: String, pick: (String) -> Unit, settings: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // the open tile's left inner corner only where it clears the Home panel's 28 round corner by its own 20 (narrow, it
         // would hang off that curve as a thin spike): the row is centred, 66 open + 52 each other + Settings, 2 apart
+        // the closed tabs and Settings are 52 square while the row fits (from 336 wide); narrower, they share what's
+        // left, so Settings never gets squashed off the end
+        val shut = ((maxWidth - 66.dp - 2.dp * Web.TABS.size) / Web.TABS.size).coerceIn(40.dp, 52.dp)
         val before = Web.TABS.indexOfFirst { it.key == tab }.coerceAtLeast(0)
-        val left = (maxWidth - (66.dp + 52.dp * Web.TABS.size + 2.dp * Web.TABS.size)) / 2 + (52.dp + 2.dp) * before >= 48.dp
+        val left = (maxWidth - (66.dp + shut * Web.TABS.size + 2.dp * Web.TABS.size)) / 2 + (shut + 2.dp) * before >= 48.dp
         Row(
             Modifier.fillMaxWidth().padding(top = 6.dp, bottom = if (home) 0.dp else 16.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
@@ -332,7 +336,7 @@ fun TabBar(tab: String, pick: (String) -> Unit, settings: () -> Unit) {
                 val on = t.key == tab
                 Box(
                     Modifier
-                        .then(if (on) Modifier.size(66.dp, if (home) 70.dp else 62.dp) else Modifier.size(52.dp))
+                        .then(if (on) Modifier.size(66.dp, if (home) 70.dp else 62.dp) else Modifier.size(shut, 52.dp))
                         .then(if (on && home) Modifier.notch(Pn.pan, left) else Modifier)
                         .background(
                             if (on) Pn.pan else Color.Transparent,
@@ -349,7 +353,7 @@ fun TabBar(tab: String, pick: (String) -> Unit, settings: () -> Unit) {
                 }
             }
             Box(
-                Modifier.size(52.dp).clickable(role = Role.Button, onClick = settings).semantics { contentDescription = "Settings" },
+                Modifier.size(shut, 52.dp).clickable(role = Role.Button, onClick = settings).semantics { contentDescription = "Settings" },
                 contentAlignment = Alignment.Center,
             ) { PnIcon("settings", Pn.mute, 21.dp, null) }
         }
@@ -380,18 +384,35 @@ private fun Modifier.notch(fill: Color, withLeft: Boolean) = drawBehind {
 fun Rail(tab: String, pick: (String) -> Unit, settings: () -> Unit, modifier: Modifier = Modifier) {
     val look = LocalLook.current
     val shape = RoundedCornerShape(30.dp)
-    Column(
+    BoxWithConstraints(
         modifier
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End))
             .padding(12.dp)
             .fillMaxHeight()
-            .width(72.dp)
+            .width(72.dp),
+    ) {
+        // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
+        // so Settings is never squashed to a sliver
+        val roomy = maxHeight >= RAIL_TALL
+        RailColumn(tab, pick, settings, look.volt, shape, roomy)
+    }
+}
+
+/** The rail's height with its usual gaps: four tabs, the gap, a line, Add and Settings. */
+private val RAIL_TALL = 14.dp * 2 + 48.dp * 6 + 1.dp + 10.dp * 7
+
+@Composable
+private fun RailColumn(tab: String, pick: (String) -> Unit, settings: () -> Unit, volt: Color, shape: RoundedCornerShape, roomy: Boolean) {
+    Column(
+        Modifier
+            .fillMaxSize()
             .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.ink, shape)
             .border(1.dp, Pn.edge, shape)
-            .padding(vertical = 14.dp),
+            .then(if (roomy) Modifier else Modifier.clip(shape).verticalScroll(rememberScrollState()))
+            .padding(vertical = if (roomy) 14.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (roomy) 10.dp else 4.dp),
     ) {
         for (t in Web.TABS.filter { it.key != "add" }) {
             val on = t.key == tab
@@ -402,12 +423,12 @@ fun Rail(tab: String, pick: (String) -> Unit, settings: () -> Unit, modifier: Mo
                     .semantics { selected = on; contentDescription = t.label },
                 contentAlignment = Alignment.Center,
             ) {
-                Box(Modifier.size(48.dp, 44.dp).background(if (on) look.volt else Color.Transparent, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(48.dp, 44.dp).background(if (on) volt else Color.Transparent, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                     PnIcon(t.key, if (on) Pn.void else Pn.mute, 20.dp, null)
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
+        if (roomy) Spacer(Modifier.weight(1f))
         Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
         RailButton("add", "Add a game", on = tab == "add") { pick("add") }
         RailButton("settings", "Settings", on = false, onClick = settings)
