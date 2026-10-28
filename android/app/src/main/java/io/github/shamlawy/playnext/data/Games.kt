@@ -90,8 +90,8 @@ object Games {
         scope.launch {
             // CI's emulators with the shell's switch: the made-up backup, no code, no copy, no network (Demo)
             if (Demo.on(app)) {
-                val now = System.currentTimeMillis()
-                lock.withLock { _state.value = State.Ready(build(Demo.text(now)), now) }
+                val now = clock()
+                lock.withLock { _state.value = ready(build(Demo.text(now, zone())), now) }
                 return@launch
             }
             lock.withLock { openLocal(app) }
