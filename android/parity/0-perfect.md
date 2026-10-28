@@ -100,6 +100,15 @@ Matches the web: folded tab bar (to the pixel), rail, view pill, chips, header c
 Skeptic pass: skipped to save the usage limit (it stopped the run twice); the fixer re-reads the code and reproduces each one before fixing (the touch lens's ZzTouchTest.kt proved 6; rewrite them as real tests).
 Done in this chat (code changed, screenshots NOT re-recorded yet): look 1 (slash at default width, Type.kt) and look 4 (Home notch's left corner skipped when it would spike, Shell.kt TabBar). Re-record slash-412, home-412, no-code-412 and Read them.
 
+Fix chat 1 (Oct 28, branch claude/android-v10-fixes; compiles; tests in TouchTest/ScreensTest/CrashCounterTest written, see the handoff for their last result):
+- A done: `PlayNextApp.start()` once per process, also from MainActivity (safe mode's "Try again"); the calm minute runs only while MainActivity is resumed (`CrashGuard.onScreen`).
+- B done (Root.kt: closing the code step also sets skipped). L partly: mistyped-code line (`Games.NOT_A_CODE`), restore `busy` plain remember, report draft + `shared` saveable, no tab pages while Starting (Root shows "Opening your games…" alone). Scroll-spot test (StateRestorationTester) not written yet.
+- C done in code: Settings sheet rebuilt like `.sheet-in` (K2 too): scrim void .86 with a real tap (a drag doesn't close), centred 620 at 4% down, one scroll, 22/700 title, handle, Close at the foot, swipe down from the top follows the finger and closes past 25% or on a fling (nested scroll). Double taps: Shell's settle (SwipeGuard.settle/lastUp, 250ms after a tap that opens/closes something).
+- D done in code: the flying cover fades with the page's shut; a page's tap point and cover flight belong to the step they opened (`Launch.key`).
+- K3 done in code: unfolded, the rail is drawn over Settings and game pages (checked on the web with elementFromPoint: it is on top there); the game page's "Back" (was Close) sits top right, 100 in when wide; its words keep 104 clear. A rail Settings tap during a page's shrink closes that page first (`shutting`). K5 done in code: Btn as wide as its words, ghost = card + line2, primary glow (Restore keeps full width).
+- Q partly: `Screen.set` tells Android the first screen too (`told`); the ANR report carries the `"main"` thread block (`CrashGuard.mainThread`); a freeze or native crash within a minute of start counts toward safe mode (`armedAt` + the last exit record, `CrashCounter.exitedEarly`). F partly: `calm()` writes only when the count isn't 0, off Main.
+- E, G, P, R, Reporter part of F, Updater/Receivers comments (V): a helper's branch, report in android/parity/0-perfect/helper-plumbing.md on that branch.
+
 - A. Safe mode → "Opening your games…" forever (safety 1, bugs 1).
 - B. Back after "Use a different restore code" (touch 1, bugs 2).
 - C. Settings sheet: swipe-down closes, scrim closes only on a real tap, double taps (touch 2/5/9, leftovers 4).

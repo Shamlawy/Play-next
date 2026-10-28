@@ -16,10 +16,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 class PlayNextApp : Application(), SingletonImageLoader.Factory {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     override fun onCreate() {
         super.onCreate()
         // the crash guard first: everything after it is covered (the two stores it writes through come before it)
@@ -30,14 +29,24 @@ class PlayNextApp : Application(), SingletonImageLoader.Factory {
         Buzz.init(this)
         // reports a crashed run left behind join the queue; safe mode sends them, a normal start a few seconds in
         Reporter.adopt(CrashGuard.pendingFiles())
-        if (CrashGuard.counter.safeMode) return
-        // your games: this phone's copy first, then a look for a newer backup
-        Games.start(this)
-        scope.launch {
-            runCatching { CrashGuard.readExits(this@PlayNextApp) }
-            Reporter.ranOnce()
+        // safe mode starts nothing more; its "Try again" starts the rest from MainActivity, in this same process
+        if (!CrashGuard.counter.safeMode) start(this)
+    }
+
+    companion object {
+        private val started = AtomicBoolean(false)
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /** Your games (this phone's copy first, then a look for a newer backup), Android's exit records and the update check: once per process. */
+        fun start(app: Application) {
+            if (!started.compareAndSet(false, true)) return
+            Games.start(app)
+            scope.launch {
+                runCatching { CrashGuard.readExits(app) }
+                Reporter.ranOnce()
+            }
+            Updater.schedule(app)
         }
-        Updater.schedule(this)
     }
 
     /** Pictures (covers, backdrops) load through the app's one network client, so they pass its write switch too. */

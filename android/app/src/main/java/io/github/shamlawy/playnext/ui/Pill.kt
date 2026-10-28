@@ -58,6 +58,10 @@ import java.util.Locale
  */
 class SwipeGuard {
     var inScroller = false
+
+    /** When the last finger lifted, and when what's open last changed (that lift's time): see Shell's settle. */
+    var lastUp = Long.MIN_VALUE / 2
+    var settle = Long.MIN_VALUE / 2
 }
 
 val LocalSwipeGuard = staticCompositionLocalOf { SwipeGuard() }

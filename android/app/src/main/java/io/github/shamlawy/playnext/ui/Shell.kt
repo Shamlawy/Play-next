@@ -133,16 +133,25 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             }
         }
     }
-    // where the last finger came down (a game's page grows from it), and the cover a page was opened from
+    // where the last finger came down (a game's page grows from it), and the cover a page was opened from: both for the
+    // one step they opened, so a page a link opens later never replays them
     val down = remember { arrayOf(Offset.Unspecified) }
-    var tapAt by remember { mutableStateOf(Offset.Unspecified) }
-    var fly by remember { mutableStateOf<FlyFrom?>(null) }
+    var launch by remember { mutableStateOf<Launch?>(null) }
+    // the game page that's shrinking away (its step's key): the rail is over it, so a tap there takes it off first
+    var shutting by remember { mutableStateOf<String?>(null) }
+    // a tap that opens or closes something settles the screen for a moment: a quick second tap (a double tap) lands on
+    // nothing, instead of closing what the first opened or opening what it closed (a game page closing after its shrink
+    // needs none: it holds every touch while it shrinks)
+    val step = { n: Nav ->
+        if (n.stack != nav.stack) guard.settle = guard.lastUp
+        go(n)
+    }
     val openGame by rememberUpdatedState { id: String, from: FlyFrom? ->
         Sounds.play(Sfx.Open)
         Crumbs.tap(if (from != null) "cover" else "game", here)
-        tapAt = down[0]
-        fly = from
-        go(nav.open("game:$id"))
+        val n = nav.open("game:$id")
+        launch = Launch(n.key(n.stack.lastIndex), down[0], from)
+        step(n)
     }
     val opener = remember { { id: String, from: FlyFrom? -> openGame(id, from) } }
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener) {
@@ -162,17 +171,18 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             val settings = {
                 Sounds.play(Sfx.Open)
                 Crumbs.tap("settings", here)
-                go(nav.open("settings"))
+                // over a page that's closing: it goes first, so Settings never opens under a page about to close itself
+                val i = shutting?.let { k -> nav.stack.indices.firstOrNull { nav.key(it) == k } }
+                step((if (i != null) nav.closeAt(i) else nav).open("settings"))
             }
             holder.SaveableStateProvider(nav.tab) {
                 Page(w) {
                     if (!wide) TabBar(nav.tab, pick, settings)
                     Column(Modifier.entrance(enter)) {
-                        TabPage(nav.tab, view, games, wide, w, askCode = { go(nav.open("code")) }, pickView = pickView)
+                        TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }, pickView = pickView)
                     }
                 }
             }
-            if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
             val views = prefs.views(nav.tab)
             if (prefs.pill && view != null && views.isNotEmpty()) {
                 ViewPill(
@@ -199,7 +209,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 BackHandler(enabled = nav.overlay == "settings") { go(nav.closeAt(s)) }
                 key(k) {
                     pages.SaveableStateProvider(k) {
-                        SettingsSheet(games, wide, close = { go(nav.closeAt(s)) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
+                        SettingsSheet(games, wide, close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) })
                     }
                 }
             }
@@ -210,14 +220,24 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             if (game != null) {
                 val k = keys[at]
                 pagesKept += k
-                key(k) { pages.SaveableStateProvider(k) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.closeAt(at)) }) } }
+                val l = launch?.takeIf { it.key == k }
+                key(k) { pages.SaveableStateProvider(k) { GamePage(game, l?.tap ?: Offset.Unspecified, l?.from?.takeIf { it.g.id == game.id }, wide, shrinking = { shutting = k }, close = { go(nav.closeAt(at)) }) } }
             }
+            // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
+            // tap away
+            if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
             }
         }
     }
 }
+
+/** A game page's opening: the step it opened ([Nav.key]), where the finger was and the cover it flies from. */
+private class Launch(val key: String, val tap: Offset, val from: FlyFrom?)
+
+/** How long a change of what's open keeps the next tap off (Android's own double-tap window is 300ms). */
+private const val SETTLE_MS = 250L
 
 /** The tabs in the web app's order (`TABS`), for the swipes and the slide's direction. */
 private val TAB_ORDER = Web.TABS.map { it.key }
@@ -234,6 +254,8 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
         touched(down.position)
         // cleared here, before the touched things see it: a side scroller sets it in this same pass
         guard.inScroller = false
+        // a touch right after what's open changed (a double tap's second): its lift is taken here, so it taps nothing
+        val settling = down.uptimeMillis - guard.settle < SETTLE_MS
         var end = down.position
         var two = false
         while (true) {
@@ -241,6 +263,12 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
             if (e.changes.count { it.pressed } > 1) two = true
             e.changes.firstOrNull { it.id == down.id }?.let { end = it.position }
             if (e.changes.any { it.pressed }) continue
+            // the lift that may have opened or closed something: a change it makes settles from here
+            guard.lastUp = e.changes.maxOf { it.uptimeMillis }
+            if (settling) {
+                e.changes.forEach { it.consume() }
+                break
+            }
             val dx = end.x - down.position.x
             val dy = end.y - down.position.y
             if (!guard.inScroller && abs(dx) >= 70.dp.toPx() && abs(dy) <= 45.dp.toPx()) {

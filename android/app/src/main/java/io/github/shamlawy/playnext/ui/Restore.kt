@@ -57,10 +57,12 @@ fun RestoreScreen(onSkip: () -> Unit, onDone: () -> Unit) {
     // not saved with the screen: the code never sits in Android's saved state
     var text by remember { mutableStateOf("") }
     var why by rememberSaveable { mutableStateOf<String?>(null) }
-    var busy by rememberSaveable { mutableStateOf(false) }
+    // not saved either: the restore that set it doesn't outlive the screen, so a saved "busy" would stick forever
+    var busy by remember { mutableStateOf(false) }
     val ok = Code.normalize(text).isNotEmpty()
     val go = {
-        if (ok && !busy) {
+        if (!ok) why = Games.NOT_A_CODE
+        else if (!busy) {
             busy = true
             why = null
             scope.launch {
@@ -115,7 +117,7 @@ fun RestoreScreen(onSkip: () -> Unit, onDone: () -> Unit) {
                 )
             }
             why?.let { BasicText(it, style = Type.note.copy(color = Pn.hot)) }
-            Btn(if (busy) "Bringing your games…" else "Bring my games", primary = ok) { go() }
+            Btn(if (busy) "Bringing your games…" else "Bring my games", primary = ok, modifier = Modifier.fillMaxWidth()) { go() }
             Box(
                 Modifier.fillMaxWidth().sizeIn(minHeight = Pn.touch).clickable(role = Role.Button, onClick = onSkip),
                 contentAlignment = Alignment.Center,

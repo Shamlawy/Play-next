@@ -38,6 +38,8 @@ class MainActivity : ComponentActivity() {
             finish()
             return
         }
+        // after safe mode's "Try again" the process is the same one, and nothing has started your games yet
+        PlayNextApp.start(application)
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         // a launch link counts once: unfolding, turning or coming back after Android let the app go recreates it with
@@ -65,10 +67,12 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         gate?.on(true)
+        CrashGuard.onScreen(true)
     }
 
     override fun onPause() {
         gate?.on(false)
+        CrashGuard.onScreen(false)
         super.onPause()
     }
 }

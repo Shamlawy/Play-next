@@ -48,6 +48,53 @@ class CrashCounterTest {
     }
 
     @Test
+    fun aCalmStartWritesNothing() {
+        val dir = tmp.newFolder("crash")
+        CrashCounter(dir).calm()
+        assertFalse("a calm minute with nothing counted touches no file (a full phone can't fail it)", dir.resolve("early.txt").exists())
+    }
+
+    @Test
+    fun anEarlyFreezeOrNativeCrashCounts() {
+        val c = CrashCounter(tmp.newFolder("crash"))
+        val start = 1_000_000L
+        c.exitedEarly(start, start + 8_000, fatal = true)
+        assertEquals("a freeze 8 s in counts", 1, c.count)
+        c.exitedEarly(start, start + CrashCounter.WINDOW_MS + 1, fatal = true)
+        c.exitedEarly(start, start + 2_000, fatal = false)
+        c.exitedEarly(0L, start, fatal = true)
+        assertEquals("late, not fatal (a memory kill) or no start known: none count", 1, c.count)
+        c.exitedEarly(start, start + 3_000, fatal = true)
+        assertTrue(c.safeMode)
+    }
+
+    @Test
+    fun theFrozenMainThreadOutOfAnAnrTrace() {
+        val trace = (List(30) { "header line $it" } + listOf(
+            "",
+            "\"Signal Catcher\" daemon prio=10 tid=7 Runnable",
+            "  at somewhere.Else(Else.java:1)",
+            "",
+            "\"main\" prio=5 tid=1 Sleeping",
+            "  | group=\"main\" sCount=1 ucsCount=0 flags=1 obj=0x72 self=0xb4",
+            "  | state=S schedstat=( 0 0 0 ) utm=5 stm=1 core=3 HZ=100",
+            "  at java.lang.Thread.sleep(Native method)",
+            "  - sleeping on <0x0a> (a java.lang.Object)",
+            "  at io.github.shamlawy.playnext.ui.Slow.draw(Slow.kt:12)",
+            "  native: #00 pc 000 /apex/libc.so (syscall+28)",
+            "",
+            "\"other\" prio=5 tid=2 Waiting",
+            "  at a.B(B.java:3)",
+        )).asSequence()
+        val main = io.github.shamlawy.playnext.crash.CrashGuard.mainThread(trace)
+        assertEquals(
+            listOf("\"main\" prio=5 tid=1 Sleeping", "at java.lang.Thread.sleep(Native method)", "at io.github.shamlawy.playnext.ui.Slow.draw(Slow.kt:12)", "native: #00 pc 000 /apex/libc.so (syscall+28)"),
+            main.lines(),
+        )
+        assertEquals("", io.github.shamlawy.playnext.crash.CrashGuard.mainThread(sequenceOf("no threads here")))
+    }
+
+    @Test
     fun aBrokenFileCountsAsNoCrash() {
         val dir = tmp.newFolder("crash")
         dir.resolve("early.txt").writeText("not a number")

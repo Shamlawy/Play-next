@@ -72,6 +72,9 @@ object Type {
         fontWeight = FontWeight.Bold, letterSpacing = (-0.015).em, lineBreak = LineBreak.Heading,
     )
 
+    /** A sheet's title (`.ehead h3`, Settings): 22, 700. */
+    val sheetTitle = base.copy(fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, lineBreak = LineBreak.Heading)
+
     /** A card's heading (Settings group head): 14.5 600. */
     val head = base.copy(fontSize = 14.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, lineBreak = LineBreak.Heading)
 

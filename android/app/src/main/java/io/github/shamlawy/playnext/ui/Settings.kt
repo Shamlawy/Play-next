@@ -4,6 +4,22 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,48 +86,117 @@ import java.util.Locale
 
 /**
  * Settings, until its own phase (7) brings the real one: your backup, updates, the one-time install switch, the 120 Hz
- * test and Report a problem (the web app keeps these under Your data and This build). A sheet over the tabs: `--u-pan`,
- * round 28 at the top (all four corners when wide), the grab handle; back or Done closes it.
+ * test and Report a problem (the web app keeps these under Your data and This build). A sheet like the web's
+ * `.sheet-in` (index.html 1561, 16531): over a `--void` .86 scrim, at most 620 wide and centred, 4% of the screen down
+ * from the top, `--u-pan` and round 28 at the top (all four corners from 660 wide), the grab handle, a 22/700 title
+ * and Close at its foot. It scrolls as one, scrim and all. Back, Close, a tap on the scrim or a swipe down from its top
+ * closes it; the sheet follows the finger down (its layer only, nothing shrinks: #309) and springs back when let go
+ * early.
  */
 @Composable
 fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
-    val shape = if (wide) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
-    Box(Modifier.fillMaxSize().background(Pn.void.copy(alpha = 0.6f)).clickable(onClick = close, indication = null, interactionSource = null)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
+        val round = maxWidth >= 660.dp
+        val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
+        val gap = maxHeight * .04f
+        val pull = rememberPull(close, constraints.maxHeight.toFloat())
         Column(
             Modifier
-                .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 12.dp, bottom = if (wide) 12.dp else 0.dp)
-                // unfolded: the rail's 96 stays clear, as the page leaves it (the sheet ran under the rail's edge)
-                .padding(end = if (wide) 96.dp else 0.dp)
-                .widthIn(max = 720.dp)
-                .fillMaxWidth()
-                .clip(shape) // the cards scroll under the rounded corners, never past them
-                .background(Pn.pan, shape)
-                .border(1.dp, Pn.line2, shape)
-                .clickable(onClick = {}, indication = null, interactionSource = null),
+                .fillMaxSize()
+                .scrimTap(close)
+                .nestedScroll(pull.connection)
+                .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
+                .padding(top = gap, bottom = gap)
+                .graphicsLayer { translationY = pull.offset },
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(40.dp, 4.dp).background(Pn.line2, RoundedCornerShape(4.dp)))
-            }
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BasicText("Settings", style = Type.title(wide), modifier = Modifier.weight(1f))
-                Box(
-                    Modifier.sizeIn(minWidth = Pn.touch, minHeight = Pn.touch).clickable(role = Role.Button, onClick = close).padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) { BasicText("Done", style = Type.button.copy(color = LocalLook.current.volt)) }
-            }
-            Column(
+            Box(
                 Modifier
-                    .verticalScroll(rememberScrollState())
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .imePadding()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .widthIn(max = 620.dp)
+                    .fillMaxWidth()
+                    .background(Pn.pan, shape)
+                    .border(1.dp, Pn.line2, shape)
+                    // taps on the sheet are the sheet's: only the scrim round it closes
+                    .clickable(onClick = {}, indication = null, interactionSource = null),
             ) {
-                BackupCard(games, askCode)
-                SoundsCard()
-                BuildCards(openProbe)
+                Column(
+                    Modifier
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .imePadding()
+                        .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 34.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    BasicText("Settings", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
+                    BackupCard(games, askCode)
+                    SoundsCard()
+                    BuildCards(openProbe)
+                    Btn("Close", onClick = close)
+                }
+                // the grab handle (`.sheet-in::before`): 40x4, 8 from the top
+                Box(Modifier.align(Alignment.TopCenter).padding(top = 8.dp).size(40.dp, 4.dp).background(Pn.line2, RoundedCornerShape(4.dp)))
+            }
+        }
+    }
+}
+
+/** How far the sheet is pulled down, and the scroll hook that pulls it: past [PULL_SHUT] of the screen, or flung, it closes. */
+private class Pull(val connection: NestedScrollConnection) {
+    var offset by mutableFloatStateOf(0f)
+}
+
+@Composable
+private fun rememberPull(close: () -> Unit, height: Float): Pull {
+    val shut by rememberUpdatedState(close)
+    return remember(height) {
+        lateinit var pull: Pull
+        pull = Pull(
+            object : NestedScrollConnection {
+                // back up while pulled down: the pull gives way before the sheet scrolls
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    if (available.y >= 0f || pull.offset <= 0f) return Offset.Zero
+                    val used = maxOf(available.y, -pull.offset)
+                    pull.offset += used
+                    return Offset(0f, used)
+                }
+
+                // down from the top (nothing left to scroll): the sheet follows the finger
+                override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                    if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+                    pull.offset += available.y
+                    return Offset(0f, available.y)
+                }
+
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (pull.offset <= 0f) return Velocity.Zero
+                    if (pull.offset > height * PULL_SHUT || available.y > 1800f) shut()
+                    else animate(pull.offset, 0f, animationSpec = tween(220, easing = Ease.house)) { v, _ -> pull.offset = v }
+                    return available
+                }
+            },
+        )
+        pull
+    }
+}
+
+/** A quarter of the screen down closes the sheet (the web's sheets close on a swipe past about a quarter). */
+private const val PULL_SHUT = .25f
+
+/**
+ * A tap on the scrim closes; a drag that starts there doesn't (a plain clickable took a moved press as a tap), nor
+ * does a tap the sheet itself took.
+ */
+private fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        var moved = false
+        while (true) {
+            val e = awaitPointerEvent()
+            val c = e.changes.firstOrNull { it.id == down.id } ?: break
+            if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+            if (!c.pressed) {
+                if (!moved && !c.isConsumed) close()
+                break
             }
         }
     }
@@ -245,8 +331,9 @@ private fun BuildCards(openProbe: () -> Unit) {
 private fun ReportCard() {
     val scope = rememberCoroutineScope()
     val look = LocalLook.current
-    var text by remember { mutableStateOf("") }
-    var said by remember { mutableStateOf<String?>(null) }
+    // what you wrote survives a fold or Android recreating the app (sending doesn't: its coroutine ends with the screen)
+    var text by rememberSaveable { mutableStateOf("") }
+    var said by rememberSaveable { mutableStateOf<String?>(null) }
     var sending by remember { mutableStateOf(false) }
     Card {
         BasicText("Report a problem", style = Type.head)

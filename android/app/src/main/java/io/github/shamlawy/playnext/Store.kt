@@ -21,9 +21,14 @@ object Screen {
     var current: String = "home"
         private set
 
+    /** Android has been told [current] at least once (the first screen is "home" too, so name == current isn't enough). */
+    @Volatile
+    private var told = false
+
     fun set(ctx: Context, name: String) {
-        if (name == current) return
+        if (name == current && told) return
         current = name
+        told = true
         runCatching {
             ctx.getSystemService(ActivityManager::class.java).setProcessStateSummary(name.take(100).toByteArray())
         }

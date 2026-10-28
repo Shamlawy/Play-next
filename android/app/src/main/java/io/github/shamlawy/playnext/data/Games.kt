@@ -57,6 +57,8 @@ object Games {
     private val _state = MutableStateFlow<State>(State.Starting)
     val state: StateFlow<State> = _state.asStateFlow()
 
+    const val NOT_A_CODE = "That isn't a restore code. It looks like PN-XXXX-XXXX-XXXX-XXXX-XXXX."
+
     private var keys: Code.Keys? = null
     private var code: String = ""
     private const val CHECK_GAP = 60_000L
@@ -82,7 +84,7 @@ object Games {
     /** The restore screen: null when your games came, else the line to show. */
     suspend fun restore(ctx: Context, typed: String): String? = lock.withLock {
         val c = Code.normalize(typed)
-        if (c.isEmpty()) return@withLock "That isn't a restore code. It looks like PN-XXXX-XXXX-XXXX-XXXX-XXXX."
+        if (c.isEmpty()) return@withLock NOT_A_CODE
         val k = Code.keys(c)
         val why = fetch(ctx, k, c) ?: run {
             // a key store that won't make a key must not crash the screen your games just came to
