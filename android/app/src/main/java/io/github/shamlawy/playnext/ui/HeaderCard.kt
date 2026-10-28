@@ -78,6 +78,8 @@ import java.time.ZoneId
 private class Dims(screen: Dp) {
     val wide = screen >= 620.dp
     private val band = wide && screen < 760.dp
+    /** Split screen and small phones: the three numbers keep their words whole beside the fan. */
+    private val narrow = screen < 360.dp
     val fw = if (wide) 250.dp else 124.dp // --fw: the fan's width
     val cw = if (wide) 90.dp else 60.dp // --cw: a cover's width
     val fanRight = if (!wide) 12.dp else if (band) 24.dp else 150.dp
@@ -88,9 +90,9 @@ private class Dims(screen: Dp) {
     val padSide = if (wide) 24.dp else 16.dp
     val padBottom = if (wide) 20.dp else 16.dp
     val title = if (wide) 34.sp else 28.sp
-    val statGap = if (wide) 28.dp else 14.dp
-    val statB = if (wide) 32.sp else 23.sp
-    val statSmall = if (wide) 12.sp else 11.sp
+    val statGap = if (wide) 28.dp else if (narrow) 6.dp else 14.dp
+    val statB = if (wide) 32.sp else if (narrow) 19.sp else 23.sp
+    val statSmall = if (wide) 12.sp else if (narrow) 9.5.sp else 11.sp
     /** How much less than the card's inside the numbers may take (the fan's room). */
     val statCut = fw + if (!wide) 6.dp else if (band) 30.dp else 170.dp
     val sideCut = fw + if (!wide) 4.dp else if (band) 30.dp else 170.dp
@@ -355,12 +357,13 @@ private fun Stats(stats: List<Shx.Stat>, d: Dims, volt: Color, modifier: Modifie
     ShrinkRow(d.statGap, modifier) {
         stats.forEachIndexed { i, s ->
             Column {
-                val big = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Bold, fontSize = d.statB, lineHeight = d.statB, letterSpacing = (-0.02).em, color = if (i == 0) volt else Pn.ice)
+                val big = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Bold, fontSize = d.statB, lineHeight = d.statB, letterSpacing = (-0.02).em, color = if (i == 0) volt else Pn.ice).fixed()
                 BasicText(
                     buildAnnotatedString {
                         append(s.value)
                         s.unit?.let { u ->
-                            pushStyle(androidx.compose.ui.text.SpanStyle(fontSize = d.statB * .56f, fontWeight = FontWeight.SemiBold, color = Pn.mute))
+                            // in sp from the number's own size (capped with it): an em size draws a pixel apart
+                            pushStyle(androidx.compose.ui.text.SpanStyle(fontSize = big.fontSize * .56f, fontWeight = FontWeight.SemiBold, color = Pn.mute))
                             append(u)
                             pop()
                         }
@@ -370,7 +373,7 @@ private fun Stats(stats: List<Shx.Stat>, d: Dims, volt: Color, modifier: Modifie
                 )
                 BasicText(
                     s.label,
-                    style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.statSmall, lineHeight = d.statSmall * 1.2f, color = Pn.mute),
+                    style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.statSmall, lineHeight = d.statSmall * 1.2f, color = Pn.mute).fixed(),
                     modifier = Modifier.padding(top = 5.dp),
                 )
             }
@@ -380,20 +383,36 @@ private fun Stats(stats: List<Shx.Stat>, d: Dims, volt: Color, modifier: Modifie
 
 /**
  * A flex row (`display: flex` with `min-width: 0` items): each item at its natural width; when they don't fit, each
- * gives back in proportion to its width, so a long label wraps instead of pushing the numbers under the fan.
+ * gives back in proportion to its width, so a long label wraps instead of pushing the numbers under the fan. Never
+ * below its longest word or its number, though (short things stay whole: no "waiti/ng", no cut "h"): an item at that
+ * floor stays there and the others give the rest.
  */
 @Composable
 private fun ShrinkRow(gap: Dp, modifier: Modifier, content: @Composable () -> Unit) {
     Layout(content, modifier) { ms, c ->
         val g = gap.roundToPx()
+        val gaps = g * (ms.size - 1).coerceAtLeast(0)
         val natural = ms.map { it.maxIntrinsicWidth(Constraints.Infinity) }
-        val total = natural.sum() + g * (ms.size - 1).coerceAtLeast(0)
-        val over = if (c.hasBoundedWidth) (total - c.maxWidth).coerceAtLeast(0) else 0
-        val sum = natural.sum().coerceAtLeast(1)
-        val ps = ms.mapIndexed { i, m ->
-            val w = (natural[i] - over.toLong() * natural[i] / sum).toInt().coerceAtLeast(0)
-            m.measure(Constraints(maxWidth = w))
+        val least = ms.map { it.minIntrinsicWidth(Constraints.Infinity) }
+        val w = natural.toIntArray()
+        val floored = BooleanArray(ms.size)
+        if (c.hasBoundedWidth) {
+            // each pass shares what's over among the items still above their floor
+            for (pass in ms.indices) {
+                val free = ms.indices.filter { !floored[it] }
+                val sum = free.sumOf { natural[it] }.coerceAtLeast(1)
+                val room = c.maxWidth - gaps - ms.indices.filter { floored[it] }.sumOf { least[it] }
+                val over = (free.sumOf { natural[it] } - room).coerceAtLeast(0)
+                for (i in free) w[i] = (natural[i] - over.toLong() * natural[i] / sum).toInt().coerceAtLeast(0)
+                val low = free.filter { w[it] < least[it] }
+                if (low.isEmpty()) break
+                for (i in low) {
+                    floored[i] = true
+                    w[i] = least[i]
+                }
+            }
         }
+        val ps = ms.mapIndexed { i, m -> m.measure(Constraints(maxWidth = w[i])) }
         val width = (ps.sumOf { it.width } + g * (ps.size - 1).coerceAtLeast(0)).coerceIn(c.minWidth, if (c.hasBoundedWidth) c.maxWidth else Int.MAX_VALUE)
         val height = ps.maxOfOrNull { it.height } ?: 0
         layout(width, height) {
@@ -414,9 +433,9 @@ private fun Spotlight(l: Shx.Line, d: Dims, volt: Color) {
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(l.k, style = base.copy(fontSize = d.lineSmall, fontWeight = FontWeight.SemiBold, color = volt), softWrap = false, maxLines = 1, modifier = Modifier.alignByBaseline())
-        BasicText(l.g.title, style = base.copy(fontWeight = FontWeight.SemiBold), softWrap = false, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).alignByBaseline())
-        if (l.x.isNotEmpty()) BasicText(l.x, style = base.copy(fontSize = d.lineEm, color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.alignByBaseline())
+        BasicText(l.k, style = base.copy(fontSize = d.lineSmall, fontWeight = FontWeight.SemiBold, color = volt).fixed(), softWrap = false, maxLines = 1, modifier = Modifier.alignByBaseline())
+        BasicText(l.g.title, style = base.copy(fontWeight = FontWeight.SemiBold).fixed(), softWrap = false, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).alignByBaseline())
+        if (l.x.isNotEmpty()) BasicText(l.x, style = base.copy(fontSize = d.lineEm, color = Pn.mute).fixed(), softWrap = false, maxLines = 1, modifier = Modifier.alignByBaseline())
     }
 }
 
@@ -433,7 +452,7 @@ private fun Genres(tags: List<Pair<String, Int>>, d: Dims) {
                     .padding(horizontal = d.tagH, vertical = d.tagV),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                val s = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.tagFont, lineHeight = d.tagFont * 1.5f, color = Pn.ice)
+                val s = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.tagFont, lineHeight = d.tagFont * 1.5f, color = Pn.ice).fixed()
                 BasicText(name, style = s, softWrap = false, maxLines = 1)
                 BasicText(n.toString(), style = s.copy(color = Pn.mute), softWrap = false, maxLines = 1)
             }
@@ -463,7 +482,7 @@ private fun Chart(c: Shx.Chart, d: Dims, volt: Color, t: Animatable<Float, Anima
                 )
             }
         }
-        BasicText(c.cap, style = TextStyle(fontFamily = Fonts.poppins, fontSize = d.chartSmall, lineHeight = d.chartSmall, color = Pn.mute), softWrap = false, maxLines = 1)
+        BasicText(c.cap, style = TextStyle(fontFamily = Fonts.poppins, fontSize = d.chartSmall, lineHeight = d.chartSmall, color = Pn.mute).fixed(), softWrap = false, maxLines = 1)
     }
 }
 
