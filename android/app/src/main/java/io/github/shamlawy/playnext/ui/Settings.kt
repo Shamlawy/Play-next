@@ -69,6 +69,7 @@ import androidx.profileinstaller.ProfileVerifier
 import io.github.shamlawy.playnext.BuildConfig
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
+import io.github.shamlawy.playnext.data.Times
 import io.github.shamlawy.playnext.kit.Big
 import io.github.shamlawy.playnext.kit.Buzz
 import io.github.shamlawy.playnext.kit.Sfx
@@ -80,10 +81,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * Settings, until its own phase (7) brings the real one: your backup, updates, the one-time install switch, the 120 Hz
@@ -486,9 +484,5 @@ internal fun updateLine(s: Updater.State, code: Int, checkedAt: Long = 0L, now: 
     is Updater.State.Failed -> "Couldn't update: ${s.why}"
 }
 
-/** "at 2:54 PM" today, "Oct 26 at 2:54 PM" on another day (the phone's zone, 12-hour, as the web app). */
-private fun atTime(at: Long, now: Long, zone: ZoneId): String {
-    val t = Instant.ofEpochMilli(at).atZone(zone)
-    val time = "at " + t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-    return if (t.toLocalDate() == Instant.ofEpochMilli(now).atZone(zone).toLocalDate()) time else t.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) + " " + time
-}
+/** "at 2:54 PM" today, "Oct 26 at 2:54 PM" on another day. */
+private fun atTime(at: Long, now: Long, zone: ZoneId): String = Times.at(at, now, zone, join = " at ", lead = "at ")

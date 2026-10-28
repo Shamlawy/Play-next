@@ -50,9 +50,6 @@ object ReportRules {
             (if (apart.isNotEmpty()) "|$apart" else ""),
     )
 
-    /** Kinds bugsync logs and acks without ever opening an issue. */
-    val LOG_ONLY = setOf("ran", "probe", "killed")
-
     /**
      * The report's library line (`bugLib`, index.html 17527): sizes only, never names. "Out" counts games that are out
      * and not finished or dropped (the web's line reads `g.status`, which holds the date's certainty, so it always says

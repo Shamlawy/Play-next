@@ -49,9 +49,8 @@ need(Array.isArray(PALETTE) && PALETTE.length >= 16 && PALETTE.every(h => HEX.te
 const THEMES = table("THEMES");
 need(THEMES && THEMES.midnight && Object.values(THEMES).every(t => typeof t.n === "string" && HEX.test(t.a) && HEX.test(t.b)),
   "THEMES: { key: { n, a: #hex, b: #hex } } with midnight");
-const BG_BASE = table("BG_BASE"), BG_TINT = table("BG_TINT"), BG_GRAD = table("BG_GRAD"), BG_BASES = table("BG_BASES");
+const BG_BASE = table("BG_BASE"), BG_TINT = table("BG_TINT"), BG_GRAD = table("BG_GRAD");
 need(HEX.test(BG_BASE) && HEX.test(BG_TINT) && Number.isInteger(BG_GRAD) && BG_GRAD >= 0 && BG_GRAD <= 100, "BG_BASE / BG_TINT / BG_GRAD");
-need(Array.isArray(BG_BASES) && BG_BASES.length && BG_BASES.every(h => HEX.test(h)) && BG_BASES[0] === BG_BASE, "BG_BASES: hex list, the default first");
 const CB_ALPHA = table("CB_ALPHA");
 need(typeof CB_ALPHA === "string" && CB_ALPHA.length === 32 && new Set(CB_ALPHA).size === 32, "CB_ALPHA: 32 different symbols");
 const BK_SECRET = table("BK_SECRET");
@@ -177,7 +176,6 @@ const lines = [
   "class WebTab(val key: String, val label: String)",
   "",
   "object Web {",
-  `    const val APP_V = ${ks(APP_V)}`,
   "",
   "    // colour tokens: :root and html.ui2 (ARGB)",
   ...Object.entries(COLOURS).map(([k, v]) => `    const val ${k.toUpperCase().replace(/-/g, "_")} = ${v}L`),
@@ -189,7 +187,6 @@ const lines = [
   `    const val BG_BASE = ${argb(BG_BASE)}L`,
   `    const val BG_TINT = ${argb(BG_TINT)}L`,
   `    const val BG_GRAD = ${BG_GRAD}`,
-  `    val BG_BASES: List<Long> = ${kl(BG_BASES.map(h => argb(h) + "L"))}`,
   `    val PALETTE: List<Long> = ${kl(PALETTE.map(h => argb(h) + "L"))}`,
   `    val THEMES: List<WebTheme> = listOf(\n${Object.entries(THEMES).map(([k, t]) => `        WebTheme(${ks(k)}, ${ks(t.n)}, ${argb(t.a)}L, ${argb(t.b)}L),`).join("\n")}\n    )`,
   "",

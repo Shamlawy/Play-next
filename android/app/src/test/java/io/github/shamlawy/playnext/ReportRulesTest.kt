@@ -48,14 +48,6 @@ class ReportRulesTest {
     }
 
     @Test
-    fun logOnlyKindsMatchBugsync() {
-        val js = Repo.text(".github/scripts/bugsync.mjs")
-        val set = Regex("""const LOG_ONLY = new Set\(\[([^\]]*)]\)""").find(js)!!.groupValues[1]
-            .split(',').map { it.trim().trim('"') }.filter { it.isNotEmpty() }.toSet()
-        assertEquals(set, ReportRules.LOG_ONLY)
-    }
-
-    @Test
     fun scrubKeepsTitlesKeysAndTheCodeOnThePhone() {
         val title = "Made Up Quest Seven"
         val code = "PN-ABCDE-FGHJK-LMNPQ-RSTUV"

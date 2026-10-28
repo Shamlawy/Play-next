@@ -7,8 +7,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A picture: an address (a link, a repo file, an uploaded data: picture) or the drawn cover a game without one gets. */
@@ -59,18 +57,15 @@ class Shx(
     companion object {
         val KINDS = listOf("queue", "lib", "played", "replay", "plan", "taste", "add")
 
-        /** "Oct 27" (the web app's `toLocaleDateString(undefined, { day: "numeric", month: "short" })`). */
-        val US_SHORT: (LocalDate) -> String = { it.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) }
-
         /** One screen's card, with its own Rank. */
-        fun of(kind: String, lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = US_SHORT): Shx =
+        fun of(kind: String, lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = Times::day): Shx =
             Build(kind, Rank(lib, now, zone), now, zone, short).run()
 
         /**
          * Every screen's card at once, sharing one Rank (the rank table is worked out once, not per screen). Games does
          * this off Main with each copy and each new day, so a tab switch only draws.
          */
-        fun all(lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = US_SHORT): Cards {
+        fun all(lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = Times::day): Cards {
             val rk = Rank(lib, now, zone)
             // a record the maths can't read leaves that screen a plain title, as the web's try/catch around shxData does
             return Cards(lib, KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() })

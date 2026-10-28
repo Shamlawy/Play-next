@@ -27,14 +27,12 @@ import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.JsDate
+import io.github.shamlawy.playnext.data.Times
 import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.update.WhatsNew
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * What each tab shows until its own phase builds it: Home your games at a glance; every view of Games, Plan and Taste,
@@ -162,12 +160,7 @@ private fun AsOf(r: Games.State.Ready) {
 }
 
 /** "Your games as of 2:05 PM" today, "as of Oct 25, 2:05 PM" before (the phone's own time, 12-hour). */
-fun asOfLine(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
-    val t = Instant.ofEpochMilli(at).atZone(zone)
-    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-    val time = t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-    return "Your games as of " + if (t.toLocalDate() == today) time else t.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) + ", " + time
-}
+fun asOfLine(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String = "Your games as of " + Times.at(at, now, zone)
 
 /** How many in each state (the web app's STATES words), as stat tiles. */
 @Composable

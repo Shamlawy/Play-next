@@ -49,10 +49,6 @@ class Library(val state: JsonObject) {
     }
 
     class Group(val state: String, val label: String, val games: List<Game>)
-
-    companion object {
-        val EMPTY = Library(JsonObject(mapOf("games" to JsonArray(emptyList()), "duels" to JsonArray(emptyList()), "played" to JsonArray(emptyList()))))
-    }
 }
 
 class Game(val o: JsonObject) {

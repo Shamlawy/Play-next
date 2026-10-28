@@ -130,7 +130,6 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.foundation)
-    implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
     // debug builds only (with StrictMode, the Strict object): a leaked screen shows as a notification
     debugImplementation(libs.leakcanary)
@@ -150,7 +149,6 @@ dependencies {
     "baselineProfile"(project(":baselineprofile"))
 
     testImplementation(libs.junit)
-    testImplementation(libs.coroutines.test)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.roborazzi)
