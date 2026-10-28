@@ -153,7 +153,7 @@ class ScreensTest {
         rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
         rule.runOnIdle { nav = nav.open("game:a") }
         rule.runOnIdle { nav = nav.open("game:c") }
-        rule.onNodeWithText("Close").assertDoesNotExist() // Settings' Close, under the pages
+        rule.onNodeWithText("Close").assertExists() // Settings' Close: it stays under the pages opened from it
         rule.onNodeWithContentDescription("Back").performClick()
         rule.runOnIdle { assertEquals(listOf("settings", "game:a"), nav.stack) }
         rule.onNodeWithContentDescription("Back").performClick()

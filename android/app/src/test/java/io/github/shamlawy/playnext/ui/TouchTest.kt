@@ -93,6 +93,8 @@ class TouchTest {
         games.value = ready
         rule.setContent { PlayNextRoot(null) {} }
         rule.onNodeWithContentDescription("Settings").performClick()
+        // past the settle that follows opening it (a double tap's second tap lands on nothing)
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Use a different restore code").performClick()
         rule.waitUntil(5_000) { games.value is Games.State.NoCode }
         rule.waitForIdle()
@@ -110,6 +112,8 @@ class TouchTest {
         games.value = ready
         rule.setContent { PlayNextRoot(null) {} }
         rule.onNodeWithContentDescription("Settings").performClick()
+        // past the settle that follows opening it (a double tap's second tap lands on nothing)
+        rule.mainClock.advanceTimeBy(400)
         rule.onNodeWithText("Use a different restore code").performClick()
         rule.waitUntil(5_000) { games.value is Games.State.NoCode }
         rule.waitForIdle()
