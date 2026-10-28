@@ -22,3 +22,14 @@ No web changes since the map (APP_V still 327).
 9. **low · leftover** Plan line 236 still states the replaced back rule.
 10. **low · leftover** Updater.kt:84,260 and Receivers.kt:35 comments say Home shows the install buttons (they're in Settings since android-v6).
 11. **low · leftover** Two time formatters doing one job (Pages.kt asOfLine, Settings.kt atTime, Shx.kt US_SHORT).
+
+## Look lens (done, not yet proven by a skeptic)
+Matches the web: folded tab bar (to the pixel), rail, view pill, chips, header cards, background, tokens, no ripple.
+
+1. **medium** The slash word is condensed Archivo (Type.kt:46 `FontVariation.width(62f)`, used by Wipe.kt:62-67): the web's `.pnw-slab b` (index.html 2677) is default width, ~50% wider (slash-412.png 175dp vs web 265dp). Fix: width 100 for the slash.
+2. **medium** Settings sheet frame vs the web's `.sheet-in` (index.html 1561, 16440): web max 620 centred, 4vh top, scrim void .86 under a bright rail, title 22px/700, a "Close" .btn at the foot; app: max 720 minus the rail room, 12dp top, scrim .6 over the rail, title 26sp, "Done" text top right (Settings.kt:76-102).
+3. **medium** Unfolded, the game page covers the rail (Shell.kt:210-214, GamePage.kt:148-214); on the web the rail stays above `#full`, the page keeps 96 clear, and "Back" sits top right (`.fullx`, index.html 2349, 16523).
+4. **medium** Folded Home: the left notch corner (Shell.kt:303, 326-337) lands inside the Home panel's 28dp corner (Pages.kt:108) and ends in a thin spike (home-412.png, no-code-412.png). Fix: skip the left inner corner when the tile is within 48dp of the panel's left edge.
+5. **low** Btn (Kit.kt:163-177) vs the web's `.btn` (index.html 16450-16456): ghost = u-card + 1px u-line2, primary = volt + accent glow, as wide as their words.
+6. **low** settings-checked-412.png is byte-identical to settings-412.png: the Updates card is below the viewport (ScreensTest.kt:273-281 checked412), so it tests nothing. Fix: scroll to it before capturing.
+7. **low** SafeModeActivity.kt:34,45-52 uses colour literals, one (0xFFB8C6E6) not a token. Fix: generated Web.* constants.
