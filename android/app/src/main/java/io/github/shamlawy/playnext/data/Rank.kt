@@ -17,48 +17,51 @@ import java.util.Locale
  * On deck (`onDeckScores`), hours to beat (`hrsOf`) and the tiers. Pure: the clock and the zone are passed in.
  */
 class Played(val o: JsonObject) {
+    // each field read once, as the record comes in: the rank table goes over them 90 times
     /** `p.id`, or null when the record has none (a missing id never equals a game's, as in JavaScript). */
-    val id: String? get() = (o["id"] as? JsonPrimitive)?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.content
-    val real: Double? get() = (o["real"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
-    val again: Boolean get() = Backup.truthy(o["again"])
-    val t: String get() = Backup.str(o["t"])
+    val id: String? = (o["id"] as? JsonPrimitive)?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.content
+    val real: Double? = (o["real"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
+    val again: Boolean = Backup.truthy(o["again"])
+    val t: String = Backup.str(o["t"])
 
     /** `scored(p)` (index.html 3504): a real score, or a deliberate 0 (`z: 1`), and not "Don't remember". */
-    val scored: Boolean
-        get() {
-            if (Backup.truthy(o["dk"])) return false
-            val r = real ?: return false
-            return r > 0 || (r == 0.0 && (o["z"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull == 1.0)
-        }
+    val scored: Boolean = run {
+        if (Backup.truthy(o["dk"])) return@run false
+        val r = real ?: return@run false
+        r > 0 || (r == 0.0 && (o["z"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull == 1.0)
+    }
 }
 
 class Duel(val o: JsonObject) {
-    val a: String? get() = (o["a"] as? JsonPrimitive)?.content
-    val b: String? get() = (o["b"] as? JsonPrimitive)?.content
-    val w: String get() = Backup.str(o["w"])
-    val t: String get() = Backup.str(o["t"])
+    val a: String? = (o["a"] as? JsonPrimitive)?.content
+    val b: String? = (o["b"] as? JsonPrimitive)?.content
+    val w: String = Backup.str(o["w"])
+    val t: String = Backup.str(o["t"])
 
     /** `duelResult(d)` (index.html 13029): for side a, a win 1, a slight edge .75, even .5. */
-    val result: Double
-        get() {
-            if (w.isEmpty() || w == "draw") return .5
-            val s = if (Backup.truthy(o["e"])) .75 else 1.0
-            return if (w == a) s else 1 - s
-        }
+    val result: Double = run {
+        if (w.isEmpty() || w == "draw") return@run .5
+        val s = if (Backup.truthy(o["e"])) .75 else 1.0
+        if (w == a) s else 1 - s
+    }
 }
 
 /** `rankTable()`: the order, each game's position, its pulled score [r], its duel count [n] and its own score [sc]. */
 class RankTable(val order: List<String>, val pos: Map<String, Int>, val r: Map<String, Double>, val n: Map<String, Int>, val sc: Map<String, Double>)
 
-class Rank(private val lib: Library, private val now: Long, private val zone: ZoneId) {
+class Rank(val lib: Library, private val now: Long, private val zone: ZoneId) {
     private val games = lib.games
     val played: List<Played> = lib.played
     val duels: List<Duel> = lib.duels
 
-    fun isPlayed(g: Game) = played.any { it.id == g.id }
-    fun playedRec(g: Game) = played.firstOrNull { it.id == g.id }
+    /** Each game by its id and each id's played record, looked up instead of searched (the first wins, as a search finds). */
+    private val byId = HashMap<String, Game>().also { m -> for (g in games) m.putIfAbsent(g.id, g) }
+    private val recs = HashMap<String, Played>().also { m -> for (p in played) p.id?.let { m.putIfAbsent(it, p) } }
+
+    fun isPlayed(g: Game) = g.id in recs
+    fun playedRec(g: Game) = recs[g.id]
     fun isDropped(g: Game) = g.rawState == "dropped"
-    fun find(id: String?) = if (id == null) null else games.firstOrNull { it.id == id }
+    fun find(id: String?) = if (id == null) null else byId[id]
 
     /** `eloTable()` (index.html 7928): everyone starts at 1500, each decided duel moves the two by K 24. */
     val elo: Map<String, Double> by lazy {
@@ -78,47 +81,65 @@ class Rank(private val lib: Library, private val now: Long, private val zone: Zo
 
     /** `rankTable()` (index.html 13046): each scored game starts at its score, duels pull, the score pulls back. */
     val table: RankTable by lazy {
-        val pool = games.filter { g -> isPlayed(g) && !g.comp && playedRec(g)!!.scored }
-        val ids = pool.map { it.id }.toSet()
-        val sc = HashMap<String, Double>()
-        val r = HashMap<String, Double>()
-        val n = HashMap<String, Int>()
-        for (g in pool) {
+        val pool = games.filter { g -> !g.comp && playedRec(g)?.scored == true }
+        // each game a place in plain arrays: 90 rounds of sums with no map lookups (the same sums in the same order)
+        val ix = HashMap<String, Int>()
+        for (g in pool) ix.getOrPut(g.id) { ix.size }
+        val at = IntArray(pool.size) { ix[pool[it].id]!! }
+        val sc = DoubleArray(ix.size)
+        val r = DoubleArray(ix.size)
+        val n = IntArray(ix.size)
+        pool.forEachIndexed { i, g ->
             val v = playedRec(g)!!.real!!
-            sc[g.id] = v
-            r[g.id] = v
-            n[g.id] = 0
+            sc[at[i]] = v
+            r[at[i]] = v
         }
-        val ds = duels.filter { it.w.isNotEmpty() && it.a in ids && it.b in ids }
-        for (d in ds) {
-            n[d.a!!] = n[d.a!!]!! + 1
-            n[d.b!!] = n[d.b!!]!! + 1
+        val ds = duels.filter { d -> d.w.isNotEmpty() && d.a?.let { it in ix } == true && d.b?.let { it in ix } == true }
+        val da = IntArray(ds.size) { ix[ds[it].a!!]!! }
+        val db = IntArray(ds.size) { ix[ds[it].b!!]!! }
+        val dy = DoubleArray(ds.size) { ds[it].result }
+        for (j in ds.indices) {
+            n[da[j]]++
+            n[db[j]]++
         }
         val temp = .6
         val lambda = .4
         val lr = .1
+        val gr = DoubleArray(ix.size)
         repeat(90) {
-            val gr = HashMap<String, Double>()
-            for (g in pool) gr[g.id] = -2 * lambda * (r[g.id]!! - sc[g.id]!!)
-            for (d in ds) {
-                val p = 1 / (1 + StrictMath.exp(-(r[d.a!!]!! - r[d.b!!]!!) / temp))
-                val y = d.result
-                gr[d.a!!] = gr[d.a!!]!! + (y - p) / temp
-                gr[d.b!!] = gr[d.b!!]!! - (y - p) / temp
+            for (i in gr.indices) gr[i] = -2 * lambda * (r[i] - sc[i])
+            for (j in ds.indices) {
+                val p = 1 / (1 + StrictMath.exp(-(r[da[j]] - r[db[j]]) / temp))
+                val y = dy[j]
+                gr[da[j]] = gr[da[j]] + (y - p) / temp
+                gr[db[j]] = gr[db[j]] - (y - p) / temp
             }
-            for (g in pool) r[g.id] = r[g.id]!! + lr * gr[g.id]!!
+            // per game in the pool, as the web's loop: a game listed twice moves twice
+            for (i in pool.indices) r[at[i]] = r[at[i]] + lr * gr[at[i]]
         }
         val coll = Collator.getInstance(Locale.US)
-        val order = pool.sortedWith { a, b ->
-            val d = r[b.id]!!.compareTo(r[a.id]!!).let { if (r[b.id]!! == r[a.id]!!) 0 else it }
+        val order = pool.indices.sortedWith { ia, ib ->
+            val ra = r[at[ia]]
+            val rb = r[at[ib]]
+            val d = rb.compareTo(ra).let { if (rb == ra) 0 else it }
             if (d != 0) d else {
-                val e = if (sc[b.id]!! == sc[a.id]!!) 0 else sc[b.id]!!.compareTo(sc[a.id]!!)
-                if (e != 0) e else coll.compare(a.title, b.title)
+                val sa = sc[at[ia]]
+                val sb = sc[at[ib]]
+                val e = if (sb == sa) 0 else sb.compareTo(sa)
+                if (e != 0) e else coll.compare(pool[ia].title, pool[ib].title)
             }
-        }.map { it.id }
+        }.map { pool[it].id }
         val pos = HashMap<String, Int>()
         order.forEachIndexed { i, id -> pos[id] = i }
-        RankTable(order, pos, r, n, sc)
+        val rm = HashMap<String, Double>()
+        val nm = HashMap<String, Int>()
+        val sm = HashMap<String, Double>()
+        for ((id, i) in ix) {
+            rm[id] = r[i]
+            nm[id] = n[i]
+            sm[id] = sc[i]
+        }
+        RankTable(order, pos, rm, nm, sm)
     }
 
     /** `rankedGames()`: the ranking as games. */
@@ -180,13 +201,15 @@ class Rank(private val lib: Library, private val now: Long, private val zone: Zo
             .take(n).mapNotNull { find(it) }
     }
 
+    private val style = Backup.str(lib.state["playStyle"])
+
     /** `hrsOf(g)` (index.html 9246): hours to beat by how you play (main story, + extras, everything). */
     fun hrsOf(g: Game): Double {
         if (g.comp) return 0.0
         val m = Backup.num(g["hours"], 0.0, 0.0, 1000.0)
         val x = Backup.num(g["hoursX"], 0.0, 0.0, 3000.0)
         val a = Backup.num(g["hours100"], 0.0, 0.0, 5000.0)
-        return when (Backup.str(lib.state["playStyle"])) {
+        return when (style) {
             "extras" -> if (x != 0.0) x else jsRound(m * 1.5)
             "all" -> if (a != 0.0) a else if (x != 0.0) jsRound(x * 1.6) else jsRound(m * 2.4)
             else -> if (m != 0.0) m else if (x != 0.0) x else a
@@ -216,18 +239,21 @@ class Rank(private val lib: Library, private val now: Long, private val zone: Zo
         /** `Math.round`: halves go up. */
         fun jsRound(v: Double): Double = Math.floor(v + .5)
 
+        private val INDEX = Regex("^(0|[1-9]\\d{0,9})$")
+
         /** The order `Object.keys` gives: whole-number keys first, smallest first, then the rest as they were added. */
         fun jsKeys(keys: Collection<String>): List<String> {
-            val index = Regex("^(0|[1-9]\\d{0,9})$")
-            val (ints, rest) = keys.partition { index.matches(it) && it.toLong() < 4294967295L }
+            val (ints, rest) = keys.partition { INDEX.matches(it) && it.toLong() < 4294967295L }
             return ints.sortedBy { it.toLong() } + rest
         }
     }
 }
 
+private val YMD = Regex("^\\d{4}-\\d{2}-\\d{2}$")
+
 /** Dates the header card reads as the phone's own midnight (`new Date(d + "T00:00:00")`). */
 fun JsDate.localMidnight(s: String?, zone: ZoneId): Long? {
-    if (s == null || !Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(s)) return null
+    if (s == null || !YMD.matches(s)) return null
     return runCatching { LocalDate.parse(s).atStartOfDay(zone).toInstant().toEpochMilli() }.getOrNull()
 }
 
