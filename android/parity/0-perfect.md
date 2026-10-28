@@ -67,3 +67,15 @@ Matches the web: folded tab bar (to the pixel), rail, view pill, chips, header c
 8. **low** Queue placeholder regroups/resorts every game per visit and per 'checking' flip; Game.hex compiles a Regex per call (Library.kt:63,79).
 9. **low** Shadows and clips inside animated layers (fan deal, pill segment, flying cover).
 10. **low** The first tab switch loads the 741 KB Archivo italic font on the main thread; nothing preloads fonts.
+
+## Bugs lens (done; by code trace)
+1. **medium** Safe mode → "Try again" leaves "Opening your games…" forever (same as safety 1).
+2. **low** Back after "Use a different restore code" (same as touch 1).
+3. **low** "Bring my games" with a mistyped code does nothing; "That isn't a restore code" can never show (Restore.kt:61-72). Fix: show the line when !ok.
+4. **low** Games' "Try again" shows no change when the same error comes back (Fetching(why) equal → StateFlow drops it); "Check for a newer copy" flashes then shows the old line, no "checked at" (L184). Fix: a checking flag on Fetching, hold the label ≥ HOLD, say when it last looked.
+5. **low** Restore button stuck on "Bringing your games…" after a recreate mid-restore (`busy` is rememberSaveable, its coroutine dies). Fix: plain remember.
+6. **low** Unguarded writes crash on a full phone: CrashGuard calm() on the main looper 60 s in (writes even at 0), Games.fetch's cache write, Reporter enqueue. Fix: runCatching; calm writes only when count != 0; keep the opened copy in memory.
+7. **low** Two flushes at once drop or resend reports (same as safety 3).
+8. **low** Shared styled text arrives empty: getStringExtra returns null for a SpannableString (Links.kt:274-277). Fix: getCharSequenceExtra()?.toString().
+9. **low** A link replays an old cover flight (same as touch 6).
+10. **low · owner's call** S.startTab ("Start on") is ignored; always opens Home (not in 0.md's left-out list).
