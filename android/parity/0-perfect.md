@@ -55,3 +55,15 @@ Matches the web: folded tab bar (to the pixel), rail, view pill, chips, header c
 7. **low · owner's call** Leaving the app from a tab plays Android's back-to-home shrink (manifest enableOnBackInvokedCallback=true); the plan says the shrinking preview is off.
 8. **low** Tap targets under 48dp: pill buttons ~32, chips ~38, try buttons 40, spotlight line ~30, the fan's back covers.
 9. **low** A drag that starts on Settings' scrim closes Settings (clickable takes a moved press as a tap).
+
+## Speed lens (done; Compose compiler reports clean: every composable skippable; timings from a throwaway JVM test are hints)
+1. **high** The Baseline Profile never reaches Home or a tab: a fresh emulator has no restore code, so it profiles the restore screen and the probe only (BaselineProfileGenerator.kt:28-36). Fix: an emulator-only made-up backup, then walk Home, each tab, a swipe, a game page, Settings.
+2. **high** Header-card numbers (the whole rank table, 90 rounds through JSON getters) are worked out in composition on the main thread in the slash's first frame, once per kind (HeaderCard.kt:153 → Shx.of; Shx.kt:68,91; Rank.kt:80-122): 12-17 ms at 200 games/300 duels, 22-54 ms at 400/1000, cold 22-94 ms. Fix: all seven cards' numbers once per backup per day off Main (Games.build), one shared Rank; parse Duel/Played fields once; table only for the kinds that use it. GoldenTest keeps the numbers.
+3. **medium** The updater decodes the 95 KB release list (64 ms cold) and verifies the APK on Main (Updater.run resumes on Main after Net.call), and keeps the 95 KB body in SharedPreferences (relBody). Fix: run() under Dispatchers.IO; store the picked release, not the body.
+4. **medium** Cold start decrypts the restore code with a StrongBox key while the splash waits (CodeStore.kt:39-40). Fix: TEE key, migrated once; time it on the phone.
+5. **medium** Screens under an open game page / Settings keep drawing every frame (tab page with shadows, pill, rail, background): HWUI has no occlusion culling. Fix: alpha 0 on what's covered once the page has fully grown; back the moment it closes.
+6. **medium** Frame gate: no fold/unfold exclusion (the web skips 800 ms after a resize, v245 #305) and it judges frameDurationUiNanos only, blind to RenderThread/GPU time. Fix: skip 800 ms after a config change; use frameDurationTotalNanos, keep the UI part in the note.
+7. **medium** Gate 3's checks aren't in CI (same as leftovers 1); main-thread disk: CrashGuard safeMode read twice per start, calm() 60 s in on the main looper, HomePage reads whatsnew.txt in composition on every Home visit, FrameGate.file()/Reporter.enqueue on the main handler.
+8. **low** Queue placeholder regroups/resorts every game per visit and per 'checking' flip; Game.hex compiles a Regex per call (Library.kt:63,79).
+9. **low** Shadows and clips inside animated layers (fan deal, pill segment, flying cover).
+10. **low** The first tab switch loads the 741 KB Archivo italic font on the main thread; nothing preloads fonts.
