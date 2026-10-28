@@ -73,16 +73,15 @@ class Shx(
         fun all(lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = US_SHORT): Cards {
             val rk = Rank(lib, now, zone)
             // a record the maths can't read leaves that screen a plain title, as the web's try/catch around shxData does
-            return Cards(lib, now, KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() })
+            return Cards(lib, KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() })
         }
 
         /** How many cards have been worked out: a test checks that drawing a screen never does it. */
         internal val built = AtomicInteger()
     }
 
-    /** Each screen's card for one copy of your games ([lib]) at one moment ([at]); null for a screen whose maths failed. */
-    class Cards(val lib: Library, val at: Long, private val got: Map<String, Shx?>) {
-        fun has(kind: String) = kind in got
+    /** Each screen's card for one copy of your games ([lib]); null for a screen whose maths failed. */
+    class Cards(val lib: Library, private val got: Map<String, Shx?>) {
         operator fun get(kind: String): Shx? = got[kind]
     }
 
