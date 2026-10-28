@@ -75,6 +75,8 @@ data class Prefs(
     val buzz: Boolean = true,
     /** Customise › A game's own page › Motion on this page (`S.hubAnim !== false`): the cover's flight onto it. */
     val hubAnim: Boolean = true,
+    /** Settings › Open the app on (`S.startTab`): the tab and view to start on; null for Home. */
+    val start: Pair<String, String?>? = null,
 ) {
     /** A tab's views in the pill's order (Plan's Timer only while it's switched on); empty for Home and Add. */
     fun views(tab: String): List<Pair<String, String>> = Web.VIEWS[tab].orEmpty().filter { it.first != "timer" || timerOn }
@@ -117,6 +119,13 @@ data class Prefs(
                 },
                 buzz = !lib.off("buzz"),
                 hubAnim = !lib.off("hubAnim"),
+                // the web's choices are its old tab names (goTab: "cal" is Plan, the Games views are their own names)
+                start = when (val t = Backup.str(lib["startTab"])) {
+                    "cal" -> "plan" to null
+                    "taste" -> "taste" to null
+                    in Web.VIEWS["games"].orEmpty().map { it.first } -> "games" to t
+                    else -> null
+                },
             )
         }
     }

@@ -116,6 +116,9 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
     var nav by rememberSaveable(stateSaver = Nav.Saver) { mutableStateOf(Nav()) }
     // "Not now" on the restore screen: the tabs without your games, until the next start
     var skipped by rememberSaveable { mutableStateOf(false) }
+    // your games have shown in this run of the app (kept with the screen: a fold or Samsung closing the app in the
+    // background never starts it over)
+    var started by rememberSaveable { mutableStateOf(false) }
 
     // something shared into the app: Add shows the game it names (adding it comes with Add's phase); kept when Android
     // recreates the app, since the link that brought it is read only once
@@ -196,6 +199,12 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                     BasicText("Opening your games…", style = Type.note)
                 }
                 else -> {
+                    // the first time your games show: Settings › Open the app on, as the web app does at start; a link
+                    // that opened the app goes on from there (it runs after this), and a screen you opened already stays
+                    if (!started && games is Games.State.Ready) {
+                        started = true
+                        prefs.start?.let { (t, v) -> if (nav == Nav()) nav = Nav(t).let { n -> v?.let { n.view(t, it) } ?: n } }
+                    }
                     BackHandler(enabled = nav.canGoBack) { nav = nav.back() }
                     CompositionLocalProvider(LocalShared provides shared) {
                         kept.SaveableStateProvider("shell") { Shell(nav, games, go = { nav = it }) }

@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
@@ -45,6 +46,10 @@ class MainActivity : ComponentActivity() {
         // a launch link counts once: unfolding, turning or coming back after Android let the app go recreates it with
         // the same intent, and reading it again would jump back to where the link pointed
         if (savedInstanceState == null) link = Links.of(intent)
+        // the last back (on your tab) is the app's own, added first so every screen's back goes before it: Android then
+        // has no back of its own to preview, so the app doesn't shrink under the finger as it leaves (#309: nothing
+        // shrinks; the plan's "shrinking preview off"). It leaves the way Android's own back would, to the background.
+        onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
         setContent { PlayNextRoot(link) { link = null } }
         gate = FrameGate.track(this)
     }
