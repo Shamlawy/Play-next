@@ -50,10 +50,16 @@ object Links {
     /** Something shared into the app (Android's share sheet, the web's share target): Add, with the game it names. */
     fun shared(intent: Intent?): Route? {
         if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return null
-        val s = SharedName.of(intent.getStringExtra(Intent.EXTRA_SUBJECT) ?: intent.getStringExtra(Intent.EXTRA_TITLE), intent.getStringExtra(Intent.EXTRA_TEXT))
+        // styled text (a SpannableString) comes as a CharSequence, which getStringExtra reads as nothing
+        fun text(key: String) = intent.getCharSequenceExtra(key)?.toString()
+        val s = SharedName.of(text(Intent.EXTRA_SUBJECT) ?: text(Intent.EXTRA_TITLE), text(Intent.EXTRA_TEXT))
         return Route.Add(s)
     }
 
-    /** What an intent that opened the app asks for: a link, or something shared. */
-    fun of(intent: Intent?): Route? = shared(intent) ?: route(intent?.dataString)
+    /**
+     * What an intent that opened the app asks for: a link, or something shared. A web page's link (BROWSABLE) can't
+     * start the 120 Hz test's 20 seconds of flinging; Settings, the release check's adb and the profile walk still can.
+     */
+    fun of(intent: Intent?): Route? = shared(intent)
+        ?: route(intent?.dataString)?.takeUnless { it == Route.Probe && intent?.hasCategory(Intent.CATEGORY_BROWSABLE) == true }
 }
