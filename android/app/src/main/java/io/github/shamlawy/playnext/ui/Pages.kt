@@ -61,7 +61,7 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
     if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen) else PlainTitle(title, wide)
     if (!prefs.pill && views.isNotEmpty()) ViewChips(views, v, pickView)
     if (ready == null) {
-        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting((games as? Games.State.Fetching)?.why, askCode) }
+        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting(games as? Games.State.Fetching, askCode) }
         return
     }
     if (tab == "add") LocalShared.current?.let { SharedCard(it) }
@@ -129,7 +129,7 @@ private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
                 Counts(games.lib.counts())
                 BasicText("Home itself arrives in phase 3. This app is a practice copy: it reads your games and changes nothing.", style = Type.note)
             }
-            is Games.State.Fetching -> Waiting(games.why, askCode)
+            is Games.State.Fetching -> Waiting(games, askCode)
             Games.State.Starting -> BasicText("Opening your games…", style = Type.note)
             Games.State.NoCode -> NoGames(askCode)
         }
@@ -188,13 +188,17 @@ private fun Counts(counts: List<Pair<String, Int>>) {
     }
 }
 
+/** A copy that hasn't come yet ([f] null while starting): why, when it last tried, and Try again. */
 @Composable
-private fun Waiting(why: String?, askCode: () -> Unit) {
+private fun Waiting(f: Games.State.Fetching?, askCode: () -> Unit) {
     val ctx = LocalContext.current
+    val why = f?.why
+    val (busy, again) = lookAgain(f?.checking == true)
     BasicText("Your games", style = Type.title(false))
-    BasicText(why ?: "Fetching your games from the cloud backup…", style = Type.note)
+    BasicText(if (busy || why == null) "Fetching your games from the cloud backup…" else why, style = Type.note)
     if (why != null) {
-        Btn("Try again", primary = true) { Games.checkNow(ctx) }
+        lookedLine(ok = false)?.let { BasicText(it, style = Type.note) }
+        Btn(if (busy) "Trying again…" else "Try again", primary = true, onClick = again)
         Btn("Use a different restore code") { Games.forget(ctx); askCode() }
     }
 }

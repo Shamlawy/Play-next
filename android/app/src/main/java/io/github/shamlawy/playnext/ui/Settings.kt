@@ -215,13 +215,17 @@ private fun BackupCard(games: Games.State, askCode: () -> Unit) {
                     "This app is a practice copy until switch day: it reads your games from the web app's cloud backup and changes nothing there.",
                     style = Type.note,
                 )
+                val (busy, again) = lookAgain(games.checking)
                 games.note?.let { BasicText(it, style = Type.note.copy(color = Pn.hot)) }
-                Btn(if (games.checking) "Looking for a newer copy…" else "Check for a newer copy") { if (!games.checking) Games.checkNow(ctx) }
+                lookedLine(ok = games.note == null)?.let { BasicText(it, style = Type.note) }
+                Btn(if (busy) "Looking for a newer copy…" else "Check for a newer copy", onClick = again)
                 Btn("Use a different restore code") { Games.forget(ctx); askCode() }
             }
             is Games.State.Fetching -> {
-                BasicText(games.why ?: "Fetching your games…", style = Type.note)
-                Btn("Try again", primary = true) { Games.checkNow(ctx) }
+                val (busy, again) = lookAgain(games.checking)
+                BasicText(if (busy || games.why == null) "Fetching your games…" else games.why, style = Type.note)
+                if (games.why != null) lookedLine(ok = false)?.let { BasicText(it, style = Type.note) }
+                Btn(if (busy) "Trying again…" else "Try again", primary = true, onClick = again)
                 Btn("Use a different restore code") { Games.forget(ctx); askCode() }
             }
             Games.State.Starting -> BasicText("Opening your games…", style = Type.note)
@@ -231,6 +235,37 @@ private fun BackupCard(games: Games.State, askCode: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * "Check for a newer copy" and "Try again" (L184): busy from the tap until the look is done, and for at least [HOLD],
+ * so a quick answer, or the same error coming back, still reads as a tap that did something. The second is the tap.
+ */
+@Composable
+internal fun lookAgain(checking: Boolean): Pair<Boolean, () -> Unit> {
+    val ctx = LocalContext.current
+    var tapped by remember { mutableStateOf(false) }
+    LaunchedEffect(tapped) {
+        if (tapped) {
+            delay(HOLD)
+            tapped = false
+        }
+    }
+    val busy = tapped || checking
+    return busy to {
+        if (!busy) {
+            tapped = true
+            Games.checkNow(ctx)
+        }
+    }
+}
+
+/** When it last looked for a copy (Store "copyLooked"), null before the first look: [ok] when nothing went wrong. */
+@Composable
+internal fun lookedLine(ok: Boolean): String? {
+    val at = Store.prefs.getLong("copyLooked", 0L).takeIf { it > 0 } ?: return null
+    val now = LocalNow.current()
+    return if (ok) "Checked ${atTime(at, now, ZoneId.systemDefault())}: this is the newest copy." else "Tried ${atTime(at, now, ZoneId.systemDefault())}."
 }
 
 /** Piece 1's cards: updates, the one-time install switch, the 120 Hz test, Report a problem and the build line. */

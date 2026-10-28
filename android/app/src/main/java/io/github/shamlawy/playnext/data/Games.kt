@@ -41,8 +41,11 @@ object Games {
         /** No restore code yet: the restore screen. */
         data object NoCode : State
 
-        /** A code, but no copy on the phone yet (fetching, or [why] it didn't come). */
-        data class Fetching(val why: String? = null) : State
+        /**
+         * A code, but no copy on the phone yet (fetching, or [why] it didn't come). [checking] while trying again, so the
+         * same answer coming back is still a change the screen sees.
+         */
+        data class Fetching(val why: String? = null, val checking: Boolean = false) : State
 
         /** Your games. [copyAt] is when the web app made this copy (the helper's time), [checking] while looking for a newer one. */
         data class Ready(val lib: Library, val copyAt: Long, val checking: Boolean = false, val note: String? = null) : State
@@ -104,7 +107,7 @@ object Games {
             lock.withLock {
                 CodeStore.clear(ctx)
                 cache(ctx).delete()
-                Store.prefs.edit().remove("copyT").remove("copyChecked").apply()
+                Store.prefs.edit().remove("copyT").remove("copyChecked").remove("copyLooked").apply()
                 keys = null
                 code = ""
                 unread = false
@@ -116,7 +119,7 @@ object Games {
         }
     }
 
-    /** "Check for a newer copy" in Settings. */
+    /** "Check for a newer copy" in Settings, "Try again" wherever a copy didn't come. */
     fun checkNow(ctx: Context) {
         scope.launch { check(ctx.applicationContext, force = true) }
     }
@@ -157,15 +160,22 @@ object Games {
         lock.withLock {
             if (keys == null && !unread) return
             if (!force && System.currentTimeMillis() - Store.prefs.getLong("copyChecked", 0) < CHECK_GAP) return
-            val cur = _state.value
-            if (cur is State.Ready) _state.value = cur.copy(checking = true, note = null)
+            when (val cur = _state.value) {
+                is State.Ready -> _state.value = cur.copy(checking = true, note = null)
+                is State.Fetching -> _state.value = cur.copy(checking = true)
+                else -> Unit
+            }
             // the key store didn't answer before: ask it again first
             if (unread) openLocal(ctx)
-            val k = keys ?: return
-            val why = fetch(ctx, k, code)
+            val k = keys
+            val why = if (k != null) fetch(ctx, k, code) else null
+            // when it last looked, whatever came of it: Settings and "Try again" say so (L184)
+            Store.prefs.edit().putLong("copyLooked", System.currentTimeMillis()).apply()
             val now = _state.value
-            if (why != null) {
-                _state.value = if (now is State.Ready) now.copy(checking = false, note = why) else State.Fetching(why)
+            _state.value = when {
+                why != null -> if (now is State.Ready) now.copy(checking = false, note = why) else State.Fetching(why)
+                now is State.Fetching -> now.copy(checking = false)
+                else -> now
             }
         }
     }

@@ -132,7 +132,7 @@ class CodeStoreTest {
         soft.stumble = true
         try {
             Games.start(ctx)
-            val st = runBlocking { withTimeout(5_000) { Games.state.first { it is Games.State.Fetching && it.why == Games.KEY_LATER } } }
+            val st = runBlocking { withTimeout(5_000) { Games.state.first { it is Games.State.Fetching && !it.checking && it.why == Games.KEY_LATER } } }
             assertEquals(Games.State.Fetching(Games.KEY_LATER), st)
             assertTrue("the offline copy stays", copy.isFile)
             assertTrue("and the code", file.isFile)
