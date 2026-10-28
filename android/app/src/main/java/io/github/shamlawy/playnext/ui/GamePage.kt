@@ -59,6 +59,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -168,8 +169,8 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () 
                 }
                 .onGloballyPositioned { at[1] = it }
                 .background(Pn.void)
-                .clickable(onClick = {}, indication = null, interactionSource = null)
-                .semantics { contentDescription = "Game page" },
+                .ownTaps()
+                .semantics { paneTitle = "Game page" },
         ) {
             val heroH = (maxHeight * if (wide) .58f else .52f).coerceIn(270.dp, if (wide) 560.dp else 460.dp)
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {

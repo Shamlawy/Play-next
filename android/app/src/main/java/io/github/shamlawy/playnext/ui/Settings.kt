@@ -204,10 +204,10 @@ private fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
 }
 
 /**
- * A tap on the sheet itself (between its buttons) is taken here, so the scrim's [scrimTap] leaves the sheet open. Not
- * a clickable: that would merge every word in the sheet into one node, read by TalkBack as one long button.
+ * A tap on a sheet or page itself (between its buttons) is taken here, so nothing under it (Settings' scrim, a page's
+ * tab) takes it. Not a clickable: that merges every word inside into one node, read by TalkBack as one long button.
  */
-private fun Modifier.ownTaps() = pointerInput(Unit) {
+internal fun Modifier.ownTaps() = pointerInput(Unit) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
         waitForUpOrCancellation()?.consume()
