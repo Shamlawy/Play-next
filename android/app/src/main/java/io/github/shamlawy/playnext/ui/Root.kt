@@ -63,6 +63,8 @@ data class Nav(
     /** What's open on top of the tab, oldest first: "settings", "code", "probe", "game:<id>". */
     val stack: List<String> = emptyList(),
     val views: Map<String, String> = emptyMap(),
+    /** Steps let go off the bottom past [DEEP], so the steps still open keep their [key]s. */
+    val dropped: Int = 0,
 ) {
     /** What's on top (null: the tab itself). */
     val overlay get() = stack.lastOrNull()
@@ -71,21 +73,31 @@ data class Nav(
     fun go(t: String) = Nav(t, emptyList(), views)
     fun back() = copy(stack = stack.dropLast(1))
 
+    /** Closes step [i] and anything opened over it (a page closing itself closes itself, whatever's on top). */
+    fun closeAt(i: Int) = if (i in stack.indices) copy(stack = stack.take(i)) else this
+
     /** Opens [o] on top of what's open (the same thing twice in a row is one step); at most [DEEP] steps are kept. */
-    fun open(o: String) = if (o == overlay) this else copy(stack = (stack + o).takeLast(DEEP))
+    fun open(o: String): Nav {
+        if (o == overlay) return this
+        val cut = (stack.size + 1 - DEEP).coerceAtLeast(0)
+        return copy(stack = (stack + o).drop(cut), dropped = dropped + cut)
+    }
     fun view(t: String, v: String) = copy(views = views + (t to v))
     val canGoBack get() = stack.isNotEmpty()
+
+    /** Step [i]'s own name for its saved place (scroll spot, already open): the same for as long as it's open. */
+    fun key(i: Int) = "${dropped + i}:${stack[i]}"
 
     companion object {
         const val DEEP = 24
 
         val Saver = listSaver<Nav, String>(
-            save = { listOf(it.tab, it.stack.joinToString("\n"), it.views.entries.joinToString(";") { (t, v) -> "$t=$v" }) },
+            save = { listOf(it.tab, it.stack.joinToString("\n"), it.views.entries.joinToString(";") { (t, v) -> "$t=$v" }, it.dropped.toString()) },
             restore = {
                 // a list saved by an older version can be shorter (no views) or longer (its tab history, gone since
                 // android-v9); its one overlay reads as a stack of one
                 val views = it.getOrNull(2).orEmpty().split(';').filter { p -> '=' in p }.associate { p -> p.substringBefore('=') to p.substringAfter('=') }
-                Nav(it[0], it[1].split('\n').filter { o -> o.isNotEmpty() }, views)
+                Nav(it[0], it[1].split('\n').filter { o -> o.isNotEmpty() }, views, it.getOrNull(3)?.toIntOrNull() ?: 0)
             },
         )
     }

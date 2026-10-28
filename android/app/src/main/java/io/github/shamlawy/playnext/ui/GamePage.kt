@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -109,8 +110,8 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
     var closing by remember { mutableStateOf(false) }
     val end by rememberUpdatedState(close)
     LaunchedEffect(Unit) {
-        grow.animateTo(1f, tween(300, easing = Ease.house))
         opened = true
+        grow.animateTo(1f, tween(300, easing = Ease.house))
     }
     LaunchedEffect(closing) {
         if (!closing) return@LaunchedEffect
@@ -140,7 +141,11 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
         flight = null
     }
 
-    Box(Modifier.fillMaxSize().onGloballyPositioned { at[0] = it }) {
+    // the whole screen is the page's to touch, also round its edges while it grows or shrinks: a tap there never reaches
+    // what's under it (the rail's Settings opened under a closing page, which then stayed open, unseen). It only
+    // listens: being touchable is enough to keep the touch from what's under it, and consuming here would cancel the
+    // page's own buttons (a tap checks, after its parents, that nothing consumed it)
+    Box(Modifier.fillMaxSize().onGloballyPositioned { at[0] = it }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()

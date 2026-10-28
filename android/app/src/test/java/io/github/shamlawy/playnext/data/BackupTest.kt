@@ -63,9 +63,15 @@ class BackupTest {
         assertEquals(null, n.overlay)
         assertEquals("on the tab, back leaves the app", false, n.canGoBack)
         assertEquals("taste", n.back().tab)
-        // a tab tap closes everything open, and only the newest DEEP steps are kept
+        // a tab tap closes everything open; a page closing itself closes what's over it too
         assertEquals(emptyList<String>(), n.open("settings").open("game:a").go("taste").stack)
-        assertEquals(Nav.DEEP, (1..40).fold(n) { m, i -> m.open("game:$i") }.stack.size)
+        assertEquals(listOf("settings"), n.open("settings").open("game:a").open("probe").closeAt(1).stack)
+        // only the newest DEEP steps are kept, and those keep their names (their saved places) as older ones go
+        val d39 = (1..39).fold(n) { m, i -> m.open("game:$i") }
+        val d40 = d39.open("game:40")
+        assertEquals(Nav.DEEP, d40.stack.size)
+        assertEquals(d39.key(Nav.DEEP - 1), d40.key(Nav.DEEP - 2))
+        assertEquals("39:game:40", d40.key(Nav.DEEP - 1))
     }
 
     @Test

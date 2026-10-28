@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
@@ -143,7 +144,7 @@ class ScreensTest {
 
     /**
      * Back walks what you opened (the owner, Oct 28): a game opened over Settings, then another over it; each back shows
-     * the one before, Settings still under them as you left it, then the tab you were on (never another tab).
+     * the one before, with Settings kept open under them, then the tab you were on (never another tab).
      */
     @Test fun backFindsWhereYouCameFrom() {
         RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
@@ -159,6 +160,26 @@ class ScreensTest {
         rule.onNodeWithText("Done").performClick()
         rule.runOnIdle { assertEquals(Nav("taste"), nav) }
         rule.onNodeWithText("Done").assertDoesNotExist()
+    }
+
+    /**
+     * A tap while a game's page shrinks away lands on the page, never on what shows round its edges (unfolded, the
+     * rail's Settings): before, it opened Settings under the closing page, whose close then took Settings away instead,
+     * and the page stayed, unseen, holding back and taps.
+     */
+    @Test fun aTapWhileAPageClosesDoesNotLeaveItStuck() {
+        RuntimeEnvironment.setQualifiers("w859dp-h1000dp-xxhdpi")
+        var nav by mutableStateOf(Nav("games", listOf("game:a")))
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription("Close").performClick()
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(200)
+        // the button's outer corner: the part the shrinking page uncovers first
+        rule.onNodeWithContentDescription("Settings").performTouchInput { click(Offset(width - 3f, height - 3f)) }
+        rule.mainClock.autoAdvance = true
+        rule.runOnIdle { assertEquals(Nav("games"), nav) }
     }
 
     /** The pill off: the views as chips under the card; header cards Simple (numbers and covers). */
