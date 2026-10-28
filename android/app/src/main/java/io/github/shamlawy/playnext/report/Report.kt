@@ -40,12 +40,14 @@ object ReportRules {
 
     /**
      * One problem = one signature: numbers ignored, the line:col cut off `at`. The "android|" start keeps every app sig
-     * apart from the web app's, which share the helper's store.
+     * apart from the web app's, which share the helper's store. [apart] splits words the digits alone would merge (the
+     * ran report: one per version, so two releases on one day are two proofs).
      */
-    fun sig(kind: String, msg: String, at: String, screen: String, now: Long): String = hash(
+    fun sig(kind: String, msg: String, at: String, screen: String, now: Long, apart: String = ""): String = hash(
         "android|" + kind + "|" + msg.replace(Regex("\\d+"), "#").take(240) + "|" + at.replace(Regex(":\\d+(:\\d+)?$"), "") +
             (if (kind == "layout" || kind == "slow") "|$screen" else "") +
-            (if (kind == "user") "|$now" else ""),
+            (if (kind == "user") "|$now" else "") +
+            (if (apart.isNotEmpty()) "|$apart" else ""),
     )
 
     /** Kinds bugsync logs and acks without ever opening an issue. */

@@ -28,6 +28,9 @@ object Net {
             .writeTimeout(20, TimeUnit.SECONDS)
             .callTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(Guard)
+            // and again for every request that really goes out: a 307/308 keeps the method and the body, so without
+            // this a report sent to /bug and redirected would be POSTed to wherever the redirect points (/vault/put)
+            .addNetworkInterceptor(Guard)
             .build()
     }
 
@@ -55,10 +58,15 @@ object Net {
      * Runs a call off the main thread. Reads (GET/HEAD) retry twice on a network error with a short pause;
      * a refusal by the write switch never retries.
      */
-    suspend fun <T> call(req: Request, read: (Response) -> T): T = withContext(Dispatchers.IO) {
+    suspend fun <T> call(req: Request, read: (Response) -> T): T = call({ req }, read)
+
+    /** The same, with the request made again for each try: a resumed download asks from where the last try stopped. */
+    suspend fun <T> call(make: () -> Request, read: (Response) -> T): T = withContext(Dispatchers.IO) {
+        var req = make()
         val tries = if (req.method == "GET" || req.method == "HEAD") 3 else 1
         var last: IOException? = null
         repeat(tries) { i ->
+            if (i > 0) req = make()
             try {
                 return@withContext client.newCall(req).execute().use(read)
             } catch (e: WriteBlocked) {
