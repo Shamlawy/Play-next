@@ -1,9 +1,15 @@
 package io.github.shamlawy.playnext
 
+import io.github.shamlawy.playnext.net.Net
 import io.github.shamlawy.playnext.net.Routes
+import io.github.shamlawy.playnext.net.WriteBlocked
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.InetAddress
+import java.net.Proxy
 
 /** The practice copy's write switch (plan "Until switch day"): every helper route is classified, and nothing that writes gets out. */
 class RoutesTest {
@@ -69,6 +75,25 @@ class RoutesTest {
         assertTrue(ok("HEAD", "/x.jpg", host = "cdn.example.com"))
         assertTrue(blocked("PUT", "/u/abc", host = Routes.SYNC_HOST)) // friend sync never publishes
         assertTrue(blocked("POST", "/x", host = "example.com"))
+    }
+
+    @Test
+    fun aRedirectCantTurnAReportIntoAWrite() {
+        // a 307 keeps the method and the body: /bug -> /vault/put would POST a write past the switch
+        val server = MockWebServer()
+        server.enqueue(MockResponse.Builder().code(307).addHeader("Location", "/vault/put").build())
+        server.enqueue(MockResponse.Builder().code(200).build())
+        server.start(InetAddress.getLoopbackAddress(), 0)
+        try {
+            // the helper's own name, answered by the test server
+            val c = Net.client.newBuilder().proxy(Proxy.NO_PROXY).dns { listOf(InetAddress.getLoopbackAddress()) }.build()
+            val call = c.newCall(Net.postJson("http://${Routes.HELPER_HOST}:${server.port}/bug", "{}"))
+            val e = runCatching { call.execute().close() }.exceptionOrNull()
+            assertTrue("the redirect should be refused, got $e", e is WriteBlocked)
+            assertEquals("only /bug reached the server", 1, server.requestCount)
+        } finally {
+            server.close()
+        }
     }
 
     @Test

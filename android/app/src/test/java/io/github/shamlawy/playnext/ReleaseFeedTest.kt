@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext
 
+import io.github.shamlawy.playnext.update.Release
 import io.github.shamlawy.playnext.update.ReleaseFeed
 import io.github.shamlawy.playnext.update.WhatsNew
 import org.junit.Assert.assertEquals
@@ -10,6 +11,18 @@ import java.util.Properties
 
 class ReleaseFeedTest {
     private val sha = "ab".repeat(32)
+
+    /** Only the pick is kept for the next 304 (speed lens 3: the 95 KB list sat in SharedPreferences). */
+    @Test
+    fun theKeptPickIsSmallAndStaysNewer() {
+        val r = Release(12, "${ReleaseFeed.REPO_URL}/releases/download/android-v12/${ReleaseFeed.apkName(12)}", 4_000_000, sha, null)
+        assertTrue(ReleaseFeed.keep(r).length < 400)
+        assertEquals(r, ReleaseFeed.kept(ReleaseFeed.keep(r), 11))
+        assertNull("the app updated to it since", ReleaseFeed.kept(ReleaseFeed.keep(r), 12))
+        assertNull(ReleaseFeed.kept(ReleaseFeed.keep(null), 11))
+        assertNull(ReleaseFeed.kept("{not json", 11))
+        assertNull(ReleaseFeed.kept(null, 11))
+    }
 
     /** GitHub's releases list as the API answers it: web tags, drafts and a release without its APK mixed in. */
     private val body = """

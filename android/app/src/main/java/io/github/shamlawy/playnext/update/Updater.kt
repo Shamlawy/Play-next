@@ -17,7 +17,9 @@ import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.crash.swapIn
 import io.github.shamlawy.playnext.net.Net
 import io.github.shamlawy.playnext.report.Reporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -26,6 +28,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.ConnectException
+import java.net.UnknownHostException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -81,7 +86,7 @@ object Updater {
 
     internal fun set(s: State) { _state.value = s }
 
-    /** Android wants its one tap: kept across restarts, asked for at the next open (once per version), then on Home. */
+    /** Android wants its one tap: kept across restarts, asked for at the next open (once per version), then in Settings. */
     internal fun needsTap(code: Int) {
         Store.prefs.edit().putInt("updTap", code).apply()
         set(State.NeedsTap(code))
@@ -158,46 +163,91 @@ object Updater {
         }
     }
 
-    suspend fun run(ctx: Context, ask: UpdatePlan.Ask) = busy.withLock {
-        set(State.Checking)
-        try {
-            val rel = find()
-            Store.prefs.edit().putLong("updChecked", System.currentTimeMillis()).apply()
-            if (rel == null) {
-                set(State.UpToDate)
-                return@withLock
+    /** The whole run off the main thread: the release list's decode and the APK's checks are real work. */
+    suspend fun run(ctx: Context, ask: UpdatePlan.Ask) = withContext(Dispatchers.IO) {
+        busy.withLock {
+            attempt {
+                val rel = find()
+                Store.prefs.edit().putLong("updChecked", System.currentTimeMillis()).apply()
+                if (rel == null) {
+                    set(State.UpToDate)
+                    return@attempt
+                }
+                val apk = download(ctx, rel)
+                verify(ctx, apk, rel.code)?.let { why -> apk.delete(); set(State.Failed(why)); return@attempt }
+                pending(rel.code)
+                when (UpdatePlan.next(ask, selfOwned(ctx))) {
+                    UpdatePlan.Next.InstallNow -> Install.start(ctx, apk, rel.code, now = true)
+                    UpdatePlan.Next.WhenLeft -> Install.start(ctx, apk, rel.code, now = false)
+                    UpdatePlan.Next.TapNextOpen -> needsTap(rel.code)
+                }
             }
-            val apk = download(ctx, rel)
-            verify(ctx, apk, rel.code)?.let { why -> apk.delete(); set(State.Failed(why)); return@withLock }
-            pending(rel.code)
-            when (UpdatePlan.next(ask, selfOwned(ctx))) {
-                UpdatePlan.Next.InstallNow -> Install.start(ctx, apk, rel.code, now = true)
-                UpdatePlan.Next.WhenLeft -> Install.start(ctx, apk, rel.code, now = false)
-                UpdatePlan.Next.TapNextOpen -> needsTap(rel.code)
-            }
-        } catch (e: IOException) {
-            set(State.Failed(e.message ?: "no connection"))
         }
     }
 
-    /** The newest android-vN above this one: the API with its ETag first (a 304 costs nothing), else the text asset. */
+    /** One run's work: anything it throws ends as Failed (never a crash, not even in safe mode), cancelling stays cancelling. */
+    internal suspend fun attempt(work: suspend () -> Unit) {
+        set(State.Checking)
+        try {
+            work()
+            Store.prefs.edit().remove("updFail").remove("updFails").apply()
+        } catch (e: CancellationException) {
+            // Settings closed mid-download: the next run carries on from the part file
+            if (state.value is State.Checking || state.value is State.Downloading) set(State.Idle)
+            throw e
+        } catch (e: Exception) {
+            failed(e)
+        }
+    }
+
+    /**
+     * Failed, and told once when it's more than a bad signal: a bug at once, the same failure on [REPEATS] runs in a
+     * row (the .part that asked for bytes past its end failed every run, silently).
+     */
+    private fun failed(e: Exception) {
+        val why = (if (e is IOException) e.message else null) ?: (e::class.java.simpleName + (e.message?.let { ": $it" } ?: ""))
+        set(State.Failed(if (e is IOException) why else "something went wrong ($why)"))
+        val p = Store.prefs
+        val n = if (p.getString("updFail", null) == why) p.getInt("updFails", 0) + 1 else 1
+        p.edit().putString("updFail", why).putInt("updFails", n).apply()
+        val offline = e is UnknownHostException || e is ConnectException || e is InterruptedIOException
+        val tell = if (e is IOException) !offline && n == REPEATS else n == 1
+        if (tell) Reporter.report("error", "The updater failed $n time" + (if (n > 1) "s in a row: " else ": ") + why, stack = e.stackTraceToString(), note = "state ${state.value}")
+    }
+
+    private const val REPEATS = 3
+
+    /** What the release list said: [rel] is the pick (null: nothing newer). */
+    private class Found(val rel: Release?)
+
+    /**
+     * The newest android-vN above this one: the API with its ETag first (a 304 costs nothing), else the text asset.
+     * Only the pick is kept for the next 304, never the list itself (95 KB in SharedPreferences, read at every start).
+     */
     private suspend fun find(): Release? {
-        val etag = Store.prefs.getString("relEtag", null)
+        val p = Store.prefs
+        if (p.contains("relBody")) p.edit().remove("relBody").remove("relEtag").apply() // kept until android-v10
+        val current = BuildConfig.VERSION_CODE
+        val etag = p.getString("relEtag", null)?.takeIf { p.contains("relPick") }
         val api = Request.Builder().url(API).header("Accept", "application/vnd.github+json")
             .apply { if (etag != null) header("If-None-Match", etag) }.build()
-        val body: String? = runCatching {
+        val found: Found? = try {
             Net.call(api) { r ->
                 when {
-                    r.code == 304 -> Store.prefs.getString("relBody", null)
-                    r.isSuccessful -> r.body.string().also { b ->
-                        Store.prefs.edit().putString("relEtag", r.header("ETag")).putString("relBody", b).apply()
+                    r.code == 304 -> Found(ReleaseFeed.kept(p.getString("relPick", null), current))
+                    r.isSuccessful -> Found(ReleaseFeed.pick(r.body.string(), current)).also { f ->
+                        // stored once it's read: a list that doesn't parse leaves the old pick and ETag alone
+                        p.edit().putString("relEtag", r.header("ETag")).putString("relPick", ReleaseFeed.keep(f.rel)).apply()
                     }
                     else -> null // 403/429: the API is busy, use the text asset
                 }
             }
-        }.getOrNull()
-        val current = BuildConfig.VERSION_CODE
-        if (body != null) return ReleaseFeed.pick(body, current)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null // no answer or one that doesn't read: the text asset
+        }
+        if (found != null) return found.rel
         val txt = Net.call(Request.Builder().url(LATEST_TXT).build()) { r -> if (r.isSuccessful) r.body.string() else null } ?: return null
         return ReleaseFeed.pickLatestTxt(txt, current)
     }
@@ -209,11 +259,24 @@ object Updater {
         val done = File(dir, ReleaseFeed.apkName(rel.code))
         val sha = rel.shaUrl?.let { u -> Net.call(Request.Builder().url(u).build()) { r -> if (r.isSuccessful) ReleaseFeed.shaOf(r.body.string()) else null } }
             ?: rel.sha256 ?: throw IOException("the release has no SHA-256")
-        if (done.exists() && sha256(done) == sha) return@withContext done
+        fetch(dir, rel, sha)
+    }
+
+    /** Brings the APK into [dir], resuming a part file; it's returned only once it matches [sha]. */
+    internal suspend fun fetch(dir: File, rel: Release, sha: String): File {
+        val done = File(dir, ReleaseFeed.apkName(rel.code))
+        if (done.exists() && sha256(done) == sha) return done
         val part = File(dir, done.name + ".part")
-        val from = if (part.exists()) part.length() else 0L
-        val req = Request.Builder().url(rel.apkUrl).apply { if (from > 0) header("Range", "bytes=$from-") }.build()
-        Net.call(req) { r ->
+        // a part as long as the APK is whole (a run stopped between its last byte and the swap): asking for the bytes
+        // after it is a 416, which failed every later run; one that doesn't match is deleted and fetched again
+        if (rel.size > 0 && part.length() >= rel.size && keep(part, done, sha)) return done
+        var from = 0L
+        // the Range is worked out per try: a try that stopped mid-body has added to the part since
+        Net.call({
+            from = if (part.exists()) part.length() else 0L
+            Request.Builder().url(rel.apkUrl).apply { if (from > 0) header("Range", "bytes=$from-") }.build()
+        }) { r ->
+            if (r.code == 416 && from > 0) return@call // nothing past what's here: the check says whether it's whole
             if (!r.isSuccessful) throw IOException("download ${r.code}")
             val append = from > 0 && r.code == 206
             val total = if (rel.size > 0) rel.size else (r.body.contentLength() + if (append) from else 0)
@@ -232,9 +295,19 @@ object Updater {
                 }
             }
         }
-        if (sha256(part) != sha) { part.delete(); throw IOException("the download didn't match its SHA-256") }
-        swapIn(part, done)
-        done
+        if (!keep(part, done, sha)) throw IOException("the download didn't match its SHA-256")
+        return done
+    }
+
+    /** The check and the swap, finished even when the run is cancelled; a part that doesn't match is deleted. */
+    private suspend fun keep(part: File, done: File, sha: String): Boolean = withContext(NonCancellable) {
+        if (sha256(part) != sha) {
+            part.delete()
+            false
+        } else {
+            swapIn(part, done)
+            true
+        }
     }
 
     /** Null when the file is safe to install: same package, same signer, higher versionCode. */
@@ -257,7 +330,7 @@ object Updater {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
-    /** Android may need "Install unknown apps" for Play next once; Home shows a button when it's off. */
+    /** Android may need "Install unknown apps" for Play next once; Settings shows a button when it's off. */
     fun canInstall(ctx: Context) = ctx.packageManager.canRequestPackageInstalls()
 }
 
