@@ -290,43 +290,50 @@ private fun Page(w: Dp, content: @Composable () -> Unit) {
 fun TabBar(tab: String, pick: (String) -> Unit, settings: () -> Unit) {
     val look = LocalLook.current
     val home = tab == "home"
-    Row(
-        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = if (home) 0.dp else 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.Top,
-    ) {
-        for (t in Web.TABS) {
-            val on = t.key == tab
-            Box(
-                Modifier
-                    .then(if (on) Modifier.size(66.dp, if (home) 70.dp else 62.dp) else Modifier.size(52.dp))
-                    .then(if (on && home) Modifier.notch(Pn.pan) else Modifier)
-                    .background(
-                        if (on) Pn.pan else Color.Transparent,
-                        if (on && home) RoundedCornerShape(24.dp, 24.dp, 0.dp, 0.dp) else RoundedCornerShape(if (on) 22.dp else 18.dp),
-                    )
-                    .clickable(role = Role.Tab) { pick(t.key) }
-                    .semantics { selected = on; contentDescription = t.label },
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    PnIcon(t.key, if (on) look.volt else Pn.mute, 21.dp, null)
-                    if (on) BasicText(t.label, style = Type.tab, softWrap = false, maxLines = 1)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // the open tile's left inner corner only where it clears the Home panel's 28 round corner by its own 20 (narrow, it
+        // would hang off that curve as a thin spike): the row is centred, 66 open + 52 each other + Settings, 2 apart
+        val before = Web.TABS.indexOfFirst { it.key == tab }.coerceAtLeast(0)
+        val left = (maxWidth - (66.dp + 52.dp * Web.TABS.size + 2.dp * Web.TABS.size)) / 2 + (52.dp + 2.dp) * before >= 48.dp
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp, bottom = if (home) 0.dp else 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.Top,
+        ) {
+            for (t in Web.TABS) {
+                val on = t.key == tab
+                Box(
+                    Modifier
+                        .then(if (on) Modifier.size(66.dp, if (home) 70.dp else 62.dp) else Modifier.size(52.dp))
+                        .then(if (on && home) Modifier.notch(Pn.pan, left) else Modifier)
+                        .background(
+                            if (on) Pn.pan else Color.Transparent,
+                            if (on && home) RoundedCornerShape(24.dp, 24.dp, 0.dp, 0.dp) else RoundedCornerShape(if (on) 22.dp else 18.dp),
+                        )
+                        .clickable(role = Role.Tab) { pick(t.key) }
+                        .semantics { selected = on; contentDescription = t.label },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        PnIcon(t.key, if (on) look.volt else Pn.mute, 21.dp, null)
+                        if (on) BasicText(t.label, style = Type.tab, softWrap = false, maxLines = 1)
+                    }
                 }
             }
+            Box(
+                Modifier.size(52.dp).clickable(role = Role.Button, onClick = settings).semantics { contentDescription = "Settings" },
+                contentAlignment = Alignment.Center,
+            ) { PnIcon("settings", Pn.mute, 21.dp, null) }
         }
-        Box(
-            Modifier.size(52.dp).clickable(role = Role.Button, onClick = settings).semantics { contentDescription = "Settings" },
-            contentAlignment = Alignment.Center,
-        ) { PnIcon("settings", Pn.mute, 21.dp, null) }
     }
 }
 
 /** The two 20dp inner corners beside Home's open tab that join it to the panel below (`::before` / `::after`). */
-private fun Modifier.notch(fill: Color) = drawBehind {
+private fun Modifier.notch(fill: Color, withLeft: Boolean) = drawBehind {
     val r = 20.dp.toPx()
     val y = size.height - r
     for (left in listOf(true, false)) {
+        if (left && !withLeft) continue
         val x = if (left) -r else size.width
         val square = Path().apply { addRect(androidx.compose.ui.geometry.Rect(Offset(x, y), Size(r, r))) }
         val hole = Path().apply {

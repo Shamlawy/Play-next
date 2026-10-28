@@ -79,3 +79,47 @@ Matches the web: folded tab bar (to the pixel), rail, view pill, chips, header c
 8. **low** Shared styled text arrives empty: getStringExtra returns null for a SpannableString (Links.kt:274-277). Fix: getCharSequenceExtra()?.toString().
 9. **low** A link replays an old cover flight (same as touch 6).
 10. **low · owner's call** S.startTab ("Start on") is ignored; always opens Home (not in 0.md's left-out list).
+
+## Android basics lens (done; 13 throwaway Robolectric probes, lint report read)
+1. **high** Settings unreachable in short/narrow windows: folded landscape (~915x411) uses the rail, whose Settings squashes to 48x7dp at 915x360 (Rail needs ~411dp + insets); the tab bar's gear is 4x52dp at 320 wide. Fix: the rail scrolls or tightens when short (or the tab bar below ~460dp tall); the tab bar shrinks/scrolls below 368dp; shots at 915x360 and 320x640.
+2. **high** Crash/offline reports aren't sent at the next start (same as safety 4).
+3. **high** Full phone crashes the app (same as bugs 6).
+4. **medium** The scroll spot is lost when Samsung kills the app: restored while Games is Starting, the short page clamps it to 0 (proven 2832 → 0). Fix: don't compose the tab pages while Starting (the splash covers it), or keep a min-height placeholder; a StateRestorationTester test.
+5. **medium** Drafts lost on recreate: the report draft (Settings.kt:248 remember), `shared` (Root.kt:118), restore `busy` stuck (bugs 5).
+6. **medium** Freeze reports carry only the ANR trace header (CrashGuard.kt:108 take(40), Reporter stack take(8)): find the `"main"` thread block. Screen "?" on Home (safety 9).
+7. **medium** A freeze or native crash at start never reaches safe mode (only the Java handler counts); updater exceptions crash (safety 8). Fix: an "armed" marker counted at the next start.
+8. **medium** No font-scale cap (1.3 for fixed labels, critic G4) and no 1.3/2.0 shots.
+9. **medium** No debug StrictMode/LeakCanary; main-thread disk (speed 7).
+10. **low** No midnight/date rollover (DATE_CHANGED/TIME_SET/TIMEZONE_CHANGED): release-day flips only with a new backup or restart.
+11. **low** A key store hiccup at start deletes the offline copy (CodeStore.read null for any exception → openLocal deletes the cache). Fix: none / gone / try later.
+12. **low** Any web page can start the 120 Hz test via the BROWSABLE link. Fix: ignore Route.Probe with CATEGORY_BROWSABLE.
+13. **low** The restore code can be copied without the sensitive mark (Restore.kt:98-115).
+14. **low · owner's call** Back-to-home preview shrinks the app (same as touch 7).
+
+## The fix session: the deduplicated list (most severe first)
+Skeptic pass: skipped to save the usage limit (it stopped the run twice); the fixer re-reads the code and reproduces each one before fixing (the touch lens's ZzTouchTest.kt proved 6; rewrite them as real tests).
+Done in this chat (code changed, screenshots NOT re-recorded yet): look 1 (slash at default width, Type.kt) and look 4 (Home notch's left corner skipped when it would spike, Shell.kt TabBar). Re-record slash-412, home-412, no-code-412 and Read them.
+
+- A. Safe mode → "Opening your games…" forever (safety 1, bugs 1).
+- B. Back after "Use a different restore code" (touch 1, bugs 2).
+- C. Settings sheet: swipe-down closes, scrim closes only on a real tap, double taps (touch 2/5/9, leftovers 4).
+- D. Cover flight interruptible; no stale flight from links (touch 3/6).
+- E. Reporter: Mutex + remove by identity, don't cancel a sending flush, flush at every start, enqueue off Main, per-version ran sig (safety 3/4/5, basics 2).
+- F. Full-disk writes guarded (bugs 6).
+- G. Updater: .part ≥ size → SHA check, Range per try, NonCancellable swap, catch Exception, run on IO, no relBody in prefs (safety 2/8, speed 3).
+- H. Rail and tab bar in short/narrow windows (basics 1).
+- I. Header-card numbers once per backup per day off Main, one shared Rank (speed 2; GoldenTest guards).
+- J. Baseline Profile + release smoke test walk real screens with a made-up backup (speed 1, leftovers 2, safety 7).
+- K. Look: Settings sheet frame like `.sheet-in`, game page under the rail unfolded + "Back" top right, Btn like `.btn`, settings-checked shot, safe mode tokens (look 2/3/5/6/7).
+- L. Restore/state: mistyped-code line, busy plain remember, report draft + shared saveable, scroll spot while Starting (bugs 3/5, basics 4/5).
+- M. Games "Try again"/"Check for a newer copy" show a result (bugs 4, L184).
+- N. Shared styled text (bugs 8).
+- O. Pill segment jump; 48dp touch targets (touch 4/8).
+- P. Frame gate: skip 800 ms after a fold, judge total frame time (speed 6).
+- Q. Screen.set on Home, ANR stack from the "main" block, freeze → safe mode (safety 9, basics 6/7).
+- R. Write switch covers redirects (safety 6).
+- S. Gates: font-scale cap + 1.3/2.0 shots, debug StrictMode + LeakCanary, Compose reports check; the rest of gate 3/6 (Macrobenchmark, kill-and-reopen journey, named lint rules) built or listed in 0.md as moved, with the plan amended (leftovers 1/3, basics 8/9, speed 7).
+- T. Midnight rollover, key store hiccup, BROWSABLE probe, clipboard sensitive (basics 10-13).
+- U. Speed lows: alpha 0 under a full page, StrongBox → TEE, Queue placeholder memo + Game.hex regex, shadows in moving layers, font preload (speed 4/5/8/9/10).
+- V. Leftovers: dead code, plan lines 182/236, Updater comments, one time formatter (leftovers 5/8-11).
+- Owner's calls (ask once, in plain words): the back-to-home shrink when leaving the app; S.startTab ("Start on"); the 120 Hz test's retry ladder and Settings card.

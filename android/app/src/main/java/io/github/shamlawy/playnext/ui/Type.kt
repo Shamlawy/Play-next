@@ -41,9 +41,12 @@ object Fonts {
         Font(R.font.poppins_700, FontWeight.Black),
     )
 
-    /** Archivo italic 900 condensed, the "Persona" display face (`.pnw-slab b`). */
+    /**
+     * Archivo italic 900, the "Persona" display face, at its default width as `.pnw-slab b` draws it (the web's other
+     * Archivo rules set their own `wdth`, 60-84: their screens bring their own faces).
+     */
     val archivo = FontFamily(
-        Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(900), FontVariation.width(62f))),
+        Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(900), FontVariation.width(100f))),
         Font(R.font.archivo, weight = FontWeight.ExtraBold, style = FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(800), FontVariation.width(100f))),
     )
 
