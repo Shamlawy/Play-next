@@ -86,6 +86,9 @@ val RAIL_FROM = 620.dp
 @Composable
 fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val holder = rememberSaveableStateHolder()
+    // each open game page's place, by its step in Nav.stack; a step that's gone forgets its own
+    val pages = rememberSaveableStateHolder()
+    val pagesKept = remember { mutableSetOf<String>() }
     val prefs = LocalPrefs.current
     val calm = LocalCalm.current
     val guard = remember { SwipeGuard() }
@@ -179,14 +182,23 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         .offset(x = if (wide) 13.dp else 0.dp),
                 )
             }
-            if (nav.overlay == "settings") {
-                BackHandler { go(nav.back()) }
+            // Settings stays under what you open from it, so back finds it where you left it
+            if ("settings" in nav.stack) {
+                BackHandler(enabled = nav.overlay == "settings") { go(nav.back()) }
                 SettingsSheet(games, wide, close = { go(nav.back()) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
             }
-            val gameId = nav.overlay?.takeIf { it.startsWith("game:") }?.removePrefix("game:")
-            val game = gameId?.let { id -> (games as? Games.State.Ready)?.lib?.games?.firstOrNull { it.id == id } }
+            // the newest game page; one you go back to comes back as you left it (scroll spot, no second opening)
+            val at = nav.stack.indexOfLast { it.startsWith("game:") }
+            val game = nav.stack.getOrNull(at)?.removePrefix("game:")?.let { id -> (games as? Games.State.Ready)?.lib?.games?.firstOrNull { it.id == id } }
+            val pageKeys = nav.stack.mapIndexed { i, o -> "$i:$o" }
+            LaunchedEffect(pageKeys) {
+                (pagesKept - pageKeys.toSet()).forEach { pages.removeState(it) }
+                pagesKept.retainAll(pageKeys.toSet())
+            }
             if (game != null) {
-                key(game.id) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.back()) }) }
+                val k = pageKeys[at]
+                pagesKept += k
+                key(k) { pages.SaveableStateProvider(k) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.back()) }) } }
             }
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }

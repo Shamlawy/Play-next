@@ -50,3 +50,9 @@ go=home
 at=
 say=Sounds and buzzes are in, the app icon has its three shortcuts, and a cover on a header card flies onto its game's page.
 tryIt=Hold the app's icon: Add a game, What should I play? and Queue. Tap a cover on a header card. In Settings, try each sound and buzz (Sounds is off in your backup, so the app stays quiet elsewhere). Share a Steam link to Play next ·new: Add names the game.
+
+v=9
+go=home
+at=
+say=Back now remembers your way: it closes what you opened, one step at a time, and stops on the tab you were in.
+tryIt=Open Settings, then the 120 Hz test, and swipe back twice: Settings, then your tab, still where you left it. Tap a header card's cover and go back: the tab you were on. On a tab, back leaves the app, never jumps to another tab.

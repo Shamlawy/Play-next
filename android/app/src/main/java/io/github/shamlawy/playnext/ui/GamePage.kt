@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
@@ -101,23 +102,28 @@ private val FLY = CubicBezierEasing(.3f, .9f, .35f, 1f)
 fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> Unit) {
     val calm = LocalCalm.current
     val motion = !calm && LocalPrefs.current.hubAnim
-    val grow = remember { Animatable(if (calm) 1f else 0f) }
+    // a page you come back to (back from one opened on top of it) is already open: no second grow or flight
+    var opened by rememberSaveable { mutableStateOf(false) }
+    val grow = remember { Animatable(if (calm || opened) 1f else 0f) }
     val shut = remember { Animatable(0f) }
     var closing by remember { mutableStateOf(false) }
     val end by rememberUpdatedState(close)
-    LaunchedEffect(Unit) { grow.animateTo(1f, tween(300, easing = Ease.house)) }
+    LaunchedEffect(Unit) {
+        grow.animateTo(1f, tween(300, easing = Ease.house))
+        opened = true
+    }
     LaunchedEffect(closing) {
         if (!closing) return@LaunchedEffect
         if (!calm) shut.animateTo(1f, tween(220, easing = SHUT))
         end()
     }
-    // back closes the page (the owner's rule 1a: what's open on top first); a second back while it shrinks waits for it
+    // back closes the page and shows what you opened it from (the owner, Oct 28); a second back while it shrinks waits
     BackHandler { closing = true }
 
     // [outer, the page inside its grow, the page's cover]: the flight is measured from these once the page is laid out
     val at = remember { arrayOfNulls<LayoutCoordinates>(3) }
     var flight by remember { mutableStateOf<Flight?>(null) }
-    var landed by remember { mutableStateOf(from == null || !motion) }
+    var landed by remember { mutableStateOf(from == null || !motion || opened) }
     LaunchedEffect(Unit) {
         if (landed || from == null) return@LaunchedEffect
         withFrameNanos { }

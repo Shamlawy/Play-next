@@ -45,20 +45,27 @@ class BackupTest {
 
     @Test
     fun backGoesTheWayTheOwnerPicked() {
-        // 1a: what's open first, then the last tab (each once, newest first), then out of the app
-        var n = Nav().go("games").go("plan").go("games")
-        assertEquals("games", n.tab)
-        assertEquals(listOf("home", "plan"), n.history)
-        n = n.open("settings")
-        assertTrue(n.canGoBack)
+        // Oct 28: back walks what you opened, newest first, until your tab; switching tabs is never a step back
+        var n = Nav().go("games").go("plan").go("taste")
+        assertEquals("taste", n.tab)
+        assertEquals("a tab is not a step back", false, n.canGoBack)
+        n = n.open("settings").open("probe")
         n = n.back()
-        assertEquals("games", n.tab)
+        assertEquals("back from the 120 Hz test is Settings", "settings", n.overlay)
+        n = n.open("game:a").open("game:b").open("game:b")
+        assertEquals("the same page twice in a row is one step", listOf("settings", "game:a", "game:b"), n.stack)
+        n = n.back()
+        assertEquals("game:a", n.overlay)
+        n = n.back()
+        assertEquals("settings", n.overlay)
+        n = n.back()
+        assertEquals("taste", n.tab)
         assertEquals(null, n.overlay)
-        n = n.back()
-        assertEquals("plan", n.tab)
-        n = n.back()
-        assertEquals("home", n.tab)
-        assertEquals(false, n.canGoBack)
+        assertEquals("on the tab, back leaves the app", false, n.canGoBack)
+        assertEquals("taste", n.back().tab)
+        // a tab tap closes everything open, and only the newest DEEP steps are kept
+        assertEquals(emptyList<String>(), n.open("settings").open("game:a").go("taste").stack)
+        assertEquals(Nav.DEEP, (1..40).fold(n) { m, i -> m.open("game:$i") }.stack.size)
     }
 
     @Test
