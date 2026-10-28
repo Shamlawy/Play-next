@@ -107,7 +107,19 @@ Fix chat 1 (Oct 28, branch claude/android-v10-fixes; compiles; TouchTest, Screen
 - D done in code: the flying cover fades with the page's shut; a page's tap point and cover flight belong to the step they opened (`Launch.key`).
 - K3 done in code: unfolded, the rail is drawn over Settings and game pages (checked on the web with elementFromPoint: it is on top there); the game page's "Back" (was Close) sits top right, 100 in when wide; its words keep 104 clear. A rail Settings tap during a page's shrink closes that page first (`shutting`). K5 done in code: Btn as wide as its words, ghost = card + line2, primary glow (Restore keeps full width).
 - Q partly: `Screen.set` tells Android the first screen too (`told`); the ANR report carries the `"main"` thread block (`CrashGuard.mainThread`); a freeze or native crash within a minute of start counts toward safe mode (`armedAt` + the last exit record, `CrashCounter.exitedEarly`). F partly: `calm()` writes only when the count isn't 0, off Main.
-- E, G, P, R, Reporter part of F, Updater/Receivers comments (V): a helper's branch, report in android/parity/0-perfect/helper-plumbing.md on that branch.
+- E, G, P, R, Reporter part of F, Updater/Receivers comments (V): a helper's branch, report in android/parity/0-perfect/helper-plumbing.md (merged).
+
+Fix chat 2 (Oct 28 evening, same branch; 153 tests pass, lintRelease 0 errors at the merge of the data helper):
+- H done: the rail packs closer and scrolls below 387dp tall; the folded tab bar's closed tabs share the room below 336 wide (shots short-915, narrow-320).
+- O: the pill's segment starts a mid-slide pick from where it's drawn (thePillsSegmentNeverJumps green, fails on the old code); touch 8 refuted for the pill and chips (Compose widens to 48: TargetTest); header card targets with the numbers helper.
+- K6 done (settings-checked scrolls to Check now); K7 done (safe mode uses Web.* colours). New: the Settings sheet's and the game page's tap catchers were clickables that merged every word into one TalkBack node: now `ownTaps()` (SheetTest).
+- L done: StartTest.theScrollSpotSurvivesARestartWhileOpening (2731 → 0 before).
+- S part: `TextStyle.fixed()` caps fixed labels at font scale 1.3 (tab name, pill); the slash word is sized by the screen only; shots font13-412, font20-412, settings-font20-412. Header card numbers break "waiting" at 2.0 and at 320 wide: the numbers helper applies fixed() and fixes 320.
+- U part: what a fully grown game page covers stops drawing (CoveredTest, incl. back mid-grow); fonts warmed off Main at start (`Fonts.warm`). StrongBox → TEE, Queue memo, Game.hex, whatsnew off composition: data helper. Shadows in moving layers: left (low; needs a phone trace).
+- Owner's calls, answered with the suggested defaults (no reply came): the app's own last back (no back-to-home shrink), Open the app on (`Prefs.start`, StartTest), the 120 Hz test as one plain try.
+- M, N, T (key store hiccup, BROWSABLE probe, sensitive clip), F (cache write): data helper, merged (report in its commits: bdafe6a and before).
+- In progress: I + T midnight rollover + header card targets/fixed()/320 by the numbers helper, branch `worktree-agent-a52fa782161d46a29` (pushed when done, report in android/parity/0-perfect/helper-numbers.md).
+- Left: J (Baseline Profile + smoke test walk with a shell-only demo backup), S rest (debug StrictMode + LeakCanary, a Compose stability check in android-check, the other gate 3/6 checks listed as moved in 0.md with the plan amended), V (dead code, plan lines 182/217/236, one time formatter), re-record every screenshot and Read each changed one, release android-v10.
 
 - A. Safe mode → "Opening your games…" forever (safety 1, bugs 1).
 - B. Back after "Use a different restore code" (touch 1, bugs 2).
