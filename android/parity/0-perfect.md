@@ -33,3 +33,25 @@ Matches the web: folded tab bar (to the pixel), rail, view pill, chips, header c
 5. **low** Btn (Kit.kt:163-177) vs the web's `.btn` (index.html 16450-16456): ghost = u-card + 1px u-line2, primary = volt + accent glow, as wide as their words.
 6. **low** settings-checked-412.png is byte-identical to settings-412.png: the Updates card is below the viewport (ScreensTest.kt:273-281 checked412), so it tests nothing. Fix: scroll to it before capturing.
 7. **low** SafeModeActivity.kt:34,45-52 uses colour literals, one (0xFFB8C6E6) not a token. Fix: generated Web.* constants.
+
+## Updates and safety lens (done; 3 proven by throwaway tests, the rest by code trace)
+1. **medium** Leaving safe mode in the same process ("Try again", or the safe-mode process living 60 s) leaves the app on "Opening your games…": `PlayNextApp.onCreate` returns before `Games.start` in safe mode and nothing else starts it. Fix: one idempotent `start()` called from Application and MainActivity; calm the counter only while MainActivity is on screen.
+2. **medium** A download cancelled partway (closing Settings mid "Downloading", lifecycle, WorkManager) leaves a complete `.part`; every later run asks `Range: bytes=<size>-` → 416 → Failed, silently. Also a mid-body retry reuses the old Range and duplicates bytes. Fix: part ≥ size → straight to the SHA check; Range per try; sha+swap NonCancellable; report a repeating failure.
+3. **medium** Reporter: `flushSoon` cancels a flush that is already sending, so the batch is sent again (double sightings); two concurrent flushes `drop(batch.size)` and lose unsent reports. Fix: Mutex, remove by identity, cancel only the delay, rethrow CancellationException.
+4. **medium** A crash report (and an offline "Report a problem") isn't sent at the next start: `adopt()` never flushes; `ranOnce` flushes only on a new version. Fix: flushSoon at the end of every start.
+5. **low** Same-day releases share the "ran" report's sig (digits → #), so the second is dropped by firstToday and never retried. Fix: per-version sig; set ranV only after queueing.
+6. **low** The write switch is an application interceptor, so a 307/308 re-POSTs to any path (shown with MockWebServer: /bug → /vault/put). No live path today. Fix: also addNetworkInterceptor (or followRedirects false for non-GET); a RoutesTest case.
+7. **low** The release smoke test only opens the probe with no games (see leftovers 2).
+8. **low** Updater.run catches only IOException: a SerializationException from ReleaseFeed.pick or a SecurityException from commit crashes the process, safe mode too; relBody is stored before it parses. Fix: catch Exception (rethrow cancellation) → Failed + report; store relBody after parsing.
+9. **low** Freeze/native-crash reports name the screen "?" until you leave Home: Screen.set returns early when name == current ("home" at start). Fix: a force path / start current as "".
+
+## Touch and back lens (done; 6 proven by throwaway Robolectric touch tests, copy at the chat's scratchpad ZzTouchTest.kt)
+1. **medium** Restore screen opened from Settings ("Use a different restore code"): the first back pops the hidden Settings step and nothing changes, the next back leaves the app; "Not now" needs two taps (Root.kt:175-180). Fix: when the code step closes while games are NoCode, also set skipped = true.
+2. **medium** Settings sheet ignores a swipe down (same as leftovers 4).
+3. **medium** Back/Close during the 380 ms cover flight: the flying cover stays opaque over the fading page and is cut off mid-air (GamePage.kt:116-120, 152-160, 216-261). Fix: fade/scale the flying cover with the page's `shut` (or reverse the flight); keep end() until both finish.
+4. **low** View pill: a second pick while the lit segment slides makes it jump ~59dp (Pill.kt:82-84, 134-138). Fix: Slide starts from the drawn spot.
+5. **low** Fast double taps: unfolded, rail Settings twice = open then close (2nd tap on the scrim); folded, Done twice = close then reopen (the gear under Done).
+6. **low** A game page opened by a link reuses the last cover flight and tap point (Shell.kt:137-145, 213). Fix: tie fly/tapAt to the step key they were made for.
+7. **low · owner's call** Leaving the app from a tab plays Android's back-to-home shrink (manifest enableOnBackInvokedCallback=true); the plan says the shrinking preview is off.
+8. **low** Tap targets under 48dp: pill buttons ~32, chips ~38, try buttons 40, spotlight line ~30, the fan's back covers.
+9. **low** A drag that starts on Settings' scrim closes Settings (clickable takes a moved press as a tap).
