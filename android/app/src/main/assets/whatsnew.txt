@@ -56,3 +56,9 @@ go=home
 at=
 say=Back now remembers your way: it closes what you opened, one step at a time, and stops on the tab you were in.
 tryIt=Open Settings, then the 120 Hz test, and swipe back twice: Settings, then your tab, still where you left it. Tap a header card's cover and go back: the tab you were on. On a tab, back leaves the app, never jumps to another tab.
+
+v=10
+go=home
+at=
+say=A polish pass on everything so far: Settings pulls down to close like the web's sheet, release days flip at midnight by themselves, and the header cards open faster.
+tryIt=Open Settings and pull it down from the top: it closes. Unfolded, tap a header card's cover: the rail stays and Back sits top right. In Settings, tap Check for a newer copy: it says when it looked. Back on a tab leaves the app without shrinking it.
