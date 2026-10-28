@@ -89,16 +89,20 @@ class KitTest {
     }
 
     @Test fun navKeepsViewsAcrossTabsAndBack() {
-        val n = Nav().go("games").view("games", "replay").go("plan").back()
+        val n = Nav().go("games").view("games", "replay").go("plan").open("settings").back().go("games")
         assertEquals("games", n.tab)
         assertEquals("replay", n.views["games"])
-        assertEquals(listOf("home"), n.history)
     }
 
     @Test fun navSurvivesBeingSaved() {
-        val n = Nav().go("taste").view("taste", "duels").view("games", "lib").open("settings")
+        val n = Nav().go("taste").view("taste", "duels").view("games", "lib").open("settings").open("game:a").open("game:b")
         val scope = object : SaverScope { override fun canBeSaved(value: Any) = true }
         val back = Nav.Saver.restore(with(Nav.Saver) { scope.save(n) }!!)
         assertEquals(n, back)
+        val deep = Nav("games", listOf("game:a", "game:b"), dropped = 7)
+        assertEquals(deep, Nav.Saver.restore(with(Nav.Saver) { scope.save(deep) }!!))
+        // what android-v8 and older saved: [tab, overlay, views, …tabs you came through]
+        assertEquals(Nav("taste", listOf("settings"), mapOf("taste" to "duels")), Nav.Saver.restore(listOf("taste", "settings", "taste=duels", "home", "games")))
+        assertEquals(Nav("plan"), Nav.Saver.restore(listOf("plan", "")))
     }
 }

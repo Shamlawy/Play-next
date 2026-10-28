@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
@@ -116,8 +117,8 @@ class ScreensTest {
     }
 
     /** A game's page (a placeholder until phase 2): its picture, the tilted cover, its state and name. */
-    @Test fun game412() = shot("game", 412) { Shell(Nav("games", overlay = "game:b"), ready, go = {}) }
-    @Test fun game859() = shot("game", 859) { Shell(Nav("games", overlay = "game:b"), ready, go = {}) }
+    @Test fun game412() = shot("game", 412) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
+    @Test fun game859() = shot("game", 859) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
 
     /**
      * A tap on a header card's cover opens its game: 60ms in, the page is growing from the tap and the cover's copy is
@@ -139,6 +140,46 @@ class ScreensTest {
         rule.runOnIdle { assertEquals("game:${g.id}", nav.overlay) }
         rule.onNodeWithContentDescription("Close").performClick()
         rule.runOnIdle { assertNull(nav.overlay) }
+    }
+
+    /**
+     * Back walks what you opened (the owner, Oct 28): a game opened over Settings, then another over it; each back shows
+     * the one before, with Settings kept open under them, then the tab you were on (never another tab).
+     */
+    @Test fun backFindsWhereYouCameFrom() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        var nav by mutableStateOf(Nav("taste", listOf("settings")))
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.runOnIdle { nav = nav.open("game:a") }
+        rule.runOnIdle { nav = nav.open("game:c") }
+        rule.onNodeWithText("Done").assertExists()
+        rule.onNodeWithContentDescription("Close").performClick()
+        rule.runOnIdle { assertEquals(listOf("settings", "game:a"), nav.stack) }
+        rule.onNodeWithContentDescription("Close").performClick()
+        rule.runOnIdle { assertEquals("settings", nav.overlay) }
+        rule.onNodeWithText("Done").performClick()
+        rule.runOnIdle { assertEquals(Nav("taste"), nav) }
+        rule.onNodeWithText("Done").assertDoesNotExist()
+    }
+
+    /**
+     * A tap while a game's page shrinks away lands on the page, never on what shows round its edges (unfolded, the
+     * rail's Settings): before, it opened Settings under the closing page, whose close then took Settings away instead,
+     * and the page stayed, unseen, holding back and taps.
+     */
+    @Test fun aTapWhileAPageClosesDoesNotLeaveItStuck() {
+        RuntimeEnvironment.setQualifiers("w859dp-h1000dp-xxhdpi")
+        var nav by mutableStateOf(Nav("games", listOf("game:a")))
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription("Close").performClick()
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(200)
+        // the button's outer corner: the part the shrinking page uncovers first
+        rule.onNodeWithContentDescription("Settings").performTouchInput { click(Offset(width - 3f, height - 3f)) }
+        rule.mainClock.autoAdvance = true
+        rule.runOnIdle { assertEquals(Nav("games"), nav) }
     }
 
     /** The pill off: the views as chips under the card; header cards Simple (numbers and covers). */
@@ -226,14 +267,14 @@ class ScreensTest {
         rule.onRoot().performTouchInput { swipe(Offset(centerX, centerY), Offset(centerX - 400f, centerY + 400f)) }
         rule.runOnIdle { assertEquals("plan" to "month", nav.tab to prefs.viewOf("plan", nav.views)) }
     }
-    @Test fun settings412() = shot("settings", 412) { Shell(Nav("home", overlay = "settings"), ready, go = {}) }
-    @Test fun settings859() = shot("settings", 859) { Shell(Nav("home", overlay = "settings"), ready, go = {}) }
+    @Test fun settings412() = shot("settings", 412) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
+    @Test fun settings859() = shot("settings", 859) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
     /** After Check now found nothing newer: the card says when it looked (the owner on v5: the tap seemed to do nothing). */
     @Test fun checked412() {
         Store.prefs.edit().putLong("updChecked", now - 20 * 60_000L).commit()
         Updater.set(Updater.State.UpToDate)
         try {
-            shot("settings-checked", 412) { Shell(Nav("home", overlay = "settings"), ready, go = {}) }
+            shot("settings-checked", 412) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
         } finally {
             Updater.set(Updater.State.Idle)
         }

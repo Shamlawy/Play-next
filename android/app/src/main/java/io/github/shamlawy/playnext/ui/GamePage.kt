@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -101,23 +103,28 @@ private val FLY = CubicBezierEasing(.3f, .9f, .35f, 1f)
 fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> Unit) {
     val calm = LocalCalm.current
     val motion = !calm && LocalPrefs.current.hubAnim
-    val grow = remember { Animatable(if (calm) 1f else 0f) }
+    // a page you come back to (back from one opened on top of it) is already open: no second grow or flight
+    var opened by rememberSaveable { mutableStateOf(false) }
+    val grow = remember { Animatable(if (calm || opened) 1f else 0f) }
     val shut = remember { Animatable(0f) }
     var closing by remember { mutableStateOf(false) }
     val end by rememberUpdatedState(close)
-    LaunchedEffect(Unit) { grow.animateTo(1f, tween(300, easing = Ease.house)) }
+    LaunchedEffect(Unit) {
+        opened = true
+        grow.animateTo(1f, tween(300, easing = Ease.house))
+    }
     LaunchedEffect(closing) {
         if (!closing) return@LaunchedEffect
         if (!calm) shut.animateTo(1f, tween(220, easing = SHUT))
         end()
     }
-    // back closes the page (the owner's rule 1a: what's open on top first); a second back while it shrinks waits for it
+    // back closes the page and shows what you opened it from (the owner, Oct 28); a second back while it shrinks waits
     BackHandler { closing = true }
 
     // [outer, the page inside its grow, the page's cover]: the flight is measured from these once the page is laid out
     val at = remember { arrayOfNulls<LayoutCoordinates>(3) }
     var flight by remember { mutableStateOf<Flight?>(null) }
-    var landed by remember { mutableStateOf(from == null || !motion) }
+    var landed by remember { mutableStateOf(from == null || !motion || opened) }
     LaunchedEffect(Unit) {
         if (landed || from == null) return@LaunchedEffect
         withFrameNanos { }
@@ -134,7 +141,11 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
         flight = null
     }
 
-    Box(Modifier.fillMaxSize().onGloballyPositioned { at[0] = it }) {
+    // the whole screen is the page's to touch, also round its edges while it grows or shrinks: a tap there never reaches
+    // what's under it (the rail's Settings opened under a closing page, which then stayed open, unseen). It only
+    // listens: being touchable is enough to keep the touch from what's under it, and consuming here would cancel the
+    // page's own buttons (a tap checks, after its parents, that nothing consumed it)
+    Box(Modifier.fillMaxSize().onGloballyPositioned { at[0] = it }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()

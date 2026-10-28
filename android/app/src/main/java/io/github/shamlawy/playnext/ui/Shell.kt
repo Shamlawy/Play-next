@@ -47,6 +47,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,6 +88,10 @@ val RAIL_FROM = 620.dp
 @Composable
 fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val holder = rememberSaveableStateHolder()
+    // each open step's place (Settings, game pages) by its Nav.key, and which keys it holds: saved too, so a step closed
+    // after Android recreated the app, or while the 120 Hz test covered the tabs, still forgets its own
+    val pages = rememberSaveableStateHolder()
+    val pagesKept = rememberSaveable(saver = listSaver<MutableSet<String>, String>({ it.toList() }, { it.toMutableSet() })) { mutableSetOf() }
     val prefs = LocalPrefs.current
     val calm = LocalCalm.current
     val guard = remember { SwipeGuard() }
@@ -179,14 +185,32 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         .offset(x = if (wide) 13.dp else 0.dp),
                 )
             }
-            if (nav.overlay == "settings") {
-                BackHandler { go(nav.back()) }
-                SettingsSheet(games, wide, close = { go(nav.back()) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
+            // each step keeps its place while it's open; a closed step forgets its own, so opening it again starts fresh
+            val keys = nav.stack.indices.map { nav.key(it) }
+            LaunchedEffect(keys) {
+                (pagesKept - keys.toSet()).forEach { pages.removeState(it) }
+                pagesKept.retainAll(keys.toSet())
             }
-            val gameId = nav.overlay?.takeIf { it.startsWith("game:") }?.removePrefix("game:")
-            val game = gameId?.let { id -> (games as? Games.State.Ready)?.lib?.games?.firstOrNull { it.id == id } }
+            // Settings stays under what you open from it, so back finds it where you left it
+            val s = nav.stack.lastIndexOf("settings")
+            if (s >= 0) {
+                val k = keys[s]
+                pagesKept += k
+                BackHandler(enabled = nav.overlay == "settings") { go(nav.closeAt(s)) }
+                key(k) {
+                    pages.SaveableStateProvider(k) {
+                        SettingsSheet(games, wide, close = { go(nav.closeAt(s)) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
+                    }
+                }
+            }
+            // the newest game page, when nothing is open over it; one you go back to comes back as you left it (scroll
+            // spot, no second opening)
+            val at = nav.stack.indexOfLast { it.startsWith("game:") }
+            val game = if (at <= s) null else nav.stack[at].removePrefix("game:").let { id -> (games as? Games.State.Ready)?.lib?.games?.firstOrNull { it.id == id } }
             if (game != null) {
-                key(game.id) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.back()) }) }
+                val k = keys[at]
+                pagesKept += k
+                key(k) { pages.SaveableStateProvider(k) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.closeAt(at)) }) } }
             }
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
