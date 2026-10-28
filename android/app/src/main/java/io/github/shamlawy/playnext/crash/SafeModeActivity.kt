@@ -12,6 +12,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import io.github.shamlawy.playnext.MainActivity
+import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.report.Reporter
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.CoroutineScope
@@ -39,17 +40,18 @@ class SafeModeActivity : Activity() {
             v.setPadding(pad + b.left, pad + b.top, pad + b.right, pad + b.bottom)
             insets
         }
+        // the web app's own colours (generated from index.html): --ice words, --mute status, --u-card buttons
         fun text(s: String, size: Float, color: Int) = TextView(this).apply {
             text = s; textSize = size; setTextColor(color); setPadding(0, 0, 0, pad / 2)
         }
         col.addView(text("Safe mode", 26f, Color.WHITE))
-        col.addView(text("Play next closed twice right after opening, so it started plainly. An update usually fixes it.", 15f, 0xFFB8C6E6.toInt()))
-        status = text("", 14f, 0xFF7C92C4.toInt())
+        col.addView(text("Play next closed twice right after opening, so it started plainly. An update usually fixes it.", 15f, Web.ICE.toInt()))
+        status = text("", 14f, Web.MUTE.toInt())
         col.addView(status)
         // A flat card colour: no ripple, no lift (#309, no touch effects).
         fun button(s: String, go: () -> Unit) = Button(this).apply {
             text = s; isAllCaps = false; stateListAnimator = null; setTextColor(Color.WHITE)
-            background = GradientDrawable().apply { setColor(0xFF131A32.toInt()); cornerRadius = 14 * resources.displayMetrics.density }
+            background = GradientDrawable().apply { setColor(Web.U_CARD.toInt()); cornerRadius = 14 * resources.displayMetrics.density }
             setOnClickListener { go() }
             col.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = pad / 2 })
         }

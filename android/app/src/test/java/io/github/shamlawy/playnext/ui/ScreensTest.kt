@@ -89,10 +89,18 @@ class ScreensTest {
     private val lib = lib()
     private val ready = Games.State.Ready(lib, copyAt = now - 3 * 3_600_000L)
 
-    /** [yours]: your theme, background and settings from the backup ([l]), else the app's own (no code yet). */
-    private fun shot(name: String, width: Int, yours: Boolean = true, l: Library = lib, content: @Composable () -> Unit) {
-        RuntimeEnvironment.setQualifiers("w${width}dp-h${if (width < 600) 915 else 1000}dp-xxhdpi")
+    /**
+     * [yours]: your theme, background and settings from the backup ([l]), else the app's own (no code yet). [font]: the
+     * phone's font size; [ready] runs before the picture (a scroll to what it's about).
+     */
+    private fun shot(
+        name: String, width: Int, yours: Boolean = true, l: Library = lib, height: Int = if (width < 600) 915 else 1000,
+        font: Float = 1f, ready: () -> Unit = {}, content: @Composable () -> Unit,
+    ) {
+        RuntimeEnvironment.setQualifiers("w${width}dp-h${height}dp-xxhdpi")
+        RuntimeEnvironment.setFontScale(font)
         rule.setContent { Frame(Look.of(l.takeIf { yours }), Prefs.of(l.takeIf { yours }), now = { now }) { content() } }
+        ready()
         rule.onRoot().captureRoboImage("src/test/screenshots/$name-$width.png")
     }
 
@@ -276,11 +284,23 @@ class ScreensTest {
         Store.prefs.edit().putLong("updChecked", now - 20 * 60_000L).commit()
         Updater.set(Updater.State.UpToDate)
         try {
-            shot("settings-checked", 412) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
+            // the Updates card sits below the first screenful: scrolled to, so the picture shows the line it's about
+            shot("settings-checked", 412, ready = { rule.onNodeWithText("Updates").performScrollTo() }) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
         } finally {
             Updater.set(Updater.State.Idle)
         }
     }
+
+    /** Unfolded on its side (or a short split screen): the rail packs closer and scrolls, Settings stays whole. */
+    @Test fun short915() = shot("short", 915, height = 360, content = tab("games"))
+
+    /** A narrow window: the closed tabs share the room, Settings stays on the bar. */
+    @Test fun narrow320() = shot("narrow", 320, height = 640, content = tab("games"))
+
+    /** The phone's font size at 1.3 and 2.0: body words grow, tab names, the pill and header numbers stop at 1.3. */
+    @Test fun font13() = shot("font13", 412, font = 1.3f, content = tab("games"))
+    @Test fun font20() = shot("font20", 412, font = 2f, content = tab("games"))
+    @Test fun settingsFont20() = shot("settings-font20", 412, font = 2f) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
 
     @Test fun noCode412() = shot("no-code", 412, yours = false) { Shell(Nav("home"), Games.State.NoCode, go = {}) }
     @Test fun noCode859() = shot("no-code", 859, yours = false) { Shell(Nav("home"), Games.State.NoCode, go = {}) }

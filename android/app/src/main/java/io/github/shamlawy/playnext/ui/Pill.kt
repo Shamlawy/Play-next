@@ -124,8 +124,9 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
                             contentAlignment = Alignment.Center,
                         ) {
                             val text = label.uppercase(Locale.ROOT)
-                            BasicText(text, style = PILL.copy(color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = 1f - a })
-                            BasicText(text, style = PILL.copy(color = Pn.void), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = a })
+                            val style = PILL.fixed()
+                            BasicText(text, style = style.copy(color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = 1f - a })
+                            BasicText(text, style = style.copy(color = Pn.void), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = a })
                         }
                     }
                 }

@@ -348,7 +348,7 @@ fun TabBar(tab: String, pick: (String) -> Unit, settings: () -> Unit) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         PnIcon(t.key, if (on) look.volt else Pn.mute, 21.dp, null)
-                        if (on) BasicText(t.label, style = Type.tab, softWrap = false, maxLines = 1)
+                        if (on) BasicText(t.label, style = Type.tab.fixed(), softWrap = false, maxLines = 1)
                     }
                 }
             }

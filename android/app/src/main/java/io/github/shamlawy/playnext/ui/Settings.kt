@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.union
@@ -118,7 +119,7 @@ fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProb
                     .background(Pn.pan, shape)
                     .border(1.dp, Pn.line2, shape)
                     // taps on the sheet are the sheet's: only the scrim round it closes
-                    .clickable(onClick = {}, indication = null, interactionSource = null),
+                    .ownTaps(),
             ) {
                 Column(
                     Modifier
@@ -199,6 +200,17 @@ private fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
                 break
             }
         }
+    }
+}
+
+/**
+ * A tap on the sheet itself (between its buttons) is taken here, so the scrim's [scrimTap] leaves the sheet open. Not
+ * a clickable: that would merge every word in the sheet into one node, read by TalkBack as one long button.
+ */
+private fun Modifier.ownTaps() = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        waitForUpOrCancellation()?.consume()
     }
 }
 

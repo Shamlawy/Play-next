@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -98,6 +99,21 @@ object Type {
 
     /** The folded tab bar's current label: 600 10/1, .01em, white. */
     val tab = base.copy(fontSize = 10.sp, lineHeight = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.01.em, color = Pn.white)
+}
+
+/** The most a fixed-size label grows with the phone's font size (critic G4): body text scales freely. */
+const val FIXED_SCALE_MAX = 1.3f
+
+/**
+ * This style for a fixed-size label (a tab's name, the pill's views, header numbers, straps, tickets): it grows with
+ * the phone's font size up to [FIXED_SCALE_MAX], then stays, so a big font setting can't push it out of its tile.
+ */
+@Composable
+fun TextStyle.fixed(): TextStyle {
+    val scale = LocalDensity.current.fontScale
+    if (scale <= FIXED_SCALE_MAX) return this
+    val k = FIXED_SCALE_MAX / scale
+    return copy(fontSize = fontSize * k, lineHeight = if (lineHeight.isSp) lineHeight * k else lineHeight)
 }
 
 /**

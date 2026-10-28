@@ -5,6 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.hasContentDescription
 import androidx.test.core.app.ApplicationProvider
 import io.github.shamlawy.playnext.Store
@@ -34,11 +38,11 @@ class StartTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
-    private fun lib(start: String) = Library(
+    private fun lib(start: String, many: Int = 1) = Library(
         Json.parseToJsonElement(
             """
             {"theme":"midnight","bgGrad":30,"startTab":"$start",
-             "games":[{"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","ord":1,"colour":"#3A6FD8"}],
+             "games":[${(1..many).joinToString(",") { """{"id":"g$it","title":"Made-up Game $it","state":"backlog","date":"2026-09-30","ord":$it,"colour":"#3A6FD8"}""" }}],
              "duels":[],"played":[]}
             """.trimIndent(),
         ).jsonObject,
@@ -87,6 +91,32 @@ class StartTest {
         rule.waitForIdle()
         assertTrue(done)
         assertEquals(listOf("Taste"), lit("Home", "Games", "Plan", "Taste"))
+    }
+
+    /**
+     * Samsung closing the app in the background, and the app coming back while this phone's copy is still opening: the
+     * page waits for your games instead of drawing short and cutting the kept scroll spot to the top (before the fix it
+     * came back at 0 from 2832).
+     */
+    @Test fun theScrollSpotSurvivesARestartWhileOpening() {
+        val l = lib("queue", many = 60)
+        games.value = Games.State.Ready(l, System.currentTimeMillis())
+        val tester = StateRestorationTester(rule)
+        tester.setContent { PlayNextRoot(null) {} }
+        rule.waitForIdle()
+        fun barTop() = rule.onAllNodes(hasContentDescription("Games") and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+            .fetchSemanticsNodes().minOf { it.positionInRoot.y }
+        val top = barTop()
+        rule.onRoot().performTouchInput { swipeUp(startY = bottom * .7f, endY = top + 100f, durationMillis = 400) }
+        rule.waitForIdle()
+        val scrolled = barTop()
+        assertTrue("the page didn't scroll ($top → $scrolled)", scrolled < top - 500f)
+        games.value = Games.State.Starting
+        tester.emulateSavedInstanceStateRestore()
+        rule.waitForIdle()
+        games.value = Games.State.Ready(l, System.currentTimeMillis())
+        rule.waitForIdle()
+        assertEquals(scrolled, barTop(), 2f)
     }
 
     /** Your games arriving after the start (no copy on the phone yet) still open on your tab, once. */
