@@ -113,9 +113,14 @@ jobs:
           chmod +x gradlew
           # no PN_SIGNING_* here: the release build signs with the debug key, the throwaway key for PRs
           # verifyRoborazziDebug runs every unit test and compares the screens with src/test/screenshots
-          ./gradlew :app:verifyRoborazziDebug :app:lintRelease :app:assembleRelease -Ppn.composeReports --stacktrace
+          ./gradlew :app:verifyRoborazziDebug :app:lintRelease :app:assembleRelease --stacktrace
+      # the debug, unit-test and release compiles all write app-composables.txt, so whichever ran last won (a test-only
+      # report failed #671): the report comes from one fresh compile of the release code
       - name: "Compose stability: every composable skippable, identity-compared parameters listed (tools/compose-check.mjs)"
-        run: node ../tools/compose-check.mjs
+        run: |
+          set -euo pipefail
+          ./gradlew :app:compileReleaseKotlin --rerun -Ppn.composeReports --stacktrace
+          node ../tools/compose-check.mjs
       - name: Keep the screenshot differences
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
