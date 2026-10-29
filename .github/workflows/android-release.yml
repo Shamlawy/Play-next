@@ -169,7 +169,21 @@ jobs:
           echo "Emulator: android-36 $target x86_64, profile ${profile:-the default}"
           echo "target=$target" >> "$GITHUB_OUTPUT"
           echo "profile=$profile" >> "$GITHUB_OUTPUT"
+      # android-v10's first run lost the emulator 95 s into the profile walk while the Gradle and Kotlin daemons (4 GB
+      # each) that had just compiled both APKs sat beside it (android-check's walk did the same until they were stopped):
+      # both APKs are built first, Gradle stops, and the emulator step's Gradle finds them up to date
+      - name: Build the profile run's two APKs, then free the memory Gradle held
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew :app:packageNonMinifiedRelease :baselineprofile:packageNonMinifiedRelease -Pkotlin.compiler.execution.strategy=in-process --stacktrace
+          ./gradlew --stop
+          pkill -f '[K]otlinCompileDaemon' || true
+          free -m
+      # -gpu swangle_indirect (ANGLE on SwiftShader): with swiftshader_indirect the emulator died as the app drew (android-v10:
+      # after a cold start, mid-walk, 95 s into the profile run) with memory to spare; a step timeout lets the failure log run
       - name: Baseline Profile on the emulator (debug-signed build)
+        timeout-minutes: 30
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
@@ -179,10 +193,17 @@ jobs:
           cores: 4
           ram-size: 4096M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           working-directory: android
-          script: ./gradlew :app:generateReleaseBaselineProfile --stacktrace
+          script: ./gradlew :app:generateReleaseBaselineProfile -Pkotlin.compiler.execution.strategy=in-process --stacktrace
+      - name: "When the profile run failed: the runner's memory and whether the kernel stopped the emulator"
+        if: failure()
+        run: |
+          free -m
+          k=$(sudo dmesg | grep -iE 'out of memory|oom-kill|killed process|segfault|general protection|qemu|emulator' | tail -n 10 || true)
+          echo "${k:-Nothing about memory or the emulator in the kernel log.}"
+          find /tmp/android-* "$HOME/.android" -maxdepth 3 -iname '*crash*' 2> /dev/null | head -n 5 || true
       - name: The Baseline Profile is there
         run: |
           set -euo pipefail
@@ -356,6 +377,7 @@ jobs:
           echo "SMOKE_WALK=$w" >> "$GITHUB_ENV"
           echo "Smoke test: $w"
       - name: "Smoke test: the signed APK on a fresh emulator walks every screen and the probe, alive after 20 s"
+        timeout-minutes: 15
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
@@ -365,7 +387,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash .smoke/tools/android-smoke.sh "$RUNNER_TEMP/release/play-next-android-v$CODE.apk" "$RUNNER_TEMP/smoke" "$SMOKE_WALK"
       - name: Keep the smoke test's logcat and screenshot
