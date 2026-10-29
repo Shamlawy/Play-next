@@ -121,6 +121,8 @@ Fix chat 2 (Oct 28 evening, same branch; 153 tests pass, lintRelease 0 errors at
 - In progress: I + T midnight rollover + header card targets/fixed()/320 by the numbers helper, branch `worktree-agent-a52fa782161d46a29` (pushed when done, report in android/parity/0-perfect/helper-numbers.md).
 - Left: J (Baseline Profile + smoke test walk with a shell-only demo backup), S rest (debug StrictMode + LeakCanary, a Compose stability check in android-check, the other gate 3/6 checks listed as moved in 0.md with the plan amended), V (dead code, plan lines 182/217/236, one time formatter), re-record every screenshot and Read each changed one, release android-v10.
 
+Fix chat 3 (Oct 28-29, same branch; 170 tests pass, lintRelease 0 errors locally): numbers helper merged (I, T midnight, O header card, 320/font fits). J done (data/Demo.kt + tools/android-smoke.sh + BaselineProfileGenerator walk; android-check walks every PR's release build on an emulator, not yet seen passing on CI). S done (Strict: StrictMode log in debug and under the demo switch, listed by the walk; LeakCanary 2.14 debug; tools/compose-check.mjs + android/compose-identity.txt; kill and reopen in the walk; 0.md "Gates" lists what moved to Phase 1). V done (Times, dead code, plan lines). Release files in: release=10, whatsnew v=10, LOG android-v10, screenshots re-recorded and read. The owner asked for lean mode until Monday (weekly limit 82%).
+
 - A. Safe mode → "Opening your games…" forever (safety 1, bugs 1).
 - B. Back after "Use a different restore code" (touch 1, bugs 2).
 - C. Settings sheet: swipe-down closes, scrim closes only on a real tap, double taps (touch 2/5/9, leftovers 4).
