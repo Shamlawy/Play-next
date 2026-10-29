@@ -194,6 +194,13 @@ jobs:
           disable-animations: true
           working-directory: android
           script: ./gradlew :app:generateReleaseBaselineProfile -Pkotlin.compiler.execution.strategy=in-process --stacktrace
+      - name: "When the profile run failed: the runner's memory and whether the kernel stopped the emulator"
+        if: failure()
+        run: |
+          free -m
+          k=$(sudo dmesg | grep -iE 'out of memory|oom-kill|killed process|segfault|general protection|qemu|emulator' | tail -n 10 || true)
+          echo "${k:-Nothing about memory or the emulator in the kernel log.}"
+          find /tmp/android-* "$HOME/.android" -maxdepth 3 -iname '*crash*' 2> /dev/null | head -n 5 || true
       - name: The Baseline Profile is there
         run: |
           set -euo pipefail
