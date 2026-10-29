@@ -169,6 +169,17 @@ jobs:
           echo "Emulator: android-36 $target x86_64, profile ${profile:-the default}"
           echo "target=$target" >> "$GITHUB_OUTPUT"
           echo "profile=$profile" >> "$GITHUB_OUTPUT"
+      # android-v10's first run lost the emulator 95 s into the profile walk while the Gradle and Kotlin daemons (4 GB
+      # each) that had just compiled both APKs sat beside it (android-check's walk did the same until they were stopped):
+      # both APKs are built first, Gradle stops, and the emulator step's Gradle finds them up to date
+      - name: Build the profile run's two APKs, then free the memory Gradle held
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew :app:packageNonMinifiedRelease :baselineprofile:packageNonMinifiedRelease -Pkotlin.compiler.execution.strategy=in-process --stacktrace
+          ./gradlew --stop
+          pkill -f '[K]otlinCompileDaemon' || true
+          free -m
       - name: Baseline Profile on the emulator (debug-signed build)
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -182,7 +193,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           working-directory: android
-          script: ./gradlew :app:generateReleaseBaselineProfile --stacktrace
+          script: ./gradlew :app:generateReleaseBaselineProfile -Pkotlin.compiler.execution.strategy=in-process --stacktrace
       - name: The Baseline Profile is there
         run: |
           set -euo pipefail
