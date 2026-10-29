@@ -179,7 +179,10 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      # -gpu swangle_indirect (ANGLE on SwiftShader): with swiftshader_indirect the emulator died as the app drew (android-v10:
+      # after a cold start, mid-walk, 95 s into the profile run) with memory to spare; a step timeout lets the failure log run
       - name: "Walk the release build on an emulator: Home, every tab, a view swipe, a game page, Settings, the probe"
+        timeout-minutes: 15
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
@@ -188,15 +191,17 @@ jobs:
           cores: 4
           ram-size: 4096M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash "$GITHUB_WORKSPACE/tools/android-smoke.sh" "$GITHUB_WORKSPACE/android/app/build/outputs/apk/release/app-release.apk" "$RUNNER_TEMP/smoke"
       - name: "When the walk failed: the runner's memory and whether the kernel stopped the emulator"
         if: failure()
         run: |
           free -m
-          oom=$(sudo dmesg | grep -iE 'out of memory|oom-kill|killed process' | tail -n 5 || true)
-          echo "${oom:-No out-of-memory kill in the kernel's log.}"
+          # no apostrophe inside "${...}": bash reads it as an open quote (the step died on one, android-v10)
+          k=$(sudo dmesg | grep -iE 'out of memory|oom-kill|killed process|segfault|general protection|qemu|emulator' | tail -n 10 || true)
+          echo "${k:-Nothing about memory or the emulator in the kernel log.}"
+          find /tmp/android-* "$HOME/.android" -maxdepth 3 -iname '*crash*' 2> /dev/null | head -n 5 || true
       - name: Keep the walk's pictures and logcat
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
