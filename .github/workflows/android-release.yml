@@ -180,7 +180,10 @@ jobs:
           ./gradlew --stop
           pkill -f '[K]otlinCompileDaemon' || true
           free -m
+      # -gpu swangle_indirect (ANGLE on SwiftShader): with swiftshader_indirect the emulator died as the app drew (android-v10:
+      # after a cold start, mid-walk, 95 s into the profile run) with memory to spare; a step timeout lets the failure log run
       - name: Baseline Profile on the emulator (debug-signed build)
+        timeout-minutes: 30
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
@@ -190,7 +193,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           working-directory: android
           script: ./gradlew :app:generateReleaseBaselineProfile -Pkotlin.compiler.execution.strategy=in-process --stacktrace
@@ -374,6 +377,7 @@ jobs:
           echo "SMOKE_WALK=$w" >> "$GITHUB_ENV"
           echo "Smoke test: $w"
       - name: "Smoke test: the signed APK on a fresh emulator walks every screen and the probe, alive after 20 s"
+        timeout-minutes: 15
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
@@ -383,7 +387,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash .smoke/tools/android-smoke.sh "$RUNNER_TEMP/release/play-next-android-v$CODE.apk" "$RUNNER_TEMP/smoke" "$SMOKE_WALK"
       - name: Keep the smoke test's logcat and screenshot
