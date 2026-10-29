@@ -1,5 +1,8 @@
 package io.github.shamlawy.playnext.ui
 
+import android.content.ClipDescription
+import android.content.ClipboardManager
+import android.os.PersistableBundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -57,10 +64,12 @@ fun RestoreScreen(onSkip: () -> Unit, onDone: () -> Unit) {
     // not saved with the screen: the code never sits in Android's saved state
     var text by remember { mutableStateOf("") }
     var why by rememberSaveable { mutableStateOf<String?>(null) }
-    var busy by rememberSaveable { mutableStateOf(false) }
+    // not saved either: the restore that set it doesn't outlive the screen, so a saved "busy" would stick forever
+    var busy by remember { mutableStateOf(false) }
     val ok = Code.normalize(text).isNotEmpty()
     val go = {
-        if (ok && !busy) {
+        if (!ok) why = Games.NOT_A_CODE
+        else if (!busy) {
             busy = true
             why = null
             scope.launch {
@@ -95,27 +104,31 @@ fun RestoreScreen(onSkip: () -> Unit, onDone: () -> Unit) {
                 contentAlignment = Alignment.CenterStart,
             ) {
                 if (text.isEmpty()) BasicText("PN-XXXX-XXXX-XXXX-XXXX-XXXX", style = Type.body.copy(color = Pn.mute), softWrap = false, maxLines = 1)
-                BasicTextField(
-                    value = text,
-                    onValueChange = { text = it.take(40); why = null },
-                    singleLine = true,
-                    textStyle = Type.body.copy(letterSpacing = Type.label.letterSpacing),
-                    cursorBrush = SolidColor(look.volt),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Characters,
-                        autoCorrectEnabled = false,
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done,
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { go() }),
-                    modifier = Modifier.fillMaxWidth().semantics {
-                        contentDescription = "Restore code"
-                        contentType = ContentType.Password
-                    },
-                )
+                // a copied code carries Android's sensitive mark, so the clipboard's preview doesn't show it
+                val clip = LocalClipboard.current
+                CompositionLocalProvider(LocalClipboard provides remember(clip) { SensitiveClipboard(clip) }) {
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { text = it.take(40); why = null },
+                        singleLine = true,
+                        textStyle = Type.body.copy(letterSpacing = Type.label.letterSpacing),
+                        cursorBrush = SolidColor(look.volt),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters,
+                            autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { go() }),
+                        modifier = Modifier.fillMaxWidth().semantics {
+                            contentDescription = "Restore code"
+                            contentType = ContentType.Password
+                        },
+                    )
+                }
             }
             why?.let { BasicText(it, style = Type.note.copy(color = Pn.hot)) }
-            Btn(if (busy) "Bringing your games…" else "Bring my games", primary = ok) { go() }
+            Btn(if (busy) "Bringing your games…" else "Bring my games", primary = ok, modifier = Modifier.fillMaxWidth()) { go() }
             Box(
                 Modifier.fillMaxWidth().sizeIn(minHeight = Pn.touch).clickable(role = Role.Button, onClick = onSkip),
                 contentAlignment = Alignment.Center,
@@ -126,4 +139,16 @@ fun RestoreScreen(onSkip: () -> Unit, onDone: () -> Unit) {
             )
         }
     }
+}
+
+/** The platform clipboard, with every clip it's given marked sensitive (ClipDescription.EXTRA_IS_SENSITIVE). */
+internal class SensitiveClipboard(private val base: Clipboard) : Clipboard {
+    override suspend fun getClipEntry(): ClipEntry? = base.getClipEntry()
+
+    override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+        clipEntry?.clipData?.description?.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
+        base.setClipEntry(clipEntry)
+    }
+
+    override val nativeClipboard: ClipboardManager get() = base.nativeClipboard
 }

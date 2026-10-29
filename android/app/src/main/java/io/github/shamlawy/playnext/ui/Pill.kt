@@ -58,6 +58,10 @@ import java.util.Locale
  */
 class SwipeGuard {
     var inScroller = false
+
+    /** When the last finger lifted, and when what's open last changed (that lift's time): see Shell's settle. */
+    var lastUp = Long.MIN_VALUE / 2
+    var settle = Long.MIN_VALUE / 2
 }
 
 val LocalSwipeGuard = staticCompositionLocalOf { SwipeGuard() }
@@ -80,8 +84,12 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
     // where the segment was last placed; a new set of views (another tab) has none and draws it in place, like the
     // web's rebuilt pill
     val placed = remember(views) { Spot() }
-    // one slide per pick, made while composing: the frame the pick lands in already draws the segment at its old spot
-    val slide = remember(views, on) { Slide(placed.x, placed.w, still = calm || placed.w == 0f) }
+    // one slide per pick, made while composing: the frame the pick lands in already draws the segment at its old spot,
+    // or, picked again mid-slide, where that slide has it right now (never a jump back to the last pick's end)
+    val slide = remember(views, on) {
+        val was = placed.slide
+        Slide(was?.drawnX(placed.x) ?: placed.x, was?.drawnW(placed.w) ?: placed.w, still = calm || placed.w == 0f).also { placed.slide = it }
+    }
     LaunchedEffect(slide) { slide.play() }
     Box(
         modifier
@@ -116,8 +124,9 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
                             contentAlignment = Alignment.Center,
                         ) {
                             val text = label.uppercase(Locale.ROOT)
-                            BasicText(text, style = PILL.copy(color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = 1f - a })
-                            BasicText(text, style = PILL.copy(color = Pn.void), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = a })
+                            val style = PILL.fixed()
+                            BasicText(text, style = style.copy(color = Pn.mute), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = 1f - a })
+                            BasicText(text, style = style.copy(color = Pn.void), softWrap = false, maxLines = 1, modifier = Modifier.graphicsLayer { alpha = a })
                         }
                     }
                 }
@@ -147,6 +156,9 @@ fun ViewPill(views: List<Pair<String, String>>, on: String, screen: Dp, pick: (S
 private class Spot {
     var x = 0f
     var w = 0f
+
+    /** The slide drawing it now. */
+    var slide: Slide? = null
 }
 
 /** One move of the lit segment from where it was ([fromX], [fromW]) to its new spot: 280ms, translate + scaleX. */
@@ -156,6 +168,12 @@ private class Slide(private val fromX: Float, private val fromW: Float, still: B
     suspend fun play() {
         if (p.value < 1f) p.animateTo(1f, tween(280, easing = Ease.slide))
     }
+
+    /** Where this slide draws the left edge of a segment placed at [x] at this moment (scaled from the left edge). */
+    fun drawnX(x: Float) = if (p.value >= 1f) x else x + (fromX - x) * (1f - p.value)
+
+    /** And its drawn width, for a segment [w] wide. */
+    fun drawnW(w: Float) = if (p.value >= 1f || w <= 0f) w else fromW + (w - fromW) * p.value
 
     fun GraphicsLayerScope.draw(x: Float, w: Float) {
         val v = p.value

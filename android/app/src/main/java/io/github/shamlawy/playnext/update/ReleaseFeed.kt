@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /** A release the phone could install. */
+@Serializable
 data class Release(val code: Int, val apkUrl: String, val size: Long, val sha256: String?, val shaUrl: String?)
 
 /** Reading GitHub's release list (or the fixed-name text asset when the API is busy). Pure, so JVM tests can check it. */
@@ -32,6 +33,13 @@ object ReleaseFeed {
             val sha = r.assets.firstOrNull { it.name == apkName(code) + ".sha256" }
             Release(code, apk.browser_download_url, apk.size, apk.digest?.removePrefix("sha256:")?.takeIf { it.length == 64 }, sha?.browser_download_url)
         }
+
+    /** The pick as kept for the next 304 ("" = nothing newer): a few hundred bytes, not the 95 KB list. */
+    fun keep(r: Release?): String = if (r == null) "" else json.encodeToString(Release.serializer(), r)
+
+    /** The kept pick, while it's still newer than [current] (the app may have updated to it since). */
+    fun kept(s: String?, current: Int): Release? =
+        s?.takeIf { it.isNotEmpty() }?.let { runCatching { json.decodeFromString(Release.serializer(), it) }.getOrNull() }?.takeIf { it.code > current }
 
     /** `android-latest.txt`: "<code> <sha256> <size> android-v<code>". */
     fun pickLatestTxt(text: String, current: Int): Release? {

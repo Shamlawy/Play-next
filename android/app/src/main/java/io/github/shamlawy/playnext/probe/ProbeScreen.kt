@@ -42,13 +42,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
@@ -56,7 +54,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -78,19 +75,18 @@ import kotlin.math.abs
 
 private const val CARDS = 40
 private const val FLING_MS = 10_000L
-private const val REST_MS = 5_000L
 
 /**
  * The 120 Hz test (Phase 0 gate 2): the real background, 40 full-picture cards with a see-through strap, one endless
- * loop and a scripted 10 s fling, then 5 s at rest. It times every frame and the screen's refresh rate. A fail tries
- * again asking for high frame rates (Compose's preferredFrameRate), then for the highest display mode.
+ * loop and a scripted 10 s fling. It times every frame and the screen's refresh rate. One plain try, as every other
+ * screen runs: the tries that asked for high frame rates and then the highest display mode served only the first proof
+ * (Phase 0's Perfect run, the owner's call).
  */
 @Composable
 fun ProbeScreen(done: () -> Unit) {
     val activity = LocalActivity.current ?: return
     val list = rememberLazyListState()
     val decay = rememberSplineBasedDecay<Float>()
-    var attempt by remember { mutableIntStateOf(1) }
     var phase by remember { mutableStateOf("Getting ready") }
     var lines by remember { mutableStateOf(listOf<String>()) }
     var verdict by remember { mutableStateOf<String?>(null) }
@@ -101,33 +97,20 @@ fun ProbeScreen(done: () -> Unit) {
         rec.start()
         onDispose {
             rec.stop()
-            Modes.reset(activity)
         }
     }
     LaunchedEffect(pictures) {
         if (pictures == null) return@LaunchedEffect
-        val results = mutableListOf<ProbeMath.Result>()
-        for (a in 1..3) {
-            attempt = a
-            if (a == 3) Modes.highest(activity)
-            phase = "Warming up"
-            list.scrollToItem(0)
-            delay(1_500)
-            phase = "Flinging"
-            rec.begin(a)
-            fling(list, decay, FLING_MS)
-            val r = rec.end()
-            results += r
-            lines = results.map { it.line() }
-            phase = "Resting"
-            delay(REST_MS)
-            if (r.pass) break
-        }
-        val ok = results.last().pass
-        verdict = if (ok) "Passed: smooth at 120 Hz" + (if (results.size > 1) " (attempt ${results.size})" else "")
-        else "Not smooth at 120 Hz yet: sent to Claude"
+        phase = "Warming up"
+        delay(1_500)
+        phase = "Flinging"
+        rec.begin(1)
+        fling(list, decay, FLING_MS)
+        val r = rec.end()
+        lines = listOf(r.line())
+        verdict = if (r.pass) "Passed: smooth at 120 Hz" else "Not smooth at 120 Hz yet: sent to Claude"
         phase = "Done"
-        send(activity, results)
+        send(activity, listOf(r))
     }
 
     val blink = rememberInfiniteTransition(label = "blink").animateFloat(
@@ -143,8 +126,7 @@ fun ProbeScreen(done: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .then(if (attempt >= 2) Modifier.preferredFrameRate(FrameRateCategory.High) else Modifier),
+                .windowInsetsPadding(WindowInsets.safeDrawing),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             items(CARDS, key = { it }) { i -> PictureCard(i, pics?.let { it[i % it.size] }) }
@@ -159,7 +141,7 @@ fun ProbeScreen(done: () -> Unit) {
                 .graphicsLayer { alpha = blink.value }
                 .background(Pn.volt, CircleShape),
         )
-        Panel(phase, attempt, lines, verdict, done, Modifier.align(Alignment.BottomCenter))
+        Panel(phase, lines, verdict, done, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -198,7 +180,7 @@ private val Strap = GenericShape { size, _ ->
 }
 
 @Composable
-private fun Panel(phase: String, attempt: Int, lines: List<String>, verdict: String?, done: () -> Unit, modifier: Modifier) {
+private fun Panel(phase: String, lines: List<String>, verdict: String?, done: () -> Unit, modifier: Modifier) {
     Column(
         modifier
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -211,7 +193,7 @@ private fun Panel(phase: String, attempt: Int, lines: List<String>, verdict: Str
     ) {
         BasicText("120 Hz test", style = TextStyle(color = Pn.ice, fontSize = 18.sp, fontWeight = FontWeight.SemiBold))
         BasicText(
-            verdict ?: "$phase · attempt $attempt of 3. Don't touch the screen.",
+            verdict ?: "$phase. Don't touch the screen.",
             style = TextStyle(color = if (verdict == null) Pn.mute else Pn.ice, fontSize = 14.sp),
         )
         for (l in lines) BasicText(l, style = TextStyle(color = Pn.mute, fontSize = 12.sp))
@@ -257,22 +239,6 @@ private suspend fun fling(list: LazyListState, decay: DecayAnimationSpec<Float>,
 
 private fun decodePictures(a: Activity): List<ImageBitmap> = listOf(R.drawable.probe_art_1, R.drawable.probe_art_2).mapNotNull { id ->
     runCatching { BitmapFactory.decodeResource(a.resources, id)?.also { it.prepareToDraw() }?.asImageBitmap() }.getOrNull()
-}
-
-/** Asking the window for the highest refresh rate at the current resolution, and giving the choice back afterwards. */
-private object Modes {
-    fun highest(a: Activity) {
-        val d = a.display ?: return
-        val cur = d.mode
-        val best = d.supportedModes
-            .filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
-            .maxByOrNull { it.refreshRate } ?: return
-        a.window.attributes = a.window.attributes.also { it.preferredDisplayModeId = best.modeId }
-    }
-
-    fun reset(a: Activity) {
-        if (a.window.attributes.preferredDisplayModeId != 0) a.window.attributes = a.window.attributes.also { it.preferredDisplayModeId = 0 }
-    }
 }
 
 /** Times frames during the fling: Choreographer for the rhythm, JankStats for how long each frame took. */

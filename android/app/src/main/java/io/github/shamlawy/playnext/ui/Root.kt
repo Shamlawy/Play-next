@@ -5,8 +5,10 @@ import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
@@ -20,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.platform.LocalContext
@@ -113,9 +116,13 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
     var nav by rememberSaveable(stateSaver = Nav.Saver) { mutableStateOf(Nav()) }
     // "Not now" on the restore screen: the tabs without your games, until the next start
     var skipped by rememberSaveable { mutableStateOf(false) }
+    // your games have shown in this run of the app (kept with the screen: a fold or Samsung closing the app in the
+    // background never starts it over)
+    var started by rememberSaveable { mutableStateOf(false) }
 
-    // something shared into the app: Add shows the game it names (adding it comes with Add's phase)
-    var shared by remember { mutableStateOf<Shared?>(null) }
+    // something shared into the app: Add shows the game it names (adding it comes with Add's phase); kept when Android
+    // recreates the app, since the link that brought it is read only once
+    var shared by rememberSaveable(stateSaver = SharedSaver) { mutableStateOf<Shared?>(null) }
 
     // the switches the kit reads away from the screens: Sounds, Nexi's voice, the swipe buzz
     LaunchedEffect(prefs) {
@@ -148,7 +155,9 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
             }
             is Route.Game -> {
                 val l = (st as? Games.State.Ready)?.lib
-                val id = r.id ?: l?.let { Rank(it, System.currentTimeMillis(), ZoneId.systemDefault()).onDeck(1).firstOrNull()?.id }
+                // On deck's first game: the Queue card's "Up next", already worked out off the main thread with your games
+                val id = r.id ?: (st as? Games.State.Ready)?.cards?.get("queue")?.line?.g?.id
+                    ?: l?.let { Rank(it, System.currentTimeMillis(), ZoneId.systemDefault()).onDeck(1).firstOrNull()?.id }
                 // on top of where you were: back returns there
                 if (l != null && l.games.any { it.id == id }) nav.open("game:$id") else nav.go("home")
             }
@@ -173,13 +182,31 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                     ProbeScreen(done = { nav = nav.back() })
                 }
                 nav.overlay == "code" || games is Games.State.NoCode && !skipped -> {
-                    BackHandler(enabled = nav.overlay == "code") { nav = nav.back() }
+                    // closing the code step counts as "Not now" too: after "Use a different restore code" there's no
+                    // code any more, and the restore screen would stay up with nothing left to close (the next back
+                    // would leave the app)
+                    val close = {
+                        if (nav.overlay == "code") nav = nav.back()
+                        skipped = true
+                    }
+                    BackHandler(enabled = nav.overlay == "code") { close() }
                     RestoreScreen(
-                        onSkip = { if (nav.overlay == "code") nav = nav.back() else skipped = true },
+                        onSkip = close,
                         onDone = { if (nav.overlay == "code") nav = nav.back() },
                     )
                 }
+                // this phone's copy is still opening (a moment, under the splash): the tabs wait for it, so a scroll spot
+                // Android kept for them isn't cut to fit a page that's still short
+                games is Games.State.Starting -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    BasicText("Opening your games…", style = Type.note)
+                }
                 else -> {
+                    // the first time your games show: Settings › Open the app on, as the web app does at start; a link
+                    // that opened the app goes on from there (it runs after this), and a screen you opened already stays
+                    if (!started && games is Games.State.Ready) {
+                        started = true
+                        prefs.start?.let { (t, v) -> if (nav == Nav()) nav = Nav(t).let { n -> v?.let { n.view(t, it) } ?: n } }
+                    }
                     BackHandler(enabled = nav.canGoBack) { nav = nav.back() }
                     CompositionLocalProvider(LocalShared provides shared) {
                         kept.SaveableStateProvider("shell") { Shell(nav, games, go = { nav = it }) }
@@ -208,6 +235,12 @@ fun Frame(look: Look, prefs: Prefs = Prefs(), now: () -> Long = System::currentT
         AppBackground(Modifier.fillMaxSize(), base = look.bgBase, tint = look.bgTint, grad = look.bgGrad, content = content)
     }
 }
+
+/** What was shared, kept with the screen: the game's name and its Steam id. */
+private val SharedSaver = listSaver<Shared?, String>(
+    save = { s -> if (s == null) emptyList() else listOf(s.name, s.steam.toString()) },
+    restore = { l -> if (l.size < 2) null else Shared(l[0], l[1].toIntOrNull() ?: 0) },
+)
 
 /** The time "now" for what a screen says (as of, days away): the phone's clock, a fixed one in the screenshot tests. */
 val LocalNow = staticCompositionLocalOf<() -> Long> { System::currentTimeMillis }

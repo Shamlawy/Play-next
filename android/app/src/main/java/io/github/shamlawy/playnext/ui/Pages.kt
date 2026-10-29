@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,13 +27,12 @@ import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.JsDate
-import io.github.shamlawy.playnext.gen.Web
+import io.github.shamlawy.playnext.data.Times
 import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.update.WhatsNew
-import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * What each tab shows until its own phase builds it: Home your games at a glance; every view of Games, Plan and Taste,
@@ -54,10 +56,10 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
         else -> tab
     }
     val ready = games as? Games.State.Ready
-    if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen) else PlainTitle(title, wide)
+    if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen, ready.cards) else PlainTitle(title, wide)
     if (!prefs.pill && views.isNotEmpty()) ViewChips(views, v, pickView)
     if (ready == null) {
-        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting((games as? Games.State.Fetching)?.why, askCode) }
+        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting(games as? Games.State.Fetching, askCode) }
         return
     }
     if (tab == "add") LocalShared.current?.let { SharedCard(it) }
@@ -93,14 +95,12 @@ private val SOON = mapOf(
 /** Home's panel (`.dxw`: `--u-pan`, round 28): the folded tab bar's open tile runs into its top. */
 @Composable
 private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
-    val ctx = LocalContext.current
     val code = BuildConfig.VERSION_CODE
     // "Updated to vN" once, at the first open after an update (no notification until Phase 9, G15)
     val updated = remember {
         val to = Store.prefs.getInt("updatedTo", 0)
         (to == code && Store.prefs.getInt("updatedSeen", 0) != code).also { if (it) Store.prefs.edit().putInt("updatedSeen", code).apply() }
     }
-    val news = remember { runCatching { ctx.assets.open("whatsnew.txt").bufferedReader().use { WhatsNew.parse(it.readText()) } }.getOrDefault(emptyList()) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -110,9 +110,11 @@ private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (updated) {
+            val ctx = LocalContext.current
+            val say by produceState(News.said) { value = News.say(ctx.applicationContext, code) }
             Card {
                 BasicText("Updated to v$code", style = Type.head)
-                news.lastOrNull { it.v == code }?.let { BasicText(it.say.replace(Regex("<[^>]+>"), ""), style = Type.note) }
+                say?.takeIf { it.isNotEmpty() }?.let { BasicText(it, style = Type.note) }
             }
         }
         when (games) {
@@ -125,11 +127,22 @@ private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
                 Counts(games.lib.counts())
                 BasicText("Home itself arrives in phase 3. This app is a practice copy: it reads your games and changes nothing.", style = Type.note)
             }
-            is Games.State.Fetching -> Waiting(games.why, askCode)
+            is Games.State.Fetching -> Waiting(games, askCode)
             Games.State.Starting -> BasicText("Opening your games…", style = Type.note)
             Games.State.NoCode -> NoGames(askCode)
         }
     }
+}
+
+/** This version's whatsnew.txt line for "Updated to vN": read once, off the main thread, never in composition (speed 7). */
+private object News {
+    @Volatile var said: String? = null
+        private set
+
+    suspend fun say(ctx: Context, code: Int): String = said ?: withContext(Dispatchers.IO) {
+        runCatching { ctx.assets.open("whatsnew.txt").bufferedReader().use { WhatsNew.parse(it.readText()) } }.getOrDefault(emptyList())
+            .lastOrNull { it.v == code }?.say?.replace(Regex("<[^>]+>"), "").orEmpty()
+    }.also { said = it }
 }
 
 /** "Your games as of 2:05 PM", and a warning once the copy is over a day old. */
@@ -147,12 +160,7 @@ private fun AsOf(r: Games.State.Ready) {
 }
 
 /** "Your games as of 2:05 PM" today, "as of Oct 25, 2:05 PM" before (the phone's own time, 12-hour). */
-fun asOfLine(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
-    val t = Instant.ofEpochMilli(at).atZone(zone)
-    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-    val time = t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-    return "Your games as of " + if (t.toLocalDate() == today) time else t.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) + ", " + time
-}
+fun asOfLine(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String = "Your games as of " + Times.at(at, now, zone)
 
 /** How many in each state (the web app's STATES words), as stat tiles. */
 @Composable
@@ -173,13 +181,17 @@ private fun Counts(counts: List<Pair<String, Int>>) {
     }
 }
 
+/** A copy that hasn't come yet ([f] null while starting): why, when it last tried, and Try again. */
 @Composable
-private fun Waiting(why: String?, askCode: () -> Unit) {
+private fun Waiting(f: Games.State.Fetching?, askCode: () -> Unit) {
     val ctx = LocalContext.current
+    val why = f?.why
+    val (busy, again) = lookAgain(f?.checking == true)
     BasicText("Your games", style = Type.title(false))
-    BasicText(why ?: "Fetching your games from the cloud backup…", style = Type.note)
+    BasicText(if (busy || why == null) "Fetching your games from the cloud backup…" else why, style = Type.note)
     if (why != null) {
-        Btn("Try again", primary = true) { Games.checkNow(ctx) }
+        lookedLine(ok = false)?.let { BasicText(it, style = Type.note) }
+        Btn(if (busy) "Trying again…" else "Try again", primary = true, onClick = again)
         Btn("Use a different restore code") { Games.forget(ctx); askCode() }
     }
 }
@@ -197,12 +209,10 @@ private fun QueueSoon(ready: Games.State.Ready) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BasicText("The Queue arrives in phase 1. Until then, your games as they came from the backup:", style = Type.note)
         val now = LocalNow.current()
-        for ((key, label) in Web.STATES) {
-            val list = ready.lib.games.filter { it.state == key }.sortedWith(compareBy<Game> { it.ord }.thenBy { it.title })
-            if (list.isEmpty()) continue
+        for (group in ready.lib.byState) {
             Card {
-                BasicText("$label · ${list.size}", style = Type.kicker)
-                for (g in list) GameLine(g, if (key == "upcoming") JsDate.days(g.date, now).ifEmpty { "No date yet" } else "")
+                BasicText("${group.label} · ${group.games.size}", style = Type.kicker)
+                for (g in group.games) GameLine(g, if (group.state == "upcoming") JsDate.days(g.date, now).ifEmpty { "No date yet" } else "")
             }
         }
     }

@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -12,12 +13,14 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,11 +44,24 @@ object Fonts {
         Font(R.font.poppins_700, FontWeight.Black),
     )
 
-    /** Archivo italic 900 condensed, the "Persona" display face (`.pnw-slab b`). */
+    /**
+     * Archivo italic 900, the "Persona" display face, at its default width as `.pnw-slab b` draws it (the web's other
+     * Archivo rules set their own `wdth`, 60-84: their screens bring their own faces).
+     */
     val archivo = FontFamily(
-        Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(900), FontVariation.width(62f))),
+        Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(900), FontVariation.width(100f))),
         Font(R.font.archivo, weight = FontWeight.ExtraBold, style = FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(800), FontVariation.width(100f))),
     )
+
+    /**
+     * Reads the fonts the first screens draw, once, off the main thread (in Compose's shared cache): the first tab switch
+     * read the 741 KB Archivo italic on the main thread mid-slash.
+     */
+    fun warm(ctx: Context) {
+        val r = createFontFamilyResolver(ctx)
+        r.resolve(archivo, FontWeight.Black, FontStyle.Italic)
+        for (w in listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold)) r.resolve(poppins, w)
+    }
 
     val playfair = FontFamily(
         Font(R.font.playfair, weight = FontWeight.SemiBold, style = FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
@@ -68,6 +84,9 @@ object Type {
         fontSize = if (wide) 30.sp else 26.sp, lineHeight = if (wide) 33.sp else 28.6.sp,
         fontWeight = FontWeight.Bold, letterSpacing = (-0.015).em, lineBreak = LineBreak.Heading,
     )
+
+    /** A sheet's title (`.ehead h3`, Settings): 22, 700. */
+    val sheetTitle = base.copy(fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, lineBreak = LineBreak.Heading)
 
     /** A card's heading (Settings group head): 14.5 600. */
     val head = base.copy(fontSize = 14.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, lineBreak = LineBreak.Heading)
@@ -92,6 +111,21 @@ object Type {
 
     /** The folded tab bar's current label: 600 10/1, .01em, white. */
     val tab = base.copy(fontSize = 10.sp, lineHeight = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.01.em, color = Pn.white)
+}
+
+/** The most a fixed-size label grows with the phone's font size (critic G4): body text scales freely. */
+const val FIXED_SCALE_MAX = 1.3f
+
+/**
+ * This style for a fixed-size label (a tab's name, the pill's views, header numbers, straps, tickets): it grows with
+ * the phone's font size up to [FIXED_SCALE_MAX], then stays, so a big font setting can't push it out of its tile.
+ */
+@Composable
+fun TextStyle.fixed(): TextStyle {
+    val scale = LocalDensity.current.fontScale
+    if (scale <= FIXED_SCALE_MAX) return this
+    val k = FIXED_SCALE_MAX / scale
+    return copy(fontSize = fontSize * k, lineHeight = if (lineHeight.isSp) lineHeight * k else lineHeight)
 }
 
 /**

@@ -32,7 +32,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                 Updater.set(Updater.State.Blocked(why))
                 Reporter.report("error", "An update to v$code was blocked by Android", note = msg)
             }
-            PackageInstaller.STATUS_FAILURE_ABORTED -> Updater.needsTap(code) // "Cancel" on Android's screen: Home keeps the button
+            PackageInstaller.STATUS_FAILURE_ABORTED -> Updater.needsTap(code) // "Cancel" on Android's screen: Settings keeps the Install button
             else -> {
                 Updater.set(Updater.State.Failed("Android said: ${msg.ifBlank { "status $status" }}"))
                 Reporter.report("error", "An update to v$code failed with status $status", note = msg)

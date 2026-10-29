@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +53,9 @@ fun SlashWipe(label: String, key: Int, done: () -> Unit) {
         end()
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val big = (maxWidth.value * .17f).coerceIn(56f, 112f).sp // clamp(56px, 17vw, 112px)
+        // clamp(56px, 17vw, 112px): sized by the screen, so the phone's font size leaves it alone (a bigger one would run
+        // the word off the slab)
+        val big = with(LocalDensity.current) { (maxWidth.value * .17f).coerceIn(56f, 112f).dp.toSp() }
         Box(
             Modifier
                 .fillMaxSize()

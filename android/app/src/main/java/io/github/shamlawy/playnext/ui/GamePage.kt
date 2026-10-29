@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,10 +59,12 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Pic
@@ -100,7 +103,7 @@ private val FLY = CubicBezierEasing(.3f, .9f, .35f, 1f)
  * this page" off (`S.hubAnim`), it simply opens and closes.
  */
 @Composable
-fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> Unit) {
+fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () -> Unit = {}, covers: (Boolean) -> Unit = {}, close: () -> Unit) {
     val calm = LocalCalm.current
     val motion = !calm && LocalPrefs.current.hubAnim
     // a page you come back to (back from one opened on top of it) is already open: no second grow or flight
@@ -112,9 +115,15 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
     LaunchedEffect(Unit) {
         opened = true
         grow.animateTo(1f, tween(300, easing = Ease.house))
+        // grown: the page hides all that's under it, so that stops drawing (Android draws covered layers every frame);
+        // not when back came during the grow (the page is already shrinking off what's under it)
+        if (!closing) covers(true)
     }
+    DisposableEffect(Unit) { onDispose { covers(false) } }
     LaunchedEffect(closing) {
         if (!closing) return@LaunchedEffect
+        covers(false)
+        shrinking()
         if (!calm) shut.animateTo(1f, tween(220, easing = SHUT))
         end()
     }
@@ -160,8 +169,8 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
                 }
                 .onGloballyPositioned { at[1] = it }
                 .background(Pn.void)
-                .clickable(onClick = {}, indication = null, interactionSource = null)
-                .semantics { contentDescription = "Game page" },
+                .ownTaps()
+                .semantics { paneTitle = "Game page" },
         ) {
             val heroH = (maxHeight * if (wide) .58f else .52f).coerceIn(270.dp, if (wide) 560.dp else 460.dp)
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -170,7 +179,9 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, .55f to Pn.void.copy(alpha = .35f), 1f to Pn.void)))
                 }
                 Column(
-                    Modifier.widthIn(max = 880.dp).fillMaxWidth().offset(y = (-56).dp).padding(horizontal = if (wide) 28.dp else 20.dp),
+                    Modifier.widthIn(max = 880.dp).fillMaxWidth().offset(y = (-56).dp)
+                        // unfolded, the rail stays over the page: its words keep clear of it (`#full .gd-body`, 104)
+                        .padding(start = if (wide) 28.dp else 20.dp, end = if (wide) 104.dp else 20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -201,19 +212,30 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, close: () -> U
                     }
                 }
             }
+            // Back, top right (`#full .hub .fullx`, index.html 16523): 16 in, 100 unfolded where the rail sits
             Box(
                 Modifier
+                    .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(12.dp)
+                    .padding(top = 8.dp, end = if (wide) 92.dp else 8.dp)
                     .sizeIn(minWidth = Pn.touch, minHeight = Pn.touch)
                     .clickable(role = Role.Button) { closing = true }
-                    .semantics { contentDescription = "Close" },
+                    .semantics { contentDescription = "Back" },
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText("Close", style = Type.label.copy(color = Pn.white), modifier = Modifier.background(Pn.void.copy(alpha = .55f), Pn.pill).padding(horizontal = 14.dp, vertical = 8.dp))
+                BasicText(
+                    "Back",
+                    style = Type.button.copy(fontSize = 14.sp, color = Pn.ice),
+                    modifier = Modifier
+                        .background(Pn.pan.copy(alpha = .82f), Pn.pill)
+                        .border(1.dp, Pn.line2, Pn.pill)
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                )
             }
         }
-        flight?.let { f -> FlyingCover(f, g) }
+        // the cover in flight goes with the page when it's closed mid-flight (it was left opaque over the fading page,
+        // then cut off mid-air)
+        flight?.let { f -> FlyingCover(f, g) { 1f - shut.value } }
     }
 }
 
@@ -224,7 +246,7 @@ private class Flight(val rest: Rect, val src: Rect) {
 
 /** The copy that flies: placed at the resting box, moved there from the tapped cover by its layer alone. */
 @Composable
-private fun FlyingCover(f: Flight, g: Game) {
+private fun FlyingCover(f: Flight, g: Game, seen: () -> Float) {
     val d = LocalDensity.current
     val shape = RoundedCornerShape(16.dp)
     val r = f.rest
@@ -239,6 +261,7 @@ private fun FlyingCover(f: Flight, g: Game) {
                 // the web's keyframes on one eased clock: lift off (translate + the tapped size) → 72%: on the spot, 1.06
                 // and -6° → settle at 1 and -4°
                 val p = f.p.value
+                alpha = seen()
                 if (p <= .72f) {
                     val k = p / .72f
                     translationX = fx * (1f - k)

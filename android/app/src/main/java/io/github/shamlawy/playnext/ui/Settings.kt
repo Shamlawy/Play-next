@@ -4,6 +4,23 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,6 +69,7 @@ import androidx.profileinstaller.ProfileVerifier
 import io.github.shamlawy.playnext.BuildConfig
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
+import io.github.shamlawy.playnext.data.Times
 import io.github.shamlawy.playnext.kit.Big
 import io.github.shamlawy.playnext.kit.Buzz
 import io.github.shamlawy.playnext.kit.Sfx
@@ -62,57 +81,134 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * Settings, until its own phase (7) brings the real one: your backup, updates, the one-time install switch, the 120 Hz
- * test and Report a problem (the web app keeps these under Your data and This build). A sheet over the tabs: `--u-pan`,
- * round 28 at the top (all four corners when wide), the grab handle; back or Done closes it.
+ * test and Report a problem (the web app keeps these under Your data and This build). A sheet like the web's
+ * `.sheet-in` (index.html 1561, 16531): over a `--void` .86 scrim, at most 620 wide and centred, 4% of the screen down
+ * from the top, `--u-pan` and round 28 at the top (all four corners from 660 wide), the grab handle, a 22/700 title
+ * and Close at its foot. It scrolls as one, scrim and all. Back, Close, a tap on the scrim or a swipe down from its top
+ * closes it; the sheet follows the finger down (its layer only, nothing shrinks: #309) and springs back when let go
+ * early.
  */
 @Composable
-fun SettingsSheet(games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
-    val shape = if (wide) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
-    Box(Modifier.fillMaxSize().background(Pn.void.copy(alpha = 0.6f)).clickable(onClick = close, indication = null, interactionSource = null)) {
+fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
+    BoxWithConstraints(modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
+        val round = maxWidth >= 660.dp
+        val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
+        val gap = maxHeight * .04f
+        val pull = rememberPull(close, constraints.maxHeight.toFloat())
         Column(
             Modifier
-                .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 12.dp, bottom = if (wide) 12.dp else 0.dp)
-                // unfolded: the rail's 96 stays clear, as the page leaves it (the sheet ran under the rail's edge)
-                .padding(end = if (wide) 96.dp else 0.dp)
-                .widthIn(max = 720.dp)
-                .fillMaxWidth()
-                .clip(shape) // the cards scroll under the rounded corners, never past them
-                .background(Pn.pan, shape)
-                .border(1.dp, Pn.line2, shape)
-                .clickable(onClick = {}, indication = null, interactionSource = null),
+                .fillMaxSize()
+                .scrimTap(close)
+                .nestedScroll(pull.connection)
+                .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
+                .padding(top = gap, bottom = gap)
+                .graphicsLayer { translationY = pull.offset },
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(40.dp, 4.dp).background(Pn.line2, RoundedCornerShape(4.dp)))
-            }
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BasicText("Settings", style = Type.title(wide), modifier = Modifier.weight(1f))
-                Box(
-                    Modifier.sizeIn(minWidth = Pn.touch, minHeight = Pn.touch).clickable(role = Role.Button, onClick = close).padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) { BasicText("Done", style = Type.button.copy(color = LocalLook.current.volt)) }
-            }
-            Column(
+            Box(
                 Modifier
-                    .verticalScroll(rememberScrollState())
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .imePadding()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .widthIn(max = 620.dp)
+                    .fillMaxWidth()
+                    .background(Pn.pan, shape)
+                    .border(1.dp, Pn.line2, shape)
+                    // taps on the sheet are the sheet's: only the scrim round it closes
+                    .ownTaps(),
             ) {
-                BackupCard(games, askCode)
-                SoundsCard()
-                BuildCards(openProbe)
+                Column(
+                    Modifier
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .imePadding()
+                        .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 34.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    BasicText("Settings", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
+                    BackupCard(games, askCode)
+                    SoundsCard()
+                    BuildCards(openProbe)
+                    Btn("Close", onClick = close)
+                }
+                // the grab handle (`.sheet-in::before`): 40x4, 8 from the top
+                Box(Modifier.align(Alignment.TopCenter).padding(top = 8.dp).size(40.dp, 4.dp).background(Pn.line2, RoundedCornerShape(4.dp)))
             }
         }
+    }
+}
+
+/** How far the sheet is pulled down, and the scroll hook that pulls it: past [PULL_SHUT] of the screen, or flung, it closes. */
+private class Pull(val connection: NestedScrollConnection) {
+    var offset by mutableFloatStateOf(0f)
+}
+
+@Composable
+private fun rememberPull(close: () -> Unit, height: Float): Pull {
+    val shut by rememberUpdatedState(close)
+    return remember(height) {
+        lateinit var pull: Pull
+        pull = Pull(
+            object : NestedScrollConnection {
+                // back up while pulled down: the pull gives way before the sheet scrolls
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    if (available.y >= 0f || pull.offset <= 0f) return Offset.Zero
+                    val used = maxOf(available.y, -pull.offset)
+                    pull.offset += used
+                    return Offset(0f, used)
+                }
+
+                // down from the top (nothing left to scroll): the sheet follows the finger
+                override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                    if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+                    pull.offset += available.y
+                    return Offset(0f, available.y)
+                }
+
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (pull.offset <= 0f) return Velocity.Zero
+                    if (pull.offset > height * PULL_SHUT || available.y > 1800f) shut()
+                    else animate(pull.offset, 0f, animationSpec = tween(220, easing = Ease.house)) { v, _ -> pull.offset = v }
+                    return available
+                }
+            },
+        )
+        pull
+    }
+}
+
+/** A quarter of the screen down closes the sheet (the web's sheets close on a swipe past about a quarter). */
+private const val PULL_SHUT = .25f
+
+/**
+ * A tap on the scrim closes; a drag that starts there doesn't (a plain clickable took a moved press as a tap), nor
+ * does a tap the sheet itself took.
+ */
+private fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        var moved = false
+        while (true) {
+            val e = awaitPointerEvent()
+            val c = e.changes.firstOrNull { it.id == down.id } ?: break
+            if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+            if (!c.pressed) {
+                if (!moved && !c.isConsumed) close()
+                break
+            }
+        }
+    }
+}
+
+/**
+ * A tap on a sheet or page itself (between its buttons) is taken here, so nothing under it (Settings' scrim, a page's
+ * tab) takes it. Not a clickable: that merges every word inside into one node, read by TalkBack as one long button.
+ */
+internal fun Modifier.ownTaps() = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        waitForUpOrCancellation()?.consume()
     }
 }
 
@@ -129,13 +225,17 @@ private fun BackupCard(games: Games.State, askCode: () -> Unit) {
                     "This app is a practice copy until switch day: it reads your games from the web app's cloud backup and changes nothing there.",
                     style = Type.note,
                 )
+                val (busy, again) = lookAgain(games.checking)
                 games.note?.let { BasicText(it, style = Type.note.copy(color = Pn.hot)) }
-                Btn(if (games.checking) "Looking for a newer copy…" else "Check for a newer copy") { if (!games.checking) Games.checkNow(ctx) }
+                lookedLine(ok = games.note == null)?.let { BasicText(it, style = Type.note) }
+                Btn(if (busy) "Looking for a newer copy…" else "Check for a newer copy", onClick = again)
                 Btn("Use a different restore code") { Games.forget(ctx); askCode() }
             }
             is Games.State.Fetching -> {
-                BasicText(games.why ?: "Fetching your games…", style = Type.note)
-                Btn("Try again", primary = true) { Games.checkNow(ctx) }
+                val (busy, again) = lookAgain(games.checking)
+                BasicText(if (busy || games.why == null) "Fetching your games…" else games.why, style = Type.note)
+                if (games.why != null) lookedLine(ok = false)?.let { BasicText(it, style = Type.note) }
+                Btn(if (busy) "Trying again…" else "Try again", primary = true, onClick = again)
                 Btn("Use a different restore code") { Games.forget(ctx); askCode() }
             }
             Games.State.Starting -> BasicText("Opening your games…", style = Type.note)
@@ -145,6 +245,37 @@ private fun BackupCard(games: Games.State, askCode: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * "Check for a newer copy" and "Try again" (L184): busy from the tap until the look is done, and for at least [HOLD],
+ * so a quick answer, or the same error coming back, still reads as a tap that did something. The second is the tap.
+ */
+@Composable
+internal fun lookAgain(checking: Boolean): Pair<Boolean, () -> Unit> {
+    val ctx = LocalContext.current
+    var tapped by remember { mutableStateOf(false) }
+    LaunchedEffect(tapped) {
+        if (tapped) {
+            delay(HOLD)
+            tapped = false
+        }
+    }
+    val busy = tapped || checking
+    return busy to {
+        if (!busy) {
+            tapped = true
+            Games.checkNow(ctx)
+        }
+    }
+}
+
+/** When it last looked for a copy (Store "copyLooked"), null before the first look: [ok] when nothing went wrong. */
+@Composable
+internal fun lookedLine(ok: Boolean): String? {
+    val at = Store.prefs.getLong("copyLooked", 0L).takeIf { it > 0 } ?: return null
+    val now = LocalNow.current()
+    return if (ok) "Checked ${atTime(at, now, ZoneId.systemDefault())}: this is the newest copy." else "Tried ${atTime(at, now, ZoneId.systemDefault())}."
 }
 
 /** Piece 1's cards: updates, the one-time install switch, the 120 Hz test, Report a problem and the build line. */
@@ -245,8 +376,9 @@ private fun BuildCards(openProbe: () -> Unit) {
 private fun ReportCard() {
     val scope = rememberCoroutineScope()
     val look = LocalLook.current
-    var text by remember { mutableStateOf("") }
-    var said by remember { mutableStateOf<String?>(null) }
+    // what you wrote survives a fold or Android recreating the app (sending doesn't: its coroutine ends with the screen)
+    var text by rememberSaveable { mutableStateOf("") }
+    var said by rememberSaveable { mutableStateOf<String?>(null) }
     var sending by remember { mutableStateOf(false) }
     Card {
         BasicText("Report a problem", style = Type.head)
@@ -352,9 +484,5 @@ internal fun updateLine(s: Updater.State, code: Int, checkedAt: Long = 0L, now: 
     is Updater.State.Failed -> "Couldn't update: ${s.why}"
 }
 
-/** "at 2:54 PM" today, "Oct 26 at 2:54 PM" on another day (the phone's zone, 12-hour, as the web app). */
-private fun atTime(at: Long, now: Long, zone: ZoneId): String {
-    val t = Instant.ofEpochMilli(at).atZone(zone)
-    val time = "at " + t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-    return if (t.toLocalDate() == Instant.ofEpochMilli(now).atZone(zone).toLocalDate()) time else t.format(DateTimeFormatter.ofPattern("MMM d", Locale.US)) + " " + time
-}
+/** "at 2:54 PM" today, "Oct 26 at 2:54 PM" on another day. */
+private fun atTime(at: Long, now: Long, zone: ZoneId): String = Times.at(at, now, zone, join = " at ", lead = "at ")

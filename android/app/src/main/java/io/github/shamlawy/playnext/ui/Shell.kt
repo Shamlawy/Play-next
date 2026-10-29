@@ -53,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -60,6 +61,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -133,16 +135,28 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             }
         }
     }
-    // where the last finger came down (a game's page grows from it), and the cover a page was opened from
+    // where the last finger came down (a game's page grows from it), and the cover a page was opened from: both for the
+    // one step they opened, so a page a link opens later never replays them
     val down = remember { arrayOf(Offset.Unspecified) }
-    var tapAt by remember { mutableStateOf(Offset.Unspecified) }
-    var fly by remember { mutableStateOf<FlyFrom?>(null) }
+    var launch by remember { mutableStateOf<Launch?>(null) }
+    // the game page that's shrinking away (its step's key): the rail is over it, so a tap there takes it off first
+    var shutting by remember { mutableStateOf<String?>(null) }
+    // a game page has fully grown over everything: what's under it (the tab, the pill, Settings) stops drawing until it
+    // starts to close (read only while drawing, so it changes no layout and keeps every scroll spot)
+    var covered by remember { mutableStateOf(false) }
+    // a tap that opens or closes something settles the screen for a moment: a quick second tap (a double tap) lands on
+    // nothing, instead of closing what the first opened or opening what it closed (a game page closing after its shrink
+    // needs none: it holds every touch while it shrinks)
+    val step = { n: Nav ->
+        if (n.stack != nav.stack) guard.settle = guard.lastUp
+        go(n)
+    }
     val openGame by rememberUpdatedState { id: String, from: FlyFrom? ->
         Sounds.play(Sfx.Open)
         Crumbs.tap(if (from != null) "cover" else "game", here)
-        tapAt = down[0]
-        fly = from
-        go(nav.open("game:$id"))
+        val n = nav.open("game:$id")
+        launch = Launch(n.key(n.stack.lastIndex), down[0], from)
+        step(n)
     }
     val opener = remember { { id: String, from: FlyFrom? -> openGame(id, from) } }
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener) {
@@ -162,22 +176,24 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             val settings = {
                 Sounds.play(Sfx.Open)
                 Crumbs.tap("settings", here)
-                go(nav.open("settings"))
+                // over a page that's closing: it goes first, so Settings never opens under a page about to close itself
+                val i = shutting?.let { k -> nav.stack.indices.firstOrNull { nav.key(it) == k } }
+                step((if (i != null) nav.closeAt(i) else nav).open("settings"))
             }
             holder.SaveableStateProvider(nav.tab) {
-                Page(w) {
+                Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
                     if (!wide) TabBar(nav.tab, pick, settings)
                     Column(Modifier.entrance(enter)) {
-                        TabPage(nav.tab, view, games, wide, w, askCode = { go(nav.open("code")) }, pickView = pickView)
+                        TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }, pickView = pickView)
                     }
                 }
             }
-            if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
             val views = prefs.views(nav.tab)
             if (prefs.pill && view != null && views.isNotEmpty()) {
                 ViewPill(
                     views, view, w, pickView,
                     Modifier
+                        .graphicsLayer { alpha = if (covered) 0f else 1f }
                         .align(Alignment.BottomCenter)
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(bottom = 18.dp)
@@ -199,7 +215,10 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 BackHandler(enabled = nav.overlay == "settings") { go(nav.closeAt(s)) }
                 key(k) {
                     pages.SaveableStateProvider(k) {
-                        SettingsSheet(games, wide, close = { go(nav.closeAt(s)) }, openProbe = { go(nav.open("probe")) }, askCode = { go(nav.open("code")) })
+                        SettingsSheet(
+                            Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, games, wide,
+                            close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) },
+                        )
                     }
                 }
             }
@@ -210,14 +229,24 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             if (game != null) {
                 val k = keys[at]
                 pagesKept += k
-                key(k) { pages.SaveableStateProvider(k) { GamePage(game, tapAt, fly?.takeIf { it.g.id == game.id }, wide, close = { go(nav.closeAt(at)) }) } }
+                val l = launch?.takeIf { it.key == k }
+                key(k) { pages.SaveableStateProvider(k) { GamePage(game, l?.tap ?: Offset.Unspecified, l?.from?.takeIf { it.g.id == game.id }, wide, shrinking = { shutting = k }, covers = { covered = it }, close = { go(nav.closeAt(at)) }) } }
             }
+            // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
+            // tap away
+            if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
             }
         }
     }
 }
+
+/** A game page's opening: the step it opened ([Nav.key]), where the finger was and the cover it flies from. */
+private class Launch(val key: String, val tap: Offset, val from: FlyFrom?)
+
+/** How long a change of what's open keeps the next tap off (Android's own double-tap window is 300ms). */
+private const val SETTLE_MS = 250L
 
 /** The tabs in the web app's order (`TABS`), for the swipes and the slide's direction. */
 private val TAB_ORDER = Web.TABS.map { it.key }
@@ -234,6 +263,8 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
         touched(down.position)
         // cleared here, before the touched things see it: a side scroller sets it in this same pass
         guard.inScroller = false
+        // a touch right after what's open changed (a double tap's second): its lift is taken here, so it taps nothing
+        val settling = down.uptimeMillis - guard.settle < SETTLE_MS
         var end = down.position
         var two = false
         while (true) {
@@ -241,6 +272,12 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
             if (e.changes.count { it.pressed } > 1) two = true
             e.changes.firstOrNull { it.id == down.id }?.let { end = it.position }
             if (e.changes.any { it.pressed }) continue
+            // the lift that may have opened or closed something: a change it makes settles from here
+            guard.lastUp = e.changes.maxOf { it.uptimeMillis }
+            if (settling) {
+                e.changes.forEach { it.consume() }
+                break
+            }
             val dx = end.x - down.position.x
             val dy = end.y - down.position.y
             if (!guard.inScroller && abs(dx) >= 70.dp.toPx() && abs(dy) <= 45.dp.toPx()) {
@@ -257,14 +294,14 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
  * 96 on the right for the rail, which floats over the wider screens. Under the status bar and the cutout, edge to edge.
  */
 @Composable
-private fun Page(w: Dp, content: @Composable () -> Unit) {
+private fun Page(w: Dp, modifier: Modifier, content: @Composable () -> Unit) {
     val big = w >= 700.dp
     val side = if (big) 22.dp else 16.dp
     val railRoom = if (w >= RAIL_FROM && w < 1100.dp) 96.dp else side
     val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val dir = LocalLayoutDirection.current
     Column(
-        Modifier
+        modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(
@@ -290,43 +327,53 @@ private fun Page(w: Dp, content: @Composable () -> Unit) {
 fun TabBar(tab: String, pick: (String) -> Unit, settings: () -> Unit) {
     val look = LocalLook.current
     val home = tab == "home"
-    Row(
-        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = if (home) 0.dp else 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.Top,
-    ) {
-        for (t in Web.TABS) {
-            val on = t.key == tab
-            Box(
-                Modifier
-                    .then(if (on) Modifier.size(66.dp, if (home) 70.dp else 62.dp) else Modifier.size(52.dp))
-                    .then(if (on && home) Modifier.notch(Pn.pan) else Modifier)
-                    .background(
-                        if (on) Pn.pan else Color.Transparent,
-                        if (on && home) RoundedCornerShape(24.dp, 24.dp, 0.dp, 0.dp) else RoundedCornerShape(if (on) 22.dp else 18.dp),
-                    )
-                    .clickable(role = Role.Tab) { pick(t.key) }
-                    .semantics { selected = on; contentDescription = t.label },
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    PnIcon(t.key, if (on) look.volt else Pn.mute, 21.dp, null)
-                    if (on) BasicText(t.label, style = Type.tab, softWrap = false, maxLines = 1)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // the open tile's left inner corner only where it clears the Home panel's 28 round corner by its own 20 (narrow, it
+        // would hang off that curve as a thin spike): the row is centred, 66 open + 52 each other + Settings, 2 apart
+        // the closed tabs and Settings are 52 square while the row fits (from 336 wide); narrower, they share what's
+        // left, so Settings never gets squashed off the end
+        val shut = ((maxWidth - 66.dp - 2.dp * Web.TABS.size) / Web.TABS.size).coerceIn(40.dp, 52.dp)
+        val before = Web.TABS.indexOfFirst { it.key == tab }.coerceAtLeast(0)
+        val left = (maxWidth - (66.dp + shut * Web.TABS.size + 2.dp * Web.TABS.size)) / 2 + (shut + 2.dp) * before >= 48.dp
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp, bottom = if (home) 0.dp else 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.Top,
+        ) {
+            for (t in Web.TABS) {
+                val on = t.key == tab
+                Box(
+                    Modifier
+                        .then(if (on) Modifier.size(66.dp, if (home) 70.dp else 62.dp) else Modifier.size(shut, 52.dp))
+                        .then(if (on && home) Modifier.notch(Pn.pan, left) else Modifier)
+                        .background(
+                            if (on) Pn.pan else Color.Transparent,
+                            if (on && home) RoundedCornerShape(24.dp, 24.dp, 0.dp, 0.dp) else RoundedCornerShape(if (on) 22.dp else 18.dp),
+                        )
+                        .clickable(role = Role.Tab) { pick(t.key) }
+                        .semantics { selected = on; contentDescription = t.label },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        PnIcon(t.key, if (on) look.volt else Pn.mute, 21.dp, null)
+                        if (on) BasicText(t.label, style = Type.tab.fixed(), softWrap = false, maxLines = 1)
+                    }
                 }
             }
+            Box(
+                Modifier.size(shut, 52.dp).clickable(role = Role.Button, onClick = settings).semantics { contentDescription = "Settings" },
+                contentAlignment = Alignment.Center,
+            ) { PnIcon("settings", Pn.mute, 21.dp, null) }
         }
-        Box(
-            Modifier.size(52.dp).clickable(role = Role.Button, onClick = settings).semantics { contentDescription = "Settings" },
-            contentAlignment = Alignment.Center,
-        ) { PnIcon("settings", Pn.mute, 21.dp, null) }
     }
 }
 
 /** The two 20dp inner corners beside Home's open tab that join it to the panel below (`::before` / `::after`). */
-private fun Modifier.notch(fill: Color) = drawBehind {
+private fun Modifier.notch(fill: Color, withLeft: Boolean) = drawBehind {
     val r = 20.dp.toPx()
     val y = size.height - r
     for (left in listOf(true, false)) {
+        if (left && !withLeft) continue
         val x = if (left) -r else size.width
         val square = Path().apply { addRect(androidx.compose.ui.geometry.Rect(Offset(x, y), Size(r, r))) }
         val hole = Path().apply {
@@ -345,18 +392,35 @@ private fun Modifier.notch(fill: Color) = drawBehind {
 fun Rail(tab: String, pick: (String) -> Unit, settings: () -> Unit, modifier: Modifier = Modifier) {
     val look = LocalLook.current
     val shape = RoundedCornerShape(30.dp)
-    Column(
+    BoxWithConstraints(
         modifier
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End))
             .padding(12.dp)
             .fillMaxHeight()
-            .width(72.dp)
+            .width(72.dp),
+    ) {
+        // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
+        // so Settings is never squashed to a sliver
+        val roomy = maxHeight >= RAIL_TALL
+        RailColumn(tab, pick, settings, look.volt, shape, roomy)
+    }
+}
+
+/** The rail's height with its usual gaps: four tabs, the gap, a line, Add and Settings. */
+private val RAIL_TALL = 14.dp * 2 + 48.dp * 6 + 1.dp + 10.dp * 7
+
+@Composable
+private fun RailColumn(tab: String, pick: (String) -> Unit, settings: () -> Unit, volt: Color, shape: RoundedCornerShape, roomy: Boolean) {
+    Column(
+        Modifier
+            .fillMaxSize()
             .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.ink, shape)
             .border(1.dp, Pn.edge, shape)
-            .padding(vertical = 14.dp),
+            .then(if (roomy) Modifier else Modifier.clip(shape).verticalScroll(rememberScrollState()))
+            .padding(vertical = if (roomy) 14.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (roomy) 10.dp else 4.dp),
     ) {
         for (t in Web.TABS.filter { it.key != "add" }) {
             val on = t.key == tab
@@ -367,12 +431,12 @@ fun Rail(tab: String, pick: (String) -> Unit, settings: () -> Unit, modifier: Mo
                     .semantics { selected = on; contentDescription = t.label },
                 contentAlignment = Alignment.Center,
             ) {
-                Box(Modifier.size(48.dp, 44.dp).background(if (on) look.volt else Color.Transparent, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(48.dp, 44.dp).background(if (on) volt else Color.Transparent, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                     PnIcon(t.key, if (on) Pn.void else Pn.mute, 20.dp, null)
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
+        if (roomy) Spacer(Modifier.weight(1f))
         Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
         RailButton("add", "Add a game", on = tab == "add") { pick("add") }
         RailButton("settings", "Settings", on = false, onClick = settings)

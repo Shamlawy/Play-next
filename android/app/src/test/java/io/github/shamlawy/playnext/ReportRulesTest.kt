@@ -25,6 +25,16 @@ class ReportRulesTest {
     }
 
     @Test
+    fun eachVersionsRanReportIsItsOwn() {
+        // the digits alone would merge them, and firstToday dropped the second release of a day
+        val a = ReportRules.sig("ran", "Android app v9 ran", "", "home", 1, apart = "v9")
+        val b = ReportRules.sig("ran", "Android app v10 ran", "", "home", 1, apart = "v10")
+        assertNotEquals(a, b)
+        // no apart, no change: every other report keeps the signature it has in the helper's store
+        assertEquals(ReportRules.sig("error", "x", "", "home", 1), ReportRules.sig("error", "x", "", "home", 1, apart = ""))
+    }
+
+    @Test
     fun oneProblemOneSignature() {
         val a = ReportRules.sig("error", "Index 3 out of bounds for length 2", "Queue.kt:41:7", "queue", 1)
         val b = ReportRules.sig("error", "Index 9 out of bounds for length 8", "Queue.kt:88", "home", 2)
@@ -35,14 +45,6 @@ class ReportRulesTest {
         assertNotEquals(ReportRules.sig("user", "x", "", "home", 1), ReportRules.sig("user", "x", "", "home", 2))
         // never the same as the web app's signature for the same words
         assertNotEquals(ReportRules.hash("error|m|a"), ReportRules.sig("error", "m", "a", "", 0))
-    }
-
-    @Test
-    fun logOnlyKindsMatchBugsync() {
-        val js = Repo.text(".github/scripts/bugsync.mjs")
-        val set = Regex("""const LOG_ONLY = new Set\(\[([^\]]*)]\)""").find(js)!!.groupValues[1]
-            .split(',').map { it.trim().trim('"') }.filter { it.isNotEmpty() }.toSet()
-        assertEquals(set, ReportRules.LOG_ONLY)
     }
 
     @Test

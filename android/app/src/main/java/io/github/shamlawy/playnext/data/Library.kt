@@ -38,9 +38,17 @@ class Library(val state: JsonObject) {
     /** How many games are in each state, in STATES' order (a missing state counts as upcoming, as `load()` reads it). */
     fun counts(): List<Pair<String, Int>> = Web.STATES.map { (k, label) -> label to games.count { it.state == k } }
 
-    companion object {
-        val EMPTY = Library(JsonObject(mapOf("games" to JsonArray(emptyList()), "duels" to JsonArray(emptyList()), "played" to JsonArray(emptyList()))))
+    /**
+     * Every game by state (the STATES words, empty ones left out), each in your order: the Queue's placeholder. Worked
+     * out once per backup, not on every visit or every "checking" flip.
+     */
+    val byState: List<Group> by lazy {
+        Web.STATES.mapNotNull { (key, label) ->
+            games.filter { it.state == key }.sortedWith(compareBy<Game> { it.ord }.thenBy { it.title }).takeIf { it.isNotEmpty() }?.let { Group(key, label, it) }
+        }
     }
+
+    class Group(val state: String, val label: String, val games: List<Game>)
 }
 
 class Game(val o: JsonObject) {
@@ -79,6 +87,7 @@ class Game(val o: JsonObject) {
     }
 
     companion object {
-        fun hex(s: String): Long? = Regex("^#([0-9A-Fa-f]{6})$").find(s)?.groupValues?.get(1)?.toLong(16)?.let { it or 0xFF000000L }
+        private val HEX = Regex("^#([0-9A-Fa-f]{6})$")
+        fun hex(s: String): Long? = HEX.find(s)?.groupValues?.get(1)?.toLong(16)?.let { it or 0xFF000000L }
     }
 }

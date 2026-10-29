@@ -20,6 +20,32 @@ for i in 1 2 3 4 5 6; do
   # only this try's test results count: an older failure left on disk mustn't start another try
   fresh=$(find app/build/test-results -name '*.xml' -newer "$stamp" 2>/dev/null)
   if ! grep -qE "$net" "$log" && ! { [ -n "$fresh" ] && grep -ql "Failed to fetch maven artifact" $fresh; }; then break; fi
+  # Maven Central's 429s can last for every try (L199): this machine only, never the repo, use Google's mirror of it
+  mirror="$HOME/.gradle/init.d/central-mirror.gradle"
+  if grep -q "429" "$log" && [ ! -f "$mirror" ]; then
+    mkdir -p "$(dirname "$mirror")"
+    cat > "$mirror" <<'GRADLE'
+// Written by tools/gradle-retry.sh after a 429 (L199): Maven Central through Google's mirror, on this machine only.
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+def swap = { repos ->
+    repos.withType(MavenArtifactRepository).configureEach { r ->
+        if (r.url.toString().startsWith('https://repo.maven.apache.org/maven2')) r.url = uri(mirror)
+    }
+}
+beforeSettings { settings ->
+    swap(settings.pluginManagement.repositories)
+    swap(settings.dependencyResolutionManagement.repositories)
+}
+settingsEvaluated { settings ->
+    swap(settings.pluginManagement.repositories)
+    swap(settings.dependencyResolutionManagement.repositories)
+}
+allprojects {
+    tasks.withType(Test).configureEach { systemProperty 'robolectric.dependency.repo.url', mirror }
+}
+GRADLE
+    echo "Maven Central said 429: $mirror now points this machine at Google's mirror"
+  fi
   [ "$i" -lt 6 ] && sleep $((20 * i))
 done
 [ "$rc" -eq 0 ] || sed -n '/What went wrong/,/^\* Try/p' "$log" | grep -v '^\* Try' | head -12

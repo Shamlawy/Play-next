@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -88,10 +89,18 @@ class ScreensTest {
     private val lib = lib()
     private val ready = Games.State.Ready(lib, copyAt = now - 3 * 3_600_000L)
 
-    /** [yours]: your theme, background and settings from the backup ([l]), else the app's own (no code yet). */
-    private fun shot(name: String, width: Int, yours: Boolean = true, l: Library = lib, content: @Composable () -> Unit) {
-        RuntimeEnvironment.setQualifiers("w${width}dp-h${if (width < 600) 915 else 1000}dp-xxhdpi")
+    /**
+     * [yours]: your theme, background and settings from the backup ([l]), else the app's own (no code yet). [font]: the
+     * phone's font size; [ready] runs before the picture (a scroll to what it's about).
+     */
+    private fun shot(
+        name: String, width: Int, yours: Boolean = true, l: Library = lib, height: Int = if (width < 600) 915 else 1000,
+        font: Float = 1f, ready: () -> Unit = {}, content: @Composable () -> Unit,
+    ) {
+        RuntimeEnvironment.setQualifiers("w${width}dp-h${height}dp-xxhdpi")
+        RuntimeEnvironment.setFontScale(font)
         rule.setContent { Frame(Look.of(l.takeIf { yours }), Prefs.of(l.takeIf { yours }), now = { now }) { content() } }
+        ready()
         rule.onRoot().captureRoboImage("src/test/screenshots/$name-$width.png")
     }
 
@@ -138,7 +147,7 @@ class ScreensTest {
         rule.onRoot().captureRoboImage("src/test/screenshots/fly-412.png")
         rule.mainClock.autoAdvance = true
         rule.runOnIdle { assertEquals("game:${g.id}", nav.overlay) }
-        rule.onNodeWithContentDescription("Close").performClick()
+        rule.onNodeWithContentDescription("Back").performClick()
         rule.runOnIdle { assertNull(nav.overlay) }
     }
 
@@ -152,20 +161,20 @@ class ScreensTest {
         rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
         rule.runOnIdle { nav = nav.open("game:a") }
         rule.runOnIdle { nav = nav.open("game:c") }
-        rule.onNodeWithText("Done").assertExists()
-        rule.onNodeWithContentDescription("Close").performClick()
+        rule.onNodeWithText("Close").assertExists() // Settings' Close: it stays under the pages opened from it
+        rule.onNodeWithContentDescription("Back").performClick()
         rule.runOnIdle { assertEquals(listOf("settings", "game:a"), nav.stack) }
-        rule.onNodeWithContentDescription("Close").performClick()
+        rule.onNodeWithContentDescription("Back").performClick()
         rule.runOnIdle { assertEquals("settings", nav.overlay) }
-        rule.onNodeWithText("Done").performClick()
+        rule.onNodeWithText("Close").performScrollTo().performClick()
         rule.runOnIdle { assertEquals(Nav("taste"), nav) }
-        rule.onNodeWithText("Done").assertDoesNotExist()
+        rule.onNodeWithText("Close").assertDoesNotExist()
     }
 
     /**
-     * A tap while a game's page shrinks away lands on the page, never on what shows round its edges (unfolded, the
-     * rail's Settings): before, it opened Settings under the closing page, whose close then took Settings away instead,
-     * and the page stayed, unseen, holding back and taps.
+     * Unfolded, the rail is over the game page (as on the web), so a tap on its Settings while the page shrinks away
+     * opens Settings with the page gone: before android-v9's fix it opened Settings under the closing page, whose close
+     * then took Settings away instead, and the page stayed, unseen, holding back and taps.
      */
     @Test fun aTapWhileAPageClosesDoesNotLeaveItStuck() {
         RuntimeEnvironment.setQualifiers("w859dp-h1000dp-xxhdpi")
@@ -173,12 +182,13 @@ class ScreensTest {
         rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
         rule.waitForIdle()
         rule.mainClock.autoAdvance = false
-        rule.onNodeWithContentDescription("Close").performClick()
+        rule.onNodeWithContentDescription("Back").performClick()
         Snapshot.sendApplyNotifications()
-        rule.mainClock.advanceTimeBy(200)
-        // the button's outer corner: the part the shrinking page uncovers first
+        rule.mainClock.advanceTimeBy(150)
         rule.onNodeWithContentDescription("Settings").performTouchInput { click(Offset(width - 3f, height - 3f)) }
         rule.mainClock.autoAdvance = true
+        rule.runOnIdle { assertEquals(Nav("games", listOf("settings")), nav) }
+        rule.onNodeWithText("Close").performScrollTo().performClick()
         rule.runOnIdle { assertEquals(Nav("games"), nav) }
     }
 
@@ -274,11 +284,23 @@ class ScreensTest {
         Store.prefs.edit().putLong("updChecked", now - 20 * 60_000L).commit()
         Updater.set(Updater.State.UpToDate)
         try {
-            shot("settings-checked", 412) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
+            // the Updates card sits below the first screenful: scrolled to, so the picture shows the line it's about
+            shot("settings-checked", 412, ready = { rule.onNodeWithText("Check now").performScrollTo() }) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
         } finally {
             Updater.set(Updater.State.Idle)
         }
     }
+
+    /** Unfolded on its side (or a short split screen): the rail packs closer and scrolls, Settings stays whole. */
+    @Test fun short915() = shot("short", 915, height = 360, content = tab("games"))
+
+    /** A narrow window: the closed tabs share the room, Settings stays on the bar. */
+    @Test fun narrow320() = shot("narrow", 320, height = 640, content = tab("games"))
+
+    /** The phone's font size at 1.3 and 2.0: body words grow, tab names, the pill and header numbers stop at 1.3. */
+    @Test fun font13() = shot("font13", 412, font = 1.3f, content = tab("games"))
+    @Test fun font20() = shot("font20", 412, font = 2f, content = tab("games"))
+    @Test fun settingsFont20() = shot("settings-font20", 412, font = 2f) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
 
     @Test fun noCode412() = shot("no-code", 412, yours = false) { Shell(Nav("home"), Games.State.NoCode, go = {}) }
     @Test fun noCode859() = shot("no-code", 859, yours = false) { Shell(Nav("home"), Games.State.NoCode, go = {}) }

@@ -113,12 +113,23 @@ async function phone(at) {
   const start = { ...seed(APP_V, 1, { bare: true }), bugOff: true };
   await ctx.addInitScript(s => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("gq:data", s); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(start));
   const page = await ctx.newPage();
-  /* a busy CI runner (apt crawling beside it) once took over 30s to fire a reload's load event; the numbers don't care how long */
+  /* a CI runner once took over 30s to fire a reload's load event, then twice never fired it in 120s (#671): the numbers
+     only need the app's scripts, so navigations wait for the DOM and the checks after them wait for the app */
   page.setDefaultNavigationTimeout(120000);
   page.on("pageerror", e => errors.push(String(e.message || e).split("\n")[0]));
-  await page.goto(base);
+  const open = new Set();
+  page.on("request", r => open.add(r)); page.on("requestfinished", r => open.delete(r)); page.on("requestfailed", r => open.delete(r));
+  pending.set(page, open);
+  await page.goto(base, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => typeof readBackup === "function" && typeof S === "object" && S.games.length > 0, null, { timeout: 30000 });
   return { ctx, page };
+}
+/* what a page's load event still waits on, said once the numbers are read (a hint for the next slow runner) */
+const pending = new WeakMap();
+async function stillLoading(page, where) {
+  if (await page.evaluate(() => document.readyState) === "complete") return;
+  const urls = [...pending.get(page)].map(r => r.url().slice(0, 100));
+  console.log(`golden: ${where}: no load event yet; open requests: ${urls.join(", ") || "none"}`);
 }
 
 const out = { appV: APP_V, zone: ZONE, codes: [], reads: [], cases: [] };
@@ -148,9 +159,10 @@ for (const [name, at] of CLOCKS) {
     return { read: { ok: rb.ok, msg: rb.msg }, games: S.games.map(g => g.id), played: JSON.parse(JSON.stringify(S.played)), keys: Object.keys(S) };
   }, raw);
   /* the next start: load() makes its changes (played state, the 30-day flip) */
-  await page.reload();
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => typeof S === "object" && S.games.length > 0, null, { timeout: 30000 });
   await page.waitForTimeout(500);
+  await stillLoading(page, `the ${name} restart`);
   const loaded = await page.evaluate(() => ({
     states: Object.fromEntries(S.games.map(g => [g.id, g.state === undefined ? null : g.state])),
     played: JSON.parse(JSON.stringify(S.played)),
@@ -166,9 +178,10 @@ for (const [name, at] of CLOCKS) {
   const { ctx, page } = await phone(at);
   const raw = JSON.stringify(SHX_FIX);
   await page.evaluate(raw => { const rb = readBackup(raw); applyBackup(rb.data); saveNow(); }, raw);
-  await page.reload();
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => typeof shxData === "function" && typeof S === "object" && S.games.length > 0, null, { timeout: 30000 });
   await page.waitForTimeout(500);
+  await stillLoading(page, `the ${name} header cards`);
   const kinds = await page.evaluate(() => Object.fromEntries(["queue", "lib", "played", "replay", "plan", "taste", "add"].map(k => {
     const d = shxData(k), cv = d.c.filter(Boolean).slice(0, 4), x = shxExtra(k, cv[0]);
     return [k, { c: cv.map(g => g.id), st: d.st.map(([v, l]) => [String(v), l]),
