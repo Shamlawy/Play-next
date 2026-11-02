@@ -88,6 +88,23 @@ const SHX_FIX = {
   duels: [{ a: "s6", b: "s7", w: "s6", t: "2026-10-11" }, { a: "s7", b: "s8", w: "s7", e: 1, t: "2026-09-20" }, { a: "s6", b: "s8", w: "draw", t: "2026-08-01" }],
   curPlat: "Switch", v: 11, lastV: APP_V, tourFrom: +APP_V, tourRedo: 1, nxAsked: 1, fxSeen: 1, fxCal: 1, pxOff: true, cbOn: false,
 };
+/* Made-up games for the Queue's list (Phase 1 piece 1): the header cards' games plus lists, area scores, hours played,
+   a replay count, an old "added" for dust (60/120/240 days) and a dust blown off. */
+const Q_FIX = JSON.parse(JSON.stringify(SHX_FIX));
+Object.assign(Q_FIX.games[0], { lists: ["q1"], mine: { story: 8, music: 7.5 }, added: "2026-06-01" });
+Object.assign(Q_FIX.games[1], { logged: 12.4, lists: ["q1", "q2"] });
+Object.assign(Q_FIX.games[5], { mine: { story: 9, gameplay: 9.5, pace: 0 }, hype: 8 });
+Object.assign(Q_FIX.games[7], { hype: 7 });
+Object.assign(Q_FIX.games[6], { added: "2026-02-01", hype: 6 });
+Object.assign(Q_FIX.games[8], { logged: 3.6 });
+Object.assign(Q_FIX.games[12], { added: "2026-01-01", dustOff: 1790000000000 });
+Q_FIX.games.push(
+  { id: "q14", title: "Dusty Hall", state: "backlog", date: "2025-09-01", genres: "RPG", hype: 7, hours: 25.5, added: "2025-09-01", ord: 14, lists: ["q2"] },
+  { id: "q15", title: "Late Lamp", state: "upcoming", date: "2026-07-01", genres: "Puzzle", ord: 15 },
+  { id: "q16", title: "No Order", state: "backlog", genres: "Action", hype: 9, added: "2026-08-20" },
+  { id: "q17", title: "Next Year", state: "upcoming", date: "2027-09-14", hype: 7, ord: 16 });
+Q_FIX.played.push({ id: "s7", real: 7, t: "2026-10-20", runs: 3 });
+Q_FIX.lists = [{ id: "q1", n: "Made-up list", e: "" }, { id: "q2", n: "Second list", e: "" }];
 const CLOCKS = [["noon", "2026-10-27T08:00:00Z"], ["late", "2026-10-27T19:30:00Z"], ["early", "2026-10-27T20:30:00Z"]];
 const READS = ["", "   ", "GAME QUEUE export", "[1,2]", "{\"games\":[{\"id\":\"x\"", "{\"games\":5}", "{\"games\":[{\"id\":\"x\"}]}",
   "{\"games\":[{\"id\":\"x\",\"title\":\"T\"}],\"rawgKey\":\"k\"}", "{\"games\":[{\"id\":\"x\",\"title\":\"T\"},{\"id\":\"y\"}]}", "{\"games\":[1}"];
@@ -190,6 +207,40 @@ for (const [name, at] of CLOCKS) {
       art: /^data:image\/svg/.test(x.art || "") ? "drawn" : x.art || "" }];
   })));
   out.shx.push({ name, at, now: Date.parse(at), raw, kinds });
+  await ctx.close();
+}
+/* the Queue's list: each tab's games and counts, every order, and each game's words, line, dust and On deck reason */
+out.queue = [];
+for (const [name, at] of CLOCKS) {
+  const { ctx, page } = await phone(at);
+  const raw = JSON.stringify(Q_FIX);
+  await page.evaluate(raw => { const rb = readBackup(raw); applyBackup(rb.data); saveNow(); }, raw);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => typeof deckShown === "function" && typeof S === "object" && S.games.length > 0, null, { timeout: 30000 });
+  await page.waitForTimeout(500);
+  await stillLoading(page, `the ${name} queue`);
+  const q = await page.evaluate(() => {
+    /* countdown and myScore live inside renderQueue: the same two lines here */
+    const countdown = g => { if (!g.date) return { v: "TBA" }; const n = Math.ceil((new Date(g.date) - new Date()) / 86400000); return { v: n > 0 ? n : "OUT" }; };
+    const myScore = g => { const v = RATINGS.map(([k]) => (g.mine || {})[k]).filter(v => v > 0); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) : 0; };
+    const tabs = {};
+    for (const t of ["all", "out", "soon", "done", "L:q1", "L:q2", "L:gone", "G:RPG"]) {
+      S.qFilter = t;
+      tabs[t] = { now: qNow(), ids: queueList().map(g => g.id), deck: deckShown(3).map(g => g.id), head: deckHead() };
+    }
+    const counts = qCounts();
+    const sorts = {};
+    for (const k of ["manual", ...SORTS.map(x => x[0]), "nonsense"]) { S.sort = k; sorts[k] = sortGames(allGames()).map(g => g.id); }
+    const per = {};
+    for (const g of S.games) {
+      const st = qkStat(g, countdown(g), myScore(g), 1);
+      per[g.id] = { out: isOutNow(g), k: st.k, word: st.word, head: st.head, stub: st.stub, body: st.body, snap: !!st.snap,
+        prog: Number(qsProg(g, st)), short: shortDate(g.date), dust: dustDays(g), lvl: dustLvl(g), why: deckWhy(g) || platList(g.genres).slice(0, 2).join(" · "),
+        exp: expected(g), meta: dzMeta(g).replace(/<[^>]+>/g, "|").split("|").filter(x => x.trim()).join("/") };
+    }
+    return { tabs, counts, sorts, per };
+  });
+  out.queue.push({ name, at, now: Date.parse(at), raw, ...q });
   await ctx.close();
 }
 await browser.close();

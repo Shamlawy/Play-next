@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.double
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -137,6 +138,47 @@ class GoldenTest {
                 assertEquals("$at: chart", chart?.let { it["v"]!!.jsonArray.map { v -> v.jsonPrimitive.long.toInt() } to it["cap"]!!.s }, got.chart?.let { it.v to it.cap })
                 val art = when (val a = got.art) { null -> ""; is Pic.Drawn -> "drawn"; is Pic.Url -> a.url }
                 assertEquals("$at: backdrop", w["art"]!!.s, art)
+            }
+        }
+    }
+
+    @Test
+    fun queueListMatchesAtEveryClock() {
+        val zone = ZoneId.of(golden()["zone"]!!.s)
+        val cases = golden()["queue"]?.jsonArray
+        assertTrue("the golden file has Queue cases", !cases.isNullOrEmpty())
+        for (c in cases!!.map { it.jsonObject }) {
+            val name = c["name"]!!.s
+            val now = c["now"]!!.jsonPrimitive.long
+            val lib = Library(Backup.load(Backup.apply(Backup.read(c["raw"]!!.s).data!!), now, zone))
+            val q = Queue(lib, Rank(lib, now, zone), now, zone)
+            for ((t, w) in c["tabs"]!!.jsonObject) {
+                val tab = q.tabNow(t)
+                val at = "$name tab $t"
+                assertEquals("$at: which tab", w.jsonObject["now"]!!.s, tab)
+                assertEquals("$at: games", w.jsonObject["ids"]!!.jsonArray.map { it.s }, q.list(tab).map { it.id })
+                assertEquals("$at: On deck", w.jsonObject["deck"]!!.jsonArray.map { it.s }, q.deck(tab).map { it.id })
+                assertEquals("$at: On deck's heading", w.jsonObject["head"]!!.s, q.deckHead(tab))
+            }
+            assertEquals("$name: counts", c["counts"]!!.jsonObject.mapValues { it.value.jsonPrimitive.long.toInt() }, q.counts)
+            for ((k, ids) in c["sorts"]!!.jsonObject) assertEquals("$name order $k", ids.jsonArray.map { it.s }, q.sort(lib.games, k).map { it.id })
+            for ((id, w0) in c["per"]!!.jsonObject) {
+                val w = w0.jsonObject
+                val g = lib.games.first { it.id == id }
+                val at = "$name $id"
+                val st = q.stat(g)
+                assertEquals("$at: out", w["out"]!!.jsonPrimitive.boolean, q.isOutNow(g))
+                assertEquals("$at: kind", w["k"]!!.s, st.kind.name.lowercase())
+                assertEquals("$at: words", listOf(w["word"]!!.s, w["head"]!!.s), listOf(st.word, st.head))
+                assertEquals("$at: stub", w["stub"]!!.jsonArray.map { it.s }, st.stub.toList())
+                assertEquals("$at: body", w["body"]!!.jsonArray.map { it.s }, st.body.toList())
+                assertEquals("$at: torn", w["snap"]!!.jsonPrimitive.boolean, st.torn)
+                assertEquals("$at: line", w["prog"]!!.jsonPrimitive.double.toFloat(), q.progress(g, st), 0f)
+                assertEquals("$at: short date", w["short"]!!.s, q.shortDate(g.date))
+                assertEquals("$at: dust", listOf(w["dust"]!!.jsonPrimitive.long.toInt(), w["lvl"]!!.jsonPrimitive.long.toInt()), listOf(q.dustDays(g), q.dustLevel(g)))
+                assertEquals("$at: why", w["why"]!!.s, q.deckWhy(g))
+                assertEquals("$at: expected", w["exp"]!!.jsonPrimitive.doubleOrNull, q.expected(g))
+                assertEquals("$at: deck meta", w["meta"]!!.s, q.deckMeta(g).flatMap { listOf(it.first, " " + it.second) }.filter { it.isNotBlank() }.joinToString("/"))
             }
         }
     }
