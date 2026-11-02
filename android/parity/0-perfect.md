@@ -1,4 +1,4 @@
-# Phase 0 · Perfect run (Oct 28 2026, in progress)
+# Phase 0 · Perfect run (Oct 28 2026, done: android-v10 released Oct 29, approval in #673)
 
 Run as 7 parallel review helpers (bugs, speed, look, touch and back, Android basics, updates and safety, leftovers and parity), since the Workflow tool isn't offered in cloud chats. The usage limit stopped them twice; this file keeps what came back so the next chat can carry on.
 
