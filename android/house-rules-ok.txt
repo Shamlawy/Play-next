@@ -1,0 +1,19 @@
+# Deliberate exceptions to tools/android-rules.mjs (gate 6). One per line: <rule> <path under …/playnext/> <text on the line> — <why>
+# Matched by the line's text, so edits above it don't break it; an entry nothing matches any more fails the check (remove it).
+calm probe/ProbeScreen.kt rememberInfiniteTransition(label = "blink") — the 120 Hz probe's blink measures frame pacing; it is a test screen, not the app
+calm ui/Wipe.kt val slide = remember(key) { Animatable(0f) } — SlashWipe only runs when not calm (the shell picks no wipe when calm)
+calm ui/Wipe.kt val pop = remember(key) { Animatable(0f) } — SlashWipe only runs when not calm (the shell picks no wipe when calm)
+calm ui/Wipe.kt private val p = Animatable(if (kind == null) 1f else 0f) — Enter's kind is null when calm, so it starts finished
+uppercase ui/Wipe.kt label.uppercase(Locale.ROOT) — the slash wipe's tab name is in capitals on the web (pnWipe, allowed by v188)
+italic ui/Wipe.kt fontStyle = FontStyle.Italic — the slash wipe is Archivo italic 900 (allowed by v188)
+uppercase ui/Pill.kt val text = label.uppercase(Locale.ROOT) — the view pill's buttons are uppercase on the web (.vpill button), copied as it is
+font-weight ui/Pill.kt fontWeight = FontWeight.Black — the view pill asks for 900 like the web; Poppins draws its 700 (Type.kt maps Black to poppins_700)
+uppercase ui/Cover.kt .uppercase(Locale.ROOT) } — a drawn cover's initials are capitals on the web (cover() draws them into an image)
+italic ui/Cover.kt fontStyle = FontStyle.Italic — a drawn cover's initials are the phone's sans-serif italic 900, as the web's image draws them
+font-weight ui/Cover.kt fontWeight = FontWeight.Black — a drawn cover's initials are the phone's sans-serif italic 900, as the web's image draws them
+font-weight ui/Type.kt Font(R.font.poppins_700, FontWeight.ExtraBold) — the family maps 800 to Poppins 700, so a heavier ask never falls back
+font-weight ui/Type.kt Font(R.font.poppins_700, FontWeight.Black) — the family maps 900 to Poppins 700, so a heavier ask never falls back
+italic ui/Type.kt Font(R.font.archivo_italic — Archivo's italic face, for the slash wipe and celebrations
+font-weight ui/Type.kt Font(R.font.archivo_italic — Archivo's italic face, for the slash wipe and celebrations
+italic ui/Type.kt r.resolve(archivo, FontWeight.Black, FontStyle.Italic) — warms Archivo italic before the first slash wipe
+uppercase ui/Restore.kt capitalization = KeyboardCapitalization.Characters — the restore code is typed in capitals (the code's own alphabet), not a heading

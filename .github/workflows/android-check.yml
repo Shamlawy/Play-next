@@ -20,6 +20,7 @@ on:
       - "tools/android-gen.mjs"
       - "tools/android-smoke.sh"
       - "tools/compose-check.mjs"
+      - "tools/android-rules.mjs"
 permissions:
   contents: read
 concurrency:
@@ -55,7 +56,7 @@ jobs:
             # HEAD is GitHub's merge of the PR into its base: parent 1 = the base, so this is exactly what the PR changes
             git diff --no-renames --name-only 'HEAD^1' HEAD > "$RUNNER_TEMP/changed.txt"
             grep -v '^android/parity/' "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/rest.txt" || true
-            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$|tools/(android-smoke\.sh|compose-check\.mjs)$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
+            if grep -Eq '^(android/|\.github/workflows/android-|tools/(golden|android-gen)\.mjs$|tools/(android-smoke\.sh|compose-check\.mjs|android-rules\.mjs)$)' "$RUNNER_TEMP/rest.txt"; then app=true; else app=false; fi
             echo "$(wc -l < "$RUNNER_TEMP/changed.txt") files changed; app build needed: $app"
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
@@ -73,6 +74,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Gate 6 (android/parity/0-map/2-look.md §6): the house rules as named checks over the Kotlin, each proved on a
+      # planted copy first; exceptions with their reasons in android/house-rules-ok.txt. Seconds, before Gradle starts.
+      - name: "House rules (tools/android-rules.mjs)"
+        run: node ../tools/android-rules.mjs --self-test && node ../tools/android-rules.mjs
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
