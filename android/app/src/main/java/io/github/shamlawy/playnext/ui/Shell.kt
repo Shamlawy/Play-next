@@ -34,6 +34,9 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -181,10 +184,23 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 step((if (i != null) nav.closeAt(i) else nav).open("settings"))
             }
             holder.SaveableStateProvider(nav.tab) {
-                Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
-                    if (!wide) TabBar(nav.tab, pick, settings)
-                    Column(Modifier.entrance(enter)) {
-                        TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }, pickView = pickView)
+                val ready = games as? Games.State.Ready
+                if (nav.tab == "games" && view == "queue" && ready != null) {
+                    // the Queue's rows are many: a lazy page draws only the ones on screen
+                    val qpick = remember { QueuePick(ready.lib) }
+                    val qv = rememberQueueView(ready.lib, qpick)
+                    val folded = w <= 500.dp
+                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) { cap ->
+                        if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
+                        item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w, pickView) } }
+                        queueItems(qv, qpick, folded, calm, cap.entrance(enter)) { id -> opener(id, null) }
+                    }
+                } else {
+                    Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
+                        if (!wide) TabBar(nav.tab, pick, settings)
+                        Column(Modifier.entrance(enter)) {
+                            TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }, pickView = pickView)
+                        }
                     }
                 }
             }
@@ -287,6 +303,28 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
             break
         }
     }
+}
+
+/** [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). */
+@Composable
+private fun LazyPage(w: Dp, modifier: Modifier, content: LazyListScope.(Modifier) -> Unit) {
+    val big = w >= 700.dp
+    val side = if (big) 22.dp else 16.dp
+    val railRoom = if (w >= RAIL_FROM && w < 1100.dp) 96.dp else side
+    val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
+    val dir = LocalLayoutDirection.current
+    val cap = Modifier.widthIn(max = 880.dp).fillMaxWidth()
+    LazyColumn(
+        modifier.fillMaxSize(),
+        state = rememberLazyListState(),
+        contentPadding = PaddingValues(
+            start = bars.calculateStartPadding(dir) + side,
+            end = bars.calculateEndPadding(dir) + railRoom,
+            top = bars.calculateTopPadding() + if (big) 26.dp else 20.dp,
+            bottom = bars.calculateBottomPadding() + if (big) 60.dp else 40.dp,
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) { content(cap) }
 }
 
 /**

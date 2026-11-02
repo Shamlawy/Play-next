@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
@@ -49,7 +50,7 @@ fun picUrl(u: String): String = when {
  * [ground] (the web's `#1b2445` under a cover); one that can't load shows the game's drawn cover instead of a hole.
  */
 @Composable
-fun PicBox(pic: Pic, g: Game?, modifier: Modifier = Modifier, alpha: Float = 1f, ground: Color? = null) {
+fun PicBox(pic: Pic, g: Game?, modifier: Modifier = Modifier, alpha: Float = 1f, ground: Color? = null, align: Alignment = Alignment.Center) {
     when (pic) {
         is Pic.Drawn -> DrawnCover(pic.g, modifier, alpha)
         is Pic.Url -> {
@@ -62,6 +63,7 @@ fun PicBox(pic: Pic, g: Game?, modifier: Modifier = Modifier, alpha: Float = 1f,
                         model = picUrl(pic.url),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        alignment = align,
                         alpha = alpha,
                         onState = { if (it is AsyncImagePainter.State.Error) failed = true },
                         modifier = Modifier.fillMaxSize(),
