@@ -1,4 +1,4 @@
-# Phase 1 · Queue · the Brief (sent Nov 2 2026, waiting for the owner's answers)
+# Phase 1 · Queue · the Brief (sent Nov 2 2026, answered the same day)
 
 Phase 0 was approved on the phone on Nov 2 ("approved", #673). This Brief went to the owner the same day, on the weekly budget (docs/ANDROID-PLAN.md › Time and tokens): the Brief on Monday, the Map on Tuesday, one piece a day Wednesday to Friday, the check on Saturday. Nothing is built, not even the Map, until the owner answers.
 
@@ -20,4 +20,4 @@ Saturday: the check (3 reviewers, two at a time), fixes, then "Approve Phase 1 o
 5. Closed games as Rows or Character select (`S.qLook`): suggested both, like the web.
 
 ## Answers
-(not yet)
+Nov 2 · "suggest i trust you": every suggested answer. 1 Order menu: yes. 2 Shuffle + the Game Shuffler deck: yes. 3 Move up / down arrows: not ported (owner, Nov 2), drag does it. 4 Score it / Duel it in the open card's ⋯: not ported to the Queue (owner, Nov 2), they live on the game page (Phase 2) and in Taste (Phase 6). 5 Rows and Character select: both. The three pieces as briefed. Next: the Map (at most 2 helpers), then piece 1.
