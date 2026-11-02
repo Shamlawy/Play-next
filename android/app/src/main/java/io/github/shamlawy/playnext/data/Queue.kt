@@ -219,7 +219,12 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
     // ---- On deck ----
 
     /** `deckShown(n)`: On deck's top [n] under [tab] (All: the whole On deck; other tabs: the same scores among its games). */
-    fun deck(tab: String, n: Int = 3): List<Game> {
+    fun deck(tab: String, n: Int = 3): List<Game> = deckMemo.getOrPut(tab to n) { deckOf(tab, n) }
+
+    /** One list per tab while this Queue lives, so On deck gets the same object back and Compose can skip it. */
+    private val deckMemo = HashMap<Pair<String, Int>, List<Game>>()
+
+    private fun deckOf(tab: String, n: Int): List<Game> {
         if (tab == "all") return rk.onDeck(n)
         val ids = list(tab).map { it.id }.toHashSet()
         val s = rk.deck
