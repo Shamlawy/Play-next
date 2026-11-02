@@ -7,7 +7,7 @@ The three things most likely to be ported wrong:
 2. **One tap closes the card only after waiting 320 ms for a second tap, and the same tap logic runs on the BACK too** (a non-button tap anywhere on the back closes the card; two quick taps turn it back). The gap is timed from the finger-lift time stamp, not from when the app handled the event (v307). A tap on any button (box art, Edit, ⋯) cancels a pending close.
 3. **Dates and numbers are not what the rest of the Android code writes.** The card's dates are en-GB, day first ("12 Mar", "12 Mar 27", stub "12 Mar" over "2027"), but `data/Times.kt` writes US "Mar 12". The day count is `ceil((date at UTC midnight - now) / 86400000)`, not local-midnight days. The back's "evenings" line uses `S.evening || 2` while the rest of the app uses 4 as the default. The card's headline words differ per state (table in section 1.3); copy them verbatim.
 
-Also: the web's Game Shuffler is still the v181 look (uppercase serif title, emoji, tilted cover and side cards), which breaks house rules set later (section 5.9). It needs an owner call before Android copies it.
+Also: the web's Game Shuffler is still the v181 look (uppercase serif title, emoji, tilted cover and side cards), which breaks house rules set later (section 5.9). It needs an owner call before Android copies it. **Decided Nov 2** (android/parity/1-brief.md): the deck is drawn in the open Queue card's look, same swiping.
 
 # 1. The open card's front
 
@@ -202,7 +202,7 @@ Reads `S.games`, `S.played`, `S.shufMode`, `S.evening`, `S.lists`, game fields a
 
 ## 5.7 Rules and visual debt
 
-- LOG v181 (the deck was made as a chess-reference look), v303 notes it is "Moving things" in the Brief. Not restyled since. It breaks later house rules: tilted poster and side cards (v299 "never a tilted cover" is about the Queue card, not this), emoji as icons (v297), uppercase heading (v188), `Playfair Display` serif. Decision needed before Android copies it as-is or applies the house look. (Playfair is bundled on Android, 0.md:42.)
+- LOG v181 (the deck was made as a chess-reference look), v303 notes it is "Moving things" in the Brief. Not restyled since. It breaks later house rules: tilted poster and side cards (v299 "never a tilted cover" is about the Queue card, not this), emoji as icons (v297), uppercase heading (v188), `Playfair Display` serif. Decision needed before Android copies it as-is or applies the house look. (Playfair is bundled on Android, 0.md:42.) **Decided Nov 2:** the open Queue card's look (1-brief.md).
 - Nexi's bubble hides while it is open; no Nexi menu inside it.
 
 # 6. Nexi's seat
