@@ -65,6 +65,9 @@
 - Rough guide: `kit.mjs all` ~6 min, a scenario ~1 min, app-check on GitHub ~8 min, a demo video ~4 min a width, a small fix + release ~20 min, a new screen or feature 1–3 h.
 - Every estimate is timed and learned from (the owner, Oct 23: "do monitor that and see how well you do and learn i always want you to learn always"): the learn mod records each `⏱ About N min` line in `docs/ETA.md` by itself (`tools/eta.mjs`), ends it with that turn, and reminds you to `node tools/eta.mjs end <id>` when the work ran in the background (`drop` if abandoned); a `⏱ Taking longer` line adds to it. The first message of a chat gets the real time ÷ what was said per kind (research, kit, ci, video, release, build, plan): scale the next estimate by it, and update the rough guide when a kind keeps missing.
 
+## Questions to the owner: show it (Nov 2)
+- The owner, Nov 2: "when you ask me about a feature or something i kinda dont feel and understand it do show me an example … it can be a photo or you just give me examples". Every question about a feature, a look or a choice comes with a picture (a screenshot of the web app from a one-off `tools/scenarios/zz-*.mjs` run at 412, `SHOTS=tools/.cache/shots`, sent with SendUserFile; a quick demo for something new) or a concrete everyday example, never only the feature's name. Name which app and which phone, and list the steps in the reply, never an issue number alone (L210).
+
 ## What's new tour (required on every release)
 - After an update, Nexi runs a tour (`nxTour`) of every `WHATS_NEW` entry newer than the version the phone had.
 - Every user-facing change MUST add a `WHATS_NEW` entry (in the v172 script near the end of `index.html`) with: `v` = the new `APP_V`, `go` (open the right screen: `nxOpenGame()`, `nxQueue()`, `nxHome()`, `nxOpenSettings(sel)` or custom), `at` (selector or function returning the element to point at, or null), `say` (what it does, can use <b>), `tryIt` (what to try).

@@ -20,4 +20,8 @@ Saturday: the check (3 reviewers, two at a time), fixes, then "Approve Phase 1 o
 5. Closed games as Rows or Character select (`S.qLook`): suggested both, like the web.
 
 ## Answers
-Nov 2 · "suggest i trust you": every suggested answer. 1 Order menu: yes. 2 Shuffle + the Game Shuffler deck: yes. 3 Move up / down arrows: not ported (owner, Nov 2), drag does it. 4 Score it / Duel it in the open card's ⋯: not ported to the Queue (owner, Nov 2), they live on the game page (Phase 2) and in Taste (Phase 6). 5 Rows and Character select: both. The three pieces as briefed. Next: the Map (at most 2 helpers), then piece 1.
+Nov 2 · "suggest i trust you": every suggested answer. 1 Order menu: yes. 2 Shuffle + the Game Shuffler deck: yes. 3 Move up / down arrows: not ported (owner, Nov 2), drag does it. 4 Score it / Duel it in the open card's ⋯: not ported to the Queue (owner, Nov 2), they live on the game page (Phase 2) and in Taste (Phase 6). 5 Rows and Character select: both. The three pieces as briefed.
+
+Nov 2 · the Game Shuffler deck (the map found it still in its v181 look: uppercase serif title, emoji, tilted cards, `beep()` sounds), shown the deck and the open Queue card side by side: "yeah queue card is better": the deck's cards are drawn like the open Queue card (v299: picture filling the card, strap in the game's colour, straight box art, ticket, logo), the same swiping (right = tempted, left = not now), sentence case, drawn icons, sounds through the shared sfx kit. A change from "copy it as it is". Also from the map: the card's ⋯ holds Diary and Competitive at web 327 (Score it / Duel it were never there; they live on the game page).
+
+Next: the Map (at most 2 helpers), then piece 1.
