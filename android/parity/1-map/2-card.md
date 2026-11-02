@@ -7,7 +7,7 @@ The three things most likely to be ported wrong:
 2. **One tap closes the card only after waiting 320 ms for a second tap, and the same tap logic runs on the BACK too** (a non-button tap anywhere on the back closes the card; two quick taps turn it back). The gap is timed from the finger-lift time stamp, not from when the app handled the event (v307). A tap on any button (box art, Edit, ⋯) cancels a pending close.
 3. **Dates and numbers are not what the rest of the Android code writes.** The card's dates are en-GB, day first ("12 Mar", "12 Mar 27", stub "12 Mar" over "2027"), but `data/Times.kt` writes US "Mar 12". The day count is `ceil((date at UTC midnight - now) / 86400000)`, not local-midnight days. The back's "evenings" line uses `S.evening || 2` while the rest of the app uses 4 as the default. The card's headline words differ per state (table in section 1.3); copy them verbatim.
 
-Also: the web's Game Shuffler is still the v181 look (uppercase serif title, emoji, tilted cover and side cards), which breaks house rules set later (section 5.9). It needs an owner call before Android copies it.
+Also: the web's Game Shuffler is still the v181 look (uppercase serif title, emoji, tilted cover and side cards), which breaks house rules set later (section 5.9). It needs an owner call before Android copies it. **Decided Nov 2** (android/parity/1-brief.md): the deck is drawn in the open Queue card's look, same swiping.
 
 # 1. The open card's front
 
@@ -202,7 +202,7 @@ Reads `S.games`, `S.played`, `S.shufMode`, `S.evening`, `S.lists`, game fields a
 
 ## 5.7 Rules and visual debt
 
-- LOG v181 (the deck was made as a chess-reference look), v303 notes it is "Moving things" in the Brief. Not restyled since. It breaks later house rules: tilted poster and side cards (v299 "never a tilted cover" is about the Queue card, not this), emoji as icons (v297), uppercase heading (v188), `Playfair Display` serif. Decision needed before Android copies it as-is or applies the house look. (Playfair is bundled on Android, 0.md:42.)
+- LOG v181 (the deck was made as a chess-reference look), v303 notes it is "Moving things" in the Brief. Not restyled since. It breaks later house rules: tilted poster and side cards (v299 "never a tilted cover" is about the Queue card, not this), emoji as icons (v297), uppercase heading (v188), `Playfair Display` serif. Decision needed before Android copies it as-is or applies the house look. (Playfair is bundled on Android, 0.md:42.) **Decided Nov 2:** the open Queue card's look (1-brief.md).
 - Nexi's bubble hides while it is open; no Nexi menu inside it.
 
 # 6. Nexi's seat
@@ -302,5 +302,5 @@ Out of scope here: his menu `pnBubWheel` (12363; hook points: hold 600 ms or dou
 - **Not verified**: `simLocal` (the "Like this" row's matching); `playedRows()`, `genrePattern()` internals beyond their use in `expected`; `lfRule` (the closed rows' logo sizing, piece 1); `S.playStyle` source (`playStyle()` was used but not opened); the exact CSS of `.simback`/`.sb-g` on the card back; whether Android's `Pic` already picks the Steam hero.
 - **Not found**: any caller of `pnBubSay()` without an argument (zero); a contrast guard for pale game colours on the strap (none exists); any place that writes `g.logged` for "Nearly done" logic (not needed for the card).
 - **Brief correction**: Score it / Duel it are not in the card's ⋯ at 327 (section 4.2).
-- **Decisions for the owner or the build**: (1) taps during a turn: web ignores them, the Android plan says interruptible; (2) copy the Game Shuffler's v181 look as it is, or restyle it to the house rules; (3) the `S.evening` default (2 on the card back, 4 elsewhere) is probably an old inconsistency; copy it as is unless told otherwise; (4) practice-copy writes (Play now, Save as a list, Competitive, shufMode) stay in memory; (5) the 320 ms close delay makes a single tap feel late; the web is the reference, so keep it unless the owner says otherwise.
+- **Decisions for the owner or the build**: (1) taps during a turn: web ignores them, the Android plan says interruptible; (2) the Game Shuffler's look: decided Nov 2, the open Queue card's look (1-brief.md); (3) the `S.evening` default (2 on the card back, 4 elsewhere) is probably an old inconsistency; copy it as is unless told otherwise; (4) practice-copy writes (Play now, Save as a list, Competitive, shufMode) stay in memory; (5) the 320 ms close delay makes a single tap feel late; the web is the reference, so keep it unless the owner says otherwise.
 - Tests worth porting as screenshot/instrumented checks: `tools/scenarios/queue-card.mjs`, `card-turn.mjs` (turn <= 450 ms, box and scroll don't move, no part overlaps another, opening plays only the card's own tones), `logo-look.mjs`, `queue-open-place.mjs`, `nexi-wheel.mjs`, `rail-nexi.mjs`, `calm-nexi.mjs`.

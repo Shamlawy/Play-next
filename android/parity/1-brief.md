@@ -24,4 +24,4 @@ Nov 2 · "suggest i trust you": every suggested answer. 1 Order menu: yes. 2 Shu
 
 Nov 2 · the Game Shuffler deck (the map found it still in its v181 look: uppercase serif title, emoji, tilted cards, `beep()` sounds), shown the deck and the open Queue card side by side: "yeah queue card is better": the deck's cards are drawn like the open Queue card (v299: picture filling the card, strap in the game's colour, straight box art, ticket, logo), the same swiping (right = tempted, left = not now), sentence case, drawn icons, sounds through the shared sfx kit. A change from "copy it as it is". Also from the map: the card's ⋯ holds Diary and Competitive at web 327 (Score it / Duel it were never there; they live on the game page).
 
-Next: the Map (at most 2 helpers), then piece 1.
+Next: piece 1 (the list). The Map is done (android/parity/1-map/, Nov 2).
