@@ -188,7 +188,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 if (nav.tab == "games" && view == "queue" && ready != null) {
                     // the Queue's rows are many: a lazy page draws only the ones on screen
                     val qpick = remember { QueuePick(ready.lib) }
-                    val qv = rememberQueueView(ready.lib, qpick)
+                    val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
                     LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }

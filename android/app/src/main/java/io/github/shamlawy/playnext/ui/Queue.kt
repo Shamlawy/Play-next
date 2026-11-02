@@ -121,12 +121,15 @@ class QueueView(val q: Queue, val tab: String, val sort: String, val shown: List
 
 /** The Queue's own numbers for [lib] at this minute: the tab and order picked, the games shown in that order. */
 @Composable
-fun rememberQueueView(lib: Library, pick: QueuePick): QueueView {
+fun rememberQueueView(lib: Library, pick: QueuePick, made: Queue? = null): QueueView {
     val now = LocalNow.current()
     val zone = java.time.ZoneId.systemDefault()
-    // the day matters (out / coming / dust), the minute doesn't: worked out again for a new copy or a new day
+    // what it says changes at the phone's midnight (today, dust, just out) and at UTC midnight (a date's out or coming,
+    // the days to go), never between: the Games day build makes it off Main for that stretch ([made]); this one only
+    // fills in until a missed rollover catches up, or for a Ready made by hand
     val day = io.github.shamlawy.playnext.data.JsDate.todayLocal(now, zone)
-    val q = remember(lib, day) { Queue(lib, Rank(lib, now, zone), now, zone) }
+    val utcDay = Math.floorDiv(now, io.github.shamlawy.playnext.data.JsDate.DAY)
+    val q = remember(lib, day, utcDay, made) { made?.takeIf { it.lib === lib && it.covers(now, zone) } ?: Queue(lib, Rank(lib, now, zone), now, zone) }
     val tab = q.tabNow(pick.tab)
     val sort = pick.sort
     val shown = remember(q, tab, sort) { q.sort(q.list(tab), sort) }
@@ -139,19 +142,20 @@ class QueuePick(lib: Library) {
     var sort by mutableStateOf(Backup.str(lib["sort"]).ifEmpty { "manual" })
 }
 
-/** The colours the web CSS writes as literals (index.html 27366-27546, 24517-24533, 21096): named once here. */
+/** The colours the web CSS writes as literals (index.html 27366-27546, 24517-24533, 21096), read by tools/android-gen.mjs. */
 object QTone {
-    val playing = Color(0xFF3FD9A4) // --qsc for playing (27376): rgb(63 217 164)
-    val coming = Color(0xFF6FD6FF) // --qsc for coming: rgb(111 214 255)
-    val played = Color(0xFFC7A3FF) // --qsc for played: rgb(199 163 255)
-    val shade = Color(0xFF070A14) // rgba(7,10,20,x): the picture's veil
-    val shadeDeep = Color(0xFF04060E) // rgba(4,6,14,.66): the veil's right edge
-    val ticket = Color(0xFF050810) // rgba(5,8,16,.88): the ticket's ground
-    val pale = Color(0xFFEAF2FF) // rgba(234,242,255,x): the ticket's labels, the folded date
-    val photo = Color(0xFF141A2E) // rgb(20,26,46): On deck's picture ground
-    val onVolt = Color(0xFF060A16) // rgb(6,10,22): words on On deck's button
-    val dust = Color(0xFFD6CEBE) // rgba(214,206,190,x): the dust's dots
-    val dustVeil = Color(0xFFBEB4A0) // rgba(190,180,160,x): the dust's veil
+    private fun base(c: Long) = Color(c).copy(alpha = 1f)
+    val playing = base(Web.QS_PLAYING) // --qsc for playing
+    val coming = base(Web.QS_COMING) // --qsc for coming
+    val played = base(Web.QS_PLAYED) // --qsc for played
+    val shade = base(Web.Q_SHADE) // the picture's veil
+    val shadeDeep = base(Web.Q_SHADE_DEEP) // the veil's right edge
+    val ticket = base(Web.Q_TICKET) // the ticket's ground
+    val pale = base(Web.Q_PALE) // the ticket's labels, the folded date
+    val photo = base(Web.Q_PHOTO) // On deck's picture ground
+    val onVolt = base(Web.Q_ON_VOLT) // words on On deck's button
+    val dust = base(Web.Q_DUST) // the dust's dots
+    val dustVeil = base(Web.Q_DUST_VEIL) // the dust's veil
 }
 
 /** `color-mix(in srgb, a t, b)` with transparency (premultiplied, as CSS mixes): not [mix], which drops alpha. */

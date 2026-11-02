@@ -25,6 +25,12 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
     }
 
     /** `new Date(new Date().toDateString())`: today's midnight on the phone. */
+    /** True while [t] is in this Queue's stretch: the same phone day and the same UTC day, in the same zone. */
+    fun covers(t: Long, z: ZoneId) = z == zone && JsDate.todayLocal(t, z) == today && Math.floorDiv(t, JsDate.DAY) == Math.floorDiv(now, JsDate.DAY)
+
+    /** Works out what every Queue screen needs first (the counts, On deck, the rank table), so drawing it only reads. */
+    fun warm() { counts; deck("all"); rk.elo; rk.table }
+
     private val day0 = JsDate.today0(now, zone)
     private val today = JsDate.todayLocal(now, zone)
 
@@ -95,8 +101,10 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
                     val ty = tier(y)
                     if (tx != ty) return@sortedWith tx - ty
                     if (tx == 1) return@sortedWith 0
-                    val dx = JsDate.utcMidnight(x.date) ?: return@sortedWith 0
-                    val dy = JsDate.utcMidnight(y.date) ?: return@sortedWith 0
+                    // a date it can't read sits in the past tier (as the web's) as the oldest, so the order stays total
+                    // (a 0 against everything breaks TimSort's contract: it can throw on 32+ games)
+                    val dx = JsDate.utcMidnight(x.date) ?: Long.MIN_VALUE
+                    val dy = JsDate.utcMidnight(y.date) ?: Long.MIN_VALUE
                     if (tx == 0) dx.compareTo(dy) else dy.compareTo(dx)
                 }
             }
