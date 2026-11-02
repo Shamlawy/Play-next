@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.test.core.app.ApplicationProvider
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
@@ -106,17 +107,23 @@ class StartTest {
         rule.waitForIdle()
         fun barTop() = rule.onAllNodes(hasContentDescription("Games") and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
             .fetchSemanticsNodes().minOf { it.positionInRoot.y }
+        // the Queue is a lazy list: what scrolled off is gone, so the spot is the first row on screen and where it sits
+        fun firstRow() = rule.onAllNodes(hasText("Made-up Game", substring = true)).fetchSemanticsNodes()
+            .filter { it.positionInRoot.y >= 0f }.minBy { it.positionInRoot.y }
+            .let { n -> n.config[SemanticsProperties.Text].joinToString { it.text } to n.positionInRoot.y }
         val top = barTop()
         rule.onRoot().performTouchInput { swipeUp(startY = bottom * .7f, endY = top + 100f, durationMillis = 400) }
         rule.waitForIdle()
-        val scrolled = barTop()
-        assertTrue("the page didn't scroll ($top → $scrolled)", scrolled < top - 500f)
+        val scrolled = firstRow()
+        assertTrue("the page didn't scroll ($scrolled)", !scrolled.first.contains("Made-up Game 1,") && !scrolled.first.endsWith("Made-up Game 1"))
         games.value = Games.State.Starting
         tester.emulateSavedInstanceStateRestore()
         rule.waitForIdle()
         games.value = Games.State.Ready(l, System.currentTimeMillis())
         rule.waitForIdle()
-        assertEquals(scrolled, barTop(), 2f)
+        val back = firstRow()
+        assertEquals(scrolled.first, back.first)
+        assertEquals(scrolled.second, back.second, 2f)
     }
 
     /** Your games arriving after the start (no copy on the phone yet) still open on your tab, once. */

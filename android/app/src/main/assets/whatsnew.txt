@@ -62,3 +62,9 @@ go=home
 at=
 say=A polish pass on everything so far: Settings pulls down to close like the web's sheet, release days flip at midnight by themselves, and the header cards open faster.
 tryIt=Open Settings and pull it down from the top: it closes. Unfolded, tap a header card's cover: the rail stays and Back sits top right. In Settings, tap Check for a newer copy: it says when it looked. Back on a tab leaves the app without shrinking it.
+
+v=11
+go=home
+at=
+say=Your Queue is here: every game as a closed row in its own colour, with the bar to switch All, Out, Coming, Played and your lists, the Order menu, and On deck's three picks on top.
+tryIt=Open Games › Queue and scroll, folded and unfolded. Tap Out, Coming and Played (the counts match the web app), then Order › Most hyped: the rows glide into the new order and each shows its hype. Tap a row: its game page opens (the open card comes next). It's a practice copy: your tab and order go back to the web app's when the app reopens.
