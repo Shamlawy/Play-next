@@ -212,7 +212,7 @@ The owner picked 1, 2, 4, 5, 6, 7, 9, 10, 11, 13 and 14 ("wow claude those were 
 
 ## Time and tokens
 
-- **Count:** about 46–53 build sessions (after the Oct 23 check and the owner's 11 picks), about 11 fix sessions and 23 ultracode runs (2 per phase + switch day). That's about 70 working days: roughly 3½ months at 5 days a week, re-estimated after Phase 1 from the real pace.
+- **Count:** about 46–53 build sessions (after the Oct 23 check and the owner's 11 picks), about 11 fix sessions and 23 ultracode runs (2 per phase + switch day). That's about 70 working days: roughly 3½ months at 5 days a week, re-estimated after Phase 1 from the real pace. Since Nov 2 (the weekly budget below) a phase's Map and Perfect are helpers in the chat (a 2-helper Map, a 3-lens Perfect without skeptics), not ultracode runs; only switch day's whole-app check stays an ultracode run.
 - **The weekly budget** (Nov 2, the owner: "my weekly limit ended on wednesday although it resets on monday so do plan the phases and effort better"). The limit resets **Monday 12 PM UAE** (8 AM UTC). Phase 0's week (Oct 26–29) ran it out by Thursday: a Map of 5 mappers + a critic, a Perfect run of 7 opus lenses that hit the 5-hour limit twice, three fix chats, two CI fights that took 2–3× their estimate (E11, E13), chats at xhigh effort running to 300k, and the daily fixer re-reading its ~220k chat every morning to say nothing was new.
   - **One phase a week**, two weeks for the big ones (2, 5, 6, 9), so the end of a week is never where a phase's heavy part lands:
 
@@ -221,7 +221,7 @@ The owner picked 1, 2, 4, 5, 6, 7, 9, 10, 11, 13 and 14 ("wow claude those were 
     | Mon after 12 PM | Brief (one small chat); the owner answers | small |
     | Tue | Map: at most 2 helpers (a sonnet one lists, an opus one checks) | medium |
     | Wed, Thu, Fri | one build piece a day, one chat per piece, its release that day | medium each |
-    | Sat | Perfect: 3 lenses (bugs + touch + back · speed + look · Android basics + updates + parity), no skeptic helpers (the fix chat reproduces each finding with a test first, L198), then one fix chat and the approval issue | large |
+    | Sat | Perfect: 3 lenses, two at a time and then the third (bugs + touch + back · speed + look · Android basics + updates + parity), no skeptic helpers (the fix chat reproduces each finding with a test first, L198), then one fix chat and the approval issue | large |
     | Sun → Mon 12 PM | reserve: nothing planned; the owner's notes, the friend's reports, a broken CI run | kept free |
 
     A two-week phase builds Wed–Fri of week one and Mon–Thu of week two, then its Perfect. A day that runs over pushes the next piece, never the Perfect into the reserve. If the reserve is untouched by Sunday, it can take the next phase's Brief early.
