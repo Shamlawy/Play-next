@@ -268,8 +268,10 @@ class ScreensTest {
         rule.onRoot().performTouchInput { swipeRight() }
         rule.runOnIdle { assertEquals("games" to "queue", nav.tab to prefs.viewOf("games", nav.views)) }
         rule.onRoot().performTouchInput {
+            // the second finger above the first: just under the middle is On deck's side scroller, which keeps its own
+            // swipes (LocalSwipeGuard), and the header card's height decides where it starts (M71 moved it up 6dp)
             down(0, Offset(width * .85f, centerY))
-            down(1, Offset(width * .85f, centerY + 120f))
+            down(1, Offset(width * .85f, centerY - 120f))
             repeat(10) {
                 updatePointerBy(0, Offset(-width * .07f, 0f))
                 updatePointerBy(1, Offset(-width * .07f, 0f))

@@ -10,6 +10,7 @@ CustomiseSheet.games: State
 DeckCard.g: Game
 DeckCard.q: Queue
 DrawnCover.g: Game
+DropRow.l: QList
 Fan.covers: List<Game>
 Fan.t: Animatable<Float, AnimationVector1D>
 FlyingCover.f: Flight
@@ -20,6 +21,8 @@ Genres.tags: List<Pair<String, Int>>
 HeaderCard.cards: Cards?
 HeaderCard.lib: Library
 HomePage.games: State
+ListRow.l: QList
+ListsSheet.games: State
 LogoSlot.lib: Library
 MixBar.segs: List<Seg>
 OnDeck.deck: List<Game>
@@ -32,6 +35,7 @@ PlayNextRoot.link: Route?
 QueueGroups.lib: Library
 QueueRow.g: Game
 QueueRow.q: Queue
+RenameRow.l: QList
 SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State

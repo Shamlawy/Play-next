@@ -216,14 +216,15 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
     // (`flex-wrap: wrap`) instead of squeezing the lit tab's name and count to "…" (FlowRow's weights did)
     val measure = rememberTextMeasurer()
     val px = LocalDensity.current
-    val needs = tabs.map { t ->
+    // remembered: TabLines gets the very same list back until a tab, its count or the lit one changes (compose-check)
+    val needs = remember(q, folded, v.tab, px, measure) { tabs.map { t ->
         with(px) {
             val icon = 17.dp
             val word = if (!folded || t == v.tab) measure.measure(q.tabName(t), (if (folded) QType.tabF else QType.tab).fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp) else 0.dp
             val count = measure.measure((q.counts[t] ?: 0).toString(), QType.count.fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp)
             icon + word + count + (if (folded) 18.dp else 24.dp)
         }
-    } + LIST_BTN
+    } + LIST_BTN }
     val tabRow = @Composable { m: Modifier ->
         TabLines(
             m.background(Pn.pan, RoundedCornerShape(18.dp)).border(1.dp, Pn.line2, RoundedCornerShape(18.dp)).padding(horizontal = 4.dp, vertical = if (folded) 0.dp else 2.dp),
