@@ -10,6 +10,7 @@
    too, so the list never piles up. android-check runs it on every PR. */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PKG = "app/src/main/java/io/github/shamlawy/playnext";
 
@@ -92,7 +93,7 @@ function strip(src) {
 export function scan(files, ok = []) {
   const hits = [], seen = new Set(), all = [];
   for (const [f, src] of files) {
-    const t = strip(src), ls = t.split("\n"), raw = src.split("\n");
+    const t = strip(src), ls = t.split(/\r?\n/), raw = src.split(/\r?\n/);
     all.push(t);
     ls.forEach((l, i) => {
       for (const r of RULES) {
@@ -113,7 +114,7 @@ export function scan(files, ok = []) {
 
 export function readOk(file) {
   if (!fs.existsSync(file)) return [];
-  return fs.readFileSync(file, "utf8").split("\n").map(s => s.trim()).filter(s => s && !s.startsWith("#")).map(s => {
+  return fs.readFileSync(file, "utf8").split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith("#")).map(s => {
     const m = s.match(/^(\S+)\s+(\S+)\s+(.+?)\s+—\s+(.+)$/);
     if (!m) throw new Error("android/house-rules-ok.txt: can't read " + JSON.stringify(s) + " (want: <rule> <path> <text> — <why>)");
     return { rule: m[1], file: m[2], text: m[3], why: m[4], src: s };
@@ -179,7 +180,7 @@ const args = process.argv.slice(2);
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {
   if (args.includes("--list")) { for (const r of [...RULES, ...PRESENCE]) console.log(`${r.name.padEnd(20)} ${r.why}`); process.exit(0); }
   if (args.includes("--self-test")) { console.log("== android-rules: self-test =="); const b = selfTest(); console.log(b ? `\n${b} failed.` : "\nAll caught."); process.exit(b ? 1 : 0); }
-  const ri = args.indexOf("--root"), root = ri >= 0 ? args[ri + 1] : path.join(path.dirname(new URL(import.meta.url).pathname), "..", "android");
+  const ri = args.indexOf("--root"), root = ri >= 0 ? args[ri + 1] : path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "android");
   const okFile = path.join(root, "house-rules-ok.txt");
   const { hits, stale } = scan(kotlinFiles(root), readOk(okFile));
   console.log(`== android-rules: the house rules over ${PKG} ==`);

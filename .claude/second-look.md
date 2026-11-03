@@ -22,5 +22,8 @@ lift or fade (#309); Material You dynamic colour; a colour that isn't from the g
 animating anything but graphicsLayer translation / scale / alpha / rotation; unknown fields of the backup JSON dropped when it is
 saved; game titles in problem reports; a pull-request build that can reach the real signing key; and in the workflows, `${{ }}`
 expressions inside `run:` (pass them through `env:`), third-party actions not pinned to a full commit SHA, or `pull_request_target`.
+Parity copies are not findings: where the Android app draws something exactly as the web app does (the list tab's own list emoji
+in the Queue bar, drawn by index.html's i.qle; a web literal colour read through tools/android-gen.mjs), it copies the web on
+purpose, so check the web code it names before blocking; only an Android-only drawing of the same kind is a finding (L216).
 first: index.html sw.js worker manifest.webmanifest android/app/build.gradle.kts android/app/src/main/AndroidManifest.xml .github/workflows/android-*.yml
 skip: docs/MAP.md docs/LESSONS.md android/gradle/wrapper/* *.jar android/**/baseline-prof.txt
