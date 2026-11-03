@@ -180,7 +180,7 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
             emo = it
         }
         Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            LsField(name, { name = it; nameless = false }, "e.g. Co-op with a friend", "New list's name", Modifier.weight(1f), make)
+            LsField(name, { name = it; nameless = false }, "e.g. Co-op with a friend", "New list's name", Modifier.weight(1f), done = make)
             LsBtn("Make", LsKind.Go, onClick = make)
         }
         if (nameless) BasicText("Give the list a name", style = Type.note.copy(color = Pn.hot), modifier = Modifier.padding(top = 6.dp))
@@ -198,7 +198,7 @@ private fun ListRow(l: Queue.QList, n: Int, show: () -> Unit, rename: () -> Unit
             verticalArrangement = Arrangement.Center,
         ) {
             BasicText(l.n, style = DyType.name, maxLines = 1)
-            BasicText(Lists.countLine(n), style = DyType.small, maxLines = 1)
+            BasicText(Lists.countLine(n), style = DyType.small, maxLines = 2)
         }
         LsBtn(null, LsKind.Plain, icon = "ui:plus", label = "Add games to " + l.n, onClick = add)
         LsBtn(null, LsKind.Plain, icon = "ui:edit", label = "Rename", onClick = rename)

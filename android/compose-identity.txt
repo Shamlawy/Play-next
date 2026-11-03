@@ -1,5 +1,6 @@
 # Composable parameters Compose compares by identity (unstable types; tools/compose-check.mjs). Each was
 # checked: the caller passes the same object until it really changes (a new backup, a new day, a new list).
+AddGames.lib: Library
 AsOf.r: Ready
 BackupCard.games: State
 Chart.c: Chart
@@ -30,6 +31,7 @@ OnDeck.q: Queue
 Panel.lines: List<String>
 PicBox.g: Game?
 PicBox.pic: Pic
+PickRow.g: Game
 PictureCard.picture: ImageBitmap?
 PlayNextRoot.link: Route?
 QueueGroups.lib: Library

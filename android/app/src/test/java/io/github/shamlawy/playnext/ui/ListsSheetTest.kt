@@ -236,6 +236,8 @@ class ListsSheetTest {
         rule.mainClock.advanceTimeBy(1_000)
         rule.onNodeWithContentDescription("Manage lists").performClick()
         rule.waitForIdle()
+        // a tap right after a sheet opens lands on nothing (Shell's settle): a finger waits a moment
+        rule.mainClock.advanceTimeBy(1_000)
         rule.onNodeWithContentDescription("Delete").performClick()
         rule.onNodeWithText("Delete").performClick()
         rule.waitUntil(5_000) { Lists.of(ready.lib).isEmpty() && lists("a").isEmpty() && lists("c").isEmpty() }
