@@ -300,6 +300,14 @@ class ScreensTest {
     }
     @Test fun lists412() = shot("lists", 412, l = listsLib) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
     @Test fun lists859() = shot("lists", 859, l = listsLib) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
+    /** A list's + (the owner, Nov 3): every game with its cover, the two in the list ticked. */
+    private val openAdd = {
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithContentDescription("Add games to Couch nights").performClick()
+        rule.waitForIdle()
+    }
+    @Test fun listsAdd412() = shot("lists-add", 412, l = listsLib, ready = openAdd) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
+    @Test fun listsAdd859() = shot("lists-add", 859, l = listsLib, ready = openAdd) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
 
     /** The header card's Customise chip opens the Queue's Customise; Close and back shut it. */
     @Test fun theQueuesCustomiseChipOpensItsOwnGroups() {

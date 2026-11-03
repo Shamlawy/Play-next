@@ -232,7 +232,13 @@ need(Array.isArray(LIST_EMO) && LIST_EMO.length === LIST_MARKS.length && LIST_EM
   `LIST_EMO changed (now ${LIST_EMO.map(cps).join(", ")}): give each emoji its drawing in LIST_MARKS, in the same order`);
 const LIST_ICONS = LIST_MARKS.map(([, n, , d]) => ["list:" + n, typeof d === "function" ? d() : icon(`<svg viewBox="0 0 24 24">${LIST_DRAWN[d]}</svg>`, `list mark ${n}`)]);
 
-const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash"].map(n => ["ui:" + n, uicIcon(n)]), ...LIST_ICONS];
+/* the app's own drawings for things the web shows with a character (the picker's "in this list" tick, the web's ✓),
+   in the v247 style: 24x24, fill-only, one part at .35 */
+const APP_DRAWN = {
+  tick: '<circle opacity=".35" cx="12" cy="12" r="10.2"/><path d="M10.4 17.2 5.8 12.6l1.7-1.7 2.9 2.9 6.1-6.1 1.7 1.7z"/>',
+};
+const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash", "plus", "search"].map(n => ["ui:" + n, uicIcon(n)]),
+  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS];
 
 /* ---------- Kotlin ---------- */
 const ks = s => JSON.stringify(s).replace(/\$/g, "\\$");   // a JSON string is a valid Kotlin string once $ is escaped

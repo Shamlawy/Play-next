@@ -9,6 +9,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -150,6 +152,10 @@ class ListsSheetTest {
         rule.onNodeWithText("Make").performScrollTo().performClick()
         rule.waitUntil(5_000) { Lists.of(ready.lib).size == 1 }
         rule.waitForIdle()
+        // a new list opens straight on its games; Done goes back to your lists
+        rule.onNodeWithText("Add to Short ones").assertExists()
+        rule.onNodeWithText("Done").performClick()
+        rule.waitForIdle()
         rule.onNodeWithText("Short ones").assertExists()
         rule.onNodeWithText("0 games · show in queue").assertExists()
         assertEquals("the moon's emoji, as the web stores it", Lists.MARKS[4].emo, Lists.of(ready.lib)[0].e)
@@ -170,5 +176,71 @@ class ListsSheetTest {
         rule.waitUntil(5_000) { Lists.of(ready.lib).isEmpty() }
         rule.waitForIdle()
         rule.onNodeWithText("No lists yet. Make your first one below.").assertExists()
+    }
+
+    private fun lists(gid: String) = ready.lib.games.first { it.id == gid }.let { Lists.inLists(null, it) }
+
+    /** The owner, Nov 3: "add a feature to add games to the new playlist I create". A list's + opens every game. */
+    @Test fun aListsPlusPutsGamesInAndTakesThemOut() {
+        show(lib("""[{"id":"l1","n":"Couch nights","e":"🛋️"}]"""), listOf("lists"))
+        rule.onNodeWithContentDescription("Add games to Couch nights").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Add to Couch nights").assertExists()
+        rule.onNodeWithText("2 games in it", substring = true).assertExists()
+        val row = { t: String -> rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf(t)) and SemanticsMatcher.keyIsDefined(SemanticsProperties.ToggleableState)) }
+        row("Starfall Lantern").assertIsOn()
+        row("Copper Meadow").assertIsOff()
+        // two quick taps on two games: both stick (each builds on the last, not on a copy still rebuilding)
+        row("Copper Meadow").performClick()
+        row("Starfall Lantern").performClick()
+        row("Copper Meadow").assertIsOn()
+        row("Starfall Lantern").assertIsOff()
+        rule.waitUntil(5_000) { lists("b") == listOf("l1") && lists("a").isEmpty() }
+        assertEquals("the third game is untouched", listOf("l1"), lists("c"))
+        rule.waitForIdle()
+        rule.onNodeWithText("2 games in it", substring = true).assertExists()
+        // and back again
+        row("Copper Meadow").performClick()
+        rule.waitUntil(5_000) { lists("b").isEmpty() }
+        rule.onNodeWithText("Done").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("1 game · show in queue").assertExists()
+    }
+
+    @Test fun theSearchNarrowsTheGames() {
+        val many = Library(
+            Json.parseToJsonElement(
+                """{"theme":"midnight","lists":[{"id":"l1","n":"Couch nights","e":"🛋️"}],"games":[""" +
+                    (1..10).joinToString(",") { """{"id":"g$it","title":"${if (it == 7) "Ninefold Gate" else "Copper Meadow $it"}","state":"backlog","ord":$it}""" } +
+                    """],"duels":[],"played":[]}""",
+            ).jsonObject,
+        )
+        show(many, listOf("lists"))
+        rule.onNodeWithContentDescription("Add games to Couch nights").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Search your games").performTextInput("ninef")
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Ninefold Gate").assertExists().performClick()
+        // only the match is left in the picker (the Queue under the sheet still has its rows)
+        rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Copper Meadow 3")) and SemanticsMatcher.keyIsDefined(SemanticsProperties.ToggleableState))
+            .assertDoesNotExist()
+        rule.waitUntil(5_000) { lists("g7") == listOf("l1") }
+    }
+
+    /** M73 (second-look on #690): deleting the list the Queue shows takes it off its games and the Queue goes back to All. */
+    @Test fun deletingTheShownListGoesBackToAll() {
+        val nav = show(lib("""[{"id":"l1","n":"Couch nights","e":"🛋️"}]"""), listOf("lists"))
+        rule.onNodeWithContentDescription("Couch nights, 2 games, show in queue").performClick()
+        rule.waitForIdle()
+        assertEquals(emptyList<String>(), nav().stack)
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithContentDescription("Manage lists").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Delete").performClick()
+        rule.onNodeWithText("Delete").performClick()
+        rule.waitUntil(5_000) { Lists.of(ready.lib).isEmpty() && lists("a").isEmpty() && lists("c").isEmpty() }
+        rule.waitForIdle()
+        rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("All, 3")) and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+            .assertExists()
     }
 }

@@ -1,6 +1,7 @@
 package io.github.shamlawy.playnext.data
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import io.github.shamlawy.playnext.gen.Web
@@ -12,8 +13,9 @@ import kotlin.random.Random
  * renaming one, deleting one (`listDrop`). Pure: each gives the new `S.lists`, which the Lists sheet hands to
  * [Games.customise], so the change lives in memory only (a read-only practice copy until switch day).
  *
- * A deleted list's id stays on the games that had it (the web also takes it off them): in this copy nothing reads an
- * id without its list (the counts and tabs go through [Queue.lists]), and a new list never gets an old id.
+ * Which lists a game is in (`g.lists`, `openLists(gid)`'s ticks) changes through [IN]: a practice key holding
+ * `{gameId: [listIds]}` for the games you changed, which [laid] puts over the backup's games whenever Games builds a
+ * copy. A deleted list comes off every game too ([without], as `listDrop` does).
  */
 object Lists {
     /**
@@ -62,6 +64,36 @@ object Lists {
 
     /** The words under a list's name: "3 games · show in queue". */
     fun countLine(n: Int) = "$n game${if (n == 1) "" else "s"} · show in queue"
+
+    /** The practice key for the games whose lists you changed: `{gameId: [listIds]}`, laid over the backup by [laid]. */
+    const val IN = "pn:in"
+
+    private fun ids(e: JsonElement?): List<String> = (e as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
+    private fun arr(l: List<String>) = JsonArray(l.map(::JsonPrimitive))
+
+    /** The lists [g] is in: your change ([over], the current [IN]) when there is one, else the backup's `g.lists`. */
+    fun inLists(over: JsonObject?, g: Game): List<String> = over?.get(g.id)?.let(::ids) ?: ids(g["lists"])
+
+    /** A tap in the picker (`data-lt`): [g] goes into the list, or out when it was in. The new [IN]. */
+    fun flipped(over: JsonObject?, g: Game, listId: String): JsonObject {
+        val cur = inLists(over, g)
+        return JsonObject(over.orEmpty() + (g.id to arr(if (listId in cur) cur - listId else cur + listId)))
+    }
+
+    /** `listDrop`'s second half: the list comes off every game that had it. The new [IN]. */
+    fun without(over: JsonObject?, games: List<Game>, listId: String): JsonObject =
+        JsonObject(over.orEmpty() + games.filter { listId in inLists(over, it) }.associate { it.id to arr(inLists(over, it) - listId) })
+
+    /** The web's `S` with [IN] laid over its games (each changed game's `lists`) and the key itself gone. */
+    fun laid(s: JsonObject): JsonObject {
+        val over = s[IN] as? JsonObject ?: return s
+        val games = (s["games"] as? JsonArray)?.let { a ->
+            JsonArray(a.map { e -> (e as? JsonObject)?.let { o -> over[Backup.str(o["id"])]?.let { JsonObject(o + ("lists" to it)) } } ?: e })
+        }
+        return JsonObject(s.filterKeys { it != IN } + (games?.let { mapOf("games" to it) } ?: emptyMap()))
+    }
+
+    private fun JsonObject?.orEmpty(): Map<String, JsonElement> = this ?: emptyMap()
 
     /** `S.lists` as the backup writes it: `[{id, n, e}]`. */
     fun json(lists: List<Queue.QList>) = JsonArray(lists.map { JsonObject(mapOf("id" to JsonPrimitive(it.id), "n" to JsonPrimitive(it.n), "e" to JsonPrimitive(it.e))) })
