@@ -150,7 +150,7 @@ private val SEEN = HashMap<String, String>()
 fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp, cards: Shx.Cards? = null) {
     val prefs = LocalPrefs.current
     if (prefs.shxOff) {
-        PlainTitle(title, screen >= RAIL_FROM)
+        PlainTitle(title, screen >= RAIL_FROM, kind)
         return
     }
     val all = if (cards != null && cards.lib === lib) cards else {
@@ -162,7 +162,7 @@ fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp, cards: Shx
     // a record the maths can't read leaves a plain title, as the web's try/catch around shxData does
     val shx = all[kind]
     if (shx == null) {
-        PlainTitle(title, screen >= RAIL_FROM)
+        PlainTitle(title, screen >= RAIL_FROM, kind)
         return
     }
     val d = remember(screen) { Dims(screen) }
@@ -237,9 +237,14 @@ fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp, cards: Shx
                 gap()
                 Box(Modifier.then(if (full) Modifier.fillMaxWidth() else Modifier.widthIn(max = tagMax))) { tags?.let { Genres(it, d) } }
             }
+            // the Customise chip ends the title's row, 1 in from the card's padding (its border), as `.tabbar > .chip`
+            val chip = @Composable { CustomiseChip(kind, Modifier.padding(top = 1.dp, end = 1.dp)) }
             if (!d.wide && chart != null) {
                 // phones: no room beside the title, so the chart sits beside the line and genres, above the fan
-                titleText(Modifier)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    titleText(Modifier.weight(1f))
+                    chip()
+                }
                 gap()
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.weight(1f)) { lineAndTags(true) }
@@ -249,6 +254,7 @@ fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp, cards: Shx
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     titleText(Modifier.weight(1f))
                     if (chart != null) Chart(chart, d, look.volt, t, Modifier.padding(top = 4.dp, end = 14.dp))
+                    chip()
                 }
                 gap()
                 lineAndTags(false)
@@ -264,8 +270,11 @@ fun HeaderCard(kind: String, title: String, lib: Library, screen: Dp, cards: Shx
 
 /** A screen's plain title (`.tabbar h3`), for header cards off and the screens without one. */
 @Composable
-fun PlainTitle(title: String, wide: Boolean) {
-    BasicText(title, style = Type.title(wide), modifier = Modifier.padding(bottom = 14.dp))
+fun PlainTitle(title: String, wide: Boolean, kind: String? = null) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        BasicText(title, style = Type.title(wide), modifier = Modifier.weight(1f))
+        kind?.let { CustomiseChip(it) }
+    }
 }
 
 /** `linear-gradient(120deg, --u-pan 38%, mix(--shc 16%, --u-pan))`, or plain `--u-pan` under backdrop art. */
