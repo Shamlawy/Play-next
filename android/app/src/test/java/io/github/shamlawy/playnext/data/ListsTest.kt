@@ -73,4 +73,36 @@ class ListsTest {
         assertEquals("1 game · show in queue", Lists.countLine(1))
         assertEquals("2 games · show in queue", Lists.countLine(2))
     }
+
+    private fun st(games: String, over: String? = null) = Json.parseToJsonElement(
+        """{"lists":[],"games":[$games]""" + (over?.let { ""","pn:in":$it""" } ?: "") + "}",
+    ).jsonObject
+
+    @Test fun picksAreLaidOverTheBackupsGames() {
+        val s = st("""{"id":"a","lists":["l1"]},{"id":"b"},{"id":"c","lists":["l2"]}""", """{"b":["l1"],"c":[]}""")
+        val out = Lists.laid(s)
+        assertTrue("the practice key goes", Lists.IN !in out)
+        val g = Library(out).games
+        assertEquals(listOf("l1"), Lists.inLists(null, g[0]))
+        assertEquals(listOf("l1"), Lists.inLists(null, g[1]))
+        assertEquals(emptyList<String>(), Lists.inLists(null, g[2]))
+        val plain = st("""{"id":"a"}""")
+        assertSame("nothing changed, nothing copied", plain, Lists.laid(plain))
+    }
+
+    @Test fun aTapFlipsOneGameAndBuildsOnTheLastTap() {
+        val g = Library(st("""{"id":"a","lists":["l1"]},{"id":"b"}""")).games
+        val one = Lists.flipped(null, g[1], "l1")
+        assertEquals("""{"b":["l1"]}""", one.toString())
+        val two = Lists.flipped(one, g[0], "l1")
+        assertEquals("""{"b":["l1"],"a":[]}""", two.toString())
+        assertEquals("a second tap takes it out again", """{"b":[],"a":[]}""", Lists.flipped(two, g[1], "l1").toString())
+        assertEquals("a new list goes at the end", """{"a":["l1","l2"]}""", Lists.flipped(null, g[0], "l2").toString())
+    }
+
+    @Test fun aDeletedListComesOffEveryGame() {
+        val g = Library(st("""{"id":"a","lists":["l1","l2"]},{"id":"b","lists":["l2"]},{"id":"c"}""")).games
+        assertEquals("""{"a":["l2"]}""", Lists.without(null, g, "l1").toString())
+        assertEquals("a pick not yet in the copy counts", """{"c":[],"a":["l2"]}""", Lists.without(JsonObject(mapOf("c" to Json.parseToJsonElement("[\"l1\"]"))), g, "l1").toString())
+    }
 }

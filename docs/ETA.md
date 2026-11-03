@@ -26,3 +26,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E19 | 2026-11-03 12:34 PM | release | 15 min | 11 min | 0.73 | I'll wait for the checks, merge it, and tell you when android-v12 is out. | <!-- at=2026-11-03T08:34:37.123Z bg=1 note=merged -->
 | E20 | 2026-11-03 1:19 PM | kit | 60 min | 89 min | 1.48 | I'll build the lists sheet (▢) and the slider fix, test them, release android-v13 and send you what to try. ▢ be done around 2:20 PM ▢ | <!-- at=2026-11-03T09:19:10.707Z bg=1 -->
 | E21 | 2026-11-03 2:50 PM | release | 10 min | 18 min | 1.80 | the re-run started at 2:48 PM and should finish around 2:58 PM UAE time. ▢ it passes, I'll merge android-v13 and tell you when it's out. | <!-- at=2026-11-03T10:50:00.780Z bg=1 -->
+| E22 | 2026-11-03 3:14 PM | build | 75 min | open |  | I'll build "add games to a list", test it, release it as android-v14, and send you screenshots and what to try. | <!-- at=2026-11-03T11:14:12.240Z bg=1 -->

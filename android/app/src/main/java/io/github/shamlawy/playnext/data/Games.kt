@@ -330,7 +330,7 @@ object Games {
     }
 
     private fun make(applied: JsonObject, now: Long, zone: ZoneId): Day {
-        val lib = Library(Backup.load(if (practice.isEmpty()) applied else JsonObject(applied + practice), now, zone))
+        val lib = Library(Backup.load(if (practice.isEmpty()) applied else Lists.laid(JsonObject(applied + practice)), now, zone))
         return Day(applied, now, zone, lib, Shx.all(lib, now, zone))
     }
 
@@ -369,6 +369,9 @@ object Games {
     /** What you changed in Customise since the app opened, by the web app's `S` key. Never saved, never sent. */
     @Volatile private var practice: Map<String, JsonElement> = emptyMap()
 
+    /** What a practice key holds now (your last change to it), or null: changes build on it at once, before the rebuild. */
+    fun practiced(key: String): JsonElement? = practice[key]
+
     /** A Customise change: your games rebuilt off Main with it, so every screen and number follows. */
     fun customise(key: String, value: JsonElement) {
         practice = practice + (key to value)
@@ -380,7 +383,7 @@ object Games {
         val d = day
         if (d == null || cur.lib !== d.lib) {
             // a Ready made by hand (the tests): the change on top of it
-            _state.value = cur.copy(lib = Library(JsonObject(cur.lib.state + practice)), cards = null)
+            _state.value = cur.copy(lib = Library(Lists.laid(JsonObject(cur.lib.state + practice))), cards = null)
             return@withLock
         }
         val next = withContext(Dispatchers.Default) { make(d.applied, clock(), zone()) }

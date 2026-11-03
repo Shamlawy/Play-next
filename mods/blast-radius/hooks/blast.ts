@@ -301,3 +301,21 @@ export function fromGit(targets: readonly string[], cwd: string, repo: string, f
   }
   return out
 }
+
+// `pkill -f X` / `pgrep -f X` from Claude's shell tool: the tool runs the whole command in one shell whose own command
+// line holds X, so the pattern always matches that shell (pkill kills the command itself; a `pgrep -f` wait never
+// ends). A bracket in the pattern ([s]dkmanager) keeps it off its own line. The reason it's stopped, or undefined.
+export function selfMatch(cmd: string): string | undefined {
+  for (const seg of segments(cmd)) {
+    const w = words(seg.trim()).filter(x => !ENV.test(x))
+    const i = w.findIndex(x => /(^|\/)(pkill|pgrep)$/.test(x))
+    if (i < 0) continue
+    const args = w.slice(i + 1)
+    if (!args.some(a => /^-[a-zA-Z]*f[a-zA-Z]*$/.test(a) || a === '--full')) continue
+    const pat = args.filter(a => !a.startsWith('-')).pop()
+    if (!pat || /\[[^\]]+\]/.test(pat)) continue
+    const tool = w[i].replace(/.*\//, '')
+    return `\`${tool} -f ${pat}\` matches this command's own shell (its command line holds the pattern), so it ${tool === 'pkill' ? 'kills the command itself' : 'always finds a match, and a wait on it never ends'}. Stop a background run by its task id, wait on a file or the task's own notification, or bracket one letter so it can't match itself: '${pat.replace(/[A-Za-z0-9]/, c => `[${c}]`)}'.`
+  }
+  return undefined
+}

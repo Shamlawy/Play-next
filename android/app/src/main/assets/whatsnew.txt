@@ -80,3 +80,9 @@ go=home
 at=
 say=Your own lists are in the Queue now: make one with a name and a drawn icon, rename it, delete it, or tap it to see just its games.
 tryIt=Open Games › Queue and tap the square button at the end of the tabs. Pick one of the twelve icons (a couch, a moon, a ghost…), type a name like "Couch nights" and tap Make: its tab joins the bar. Tap the list's name to see just its games. Rename and delete are beside it. Also: Customise's size and strength sliders now stay where you let go, and the header card's small words (waiting, to beat, out now) sit right under their numbers as in the web app. It's a practice copy: your lists last until the app closes.
+
+v=14
+go=home
+at=
+say=Fill your lists with games: a list's + opens every game you have, and a tap puts one in or takes it out.
+tryIt=Open Games › Queue and tap the square button at the end of the tabs. Make a new list: it opens straight on your games. Tap a few (a tick shows they're in), use the search at the top to find one fast, then tap Done. Tap the list's name to see just those games in the Queue. For a list you already have, tap the + beside its name. It's a practice copy: your lists and what's in them last until the app closes.
