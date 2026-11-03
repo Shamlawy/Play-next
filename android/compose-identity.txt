@@ -2,7 +2,14 @@
 # checked: the caller passes the same object until it really changes (a new backup, a new day, a new list).
 AddGames.lib: Library
 AsOf.r: Ready
+Back.g: Game
+Back.q: Queue
+Back.t: Animatable<Float, AnimationVector1D>
 BackupCard.games: State
+CardLogo.enter: Animatable<Float, AnimationVector1D>
+CardLogo.g: Game
+CardTicket.enter: Animatable<Float, AnimationVector1D>
+CardTicket.st: Stat
 Chart.c: Chart
 Chart.t: Animatable<Float, AnimationVector1D>
 Chips.items: List<Pair<String, String>>
@@ -16,6 +23,10 @@ Fan.covers: List<Game>
 Fan.t: Animatable<Float, AnimationVector1D>
 FlyingCover.f: Flight
 FlyingCover.g: Game
+Front.enter: Animatable<Float, AnimationVector1D>
+Front.g: Game
+Front.q: Queue
+Front.st: Stat
 GamePage.from: FlyFrom?
 GamePage.g: Game
 Genres.tags: List<Pair<String, Int>>
@@ -33,7 +44,10 @@ PicBox.g: Game?
 PicBox.pic: Pic
 PickRow.g: Game
 PictureCard.picture: ImageBitmap?
+PlatRow.chips: List<Chip>
 PlayNextRoot.link: Route?
+QueueCard.g: Game
+QueueCard.q: Queue
 QueueGroups.lib: Library
 QueueRow.g: Game
 QueueRow.q: Queue
@@ -48,7 +62,9 @@ TabLines.needs: List<Dp>
 TabPage.games: State
 TabTop.games: State
 Ticket.st: Stat
+TicketHalf.enter: Animatable<Float, AnimationVector1D>
 TryRow.items: List<Pair<String, Function0<Unit>>>
+Vessel.t: Animatable<Float, AnimationVector1D>
 ViewChips.views: List<Pair<String, String>>
 ViewPill.views: List<Pair<String, String>>
 Waiting.f: Fetching?
