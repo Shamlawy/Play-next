@@ -379,12 +379,11 @@ private fun Stats(stats: List<Shx.Stat>, d: Dims, volt: Color, modifier: Modifie
                     },
                     style = if (i == 0) big.copy(shadow = Shadow(volt.copy(alpha = .38f), Offset(0f, 6f * px), 24f * px)) else big,
                     softWrap = false, maxLines = 1,
+                    // the web's `23px/1` box, so the label sits 5px under it as on the web (M71)
+                    modifier = Modifier.cssLine(big),
                 )
-                BasicText(
-                    s.label,
-                    style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.statSmall, lineHeight = d.statSmall * 1.2f, color = Pn.mute).fixed(),
-                    modifier = Modifier.padding(top = 5.dp),
-                )
+                val small = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Medium, fontSize = d.statSmall, lineHeight = d.statSmall * 1.2f, color = Pn.mute).fixed()
+                BasicText(s.label, style = small, modifier = Modifier.padding(top = 5.dp).cssLine(small))
             }
         }
     }
