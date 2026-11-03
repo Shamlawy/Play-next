@@ -217,11 +217,13 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
     val measure = rememberTextMeasurer()
     val px = LocalDensity.current
     // remembered: TabLines gets the very same list back until a tab, its count or the lit one changes (compose-check)
-    val needs = remember(q, folded, v.tab, px, measure) { tabs.map { t ->
+    val wordStyle = (if (folded) QType.tabF else QType.tab).fixed()
+    val countStyle = QType.count.fixed()
+    val needs = remember(q, folded, v.tab, px, measure, wordStyle, countStyle) { tabs.map { t ->
         with(px) {
             val icon = 17.dp
-            val word = if (!folded || t == v.tab) measure.measure(q.tabName(t), (if (folded) QType.tabF else QType.tab).fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp) else 0.dp
-            val count = measure.measure((q.counts[t] ?: 0).toString(), QType.count.fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp)
+            val word = if (!folded || t == v.tab) measure.measure(q.tabName(t), wordStyle).size.width.toDp() + (if (folded) 5.dp else 7.dp) else 0.dp
+            val count = measure.measure((q.counts[t] ?: 0).toString(), countStyle).size.width.toDp() + (if (folded) 5.dp else 7.dp)
             icon + word + count + (if (folded) 18.dp else 24.dp)
         }
     } + LIST_BTN }

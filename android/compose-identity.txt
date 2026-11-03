@@ -42,6 +42,7 @@ Shell.games: State
 Shell.nav: Nav
 Spotlight.l: Line
 Stats.stats: List<Stat>
+TabLines.needs: List<Dp>
 TabPage.games: State
 TabTop.games: State
 Ticket.st: Stat
