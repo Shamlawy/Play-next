@@ -279,3 +279,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: the book end should have a cover and closes when I scroll to the end
 - rule: The skills book ends on a back cover (the front's mirror: navy, foil frame and crest, 'The end, for now'); past the last page it shuts and the closed book sits centred; folded it's the last page
 - check: tools/scenarios/skills-book-back.mjs
+
+### T56 · v327 · Android · rule
+- said: rememeber never do emjoy generate icons if needed
+- rule: No emoji anywhere in the Android app, list emoji included: a list's picker and its tab draw generated icons (24x24, fill-only, one part at .35, from the web's own SVGs through tools/android-gen.mjs); a list's stored emoji maps to its drawn icon
+- check: tools/android-rules.mjs emoji-icon (extend it to data/ and list emoji)

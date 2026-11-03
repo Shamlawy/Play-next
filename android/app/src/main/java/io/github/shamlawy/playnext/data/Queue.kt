@@ -20,9 +20,7 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
     private val games = lib.games
 
     /** `S.lists`: your lists, each `{id, n, e}` (name, emoji). */
-    val lists: List<QList> = (lib["lists"] as? JsonArray).orEmpty().mapNotNull { e ->
-        (e as? JsonObject)?.let { QList(Backup.str(it["id"]), Backup.str(it["n"]), Backup.str(it["e"])) }
-    }
+    val lists: List<QList> = Lists.of(lib)
 
     /** `new Date(new Date().toDateString())`: today's midnight on the phone. */
     /** True while [t] is in this Queue's stretch: the same phone day and the same UTC day, in the same zone. */

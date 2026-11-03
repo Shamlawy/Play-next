@@ -174,7 +174,16 @@ const TABS = [...NAV.matchAll(/<button data-tab="(\w+)"[^>]*>(<svg[\s\S]*?<\/svg
 need(TABS.map(t => t.key).join() === "home,games,plan,taste,add", `tabs: home, games, plan, taste, add (found ${TABS.map(t => t.key)})`);
 const GEAR = (/<button id="gear"[^>]*>(<svg[\s\S]*?<\/svg>)/.exec(NAV) || [])[1];
 need(GEAR, "the Settings gear in the tab bar");
-const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")]];
+/* uiIc's icons the app draws too (`UIC`, index.html): a <g opacity> group hands its opacity to the shapes inside it */
+const UIC_SRC = (/\nconst UIC = \{([\s\S]*?)\n\};/.exec(src) || [])[1];
+need(UIC_SRC, "const UIC (uiIc's icons)");
+function uicIcon(name) {
+  const m = new RegExp(`\\n\\s*${name}: "([^"]*)"`).exec(UIC_SRC);
+  need(m, `uiIc's ${name} icon`);
+  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle)\b/g, `<$1 opacity="${o}"`));
+  return icon(`<svg viewBox="0 0 24 24">${flat}</svg>`, `uiIc ${name}`);
+}
+const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash"].map(n => ["ui:" + n, uicIcon(n)])];
 
 /* ---------- Kotlin ---------- */
 const ks = s => JSON.stringify(s).replace(/\$/g, "\\$");   // a JSON string is a valid Kotlin string once $ is escaped

@@ -168,6 +168,10 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
         step(nav.open("customise:$scope"))
     }
     val customiser = remember { { scope: String -> openCustomise(scope) } }
+    // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), here so the lists sheet
+    // can show a list in it too
+    val qpicks = remember { arrayOfNulls<QueuePick>(1) }
+    val openLists = { step(nav.open("lists")) }
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
             val w = maxWidth
@@ -193,13 +197,13 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 val ready = games as? Games.State.Ready
                 if (nav.tab == "games" && view == "queue" && ready != null) {
                     // the Queue's rows are many: a lazy page draws only the ones on screen
-                    val qpick = remember { QueuePick(ready.lib) }
+                    val qpick = qpicks[0] ?: QueuePick(ready.lib).also { qpicks[0] = it }
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
                     LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w, pickView) } }
-                        queueItems(qv, qpick, folded, calm, cap.entrance(enter)) { id -> opener(id, null) }
+                        queueItems(qv, qpick, folded, calm, cap.entrance(enter), openLists) { id -> opener(id, null) }
                     }
                 } else {
                     Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
@@ -229,8 +233,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 (pagesKept - keys.toSet()).forEach { pages.removeState(it) }
                 pagesKept.retainAll(keys.toSet())
             }
-            // Settings (or a screen's Customise) stays under what you open from it, so back finds it where you left it
-            val s = nav.stack.indexOfLast { it == "settings" || it.startsWith("customise:") }
+            // Settings (or a screen's Customise, or your lists) stays under what you open from it, so back finds it where
+            // you left it
+            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it.startsWith("customise:") }
             if (s >= 0) {
                 val k = keys[s]
                 val sheet = nav.stack[s]
@@ -243,6 +248,15 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                             SettingsSheet(
                                 m, games, wide,
                                 close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) },
+                            )
+                        } else if (sheet == "lists") {
+                            ListsSheet(
+                                m, games,
+                                show = { t ->
+                                    (qpicks[0] ?: (games as? Games.State.Ready)?.let { QueuePick(it.lib).also { p -> qpicks[0] = p } })?.tab = t
+                                    step(nav.closeAt(s))
+                                },
+                                close = { step(nav.closeAt(s)) },
                             )
                         } else {
                             CustomiseSheet(m, sheet.removePrefix("customise:"), games, close = { step(nav.closeAt(s)) })

@@ -76,7 +76,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -178,13 +181,13 @@ fun stateTone(k: Queue.Kind, volt: Color): Color = when (k) {
 }
 
 /** The Queue's items in the page's lazy list: the bar, On deck and the rows (or what's empty). */
-fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, folded: Boolean, calm: Boolean, mod: Modifier, open: (String) -> Unit) {
+fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, folded: Boolean, calm: Boolean, mod: Modifier, lists: () -> Unit, open: (String) -> Unit) {
     val q = v.q
     if (q.lib.games.isEmpty()) {
         item("q-empty") { Empty("Queue is empty. Open Add and search for the first game.", mod) }
         return
     }
-    item("q-bar") { QueueBar(v, pick, folded, mod) }
+    item("q-bar") { QueueBar(v, pick, folded, mod, lists) }
     val deck = if (q.lib.off("deckOff") || Backup.truthy(q.lib["deckOff"]) || v.tab == "done") emptyList() else q.deck(v.tab)
     if (deck.isNotEmpty()) item("q-deck") { OnDeck(q, v.tab, deck, mod, open) }
     if (v.shown.isEmpty()) item("q-none") { Empty("Nothing here right now. Try another filter.", mod) }
@@ -204,21 +207,34 @@ private fun Empty(text: String, mod: Modifier) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifier) {
+private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifier, lists: () -> Unit) {
     val q = v.q
     val volt = LocalLook.current.volt
     val tabs = Queue.TABS + q.lists.map { "L:" + it.id }
+    // each tab is at least as wide as what it says and shares the room left (`flex: 1 0 auto`); a full line wraps
+    // (`flex-wrap: wrap`) instead of squeezing the lit tab's name and count to "…" (FlowRow's weights did)
+    val measure = rememberTextMeasurer()
+    val px = LocalDensity.current
+    val needs = tabs.map { t ->
+        val list = q.lists.firstOrNull { "L:" + it.id == t }
+        with(px) {
+            val icon = if (list != null) measure.measure(list.e, TextStyle(fontSize = 15.sp).fixed()).size.width.toDp() else 17.dp
+            val word = if (!folded || t == v.tab) measure.measure(q.tabName(t), (if (folded) QType.tabF else QType.tab).fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp) else 0.dp
+            val count = measure.measure((q.counts[t] ?: 0).toString(), QType.count.fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp)
+            icon + word + count + (if (folded) 18.dp else 24.dp)
+        }
+    } + LIST_BTN
     val tabRow = @Composable { m: Modifier ->
-        FlowRow(
+        TabLines(
             m.background(Pn.pan, RoundedCornerShape(18.dp)).border(1.dp, Pn.line2, RoundedCornerShape(18.dp)).padding(horizontal = 4.dp, vertical = if (folded) 0.dp else 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            needs,
         ) {
             for (t in tabs) {
                 val on = t == v.tab
                 val name = q.tabName(t)
                 val n = q.counts[t] ?: 0
                 Box(
-                    Modifier.weight(1f).height(48.dp)
+                    Modifier.height(48.dp)
                         .semantics { contentDescription = "$name, $n"; selected = on }
                         .clickable(role = Role.Tab) {
                             if (t != pick.tab) {
@@ -251,6 +267,21 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
                     }
                 }
             }
+            // the lists button (`.qdtab.qdlist`): as wide as its icon (`flex: 0 0 auto`), it opens Your lists
+            Box(
+                Modifier.height(48.dp)
+                    .semantics { contentDescription = if (q.lists.isEmpty()) "Make a list" else "Manage lists" }
+                    .clickable(role = Role.Button) {
+                        Sounds.play(Sfx.Tap)
+                        Crumbs.tap("lists", "games/queue")
+                        lists()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.height(if (folded) 40.dp else 44.dp).padding(horizontal = 11.dp), contentAlignment = Alignment.Center) {
+                    QdIcon("list", Pn.mute, 17.dp)
+                }
+            }
         }
     }
     if (folded) {
@@ -262,6 +293,55 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
         Row(mod.padding(top = 6.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
             tabRow(Modifier.weight(1f))
             OrderButton(v, pick, false, Modifier.widthIn(min = 148.dp))
+        }
+    }
+}
+
+/** The lists button's width: its icon and 11 each side. It never grows. */
+private val LIST_BTN = 39.dp
+
+/**
+ * `.qdtabs` (`display: flex; flex-wrap: wrap; gap: 4px`, each tab `flex: 1 0 auto`): the tabs at [needs] wide go on a
+ * line while they fit, the rest wraps; each tab on a line gets an equal share of what's left (the lists button, the
+ * last, keeps its width). Every item is 48 tall.
+ */
+@Composable
+private fun TabLines(modifier: Modifier, needs: List<Dp>, content: @Composable () -> Unit) {
+    Layout(content, modifier) { ms, c ->
+        val gap = 4.dp.roundToPx()
+        val w = c.maxWidth
+        val need = ms.indices.map { (needs.getOrNull(it) ?: 0.dp).roundToPx() }
+        val lines = ArrayList<List<Int>>()
+        var line = ArrayList<Int>()
+        var used = 0
+        for (i in ms.indices) {
+            val add = need[i] + if (line.isEmpty()) 0 else gap
+            if (line.isNotEmpty() && used + add > w) {
+                lines += line
+                line = ArrayList()
+                used = 0
+            }
+            used += need[i] + if (line.isEmpty()) 0 else gap
+            line += i
+        }
+        if (line.isNotEmpty()) lines += line
+        val grows = { i: Int -> i < ms.size - 1 }
+        val rowH = 48.dp.roundToPx()
+        val placed = lines.map { l ->
+            val sum = l.sumOf { need[it] } + gap * (l.size - 1)
+            val k = l.count(grows)
+            val extra = if (k > 0) ((w - sum).coerceAtLeast(0)) / k else 0
+            l.map { i -> ms[i].measure(Constraints.fixed(minOf(w, need[i] + if (grows(i)) extra else 0), rowH)) }
+        }
+        val h = if (placed.isEmpty()) 0 else placed.size * rowH + (placed.size - 1) * gap
+        layout(w, h) {
+            placed.forEachIndexed { r, l ->
+                var x = 0
+                for (pl in l) {
+                    pl.place(x, r * (rowH + gap))
+                    x += pl.width + gap
+                }
+            }
         }
     }
 }
@@ -792,6 +872,7 @@ private fun QIcon(kind: String, tint: Color, size: Dp) {
 private val QD_IC = mapOf(
     "order" to listOf("M4 5h16v2.4H4z" to 1f, "M4 10.8h11v2.4H4z" to .35f, "M4 16.6h6.5V19H4z" to 1f),
     "car" to listOf("M6.5 9h11L12 15.5z" to 1f),
+    "list" to listOf("M4 5h16v14H4z" to .35f, "M11 8h2v3h3v2h-3v3h-2v-3H8v-2h3z" to 1f),
 )
 private val qdVectors = HashMap<String, ImageVector>()
 
