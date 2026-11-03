@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import { fromGit, join, protectPatterns, risks, sortFiles } from '../hooks/blast.ts'
+import { fromGit, join, protectPatterns, risks, selfMatch, sortFiles } from '../hooks/blast.ts'
 
 // A fake repo at /repo: what git and the file walk answer.
 function world(on: any, w: { top?: string; home?: string; files?: string; tracked?: string; fresh?: string; diff?: string; ahead?: string; branch?: string; protect?: string }) {
@@ -167,5 +167,20 @@ describe('blast-radius', () => {
     world(on, { ahead: 'abc123 someone else\'s fix\n' })
     await start($)
     expect((await bash($, 'git push --force-with-lease origin claude/x')).deny).toContain('removes 1 commit')
+  })
+
+  test('pkill -f / pgrep -f on a pattern in its own command is stopped (it matches its own shell)', async ($, on) => {
+    expect(selfMatch("until ! pgrep -f 'sdkmanager --sdk_root' >/dev/null; do sleep 5; done; ./gradlew test")).toContain('never ends')
+    expect(selfMatch('pkill -f "node tools/kit.mjs"')).toContain('kills the command itself')
+    expect(selfMatch('sleep 1; pkill -af gradle')).toContain("'[g]radle'")
+    expect(selfMatch("pgrep -f '[s]dkmanager'")).toBeUndefined()
+    expect(selfMatch('pgrep gradle')).toBeUndefined()
+    expect(selfMatch('pkill java')).toBeUndefined()
+    expect(selfMatch("echo 'pkill -f x is bad'")).toBeUndefined()
+    const ran = world(on, {})
+    await start($)
+    expect((await bash($, 'pkill -f gradle')).deny).toContain('stopped this command')
+    expect(ran.length).toBe(0)
+    expect((await bash($, 'pkill -f [g]radle')).deny).toBeUndefined()
   })
 })

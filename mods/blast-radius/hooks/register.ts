@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { fromGit, join, list, protectPatterns, risks, sortFiles, type Risk } from './blast.ts'
+import { fromGit, join, list, protectPatterns, risks, selfMatch, sortFiles, type Risk } from './blast.ts'
 
 type $ = EngineInterface
 
@@ -101,6 +101,8 @@ async function blast($: $, cmd: string, ps = false): Promise<{ hard: string[]; h
 // Holds or stops a shell command (Bash, or PowerShell when `ps`) by its blast radius; undefined lets it run.
 async function guard($: $, cmd: string, ps: boolean): Promise<{ deny: string } | undefined> {
   if (/BLAST_OK=1|RG_SKIP=1/.test(cmd)) return undefined
+  const self = ps ? undefined : selfMatch(cmd)
+  if (self) return { deny: `blast-radius stopped this command: ${self}` }
   const { hard, held } = await blast($, cmd, ps)
   const skip = ps ? '`$env:BLAST_OK=1;` in front' : 'BLAST_OK=1 in front'
   if (hard.length) return { deny: `blast-radius stopped this command:\n${bullet(hard)}\nFind another way; ${skip} only if the person asked for exactly this.` }
