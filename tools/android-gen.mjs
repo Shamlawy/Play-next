@@ -74,16 +74,18 @@ need(["games", "plan", "taste"].every(t => Array.isArray(VIEWS.subs[t]) && VIEWS
   && VIEWS.subs[t].some(v => v[0] === VIEWS.def[t]) && typeof SUBKEY[t] === "string"), "SUBS / SUBDEF / SUBKEY: games, plan and taste, each default one of its views");
 need(VIEWS.subs.plan.some(v => v[0] === "timer"), "SUBS.plan holds timer (shown only with S.timerOn)");
 
-/* ---------- colours written straight into a CSS rule (the pill, the header card): the first "<selector> {" block with the
-   property, its first #hex or rgba() ---------- */
-function cssColour(sel, prop) {
+/* ---------- colours written straight into a CSS rule (the pill, the header card, the Queue): in the first
+   "<selector> {" block with the property, its [n]th #hex, rgba() or rgb() (negative counts from the end) ---------- */
+const LITERAL = /#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)|rgb\(\d+(?:,\s*|\s+)\d+(?:,\s*|\s+)\d+\)/g;
+const lit = c => { const m = /^rgb\((\d+)(?:,\s*|\s+)(\d+)(?:,\s*|\s+)(\d+)\)$/.exec(c); return m ? `rgba(${m[1]},${m[2]},${m[3]},1)` : c.replace(/\s+/g, ""); };
+function cssColour(sel, prop, n = 0) {
   const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   for (const m of src.matchAll(new RegExp("(?:^|[\\s},])" + esc + "\\s*\\{([^}]*)\\}", "g"))) {
     const d = new RegExp("(?:^|[;{\\s])" + prop + "\\s*:\\s*([^;}]+)").exec(m[1]);
-    const c = d && /#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)/.exec(d[1]);
-    if (c) return argb(c[0].replace(/\s+/g, ""), `${sel} ${prop}`);
+    const c = d && [...d[1].matchAll(LITERAL)].map(x => x[0]).at(n);
+    if (c) return argb(lit(c), `${sel} ${prop}`);
   }
-  fail(`no colour for ${prop} in "${sel} { … }"`);
+  fail(`no colour ${n} for ${prop} in "${sel} { … }"`);
 }
 const PLACEHOLDER_BG = (/function placeholder\(g\)[\s\S]{0,400}?<rect width="300" height="400" fill="(#[0-9A-Fa-f]{6})"/.exec(src) || [])[1];
 need(PLACEHOLDER_BG, "placeholder(): the cover's #hex ground");
@@ -111,6 +113,12 @@ for (const k of ["u-pan", "u-card", "u-card2", "u-line", "u-line2"]) { need(UI2[
 const RADII = {};
 for (const k of ["u-r", "u-rs"]) { const m = /^(\d+)px$/.exec(UI2[k] || ""); need(m, `html.ui2 --${k}: Npx`); RADII[k] = +m[1]; }
 /* the view pill (Speed boost's solid ground: no blur natively) and the header card (v194/v210) */
+/* the dust on a game left too long (DUST_BASE, v280s): its dots, then its veil */
+function dust(n) {
+  const c = [...statement("DUST_BASE").matchAll(LITERAL)].map(x => x[0])[n];
+  need(c, `DUST_BASE: colour ${n}`);
+  return argb(lit(c), "DUST_BASE");
+}
 const RULES = {
   PILL_BG: cssColour("html.fast .vpill", "background"), PILL_EDGE: cssColour(".vpill", "border"),
   SHX_EDGE: cssColour("html.ui2 .tabbar.shx", "border"), SHX_COVER: cssColour(".shx-fan button", "background"),
@@ -121,6 +129,13 @@ const RULES = {
   /* the slash's slab (#000) and the shadows under covers, the pill and the cards (rgba(0,0,0,a): black, the strength
      comes from the elevation natively) */
   SLAB: cssColour(".pnw-slab", "background"), SHADOW: cssColour(".shx-fan button", "box-shadow"),
+  /* the Queue's closed rows and On deck (v301, v303): written as literals in its CSS, so read from there */
+  QS_PLAYING: cssColour("#p-queue .row.qs-playing", "--qsc"), QS_COMING: cssColour("#p-queue .row.qs-coming", "--qsc"),
+  QS_PLAYED: cssColour("#p-queue .row.qs-played", "--qsc"),
+  Q_SHADE: cssColour("#p-queue .qs-played .qsbg::before", "background"), Q_SHADE_DEEP: cssColour("#p-queue .qsbg::before", "background", -1),
+  Q_TICKET: cssColour("#p-queue .qstk > span", "background"), Q_PALE: cssColour("#p-queue .qstk small", "color"),
+  Q_PHOTO: cssColour(".dzd-ph", "background"), Q_ON_VOLT: cssColour(".dzd-s .dzd-btn2", "color"),
+  Q_DUST: dust(0), Q_DUST_VEIL: dust(2),
 };
 
 /* ---------- the tab bar's icons (the web nav's inline SVGs, v247 style) ---------- */

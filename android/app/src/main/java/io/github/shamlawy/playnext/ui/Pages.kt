@@ -45,11 +45,25 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
         HomePage(games, wide, askCode)
         return
     }
+    val v = view ?: tab
+    // the header card's screen (`SHX_PANELS`): each Games view its own, Plan and Taste one each; the book has none
+    val ready = games as? Games.State.Ready
+    TabTop(tab, view, games, wide, screen, pickView)
+    if (ready == null) {
+        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting(games as? Games.State.Fetching, askCode) }
+        return
+    }
+    if (tab == "add") LocalShared.current?.let { SharedCard(it) }
+    Card { BasicText(SOON[v] ?: "", style = Type.note) }
+}
+
+/** A tab's top: its header card (or plain title) and, with the pill off, its views as chips. */
+@Composable
+fun TabTop(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp, pickView: (String) -> Unit) {
     val prefs = LocalPrefs.current
     val views = prefs.views(tab)
     val v = view ?: tab
     val title = if (tab == "add") "Add" else views.firstOrNull { it.first == v }?.second ?: v
-    // the header card's screen (`SHX_PANELS`): each Games view its own, Plan and Taste one each; the book has none
     val kind = when (tab) {
         "games" -> v
         "taste" -> if (v == "book") null else "taste"
@@ -58,12 +72,6 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
     val ready = games as? Games.State.Ready
     if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen, ready.cards) else PlainTitle(title, wide)
     if (!prefs.pill && views.isNotEmpty()) ViewChips(views, v, pickView)
-    if (ready == null) {
-        Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting(games as? Games.State.Fetching, askCode) }
-        return
-    }
-    if (tab == "add") LocalShared.current?.let { SharedCard(it) }
-    if (v == "queue") QueueSoon(ready) else Card { BasicText(SOON[v] ?: "", style = Type.note) }
 }
 
 /** Something shared into the app (a store page, a trailer, a name): the game it names; adding it comes with Add's phase. */
@@ -202,31 +210,3 @@ private fun NoGames(askCode: () -> Unit) {
     BasicText("Type your restore code once and they come from the web app's cloud backup.", style = Type.note)
     Btn("Type my restore code", primary = true, onClick = askCode)
 }
-
-/** The Queue arrives in phase 1; until then, every game in the backup by state, in your order. */
-@Composable
-private fun QueueSoon(ready: Games.State.Ready) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        BasicText("The Queue arrives in phase 1. Until then, your games as they came from the backup:", style = Type.note)
-        val now = LocalNow.current()
-        for (group in ready.lib.byState) {
-            Card {
-                BasicText("${group.label} · ${group.games.size}", style = Type.kicker)
-                for (g in group.games) GameLine(g, if (group.state == "upcoming") JsDate.days(g.date, now).ifEmpty { "No date yet" } else "")
-            }
-        }
-    }
-}
-
-/** One game: its colour, its name (two lines at most) and, for coming games, how far away it is. */
-@Composable
-private fun GameLine(g: Game, sub: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(4.dp, 28.dp).background(Color(g.colour), RoundedCornerShape(0.dp, 4.dp, 4.dp, 0.dp)))
-        Column(Modifier.weight(1f)) {
-            BasicText(g.title, style = Type.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (sub.isNotEmpty()) BasicText(sub, style = Type.note, softWrap = false, maxLines = 1)
-        }
-    }
-}
-

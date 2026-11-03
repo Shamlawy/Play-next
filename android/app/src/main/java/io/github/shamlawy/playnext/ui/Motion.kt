@@ -39,6 +39,9 @@ object Ease {
     /** The slash's word popping in, a little past its size and back (`pnwT`). */
     val pop = CubicBezierEasing(.2f, 1.5f, .4f, 1f)
 
+    /** The Queue's order-change glide (index.html 11585: 560ms `cubic-bezier(.2,.9,.25,1)`). */
+    val glide = CubicBezierEasing(.2f, .9f, .25f, 1f)
+
     /** The view pill's lit segment sliding across. */
     val slide = CubicBezierEasing(.4f, 0f, .2f, 1f)
 }

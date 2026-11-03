@@ -113,6 +113,9 @@ class ScreensTest {
     @Test fun home859() = shot("home", 859) { Shell(Nav("home"), ready, go = {}) }
     @Test fun games412() = shot("games", 412) { Shell(Nav("games"), ready, go = {}) }
     @Test fun games859() = shot("games", 859) { Shell(Nav("games"), ready, go = {}) }
+    /** The Queue's rows with On deck off (On deck's cards are 410 tall: with them the rows start below the picture). */
+    @Test fun queue412() = lib(""","deckOff":true,"sort":"hype","qFilter":"all"""").let { l -> shot("queue", 412, l = l, content = tab("games", "queue", l)) }
+    @Test fun queue859() = lib(""","deckOff":true""").let { l -> shot("queue", 859, l = l, content = tab("games", "queue", l)) }
     @Test fun played412() = shot("played", 412, content = tab("games", "played"))
     @Test fun played859() = shot("played", 859, content = tab("games", "played"))
     @Test fun plan412() = shot("plan", 412, content = tab("plan"))
