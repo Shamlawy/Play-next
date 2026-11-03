@@ -99,6 +99,7 @@ import coil3.transform.Transformation
 import io.github.shamlawy.playnext.data.Backup
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Library
+import io.github.shamlawy.playnext.data.Lists
 import io.github.shamlawy.playnext.data.Pic
 import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Rank
@@ -216,9 +217,8 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
     val measure = rememberTextMeasurer()
     val px = LocalDensity.current
     val needs = tabs.map { t ->
-        val list = q.lists.firstOrNull { "L:" + it.id == t }
         with(px) {
-            val icon = if (list != null) measure.measure(list.e, TextStyle(fontSize = 15.sp).fixed()).size.width.toDp() else 17.dp
+            val icon = 17.dp
             val word = if (!folded || t == v.tab) measure.measure(q.tabName(t), (if (folded) QType.tabF else QType.tab).fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp) else 0.dp
             val count = measure.measure((q.counts[t] ?: 0).toString(), QType.count.fixed()).size.width.toDp() + (if (folded) 5.dp else 7.dp)
             icon + word + count + (if (folded) 18.dp else 24.dp)
@@ -254,11 +254,8 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
                     ) {
                         val tint = if (on) volt else Pn.mute
                         val list = q.lists.firstOrNull { "L:" + it.id == t }
-                        if (list != null) {
-                            if (list.e.isNotEmpty()) BasicText(list.e, style = TextStyle(fontSize = 15.sp).fixed(), maxLines = 1)
-                        } else {
-                            QIcon(t, tint, 17.dp)
-                        }
+                        // a list's tab wears its mark as a drawn icon (the web draws the stored emoji there: T56, never here)
+                        if (list != null) PnIcon(Lists.icon(list.e), tint, 17.dp, null) else QIcon(t, tint, 17.dp)
                         // folded, only the lit tab says its name (the others: icon + count)
                         if (!folded || on) {
                             BasicText(name, style = (if (folded) QType.tabF else QType.tab).copy(color = if (on) Pn.ice else Pn.mute).fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)

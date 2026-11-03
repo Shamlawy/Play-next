@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const PKG = "app/src/main/java/io/github/shamlawy/playnext";
 
 /* Emoji-only text: pictographs, their joiners, variation selectors and keycaps, nothing else. */
-const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[‍️⃣\s])+$/u;
+const EMOJI_ANY = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
 
 /* Each rule: name, the house rule it guards, and a test on one line (with the file's text for context).
    `files` limits it to some files; `presence` rules check the whole app once instead. */
@@ -31,9 +31,10 @@ export const RULES = [
   { name: "hex-colour", why: "Colours come from the tokens (v181, T2): Color(0x…) only in ui/Tokens.kt, or a web colour copied with its source named in the line's comment (`// --qsc …`, `// rgba(…)`)",
     skip: f => f.endsWith("ui/Tokens.kt"),
     line: (l, t, i, ls, raw) => /\bColor\s*\(\s*0x[0-9A-Fa-f]/.test(l) && !/\/\/.*(?:--[a-z][\w-]*|\brgba?\s*\()/.test(raw) },
-  { name: "emoji-icon", why: "No emoji as icons (v297, T32): draw a GIcon (24x24, fill-only, one part at .35)",
-    line: l => { for (const m of l.matchAll(/\bText\s*\(\s*(?:text\s*=\s*)?"((?:[^"\\]|\\.)+)"/g)) if (EMOJI_ONLY.test(m[1])) return true;
-      return /\b(?:icon|glyph|emoji)\s*=\s*"((?:[^"\\]|\\.)+)"/i.test(l) && EMOJI_ONLY.test(l.match(/"((?:[^"\\]|\\.)+)"/)[1]); } },
+  { name: "emoji-icon", why: "No emoji anywhere in the app (v297, T32, T56: \"never do emoji, generate icons if needed\"): draw an icon (24x24, fill-only, one part at .35) through tools/android-gen.mjs; an emoji the web stores (a list's mark) comes from the generated Web tables, never typed in Kotlin",
+    line: l => { for (const m of l.matchAll(/"((?:[^"\\]|\\.)*)"/g)) if (EMOJI_ANY.test(m[1]) || /\\u[dD]83[c-eC-E]/.test(m[1])) return true;
+      for (const m of l.matchAll(/'((?:[^'\\]|\\.)+)'/g)) if (EMOJI_ANY.test(m[1])) return true;
+      return false; } },
   { name: "italic", why: "Upright headings (v188, T3): italics only for the slash wipe, the celebrations and share pictures",
     files: f => f.startsWith("ui/"),
     line: l => /\bFontStyle\.Italic\b|fontStyle\s*=\s*FontStyle\.Italic/.test(l) },
@@ -137,7 +138,7 @@ const PLANTS = {
   "hover": ["Modifier.hoverable(src)", "Modifier.clickable(src, indication = null) {}"],
   "material-tap": ["import androidx.compose.material3.Button", "import androidx.compose.material3.Text"],
   "hex-colour": ["val c = Color(0xFF2F6BFF) // the blue", "val c = Color(0xFF2F6BFF) // --volt (index.html 140)"],
-  "emoji-icon": ['Text("🔍")', 'Text("Search 🔍")'],
+  "emoji-icon": ['val EMO = listOf("⭐", "🛋️") // in data/ too, and in words: Text("Search 🔍")', 'Text("Search ✕ · …") // symbols, not emoji'],
   "italic": ["TextStyle(fontStyle = FontStyle.Italic)", "TextStyle(fontStyle = FontStyle.Normal)"],
   "uppercase": ['Text(name.uppercase())', 'Text(name)'],
   "font-weight": ["TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Black)", "TextStyle(fontFamily = Fonts.archivo, fontWeight = FontWeight.Black)"],

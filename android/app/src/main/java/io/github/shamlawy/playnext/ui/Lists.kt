@@ -60,7 +60,7 @@ import io.github.shamlawy.playnext.report.Crumbs
 
 /**
  * Your lists (`openLists(null)`, index.html 12872-12906), opened by the Queue bar's lists button: make one (a name of
- * up to 32 characters and an emoji), rename one, delete one (the games stay), or tap one to show it in the Queue.
+ * up to 32 characters and a mark: a drawn icon, never an emoji), rename one, delete one (the games stay), or tap one to show it in the Queue.
  * A change shows at once and lasts until the app closes (`Games.customise`, a read-only practice copy until switch
  * day). Adding a game to a list (`openLists(gid)`, from a game page) comes with the game page in Phase 2.
  */
@@ -68,7 +68,8 @@ import io.github.shamlawy.playnext.report.Crumbs
 fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, close: () -> Unit) {
     val lib = (games as? Games.State.Ready)?.lib
     val lists = remember(lib) { lib?.let { Lists.of(it) }.orEmpty() }
-    // the emoji for a new list moves on to the next one once a list is made (the web draws the sheet again)
+    // the mark for a new list moves on to the next one once a list is made (the web draws the sheet again); it is the
+    // web's stored emoji, which the sheet only ever draws as its icon
     var emo by rememberSaveable(lists.size) { mutableStateOf(Lists.nextEmo(lists)) }
     var name by rememberSaveable { mutableStateOf("") }
     var nameless by remember { mutableStateOf(false) }
@@ -140,10 +141,10 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
                 }
             }
         }
-        // a new list (`.ls-new`): the line above it, its label, the emoji, the name and Make
+        // a new list (`.ls-new`): the line above it, its label, the marks, the name and Make
         Box(Modifier.padding(top = 18.dp).fillMaxWidth().height(1.dp).background(Pn.steel))
         BasicText("New list", style = Type.kicker.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-        EmojiGrid(emo) {
+        MarkGrid(emo) {
             if (it != emo) Sounds.play(Sfx.Tap)
             emo = it
         }
@@ -155,11 +156,11 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
     }
 }
 
-/** One list (`.ls-r`): its emoji, its name over "N games · show in queue" (a tap shows it), Rename, Delete. */
+/** One list (`.ls-r`): its mark, its name over "N games · show in queue" (a tap shows it), Rename, Delete. */
 @Composable
 private fun ListRow(l: Queue.QList, n: Int, show: () -> Unit, rename: () -> Unit, drop: () -> Unit) {
     LsRow {
-        Emo(l.e)
+        Mark(l.e)
         Column(
             Modifier.weight(1f).sizeIn(minHeight = Pn.touch).clickable(role = Role.Button, onClick = show)
                 .semantics { contentDescription = "${l.n}, $n game${if (n == 1) "" else "s"}, show in queue" },
@@ -178,7 +179,7 @@ private fun ListRow(l: Queue.QList, n: Int, show: () -> Unit, rename: () -> Unit
 private fun RenameRow(l: Queue.QList, save: (String) -> Unit) {
     var v by rememberSaveable(l.id) { mutableStateOf(l.n) }
     LsRow {
-        Emo(l.e)
+        Mark(l.e)
         LsField(v, { v = it }, "", "Name of " + l.n, Modifier.weight(1f)) { save(v) }
         LsBtn("Save", LsKind.Plain) { save(v) }
     }
@@ -188,7 +189,7 @@ private fun RenameRow(l: Queue.QList, save: (String) -> Unit) {
 @Composable
 private fun DropRow(l: Queue.QList, drop: () -> Unit, keep: () -> Unit) {
     LsRow {
-        Emo(l.e)
+        Mark(l.e)
         BasicText("Delete “${l.n}”? The games stay, only the list goes.", style = DyType.small.copy(color = Pn.ice), modifier = Modifier.weight(1f))
         LsBtn("Delete", LsKind.Del, onClick = drop)
         LsBtn("Keep", LsKind.Plain, onClick = keep)
@@ -206,26 +207,28 @@ private fun LsRow(content: @Composable androidx.compose.foundation.layout.RowSco
     )
 }
 
-/** A list's emoji in its tile (`.ls-r .e`): 36 square, round 11, your accent at .12. */
+/** A list's mark in its tile (`.ls-r .e`): 36 square, round 11, your accent at .12, its drawn icon in your accent. */
 @Composable
-private fun Emo(e: String) {
-    Box(Modifier.size(36.dp).background(LocalLook.current.volt.copy(alpha = .12f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-        BasicText(e, style = TextStyle(fontSize = 19.sp).fixed(), maxLines = 1)
+private fun Mark(e: String) {
+    val volt = LocalLook.current.volt
+    Box(Modifier.size(36.dp).background(volt.copy(alpha = .12f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+        PnIcon(Lists.icon(e), volt, 20.dp, null)
     }
 }
 
-/** `.ls-emo`: the twelve emoji in rows of six; the picked one has your accent's line and a tint. */
+/** `.ls-emo`: the twelve marks in rows of six, drawn icons in white; the picked one is in your accent with its line and a tint. */
 @Composable
-private fun EmojiGrid(picked: String, pick: (String) -> Unit) {
+private fun MarkGrid(picked: String, pick: (String) -> Unit) {
     val volt = LocalLook.current.volt
     val shape = RoundedCornerShape(12.dp)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (row in Lists.EMO.chunked(6)) {
+        for (row in Lists.MARKS.chunked(6)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (e in row) {
-                    val on = e == picked
+                for (m in row) {
+                    val on = m.emo == picked
                     Box(
-                        Modifier.weight(1f).height(Pn.touch).clickable(role = Role.RadioButton) { pick(e) }.semantics { selected = on },
+                        Modifier.weight(1f).height(Pn.touch).clickable(role = Role.RadioButton) { pick(m.emo) }
+                            .semantics { selected = on; contentDescription = m.label },
                         contentAlignment = Alignment.Center,
                     ) {
                         Box(
@@ -233,7 +236,7 @@ private fun EmojiGrid(picked: String, pick: (String) -> Unit) {
                                 .background(if (on) volt.copy(alpha = .16f) else Pn.void, shape)
                                 .border(1.dp, if (on) volt else Pn.steel, shape),
                             contentAlignment = Alignment.Center,
-                        ) { BasicText(e, style = TextStyle(fontSize = 19.sp).fixed(), maxLines = 1) }
+                        ) { PnIcon(m.icon, if (on) volt else Pn.ice, 21.dp, null) }
                     }
                 }
             }

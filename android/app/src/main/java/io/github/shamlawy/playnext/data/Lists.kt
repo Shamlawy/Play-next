@@ -3,6 +3,8 @@ package io.github.shamlawy.playnext.data
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import io.github.shamlawy.playnext.gen.Web
+import io.github.shamlawy.playnext.gen.WebListMark
 import kotlin.random.Random
 
 /**
@@ -14,23 +16,32 @@ import kotlin.random.Random
  * id without its list (the counts and tabs go through [Queue.lists]), and a new list never gets an old id.
  */
 object Lists {
-    /** `LIST_EMO`: the emoji a list can wear; a new one gets the next in turn. */
-    val EMO = listOf("⭐", "🛋️", "🤝", "⚡", "🌙", "🔥", "🎯", "📚", "🧩", "👻", "🏆", "💤")
+    /**
+     * `LIST_EMO`: the marks a list can wear, a new one gets the next in turn. The web stores an emoji (`e`); the app
+     * never shows emoji (T56) and draws each as its icon (android-gen's LIST_MARKS), so this holds the web's values only.
+     */
+    val MARKS: List<WebListMark> = Web.LIST_MARKS
 
     /** A list's name is at most 32 characters (`maxlength="32"`, `.slice(0, 32)`). */
     const val MAX = 32
 
-    /** `S.lists`: your lists, each `{id, n, e}` (name, emoji), in their order. */
+    /** `S.lists`: your lists, each `{id, n, e}` (name, the web's emoji), in their order. */
     fun of(lib: Library): List<Queue.QList> = (lib["lists"] as? JsonArray).orEmpty().mapNotNull { e ->
         (e as? JsonObject)?.let { Queue.QList(Backup.str(it["id"]), Backup.str(it["n"]), Backup.str(it["e"])) }
     }
 
-    /** `LIST_EMO[L.length % LIST_EMO.length]`: the emoji picked when the sheet opens. */
-    fun nextEmo(lists: List<Queue.QList>) = EMO[lists.size % EMO.size]
+    /** `LIST_EMO[L.length % LIST_EMO.length]`: the mark picked when the sheet opens (the web's emoji). */
+    fun nextEmo(lists: List<Queue.QList>) = MARKS[lists.size % MARKS.size].emo
 
-    /** `listNew`: [name] trimmed and cut to 32 ("My list" when empty), [emo] ("⭐" when empty), at the end. */
+    /** The drawn icon for a list's stored emoji (with or without its FE0F); one the app doesn't know gets the list icon. */
+    fun icon(e: String): String = e.replace("\uFE0F", "").let { k -> MARKS.firstOrNull { it.emo.replace("\uFE0F", "") == k }?.icon } ?: "ui:list"
+
+    /** What TalkBack calls a list's mark ("Star"), or null for one the app doesn't know. */
+    fun markName(e: String): String? = e.replace("\uFE0F", "").let { k -> MARKS.firstOrNull { it.emo.replace("\uFE0F", "") == k }?.label }
+
+    /** `listNew`: [name] trimmed and cut to 32 ("My list" when empty), [emo] (the first mark when empty), at the end. */
     fun made(lists: List<Queue.QList>, name: String, emo: String, id: String): List<Queue.QList> =
-        lists + Queue.QList(id, name.trim().take(MAX).ifEmpty { "My list" }, emo.ifEmpty { "⭐" })
+        lists + Queue.QList(id, name.trim().take(MAX).ifEmpty { "My list" }, emo.ifEmpty { MARKS[0].emo })
 
     /** The Save of a rename: a blank name changes nothing (`if (l && v)`). */
     fun renamed(lists: List<Queue.QList>, id: String, name: String): List<Queue.QList> {

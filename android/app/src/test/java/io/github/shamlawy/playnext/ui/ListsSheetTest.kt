@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -142,12 +143,17 @@ class ListsSheetTest {
         rule.onNodeWithText("Make").performScrollTo().performClick()
         rule.onNodeWithText("Give the list a name").assertExists()
         rule.onNodeWithContentDescription("New list's name").performTextInput("Short ones")
+        // the marks are drawn icons named for TalkBack; the pick is stored as the web's emoji
+        rule.onNodeWithContentDescription("Star").assertIsSelected()
+        rule.onNodeWithContentDescription("Moon").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Moon").assertIsSelected()
         rule.onNodeWithText("Make").performScrollTo().performClick()
         rule.waitUntil(5_000) { Lists.of(ready.lib).size == 1 }
         rule.waitForIdle()
         rule.onNodeWithText("Short ones").assertExists()
         rule.onNodeWithText("0 games · show in queue").assertExists()
-        assertEquals("the first emoji", "⭐", Lists.of(ready.lib)[0].e)
+        assertEquals("the moon's emoji, as the web stores it", Lists.MARKS[4].emo, Lists.of(ready.lib)[0].e)
+        assertEquals("list:moon", Lists.icon(Lists.of(ready.lib)[0].e))
         // the Queue's bar has its tab too (under the sheet)
         rule.onNodeWithContentDescription("Short ones, 0").assertExists()
 

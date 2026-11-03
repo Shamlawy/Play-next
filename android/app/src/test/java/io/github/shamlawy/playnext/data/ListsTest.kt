@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.data
 
+import io.github.shamlawy.playnext.gen.Web
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -37,6 +38,17 @@ class ListsTest {
         assertEquals("⭐", Lists.nextEmo(emptyList()))
         assertEquals("🤝", Lists.nextEmo(two))
         assertEquals("⭐", Lists.nextEmo(List(12) { Queue.QList("l$it", "n", "⭐") }))
+    }
+
+    @Test fun everyMarkIsDrawnNeverAnEmoji() {
+        assertEquals(12, Lists.MARKS.size)
+        for (m in Lists.MARKS) assertTrue("${m.label} is drawn", Web.ICONS.containsKey(m.icon))
+        assertEquals("list:couch", Lists.icon("🛋️"))
+        assertEquals("without its FE0F too", "list:couch", Lists.icon("🛋"))
+        assertEquals("list:star", Lists.icon("⭐"))
+        assertEquals("one the app doesn't know: the list icon", "ui:list", Lists.icon("🐸"))
+        assertEquals("ui:list", Lists.icon(""))
+        assertEquals("Couch", Lists.markName("🛋️"))
     }
 
     @Test fun anIdLooksLikeTheWebs() {
