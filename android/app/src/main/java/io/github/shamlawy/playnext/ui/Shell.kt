@@ -162,7 +162,13 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
         step(n)
     }
     val opener = remember { { id: String, from: FlyFrom? -> openGame(id, from) } }
-    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener) {
+    val openCustomise by rememberUpdatedState { scope: String ->
+        Sounds.play(Sfx.Open)
+        Crumbs.tap("customise", here)
+        step(nav.open("customise:$scope"))
+    }
+    val customiser = remember { { scope: String -> openCustomise(scope) } }
+    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
             val w = maxWidth
             val wide = w >= RAIL_FROM
@@ -223,18 +229,24 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 (pagesKept - keys.toSet()).forEach { pages.removeState(it) }
                 pagesKept.retainAll(keys.toSet())
             }
-            // Settings stays under what you open from it, so back finds it where you left it
-            val s = nav.stack.lastIndexOf("settings")
+            // Settings (or a screen's Customise) stays under what you open from it, so back finds it where you left it
+            val s = nav.stack.indexOfLast { it == "settings" || it.startsWith("customise:") }
             if (s >= 0) {
                 val k = keys[s]
+                val sheet = nav.stack[s]
                 pagesKept += k
-                BackHandler(enabled = nav.overlay == "settings") { go(nav.closeAt(s)) }
+                BackHandler(enabled = nav.overlay == sheet) { go(nav.closeAt(s)) }
                 key(k) {
                     pages.SaveableStateProvider(k) {
-                        SettingsSheet(
-                            Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, games, wide,
-                            close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) },
-                        )
+                        val m = Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }
+                        if (sheet == "settings") {
+                            SettingsSheet(
+                                m, games, wide,
+                                close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) },
+                            )
+                        } else {
+                            CustomiseSheet(m, sheet.removePrefix("customise:"), games, close = { step(nav.closeAt(s)) })
+                        }
                     }
                 }
             }

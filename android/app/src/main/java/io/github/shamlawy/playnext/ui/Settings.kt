@@ -27,6 +27,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -94,6 +95,18 @@ import java.time.ZoneId
  */
 @Composable
 fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
+    SheetFrame(modifier, close) {
+        BasicText("Settings", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
+        BackupCard(games, askCode)
+        SoundsCard()
+        BuildCards(openProbe)
+        Btn("Close", onClick = close)
+    }
+}
+
+/** The sheet itself (Settings, a screen's Customise): what's described above, with [content] inside. */
+@Composable
+internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     BoxWithConstraints(modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
         val round = maxWidth >= 660.dp
         val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
@@ -125,13 +138,8 @@ fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: 
                         .imePadding()
                         .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 34.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    BasicText("Settings", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
-                    BackupCard(games, askCode)
-                    SoundsCard()
-                    BuildCards(openProbe)
-                    Btn("Close", onClick = close)
-                }
+                    content = content,
+                )
                 // the grab handle (`.sheet-in::before`): 40x4, 8 from the top
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 8.dp).size(40.dp, 4.dp).background(Pn.line2, RoundedCornerShape(4.dp)))
             }

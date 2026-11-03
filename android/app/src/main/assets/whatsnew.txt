@@ -68,3 +68,9 @@ go=home
 at=
 say=Your Queue is here: every game as a closed row in its own colour, with the bar to switch All, Out, Coming, Played and your lists, the Order menu, and On deck's three picks on top.
 tryIt=Open Games › Queue and scroll, folded and unfolded. Tap Out, Coming and Played (the counts match the web app), then Order › Most hyped: the rows glide into the new order and each shows its hype. Tap a row: its game page opens (the open card comes next). It's a practice copy: your tab and order go back to the web app's when the app reopens.
+
+v=12
+go=home
+at=
+say=Your Queue has its Customise now: pick your platform for On deck, show or hide On deck, a plain card background, and how big and strong the logos on your rows are, and each change shows at once.
+tryIt=Open Games › Queue and tap Customise on the Queue card at the top. Tap Hide it under On deck row: On deck goes. Drag "On a row — how big" and let go: the logos on your rows change size. Close it with Close, back or a swipe down. It's a practice copy: your changes last until the app closes, and your backup and the web app stay as they are.

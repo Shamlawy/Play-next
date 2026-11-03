@@ -668,7 +668,7 @@ private fun Dust(level: Int) {
 
 /** `--rslot`: min(28% (folded 27%) of the row, 1.4 × Row logo width (150)). */
 private fun logoSlotW(rowW: Dp, folded: Boolean, lib: Library): Dp =
-    min(rowW.value * (if (folded) .27f else .28f), 1.4f * Backup.num(lib["rowArtW"], 150.0, 40.0, 400.0).toFloat()).dp
+    min(rowW.value * (if (folded) .27f else .28f), 1.4f * Backup.num(lib["rowArtW"], 150.0, 40.0, 200.0).toFloat()).dp
 
 /** A logo's ink, measured once per address: the box its visible pixels fill (with the .02 guard) and whether it's near-black. */
 class Ink(val aspect: Float, val dark: Boolean)
@@ -734,7 +734,7 @@ private fun LogoSlot(url: String, rowW: Dp, folded: Boolean, lib: Library) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val req = remember(url) { ImageRequest.Builder(ctx).data(picUrl(url)).allowHardware(false).transformations(InkCrop(url)).build() }
     var ink by remember(url) { mutableStateOf(LogoInk.known[url]) }
-    val op = Backup.num(lib["rowArtOp"], 95.0, 0.0, 100.0).toFloat() / 100
+    val op = Backup.num(lib["rowArtOp"], 95.0, 10.0, 100.0).toFloat() / 100
     Box(
         Modifier.fillMaxSize().padding(end = 14.dp, top = 8.dp, bottom = 8.dp).alpha(op),
         contentAlignment = Alignment.CenterEnd,

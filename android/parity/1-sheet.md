@@ -2,13 +2,13 @@
 
 `node tools/parity-sheet.mjs` → `tools/.cache/parity/queue-412.png`, `queue-859.png` (web | app | difference). Same made-up
 games (ScreensTest's library), 2026-10-27 08:00 UTC, On deck off. First run Nov 3 (main after android-v11): 26.5% of pixels
-differ at 412, 31.9% at 859, most of it the web's open card.
+differ at 412, 31.9% at 859, most of it the web's open card. android-v12 (the Customise chip): 26.6% and 31.8%; the
+chip lines up on both.
 
 ## Expected (later pieces)
 
 - The web's first game starts open as the Queue card (piece 2): the app shows it as a closed row.
 - The bar's Shuffle and Boss buttons (piece 3), the lists button (+, M2 in piece 2).
-- The header card's Customise chip (M1, piece 2).
 - Unfolded, the web's rail carries Nexi, the Queue's mini cards (Up next, #3, #5…) and the dice: the app's rail has the tabs
   only (Nexi is piece 3; the mini cards and dice belong with them).
 

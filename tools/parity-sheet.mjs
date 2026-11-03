@@ -20,6 +20,9 @@ const SCREENS = path.join(ROOT, "android/app/src/test/java/io/github/shamlawy/pl
 const BASE = path.join(ROOT, "android/app/src/test/screenshots");
 const OUT = path.join(ROOT, "tools/.cache/parity");
 
+/** ScreensTest's clock (`now`): 2026-10-27 08:00 UTC, the phone in UTC. */
+const DAY = "2026-10-27";
+
 /* Each shot: the screen to open on the web, and the extra settings its ScreensTest test adds to lib(…). */
 const QUEUE = `closeFull(); goTab("games"); goSub("games", "queue");`;
 export const SHOTS = {
@@ -63,8 +66,10 @@ async function webShot(browser, base, name, shot, lib) {
   const width = +name.split("-").pop(), height = heightOf(width);
   const ctx = await browser.newContext({ timezoneId: "UTC", locale: "en-US", viewport: { width, height }, deviceScaleFactor: 3, serviceWorkers: "block" });
   await ctx.route(u => !u.href.startsWith(base) && !/^(blob|data):/.test(u.href), r => r.abort());
-  await ctx.clock.setFixedTime(new Date("2026-10-27T08:00:00Z"));
-  const start = { ...seed(APP_V, 1, { bare: true }), bugOff: true, ...lib, ...shot.extra };
+  await ctx.clock.setFixedTime(new Date(DAY + "T08:00:00Z"));
+  // nothing that plays on the first open of a day (the opening reel, the date card: the fixed clock makes every run
+  // that first open), so the sheet shows the screen itself
+  const start = { ...seed(APP_V, 1, { bare: true }), bugOff: true, reelOff: true, fxCal: DAY, ...lib, ...shot.extra };
   await ctx.addInitScript(s => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("gq:data", s); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(start));
   const page = await ctx.newPage();
   page.setDefaultNavigationTimeout(120000);

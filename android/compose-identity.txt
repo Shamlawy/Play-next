@@ -4,7 +4,9 @@ AsOf.r: Ready
 BackupCard.games: State
 Chart.c: Chart
 Chart.t: Animatable<Float, AnimationVector1D>
+Chips.items: List<Pair<String, String>>
 Counts.counts: List<Pair<String, Int>>
+CustomiseSheet.games: State
 DeckCard.g: Game
 DeckCard.q: Queue
 DrawnCover.g: Game
@@ -27,6 +29,7 @@ PicBox.g: Game?
 PicBox.pic: Pic
 PictureCard.picture: ImageBitmap?
 PlayNextRoot.link: Route?
+QueueGroups.lib: Library
 QueueRow.g: Game
 QueueRow.q: Queue
 SettingsSheet.games: State
