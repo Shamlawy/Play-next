@@ -310,7 +310,15 @@ export function selfMatch(cmd: string): string | undefined {
     const w = words(seg.trim()).filter(x => !ENV.test(x))
     const i = w.findIndex(x => /(^|\/)(pkill|pgrep)$/.test(x))
     if (i < 0) continue
-    const args = w.slice(i + 1)
+    // redirections (>/dev/null, 2>&1, > out.txt) are the shell's, not the pattern
+    const args: string[] = []
+    const rest = w.slice(i + 1)
+    for (let k = 0; k < rest.length; k++) {
+      const x = rest[k] ?? ''
+      if (/^(\d*|&)>>?$/.test(x) || x === '<') { k++; continue }
+      if (/^(\d*|&)>>?./.test(x) || /^<./.test(x)) continue
+      args.push(x)
+    }
     if (!args.some(a => /^-[a-zA-Z]*f[a-zA-Z]*$/.test(a) || a === '--full')) continue
     const pat = args.filter(a => !a.startsWith('-')).pop()
     if (!pat || /\[[^\]]+\]/.test(pat)) continue
