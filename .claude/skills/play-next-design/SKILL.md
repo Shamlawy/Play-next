@@ -123,7 +123,7 @@ The native app in `android/` (Kotlin + Jetpack Compose, the owner's Fold only) w
 - No ripple and no touch effect: the root `LocalIndication` is none, so nothing draws under the finger; never pass a ripple or Material indication to `clickable` / `combinedClickable`. No press scale, lift or fade (#309): nothing reacts to a press but the action itself.
 - Animate only `graphicsLayer` translation, scale, alpha and rotation, and read the animated value in the draw/layer phase (the lambda `Modifier.graphicsLayer { … }` / `Modifier.offset { … }` forms), never in composition or layout. No animated size, padding, colour of a large surface, blur or shader.
 - One still background layer (the base colour + the soft gradient, section 3), nothing moving behind the screens. No overscroll stretch or glow (`LocalOverscrollFactory` provides null).
-- Icons are drawn (`GICON`, 24x24, one part at 35%), never emoji, and every icon that carries meaning has a TalkBack `contentDescription` (null only when a text label beside it already says it).
+- Icons are drawn (`GICON`, 24x24, one part at 35%), never emoji (the owner, Nov 3: "never do emoji, generate icons if needed", T56: not even where the web uses emoji, such as a list's emoji), and every icon that carries meaning has a TalkBack `contentDescription` (null only when a text label beside it already says it).
 - Touch targets are at least 48dp, even when the drawn thing is smaller.
 - Font scale is capped at 1.3 for fixed-size labels (tab labels, header stats, straps, tickets); body text follows the phone's setting. Short things stay whole (`softWrap = false, maxLines = 1`, section 4).
 - Headlines are balanced: `TextStyle(lineBreak = LineBreak.Heading)`.

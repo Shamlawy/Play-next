@@ -13,6 +13,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.AlignmentLine
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.LastBaseline
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -22,12 +26,14 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.shamlawy.playnext.R
 import io.github.shamlawy.playnext.gen.Web
+import kotlin.math.roundToInt
 
 /**
  * The web app's fonts, bundled (they never wait on the network): Poppins for everything (Clean, 400/500/600/700),
@@ -115,6 +121,30 @@ object Type {
 
 /** The most a fixed-size label grows with the phone's font size (critic G4): body text scales freely. */
 const val FIXED_SCALE_MAX = 1.3f
+
+/**
+ * The web's line box for a Poppins text in [style] (`font: 23px/1`): CSS makes each line exactly `line-height` tall
+ * with the glyphs centred in it (baseline at half the line + half of ascent - descent), while Compose keeps Poppins'
+ * own 1.4em (ascent 1.05 + descent .35, the font's typo metrics, poppins_*.ttf) when the line height is smaller, so the
+ * header numbers stood 1.4x tall and pushed their labels ~5-8dp lower than the web (M71, the owner's Fold, Nov 3).
+ * This places the text so its first baseline sits where the web's does and reports the web's height; the glyphs draw
+ * where they are (nothing clips). Only for one-font lines whose [style] gives an sp size and line height.
+ */
+fun Modifier.cssLine(style: TextStyle): Modifier = layout { m, c ->
+    val p = m.measure(c.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+    val first = p[FirstBaseline]
+    val last = p[LastBaseline]
+    if (first == AlignmentLine.Unspecified || !style.fontSize.isSp || !style.lineHeight.isSp) {
+        return@layout layout(p.width, p.height) { p.place(0, 0) }
+    }
+    val fs = style.fontSize.toPx()
+    val half = style.lineHeight.toPx() / 2f
+    val dy = (half + POPPINS_MID * fs - first).roundToInt()
+    layout(p.width, (last + dy + half - POPPINS_MID * fs).roundToInt().coerceAtLeast(0)) { p.place(0, dy) }
+}
+
+/** Half of Poppins' ascent minus its descent ((1.05 - .35) / 2 em): where CSS centres the baseline in a line box. */
+private const val POPPINS_MID = .35f
 
 /**
  * This style for a fixed-size label (a tab's name, the pill's views, header numbers, straps, tickets): it grows with

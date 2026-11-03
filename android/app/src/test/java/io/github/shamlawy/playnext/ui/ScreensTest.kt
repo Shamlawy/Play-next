@@ -28,7 +28,11 @@ import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -264,8 +268,10 @@ class ScreensTest {
         rule.onRoot().performTouchInput { swipeRight() }
         rule.runOnIdle { assertEquals("games" to "queue", nav.tab to prefs.viewOf("games", nav.views)) }
         rule.onRoot().performTouchInput {
+            // the second finger above the first: just under the middle is On deck's side scroller, which keeps its own
+            // swipes (LocalSwipeGuard), and the header card's height decides where it starts (M71 moved it up 6dp)
             down(0, Offset(width * .85f, centerY))
-            down(1, Offset(width * .85f, centerY + 120f))
+            down(1, Offset(width * .85f, centerY - 120f))
             repeat(10) {
                 updatePointerBy(0, Offset(-width * .07f, 0f))
                 updatePointerBy(1, Offset(-width * .07f, 0f))
@@ -282,6 +288,18 @@ class ScreensTest {
     }
     /** The Queue's Customise (M1): the live groups only, over the Queue. */
     @Test fun customise412() = shot("customise", 412) { Shell(Nav("games", listOf("customise:queue"), mapOf("games" to "queue")), ready, go = {}) }
+
+    /** Your lists (M2), opened from the Queue bar: two lists (one with games in it), the emoji, the name, Make. */
+    private val listsLib = lib(""","lists":[{"id":"l1","n":"Couch nights","e":"🛋️"},{"id":"l2","n":"Short ones","e":"⚡"}]""").let { l ->
+        // two of the games are in Couch nights
+        val games = (l.state["games"] as JsonArray).map { g ->
+            val o = g.jsonObject
+            if (o["id"]?.jsonPrimitive?.content in setOf("a", "c")) JsonObject(o + ("lists" to JsonArray(listOf(JsonPrimitive("l1"))))) else o
+        }
+        Library(JsonObject(l.state + ("games" to JsonArray(games))))
+    }
+    @Test fun lists412() = shot("lists", 412, l = listsLib) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
+    @Test fun lists859() = shot("lists", 859, l = listsLib) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
 
     /** The header card's Customise chip opens the Queue's Customise; Close and back shut it. */
     @Test fun theQueuesCustomiseChipOpensItsOwnGroups() {

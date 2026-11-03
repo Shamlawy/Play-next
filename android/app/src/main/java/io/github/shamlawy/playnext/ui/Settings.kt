@@ -148,12 +148,12 @@ internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composa
 }
 
 /** How far the sheet is pulled down, and the scroll hook that pulls it: past [PULL_SHUT] of the screen, or flung, it closes. */
-private class Pull(val connection: NestedScrollConnection) {
+internal class Pull(val connection: NestedScrollConnection) {
     var offset by mutableFloatStateOf(0f)
 }
 
 @Composable
-private fun rememberPull(close: () -> Unit, height: Float): Pull {
+internal fun rememberPull(close: () -> Unit, height: Float): Pull {
     val shut by rememberUpdatedState(close)
     return remember(height) {
         lateinit var pull: Pull
@@ -193,7 +193,7 @@ private const val PULL_SHUT = .25f
  * A tap on the scrim closes; a drag that starts there doesn't (a plain clickable took a moved press as a tap), nor
  * does a tap the sheet itself took.
  */
-private fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
+internal fun Modifier.scrimTap(close: () -> Unit) = pointerInput(Unit) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         var moved = false

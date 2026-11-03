@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -184,12 +186,24 @@ private fun Range(value: Int, min: Int, max: Int, unit: String, name: String, se
     var width by remember { mutableFloatStateOf(1f) }
     // where the finger has it (-1: at the saved value)
     var held by remember { mutableFloatStateOf(-1f) }
+    // the value let go of, shown until the rebuilt games bring it back as [value] (M72: it snapped back to the old one
+    // for a moment); null once they have
+    var sent by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(value) { sent = null }
     val now by rememberUpdatedState(value)
     val send by rememberUpdatedState(set)
-    val shown = if (held >= 0f) (min + held * (max - min)).roundToInt() else value
+    val shown = if (held >= 0f) (min + held * (max - min)).roundToInt() else sent ?: value
     val f = (shown - min).toFloat() / (max - min)
     val at = { x: Float -> (x / width).coerceIn(0f, 1f) }
-    val done = { v: Int -> held = -1f; if (v != now) send(v) }
+    val done = { v: Int ->
+        held = -1f
+        if (v != now) {
+            sent = v
+            send(v)
+        } else {
+            sent = null
+        }
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
             Modifier

@@ -185,6 +185,29 @@ class HeaderCardTest {
         return (0 until t.lineCount - 1).any { i -> t.getLineEnd(i).let { e -> e in 1 until s.length && s[e - 1] != ' ' && s[e] != ' ' } }
     }
 
+    /**
+     * M71 (the owner's Fold, web vs app): each label sits under its number as on the web, `font: 23px/1` then
+     * `margin-top: 5px` and an `11px/1.2` label. Baseline to baseline there is .15em of the number (its box's foot under
+     * the baseline: half the line - (ascent - descent) / 2) + 5 + half the label's line + .35em of the label = 18.9dp.
+     * Compose's own 1.4em Poppins line put it ~5.7dp lower.
+     */
+    @Test fun theLabelsSitUnderTheNumbersAsOnTheWeb() {
+        val l = lib()
+        val cards = Shx.all(l, now, utc)
+        show(412, Games.State.Ready(l, now - 3_600_000L, cards = cards))
+        go("games", "queue")
+        val want = .15f * 23 + 5 + 13.2f / 2 + .35f * 11
+        for (s in cards["queue"]!!.stats) {
+            val numNode = foot(hasText(s.value + (s.unit ?: "")))
+            val labNode = foot(hasText(s.label))
+            val num = numNode.boundsInRoot.top + layout(numNode).firstBaseline
+            val lab = labNode.boundsInRoot.top + layout(labNode).firstBaseline
+            val gap = (lab - num) / px(1)
+            println("412 queue: '${s.label}' baseline ${gap}dp under its number (web $want)")
+            assertEquals("'${s.label}' under its number as on the web", want, gap, .75f)
+        }
+    }
+
     @Test fun theNumbersStayWholeAt320() = numbersStayWhole(320)
     @Test fun theNumbersStayWholeAt340() = numbersStayWhole(340)
     @Test fun theNumbersStayWholeAt359() = numbersStayWhole(359)

@@ -174,7 +174,65 @@ const TABS = [...NAV.matchAll(/<button data-tab="(\w+)"[^>]*>(<svg[\s\S]*?<\/svg
 need(TABS.map(t => t.key).join() === "home,games,plan,taste,add", `tabs: home, games, plan, taste, add (found ${TABS.map(t => t.key)})`);
 const GEAR = (/<button id="gear"[^>]*>(<svg[\s\S]*?<\/svg>)/.exec(NAV) || [])[1];
 need(GEAR, "the Settings gear in the tab bar");
-const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")]];
+/* uiIc's icons the app draws too (`UIC`, index.html): a <g opacity> group hands its opacity to the shapes inside it */
+const UIC_SRC = (/\nconst UIC = \{([\s\S]*?)\n\};/.exec(src) || [])[1];
+need(UIC_SRC, "const UIC (uiIc's icons)");
+function uicIcon(name) {
+  const m = new RegExp(`\\n\\s*${name}: "([^"]*)"`).exec(UIC_SRC);
+  need(m, `uiIc's ${name} icon`);
+  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle)\b/g, `<$1 opacity="${o}"`));
+  return icon(`<svg viewBox="0 0 24 24">${flat}</svg>`, `uiIc ${name}`);
+}
+/* gIcon's drawings (`GICON`, index.html: Settings' group icons), by their group name */
+const GICON_SRC = (/\nconst GICON = \{([\s\S]*?)\n\};/.exec(src) || [])[1];
+need(GICON_SRC, "const GICON (gIcon's icons)");
+function giconIcon(name) {
+  const m = new RegExp(`\\n\\s*"${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}": "([^"]*)"`).exec(GICON_SRC);
+  need(m, `gIcon's "${name}" icon`);
+  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle)\b/g, `<$1 opacity="${o}"`));
+  return icon(`<svg viewBox="0 0 24 24">${flat}</svg>`, `gIcon ${name}`);
+}
+
+/* A list's mark (`LIST_EMO`, index.html: the emoji a list wears on the web, kept in the backup as `e`). The app never
+   shows emoji (T56, L220): each one is drawn instead, in the same order. Seven come from the web's own drawings; the
+   five the web never drew are drawn here (24x24, fill-only, one part at .35, the v247 style). A new or moved emoji
+   on the web fails the build here until it has a drawing. */
+const LIST_EMO = table("LIST_EMO");
+const LIST_DRAWN = {
+  couch: '<rect opacity=".35" x="4" y="5" width="16" height="8.6" rx="2.6"/><rect x="1.6" y="10" width="4.4" height="8.4" rx="2.2"/>' +
+    '<rect x="18" y="10" width="4.4" height="8.4" rx="2.2"/><rect x="5" y="13" width="14" height="5.4" rx="1.4"/>' +
+    '<rect x="3.8" y="18" width="2.2" height="2.8" rx=".8"/><rect x="18" y="18" width="2.2" height="2.8" rx=".8"/>',
+  friends: '<circle opacity=".35" cx="16" cy="7.4" r="3.3"/><path opacity=".35" d="M10.6 20a5.4 5.4 0 0 1 10.8 0z"/>' +
+    '<circle cx="9" cy="8.6" r="3.7"/><path d="M2 21.2a7 7 0 0 1 14 0z"/>',
+  puzzle: '<rect opacity=".35" x="12.6" y="2.4" width="9" height="9" rx="1.8"/>' +
+    '<path d="M3 8h4.6a2.4 2.4 0 1 1 4.8 0H15v4.6a2.4 2.4 0 1 1 0 4.8V21H3z"/>',
+  ghost: '<path fill-rule="evenodd" d="M4.5 10a7.5 7.5 0 0 1 15 0v10.6l-2.5-2-2.5 2-2.5-2-2.5 2-2.5-2-2.5 2z' +
+    'M7.4 10.2a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0zM13 10.2a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0z"/>' +
+    '<rect opacity=".35" x="5.5" y="21.4" width="13" height="1.6" rx=".8"/>',
+  sleep: '<path d="M4.4 9h8.8v2.4l-5.4 6.2h5.4V20H4v-2.4l5.4-6.2h-5z"/>' +
+    '<path opacity=".35" d="M14.2 3h6v1.7l-3.6 4.1h3.6v1.7h-6.3V8.8l3.6-4.1h-3.3z"/>',
+};
+/* [the emoji's code points (no FE0F), icon name, what TalkBack says, its drawing] */
+const LIST_MARKS = [
+  ["2b50", "star", "Star", () => uicIcon("star")],
+  ["1f6cb", "couch", "Couch", "couch"],
+  ["1f91d", "friends", "Friends", "friends"],
+  ["26a1", "bolt", "Lightning", () => giconIcon("Speed boost")],
+  ["1f319", "moon", "Moon", () => giconIcon("Your evening")],
+  ["1f525", "fire", "Fire", () => giconIcon("Hype")],
+  ["1f3af", "target", "Target", () => uicIcon("target")],
+  ["1f4da", "books", "Books", () => uicIcon("books")],
+  ["1f9e9", "puzzle", "Puzzle", "puzzle"],
+  ["1f47b", "ghost", "Ghost", "ghost"],
+  ["1f3c6", "trophy", "Trophy", () => giconIcon("Top board")],
+  ["1f4a4", "sleep", "Sleep", "sleep"],
+];
+const cps = s => [...s].map(c => c.codePointAt(0)).filter(c => c !== 0xfe0f).map(c => c.toString(16)).join(" ");
+need(Array.isArray(LIST_EMO) && LIST_EMO.length === LIST_MARKS.length && LIST_EMO.every((e, i) => cps(e) === LIST_MARKS[i][0]),
+  `LIST_EMO changed (now ${LIST_EMO.map(cps).join(", ")}): give each emoji its drawing in LIST_MARKS, in the same order`);
+const LIST_ICONS = LIST_MARKS.map(([, n, , d]) => ["list:" + n, typeof d === "function" ? d() : icon(`<svg viewBox="0 0 24 24">${LIST_DRAWN[d]}</svg>`, `list mark ${n}`)]);
+
+const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash"].map(n => ["ui:" + n, uicIcon(n)]), ...LIST_ICONS];
 
 /* ---------- Kotlin ---------- */
 const ks = s => JSON.stringify(s).replace(/\$/g, "\\$");   // a JSON string is a valid Kotlin string once $ is escaped
@@ -189,6 +247,9 @@ const lines = [
   "class WebTheme(val key: String, val name: String, val a: Long, val b: Long)",
   "",
   "class WebTab(val key: String, val label: String)",
+  "",
+  "/** A list's mark: the emoji the web stores ([emo], `LIST_EMO`), the drawn icon the app shows instead and its name for TalkBack. */",
+  "class WebListMark(val emo: String, val icon: String, val label: String)",
   "",
   "object Web {",
   "",
@@ -220,6 +281,7 @@ const lines = [
   "",
   "    // the tab bar (index.html <nav>): the five tabs in order, then Settings",
   `    val TABS: List<WebTab> = ${kl(TABS.map(t => `WebTab(${ks(t.key)}, ${ks(t.label)})`))}`,
+  `    val LIST_MARKS: List<WebListMark> = listOf(\n${LIST_MARKS.map(([, n, l], i) => `        WebListMark(${ks(LIST_EMO[i])}, ${ks("list:" + n)}, ${ks(l)}),`).join("\n")}\n    )`,
   "    val ICONS: Map<String, List<IconPart>> = mapOf(",
   ...ICONS.map(([k, parts]) => `        ${ks(k)} to listOf(\n${parts.map(p => `            IconPart(${ks(p.d)}, ${p.alpha}f, ${p.evenOdd}),`).join("\n")}\n        ),`),
   "    )",
