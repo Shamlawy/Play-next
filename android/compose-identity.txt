@@ -5,25 +5,30 @@ BackupCard.games: State
 Chart.c: Chart
 Chart.t: Animatable<Float, AnimationVector1D>
 Counts.counts: List<Pair<String, Int>>
+DeckCard.g: Game
+DeckCard.q: Queue
 DrawnCover.g: Game
 Fan.covers: List<Game>
 Fan.t: Animatable<Float, AnimationVector1D>
 FlyingCover.f: Flight
 FlyingCover.g: Game
-GameLine.g: Game
 GamePage.from: FlyFrom?
 GamePage.g: Game
 Genres.tags: List<Pair<String, Int>>
 HeaderCard.cards: Cards?
 HeaderCard.lib: Library
 HomePage.games: State
+LogoSlot.lib: Library
 MixBar.segs: List<Seg>
+OnDeck.deck: List<Game>
+OnDeck.q: Queue
 Panel.lines: List<String>
 PicBox.g: Game?
 PicBox.pic: Pic
 PictureCard.picture: ImageBitmap?
 PlayNextRoot.link: Route?
-QueueSoon.ready: Ready
+QueueRow.g: Game
+QueueRow.q: Queue
 SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State
@@ -31,6 +36,8 @@ Shell.nav: Nav
 Spotlight.l: Line
 Stats.stats: List<Stat>
 TabPage.games: State
+TabTop.games: State
+Ticket.st: Stat
 TryRow.items: List<Pair<String, Function0<Unit>>>
 ViewChips.views: List<Pair<String, String>>
 ViewPill.views: List<Pair<String, String>>

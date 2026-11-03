@@ -68,7 +68,9 @@ class Shx(
         fun all(lib: Library, now: Long, zone: ZoneId, short: (LocalDate) -> String = Times::day): Cards {
             val rk = Rank(lib, now, zone)
             // a record the maths can't read leaves that screen a plain title, as the web's try/catch around shxData does
-            return Cards(lib, KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() })
+            val cards = KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() }
+            // the Queue's own numbers too, with the same Rank, so opening it never works them out on Main
+            return Cards(lib, cards, runCatching { Queue(lib, rk, now, zone).also { it.warm() } }.getOrNull())
         }
 
         /** How many cards have been worked out: a test checks that drawing a screen never does it. */
@@ -76,7 +78,7 @@ class Shx(
     }
 
     /** Each screen's card for one copy of your games ([lib]); null for a screen whose maths failed. */
-    class Cards(val lib: Library, private val got: Map<String, Shx?>) {
+    class Cards(val lib: Library, private val got: Map<String, Shx?>, val queue: Queue? = null) {
         operator fun get(kind: String): Shx? = got[kind]
     }
 
