@@ -36,7 +36,7 @@ Checked at web APP_V 327 (index.html, Nov 2 2026). Read-only: the two maps (`1-l
 
 # 2. Missing (needed by Phase 1, in neither map)
 
-**M1 · The Queue's Customise (piece 1).** Plan rule 9: "Each screen comes with its own Customise groups and honours every setting it has, from its own phase". 0.md held back the header card's Customise chip "for each screen's phase". 1-list says "Settings is Phase 7", which is only the shell. The chip is `data-settings="games"` in the `.tabbar` (8946). Four groups have `data-scope="games" data-sub="queue"` (6230-6330):
+**M1 · The Queue's Customise (piece 1). Built in android-v12 (Nov 3), the live controls only.** Plan rule 9: "Each screen comes with its own Customise groups and honours every setting it has, from its own phase". 0.md held back the header card's Customise chip "for each screen's phase". 1-list says "Settings is Phase 7", which is only the shell. The chip is `data-settings="games"` in the `.tabbar` (8946). Four groups have `data-scope="games" data-sub="queue"` (6230-6330):
 - These still change the v299/v301 looks: Closed games `#s-qlook` (Rows / Character select); Card background `#s-cardbg` (only Plain differs, `qsPic` 8758); On deck show/hide `#s-deck`; platform `#s-curplat` (`curPlat()` defaults to "Switch", 13257); On deck cards `#s-dzx-deck` (New / Classic); row logo `#s-rowart`; size `#s-raw`; strength `#s-rao`; halo `#s-rag` (`html.rowglow`, 17868, which also carries Punch through `--apun`, 1452).
 - These do nothing on the v299/v301 looks:
   - `#s-cardlayout`: `html.cl-*` styles `.hero .art`, which `qkFront` doesn't have (1336-1340). Only the size check's key reads it (22125).

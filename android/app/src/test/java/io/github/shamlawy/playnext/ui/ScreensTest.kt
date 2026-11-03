@@ -280,6 +280,31 @@ class ScreensTest {
         rule.onRoot().performTouchInput { swipe(Offset(centerX, centerY), Offset(centerX - 400f, centerY + 400f)) }
         rule.runOnIdle { assertEquals("plan" to "month", nav.tab to prefs.viewOf("plan", nav.views)) }
     }
+    /** The Queue's Customise (M1): the live groups only, over the Queue. */
+    @Test fun customise412() = shot("customise", 412) { Shell(Nav("games", listOf("customise:queue"), mapOf("games" to "queue")), ready, go = {}) }
+
+    /** The header card's Customise chip opens the Queue's Customise; Close and back shut it. */
+    @Test fun theQueuesCustomiseChipOpensItsOwnGroups() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        var nav by mutableStateOf(Nav("games", views = mapOf("games" to "queue")))
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.onNodeWithContentDescription("Customise").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("customise:queue"), nav.stack)
+        rule.onNodeWithText("Customise Queue").assertExists()
+        rule.onNodeWithText("Your platform right now").assertExists()
+        rule.onNodeWithText("Close").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(emptyList<String>(), nav.stack)
+    }
+
+    /** Only the Queue's header card has the chip in Phase 1: elsewhere it would be a dead tap (M10). */
+    @Test fun otherScreensHaveNoCustomiseChipYet() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { tab("games", "played")() } }
+        assertEquals(0, rule.onAllNodesWithContentDescription("Customise").fetchSemanticsNodes().size)
+    }
+
     @Test fun settings412() = shot("settings", 412) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
     @Test fun settings859() = shot("settings", 859) { Shell(Nav("home", listOf("settings")), ready, go = {}) }
     /** After Check now found nothing newer: the card says when it looked (the owner on v5: the tap seemed to do nothing). */

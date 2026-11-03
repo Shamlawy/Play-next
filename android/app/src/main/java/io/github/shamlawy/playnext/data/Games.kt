@@ -25,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -131,6 +132,7 @@ object Games {
                 code = ""
                 unread = false
                 day = null
+                practice = emptyMap()
                 Reporter.names = emptyList()
                 Reporter.secrets = emptyList()
                 Reporter.lib = ""
@@ -328,7 +330,7 @@ object Games {
     }
 
     private fun make(applied: JsonObject, now: Long, zone: ZoneId): Day {
-        val lib = Library(Backup.load(applied, now, zone))
+        val lib = Library(Backup.load(if (practice.isEmpty()) applied else JsonObject(applied + practice), now, zone))
         return Day(applied, now, zone, lib, Shx.all(lib, now, zone))
     }
 
@@ -360,6 +362,30 @@ object Games {
         setDay(next)
         _state.value = cur.copy(lib = next.lib, cards = next.cards)
         true
+    }
+
+    // ---- Customise: your changes, laid over every copy in memory only (a read-only practice copy until switch day) ----
+
+    /** What you changed in Customise since the app opened, by the web app's `S` key. Never saved, never sent. */
+    @Volatile private var practice: Map<String, JsonElement> = emptyMap()
+
+    /** A Customise change: your games rebuilt off Main with it, so every screen and number follows. */
+    fun customise(key: String, value: JsonElement) {
+        practice = practice + (key to value)
+        scope.launch { relay() }
+    }
+
+    private suspend fun relay() = lock.withLock {
+        val cur = _state.value as? State.Ready ?: return@withLock
+        val d = day
+        if (d == null || cur.lib !== d.lib) {
+            // a Ready made by hand (the tests): the change on top of it
+            _state.value = cur.copy(lib = Library(JsonObject(cur.lib.state + practice)), cards = null)
+            return@withLock
+        }
+        val next = withContext(Dispatchers.Default) { make(d.applied, clock(), zone()) }
+        setDay(next)
+        _state.value = cur.copy(lib = next.lib, cards = next.cards)
     }
 
     /** Coming back to the app: the timer can't run while the phone sleeps, so a day that ended meanwhile rebuilds now. */
