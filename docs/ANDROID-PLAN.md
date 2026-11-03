@@ -42,6 +42,7 @@
 - Nov 2 · "approved": Phase 0 approved on the phone (android-v10, #673), with the three suggested answers (back leaves the app without the shrinking preview, Open the app on kept, one plain 120 Hz try).
 - Nov 2 · Phase 1 Brief, "suggest i trust you": the three pieces as briefed; the Order menu, Shuffle and the Game Shuffler deck come over; the Move up / down arrows don't (drag does it); Score it / Duel it stay off the Queue card's ⋯ (game page, Taste); closed games keep both Rows and Character select.
 - Nov 2 · "yeah queue card is better" (shown the v181 Game Shuffler deck next to the open Queue card): on Android the deck's cards are drawn like the open Queue card, same swiping; a change from "copy it as it is" (android/parity/1-brief.md).
+- Nov 2 · "do as you like" (shown On deck New vs Classic and the Queue Customise controls that no longer change the v299/v301 cards, at 412): the suggested answer. Android leaves out On deck's Classic cards and the dead controls (Open card layout, Backdrop fade, the "With the title"/"Title only" card backgrounds and How loud, Character art's float knobs); the live ones come in piece 2 (critic M1); the dead ones go to the web's code-check issue as "remove?".
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features unless the owner adds one in a phase's Brief (the widgets, Oct 23, are the first); Claude's own new ideas go to `learn.mjs add --kind=idea`.
 
 ## What we're building

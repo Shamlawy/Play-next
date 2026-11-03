@@ -116,12 +116,12 @@ Android needs `Queue.show(id)` and `Queue.filter(key)` that later phases call. O
 | X7 | 2-card §0 trap 3 uses `S.evening || 2`; Shuffler/elsewhere use 4 (C12) | Copy per call site (the back says 2 when unset); one code-check bullet for the web. |
 | X8 | W2: with calm, opening from a row plays `Sfx.Open`; Character select plays `CardOpen/CardTear` | Copy as is (parity); note it in the golden of sounds per path. |
 | X9 | 1-list asks whether to add drag autoscroll | No autoscroll (the web has none; "copies the app as it is"). Note it as an idea with `learn.mjs add --kind=idea`. |
-| X10 | Emoji and old styles left in the Queue: `S:` tab 🔍 (13563), `QD_TAGIC` 16x16 at .45 (22020, not v297's 24x24 at .35), dust 🕸️, Shuffler emoji, Delete in uppercase on literal `#D93A4A` | Draw v297 icons for all of them. List emoji stay (owner data). Delete in sentence case from a token (the gate 6 lint fails otherwise). |
+| X10 | Emoji and old styles left in the Queue: `S:` tab 🔍 (13563), `QD_TAGIC` 16x16 at .45 (22020, not v297's 24x24 at .35), dust 🕸️, Shuffler emoji (moot: the deck takes the Queue card look), Delete in uppercase on literal `#D93A4A` | Draw v297 icons for all of them. List emoji stay (owner data). Delete in sentence case from a token (the gate 6 lint fails otherwise). |
 | X11 | The Brief puts "Nexi's seat … Home" in Phase 1; Home is Phase 3 and the folded phone has no Nexi on the Queue (M11) | Piece 3 builds the face once (blink, bubble) and seats it in the rail on every tab, Home included. Home's own face and line come with Phase 3. |
 
 # 4. Owner questions (each sent with a 412 web screenshot first, L212)
 
 1. **Delete:** keep the web's "Delete X? Its scores, duels and diary go with it." question *and* the approved Undo, or delete at once with only Undo? *Suggest Undo only*: one tap fewer, and Undo was approved for exactly this.
-2. **Game Shuffler deck:** copy its v181 look (serif capital title, tilted poster and side cards, emoji chips), or the same layout in the house style (Poppins, straight covers, drawn icons)? *Suggest the house style.*
+2. **Game Shuffler deck:** answered Nov 2 ("yeah queue card is better"): the deck's cards are drawn like the open Queue card (1-brief.md).
 3. **Card turn mid-way:** a double tap during the 420 ms turn sends it back the way it came (X1). OK, or keep the web's "taps wait until it lands"? *Suggest sending it back*: it follows your Oct 26 rule without a swing past.
-4. **Leave out** On deck's "Classic" cards and the Queue Customise controls that no longer change anything (M1's dead list), like Phase 0's old looks? *Suggest yes*; the dead ones also go to the web's code-check issue.
+4. **Leave out** On deck's "Classic" cards and the dead Customise controls (M1)? Answered Nov 2 ("do as you like"): yes, the suggestion; the dead ones go to the web's code-check issue.
