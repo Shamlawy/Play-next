@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -200,10 +201,11 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     val qpick = qpicks[0] ?: QueuePick(ready.lib).also { qpicks[0] = it }
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
-                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) { cap ->
+                    val qlist = rememberLazyListState()
+                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w, pickView) } }
-                        queueItems(qv, qpick, folded, calm, cap.entrance(enter), openLists) { id -> opener(id, null) }
+                        queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter), openLists) { id -> opener(id, null) }
                     }
                 } else {
                     Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
@@ -333,7 +335,7 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
 
 /** [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). */
 @Composable
-private fun LazyPage(w: Dp, modifier: Modifier, content: LazyListScope.(Modifier) -> Unit) {
+private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, content: LazyListScope.(Modifier) -> Unit) {
     val big = w >= 700.dp
     val side = if (big) 22.dp else 16.dp
     val railRoom = if (w >= RAIL_FROM && w < 1100.dp) 96.dp else side
@@ -342,7 +344,7 @@ private fun LazyPage(w: Dp, modifier: Modifier, content: LazyListScope.(Modifier
     val cap = Modifier.widthIn(max = 880.dp).fillMaxWidth()
     LazyColumn(
         modifier.fillMaxSize(),
-        state = rememberLazyListState(),
+        state = state,
         contentPadding = PaddingValues(
             start = bars.calculateStartPadding(dir) + side,
             end = bars.calculateEndPadding(dir) + railRoom,

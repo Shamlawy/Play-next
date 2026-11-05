@@ -133,7 +133,6 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     var backMade by remember(g.id) { mutableStateOf(flipped) }
     val enter = remember(g.id) { Animatable(if (fresh && !calm) 0f else ENTER_END) }
     val backT = remember(g.id) { Animatable(BACK_END) }
-    val shut = remember(g.id) { Animatable(0f) }
     val onBack = Math.floorMod(turns, 2) == 1
     androidx.compose.runtime.LaunchedEffect(g.id) {
         if (fresh) Sounds.play(if (st.torn) Sfx.CardTear else Sfx.CardOpen)
@@ -162,19 +161,17 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
         }
         Unit
     }
+    // one tap: it folds into its row at once (the row fades in where the card was and the rows under it glide up, Queue.kt);
+    // the web fades the card for 220 ms first, which left a still hole and then a jump (the owner, Nov 5: "sluggish")
     val shutNow = {
         if (!angle.isRunning) {
             Sounds.play(Sfx.CardShut)
-            if (calm) close() else scope.launch { shut.animateTo(1f, tween(220, easing = CubicBezierEasing(.42f, 0f, 1f, 1f))); close() }
+            close()
         }
     }
     val shape = RoundedCornerShape(Web.U_R.dp)
     BoxWithConstraints(
         mod.padding(bottom = 26.dp).fillMaxWidth()
-            .graphicsLayer {
-                alpha = 1f - shut.value
-                translationY = -10.dp.toPx() * shut.value
-            }
             .pointerInput(g.id) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
