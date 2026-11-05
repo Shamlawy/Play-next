@@ -31,4 +31,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E24 | 2026-11-05 11:50 AM | release | 2 h | 2 h | 1.00 | I'll fix the card's closing animation, build hold-and-drag in the Queue, and run the speed gate. ▢ the end you get a new Android version pl | <!-- at=2026-11-05T07:50:30.172Z -->
 | E25 | 2026-11-05 12:58 PM | ci | 75 min | 14 min | 0.19 | (scaled for builds + CI): ▢ install, local ▢ checks, the new test, then PR → android-check → merge → android-release. I'll end with a | <!-- at=2026-11-05T08:58:14.005Z -->
 | E26 | 2026-11-05 2:05 PM | release | 1.5 h | 75 min | 0.83 | I'll add the tests, release android-v17, merge it, and send you what to try. | <!-- at=2026-11-05T10:05:44.139Z -->
-| E27 | 2026-11-05 3:23 PM | kit | 75 min | open |  | I'll fix all three, test them, release android-v18, and send you what to try. | <!-- at=2026-11-05T11:23:59.034Z -->
+| E27 | 2026-11-05 3:23 PM | kit | 75 min | 20 min | 0.27 | I'll fix all three, test them, release android-v18, and send you what to try. | <!-- at=2026-11-05T11:23:59.034Z -->
