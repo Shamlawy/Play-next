@@ -210,7 +210,9 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
 
     /** `countdown(g)` as the card writes it: [value, label] ("12", "days away" / "Out", "available now" / "TBA", "no date yet"). */
     fun countdownWords(g: Game): Pair<String, String> {
-        val at = JsDate.utcMidnight(g.date) ?: return "TBA" to "no date yet"
+        if (g.date.isEmpty()) return "TBA" to "no date yet"
+        // a date JavaScript can't read counts as out (NaN days), as the front's headline does
+        val at = JsDate.utcMidnight(g.date) ?: return "Out" to "available now"
         val n = Math.ceil((at - now) / JsDate.DAY.toDouble()).toInt()
         return if (n > 0) "$n" to (if (n == 1) "day away" else "days away") else "Out" to (if (n == 0) "out today" else "available now")
     }

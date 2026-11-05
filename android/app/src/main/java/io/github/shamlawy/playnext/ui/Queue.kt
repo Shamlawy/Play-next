@@ -152,14 +152,17 @@ class QueuePick(lib: Library) {
     /** The card a tap just opened: it plays its entrance and sound once (a card open at start just sits there). */
     var fresh by mutableStateOf<String?>(null)
 
+    /** The open card showing its back (`flipId`), kept while it scrolls away and back. */
+    var flip by mutableStateOf<String?>(null)
+
     /** The card that's open in [shown]: the one you tapped, else the first, none once closed. */
     fun openIn(shown: List<Game>): String? = if (collapsed || shown.isEmpty()) null else focus?.takeIf { id -> shown.any { it.id == id } } ?: shown[0].id
 
     /** A tap on a closed row: its card opens and the one that was open closes into its row. */
-    fun open(id: String) { focus = id; collapsed = false; fresh = id }
+    fun open(id: String) { focus = id; collapsed = false; fresh = id; flip = null }
 
     /** One tap on the open card: it closes into its row. */
-    fun close() { focus = null; collapsed = true; fresh = null }
+    fun close() { focus = null; collapsed = true; fresh = null; flip = null }
 }
 
 /** The colours the web CSS writes as literals (index.html 27366-27546, 24517-24533, 21096), read by tools/android-gen.mjs. */
@@ -211,7 +214,8 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, folded: Boolean, cal
     val openId = pick.openIn(v.shown)
     itemsIndexed(v.shown, key = { _, g -> "q:" + g.id }) { i, g ->
         val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm) null else tween(560, easing = Ease.glide))
-        if (g.id == openId) QueueCard(q, g, i + 1, pick.fresh == g.id, m) { pick.close() }
+        if (g.id == openId) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, m, entered = { if (pick.fresh == g.id) pick.fresh = null },
+            flip = { back -> pick.flip = if (back) g.id else null }) { pick.close() }
         else QueueRow(q, g, i + 1, v.sort, folded, m) { id -> Crumbs.tap("row", "queue"); pick.open(id) }
     }
 }

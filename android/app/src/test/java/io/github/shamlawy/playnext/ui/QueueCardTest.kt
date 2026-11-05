@@ -127,6 +127,16 @@ class QueueCardTest {
         assertTrue("closed into its row", !open("Starfall Lantern"))
     }
 
+    @Test fun aTurnedCardKeepsItsSideWhenItScrollsAwayAndBack() {
+        show()
+        taps("Starfall Lantern"); rule.mainClock.advanceTimeBy(2_500)
+        assertEquals("back", side("Starfall Lantern"))
+        row("Ninefold Gate", "Out in 18 days")
+        rule.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("Customise", substring = true))
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals("still on its back", "back", side("Starfall Lantern"))
+    }
+
     @Test fun aTapOnARowOpensItsCardAndClosesTheOther() {
         show()
         tapRow(row("Hollow Tide", "28 h left"))
@@ -155,6 +165,10 @@ class QueueCardTest {
 
     @Test fun theBoxArtOpensTheGamesPage() {
         show()
+        // turned over and back first: the hidden back must not catch the box art's tap (review on #695)
+        taps("Starfall Lantern"); rule.mainClock.advanceTimeBy(2_500)
+        taps("Starfall Lantern"); rule.mainClock.advanceTimeBy(2_500)
+        assertEquals("front", side("Starfall Lantern"))
         rule.onNodeWithContentDescription("Open Starfall Lantern's own page").performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(1_000)
         assertEquals(listOf("game:a"), nav.stack)

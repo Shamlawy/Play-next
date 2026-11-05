@@ -122,28 +122,33 @@ import kotlin.math.tan
  * box art opens the game's page. The back's Edit and ⋯ come with the game page (Phase 2).
  */
 @Composable
-fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, mod: Modifier, close: () -> Unit) {
+fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: Modifier, entered: () -> Unit, flip: (Boolean) -> Unit, close: () -> Unit) {
     val calm = LocalCalm.current
     val st = remember(g, q) { q.stat(g) }
     val accent = Color(g.colour)
     val scope = rememberCoroutineScope()
-    val angle = remember(g.id) { Animatable(0f) }
-    var turns by remember(g.id) { mutableStateOf(0) }
-    var backMade by remember(g.id) { mutableStateOf(false) }
+    // the side it shows lives in the Queue's pick (`flipId`): a card scrolled away and back keeps it
+    val angle = remember(g.id) { Animatable(if (flipped) 180f else 0f) }
+    var turns by remember(g.id) { mutableStateOf(if (flipped) 1 else 0) }
+    var backMade by remember(g.id) { mutableStateOf(flipped) }
     val enter = remember(g.id) { Animatable(if (fresh && !calm) 0f else ENTER_END) }
     val backT = remember(g.id) { Animatable(BACK_END) }
     val shut = remember(g.id) { Animatable(0f) }
     val onBack = Math.floorMod(turns, 2) == 1
     androidx.compose.runtime.LaunchedEffect(g.id) {
         if (fresh) Sounds.play(if (st.torn) Sfx.CardTear else Sfx.CardOpen)
+        // once: scrolled away and back, it doesn't open (or sound) again
+        entered()
         if (enter.value < ENTER_END) enter.animateTo(ENTER_END, tween(ENTER_END.toInt(), easing = LinearEasing))
     }
     // one tap closes (after waiting [TAP_GAP] for a second), two turn; a tap on a button or a scroll is neither (v307)
     val taps = remember(g.id) { Taps() }
     val turn = {
-        // mid-turn: back the way it came; at rest: over, always the same way
-        turns += if (angle.isRunning) -1 else 1
+        // mid-turn: back to the side it came from, whichever way it is heading; at rest: over, always the same way
+        turns = if (!angle.isRunning) turns + 1
+        else (if (angle.targetValue > angle.value) Math.floor(angle.value / 180.0) else Math.ceil(angle.value / 180.0)).toInt()
         val back = Math.floorMod(turns, 2) == 1
+        flip(back)
         if (back) {
             backMade = true
             Sounds.play(Sfx.CardFlip)
@@ -552,12 +557,14 @@ private fun Back(q: Queue, g: Game, n: Int, accent: Color, d: CardDims, t: Anima
         )
     }
     val pic = remember(g, lib) { rowPic(g, lib) }
+    val scroll = rememberScrollState()
     Box(Modifier.fillMaxSize()) {
         if (pic != null) PicBox(pic, g, Modifier.fillMaxSize(), align = BiasAlignment(0f, -.4f))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to mixA(accent, Color(Web.QK_DEEP).copy(alpha = .93f), .26f), .46f to Color(Web.QK_DEEP).copy(alpha = .96f), 1f to Color(Web.QK_DEEP).copy(alpha = .98f))))
         val small = CType.base.copy(fontWeight = FontWeight.SemiBold, color = Pn.mute)
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState(), enabled = onBack).padding(start = d.padSide, end = d.padSide, top = d.pad, bottom = d.padBottom),
+            // the back scrolls only while it shows: hidden, it would still catch the front's touches (the box art)
+            Modifier.fillMaxSize().then(if (onBack) Modifier.verticalScroll(scroll) else Modifier).padding(start = d.padSide, end = d.padSide, top = d.pad, bottom = d.padBottom),
             verticalArrangement = Arrangement.spacedBy(d.gap),
         ) {
             // the header: box art and the logo (Edit and ⋯ come with the game page)
