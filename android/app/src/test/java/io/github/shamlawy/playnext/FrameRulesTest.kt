@@ -30,4 +30,14 @@ class FrameRulesTest {
         assertFalse(FrameRules.counts(400 * ms, start + 4_000, start, 0, "home"))
         assertFalse(FrameRules.counts(400 * ms, later, start, 0, "probe"))
     }
+
+    @Test
+    fun aFreezeWhileOpeningIsTheStartsOwn() {
+        // the web's boot check: a frame of 300 ms or more in the first seconds; the very first frame is the start itself
+        assertTrue(FrameRules.boot(320 * ms, start + 2_000, start, "home", 1))
+        assertFalse("the first frame", FrameRules.boot(900 * ms, start + 400, start, "home", 0))
+        assertFalse("under 300 ms", FrameRules.boot(290 * ms, start + 2_000, start, "home", 1))
+        assertFalse("after the first 5 s the stutter rule has it", FrameRules.boot(400 * ms, start + 5_000, start, "home", 1))
+        assertFalse(FrameRules.boot(400 * ms, start + 2_000, start, "probe", 1))
+    }
 }

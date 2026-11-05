@@ -31,6 +31,24 @@ class FrameGate private constructor(private val stats: JankStats) {
         private var count = 0
         private var where = ""
 
+        /** Frames seen in this process: the first one is the start itself, which [StartGate] times. */
+        private var frames = 0
+
+        /** The longest frame in the first seconds after a cold start, filed once when they're over. */
+        private var bootWorst = 0L
+
+        /** The web's "Opening the app froze for …" (index.html, the boot long-frame check): its 300 ms line, its words. */
+        private fun bootFreeze(total: Long, start: Long) {
+            synchronized(lock) {
+                if (bootWorst == 0L) later.launch {
+                    delay((start + FrameRules.WARM_MS - SystemClock.elapsedRealtime()).coerceAtLeast(0) + 500)
+                    val ms = synchronized(lock) { bootWorst / 1_000_000 }
+                    Reporter.report("slow", "Opening the app froze for ${Math.round(ms / 10.0) * 10}ms", note = "a frame in the first ${FrameRules.WARM_MS / 1000}s after a cold start", screen = "start")
+                }
+                bootWorst = maxOf(bootWorst, total)
+            }
+        }
+
         /** When the window last changed size (fold, unfold, turn), on the elapsedRealtime clock. */
         @Volatile private var resized = 0L
 
@@ -46,7 +64,11 @@ class FrameGate private constructor(private val stats: JankStats) {
             // the whole frame (UI thread, RenderThread and GPU), as the phone shows it; older data has the UI part only
             val total = (fd as? FrameDataApi31)?.frameDurationTotalNanos ?: fd.frameDurationUiNanos
             val screen = Screen.current
-            if (!FrameRules.counts(total, SystemClock.elapsedRealtime(), Process.getStartElapsedRealtime(), resized, screen)) return
+            val now = SystemClock.elapsedRealtime()
+            val start = Process.getStartElapsedRealtime()
+            if (FrameRules.boot(total, now, start, screen, frames)) bootFreeze(total, start)
+            if (frames < 2) frames++
+            if (!FrameRules.counts(total, now, start, resized, screen)) return
             synchronized(lock) {
                 if (count == 0) {
                     where = screen
@@ -91,6 +113,13 @@ internal object FrameRules {
 
     /** The relayout after a fold, unfold or turn isn't a stutter: the web skips 800 ms after a resize too (v245 #305). */
     const val SETTLE_MS = 800L
+
+    /** A freeze while the app opens: the web's boot check reports a frame of 300 ms or more in its first seconds. */
+    const val BOOT_FREEZE_NS = 300_000_000L
+
+    /** A frame in the first [WARM_MS] of the process that counts as a freeze while opening; [index] 0 is the first frame (the start itself). */
+    fun boot(totalNs: Long, now: Long, start: Long, screen: String, index: Int): Boolean =
+        index > 0 && totalNs >= BOOT_FREEZE_NS && now - start < WARM_MS && screen != "probe"
 
     /** [totalNs] is the frame's whole time; the times are elapsedRealtime ms. The 120 Hz test measures itself. */
     fun counts(totalNs: Long, now: Long, start: Long, resized: Long, screen: String): Boolean =

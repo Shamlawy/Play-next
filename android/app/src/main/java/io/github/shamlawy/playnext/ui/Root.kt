@@ -1,6 +1,7 @@
 package io.github.shamlawy.playnext.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollFactory
@@ -14,6 +15,7 @@ import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.probe.ProbeScreen
 import io.github.shamlawy.playnext.report.Crumbs
+import io.github.shamlawy.playnext.report.StartGate
 import java.time.ZoneId
 
 /** Where a link opens (Links): a tab and its view, a game's page, Add with something shared, or the 120 Hz test. */
@@ -131,6 +134,12 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
         Buzz.swipes = prefs.buzz
         if (prefs.sound) Sounds.warm()
     }
+
+    // the start is drawn once your games (or the restore screen) show: Android's own record of this start notes it, and
+    // the start gate times it from the tap (plan gate 10, the phone's cold start)
+    val drawn = games !is Games.State.Starting
+    ReportDrawnWhen { drawn }
+    if (drawn) LaunchedEffect(Unit) { withFrameNanos { }; StartGate.shown() }
 
     // reports and Android's exit records name the open screen as the web app does ("games/queue", "settings")
     val ctx = LocalContext.current

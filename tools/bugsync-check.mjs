@@ -37,7 +37,10 @@ const CASES = [
   ["a000000f", "slow", "A touchmove listener that isn't passive sits on Queue (div.x): every swipe there has to wait", 1, 0, "284", "", "file"],
   ["a0000010", "slow", "Opening the app froze for 300ms", 1, 0, "284", "", "held"],
   ["a0000011", "slow", "A 450ms freeze on Home", 1, 0, "284", "", "file"],
-  ["a0000012", "layout", "Part of the screen stayed blank while scrolling", 1, 0, "284", "", "file"]
+  ["a0000012", "layout", "Part of the screen stayed blank while scrolling", 1, 0, "284", "", "file"],
+  /* the Android app's cold start (StartGate): a slow one is a timing report of the start family, its per-version numbers a measurement */
+  ["a0000013", "slow", "Opening the app took 1240ms", 1, 0, "19", "", "file"],
+  ["a0000014", "slow", "Self-test: 5 cold starts on android-v19: first frame 420ms, your games 510ms (middle values; slowest 640ms)", 1, 0, "19", "", "log"]
 ];
 const ISSUES = [[416, "a0000008", "closed"], [344, "a0000009", "closed"], [209, "a000000a", "closed"], [60, "a000000b", "open"]]
   .map(([number, sig, state]) => ({ number, title: `🐞 Slow: x [bug:${sig}]`, state, comments: state === "closed" ? [{ body: "Fixed in v283." }] : [] }));

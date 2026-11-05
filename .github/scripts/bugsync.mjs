@@ -104,7 +104,7 @@ const body = b => {
    Why here and not in the app: this side sees both phones and every day, works for every installed version (the iPad
    trails behind), and needs no app release. */
 const REPEAT = 3, REOPEN = 2, BIG_MS = 400, MEASURE_PCT = 25, MEASURE_MS = 100;
-const HITCH = /^(A [\d.]+ms (stutter|freeze) on |A tap took [\d.]+ms to respond|Scrolling stutters on |Opening the app froze for )|\bstuttered \(\d+ hitch/;
+const HITCH = /^(A [\d.]+ms (stutter|freeze) on |A tap took [\d.]+ms to respond|Scrolling stutters on |Opening the app (?:froze for|took) [\d.]+ms)|\bstuttered \(\d+ hitch/;
 const MEASURE = /^(Smoothness check on this phone|Self-test)\b/;
 /* null = not a timing report (files as before); else {count: whether it counts yet, why} */
 function gate(b, more) {
@@ -161,7 +161,7 @@ async function curV(app) {
 }
 const devFam = d => (String(d || "").match(/^(iPhone|iPad|Android|Mac|Windows)/) || [])[1] || "";
 const PLACE = [[/^Scrolling stutters on (.+?) \(/, "scroll"], [/^Switching to (.+?) stuttered/, "switch"], [/^A tap took [\d.]+ms to respond on (.+?)\.?$/, "tap"],
-  [/^A [\d.]+ms stutter on (.+?)\.?$/, "stutter"], [/^A [\d.]+ms freeze on (.+?)\.?$/, "freeze"], [/^Opening the app froze()/, "start"], [/^(.+?) stuttered \(\d+ hitch/, "stuttered"]];
+  [/^A [\d.]+ms stutter on (.+?)\.?$/, "stutter"], [/^A [\d.]+ms freeze on (.+?)\.?$/, "freeze"], [/^Opening the app (?:froze|took)()/, "start"], [/^(.+?) stuttered \(\d+ hitch/, "stuttered"]];
 /* {key: "kind|place"} for a timing report's message, else null */
 function famOf(msg) {
   msg = String(msg || "").replace(/\s+/g, " ").trim();

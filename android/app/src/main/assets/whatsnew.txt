@@ -110,3 +110,9 @@ go=home
 at=
 say=The open card now folds smoothly into its row, dragging to the edge goes faster the closer you get, and a long swipe leaves no gap.
 tryIt=Open Games › Queue and tap the open card once: it shrinks into its row and the games under it rise with it. Then hold a game in My order and drag it toward the bottom of the screen: just inside the zone the list creeps, and right at the edge it races. Last, swipe a game far to the left: the red Delete stretches with it, with no empty space.
+
+v=19
+go=home
+at=
+say=I now time how fast I open on your phone, and a slow start or a freeze while opening reports itself.
+tryIt=Nothing to tap: close the app fully (swipe it away in Recents) and open it from its icon a few times today. After five such starts I send Claude the times; a slow one I report on its own.
