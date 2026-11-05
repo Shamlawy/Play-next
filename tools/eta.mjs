@@ -14,6 +14,7 @@
    Kinds (guessed from the words when not given): research, kit, ci, video, release, build, plan, other. */
 import fs from "fs";
 import path from "path";
+import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -83,7 +84,17 @@ export function render(list) {
 }
 export const load = () => fs.existsSync(FILE) ? parse(fs.readFileSync(FILE, "utf8")) : [];
 const write = list => fs.writeFileSync(FILE, render(list));
-const nextId = list => `E${list.reduce((n, e) => Math.max(n, +e.id.slice(1)), 0) + 1}`;
+// the highest id on any fetched branch too (M74: twice a new estimate took an id an unmerged branch already had)
+const branchIds = () => {
+  if (process.env.PN_ETA) return [];
+  try {
+    const git = (...a) => execFileSync("git", a, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 });
+    const refs = git("for-each-ref", "--format=%(refname)", "refs/remotes/origin").split("\n").filter(r => r && !r.endsWith("/HEAD"));
+    if (!refs.length) return [];
+    return [...git("grep", "-hoE", "^\\| E[0-9]+ ", ...refs, "--", "docs/ETA.md").matchAll(/E(\d+)/g)].map(m => +m[1]);
+  } catch { return []; }
+};
+const nextId = list => `E${Math.max(0, ...list.map(e => +e.id.slice(1)), ...branchIds()) + 1}`;
 const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : NaN; };
 
 export function stats(list) {
