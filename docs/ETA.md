@@ -30,3 +30,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E23 | 2026-11-03 4:45 PM | kit | 1.5 h | 40 min | 0.44 | I'll build the open Queue card on Android with your answer (a double tap mid-turn sends it back), test it, release it as android-v15, and se | <!-- at=2026-11-03T12:45:09.881Z -->
 | E24 | 2026-11-05 11:50 AM | release | 2 h | 2 h | 1.00 | I'll fix the card's closing animation, build hold-and-drag in the Queue, and run the speed gate. ▢ the end you get a new Android version pl | <!-- at=2026-11-05T07:50:30.172Z -->
 | E25 | 2026-11-05 12:58 PM | ci | 75 min | 14 min | 0.19 | (scaled for builds + CI): ▢ install, local ▢ checks, the new test, then PR → android-check → merge → android-release. I'll end with a | <!-- at=2026-11-05T08:58:14.005Z -->
+| E26 | 2026-11-05 2:05 PM | kit | 1.5 h | open |  | I'll add the tests, release android-v17, merge it, and send you what to try. | <!-- at=2026-11-05T10:05:44.139Z -->
