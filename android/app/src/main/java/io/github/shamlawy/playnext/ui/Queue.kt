@@ -54,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -190,7 +191,7 @@ class QueuePick(lib: Library) {
     var moved by mutableStateOf<Map<String, Double>>(emptyMap())
 
     /** The backup [moved] belongs to: a newer backup (the start-up check, back after a while) starts from its own order. */
-    var movedFor: Library? = null
+    var movedFor by mutableStateOf<Library?>(null, referentialEqualityPolicy())
 
     /** The row (or open card) held and moving, null when none. */
     var drag by mutableStateOf<QueueDrag?>(null)
