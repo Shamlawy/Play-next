@@ -1,5 +1,13 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.animation.core.CubicBezierEasing
@@ -14,6 +22,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.animation.core.animateFloatAsState
@@ -197,8 +206,9 @@ class QueuePick(lib: Library) {
     /** A tap on a closed row: its card opens and the one that was open closes into its row. */
     fun open(id: String) { focus = id; collapsed = false; fresh = id; flip = null; shut = null }
 
-    /** The row a card just closed into: it fades in where the card was, once. */
+    /** The row a card just closed into: the card folds into it, once ([shutBack]: the side the card showed). */
     var shut by mutableStateOf<String?>(null)
+    var shutBack by mutableStateOf(false)
 
     /**
      * The practice order (Phase 1 is read only): a drag's new places, kept in memory for this backup until the app is
@@ -216,7 +226,7 @@ class QueuePick(lib: Library) {
     var dropped by mutableStateOf<String?>(null)
 
     /** One tap on the open card [id]: it closes into its row. */
-    fun close(id: String? = null) { focus = null; collapsed = true; fresh = null; flip = null; shut = id }
+    fun close(id: String? = null) { shutBack = id != null && flip == id; focus = null; collapsed = true; fresh = null; flip = null; shut = id }
 
     /** The row (or open card) swiped left to show its Delete button: one at a time. */
     var swiped by mutableStateOf<String?>(null)
@@ -346,26 +356,50 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
         val ring = remember(volt, ringR, open1) { Modifier.heldRing(volt, ringR, gap) }
         val holdIt = remember(g.id, i, pick, list, guard) { Modifier.hold(g.id, i, { now }, pick, list, guard) { opener(it) } }
         val swipeIt = remember(g.id, pick, slide, guard) { Modifier.swipeDelete(g.id, pick, slide, guard) }
-        val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm || pick.dropped != null) null else tween(560, easing = Ease.glide))
-            .zIndex(if (held) 1f else 0f)
+        // the card that just closed folds into its row (the owner, Nov 5: it "just disappears"): the item's height goes
+        // from the card's to the row's on the glide, so every row under it rises with it (also rows coming on screen,
+        // which a placement glide can't move), while a copy of the card on top is cut to that height and fades into the
+        // row coming in underneath. Per frame only a relayout, a clip and two fades: nothing is redrawn from scratch.
+        val shutting = !open1 && pick.shut == g.id
+        val t = if (shutting) remember { Animatable(if (calm) 1f else 0f) } else null
+        if (t != null) DisposableEffect(Unit) { onDispose { if (pick.shut == g.id) pick.shut = null } }
+        if (t != null) LaunchedEffect(t) { t.animateTo(1f, tween(SHUT_MS, easing = Ease.glide)); if (pick.shut == g.id) pick.shut = null }
+        // the item's last height (the open card's, when it closes) and the row's
+        val itemH = remember(g.id) { RowHeight() }
+        val rowH = remember(g.id) { RowHeight() }
+        val fold = if (t == null) Modifier else {
+            val from = remember(t) { itemH.px }
+            Modifier.layout { me, c ->
+                val p = me.measure(c)
+                val h = if (from <= 0f) p.height else (from + (p.height - from) * t.value).roundToInt()
+                layout(p.width, h) { p.place(0, 0) }
+            }
+        }
+        // no row glides while a card folds (the fold moves them) or just after a drop (the web skips it)
+        val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm || pick.dropped != null || pick.shut != null) null else tween(SHUT_MS, easing = Ease.glide))
+            // held, or folding a closed card into it: drawn over the rows under it
+            .zIndex(if (held || shutting) 1f else 0f)
             .then(layer)
             .then(if (held) ring else Modifier)
             .then(holdIt)
             .then(swipeIt)
+            .then(fold)
+            .onSizeChanged { if (t == null) itemH.px = it.height.toFloat() }
         val slid = remember(slide) { Modifier.graphicsLayer { translationX = slide.x } }
         val showDel by remember(slide) { derivedStateOf { slide.x < -0.5f } }
         Box(m) {
             // the red Delete waits under the row's right end and shows only while the row slides aside
-            if (showDel) DeleteUnder(gap, ringR) { Sounds.play(Sfx.Back); Crumbs.tap("delete", "queue"); pick.delete(now.src, g) }
+            if (showDel) DeleteUnder(gap, ringR, slide) { Sounds.play(Sfx.Back); Crumbs.tap("delete", "queue"); pick.delete(now.src, g) }
             if (open1) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, slid, entered = { if (pick.fresh == g.id) pick.fresh = null },
                 flip = { back -> pick.flip = if (back) g.id else null }) { pick.close(g.id) }
             else {
-                // the card that just closed: its row fades in (220 ms) where the card was while the rows under it glide up
-                val inA = if (pick.shut == g.id) remember { Animatable(if (calm) 1f else 0f) } else null
-                if (inA != null) DisposableEffect(Unit) { onDispose { if (pick.shut == g.id) pick.shut = null } }
-                if (inA != null) LaunchedEffect(inA) { inA.animateTo(1f, tween(SHUT_IN_MS, easing = Ease.house)); if (pick.shut == g.id) pick.shut = null }
-                val rm = if (inA == null) slid else slid.graphicsLayer { alpha = inA.value; translationY = -8.dp.toPx() * (1 - inA.value) }
+                val rm = if (t == null) slid else slid.onSizeChanged { rowH.px = it.height.toFloat() }.graphicsLayer { alpha = ((t.value - ROW_IN_FROM) / ROW_IN_FOR).coerceIn(0f, 1f) }
                 QueueRow(q, g, i + 1, v.sort, folded, rm) { id -> Crumbs.tap("row", "queue"); pick.open(id) }
+                if (t != null) {
+                    val folding by remember(t) { derivedStateOf { t.value < 1f } }
+                    val k = remember(t) { { t.value } }
+                    if (folding) ShutGhost(q, g, i + 1, pick.shutBack, rowH, if (folded) 20.dp else 22.dp, k)
+                }
             }
         }
     }
@@ -396,13 +430,24 @@ fun QueueUndo(pick: QueuePick, modifier: Modifier) {
 
 private const val UNDO_MS = 5_000L
 
-/** The red button under a swiped row (`.qdel`: 92 wide, the row's height, its right corners): a tap deletes the game. */
+/**
+ * The red button under a swiped row (`.qdel`: 92 wide, the row's height, its right corners): a tap deletes the game.
+ * Swiped further than 92 it widens with the row (the owner, Nov 5: empty space showed past it on a long swipe), read
+ * while laying out, so the swipe redraws nothing.
+ */
 @Composable
-private fun BoxScope.DeleteUnder(gap: Dp, r: Dp, delete: () -> Unit) {
+private fun BoxScope.DeleteUnder(gap: Dp, r: Dp, slide: QueueSlide, delete: () -> Unit) {
     val shape = RoundedCornerShape(topEnd = r, bottomEnd = r)
+    val wide = remember(slide) {
+        Modifier.layout { me, c ->
+            val w = maxOf(DEL_OPEN.dp.toPx(), -slide.x).roundToInt().coerceAtMost(c.maxWidth)
+            val p = me.measure(c.copy(minWidth = w, maxWidth = w))
+            layout(w, p.height) { p.place(0, 0) }
+        }
+    }
     Box(Modifier.matchParentSize().padding(bottom = gap), contentAlignment = Alignment.CenterEnd) {
         Box(
-            Modifier.width(DEL_OPEN.dp).fillMaxHeight().clip(shape).background(Pn.hot)
+            wide.fillMaxHeight().clip(shape).background(Pn.hot)
                 .clickable(role = Role.Button, onClickLabel = "Delete", onClick = delete),
             contentAlignment = Alignment.Center,
         ) { BasicText("Delete", style = QType.del.fixed(), softWrap = false, maxLines = 1) }
@@ -416,7 +461,55 @@ private class QueueSlide(start: Float) {
     var held by mutableStateOf(false)
 }
 
-private const val SHUT_IN_MS = 220
+/** A closing card folds into its row in the rows' own glide (560 ms); the row fades in from 30% to 75% of it. */
+private const val SHUT_MS = 560
+private const val ROW_IN_FROM = .3f
+private const val ROW_IN_FOR = .45f
+private const val GHOST_OUT_FROM = .45f
+private const val GHOST_OUT_FOR = .45f
+
+/** A row's or an item's measured height (its gap included), read while the card folds into its row. */
+@Stable
+private class RowHeight { var px by mutableFloatStateOf(0f) }
+
+/**
+ * The card folding into its row after one tap ([t] reads its progress, 0 → 1): the open card as it was (its side [back]), taking no room
+ * (the row under it sets the item's height), with no touches and nothing for TalkBack. Its clip's foot rises from the
+ * card's to the row's (corners from the card's to the row's [rowR]) and it fades out over the second half.
+ */
+@Composable
+private fun ShutGhost(q: Queue, g: Game, n: Int, back: Boolean, row: RowHeight, rowR: Dp, t: () -> Float) {
+    val d = LocalDensity.current
+    val cardGap = with(d) { CARD_GAP.dp.toPx() }
+    val rowGap = with(d) { ROW_GAP.dp.toPx() }
+    val cardR = with(d) { Web.U_R.dp.toPx() }
+    val rr = with(d) { rowR.toPx() }
+    val m = remember(t, row, cardGap, rowGap, cardR, rr) {
+        Modifier
+            // measured whole, placed at the top, 0 high: the item is as tall as its row (a 0-high box takes no touches)
+            .layout { me, c -> val p = me.measure(c.copy(minHeight = 0, maxHeight = Constraints.Infinity)); layout(p.width, 0) { p.place(0, 0) } }
+            .clearAndSetSemantics { }
+            .graphicsLayer {
+                val k = t()
+                val full = size.height - cardGap
+                val to = (row.px - rowGap).coerceAtLeast(0f)
+                clip = true
+                shape = TopCut(full + (to - full) * k, cardR + (rr - cardR) * k)
+                alpha = 1f - ((k - GHOST_OUT_FROM) / GHOST_OUT_FOR).coerceIn(0f, 1f)
+            }
+    }
+    QueueCard(q, g, n, false, back, m, entered = {}, flip = {}) {}
+}
+
+/** The open card's gap under it (QueueCard's bottom padding) and a closed row's. */
+private const val CARD_GAP = 26
+private const val ROW_GAP = 12
+
+/** A rounded box [h] high from the top of the layer: what's below it is cut away. */
+private class TopCut(private val h: Float, private val r: Float) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
+        Outline.Rounded(RoundRect(0f, 0f, size.width, h.coerceIn(0f, size.height), CornerRadius(r)))
+}
 
 /** `qdel`: the open row sits 92 aside, a finger takes it at most 138, past half it snaps open in .24s on this curve. */
 private const val DEL_OPEN = 92
@@ -426,9 +519,14 @@ private val DEL_EASE = CubicBezierEasing(.2f, .9f, .25f, 1f)
 private const val HOLD_MS = 380L
 private const val STEP_ASIDE_MS = 170
 
-/** A held row near the window's top or bottom (within 80 dp) scrolls the list, at most 0.9 dp a millisecond. */
-private const val EDGE_ZONE = 80
-private const val EDGE_SPEED = 0.9f
+/**
+ * A held row near the top or bottom of what you see (within 110 dp of the list's edge inside the bars) scrolls the
+ * list: 0.12 dp a millisecond where the zone starts, rising on a curve to 2.4 at the edge and past it (the owner, Nov 5:
+ * "faster the more I'm close to the edge"; android-v17's straight line to 0.9 felt flat).
+ */
+private const val EDGE_ZONE = 110
+private const val EDGE_SLOW = 0.12f
+private const val EDGE_FAST = 2.4f
 
 /**
  * A row held and moving (`startDrag`, index.html 7417): where it was ([from], its index in what's shown), the rows'
@@ -527,7 +625,7 @@ private fun Modifier.hold(id: String, i: Int, view: () -> QueueView, pick: Queue
                 pick.drag = d
                 Sounds.play(Sfx.Nudge)
                 Buzz.ms(14)
-                val edges = jobs.launch { edgeScroll(d, list, at, EDGE_ZONE.dp.toPx(), EDGE_SPEED.dp.toPx()) }
+                val edges = jobs.launch { edgeScroll(d, list, at, EDGE_ZONE.dp.toPx(), EDGE_SLOW.dp.toPx(), EDGE_FAST.dp.toPx()) }
                 try {
                     while (true) {
                         val e = awaitPointerEvent(PointerEventPass.Initial)
@@ -557,22 +655,26 @@ private fun Modifier.hold(id: String, i: Int, view: () -> QueueView, pick: Queue
     }
 
 /**
- * While a row is held: a finger within [zone] of the window's top or bottom scrolls the list that way each frame, up
- * to [speed] px a millisecond at the very edge. What the list scrolled moves the held row along (it stays under the
- * finger), and rows that come on screen are measured for the slot maths. Away from the edges, or at the list's end, it
- * waits for the finger to move and asks for no frames.
+ * While a row is held: a finger within [zone] of the top or bottom of what you see scrolls the list that way each
+ * frame, from [slow] px a millisecond where the zone starts to [fast] at the edge (squared, so the last part speeds up
+ * most). The edges are the list's inside its padding (the status bar above, the tab bar and pill below), where a finger
+ * can reach. What the list scrolled moves the held row along (it stays under the finger), and rows that come on screen
+ * are measured for the slot maths. Away from the edges, or at the list's end, it waits for the finger and asks for no
+ * frames.
  */
-private suspend fun edgeScroll(d: QueueDrag, list: LazyListState, at: Map<Any, Int>, zone: Float, speed: Float) {
+private suspend fun edgeScroll(d: QueueDrag, list: LazyListState, at: Map<Any, Int>, zone: Float, slow: Float, fast: Float) {
     fun push(): Float {
         val info = list.layoutInfo
-        val top = info.viewportStartOffset.toFloat()
-        val bottom = info.viewportEndOffset.toFloat()
+        val top = info.viewportStartOffset.toFloat() + info.beforeContentPadding
+        val bottom = info.viewportEndOffset.toFloat() - info.afterContentPadding
         return when {
             d.finger < top + zone -> -((top + zone - d.finger) / zone).coerceIn(0f, 1f)
             d.finger > bottom - zone -> ((d.finger - (bottom - zone)) / zone).coerceIn(0f, 1f)
             else -> 0f
         }
     }
+    // signed like [p]: up the list for the top edge
+    fun speed(p: Float) = (slow + (fast - slow) * p * p) * (if (p < 0f) -1f else 1f)
     while (true) {
         snapshotFlow { push() != 0f }.first { it }
         var last = withFrameMillis { it }
@@ -582,7 +684,7 @@ private suspend fun edgeScroll(d: QueueDrag, list: LazyListState, at: Map<Any, I
             val t = withFrameMillis { it }
             val ms = (t - last).coerceIn(0L, 32L).toFloat()
             last = t
-            val got = list.scrollBy(p * speed * ms)
+            val got = list.scrollBy(speed(p) * ms)
             if (got == 0f && ms > 0f) {
                 // the list's end: wait for the finger to move
                 val at0 = d.finger
