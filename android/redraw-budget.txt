@@ -13,8 +13,13 @@ turn.Back 2
 turn.Front 2
 turn.QueueCard 2
 turn.Vessel 9
+# android-v18: one tap folds the card into its row; a stand-in copy of the card is drawn once for the whole fold
+close.CardLogo 1
+close.CardTicket 1
+close.Front 1
 close.QueueBar 1
-close.QueueRow 6
+close.QueueCard 1
+close.QueueRow 5
 # a drag redraws rows when the slot changes, never per finger move (24 moves here)
 drag.QueueBar 1
 drag.QueueRow 11

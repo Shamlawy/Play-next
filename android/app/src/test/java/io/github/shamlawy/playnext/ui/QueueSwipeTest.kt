@@ -231,5 +231,67 @@ class QueueSwipeTest {
         assertTrue("it is still in the Queue", shown("Hollow Tide"))
         assertTrue("a drag opens no card", !open("Hollow Tide"))
     }
-}
 
+    /** A long swipe (past 92 dp, held): Delete runs right up to the row, so no empty space shows past it. */
+    @Test fun aLongSwipeLeavesNoGap() {
+        show()
+        val r = row("Hollow Tide")
+        val was = r.fetchSemanticsNode().boundsInRoot
+        val px = rule.density.density
+        r.performTouchInput {
+            val p = Offset(width * .88f, height * .3f)
+            down(p)
+            for (k in 1..8) moveTo(p + Offset(-180.dp.toPx() * k / 8, 0f), delayMillis = 16)
+        }
+        rule.mainClock.advanceTimeBy(100)
+        val del = delete().onLast().fetchSemanticsNode().boundsInRoot
+        val now = row("Hollow Tide").fetchSemanticsNode().boundsInRoot
+        assertEquals("held at the most, the row is 138 dp aside", 138f, (was.right - now.right) / px, 2f)
+        assertEquals("Delete ends at the row's old right end", was.right, del.right, 2f * px)
+        assertTrue("and starts where the row now ends: no gap", del.left <= now.right + 1f)
+        rule.onRoot().captureRoboImage("src/test/screenshots/queue-swiped-far-412.png")
+        rule.onRoot().performTouchInput { up() }
+        rule.mainClock.advanceTimeBy(600)
+        assertEquals("let go, it settles 92 dp aside", 92f, (was.right - row("Hollow Tide").fetchSemanticsNode().boundsInRoot.right) / px, 2f)
+    }
+
+    /** Right at the foot the list runs fast (2.4 dp a millisecond): a second there carries the row well down the list. */
+    @Test fun theEdgeIsFastest() {
+        fillers = 30
+        show()
+        val r = row("Hollow Tide").fetchSemanticsNode().boundsInRoot
+        val h = rule.onRoot().fetchSemanticsNode().boundsInRoot.height
+        rule.onRoot().performTouchInput {
+            val p = Offset(r.left + r.width * .12f, r.top + r.height * .3f)
+            down(p)
+            advanceEventTime(500)
+            val foot = Offset(p.x, h - 24.dp.toPx())
+            for (k in 1..4) moveTo(p + (foot - p) * (k / 4f), delayMillis = 16)
+            for (k in 1..20) moveTo(foot + Offset(0f, if (k % 2 == 0) 1f else 0f), delayMillis = 50)
+            up()
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        // where it landed: the highest filler number above it (android-v17's 0.9 dp/ms got about 8 rows in that second)
+        row("Hollow Tide")
+        val top = rule.onAllNodes(hasText("Hollow Tide", substring = true) and hasText("28 h left", substring = true) and hasClickAction()).onLast().fetchSemanticsNode().boundsInRoot.top
+        val above = rule.onAllNodes(hasText("Filler ", substring = true) and hasClickAction()).fetchSemanticsNodes()
+            .filter { it.boundsInRoot.top < top }
+            .mapNotNull { n -> n.config.getOrElseNullable(SemanticsProperties.Text) { null }?.joinToString(" ")?.let { Regex("Filler (\\d+)").find(it)?.groupValues?.get(1)?.toInt() } }
+        assertTrue("landed past filler 14 (got ${above.maxOrNull()})", (above.maxOrNull() ?: 0) >= 14)
+    }
+
+    /** One tap on the open card: it folds into its row (frames of the 560 ms fold, after the 320 ms wait for a second tap). */
+    @Test fun theCardFoldsIntoItsRow() {
+        show()
+        rule.mainClock.autoAdvance = false
+        rule.onAllNodesWithContentDescription("Starfall Lantern, ", substring = true).onFirst()
+            .performTouchInput { click(Offset(width * .7f, height * .45f)) }
+        rule.mainClock.advanceTimeBy(330)
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        for (ms in listOf(16, 140, 280, 420, 600)) {
+            rule.mainClock.advanceTimeBy(if (ms == 16) 16 else 140)
+            rule.onRoot().captureRoboImage("src/test/screenshots/queue-fold-$ms.png")
+        }
+        assertTrue("closed: no card says which side shows", !open("Starfall Lantern"))
+    }
+}

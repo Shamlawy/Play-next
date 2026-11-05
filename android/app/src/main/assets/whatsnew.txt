@@ -104,3 +104,9 @@ go=home
 at=
 say=Swipe a game left in the Queue to delete it (with Undo), and a held game now scrolls the list at the edges.
 tryIt=Open Games › Queue in My order. Hold a game and drag it to the bottom (or top) of the screen: the list scrolls by itself, faster the closer you are to the edge, so you can take it anywhere. Then swipe any game left: a red Delete shows under it. Tap Delete: the game goes and an Undo bar shows for 5 seconds; tap Undo to bring it back. A short swipe slides back, and a tap anywhere else closes it. It's a practice delete for now: nothing is saved, and the game is back when you open the app again.
+
+v=18
+go=home
+at=
+say=The open card now folds smoothly into its row, dragging to the edge goes faster the closer you get, and a long swipe leaves no gap.
+tryIt=Open Games › Queue and tap the open card once: it shrinks into its row and the games under it rise with it. Then hold a game in My order and drag it toward the bottom of the screen: just inside the zone the list creeps, and right at the edge it races. Last, swipe a game far to the left: the red Delete stretches with it, with no empty space.
