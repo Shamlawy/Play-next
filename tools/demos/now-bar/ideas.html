@@ -1,0 +1,133 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Now Bar ideas</title>
+<style>
+/* Demo of Play next in Samsung's Now Bar (lock screen) + Android's status-bar pill.
+   Made-up game titles only (public repo, L78). Open with ?i=A..E. */
+:root{--bg:#000;--card:#16181d;--line:rgba(255,255,255,.08);--txt:#fff;--dim:rgba(255,255,255,.62);--blue:#4c8dff}
+*{box-sizing:border-box;margin:0}
+body{background:#050608;color:var(--txt);font-family:"Poppins",system-ui,sans-serif;padding:24px;display:flex;flex-direction:column;gap:18px;width:max-content}
+h1{font-size:22px;font-weight:600}
+.sub{color:var(--dim);font-size:14px;max-width:860px;line-height:1.45}
+.row{display:flex;gap:28px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:10px;align-items:center}
+.cap{font-size:13px;color:var(--dim)}
+.ph{width:412px;height:880px;border-radius:38px;position:relative;overflow:hidden;border:2px solid #22252c;
+  background:radial-gradient(120% 70% at 30% 0%,#13284d 0%,#071022 45%,#000 80%)}
+.sb{position:absolute;top:0;left:0;right:0;height:40px;display:flex;align-items:center;padding:0 20px;font-size:14px;font-weight:500}
+.sb .r{margin-left:auto;display:flex;gap:7px;align-items:center;opacity:.9}
+.chip{margin-left:10px;display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border-radius:12px;background:var(--c);font-size:12.5px;font-weight:600;white-space:nowrap}
+.chip svg{width:15px;height:15px}
+.clock{position:absolute;top:120px;left:0;right:0;text-align:center}
+.clock b{display:block;font-size:92px;font-weight:300;letter-spacing:-2px;line-height:1}
+.clock span{font-size:16px;color:var(--dim)}
+/* collapsed Now Bar pill */
+.nb{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;height:56px;border-radius:28px;background:rgba(22,24,29,.92);
+  border:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 18px 0 8px;white-space:nowrap;font-size:14.5px;font-weight:500}
+.nb .ic{width:40px;height:40px;border-radius:20px;background:var(--c);display:grid;place-items:center}
+.nb .ic svg{width:22px;height:22px}
+.nb .t2{color:var(--dim);font-weight:400}
+.dots{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:5px}
+.dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.3)}.dots i:first-child{background:#fff}
+/* expanded card */
+.cd{position:absolute;left:14px;right:14px;bottom:30px;border-radius:30px;background:rgba(18,20,25,.96);border:1px solid var(--line);overflow:hidden}
+.art{height:150px;position:relative;background:var(--art)}
+.art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(18,20,25,.96) 100%)}
+.box{position:absolute;left:18px;bottom:-26px;width:64px;height:86px;border-radius:10px;background:var(--box);z-index:2;border:2px solid rgba(255,255,255,.12);
+  display:flex;align-items:flex-end;padding:6px;font-size:9px;font-weight:700;line-height:1.1}
+.app{position:absolute;top:14px;left:18px;z-index:2;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:500;color:rgba(255,255,255,.85)}
+.app svg{width:16px;height:16px}
+.tag{position:absolute;top:12px;right:14px;z-index:2;background:var(--c);border-radius:12px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.bd{padding:12px 18px 18px 98px;min-height:70px}
+.k{font-size:12.5px;color:var(--dim)}
+.nm{font-size:19px;font-weight:600;margin-top:1px}
+.big{font-size:30px;font-weight:600;letter-spacing:.5px;font-variant-numeric:tabular-nums;margin-top:4px;white-space:nowrap}
+.ln{font-size:13.5px;color:var(--dim);margin-top:4px;line-height:1.4}
+.bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);margin:12px 18px 0;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c);width:var(--w)}
+.bt{display:flex;gap:10px;padding:16px 18px 18px}
+.bt b{flex:1;height:46px;border-radius:23px;display:grid;place-items:center;font-size:14.5px;font-weight:600;background:rgba(255,255,255,.1);white-space:nowrap}
+.bt b.p{background:var(--c)}
+.nx{width:64px;height:64px;border-radius:32px;background:var(--box);display:grid;place-items:center;position:absolute;left:18px;top:18px}
+.nx svg{width:40px;height:40px}
+.plain .bd{padding:16px 18px 6px 98px}
+.list{padding:2px 18px 0}
+.list div{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.list div span{margin-left:auto;color:var(--dim);font-size:13px;white-space:nowrap}
+.list em{font-style:normal;width:30px;height:30px;border-radius:8px;background:var(--b);flex:none}
+.note{font-size:13px;color:var(--dim);max-width:860px;line-height:1.45;border-left:3px solid var(--c0);padding-left:12px}
+</style></head><body>
+<script>
+// drawn icons: 24x24, fill-only currentColor, one part at opacity .35 (house style, no emoji)
+const I = {
+  pad:'<svg viewBox="0 0 24 24" fill="currentColor"><path opacity=".35" d="M7 6h10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.3 2.1L14.5 15h-5l-1.2 1.6A3.5 3.5 0 0 1 2 14.5V11a5 5 0 0 1 5-5z"/><path d="M7 9h1.5v1.5H10V12H8.5v1.5H7V12H5.5v-1.5H7zM15.5 9.2a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zm2.4 2.2a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2z"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="currentColor"><circle opacity=".35" cx="12" cy="12" r="10"/><path d="M11 6h2v5.6l3.7 2.2-1 1.7L11 12.7z"/></svg>',
+  tag:'<svg viewBox="0 0 24 24" fill="currentColor"><path opacity=".35" d="M3 4a1 1 0 0 1 1-1h7.6a2 2 0 0 1 1.4.6l8.4 8.4a2 2 0 0 1 0 2.8l-6.6 6.6a2 2 0 0 1-2.8 0L3.6 13A2 2 0 0 1 3 11.6z"/><circle cx="8" cy="8" r="2"/></svg>',
+  live:'<svg viewBox="0 0 24 24" fill="currentColor"><circle opacity=".35" cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4.5"/></svg>',
+  star:'<svg viewBox="0 0 24 24" fill="currentColor"><path opacity=".35" d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/><path d="M12 7.5l1.4 2.9 3.2.4-2.3 2.2.6 3.2L12 14.7z"/></svg>',
+  nexi:'<svg viewBox="0 0 24 24" fill="currentColor"><path opacity=".35" d="M12 2c5 0 9 3.6 9 8.6 0 5.4-4.1 10.4-9 11.4-4.9-1-9-6-9-11.4C3 5.6 7 2 12 2z"/><path d="M8.3 9.2a1.6 1.9 0 1 1 0 3.8 1.6 1.9 0 0 1 0-3.8zm7.4 0a1.6 1.9 0 1 1 0 3.8 1.6 1.9 0 0 1 0-3.8zM9 15.4h6a3 3 0 0 1-6 0z"/></svg>',
+  logo:'<svg viewBox="0 0 24 24" fill="currentColor"><rect opacity=".35" x="2" y="2" width="20" height="20" rx="6"/><path d="M9.5 7.5l7 4.5-7 4.5z"/></svg>',
+};
+const SB = (chip, t) => `<div class="sb">${t}${chip||""}<div class="r"><svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><path d="M0 10h3v2H0zM4.3 7h3v5h-3zM8.6 4h3v8h-3zM13 1h3v11h-3z"/></svg><svg width="24" height="12" viewBox="0 0 24 12" fill="#fff"><rect x=".5" y=".5" width="21" height="11" rx="3" fill="none" stroke="#fff" opacity=".6"/><rect x="2" y="2" width="15" height="8" rx="1.5"/></svg></div></div>`;
+const CLOCK = (d) => `<div class="clock"><b>${d.time||"9:41"}</b><span>${d.day||"Thursday, 5 November"}</span></div>`;
+const ART = {
+  a:'linear-gradient(135deg,#1d3a7a,#5b2a86 55%,#0b0f1d)',
+  b:'linear-gradient(135deg,#0f5560,#123a2e 50%,#05140f)',
+  c:'linear-gradient(135deg,#7a2c16,#3d1222 55%,#0d0507)',
+  d:'linear-gradient(135deg,#2c4a12,#173a3a 55%,#04100d)',
+};
+const ideas = {
+  A:{ c:"#3b6fe0", t:"A · Tonight's pick", s:"At the hour you usually play, Nexi puts your next game in the Now Bar by himself. It goes away at midnight, or when you tap Played some.",
+      chip:["pad","Tonight"], pill:["pad","Tonight · <b>Starfall Drift</b>",""], time:"8:12",
+      card:{ art:ART.a, box:"#3a2a7a", bt:"STARFALL DRIFT", app:"Play next · your usual time", tag:"#1 in your queue",
+        k:"Tonight's pick", nm:"Starfall Drift", ln:"About 6 h left to finish · you stopped at the second city", w:"62%",
+        b:["Played some","Another one"] } },
+  B:{ c:"#1aa38c", t:"B · Release night", s:"A game you're waiting for comes out tonight. The pill by the clock counts down by itself, and at zero the card turns into “It's out”.",
+      chip:["clock","2:14:08"], pill:["clock","<b>Hollow Tide</b>"," · 2:14:08"], time:"9:45",
+      card:{ art:ART.b, box:"#155a50", bt:"HOLLOW TIDE", app:"Play next · release day", tag:"Midnight",
+        k:"Out in", nm:"Hollow Tide", big:"2:14:08", ln:"You've waited 41 days · pre-load is open", w:"94%",
+        b:["Open game","Remind at 0"] } },
+  C:{ c:"#e0573a", t:"C · Sale ending", s:"One of your price alerts is on sale and the sale is about to end. The card shows the price and a live “ends in”, and goes away when the sale ends or you skip it.",
+      chip:["tag","−60%"], pill:["tag","<b>Ember Saga</b> −60%"," · 5h left"], time:"6:20",
+      card:{ art:ART.c, box:"#6a2414", bt:"EMBER SAGA", app:"Play next · price alert", tag:"Lowest ever",
+        k:"Sale ends in 5h 12m", nm:"Ember Saga", big:"AED 49 <span style='font-size:16px;color:rgba(255,255,255,.5);text-decoration:line-through;font-weight:500'>AED 124</span>", ln:"PS Store · lowest it's been", w:"78%",
+        b:["Buy","Skip"] } },
+  D:{ c:"#6bb33a", t:"D · Caught you playing", s:"No timer to start. When Steam shows you in a game, the card appears by itself and counts. When you stop, it asks one thing: add it to your diary?",
+      chip:["live","1:12"], pill:["live","Playing <b>Moss Hollow</b>"," · 1h 12m"], time:"11:03",
+      card:{ art:ART.d, box:"#2d4d14", bt:"MOSS HOLLOW", app:"Play next · seen on Steam", tag:"Live",
+        k:"Playing now", nm:"Moss Hollow", big:"1:12:40", ln:"Tonight's best stretch this week", w:"48%",
+        b:["Stopped","Not me"] } },
+  E:{ c:"#8a63e8", t:"E · Nexi's morning card", s:"Once a morning Nexi leaves one card with the most important news of the day. It stays until you swipe it.",
+      chip:null, pill:["nexi","Nexi · <b>2 out this week</b>",""], time:"7:30",
+      card:{ nexi:true, box:"#3d2b7a", app:"Play next · Nexi", k:"Good morning", nm:"Two games out this week",
+        list:[["#155a50","Hollow Tide","Fri"],["#6a2414","Ember Saga −60%","ends today"],["#3a2a7a","Starfall Drift","6 h left"]],
+        b:["Open Play next","Later"] } },
+};
+const q = new URLSearchParams(location.search).get("i") || "A";
+const d = ideas[q];
+const ico = (k) => I[k];
+const chip = d.chip ? `<div class="chip" style="--c:${d.c}">${ico(d.chip[0])}${d.chip[1]}</div>` : "";
+const pill = `<div class="nb" style="--c:${d.c}"><div class="ic">${ico(d.pill[0])}</div>${d.pill[1]}<span class="t2">${d.pill[2]}</span></div>`;
+const c = d.card;
+let card;
+if (c.nexi) {
+  card = `<div class="cd plain" style="--c:${d.c};--box:${c.box}">
+    <div style="position:relative;height:100px"><div class="nx">${I.nexi}</div>
+    <div class="app" style="left:98px;top:22px">${I.logo}${c.app}</div>
+    <div style="position:absolute;left:98px;top:44px"><div class="k">${c.k}</div><div class="nm">${c.nm}</div></div></div>
+    <div class="list">${c.list.map(([b,n,s])=>`<div><em style="--b:${b}"></em>${n}<span>${s}</span></div>`).join("")}</div>
+    <div class="bt">${c.b.map((x,i)=>`<b class="${i?"":"p"}">${x}</b>`).join("")}</div></div>`;
+} else {
+  card = `<div class="cd" style="--c:${d.c};--art:${c.art};--box:${c.box};--w:${c.w}">
+    <div class="art"><div class="app">${I.logo}${c.app}</div><div class="tag">${c.tag}</div><div class="box">${c.bt}</div></div>
+    <div class="bd"><div class="k">${c.k}</div><div class="nm">${c.nm}</div>${c.big?`<div class="big">${c.big}</div>`:""}<div class="ln">${c.ln}</div></div>
+    <div class="bar"><i></i></div>
+    <div class="bt">${c.b.map((x,i)=>`<b class="${i?"":"p"}">${x}</b>`).join("")}</div></div>`;
+}
+document.body.innerHTML = `<h1>${d.t}</h1><div class="sub">${d.s}</div>
+<div class="row">
+  <div class="col"><div class="ph">${SB(chip, d.time)}${CLOCK(d)}${pill}<div class="dots"><i></i><i></i><i></i></div></div><div class="cap">Lock screen: the Now Bar pill${d.chip?" + the pill by the clock":""}</div></div>
+  <div class="col"><div class="ph">${SB(chip, d.time)}${CLOCK(d)}${card}</div><div class="cap">Tap the pill: the card opens</div></div>
+</div>`;
+</script>
+</body></html>
