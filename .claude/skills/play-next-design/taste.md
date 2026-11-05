@@ -284,3 +284,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: rememeber never do emjoy generate icons if needed
 - rule: No emoji anywhere in the Android app, list emoji included: a list's picker and its tab draw generated icons (24x24, fill-only, one part at .35, from the web's own SVGs through tools/android-gen.mjs); a list's stored emoji maps to its drawn icon
 - check: tools/android-rules.mjs emoji-icon (extend it to data/ and list emoji)
+
+### T57 · v0 · Now Bar (Android) · rule
+- said: yours were not bad but not very good so maybe search … be creative when searching
+- rule: Now Bar / lock-screen ideas: research what the best apps do first and show demos that differ in kind, drawn on the real Fold lock and cover screens
+- check: none

@@ -44,6 +44,7 @@
 - Nov 2 · "yeah queue card is better" (shown the v181 Game Shuffler deck next to the open Queue card): on Android the deck's cards are drawn like the open Queue card, same swiping; a change from "copy it as it is" (android/parity/1-brief.md).
 - Nov 2 · "do as you like" (shown On deck New vs Classic and the Queue Customise controls that no longer change the v299/v301 cards, at 412): the suggested answer. Android leaves out On deck's Classic cards and the dead controls (Open card layout, Backdrop fade, the "With the title"/"Title only" card backgrounds and How loud, Character art's float knobs); the live ones come in piece 2 (critic M1); the dead ones go to the web's code-check issue as "remove?".
 - Nov 5 · "before building the rail fully i want to costomaze it or update it or change it": the unfolded rail (Phase 3: its full build, the live strip, Nexi's seat in it) waits for the owner. Before any work on it beyond what android-v6 already has, show them the current rail (web at 859 and the Android build, pictures) with a few concrete options and ask what they want changed; build only what they pick. Small fixes to today's rail are fine.
+- Nov 5 · "keep it for your notes when we reach this phase … showing me more now bar uses with demos yours were not bad but not very good so maybe search … be creative when searching": the owner never uses the play timer and plays mostly on PS5 (little Steam). See "Now Bar and PS5 (Nov 5 notes)" below; read it at the Brief of Phase 5 and Phase 9 (and Phase 3 if widgets touch it).
 - Fixed from the start: the friend's iPhone stays on the web app. The rebuild copies the app as it is: no new features unless the owner adds one in a phase's Brief (the widgets, Oct 23, are the first); Claude's own new ideas go to `learn.mjs add --kind=idea`.
 
 ## What we're building
@@ -214,6 +215,19 @@ The owner picked 1, 2, 4, 5, 6, 7, 9, 10, 11, 13 and 14 ("wow claude those were 
 12. A fingerprint lock and a hidden preview in Recents (Phase 7). *Not picked.*
 13. Game Pass catalogue pings like the PS Plus ones (Phase 9), only if you have Game Pass.
 14. Ideas M38 (Nexi's weekly "what you played" recap) and M39 (bundle and sale-ending price alerts) (Phase 9).
+
+### Now Bar and PS5 (Nov 5 notes, for the Briefs of Phases 5 and 9)
+
+The owner loves Apple's Dynamic Island and asked what Play next could do with the Fold's Now Bar (Android 16 Live Updates: a pill by the clock + a Now Bar card on the lock and cover screens). Not decided yet; nothing built.
+
+- **The timer:** the owner has never used it. Item 1's "live timer with Pause / Stop" is a weak reason to be in the Now Bar; at Phase 5's Brief ask whether it still comes over, and prefer sessions that start by themselves (below).
+- **First demo round** (`tools/demos/now-bar/ideas.html`, `node tools/demos/now-bar/shoot.mjs`): A Tonight's pick, B Release night countdown, C Sale ending, D Caught you playing (no timer), E Nexi's morning card. The owner: "not bad but not very good". Claude suggested B + C (short live moments that end by themselves). A and E are daily nudges Samsung may only show as plain notifications: untested.
+- **Next round, the owner's ask:** before the Brief, search widely and creatively for what the best apps do with the Now Bar, Live Updates, the Dynamic Island and Live Activities (sports scores, delivery and rides, flights, game companions, music, the PlayStation and Xbox apps, Samsung's own) and for games-world moments that are live by nature, then show a new set of demos that differ in kind, not only in look (L76), drawn as real lock-screen + cover-screen pictures of the Fold. Check what Samsung really shows from a third-party app on the owner's One UI version before promising one.
+- **PS5 instead of Steam:** Sony has no official API, even for a personal app. What being personal allows:
+  1. *Sony sign-in inside the app:* open Sony's real sign-in page in a WebView, keep the NPSSO cookie by itself (no code to copy), and Nexi asks to sign in again when it lapses (~2 months). With it: what you're playing now (basic presence: title, platform) and each game's PS5 hours and last played (game list). Unofficial, can break; one account polled every 15 min. The token lives on the phone and in the helper's private storage only, never in the repo or a chat.
+  2. *Home Wi-Fi:* the PS5 answers the Remote Play discovery call (UDP 9302) with on / rest mode, so sessions get exact start and end times while the phone is at home. Whether it also names the running game on PS5 is unverified (sign-in fills the name).
+  3. *Wake the PS5:* pair once with the PIN from the PS5's Remote Play settings, then a "Turn on PS5" button (e.g. on a Now Bar card). It can't open a given game.
+  - Together: the PS5 turns on, the Now Bar shows "Playing · <game>" within seconds, rest mode asks "1h 40m tonight, add it to your diary?", hours fill in by themselves. First step: a home test from the Android app (discovery answer, game name, sign-in), since this container can't reach Sony. Supersedes item 3's "code pasted once".
 
 ## Time and tokens
 
