@@ -22,11 +22,13 @@ for round in 1 2; do
     echo "== round $round: $side =="
     adb uninstall "$PKG" > /dev/null 2>&1 || true
     adb install "$apk" > /dev/null
-    adb shell rm -rf "$DIR" || true
-    adb shell mkdir -p "$DIR"
+    # the library writes into its own media folder (DIR) and moves files within it: never point
+    # additionalTestOutputDir at it under another name (/sdcard vs /storage/emulated/0 made every move fail); only last
+    # run's JSON goes
+    adb shell "rm -f $DIR/*benchmarkData.json" || true
     adb shell am instrument -w -r -e class "$TPKG.SpeedBenchmark" -e pn.iter "$ITER" \
       -e androidx.benchmark.suppressErrors EMULATOR -e androidx.benchmark.output.enable true \
-      -e additionalTestOutputDir "$DIR" -e no-isolated-storage true "$RUNNER" | tr -d '\r' > "$OUT/$side-$round.log"
+      "$RUNNER" | tr -d '\r' > "$OUT/$side-$round.log"
     if grep -qE 'FAILURES!!!|INSTRUMENTATION_FAILED|INSTRUMENTATION_CODE: 0|Process crashed' "$OUT/$side-$round.log"; then
       tail -n 40 "$OUT/$side-$round.log"
       echo "::error::The benchmark failed on the $side build (round $round)"
