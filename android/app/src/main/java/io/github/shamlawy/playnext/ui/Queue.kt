@@ -253,17 +253,24 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
             dr.to < dr.from && i in dr.to until dr.from -> dr.pitch
             else -> 0f
         }
-        val aside by animateFloatAsState(shift, if (dr == null || calm) snap() else tween(STEP_ASIDE_MS, easing = Ease.glide), label = "aside")
+        val aside = animateFloatAsState(shift, if (dr == null || calm) snap() else tween(STEP_ASIDE_MS, easing = Ease.glide), label = "aside")
         if (pick.dropped == g.id) LaunchedEffect(Unit) { withFrameNanos { }; withFrameNanos { }; if (pick.dropped == g.id) pick.dropped = null }
         val volt = LocalLook.current.volt
         val guard = LocalSwipeGuard.current
         val now by rememberUpdatedState(v)
+        val opener by rememberUpdatedState(open)
         val open1 = g.id == openId
+        // remembered, so a redraw of the list hands each row the very same modifiers and Compose can skip the rows
+        // that didn't change (new lambdas every time made every row redraw: RedrawTest)
+        val layer = remember(g.id, aside, pick) { Modifier.graphicsLayer { val d = pick.drag; translationY = if (d != null && d.id == g.id) d.dy else aside.value } }
+        val ringR = if (open1) Web.U_R.dp else if (folded) 20.dp else 22.dp
+        val ring = remember(volt, ringR, open1) { Modifier.heldRing(volt, ringR, if (open1) 26.dp else 12.dp) }
+        val holdIt = remember(g.id, i, pick, list, guard) { Modifier.hold(g.id, i, { now }, pick, list, guard) { opener(it) } }
         val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm || pick.dropped != null) null else tween(560, easing = Ease.glide))
             .zIndex(if (held) 1f else 0f)
-            .graphicsLayer { translationY = if (held) dr!!.dy else aside }
-            .then(if (held) Modifier.heldRing(volt, if (open1) Web.U_R.dp else if (folded) 20.dp else 22.dp, if (open1) 26.dp else 12.dp) else Modifier)
-            .hold(g.id, i, { now }, pick, list, guard, open)
+            .then(layer)
+            .then(if (held) ring else Modifier)
+            .then(holdIt)
         if (open1) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, m, entered = { if (pick.fresh == g.id) pick.fresh = null },
             flip = { back -> pick.flip = if (back) g.id else null }) { pick.close(g.id) }
         else {

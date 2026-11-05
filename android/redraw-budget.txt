@@ -1,0 +1,20 @@
+# Redraw counts per scripted step (RedrawTest, gate 3): "<step>.<composable> <most allowed>". A count over its budget fails
+# android-check. Lower a number after a change that cuts redraws; raise one only with the reason in the commit.
+# Nov 5 (first counts; main before android-v16 had the same, close 5 rows: the 6th is the row that fades in)
+scroll.QueueBar 1
+scroll.QueueRow 4
+open.CardLogo 1
+open.CardTicket 1
+open.Front 1
+open.QueueBar 1
+open.QueueCard 2
+open.QueueRow 1
+turn.Back 2
+turn.Front 2
+turn.QueueCard 2
+turn.Vessel 9
+close.QueueBar 1
+close.QueueRow 6
+# a drag redraws rows when the slot changes, never per finger move (24 moves here)
+drag.QueueBar 1
+drag.QueueRow 11
