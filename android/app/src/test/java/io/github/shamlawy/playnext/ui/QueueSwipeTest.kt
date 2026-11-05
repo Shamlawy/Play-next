@@ -232,11 +232,12 @@ class QueueSwipeTest {
         assertTrue("a drag opens no card", !open("Hollow Tide"))
     }
 
-    /** A long swipe (past 92 dp, held): Delete widens with the row, so no empty space shows past it. */
+    /** A long swipe (past 92 dp, held): Delete runs right up to the row, so no empty space shows past it. */
     @Test fun aLongSwipeLeavesNoGap() {
         show()
         val r = row("Hollow Tide")
-        val rowRight = r.fetchSemanticsNode().boundsInRoot.right
+        val was = r.fetchSemanticsNode().boundsInRoot
+        val px = rule.density.density
         r.performTouchInput {
             val p = Offset(width * .88f, height * .3f)
             down(p)
@@ -244,13 +245,14 @@ class QueueSwipeTest {
         }
         rule.mainClock.advanceTimeBy(100)
         val del = delete().onLast().fetchSemanticsNode().boundsInRoot
-        val px = rule.density.density
-        assertEquals("held at the most (138 dp), Delete is as wide as the row moved", 138f, del.width / px, 2f)
-        assertEquals("and ends at the row's old right end", rowRight, del.right, 2f * px)
+        val now = row("Hollow Tide").fetchSemanticsNode().boundsInRoot
+        assertEquals("held at the most, the row is 138 dp aside", 138f, (was.right - now.right) / px, 2f)
+        assertEquals("Delete ends at the row's old right end", was.right, del.right, 2f * px)
+        assertTrue("and starts where the row now ends: no gap", del.left <= now.right + 1f)
         rule.onRoot().captureRoboImage("src/test/screenshots/queue-swiped-far-412.png")
         rule.onRoot().performTouchInput { up() }
         rule.mainClock.advanceTimeBy(600)
-        assertEquals("let go, it settles at 92 dp", 92f, delete().onLast().fetchSemanticsNode().boundsInRoot.width / px, 2f)
+        assertEquals("let go, it settles 92 dp aside", 92f, (was.right - row("Hollow Tide").fetchSemanticsNode().boundsInRoot.right) / px, 2f)
     }
 
     /** Right at the foot the list runs fast (2.4 dp a millisecond): a second there carries the row well down the list. */

@@ -1,10 +1,5 @@
 package io.github.shamlawy.playnext.ui
 
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
@@ -22,7 +17,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.animation.core.animateFloatAsState
@@ -210,6 +204,9 @@ class QueuePick(lib: Library) {
     var shut by mutableStateOf<String?>(null)
     var shutBack by mutableStateOf(false)
 
+    /** The card folding into its row now, if any: the rows under it rise ([QueueFold]). */
+    var fold by mutableStateOf<QueueFold?>(null)
+
     /**
      * The practice order (Phase 1 is read only): a drag's new places, kept in memory for this backup until the app is
      * opened again, nothing saved (android/parity/1-map/1-list.md 9).
@@ -350,55 +347,60 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
         if (swipedOpen) LaunchedEffect(list) { snapshotFlow { list.isScrollInProgress }.collect { if (it && pick.swiped == g.id) pick.swiped = null } }
         // remembered, so a redraw of the list hands each row the very same modifiers and Compose can skip the rows
         // that didn't change (new lambdas every time made every row redraw: RedrawTest)
-        val layer = remember(g.id, aside, pick) { Modifier.graphicsLayer { val d = pick.drag; translationY = if (d == null) 0f else if (d.id == g.id) d.dy else aside.value } }
+        // (a card folding into its row above this one: this row starts that much lower and glides up, [QueueFold])
+        val layer = remember(g.id, i, aside, pick) {
+            Modifier.graphicsLayer {
+                val d = pick.drag
+                val f = pick.fold
+                translationY = (if (d == null) 0f else if (d.id == g.id) d.dy else aside.value) + (if (f != null && i > f.at) f.by * (1f - f.t.value) else 0f)
+            }
+        }
         val ringR = if (open1) Web.U_R.dp else if (folded) 20.dp else 22.dp
         val gap = if (open1) 26.dp else 12.dp
         val ring = remember(volt, ringR, open1) { Modifier.heldRing(volt, ringR, gap) }
         val holdIt = remember(g.id, i, pick, list, guard) { Modifier.hold(g.id, i, { now }, pick, list, guard) { opener(it) } }
         val swipeIt = remember(g.id, pick, slide, guard) { Modifier.swipeDelete(g.id, pick, slide, guard) }
-        // the card that just closed folds into its row (the owner, Nov 5: it "just disappears"): the item's height goes
-        // from the card's to the row's on the glide, so every row under it rises with it (also rows coming on screen,
-        // which a placement glide can't move), while a copy of the card on top is cut to that height and fades into the
-        // row coming in underneath. Per frame only a relayout, a clip and two fades: nothing is redrawn from scratch.
+        // the card that just closed folds into its row (the owner, Nov 5: it "just disappears"): the item takes the row's
+        // height at once, every row under it (also rows coming on screen) starts lower by the difference and glides up,
+        // covering a copy of the card that fades into the row coming in underneath. Only moves and fades per frame
+        // (Android's motion rule: graphicsLayer translation, scale, alpha, rotation; nothing is laid out again).
         val shutting = !open1 && pick.shut == g.id
         val t = if (shutting) remember { Animatable(if (calm) 1f else 0f) } else null
         if (t != null) DisposableEffect(Unit) { onDispose { if (pick.shut == g.id) pick.shut = null } }
         if (t != null) LaunchedEffect(t) { t.animateTo(1f, tween(SHUT_MS, easing = Ease.glide)); if (pick.shut == g.id) pick.shut = null }
-        // the item's last height (the open card's, when it closes) and the row's
+        // the item's last height: the open card's (its gap included), when it closes
         val itemH = remember(g.id) { RowHeight() }
-        val rowH = remember(g.id) { RowHeight() }
-        val fold = if (t == null) Modifier else {
-            val from = remember(t) { itemH.px }
-            Modifier.layout { me, c ->
-                val p = me.measure(c)
-                val h = if (from <= 0f) p.height else (from + (p.height - from) * t.value).roundToInt()
-                layout(p.width, h) { p.place(0, 0) }
+        if (t != null) {
+            val rowPx = with(px) { ((if (folded) 104 else 138) + ROW_GAP).dp.toPx() }
+            // set before this frame's layout and drawing, so the rows under it never show at their new places first
+            DisposableEffect(t) {
+                if (itemH.px > rowPx) pick.fold = QueueFold(g.id, i, itemH.px - rowPx, t)
+                onDispose { if (pick.fold?.id == g.id) pick.fold = null }
             }
         }
         // no row glides while a card folds (the fold moves them) or just after a drop (the web skips it)
         val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm || pick.dropped != null || pick.shut != null) null else tween(SHUT_MS, easing = Ease.glide))
-            // held, or folding a closed card into it: drawn over the rows under it
-            .zIndex(if (held || shutting) 1f else 0f)
+            // held: drawn over the rows under it (a folding card's copy stays under them, so they cover it as they rise)
+            .zIndex(if (held) 1f else 0f)
             .then(layer)
             .then(if (held) ring else Modifier)
             .then(holdIt)
             .then(swipeIt)
-            .then(fold)
             .onSizeChanged { if (t == null) itemH.px = it.height.toFloat() }
         val slid = remember(slide) { Modifier.graphicsLayer { translationX = slide.x } }
         val showDel by remember(slide) { derivedStateOf { slide.x < -0.5f } }
         Box(m) {
             // the red Delete waits under the row's right end and shows only while the row slides aside
-            if (showDel) DeleteUnder(gap, ringR, slide) { Sounds.play(Sfx.Back); Crumbs.tap("delete", "queue"); pick.delete(now.src, g) }
+            if (showDel) DeleteUnder(gap, ringR) { Sounds.play(Sfx.Back); Crumbs.tap("delete", "queue"); pick.delete(now.src, g) }
             if (open1) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, slid, entered = { if (pick.fresh == g.id) pick.fresh = null },
                 flip = { back -> pick.flip = if (back) g.id else null }) { pick.close(g.id) }
             else {
-                val rm = if (t == null) slid else slid.onSizeChanged { rowH.px = it.height.toFloat() }.graphicsLayer { alpha = ((t.value - ROW_IN_FROM) / ROW_IN_FOR).coerceIn(0f, 1f) }
+                val rm = if (t == null) slid else slid.graphicsLayer { alpha = ((t.value - ROW_IN_FROM) / ROW_IN_FOR).coerceIn(0f, 1f) }
                 QueueRow(q, g, i + 1, v.sort, folded, rm) { id -> Crumbs.tap("row", "queue"); pick.open(id) }
                 if (t != null) {
                     val folding by remember(t) { derivedStateOf { t.value < 1f } }
                     val k = remember(t) { { t.value } }
-                    if (folding) ShutGhost(q, g, i + 1, pick.shutBack, rowH, if (folded) 20.dp else 22.dp, k)
+                    if (folding) ShutGhost(q, g, i + 1, pick.shutBack, k)
                 }
             }
         }
@@ -431,26 +433,19 @@ fun QueueUndo(pick: QueuePick, modifier: Modifier) {
 private const val UNDO_MS = 5_000L
 
 /**
- * The red button under a swiped row (`.qdel`: 92 wide, the row's height, its right corners): a tap deletes the game.
- * Swiped further than 92 it widens with the row (the owner, Nov 5: empty space showed past it on a long swipe), read
- * while laying out, so the swipe redraws nothing.
+ * The red button under a swiped row (`.qdel`: the row's height, its right corners): a tap deletes the game. It is as
+ * wide as the furthest swipe (138), so a long swipe never shows a gap past it (the owner, Nov 5), and the row's slide
+ * uncovers it: nothing about it moves or is laid out again. "Delete" sits in the middle of the 92 that show when open.
  */
 @Composable
-private fun BoxScope.DeleteUnder(gap: Dp, r: Dp, slide: QueueSlide, delete: () -> Unit) {
+private fun BoxScope.DeleteUnder(gap: Dp, r: Dp, delete: () -> Unit) {
     val shape = RoundedCornerShape(topEnd = r, bottomEnd = r)
-    val wide = remember(slide) {
-        Modifier.layout { me, c ->
-            val w = maxOf(DEL_OPEN.dp.toPx(), -slide.x).roundToInt().coerceAtMost(c.maxWidth)
-            val p = me.measure(c.copy(minWidth = w, maxWidth = w))
-            layout(w, p.height) { p.place(0, 0) }
-        }
-    }
     Box(Modifier.matchParentSize().padding(bottom = gap), contentAlignment = Alignment.CenterEnd) {
         Box(
-            wide.fillMaxHeight().clip(shape).background(Pn.hot)
+            Modifier.width(DEL_MAX.dp).fillMaxHeight().clip(shape).background(Pn.hot)
                 .clickable(role = Role.Button, onClickLabel = "Delete", onClick = delete),
-            contentAlignment = Alignment.Center,
-        ) { BasicText("Delete", style = QType.del.fixed(), softWrap = false, maxLines = 1) }
+            contentAlignment = Alignment.CenterEnd,
+        ) { Box(Modifier.width(DEL_OPEN.dp), contentAlignment = Alignment.Center) { BasicText("Delete", style = QType.del.fixed(), softWrap = false, maxLines = 1) } }
     }
 }
 
@@ -461,55 +456,43 @@ private class QueueSlide(start: Float) {
     var held by mutableStateOf(false)
 }
 
-/** A closing card folds into its row in the rows' own glide (560 ms); the row fades in from 30% to 75% of it. */
+/** A closing card folds into its row on the rows' own glide (560 ms): the row fades in from 35% to 75% of it, under the card, which fades from 50% (the glide is mostly done by then, so the rows rising over the card never leave a hole above them). */
 private const val SHUT_MS = 560
-private const val ROW_IN_FROM = .3f
-private const val ROW_IN_FOR = .45f
-private const val GHOST_OUT_FROM = .45f
+private const val ROW_IN_FROM = .35f
+private const val ROW_IN_FOR = .4f
+private const val GHOST_OUT_FROM = .5f
 private const val GHOST_OUT_FOR = .45f
 
-/** A row's or an item's measured height (its gap included), read while the card folds into its row. */
+/** An item's measured height (its gap included): the open card's, read when it closes. */
 @Stable
 private class RowHeight { var px by mutableFloatStateOf(0f) }
 
 /**
- * The card folding into its row after one tap ([t] reads its progress, 0 → 1): the open card as it was (its side [back]), taking no room
- * (the row under it sets the item's height), with no touches and nothing for TalkBack. Its clip's foot rises from the
- * card's to the row's (corners from the card's to the row's [rowR]) and it fades out over the second half.
+ * A card folding into its row: the rows after index [at] start [by] px lower and rise as [t] goes 0 → 1 (read while
+ * drawing, so the fold redraws nothing).
+ */
+@Stable
+class QueueFold(val id: String, val at: Int, val by: Float, val t: Animatable<Float, *>)
+
+/**
+ * The card folding into its row after one tap ([t] reads its progress, 0 → 1): the open card as it was (its side
+ * [back]), taking no room (the row under it sets the item's height), with no touches and nothing for TalkBack. The rows
+ * under it rise over it while it fades out.
  */
 @Composable
-private fun ShutGhost(q: Queue, g: Game, n: Int, back: Boolean, row: RowHeight, rowR: Dp, t: () -> Float) {
-    val d = LocalDensity.current
-    val cardGap = with(d) { CARD_GAP.dp.toPx() }
-    val rowGap = with(d) { ROW_GAP.dp.toPx() }
-    val cardR = with(d) { Web.U_R.dp.toPx() }
-    val rr = with(d) { rowR.toPx() }
-    val m = remember(t, row, cardGap, rowGap, cardR, rr) {
+private fun ShutGhost(q: Queue, g: Game, n: Int, back: Boolean, t: () -> Float) {
+    val m = remember(t) {
         Modifier
             // measured whole, placed at the top, 0 high: the item is as tall as its row (a 0-high box takes no touches)
             .layout { me, c -> val p = me.measure(c.copy(minHeight = 0, maxHeight = Constraints.Infinity)); layout(p.width, 0) { p.place(0, 0) } }
             .clearAndSetSemantics { }
-            .graphicsLayer {
-                val k = t()
-                val full = size.height - cardGap
-                val to = (row.px - rowGap).coerceAtLeast(0f)
-                clip = true
-                shape = TopCut(full + (to - full) * k, cardR + (rr - cardR) * k)
-                alpha = 1f - ((k - GHOST_OUT_FROM) / GHOST_OUT_FOR).coerceIn(0f, 1f)
-            }
+            .graphicsLayer { alpha = 1f - ((t() - GHOST_OUT_FROM) / GHOST_OUT_FOR).coerceIn(0f, 1f) }
     }
     QueueCard(q, g, n, false, back, m, entered = {}, flip = {}) {}
 }
 
-/** The open card's gap under it (QueueCard's bottom padding) and a closed row's. */
-private const val CARD_GAP = 26
+/** A closed row's gap under it. */
 private const val ROW_GAP = 12
-
-/** A rounded box [h] high from the top of the layer: what's below it is cut away. */
-private class TopCut(private val h: Float, private val r: Float) : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rounded(RoundRect(0f, 0f, size.width, h.coerceIn(0f, size.height), CornerRadius(r)))
-}
 
 /** `qdel`: the open row sits 92 aside, a finger takes it at most 138, past half it snaps open in .24s on this curve. */
 private const val DEL_OPEN = 92
