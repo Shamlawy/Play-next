@@ -104,7 +104,7 @@ const body = b => {
    Why here and not in the app: this side sees both phones and every day, works for every installed version (the iPad
    trails behind), and needs no app release. */
 const REPEAT = 3, REOPEN = 2, BIG_MS = 400, MEASURE_PCT = 25, MEASURE_MS = 100;
-const HITCH = /^(A [\d.]+ms (stutter|freeze) on |A tap took [\d.]+ms to respond|Scrolling stutters on |Opening the app froze for )|\bstuttered \(\d+ hitch/;
+const HITCH = /^(A [\d.]+ms (stutter|freeze) on |A tap took [\d.]+ms to respond|Scrolling stutters on |Opening the app (?:froze for|took) [\d.]+ms)|\bstuttered \(\d+ hitch/;
 const MEASURE = /^(Smoothness check on this phone|Self-test)\b/;
 /* null = not a timing report (files as before); else {count: whether it counts yet, why} */
 function gate(b, more) {
@@ -127,7 +127,7 @@ function gate(b, more) {
    stutters, and the same few kept coming back: #72, #62, #367, #338, #136, #333 and #112 were closed ("Fixed in vN", or
    "not seen since") and reopened 3-4 times each, because fixes were judged on PC numbers the phones later contradicted, and
    every new hitch size ("A 230ms stutter on Queue" vs "A 470ms …") was a new signature, so one problem became 30 issues.
-   (1) Family: a timing report's family is its kind (scroll / switch / tap / stutter / freeze / start / "X stuttered") +
+   (1) Family: a timing report's family is its kind (scroll / switch / tap / stutter / freeze / start (a freeze while opening) / open (a slow cold start, the Android app) / "X stuttered") +
        the place in its message + where the time went (costOf: script, style/layout or drawing; "unknown" without timing,
        which matches any). A report with no issue of its own, or whose issue is closed, folds into an OPEN issue of the same
        family instead of making a new number or reopening an old one (`also` in the issue's bugsync note routes its
@@ -161,7 +161,7 @@ async function curV(app) {
 }
 const devFam = d => (String(d || "").match(/^(iPhone|iPad|Android|Mac|Windows)/) || [])[1] || "";
 const PLACE = [[/^Scrolling stutters on (.+?) \(/, "scroll"], [/^Switching to (.+?) stuttered/, "switch"], [/^A tap took [\d.]+ms to respond on (.+?)\.?$/, "tap"],
-  [/^A [\d.]+ms stutter on (.+?)\.?$/, "stutter"], [/^A [\d.]+ms freeze on (.+?)\.?$/, "freeze"], [/^Opening the app froze()/, "start"], [/^(.+?) stuttered \(\d+ hitch/, "stuttered"]];
+  [/^A [\d.]+ms stutter on (.+?)\.?$/, "stutter"], [/^A [\d.]+ms freeze on (.+?)\.?$/, "freeze"], [/^Opening the app froze()/, "start"], [/^Opening the app took()/, "open"], [/^(.+?) stuttered \(\d+ hitch/, "stuttered"]];
 /* {key: "kind|place"} for a timing report's message, else null */
 function famOf(msg) {
   msg = String(msg || "").replace(/\s+/g, " ").trim();

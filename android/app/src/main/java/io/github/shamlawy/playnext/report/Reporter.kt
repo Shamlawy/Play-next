@@ -81,8 +81,8 @@ object Reporter {
     }
 
     /** An automatic report: queued off the main thread (a file write), sent 3 s later with whatever else turns up. */
-    fun report(kind: String, msg: String, stack: String = "", at: String = "", note: String = "") {
-        val r = build(kind, msg, stack, at, note) ?: return
+    fun report(kind: String, msg: String, stack: String = "", at: String = "", note: String = "", screen: String = Screen.current) {
+        val r = build(kind, msg, stack, at, note, screen) ?: return
         scope.launch {
             enqueue(listOf(r))
             flushSoon(3000)

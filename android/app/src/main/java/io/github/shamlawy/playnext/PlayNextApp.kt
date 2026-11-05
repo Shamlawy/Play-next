@@ -6,6 +6,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import io.github.shamlawy.playnext.crash.CrashGuard
+import io.github.shamlawy.playnext.report.StartGate
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.kit.Buzz
 import io.github.shamlawy.playnext.kit.Sounds
@@ -43,6 +44,7 @@ class PlayNextApp : Application(), SingletonImageLoader.Factory {
         fun start(app: Application) {
             if (!started.compareAndSet(false, true)) return
             Games.start(app)
+            StartGate.watch(app)
             scope.launch {
                 runCatching { Fonts.warm(app) }
                 runCatching { CrashGuard.readExits(app) }
