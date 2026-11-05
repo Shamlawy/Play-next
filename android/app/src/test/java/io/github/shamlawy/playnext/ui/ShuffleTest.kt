@@ -56,6 +56,19 @@ class ShuffleTest {
     }
 
     @Test
+    fun aSecondPickOfTheSameGameIsANewPickAfterTheLineWent() {
+        // android-v20 review (b): one game to pick, so both taps pick it; the line clears in between
+        val q = queue("""{"id":"a","title":"Alpha","state":"backlog"}""")
+        val pick = QueuePick(q.lib)
+        pick.shuffle(q, Random(1))
+        val first = pick.lit
+        pick.note = null
+        pick.shuffle(q, Random(2))
+        assertEquals("a", pick.lit!!.id)
+        assertNotEquals("the second pick lights and scrolls again", first, pick.lit)
+    }
+
+    @Test
     fun nothingToPickSaysSo() {
         // a dropped game is never picked (played ones are those with a played record)
         val q = queue("""{"id":"d","title":"Delta","state":"dropped"}""")

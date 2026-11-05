@@ -234,13 +234,16 @@ class QueuePick(lib: Library) {
     /** A short line over the view pill ("Tonight: …"), gone after [NOTE_MS]. */
     var note by mutableStateOf<QueueLit?>(null)
 
+    /** Shuffle's taps so far: only goes up, so every pick (also of the same game) is new to the ring and the scroll. */
+    var taps by mutableIntStateOf(0)
+
     /**
      * Shuffle's tap (`qdShuffle`, index.html 8810): a random game from [Queue.shufflePool]; when the shown tab doesn't
      * hold it the Queue goes back to All (the web saves that, here it lasts until the app reopens, like the tab).
      */
     fun shuffle(q: Queue, rnd: kotlin.random.Random = kotlin.random.Random.Default): Game? {
         val pool = q.shufflePool(lastShuf)
-        val n = (note?.n ?: 0) + 1
+        val n = ++taps
         if (pool.isEmpty()) {
             note = QueueLit("", "Nothing to pick from yet", n)
             return null
@@ -436,7 +439,7 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
             }
             // Shuffle's pick lights up where it sits (read through derivedStateOf: a pick redraws only its own row)
             val litHere by remember(g.id, pick) { derivedStateOf { pick.lit?.takeIf { it.id == g.id } } }
-            litHere?.let { LitRing(it, remember(g.colour) { Color(g.colour) }, ringR, gap, calm) }
+            litHere?.let { LitRing(it, remember(g.colour) { Color(g.colour) }, ringR, gap, calm, slid) }
         }
     }
 }
@@ -474,14 +477,15 @@ data class QueueLit(val id: String, val title: String, val n: Int)
 private const val NOTE_MS = 2_400L
 
 /** Shuffle's ring (`.qslit`, 27417): 2.3 s, in to full by 12%, held to 75%, out by the end, on the web's ease. */
-private const val LIT_MS = 2_300
+internal const val LIT_MS = 2_300
 
 /** The line Shuffle leaves ("Tonight: …"), where the Undo bar goes (it waits while an Undo bar shows). */
 @Composable
 fun QueueNote(pick: QueuePick, modifier: Modifier) {
     val u = pick.note ?: return
-    if (pick.undo != null) return
+    // the time runs while an Undo bar covers it too, so an old line never comes back once the Undo bar goes
     LaunchedEffect(u) { kotlinx.coroutines.delay(NOTE_MS); if (pick.note === u) pick.note = null }
+    if (pick.undo != null) return
     BasicText(
         u.title,
         modifier.widthIn(max = 440.dp).fillMaxWidth().padding(horizontal = 16.dp)
@@ -495,20 +499,21 @@ fun QueueNote(pick: QueuePick, modifier: Modifier) {
  * and out (only its alpha moves), then gone.
  */
 @Composable
-private fun BoxScope.LitRing(lit: QueueLit, accent: Color, r: Dp, gap: Dp, calm: Boolean) {
+private fun BoxScope.LitRing(lit: QueueLit, accent: Color, r: Dp, gap: Dp, calm: Boolean, slid: Modifier) {
     val a = remember(lit) { Animatable(0f) }
     LaunchedEffect(lit) {
         a.animateTo(1f, keyframes {
             durationMillis = LIT_MS
-            0f at 0
-            1f at (LIT_MS * .12f).toInt() using Ease.glide
-            1f at (LIT_MS * .75f).toInt()
-            0f at LIT_MS using Ease.glide
+            // (an easing applies from its keyframe to the next: in on the web's ease, held, out on it)
+            0f at 0 using Ease.glide
+            1f at (LIT_MS * .12f).toInt()
+            1f at (LIT_MS * .75f).toInt() using Ease.glide
+            0f at LIT_MS
         })
     }
     val ring = remember(accent, r) { mixA(accent, Color.Transparent, .6f) }
     Box(
-        Modifier.matchParentSize().padding(bottom = gap)
+        Modifier.matchParentSize().padding(bottom = gap).then(slid)
             .graphicsLayer { alpha = if (calm) (if (a.isRunning) 1f else 0f) else a.value }
             .drawBehind {
                 val w2 = 2.dp.toPx()
@@ -523,9 +528,13 @@ private fun BoxScope.LitRing(lit: QueueLit, accent: Color, r: Dp, gap: Dp, calm:
  * Brings Shuffle's pick to the middle of the list (`scrollIntoView({block: "center"})`): when its row isn't on screen
  * the list first goes to it (rows sit together, so a row on screen tells where the others are), then centres it.
  */
-internal suspend fun LazyListState.centerRow(id: String, shown: List<Game>, calm: Boolean) {
+internal suspend fun LazyListState.centerRow(id: String, shownNow: () -> List<Game>, calm: Boolean) {
+    // wait (a second at most) until the list on screen is the one that holds the pick: right after Shuffle sends the
+    // Queue back to All, the layout can still be the old tab's, whose row places would aim at the wrong row
+    val shown = kotlinx.coroutines.withTimeoutOrNull(1_000L) {
+        snapshotFlow { layoutInfo to shownNow() }.first { (li, s) -> s.any { it.id == id } && laidOutAs(li, s) }.second
+    } ?: return
     val at = shown.indexOfFirst { it.id == id }
-    if (at < 0) return
     repeat(4) {
         val vis = layoutInfo.visibleItemsInfo
         val item = vis.firstOrNull { it.key == "q:$id" }
@@ -543,6 +552,19 @@ internal suspend fun LazyListState.centerRow(id: String, shown: List<Game>, calm
 }
 
 private const val LIT_SCROLL_MS = 420
+
+/** The rows on screen in [li] sit where [shown] puts them (the same index gap between any two), so it was laid out from it. */
+internal fun laidOutAs(li: androidx.compose.foundation.lazy.LazyListLayoutInfo, shown: List<Game>): Boolean {
+    val pos = HashMap<String, Int>(shown.size * 2).also { m -> shown.forEachIndexed { i, g -> m["q:" + g.id] = i } }
+    var gap: Int? = null
+    for (item in li.visibleItemsInfo) {
+        val key = item.key as? String ?: continue
+        if (!key.startsWith("q:")) continue
+        val i = pos[key] ?: return false
+        if (gap == null) gap = item.index - i else if (item.index - i != gap) return false
+    }
+    return true
+}
 
 /**
  * The red button under a swiped row (`.qdel`: the row's height, its right corners): a tap deletes the game. It is as
@@ -944,7 +966,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
             // folded: Order grows, Shuffle and Boss share its line
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OrderButton(v, pick, true, Modifier.weight(1f))
-                ShuffleButton(q, pick, true)
+                ShuffleButton(v, pick, true)
                 BossButton(hp, true)
             }
         }
@@ -953,7 +975,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
         Row(mod.padding(top = 6.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             tabRow(Modifier.weight(1f))
             OrderButton(v, pick, false, Modifier.widthIn(min = 148.dp))
-            ShuffleButton(q, pick, false)
+            ShuffleButton(v, pick, false)
             BossButton(hp, false)
         }
     }
@@ -964,7 +986,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
  * nudge sound and "Tonight: …". Its hold (the Game Shuffler deck) comes with the deck.
  */
 @Composable
-private fun ShuffleButton(q: Queue, pick: QueuePick, folded: Boolean) {
+private fun ShuffleButton(v: QueueView, pick: QueuePick, folded: Boolean) {
     val volt = LocalLook.current.volt
     val shape = RoundedCornerShape(if (folded) 16.dp else 18.dp)
     Box(
@@ -973,7 +995,8 @@ private fun ShuffleButton(q: Queue, pick: QueuePick, folded: Boolean) {
             .semantics { contentDescription = "Shuffle: pick tonight's game" }
             .clickable(role = Role.Button) {
                 Crumbs.tap("shuffle", "games/queue")
-                Sounds.play(if (pick.shuffle(q) != null) Sfx.Nudge else Sfx.Tap)
+                // nothing to pick from: only the line, no sound
+                if (pick.shuffle(v.q) != null) Sounds.play(Sfx.Nudge)
             }
             .padding(horizontal = if (folded) 12.dp else 14.dp),
         contentAlignment = Alignment.Center,

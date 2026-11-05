@@ -207,8 +207,18 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     val qlist = rememberLazyListState()
                     // Shuffle's pick: once the list shows it (its tab may have just gone back to All), bring it to the middle
                     val qvNow by rememberUpdatedState(qv)
+                    // then the pick is done: cleared once its ring has run, or as soon as the Queue goes, so coming back
+                    // never scrolls to an old pick again and its row doesn't light up a second time
                     LaunchedEffect(qpick, qlist) {
-                        snapshotFlow { qpick.lit }.collectLatest { l -> if (l != null) { withFrameNanos { }; qlist.centerRow(l.id, qvNow.shown, calm) } }
+                        snapshotFlow { qpick.lit }.collectLatest { l ->
+                            if (l != null) try {
+                                withFrameNanos { }
+                                qlist.centerRow(l.id, { qvNow.shown }, calm)
+                                kotlinx.coroutines.delay(LIT_MS.toLong())
+                            } finally {
+                                if (qpick.lit === l) qpick.lit = null
+                            }
+                        }
                     }
                     LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }

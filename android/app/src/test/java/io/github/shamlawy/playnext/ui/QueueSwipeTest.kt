@@ -66,19 +66,21 @@ class QueueSwipeTest {
 
     private var fillers = 0
     private var grum = false
+    /** Only the last filler is out (the top two dropped, the others coming), so Shuffle picks a row far down. */
+    private var deep = false
     private val lib get() = Library(
         Json.parseToJsonElement(
             """
             {"theme":"midnight","bgGrad":30,"deckOff":true,"grum":$grum,
              "games":[
-               {"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","ord":1,"colour":"#3A6FD8","genres":["Action","RPG"],"platforms":"PS5, Switch 2, PC, Wii","hours":22,"hype":8,"added":"2026-10-20"},
-               {"id":"b","title":"Hollow Tide","state":"playing","date":"2026-08-02","ord":2,"colour":"#C2413A","genres":"Adventure, RPG","hours":40,"logged":12,"added":"2026-09-02"},
+               {"id":"a","title":"Starfall Lantern","state":"${if (deep) "dropped" else "backlog"}","date":"2026-09-30","ord":1,"colour":"#3A6FD8","genres":["Action","RPG"],"platforms":"PS5, Switch 2, PC, Wii","hours":22,"hype":8,"added":"2026-10-20"},
+               {"id":"b","title":"Hollow Tide","state":"${if (deep) "dropped" else "playing"}","date":"2026-08-02","ord":2,"colour":"#C2413A","genres":"Adventure, RPG","hours":40,"logged":12,"added":"2026-09-02"},
                {"id":"c","title":"Ninefold Gate","state":"upcoming","date":"2026-11-14","ord":3,"colour":"#B06AD8","genres":["RPG","Strategy"],"platforms":"PS4, PS5, Vita","added":"2026-10-25"},
                {"id":"f","title":"Paper Kingdom","state":"played","date":"2025-12-01","ord":6,"colour":"#5AB3C9","genres":["Strategy","RPG"],"added":"2026-01-10",
                 "mine":{"story":9,"music":8.5,"gameplay":8,"replay":6,"visuals":9,"world":8,"chars":7.5,"pace":7}}${
                 (1..fillers).joinToString("") { k ->
                     val n = k.toString().padStart(2, '0')
-                    ",{\"id\":\"m$k\",\"title\":\"Filler $n\",\"state\":\"backlog\",\"date\":\"2026-0${1 + k % 9}-10\",\"ord\":${6 + k},\"colour\":\"#4A7A5C\",\"genres\":[\"Puzzle\"],\"added\":\"2026-10-01\"}"
+                    ",{\"id\":\"m$k\",\"title\":\"Filler $n\",\"state\":\"backlog\",\"date\":\"${if (deep && k < fillers) 2027 else 2026}-0${1 + k % 9}-10\",\"ord\":${6 + k},\"colour\":\"#4A7A5C\",\"genres\":[\"Puzzle\"],\"added\":\"2026-10-01\"}"
                 }
             }
              ],
@@ -305,23 +307,85 @@ class QueueSwipeTest {
         rule.mainClock.autoAdvance = false
         rule.onNodeWithContentDescription("Shuffle: pick tonight's game").performClick()
         androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
-        rule.mainClock.advanceTimeBy(1_200)
+        rule.mainClock.advanceTimeBy(400)
         val note = rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes()
         assertEquals("one line says tonight's game", 1, note.size)
         val name = note[0].config[SemanticsProperties.Text].first().text.removePrefix("Tonight: ")
         assertTrue("a game that's out", name != "Ninefold Gate" && name != "Paper Kingdom")
+        // a pick far down takes the list's own jump and then the 420 ms centring: measure once it has settled (it
+        // failed 3 runs in 11 when measured at a fixed 1.2 s, the list still on its way)
+        rule.mainClock.advanceTimeBy(1_600)
         // its row (or its open card) is on screen, near the middle of the window
         val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
-        // (the header card's line can say the name too, L228: the row or open card is the last tappable match)
-        val it = rule.onAllNodes((hasText(name, substring = true) or hasContentDescription("$name, ", substring = true)) and hasClickAction())
-            .fetchSemanticsNodes().lastOrNull()
-        assertTrue("the picked game is on screen", it != null)
+        // (the header card's line can say the name too, L228: the row or open card is the last tappable match; a row
+        // the lazy list keeps aside for reuse can still answer with no size, so only the ones on screen count)
+        // (the open card, the first game's at start, names itself with no tap of its own: the biggest match on screen)
+        val all = rule.onAllNodes((hasText(name, substring = true) and hasClickAction()) or hasContentDescription("$name, ", substring = true))
+            .fetchSemanticsNodes()
+        val it = all.filter { n -> n.boundsInRoot.height > 0f && n.boundsInRoot.bottom > root.top && n.boundsInRoot.top < root.bottom }
+            .maxByOrNull { n -> n.boundsInRoot.height }
+        assertTrue("the picked game ($name) is on screen: ${all.map { n -> n.boundsInRoot }}", it != null)
         val mid = it!!.boundsInRoot.center.y
-        assertTrue("near the middle (${mid} of ${root.height})", mid > root.height * .25f && mid < root.height * .75f)
+        // (the last rows can't reach the middle: then the list has gone as far as it goes, as scrollIntoView does)
+        val y = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        val atEnd = y.value() >= y.maxValue() - 1f
+        assertTrue("$name near the middle (${mid} of ${root.height}, at the end $atEnd): ${all.map { n -> n.boundsInRoot }}",
+            mid > root.height * .25f && (mid < root.height * .75f || atEnd))
         assertEquals("Shuffle walked no views", "queue", nav.views["games"])
         // and the line goes after a while
-        rule.mainClock.advanceTimeBy(3_000)
+        rule.mainClock.advanceTimeBy(1_000)
         assertEquals(0, rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes().size)
+    }
+
+    /**
+     * android-v20 review (a): a pick is done once its ring has run, so leaving the Queue and coming back never brings the
+     * list back to an old pick (it stays where you left it).
+     */
+    @Test fun anOldPickNeverScrollsTheListAgain() {
+        fillers = 24
+        deep = true
+        show()
+        val shuf = "Shuffle: pick tonight's game"
+        fun bar() = rule.onAllNodesWithContentDescription(shuf).fetchSemanticsNodes().size
+        fun apply() = androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription(shuf).performClick()
+        apply()
+        // the scroll, then the ring's 2.3 s
+        rule.mainClock.advanceTimeBy(5_000)
+        assertEquals("the pick (the last filler) took the list down, past the bar", 0, bar())
+        list.performScrollToIndex(0)
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals("back at the top, Shuffle shows", 1, bar())
+        nav = Nav("home")
+        apply()
+        rule.mainClock.advanceTimeBy(1_500)
+        assertEquals("Home shows, not the Queue", 0, bar())
+        nav = Nav("games", views = mapOf("games" to "queue"))
+        apply()
+        rule.mainClock.advanceTimeBy(2_000)
+        assertEquals("the list didn't go back to the old pick", 1, bar())
+    }
+
+    /**
+     * android-v20 review (c): the "Tonight" line's time runs while an Undo bar covers its place, so it never comes back
+     * once the Undo bar goes.
+     */
+    @Test fun tonightsLineDoesntComeBackAfterAnUndoBar() {
+        show()
+        swipe(row("Ninefold Gate"), -120f)
+        rule.mainClock.advanceTimeBy(600)
+        tapDelete()
+        rule.mainClock.advanceTimeBy(800)
+        assertEquals(1, rule.onAllNodes(hasText("Deleted Ninefold Gate")).fetchSemanticsNodes().size)
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription("Shuffle: pick tonight's game").performClick()
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(300)
+        assertEquals("the Undo bar holds the place", 0, rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes().size)
+        rule.mainClock.advanceTimeBy(5_000)
+        assertEquals("the Undo bar went", 0, rule.onAllNodes(hasText("Deleted Ninefold Gate")).fetchSemanticsNodes().size)
+        assertEquals("and the old line stays gone", 0, rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes().size)
     }
 
     /** android-v20: Boss says "Boss", and with Grumble on the Shadow's HP (the backlog's hours: 22 + 40 here). */
