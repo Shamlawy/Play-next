@@ -325,17 +325,27 @@ private fun Front(q: Queue, g: Game, n: Int, st: Queue.Stat, accent: Color, d: C
                         transform(Matrix().apply { values[Matrix.SkewY] = k })
                     }
                     val fill = Brush.horizontalGradient(0f to mixA(accent, deep, .55f), .55f to mixA(accent, deep, .76f), 1f to accent)
-                    val sheenW = size.width * .3f
-                    onDrawBehind {
+                    onDrawWithContent {
                         drawPath(p, fill)
-                        val gt = seg(enter.value, 1150f, 900f, CubicBezierEasing(0f, 0f, .58f, 1f))
-                        if (gt > 0f && gt < 1f) clipPath(p) {
-                            val x = sheenW * (-1.2f + 5.4f * gt)
-                            drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = .55f), Color.Transparent), x, x + sheenW), Offset(x, -size.height), Size(sheenW, size.height * 3))
-                        }
+                        clipPath(p) { this@onDrawWithContent.drawContent() }
                     }
                 },
-        )
+        ) {
+            // the glint: drawn once, slid across on its own layer (only translation and alpha change per frame)
+            Box(
+                Modifier.matchParentSize()
+                    .graphicsLayer {
+                        val gt = seg(enter.value, 1150f, 900f, CubicBezierEasing(0f, 0f, .58f, 1f))
+                        alpha = if (gt > 0f && gt < 1f) 1f else 0f
+                        translationX = size.width * .3f * (-1.2f + 5.4f * gt)
+                    }
+                    .drawWithCache {
+                        val sheenW = size.width * .3f
+                        val b = Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = .55f), Color.Transparent), 0f, sheenW)
+                        onDrawBehind { drawRect(b, Offset(0f, -size.height), Size(sheenW, size.height * 3)) }
+                    },
+            )
+        }
         // the box art: straight, top left; a tap opens the game's page (its cover flies there)
         val at = remember { arrayOfNulls<LayoutCoordinates>(1) }
         val cs = RoundedCornerShape(12.dp)
@@ -707,30 +717,49 @@ private fun Vessel(big: Boolean, v: Double, fill: Color, guess: Boolean, t: Anim
     val ps = remember(big) { paths(big) }
     val (vw, top, bot) = if (big) Triple(64f, 7f, 43f) else Triple(32f, 3f, 31f)
     val y = bot - (v / 10.0).toFloat().coerceIn(0f, 1f) * (bot - top)
-    Canvas(modifier) {
-        val k = size.width / vw
-        scale(k, pivot = Offset.Zero) {
-            drawPath(ps.glass, Pn.ice.copy(alpha = .05f))
-            val rise = seg(t.value, at, dur, Ease.enter)
-            val ly = (bot + 4f) + (y - (bot + 4f)) * rise
-            clipPath(ps.glass) {
-                translate(0f, ly) {
-                    drawPath(ps.wave, fill)
-                    val b = ((t.value - 750f) / 1000f).coerceIn(0f, 1f)
-                    if (b > 0f && b < 1f) {
-                        val a = (if (b < .3f) b / .3f else 1f - (b - .3f) / .7f) * .7f
-                        drawCircle(Pn.ice.copy(alpha = a), 1.6f, Offset(if (big) 26f else 12f, 16f - 14f * b))
-                        drawCircle(Pn.ice.copy(alpha = a), 1.1f, Offset(if (big) 40f else 20f, 22f - 14f * b))
+    // The glass and its outlines are drawn once; the liquid and the bubbles are drawn once at rest, each on its own layer,
+    // and only those layers' translation and alpha follow [t] (no redraw per frame, second-look on #695).
+    Box(
+        modifier.drawWithCache {
+            val k = size.width / vw
+            val clip = Path().apply { addPath(ps.glass); transform(Matrix().apply { scale(k, k) }) }
+            onDrawWithContent {
+                scale(k, pivot = Offset.Zero) { drawPath(ps.glass, Pn.ice.copy(alpha = .05f)) }
+                clipPath(clip) { this@onDrawWithContent.drawContent() }
+                scale(k, pivot = Offset.Zero) {
+                    drawPath(ps.glass, Pn.ice.copy(alpha = .4f), style = Stroke(1.2f, pathEffect = if (guess) PathEffect.dashPathEffect(floatArrayOf(3f, 2.5f)) else null))
+                    for (dp in ps.deco) drawPath(dp, Pn.ice.copy(alpha = .3f), style = Stroke(1.2f))
+                    ps.screen?.let {
+                        drawPath(it, Pn.void.copy(alpha = .72f))
+                        drawPath(it, Pn.ice.copy(alpha = .32f), style = Stroke(1f))
                     }
+                    ps.shine?.let { drawPath(it, Pn.ice.copy(alpha = .45f), style = Stroke(1.4f, cap = StrokeCap.Round)) }
                 }
             }
-            drawPath(ps.glass, Pn.ice.copy(alpha = .4f), style = Stroke(1.2f, pathEffect = if (guess) PathEffect.dashPathEffect(floatArrayOf(3f, 2.5f)) else null))
-            for (dp in ps.deco) drawPath(dp, Pn.ice.copy(alpha = .3f), style = Stroke(1.2f))
-            ps.screen?.let {
-                drawPath(it, Pn.void.copy(alpha = .72f))
-                drawPath(it, Pn.ice.copy(alpha = .32f), style = Stroke(1f))
+        },
+    ) {
+        // the liquid at its level; it rises from below the glass (bot + 4) to [y]
+        Canvas(
+            Modifier.matchParentSize().graphicsLayer {
+                val rise = seg(t.value, at, dur, Ease.enter)
+                translationY = (bot + 4f - y) * (1 - rise) * size.width / vw
+            },
+        ) { scale(size.width / vw, pivot = Offset.Zero) { translate(0f, y) { drawPath(ps.wave, fill) } } }
+        // two bubbles riding up through the liquid
+        Canvas(
+            Modifier.matchParentSize().graphicsLayer {
+                val b = ((t.value - 750f) / 1000f).coerceIn(0f, 1f)
+                alpha = if (b > 0f && b < 1f) (if (b < .3f) b / .3f else 1f - (b - .3f) / .7f) * .7f else 0f
+                val rise = seg(t.value, at, dur, Ease.enter)
+                translationY = ((bot + 4f - y) * (1 - rise) - 14f * b) * size.width / vw
+            },
+        ) {
+            scale(size.width / vw, pivot = Offset.Zero) {
+                translate(0f, y) {
+                    drawCircle(Pn.ice, 1.6f, Offset(if (big) 26f else 12f, 16f))
+                    drawCircle(Pn.ice, 1.1f, Offset(if (big) 40f else 20f, 22f))
+                }
             }
-            ps.shine?.let { drawPath(it, Pn.ice.copy(alpha = .45f), style = Stroke(1.4f, cap = StrokeCap.Round)) }
         }
     }
 }
