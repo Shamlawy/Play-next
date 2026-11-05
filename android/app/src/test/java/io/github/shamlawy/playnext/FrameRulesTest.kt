@@ -34,10 +34,13 @@ class FrameRulesTest {
     @Test
     fun aFreezeWhileOpeningIsTheStartsOwn() {
         // the web's boot check: a frame of 300 ms or more in the first seconds; the very first frame is the start itself
-        assertTrue(FrameRules.boot(320 * ms, start + 2_000, start, "home", 1))
-        assertFalse("the first frame", FrameRules.boot(900 * ms, start + 400, start, "home", 0))
-        assertFalse("under 300 ms", FrameRules.boot(290 * ms, start + 2_000, start, "home", 1))
-        assertFalse("after the first 5 s the stutter rule has it", FrameRules.boot(400 * ms, start + 5_000, start, "home", 1))
-        assertFalse(FrameRules.boot(400 * ms, start + 2_000, start, "probe", 1))
+        assertTrue(FrameRules.boot(320 * ms, start + 2_000, start, 0, "home", 1))
+        assertFalse("the first frame", FrameRules.boot(900 * ms, start + 400, start, 0, "home", 0))
+        assertFalse("under 300 ms", FrameRules.boot(290 * ms, start + 2_000, start, 0, "home", 1))
+        assertFalse("after the first 5 s the stutter rule has it", FrameRules.boot(400 * ms, start + 5_000, start, 0, "home", 1))
+        assertFalse(FrameRules.boot(400 * ms, start + 2_000, start, 0, "probe", 1))
+        // unfolded 300 ms after opening: the relayout isn't a freeze (the review of android-v19)
+        assertFalse("just unfolded", FrameRules.boot(400 * ms, start + 1_500, start, start + 1_200, "home", 1))
+        assertTrue("settled", FrameRules.boot(400 * ms, start + 2_100, start, start + 1_200, "home", 1))
     }
 }

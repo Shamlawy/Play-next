@@ -22,8 +22,9 @@ class StartRulesTest {
         assertNull("warm", StartRules.of(ApplicationStartInfo.START_TYPE_WARM, tap, launch, launch + 100 * ms, null))
         assertNull("the update check's job: no screen", StartRules.of(cold, ApplicationStartInfo.START_REASON_JOB, launch, launch + 300 * ms, null))
         assertNull("no first frame", StartRules.of(cold, tap, launch, null, null))
-        // a games mark from before the first frame can't be the start's: left out, not a negative time
-        assertEquals(StartRules.Start(420, null), StartRules.of(cold, tap, launch, launch + 420 * ms, launch + 100 * ms))
+        // your games drawn in the frame Android counts as the first (the splash waits for them): the same time, never
+        // dropped or earlier (the review of android-v19)
+        assertEquals(StartRules.Start(420, 420), StartRules.of(cold, tap, launch, launch + 420 * ms, launch + 400 * ms))
     }
 
     @Test
@@ -41,11 +42,11 @@ class StartRulesTest {
     @Test
     fun fiveColdStartsAreSentOnce() {
         var log = StartRules.Log(19)
-        listOf(StartRules.Start(400, 500), StartRules.Start(380, 470), StartRules.Start(900, 1_000), StartRules.Start(420, null)).forEach { log = log.add(it) }
+        listOf(StartRules.Start(400, 500, false), StartRules.Start(380, 470), StartRules.Start(900, 1_000), StartRules.Start(420, null)).forEach { log = log.add(it) }
         assertNull("four aren't enough", StartRules.measure(log))
         log = log.add(StartRules.Start(410, 520))
         val m = StartRules.measure(log)!!
-        assertEquals("Self-test: 5 cold starts on android-v19: first frame 410ms, your games 510ms (middle values; slowest 1000ms)", m)
+        assertEquals("Self-test: 5 cold starts on android-v19: first frame 410ms, your games 510ms (middle values; slowest 1000ms; 4 of 5 compiled ahead)", m)
         // bugsync reads "%" and "worst Nms" as a problem; the measurement says neither
         assertTrue(!m.contains("%") && !m.contains("worst"))
         // kept in a file: read back the same, and a new version starts over

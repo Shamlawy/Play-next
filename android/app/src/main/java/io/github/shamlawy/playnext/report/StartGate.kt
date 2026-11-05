@@ -35,9 +35,13 @@ object StartGate {
         if (shownAt == 0L) shownAt = SystemClock.elapsedRealtimeNanos()
     }
 
+    /** When [watch] ran: a start whose first frame came before it isn't this watch's (safe mode's "Try again"). */
+    @Volatile private var watchedAt = 0L
+
     /** Once per process (PlayNextApp.start): Android calls back when this start's record is complete. */
     fun watch(ctx: Context) {
         val app = ctx.applicationContext
+        watchedAt = SystemClock.elapsedRealtimeNanos()
         runCatching {
             app.getSystemService(ActivityManager::class.java)
                 .addApplicationStartInfoCompletionListener(Dispatchers.IO.asExecutor()) { info -> io.launch { seen(app, info) } }
@@ -47,38 +51,52 @@ object StartGate {
     private suspend fun seen(app: Context, info: ApplicationStartInfo) {
         val stamps = info.startupTimestamps
         val launch = stamps[ApplicationStartInfo.START_TIMESTAMP_LAUNCH] ?: return
-        // the record can be complete at the first frame, before your games show: wait for them a little
+        val first = stamps[ApplicationStartInfo.START_TIMESTAMP_FIRST_FRAME]
+        // safe mode's "Try again" watches from inside a process whose start (safe mode's own screen) is long over
+        if (first == null || first < watchedAt) return
+        // the record is complete at the first frame, often before your games show: wait for them a little. `info` is a
+        // copy made then, so Android's later "fully drawn" mark (ReportDrawnWhen) is read from a fresh copy afterwards
         var waited = 0
-        while (shownAt == 0L && stamps[ApplicationStartInfo.START_TIMESTAMP_FULLY_DRAWN] == null && waited < StartRules.WAIT_MS) {
+        while (shownAt == 0L && waited < StartRules.WAIT_MS) {
             delay(250)
             waited += 250
         }
-        val shown = stamps[ApplicationStartInfo.START_TIMESTAMP_FULLY_DRAWN] ?: shownAt.takeIf { it > 0 }
-        val s = StartRules.of(info.startType, info.reason, launch, stamps[ApplicationStartInfo.START_TIMESTAMP_FIRST_FRAME], shown) ?: return
-        StartRules.slow(s)?.let { (msg, note) -> Reporter.report("slow", msg, note = "$note; ${compiled()}", screen = "start") }
-        keep(app, s)
+        val drawn = runCatching {
+            app.getSystemService(ActivityManager::class.java).getHistoricalProcessStartReasons(1).firstOrNull()
+                ?.startupTimestamps?.takeIf { it[ApplicationStartInfo.START_TIMESTAMP_LAUNCH] == launch }
+                ?.get(ApplicationStartInfo.START_TIMESTAMP_FULLY_DRAWN)
+        }.getOrNull()
+        val s = StartRules.of(info.startType, info.reason, launch, first, drawn ?: shownAt.takeIf { it > 0 }) ?: return
+        val c = compiled()
+        // a start before this version is compiled ahead (a sideloaded update compiles when the phone is idle) is
+        // slower on any phone: it's kept for the measurement, but only a compiled start can be reported as slow
+        if (c == COMPILED) StartRules.slow(s)?.let { (msg, note) -> Reporter.report("slow", msg, note = "$note; $c", screen = "start") }
+        keep(app, s, c == COMPILED)
     }
+
+    private const val COMPILED = "compiled ahead"
 
     /** Whether this version runs compiled ahead (its Baseline Profile): a start right after an update may not yet. */
     private fun compiled(): String = runCatching {
         val c = ProfileVerifier.getCompilationStatusAsync().get()
-        if (c.isCompiledWithProfile) "compiled ahead" else if (c.hasProfileEnqueuedForCompilation()) "compiling after an update" else "not compiled ahead"
+        if (c.isCompiledWithProfile) COMPILED else if (c.hasProfileEnqueuedForCompilation()) "compiling after an update" else "not compiled ahead"
     }.getOrDefault("compile state unknown")
 
     /** The last cold starts of this version, one line each; the [StartRules.SAMPLE]th sends them once. */
-    private fun keep(app: Context, s: StartRules.Start) {
+    private fun keep(app: Context, s: StartRules.Start, compiled: Boolean) {
         if (Device.emulator) return
         runCatching {
             val f = File(app.filesDir, "reports/starts.txt").apply { parentFile?.mkdirs() }
             val v = Device.versionCode
             val had = if (f.exists()) StartRules.read(f.readText(), v) else StartRules.Log(v)
             if (had.sent) return
-            val now = had.add(s)
+            val now = had.add(s.copy(compiled = compiled))
             val msg = StartRules.measure(now)
+            // queued first, then marked sent: a process that dies in between sends it again (once a day at most)
+            if (msg != null) Reporter.report("slow", msg, screen = "start")
             val tmp = File(f.parentFile, "starts.tmp")
             tmp.writeText(StartRules.write(if (msg != null) now.copy(sent = true) else now))
             swapIn(tmp, f)
-            if (msg != null) Reporter.report("slow", msg, screen = "start")
         }
     }
 }
@@ -98,7 +116,7 @@ internal object StartRules {
     const val SAMPLE = 5
 
     /** [firstMs]: tap to first frame; [shownMs]: tap to your games (null when they never came within [WAIT_MS]). */
-    data class Start(val firstMs: Long, val shownMs: Long?)
+    data class Start(val firstMs: Long, val shownMs: Long?, val compiled: Boolean = true)
 
     /** A cold start you opened (the launcher, Recents, a shortcut or link), not one Android made for the update check. */
     fun of(type: Int, reason: Int, launch: Long, first: Long?, shown: Long?): Start? {
@@ -107,7 +125,8 @@ internal object StartRules {
             reason != ApplicationStartInfo.START_REASON_START_ACTIVITY
         ) return null
         val ms = { t: Long -> (t - launch) / 1_000_000 }
-        return Start(ms(first), shown?.takeIf { it >= first }?.let(ms))
+        // your games are often drawn in the very frame Android counts as the first: never earlier than it
+        return Start(ms(first), shown?.coerceAtLeast(first)?.let(ms))
     }
 
     /** The report for a slow start (its message counts as a timing report in bugsync), or null. */
@@ -130,10 +149,11 @@ internal object StartRules {
         val shown = l.starts.mapNotNull { it.shownMs }
         return "Self-test: $SAMPLE cold starts on android-v${l.v}: first frame ${round(first)}ms" +
             (if (shown.isNotEmpty()) ", your games ${round(median(shown))}ms" else "") +
-            " (middle values; slowest ${round(l.starts.maxOf { maxOf(it.firstMs, it.shownMs ?: 0) })}ms)"
+            " (middle values; slowest ${round(l.starts.maxOf { maxOf(it.firstMs, it.shownMs ?: 0) })}ms; " +
+            "${l.starts.count { it.compiled }} of $SAMPLE compiled ahead)"
     }
 
-    fun write(l: Log): String = "v=${l.v} sent=${l.sent}\n" + l.starts.joinToString("") { "${it.firstMs} ${it.shownMs ?: -1}\n" }
+    fun write(l: Log): String = "v=${l.v} sent=${l.sent}\n" + l.starts.joinToString("") { "${it.firstMs} ${it.shownMs ?: -1} ${if (it.compiled) 1 else 0}\n" }
 
     /** The kept log, or a fresh one when it belongs to another version or can't be read. */
     fun read(text: String, v: Int): Log {
@@ -142,7 +162,7 @@ internal object StartRules {
         if (head.groupValues[1].toInt() != v) return Log(v)
         val starts = lines.drop(1).mapNotNull { line ->
             val p = line.split(" ").mapNotNull { it.toLongOrNull() }
-            if (p.size == 2) Start(p[0], p[1].takeIf { it >= 0 }) else null
+            if (p.size == 3) Start(p[0], p[1].takeIf { it >= 0 }, p[2] == 1L) else null
         }
         return Log(v, starts.takeLast(SAMPLE), head.groupValues[2] == "true")
     }

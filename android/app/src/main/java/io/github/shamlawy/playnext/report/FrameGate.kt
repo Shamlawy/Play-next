@@ -66,7 +66,7 @@ class FrameGate private constructor(private val stats: JankStats) {
             val screen = Screen.current
             val now = SystemClock.elapsedRealtime()
             val start = Process.getStartElapsedRealtime()
-            if (FrameRules.boot(total, now, start, screen, frames)) bootFreeze(total, start)
+            if (FrameRules.boot(total, now, start, resized, screen, frames)) bootFreeze(total, start)
             if (frames < 2) frames++
             if (!FrameRules.counts(total, now, start, resized, screen)) return
             synchronized(lock) {
@@ -117,9 +117,9 @@ internal object FrameRules {
     /** A freeze while the app opens: the web's boot check reports a frame of 300 ms or more in its first seconds. */
     const val BOOT_FREEZE_NS = 300_000_000L
 
-    /** A frame in the first [WARM_MS] of the process that counts as a freeze while opening; [index] 0 is the first frame (the start itself). */
-    fun boot(totalNs: Long, now: Long, start: Long, screen: String, index: Int): Boolean =
-        index > 0 && totalNs >= BOOT_FREEZE_NS && now - start < WARM_MS && screen != "probe"
+    /** A frame in the first [WARM_MS] of the process that counts as a freeze while opening; [index] 0 is the first frame (the start itself). An unfold in those seconds settles first, as in [counts]. */
+    fun boot(totalNs: Long, now: Long, start: Long, resized: Long, screen: String, index: Int): Boolean =
+        index > 0 && totalNs >= BOOT_FREEZE_NS && now - start < WARM_MS && now - resized >= SETTLE_MS && screen != "probe"
 
     /** [totalNs] is the frame's whole time; the times are elapsedRealtime ms. The 120 Hz test measures itself. */
     fun counts(totalNs: Long, now: Long, start: Long, resized: Long, screen: String): Boolean =
