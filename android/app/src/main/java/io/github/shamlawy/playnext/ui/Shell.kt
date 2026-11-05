@@ -229,6 +229,19 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         .offset(x = if (wide) 13.dp else 0.dp),
                 )
             }
+            // the Queue's Undo bar after a delete, above the view pill
+            val qp = qpicks[0]
+            if (nav.tab == "games" && view == "queue" && qp != null) {
+                QueueUndo(
+                    qp,
+                    Modifier
+                        .graphicsLayer { alpha = if (covered) 0f else 1f }
+                        .align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(bottom = if (prefs.pill && views.isNotEmpty()) 76.dp else 18.dp)
+                        .offset(x = if (wide) 13.dp else 0.dp),
+                )
+            }
             // each step keeps its place while it's open; a closed step forgets its own, so opening it again starts fresh
             val keys = nav.stack.indices.map { nav.key(it) }
             LaunchedEffect(keys) {

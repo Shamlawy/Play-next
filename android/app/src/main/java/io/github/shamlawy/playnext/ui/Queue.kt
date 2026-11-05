@@ -1,6 +1,18 @@
 package io.github.shamlawy.playnext.ui
 
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.layout.LocalPinnableContainer
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.animation.core.animateFloatAsState
@@ -139,7 +151,7 @@ import kotlin.math.tan
  * (piece 3) come next. A practice copy: the tab, order and open card you pick last until the app reopens.
  */
 @Immutable
-class QueueView(val q: Queue, val tab: String, val sort: String, val shown: List<Game>, val now: Long)
+class QueueView(val q: Queue, val tab: String, val sort: String, val shown: List<Game>, val now: Long, val src: Library = q.lib)
 
 /** The Queue's own numbers for [lib] at this minute: the tab and order picked, the games shown in that order. */
 @Composable
@@ -151,13 +163,16 @@ fun rememberQueueView(lib: Library, pick: QueuePick, made: Queue? = null): Queue
     // fills in until a missed rollover catches up, or for a Ready made by hand
     val day = io.github.shamlawy.playnext.data.JsDate.todayLocal(now, zone)
     val utcDay = Math.floorDiv(now, io.github.shamlawy.playnext.data.JsDate.DAY)
-    val q = remember(lib, day, utcDay, made) { made?.takeIf { it.lib === lib && it.covers(now, zone) } ?: Queue(lib, Rank(lib, now, zone), now, zone) }
+    // the practice deletes (read every time, as [QueuePick.moved]): the Queue works on the backup without them
+    val gone = pick.deleted.takeIf { pick.deletedFor === lib } ?: emptySet()
+    val base = remember(lib, gone) { lib.without(gone) }
+    val q = remember(base, day, utcDay, made) { made?.takeIf { it.lib === base && it.covers(now, zone) } ?: Queue(base, Rank(base, now, zone), now, zone) }
     val tab = q.tabNow(pick.tab)
     val sort = pick.sort
     val all = pick.moved // read every time, so a first drop redraws
-    val moved = if (pick.movedFor === q.lib) all else emptyMap()
+    val moved = if (pick.movedFor === lib) all else emptyMap()
     val shown = remember(q, tab, sort, moved) { q.sort(q.list(tab), sort, moved) }
-    return QueueView(q, tab, sort, shown, now)
+    return QueueView(q, tab, sort, shown, now, lib)
 }
 
 /** The Queue's tab and order: the web app's (`S.qFilter`, `S.sort`) to start with, then yours until the app reopens. */
@@ -201,7 +216,41 @@ class QueuePick(lib: Library) {
 
     /** One tap on the open card [id]: it closes into its row. */
     fun close(id: String? = null) { focus = null; collapsed = true; fresh = null; flip = null; shut = id }
+
+    /** The row (or open card) swiped left to show its Delete button: one at a time. */
+    var swiped by mutableStateOf<String?>(null)
+
+    /**
+     * The practice deletes (Phase 1 is read only): games swiped away, gone from this backup's Queue until the app opens
+     * again, nothing saved. [deletedFor] is the backup they belong to (a newer one starts whole).
+     */
+    var deleted by mutableStateOf<Set<String>>(emptySet())
+    var deletedFor by mutableStateOf<Library?>(null, referentialEqualityPolicy())
+
+    /** The last delete, offered back on the Undo bar for a few seconds. */
+    var undo by mutableStateOf<QueueGone?>(null)
+
+    /** Delete [g] from [lib]'s Queue (the web's `qdel`, with Android's Undo in place of its question). */
+    fun delete(lib: Library, g: Game) {
+        if (deletedFor !== lib) { deleted = emptySet(); deletedFor = lib }
+        deleted = deleted + g.id
+        if (focus == g.id) focus = null
+        if (flip == g.id) flip = null
+        swiped = null
+        undo = QueueGone(g.id, g.title, (undo?.n ?: 0) + 1)
+    }
+
+    /** The Undo bar's button: the last deleted game comes back where it was. */
+    fun undoDelete() {
+        val u = undo ?: return
+        deleted = deleted - u.id
+        undo = null
+    }
 }
+
+/** A deleted game on the Undo bar ([n] counts deletes, so a second one restarts the bar's time). */
+@Immutable
+class QueueGone(val id: String, val title: String, val n: Int)
 
 /** The colours the web CSS writes as literals (index.html 27366-27546, 24517-24533, 21096), read by tools/android-gen.mjs. */
 object QTone {
@@ -271,44 +320,133 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
         val now by rememberUpdatedState(v)
         val opener by rememberUpdatedState(open)
         val open1 = g.id == openId
+        // held, the row stays composed when the list scrolls it off screen at an edge (else its gesture would end)
+        if (held) {
+            val pins = LocalPinnableContainer.current
+            DisposableEffect(Unit) { val h = pins?.pin(); onDispose { h?.release() } }
+        }
+        // swiped open (to show Delete): read through derivedStateOf, so opening one row redraws only that row
+        val swipedOpen by remember(g.id, pick) { derivedStateOf { pick.swiped == g.id } }
+        val px = LocalDensity.current
+        val openPx = with(px) { DEL_OPEN.dp.toPx() }
+        val slide = remember(g.id) { QueueSlide(if (swipedOpen) -openPx else 0f) }
+        LaunchedEffect(slide, swipedOpen, slide.held, openPx) {
+            val to = if (swipedOpen) -openPx else 0f
+            if (slide.held || slide.x == to) return@LaunchedEffect
+            if (calm) slide.x = to else animate(slide.x, to, animationSpec = tween(DEL_SNAP_MS, easing = DEL_EASE)) { x, _ -> slide.x = x }
+        }
+        // scrolling the list closes the open one (`qdel` closes on scroll)
+        if (swipedOpen) LaunchedEffect(list) { snapshotFlow { list.isScrollInProgress }.collect { if (it && pick.swiped == g.id) pick.swiped = null } }
         // remembered, so a redraw of the list hands each row the very same modifiers and Compose can skip the rows
         // that didn't change (new lambdas every time made every row redraw: RedrawTest)
         val layer = remember(g.id, aside, pick) { Modifier.graphicsLayer { val d = pick.drag; translationY = if (d == null) 0f else if (d.id == g.id) d.dy else aside.value } }
         val ringR = if (open1) Web.U_R.dp else if (folded) 20.dp else 22.dp
-        val ring = remember(volt, ringR, open1) { Modifier.heldRing(volt, ringR, if (open1) 26.dp else 12.dp) }
+        val gap = if (open1) 26.dp else 12.dp
+        val ring = remember(volt, ringR, open1) { Modifier.heldRing(volt, ringR, gap) }
         val holdIt = remember(g.id, i, pick, list, guard) { Modifier.hold(g.id, i, { now }, pick, list, guard) { opener(it) } }
+        val swipeIt = remember(g.id, pick, slide, guard) { Modifier.swipeDelete(g.id, pick, slide, guard) }
         val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm || pick.dropped != null) null else tween(560, easing = Ease.glide))
             .zIndex(if (held) 1f else 0f)
             .then(layer)
             .then(if (held) ring else Modifier)
             .then(holdIt)
-        if (open1) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, m, entered = { if (pick.fresh == g.id) pick.fresh = null },
-            flip = { back -> pick.flip = if (back) g.id else null }) { pick.close(g.id) }
-        else {
-            // the card that just closed: its row fades in (220 ms) where the card was while the rows under it glide up
-            val inA = if (pick.shut == g.id) remember { Animatable(if (calm) 1f else 0f) } else null
-            if (inA != null) DisposableEffect(Unit) { onDispose { if (pick.shut == g.id) pick.shut = null } }
-            if (inA != null) LaunchedEffect(inA) { inA.animateTo(1f, tween(SHUT_IN_MS, easing = Ease.house)); if (pick.shut == g.id) pick.shut = null }
-            val rm = if (inA == null) m else m.graphicsLayer { alpha = inA.value; translationY = -8.dp.toPx() * (1 - inA.value) }
-            QueueRow(q, g, i + 1, v.sort, folded, rm) { id -> Crumbs.tap("row", "queue"); pick.open(id) }
+            .then(swipeIt)
+        val slid = remember(slide) { Modifier.graphicsLayer { translationX = slide.x } }
+        val showDel by remember(slide) { derivedStateOf { slide.x < -0.5f } }
+        Box(m) {
+            // the red Delete waits under the row's right end and shows only while the row slides aside
+            if (showDel) DeleteUnder(gap, ringR) { Sounds.play(Sfx.Back); Crumbs.tap("delete", "queue"); pick.delete(now.src, g) }
+            if (open1) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, slid, entered = { if (pick.fresh == g.id) pick.fresh = null },
+                flip = { back -> pick.flip = if (back) g.id else null }) { pick.close(g.id) }
+            else {
+                // the card that just closed: its row fades in (220 ms) where the card was while the rows under it glide up
+                val inA = if (pick.shut == g.id) remember { Animatable(if (calm) 1f else 0f) } else null
+                if (inA != null) DisposableEffect(Unit) { onDispose { if (pick.shut == g.id) pick.shut = null } }
+                if (inA != null) LaunchedEffect(inA) { inA.animateTo(1f, tween(SHUT_IN_MS, easing = Ease.house)); if (pick.shut == g.id) pick.shut = null }
+                val rm = if (inA == null) slid else slid.graphicsLayer { alpha = inA.value; translationY = -8.dp.toPx() * (1 - inA.value) }
+                QueueRow(q, g, i + 1, v.sort, folded, rm) { id -> Crumbs.tap("row", "queue"); pick.open(id) }
+            }
         }
     }
 }
 
+/**
+ * The Undo bar after a delete (Android's addition, plan Oct 26: the web asks first and has no Undo): "Deleted <name>"
+ * and Undo for [UNDO_MS], then it goes. A second delete restarts the time.
+ */
+@Composable
+fun QueueUndo(pick: QueuePick, modifier: Modifier) {
+    val u = pick.undo ?: return
+    val volt = LocalLook.current.volt
+    LaunchedEffect(u) { kotlinx.coroutines.delay(UNDO_MS); if (pick.undo === u) pick.undo = null }
+    Row(
+        modifier.widthIn(max = 440.dp).fillMaxWidth().padding(horizontal = 16.dp)
+            .background(Pn.card2, Pn.rs).border(1.dp, Pn.line2, Pn.rs).padding(start = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText("Deleted ${u.title}", Modifier.weight(1f).padding(vertical = 12.dp), style = Type.body.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Box(
+            Modifier.sizeIn(minWidth = Pn.touch, minHeight = Pn.touch).clickable(role = Role.Button) { Sounds.play(Sfx.Tap); Crumbs.tap("undo", "queue"); pick.undoDelete() }
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) { BasicText("Undo", style = Type.button.copy(color = volt).fixed(), softWrap = false, maxLines = 1) }
+    }
+}
+
+private const val UNDO_MS = 5_000L
+
+/** The red button under a swiped row (`.qdel`: 92 wide, the row's height, its right corners): a tap deletes the game. */
+@Composable
+private fun BoxScope.DeleteUnder(gap: Dp, r: Dp, delete: () -> Unit) {
+    val shape = RoundedCornerShape(topEnd = r, bottomEnd = r)
+    Box(Modifier.matchParentSize().padding(bottom = gap), contentAlignment = Alignment.CenterEnd) {
+        Box(
+            Modifier.width(DEL_OPEN.dp).fillMaxHeight().clip(shape).background(Pn.hot)
+                .clickable(role = Role.Button, onClickLabel = "Delete", onClick = delete),
+            contentAlignment = Alignment.Center,
+        ) { BasicText("Delete", style = QType.del.fixed(), softWrap = false, maxLines = 1) }
+    }
+}
+
+/** A row's sideways place while it's swiped (`qdel`'s translate on the row's children): [held] while a finger moves it. */
+@Stable
+private class QueueSlide(start: Float) {
+    var x by mutableFloatStateOf(start)
+    var held by mutableStateOf(false)
+}
+
 private const val SHUT_IN_MS = 220
+
+/** `qdel`: the open row sits 92 aside, a finger takes it at most 138, past half it snaps open in .24s on this curve. */
+private const val DEL_OPEN = 92
+private const val DEL_MAX = 138
+private const val DEL_SNAP_MS = 240
+private val DEL_EASE = CubicBezierEasing(.2f, .9f, .25f, 1f)
 private const val HOLD_MS = 380L
 private const val STEP_ASIDE_MS = 170
 
+/** A held row near the window's top or bottom (within 80 dp) scrolls the list, at most 0.9 dp a millisecond. */
+private const val EDGE_ZONE = 80
+private const val EDGE_SPEED = 0.9f
+
 /**
- * A row held and moving (`startDrag`, index.html 7417): where it was ([from], its index in what's shown), the other rows'
- * middles on screen when it was picked up (the web measures once, and a row only travels within the screen: no
- * scrolling while held), its own height with its gap ([pitch]), how far the finger has taken it ([dy]) and the slot it
- * would land in ([to]).
+ * A row held and moving (`startDrag`, index.html 7417): where it was ([from], its index in what's shown), the rows'
+ * middles in the list ([mids], measured as they come on screen: the list scrolls by itself at the edges), its own
+ * height with its gap ([pitch]), how far it is drawn from its place ([dy]: the finger's way plus what the list
+ * scrolled) and the slot it would land in ([to]). Positions are the list's own (the row's offset plus [scrolled]), so
+ * rows the scroll brings in fit with those measured first.
  */
 @Stable
-class QueueDrag(val id: String, val from: Int, private val mids: Map<Int, Float>, val pitch: Float, private val mid0: Float) {
+class QueueDrag(val id: String, val from: Int, private val mids: HashMap<Int, Float>, val pitch: Float, private val mid0: Float, finger: Float) {
     var dy by mutableFloatStateOf(0f)
     var to by mutableIntStateOf(from)
+
+    /** How far the list scrolled while held, and where the finger is in the list's window (gesture bookkeeping only). */
+    internal var scrolled = 0f
+    internal var finger = finger
+
+    /** A row of what's shown, [k], seen with its middle [mid] in the window now. */
+    internal fun see(k: Int, mid: Float) { mids[k] = mid + scrolled }
 
     /** `overDrag`: moving down, the last row whose middle the held one's middle has passed; up, the first. */
     fun slot(): Int {
@@ -335,73 +473,167 @@ private fun Modifier.heldRing(c: Color, r: Dp, gap: Dp) = drawWithContent {
  * go). In your own order it lifts and follows the finger, the rows it passes step aside, and where it's let go is its
  * new place in the practice order; in any other order the hold opens the game's page instead. Watched in the first
  * pass, so once it is held the finger's moves and lift are taken here: the list doesn't scroll, the row isn't tapped
- * and the views don't swipe.
+ * and the views don't swipe. Held near the window's top or bottom, the list scrolls that way (the owner, Nov 5: the
+ * web doesn't), faster the closer the finger is to the edge.
  */
 private fun Modifier.hold(id: String, i: Int, view: () -> QueueView, pick: QueuePick, list: LazyListState, guard: SwipeGuard, open: (String) -> Unit) =
     // keyed by the row and its place only: a redraw mid-drag (the slot changing) must not restart it and let go
     pointerInput(id, i) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
-            // a finger that stops a fling is the list's: it never holds (review on android-v16)
-            if (list.isScrollInProgress) return@awaitEachGesture
-            suspend fun AwaitPointerEventScope.drain() {
-                while (true) {
-                    val e = awaitPointerEvent(PointerEventPass.Initial)
-                    e.changes.forEach { it.consume() }
-                    if (e.changes.none { it.pressed }) break
+        coroutineScope {
+            val jobs = this
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+                // a finger that stops a fling is the list's: it never holds (review on android-v16)
+                if (list.isScrollInProgress) return@awaitEachGesture
+                suspend fun AwaitPointerEventScope.drain() {
+                    while (true) {
+                        val e = awaitPointerEvent(PointerEventPass.Initial)
+                        e.changes.forEach { it.consume() }
+                        if (e.changes.none { it.pressed }) break
+                    }
                 }
-            }
-            // the web lets go after 10 px; here no later than the list's own scroll starts, so a slow scroll never holds
-            val slop = minOf(10.dp.toPx(), viewConfiguration.touchSlop)
-            // waiting, it watches last (Final): a scroll the list took (consumed), a lift or a move lets go. Measured from
-            // the window, since a scrolling list carries the row along under the finger.
-            val start = down.position + list.rowAt(id)
-            val let = withTimeoutOrNull(HOLD_MS) {
-                while (true) {
-                    val c = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
-                    if (!c.pressed || c.isConsumed || list.isScrollInProgress || (c.position + list.rowAt(id) - start).getDistance() > slop) break
+                // the web lets go after 10 px; here no later than the list's own scroll starts, so a slow scroll never holds
+                val slop = minOf(10.dp.toPx(), viewConfiguration.touchSlop)
+                // waiting, it watches last (Final): a scroll the list took (consumed), a lift or a move lets go. Measured
+                // from the window, since a scrolling list carries the row along under the finger.
+                val start = down.position + list.rowAt(id)
+                val let = withTimeoutOrNull(HOLD_MS) {
+                    while (true) {
+                        val c = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
+                        if (!c.pressed || c.isConsumed || list.isScrollInProgress || (c.position + list.rowAt(id) - start).getDistance() > slop) break
+                    }
+                    true
                 }
-                true
-            }
-            if (let != null || list.isScrollInProgress) return@awaitEachGesture
-            val v = view()
-            guard.inScroller = true
-            if (v.sort != "manual") {
-                // a hold in a sorted order opens the game's page (`openFull`), and the lift taps nothing
-                open(id)
-                drain()
-                return@awaitEachGesture
-            }
-            val at = HashMap<Any, Int>(v.shown.size * 2).also { m -> v.shown.forEachIndexed { k, g -> m["q:" + g.id] = k } }
-            val seen = list.layoutInfo.visibleItemsInfo.filter { it.key in at }
-            val me = seen.firstOrNull { it.key == "q:$id" } ?: return@awaitEachGesture drain()
-            val d = QueueDrag(id, i, seen.associate { at[it.key]!! to it.offset + it.size / 2f }, me.size.toFloat(), me.offset + me.size / 2f)
-            pick.drag = d
-            Sounds.play(Sfx.Nudge)
-            Buzz.ms(14)
-            try {
-                while (true) {
-                    val e = awaitPointerEvent(PointerEventPass.Initial)
-                    val c = e.changes.firstOrNull { it.id == down.id }
-                    e.changes.forEach { it.consume() }
-                    if (c == null || !c.pressed) break
-                    d.dy += c.position.y - c.previousPosition.y
-                    val t = d.slot()
-                    if (t != d.to) { d.to = t; Sounds.play(Sfx.Swipe) }
+                if (let != null || list.isScrollInProgress) return@awaitEachGesture
+                val v = view()
+                guard.inScroller = true
+                // a row swiped open closes when another is held
+                pick.swiped = null
+                if (v.sort != "manual") {
+                    // a hold in a sorted order opens the game's page (`openFull`), and the lift taps nothing
+                    open(id)
+                    drain()
+                    return@awaitEachGesture
                 }
-                // `endDrag`: the shown rows in their new order are numbered 1, 2, 3… (only those shown, as the web)
-                val ids = v.shown.map { it.id }.toMutableList()
-                ids.add(d.to, ids.removeAt(d.from))
-                pick.dropped = id
-                if (pick.movedFor !== v.q.lib) { pick.moved = emptyMap(); pick.movedFor = v.q.lib }
-                pick.moved = pick.moved + ids.mapIndexed { k, x -> x to (k + 1).toDouble() }
-                pick.sort = "manual"
-                Sounds.play(Sfx.Tap)
-            } finally {
-                pick.drag = null
+                val at = HashMap<Any, Int>(v.shown.size * 2).also { m -> v.shown.forEachIndexed { k, g -> m["q:" + g.id] = k } }
+                val seen = list.layoutInfo.visibleItemsInfo.filter { it.key in at }
+                val me = seen.firstOrNull { it.key == "q:$id" } ?: return@awaitEachGesture drain()
+                val mids = HashMap<Int, Float>(v.shown.size * 2).also { m -> seen.forEach { m[at[it.key]!!] = it.offset + it.size / 2f } }
+                val d = QueueDrag(id, i, mids, me.size.toFloat(), me.offset + me.size / 2f, me.offset + down.position.y)
+                pick.drag = d
+                Sounds.play(Sfx.Nudge)
+                Buzz.ms(14)
+                val edges = jobs.launch { edgeScroll(d, list, at, EDGE_ZONE.dp.toPx(), EDGE_SPEED.dp.toPx()) }
+                try {
+                    while (true) {
+                        val e = awaitPointerEvent(PointerEventPass.Initial)
+                        val c = e.changes.firstOrNull { it.id == down.id }
+                        e.changes.forEach { it.consume() }
+                        if (c == null || !c.pressed) break
+                        val step = c.position.y - c.previousPosition.y
+                        d.dy += step
+                        d.finger += step
+                        val t = d.slot()
+                        if (t != d.to) { d.to = t; Sounds.play(Sfx.Swipe) }
+                    }
+                    // `endDrag`: the shown rows in their new order are numbered 1, 2, 3… (only those shown, as the web)
+                    val ids = v.shown.map { it.id }.toMutableList()
+                    ids.add(d.to, ids.removeAt(d.from))
+                    pick.dropped = id
+                    if (pick.movedFor !== v.src) { pick.moved = emptyMap(); pick.movedFor = v.src }
+                    pick.moved = pick.moved + ids.mapIndexed { k, x -> x to (k + 1).toDouble() }
+                    pick.sort = "manual"
+                    Sounds.play(Sfx.Tap)
+                } finally {
+                    edges.cancel()
+                    pick.drag = null
+                }
             }
         }
     }
+
+/**
+ * While a row is held: a finger within [zone] of the window's top or bottom scrolls the list that way each frame, up
+ * to [speed] px a millisecond at the very edge. What the list scrolled moves the held row along (it stays under the
+ * finger), and rows that come on screen are measured for the slot maths.
+ */
+private suspend fun edgeScroll(d: QueueDrag, list: LazyListState, at: Map<Any, Int>, zone: Float, speed: Float) {
+    var last = withFrameMillis { it }
+    while (true) {
+        val t = withFrameMillis { it }
+        val ms = (t - last).coerceIn(0L, 32L).toFloat()
+        last = t
+        val info = list.layoutInfo
+        val top = info.viewportStartOffset.toFloat()
+        val bottom = info.viewportEndOffset.toFloat()
+        val push = when {
+            d.finger < top + zone -> -((top + zone - d.finger) / zone).coerceIn(0f, 1f)
+            d.finger > bottom - zone -> ((d.finger - (bottom - zone)) / zone).coerceIn(0f, 1f)
+            else -> 0f
+        }
+        if (push == 0f || ms == 0f) continue
+        val got = list.scrollBy(push * speed * ms)
+        if (got == 0f) continue
+        d.scrolled += got
+        d.dy += got
+        list.layoutInfo.visibleItemsInfo.forEach { it -> at[it.key]?.let { k -> d.see(k, it.offset + it.size / 2f) } }
+        val s = d.slot()
+        if (s != d.to) { d.to = s; Sounds.play(Sfx.Swipe) }
+    }
+}
+
+/**
+ * Swipe a row (or the open card) left to show its Delete button (`qdel`, index.html 15070-15142): after 10 dp the
+ * finger's way decides, sideways (|dx| > 1.3 |dy|) takes the row along, at most 138 aside; let go past half of 92 it
+ * stays open at 92, else it slides back. Watched in the first pass, so once sideways the list doesn't scroll, the row
+ * isn't tapped and the views don't swipe. One row is open at a time: a touch on another row (or on the open row away
+ * from Delete) closes it and taps nothing, a scroll closes it too.
+ */
+private fun Modifier.swipeDelete(id: String, pick: QueuePick, slide: QueueSlide, guard: SwipeGuard) = pointerInput(id) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val open = DEL_OPEN.dp.toPx()
+        val wasOpen = pick.swiped == id
+        // the Delete button under the open row takes its own tap
+        if (wasOpen && down.position.x > size.width - open) return@awaitEachGesture
+        // another row is open: this touch closes it, and its lift taps nothing
+        val eat = pick.swiped != null
+        if (eat && !wasOpen) pick.swiped = null
+        val slop = 10.dp.toPx()
+        val base = if (wasOpen) -open else 0f
+        var sliding = false
+        try {
+            while (true) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed) {
+                    if (sliding || eat) c.consume()
+                    if (sliding) pick.swiped = if (slide.x < -open / 2) id else if (pick.swiped == id) null else pick.swiped
+                    else if (wasOpen) pick.swiped = null
+                    break
+                }
+                // a hold took the finger (it lifted the row): leave it
+                if (!sliding && c.isConsumed) break
+                val way = c.position - down.position
+                if (!sliding) {
+                    if (way.getDistance() < slop) continue
+                    if (abs(way.x) <= 1.3f * abs(way.y)) {
+                        // a scroll: the list takes it (and closes this row if it was open)
+                        if (wasOpen) pick.swiped = null
+                        break
+                    }
+                    sliding = true
+                    slide.held = true
+                    guard.inScroller = true
+                }
+                slide.x = (base + way.x).coerceIn(-DEL_MAX.dp.toPx(), 0f)
+                c.consume()
+            }
+        } finally {
+            slide.held = false
+        }
+    }
+}
 
 @Composable
 private fun Empty(text: String, mod: Modifier) {
@@ -1100,6 +1332,9 @@ private object QType {
     private val base = TextStyle(fontFamily = Fonts.poppins, color = Pn.ice)
     val tab = base.copy(fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
     val tabF = tab.copy(fontSize = 13.5.sp)
+
+    /** The Delete button under a swiped row (`.qdel`: 14, 800, .04em; sentence case, not the web's capitals). */
+    val del = base.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.04.em)
     val count = base.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
     val small = base.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)
     val bold = base.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
