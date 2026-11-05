@@ -12,6 +12,7 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.layout.LocalPinnableContainer
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -441,9 +442,12 @@ class QueueDrag(val id: String, val from: Int, private val mids: HashMap<Int, Fl
     var dy by mutableFloatStateOf(0f)
     var to by mutableIntStateOf(from)
 
-    /** How far the list scrolled while held, and where the finger is in the list's window (gesture bookkeeping only). */
+    /**
+     * How far the list scrolled while held (gesture bookkeeping only), and where the finger is in the list's window
+     * (state, so the edge scroll sleeps until the finger reaches an edge: no frame runs while it's away).
+     */
     internal var scrolled = 0f
-    internal var finger = finger
+    internal var finger by mutableFloatStateOf(finger)
 
     /** A row of what's shown, [k], seen with its middle [mid] in the window now. */
     internal fun see(k: Int, mid: Float) { mids[k] = mid + scrolled }
@@ -555,30 +559,43 @@ private fun Modifier.hold(id: String, i: Int, view: () -> QueueView, pick: Queue
 /**
  * While a row is held: a finger within [zone] of the window's top or bottom scrolls the list that way each frame, up
  * to [speed] px a millisecond at the very edge. What the list scrolled moves the held row along (it stays under the
- * finger), and rows that come on screen are measured for the slot maths.
+ * finger), and rows that come on screen are measured for the slot maths. Away from the edges, or at the list's end, it
+ * waits for the finger to move and asks for no frames.
  */
 private suspend fun edgeScroll(d: QueueDrag, list: LazyListState, at: Map<Any, Int>, zone: Float, speed: Float) {
-    var last = withFrameMillis { it }
-    while (true) {
-        val t = withFrameMillis { it }
-        val ms = (t - last).coerceIn(0L, 32L).toFloat()
-        last = t
+    fun push(): Float {
         val info = list.layoutInfo
         val top = info.viewportStartOffset.toFloat()
         val bottom = info.viewportEndOffset.toFloat()
-        val push = when {
+        return when {
             d.finger < top + zone -> -((top + zone - d.finger) / zone).coerceIn(0f, 1f)
             d.finger > bottom - zone -> ((d.finger - (bottom - zone)) / zone).coerceIn(0f, 1f)
             else -> 0f
         }
-        if (push == 0f || ms == 0f) continue
-        val got = list.scrollBy(push * speed * ms)
-        if (got == 0f) continue
-        d.scrolled += got
-        d.dy += got
-        list.layoutInfo.visibleItemsInfo.forEach { it -> at[it.key]?.let { k -> d.see(k, it.offset + it.size / 2f) } }
-        val s = d.slot()
-        if (s != d.to) { d.to = s; Sounds.play(Sfx.Swipe) }
+    }
+    while (true) {
+        snapshotFlow { push() != 0f }.first { it }
+        var last = withFrameMillis { it }
+        while (true) {
+            val p = push()
+            if (p == 0f) break
+            val t = withFrameMillis { it }
+            val ms = (t - last).coerceIn(0L, 32L).toFloat()
+            last = t
+            val got = list.scrollBy(p * speed * ms)
+            if (got == 0f && ms > 0f) {
+                // the list's end: wait for the finger to move
+                val at0 = d.finger
+                snapshotFlow { d.finger }.first { it != at0 }
+                last = withFrameMillis { it }
+                continue
+            }
+            d.scrolled += got
+            d.dy += got
+            list.layoutInfo.visibleItemsInfo.forEach { it -> at[it.key]?.let { k -> d.see(k, it.offset + it.size / 2f) } }
+            val s = d.slot()
+            if (s != d.to) { d.to = s; Sounds.play(Sfx.Swipe) }
+        }
     }
 }
 
@@ -1333,8 +1350,8 @@ private object QType {
     val tab = base.copy(fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
     val tabF = tab.copy(fontSize = 13.5.sp)
 
-    /** The Delete button under a swiped row (`.qdel`: 14, 800, .04em; sentence case, not the web's capitals). */
-    val del = base.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.04.em)
+    /** The Delete button under a swiped row (`.qdel`: 14, .04em, Poppins Bold: it has no 800; sentence case, not the web's capitals). */
+    val del = base.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.04.em)
     val count = base.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
     val small = base.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)
     val bold = base.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)

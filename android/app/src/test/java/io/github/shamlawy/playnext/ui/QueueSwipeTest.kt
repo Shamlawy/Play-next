@@ -9,6 +9,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -106,12 +108,24 @@ class QueueSwipeTest {
     private fun open(name: String) = rule.onAllNodesWithContentDescription(name, substring = true).fetchSemanticsNodes()
         .any { SemanticsProperties.StateDescription in it.config }
     private fun delete() = rule.onAllNodes(hasText("Delete") and hasClickAction())
-    private fun allCount(): Int = rule.onAllNodesWithContentDescription("All, ", substring = true).fetchSemanticsNodes().first()
-        .config[SemanticsProperties.ContentDescription].first().substringAfter(", ").toInt()
 
-    /** A finger on [r]'s left half, taken [dx] dp sideways in 8 steps, then let go. */
+    /** A tap near Delete's top: its middle can sit under the floating view pill, like the row's foot (L228). */
+    private fun tapDelete() = delete().onLast().performTouchInput { click(Offset(width * .5f, height * .15f)) }
+    /** All's count in the bar (a lazy list's first rows go when it scrolls: bring the bar back first, L213). */
+    private fun allCount(): Int {
+        val tab = hasContentDescription("All, ", substring = true)
+        // (a list that fits the screen has nothing to scroll)
+        if (rule.onAllNodes(tab).fetchSemanticsNodes().isEmpty()) list.performScrollToNode(tab)
+        return rule.onAllNodesWithContentDescription("All, ", substring = true).fetchSemanticsNodes().first()
+            .config[SemanticsProperties.ContentDescription].first().substringAfter(", ").toInt()
+    }
+
+    /**
+     * A finger on [r]'s right side, taken [dx] dp sideways in 8 steps, then let go (a row brought on screen sits at its
+     * foot, under the floating view pill's middle: L228).
+     */
     private fun swipe(r: SemanticsNodeInteraction, dx: Float) = r.performTouchInput {
-        val p = Offset(width * .45f, height * .4f)
+        val p = Offset(width * .88f, height * .3f)
         down(p)
         for (k in 1..8) moveTo(p + Offset(dx.dp.toPx() * k / 8, 0f), delayMillis = 16)
         up()
@@ -137,14 +151,17 @@ class QueueSwipeTest {
         show()
         swipe(row("Hollow Tide"), -120f)
         rule.mainClock.advanceTimeBy(600)
-        row("Ninefold Gate").performTouchInput { click(Offset(width * .12f, height * .3f)) }
-        rule.mainClock.advanceTimeBy(600)
-        assertEquals("the tap closed the open row", 0, delete().fetchSemanticsNodes().size)
-        assertTrue("and opened no card", !open("Ninefold Gate"))
-        // the next tap is a tap again
-        row("Ninefold Gate").performTouchInput { click(Offset(width * .12f, height * .3f)) }
+        // a tap on the open card where it already is (a scroll first would close the row by itself)
+        val starfall = rule.onAllNodesWithContentDescription("Starfall Lantern, ", substring = true).onFirst()
+        fun tapCard() = starfall.performTouchInput { click(Offset(width * .7f, height * .9f)) }
+        tapCard()
         rule.mainClock.advanceTimeBy(1_000)
-        assertTrue("a second tap opens the card", open("Ninefold Gate"))
+        assertEquals("the tap closed the open row", 0, delete().fetchSemanticsNodes().size)
+        assertTrue("and the card it landed on stayed open", open("Starfall Lantern"))
+        // the next tap is a tap again: it closes the card into its row
+        tapCard()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue("a second tap closes the card", !open("Starfall Lantern"))
     }
 
     @Test fun deleteThenUndo() {
@@ -152,8 +169,9 @@ class QueueSwipeTest {
         val before = allCount()
         swipe(row("Hollow Tide"), -120f)
         rule.mainClock.advanceTimeBy(600)
-        delete().onLast().performClick()
+        tapDelete()
         rule.mainClock.advanceTimeBy(800)
+        assertEquals("the tap stayed on the Queue", "queue", nav.views["games"])
         assertTrue("the row is gone", !shown("Hollow Tide"))
         assertEquals("All counts one less", before - 1, allCount())
         assertEquals("the Undo bar names it", 1, rule.onAllNodes(hasText("Deleted Hollow Tide")).fetchSemanticsNodes().size)
@@ -169,7 +187,7 @@ class QueueSwipeTest {
         show()
         swipe(row("Ninefold Gate"), -120f)
         rule.mainClock.advanceTimeBy(600)
-        delete().onLast().performClick()
+        tapDelete()
         rule.mainClock.advanceTimeBy(1_000)
         assertEquals(1, rule.onAllNodes(hasText("Deleted Ninefold Gate")).fetchSemanticsNodes().size)
         rule.mainClock.advanceTimeBy(5_000)
@@ -214,3 +232,4 @@ class QueueSwipeTest {
         assertTrue("a drag opens no card", !open("Hollow Tide"))
     }
 }
+
