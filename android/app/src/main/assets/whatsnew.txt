@@ -86,3 +86,9 @@ go=home
 at=
 say=Fill your lists with games: a list's + opens every game you have, and a tap puts one in or takes it out.
 tryIt=Open Games › Queue and tap the square button at the end of the tabs. Make a new list: it opens straight on your games. Tap a few (a tick shows they're in), use the search at the top to find one fast, then tap Done. Tap the list's name to see just those games in the Queue. For a list you already have, tap the + beside its name. It's a practice copy: your lists and what's in them last until the app closes.
+
+v=15
+go=home
+at=
+say=The Queue's open card is here: the game's picture fills it, with its status, platforms and ticket, and two taps turn it over to your scores on a controller.
+tryIt=Open Games › Queue: the first game's card is open. Tap its box art to open the game's page. Tap the card once: it closes into its row. Tap any row: its card opens. Tap a card twice quickly: it turns over to show your score on the controller, the eight areas and four numbers; tap twice again to turn it back, and twice more while it's still turning to send it straight back. With Sounds on you hear it open, turn and close. Edit and the ⋯ menu on the back come with the game page.

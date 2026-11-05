@@ -206,6 +206,66 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
         return Stat(Kind.Out, "Out now", head, if (day.isNotEmpty()) strip(day) to yr else "Out" to "now", hb, true)
     }
 
+    // ---- the open card (v299/v300, android/parity/1-map/2-card.md) ----
+
+    /** `countdown(g)` as the card writes it: [value, label] ("12", "days away" / "Out", "available now" / "TBA", "no date yet"). */
+    fun countdownWords(g: Game): Pair<String, String> {
+        if (g.date.isEmpty()) return "TBA" to "no date yet"
+        // a date JavaScript can't read counts as out (NaN days), as the front's headline does
+        val at = JsDate.utcMidnight(g.date) ?: return "Out" to "available now"
+        val n = Math.ceil((at - now) / JsDate.DAY.toDouble()).toInt()
+        return if (n > 0) "$n" to (if (n == 1) "day away" else "days away") else "Out" to (if (n == 0) "out today" else "available now")
+    }
+
+    /** The card's place words: "Next up", else "3rd in queue" (the front) or "3rd in the queue" (the back). */
+    fun spot(n: Int, the: Boolean): String = if (n == 1) "Next up" else ordinal(n) + if (the) " in the queue" else " in queue"
+
+    /** `ord(n)`: 1st, 2nd, 3rd, 4th, 11th, 21st. */
+    fun ordinal(n: Int): String {
+        val v = n % 100
+        val s = listOf("th", "st", "nd", "rd")
+        val a = (v - 20) % 10
+        return n.toString() + (if (a in 1..3) s[a] else if (a >= 0) "th" else if (v in 1..3) s[v] else "th")
+    }
+
+    /** `S.evening || 2`: the back's hours a night (the rest of the app's default is 4: kept as the web has it). */
+    val evening: Double get() = Backup.num(lib["evening"], 2.0, 0.0, 24.0).takeIf { it != 0.0 } ?: 2.0
+
+    /** The back's "released 12 Mar" / "out 12 Mar" / "no date yet". */
+    fun whenWords(g: Game): String = if (g.date.isEmpty()) "no date yet" else (if (countdown(g) == null) "released " else "out ") + shortDate(g.date)
+
+    /** `qbAreas(g)`: your eight area scores, else Nexi's guess from the games you've scored (a shared genre counts 3×), else null. */
+    class Areas(val vals: List<Double>, val guess: Boolean) {
+        /** The controller's number: your score, or the mean × 10 (rounded) for a guess. */
+        fun big(score: Int): Int {
+            val on = vals.filter { it > 0 }
+            val mean = if (on.isEmpty()) 0.0 else on.sum() / on.size
+            return if (guess) Rank.jsRound(mean * 10).toInt() else score.takeIf { it != 0 } ?: Rank.jsRound(mean * 10).toInt()
+        }
+    }
+
+    fun areas(g: Game): Areas? {
+        val area = { x: Game, k: String -> Backup.num((x["mine"] as? JsonObject)?.get(k), 0.0, 0.0, 10.0) }
+        val own = AREAS.map { area(g, it.first) }
+        if (own.any { it > 0 }) return Areas(own, false)
+        val gs = Rank.platList(g["genres"]).map { it.lowercase() }.toSet()
+        val rated = games.filter { x -> x.id != g.id && x["mine"] is JsonObject && AREAS.any { (k) -> mine(x, k) > 0 } }
+        if (rated.isEmpty()) return null
+        val vals = AREAS.map { (k) ->
+            var s = 0.0
+            var w = 0
+            for (x in rated) {
+                val v = area(x, k)
+                if (v == 0.0) continue
+                val wt = if (Rank.platList(x["genres"]).any { it.lowercase() in gs }) 3 else 1
+                s += v * wt
+                w += wt
+            }
+            if (w != 0) Rank.jsRound(s / w * 10) / 10 else 0.0
+        }
+        return if (vals.any { it > 0 }) Areas(vals, true) else null
+    }
+
     /** `qsProg(g, st)`: how far along the foot's line is (0-1). */
     fun progress(g: Game, st: Stat): Float {
         val hrs = rk.hrsOf(g)

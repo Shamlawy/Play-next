@@ -136,6 +136,9 @@ const RULES = {
   Q_TICKET: cssColour("#p-queue .qstk > span", "background"), Q_PALE: cssColour("#p-queue .qstk small", "color"),
   Q_PHOTO: cssColour(".dzd-ph", "background"), Q_ON_VOLT: cssColour(".dzd-s .dzd-btn2", "color"),
   Q_DUST: dust(0), Q_DUST_VEIL: dust(2),
+  /* the open card (v299/v300): its status dots and the two near-blacks its strap and ticket mix the game's colour with */
+  QK_OUT: cssColour(".qk-out", "--qsc"), QK_PLAYING: cssColour(".qk-playing", "--qsc"), QK_PLAYED: cssColour(".qk-played", "--qsc"),
+  QK_DEEP: cssColour(".qkstrap", "background"), QK_TICKET: cssColour(".qktk > div", "background"),
 };
 
 /* ---------- the tab bar's icons (the web nav's inline SVGs, v247 style) ---------- */
@@ -237,8 +240,18 @@ const LIST_ICONS = LIST_MARKS.map(([, n, , d]) => ["list:" + n, typeof d === "fu
 const APP_DRAWN = {
   tick: '<circle opacity=".35" cx="12" cy="12" r="10.2"/><path d="M10.4 17.2 5.8 12.6l1.7-1.7 2.9 2.9 6.1-6.1 1.7 1.7z"/>',
 };
+/* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
+const PLAT_LOGO = table("PLAT_LOGO");
+need(PLAT_LOGO && ["ps", "sw", "xb", "pc", "dk", "ap", "an", "lx"].every(k => typeof PLAT_LOGO[k] === "string"), "PLAT_LOGO: ps, sw, xb, pc, dk, ap, an, lx");
+const PLAT_ICONS = Object.entries(PLAT_LOGO).map(([k, d]) => ["plat:" + k, [{ d, alpha: 1, evenOdd: false }]]);
+const QB_SRC = (/\nconst QB_IC = \{([\s\S]*?)\};/.exec(src) || [])[1];
+need(QB_SRC, "const QB_IC (the card back's icons)");
+const qbIcon = n => { const m = new RegExp(`\\b${n}: '([^']*)'`).exec(QB_SRC); need(m, `QB_IC.${n}`); return icon(`<svg viewBox="0 0 24 24">${m[1]}</svg>`, `QB_IC ${n}`); };
+const QB_PATHS = Object.fromEntries(["QB_PAD", "QB_BTN", "QB_WAVE"].map(n => { const m = new RegExp(`\\b${n} = "([^"]+)"`).exec(src); need(m, n); return [n, m[1]]; }));
+const RING_CAP = table("RING_CAP");
 const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash", "plus", "search"].map(n => ["ui:" + n, uicIcon(n)]),
-  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS];
+  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS,
+  ...["edit", "more"].map(n => ["qb:" + n, qbIcon(n)])];
 
 /* ---------- Kotlin ---------- */
 const ks = s => JSON.stringify(s).replace(/\$/g, "\\$");   // a JSON string is a valid Kotlin string once $ is escaped
@@ -273,6 +286,10 @@ const lines = [
   `    val THEMES: List<WebTheme> = listOf(\n${Object.entries(THEMES).map(([k, t]) => `        WebTheme(${ks(k)}, ${ks(t.n)}, ${argb(t.a)}L, ${argb(t.b)}L),`).join("\n")}\n    )`,
   "",
   "    // pictures: Steam's picture store (bgSource's hero), and where the web app's own files live",
+  "    // the open card's back (v300): the controller, a round button and the liquid's wave (`QB_PAD`, `QB_BTN`, `QB_WAVE`), the areas' short names",
+  ...Object.entries(QB_PATHS).map(([k, v]) => `    const val ${k} = ${ks(v)}`),
+  `    val RING_CAP: Map<String, String> = mapOf(${Object.entries(RING_CAP).map(([k, v]) => `${ks(k)} to ${ks(v)}`).join(", ")})`,
+  "",
   `    const val STEAM_CDN = ${ks(STEAM_CDN)}`,
   "",
   "    // the cloud backup (v211)",

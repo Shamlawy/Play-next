@@ -112,8 +112,11 @@ class StartTest {
             .filter { it.positionInRoot.y >= 0f }.minBy { it.positionInRoot.y }
             .let { n -> n.config[SemanticsProperties.Text].joinToString { it.text } to n.positionInRoot.y }
         val top = barTop()
-        rule.onRoot().performTouchInput { swipeUp(startY = bottom * .7f, endY = top + 100f, durationMillis = 400) }
-        rule.waitForIdle()
+        // twice: the first game's card is open at start (340dp tall), so one swipe still shows its name
+        repeat(2) {
+            rule.onRoot().performTouchInput { swipeUp(startY = bottom * .7f, endY = top + 100f, durationMillis = 400) }
+            rule.waitForIdle()
+        }
         val scrolled = firstRow()
         assertTrue("the page didn't scroll ($scrolled)", !scrolled.first.contains("Made-up Game 1,") && !scrolled.first.endsWith("Made-up Game 1"))
         games.value = Games.State.Starting

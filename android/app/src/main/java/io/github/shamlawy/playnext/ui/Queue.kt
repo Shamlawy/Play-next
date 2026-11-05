@@ -117,8 +117,8 @@ import kotlin.math.tan
  * The Queue's list (Phase 1 piece 1; android/parity/1-map/1-list.md): the bar under the header (`qdDeck`: the tabs with
  * their counts and your lists, one Order button with its grouped menu), On deck's three photo cards (v303) and the
  * closed rows (v301 Strap, the v290 logo slot) with the Dusty mark, in a lazy list so only the rows on screen are drawn.
- * The open card (piece 2), Shuffle, Boss, drag, swipe to delete and Character select (piece 3) come next; until then a
- * tap on a row opens the game's page. A practice copy: the tab and order you pick last until the app reopens.
+ * A tap on a row opens its card (QueueCard.kt, piece 2); Shuffle, Boss, drag, swipe to delete and Character select
+ * (piece 3) come next. A practice copy: the tab, order and open card you pick last until the app reopens.
  */
 @Immutable
 class QueueView(val q: Queue, val tab: String, val sort: String, val shown: List<Game>, val now: Long)
@@ -144,6 +144,25 @@ fun rememberQueueView(lib: Library, pick: QueuePick, made: Queue? = null): Queue
 class QueuePick(lib: Library) {
     var tab by mutableStateOf(Backup.str(lib["qFilter"]).ifEmpty { "all" })
     var sort by mutableStateOf(Backup.str(lib["sort"]).ifEmpty { "manual" })
+
+    /** The open card (`focusId`, `collapsed`): at start the first game shown is open, as on the web. */
+    var focus by mutableStateOf<String?>(null)
+    var collapsed by mutableStateOf(false)
+
+    /** The card a tap just opened: it plays its entrance and sound once (a card open at start just sits there). */
+    var fresh by mutableStateOf<String?>(null)
+
+    /** The open card showing its back (`flipId`), kept while it scrolls away and back. */
+    var flip by mutableStateOf<String?>(null)
+
+    /** The card that's open in [shown]: the one you tapped, else the first, none once closed. */
+    fun openIn(shown: List<Game>): String? = if (collapsed || shown.isEmpty()) null else focus?.takeIf { id -> shown.any { it.id == id } } ?: shown[0].id
+
+    /** A tap on a closed row: its card opens and the one that was open closes into its row. */
+    fun open(id: String) { focus = id; collapsed = false; fresh = id; flip = null }
+
+    /** One tap on the open card: it closes into its row. */
+    fun close() { focus = null; collapsed = true; fresh = null; flip = null }
 }
 
 /** The colours the web CSS writes as literals (index.html 27366-27546, 24517-24533, 21096), read by tools/android-gen.mjs. */
@@ -192,8 +211,12 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, folded: Boolean, cal
     val deck = if (q.lib.off("deckOff") || Backup.truthy(q.lib["deckOff"]) || v.tab == "done") emptyList() else q.deck(v.tab)
     if (deck.isNotEmpty()) item("q-deck") { OnDeck(q, v.tab, deck, mod, open) }
     if (v.shown.isEmpty()) item("q-none") { Empty("Nothing here right now. Try another filter.", mod) }
+    val openId = pick.openIn(v.shown)
     itemsIndexed(v.shown, key = { _, g -> "q:" + g.id }) { i, g ->
-        QueueRow(q, g, i + 1, v.sort, folded, mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm) null else tween(560, easing = Ease.glide)), open)
+        val m = mod.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = if (calm) null else tween(560, easing = Ease.glide))
+        if (g.id == openId) QueueCard(q, g, i + 1, pick.fresh == g.id, pick.flip == g.id, m, entered = { if (pick.fresh == g.id) pick.fresh = null },
+            flip = { back -> pick.flip = if (back) g.id else null }) { pick.close() }
+        else QueueRow(q, g, i + 1, v.sort, folded, m) { id -> Crumbs.tap("row", "queue"); pick.open(id) }
     }
 }
 
@@ -618,7 +641,7 @@ private fun QueueRow(q: Queue, g: Game, n: Int, sort: String, folded: Boolean, m
 }
 
 /** `qsPic(g)`: the row's (and the open card's) picture, never the logo; none when pictures are off. */
-private fun rowPic(g: Game, lib: Library): Pic? {
+internal fun rowPic(g: Game, lib: Library): Pic? {
     if (Backup.str(lib["cardBg"]) == "plain" || Backup.truthy(g["bgOff"])) return null
     Backup.str(g["hero"]).ifEmpty { null }?.let { return Pic.Url(it) }
     if (Backup.truthy(g["steamId"])) return Pic.Url(Web.STEAM_CDN + Backup.str(g["steamId"]) + "/library_hero.jpg")
@@ -753,7 +776,7 @@ private fun logoSlotW(rowW: Dp, folded: Boolean, lib: Library): Dp =
 /** A logo's ink, measured once per address: the box its visible pixels fill (with the .02 guard) and whether it's near-black. */
 class Ink(val aspect: Float, val dark: Boolean)
 
-private object LogoInk {
+internal object LogoInk {
     val known = ConcurrentHashMap<String, Ink>()
 }
 
@@ -761,7 +784,7 @@ private object LogoInk {
  * Crops a logo to its ink (alpha > 24, the 2% guard around it) and paints a near-black one light (`brightness(0)
  * invert(.9)`: every visible pixel 230, alpha kept), measured on a copy at most 200 wide like `lfMeasure`.
  */
-private class InkCrop(private val url: String) : Transformation() {
+internal class InkCrop(private val url: String) : Transformation() {
     override val cacheKey = "ink:v290:$url"
 
     override suspend fun transform(input: Bitmap, size: CoilSize): Bitmap {
@@ -804,7 +827,7 @@ private class InkCrop(private val url: String) : Transformation() {
     }
 }
 
-private val SILHOUETTE = ColorFilter.colorMatrix(
+internal val SILHOUETTE = ColorFilter.colorMatrix(
     ColorMatrix(floatArrayOf(0f, 0f, 0f, 0f, 230f, 0f, 0f, 0f, 0f, 230f, 0f, 0f, 0f, 0f, 230f, 0f, 0f, 0f, 1f, 0f)),
 )
 
