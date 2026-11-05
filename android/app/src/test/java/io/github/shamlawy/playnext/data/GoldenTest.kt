@@ -161,6 +161,13 @@ class GoldenTest {
                 assertEquals("$at: On deck's heading", w.jsonObject["head"]!!.s, q.deckHead(tab))
             }
             assertEquals("$name: counts", c["counts"]!!.jsonObject.mapValues { it.value.jsonPrimitive.long.toInt() }, q.counts)
+            // Shuffle's pool and the Boss's HP (android-v20)
+            val sh = c["shuffle"]!!.jsonObject
+            assertEquals("$name: Shuffle's pool", sh["none"]!!.jsonArray.map { it.s }, q.shufflePool(null).map { it.id })
+            assertEquals("$name: Shuffle's pool after a pick", sh["afterLast"]!!.jsonArray.map { it.s }, q.shufflePool(sh["last"]!!.s.ifEmpty { null }).map { it.id })
+            val boss = c["boss"]!!.jsonArray.map { it.jsonPrimitive.double }
+            assertEquals("$name: the Boss's HP", boss[0], q.boss.first, 1e-9)
+            assertEquals("$name: the Boss's bar top", boss[1], q.boss.second, 1e-9)
             for ((k, ids) in c["sorts"]!!.jsonObject) assertEquals("$name order $k", ids.jsonArray.map { it.s }, q.sort(lib.games, k).map { it.id })
             for ((id, w0) in c["per"]!!.jsonObject) {
                 val w = w0.jsonObject

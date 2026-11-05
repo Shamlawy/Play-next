@@ -51,6 +51,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -202,6 +205,11 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
                     val qlist = rememberLazyListState()
+                    // Shuffle's pick: once the list shows it (its tab may have just gone back to All), bring it to the middle
+                    val qvNow by rememberUpdatedState(qv)
+                    LaunchedEffect(qpick, qlist) {
+                        snapshotFlow { qpick.lit }.collectLatest { l -> if (l != null) { withFrameNanos { }; qlist.centerRow(l.id, qvNow.shown, calm) } }
+                    }
                     LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w, pickView) } }
@@ -229,9 +237,18 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         .offset(x = if (wide) 13.dp else 0.dp),
                 )
             }
-            // the Queue's Undo bar after a delete, above the view pill
+            // the Queue's Undo bar after a delete, above the view pill (and Shuffle's "Tonight: …" there when none shows)
             val qp = qpicks[0]
             if (nav.tab == "games" && view == "queue" && qp != null) {
+                QueueNote(
+                    qp,
+                    Modifier
+                        .graphicsLayer { alpha = if (covered) 0f else 1f }
+                        .align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(bottom = if (prefs.pill && views.isNotEmpty()) 76.dp else 18.dp)
+                        .offset(x = if (wide) 13.dp else 0.dp),
+                )
                 QueueUndo(
                     qp,
                     Modifier

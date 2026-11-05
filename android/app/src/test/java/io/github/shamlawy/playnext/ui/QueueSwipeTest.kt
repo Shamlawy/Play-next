@@ -17,6 +17,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
@@ -64,10 +65,11 @@ class QueueSwipeTest {
     }
 
     private var fillers = 0
+    private var grum = false
     private val lib get() = Library(
         Json.parseToJsonElement(
             """
-            {"theme":"midnight","bgGrad":30,"deckOff":true,
+            {"theme":"midnight","bgGrad":30,"deckOff":true,"grum":$grum,
              "games":[
                {"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","ord":1,"colour":"#3A6FD8","genres":["Action","RPG"],"platforms":"PS5, Switch 2, PC, Wii","hours":22,"hype":8,"added":"2026-10-20"},
                {"id":"b","title":"Hollow Tide","state":"playing","date":"2026-08-02","ord":2,"colour":"#C2413A","genres":"Adventure, RPG","hours":40,"logged":12,"added":"2026-09-02"},
@@ -293,5 +295,45 @@ class QueueSwipeTest {
             rule.onRoot().captureRoboImage("src/test/screenshots/queue-fold-$ms.png")
         }
         assertTrue("closed: no card says which side shows", !open("Starfall Lantern"))
+    }
+
+    /** android-v20: Shuffle picks a game that's out, says "Tonight: …" and brings its row to the middle of the list. */
+    @Test fun shuffleBringsTonightsGameToTheMiddle() {
+        fillers = 24
+        show()
+        // the clock by hand: left to itself, the test waits out the scroll and the line's 2.4 s with it
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithContentDescription("Shuffle: pick tonight's game").performClick()
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_200)
+        val note = rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes()
+        assertEquals("one line says tonight's game", 1, note.size)
+        val name = note[0].config[SemanticsProperties.Text].first().text.removePrefix("Tonight: ")
+        assertTrue("a game that's out", name != "Ninefold Gate" && name != "Paper Kingdom")
+        // its row (or its open card) is on screen, near the middle of the window
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        // (the header card's line can say the name too, L228: the row or open card is the last tappable match)
+        val it = rule.onAllNodes((hasText(name, substring = true) or hasContentDescription("$name, ", substring = true)) and hasClickAction())
+            .fetchSemanticsNodes().lastOrNull()
+        assertTrue("the picked game is on screen", it != null)
+        val mid = it!!.boundsInRoot.center.y
+        assertTrue("near the middle (${mid} of ${root.height})", mid > root.height * .25f && mid < root.height * .75f)
+        assertEquals("Shuffle walked no views", "queue", nav.views["games"])
+        // and the line goes after a while
+        rule.mainClock.advanceTimeBy(3_000)
+        assertEquals(0, rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes().size)
+    }
+
+    /** android-v20: Boss says "Boss", and with Grumble on the Shadow's HP (the backlog's hours: 22 + 40 here). */
+    @Test fun bossShowsItsHpOnlyWithGrumble() {
+        show()
+        assertEquals(1, rule.onAllNodesWithContentDescription("Boss: the Shadow of the Backlog").fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodes(hasText("Boss")).fetchSemanticsNodes().size)
+    }
+
+    @Test fun bossWithGrumbleOn() {
+        grum = true
+        show()
+        assertEquals(1, rule.onAllNodesWithContentDescription("Boss: the Shadow of the Backlog, 62 HP").fetchSemanticsNodes().size)
     }
 }

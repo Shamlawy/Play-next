@@ -116,3 +116,9 @@ go=home
 at=
 say=I now time how fast I open on your phone, and a slow start or a freeze while opening reports itself.
 tryIt=Nothing to tap: close the app fully (swipe it away in Recents) and open it from its icon a few times today. After five such starts I send Claude the times; a slow one I report on its own.
+
+v=20
+go=home
+at=
+say=Shuffle picks tonight's game for you, and the Boss sits in the Queue's bar.
+tryIt=Open Games › Queue and tap the crossed arrows next to Order: a game that's out lights up in the middle of the list and the line at the bottom names it. Tap again for another (never the same twice running). The red Boss button next to it shows the Shadow of the Backlog's HP when Grumble is on.

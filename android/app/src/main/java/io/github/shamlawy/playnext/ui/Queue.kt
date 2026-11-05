@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
@@ -34,6 +35,7 @@ import io.github.shamlawy.playnext.kit.Buzz
 import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -87,6 +89,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -221,6 +224,34 @@ class QueuePick(lib: Library) {
 
     /** Just dropped: the rows snap into their new places with no glide (the web skips it after a drop), for two frames. */
     var dropped by mutableStateOf<String?>(null)
+
+    /** Shuffle's last pick (`qdLast`, memory only): never the same game twice running. */
+    var lastShuf by mutableStateOf<String?>(null)
+
+    /** The game Shuffle just picked: its row lights up and the list brings it to the middle ([QueueLit.n] tells two picks of one game apart). */
+    var lit by mutableStateOf<QueueLit?>(null)
+
+    /** A short line over the view pill ("Tonight: …"), gone after [NOTE_MS]. */
+    var note by mutableStateOf<QueueLit?>(null)
+
+    /**
+     * Shuffle's tap (`qdShuffle`, index.html 8810): a random game from [Queue.shufflePool]; when the shown tab doesn't
+     * hold it the Queue goes back to All (the web saves that, here it lasts until the app reopens, like the tab).
+     */
+    fun shuffle(q: Queue, rnd: kotlin.random.Random = kotlin.random.Random.Default): Game? {
+        val pool = q.shufflePool(lastShuf)
+        val n = (note?.n ?: 0) + 1
+        if (pool.isEmpty()) {
+            note = QueueLit("", "Nothing to pick from yet", n)
+            return null
+        }
+        val g = pool[rnd.nextInt(pool.size)]
+        lastShuf = g.id
+        if (q.list(q.tabNow(tab)).none { it.id == g.id }) tab = "all"
+        lit = QueueLit(g.id, g.title, n)
+        note = QueueLit(g.id, "Tonight: " + g.title, n)
+        return g
+    }
 
     /** One tap on the open card [id]: it closes into its row. */
     fun close(id: String? = null) { shutBack = id != null && flip == id; focus = null; collapsed = true; fresh = null; flip = null; shut = id }
@@ -403,6 +434,9 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
                     if (folding) ShutGhost(q, g, i + 1, pick.shutBack, k)
                 }
             }
+            // Shuffle's pick lights up where it sits (read through derivedStateOf: a pick redraws only its own row)
+            val litHere by remember(g.id, pick) { derivedStateOf { pick.lit?.takeIf { it.id == g.id } } }
+            litHere?.let { LitRing(it, remember(g.colour) { Color(g.colour) }, ringR, gap, calm) }
         }
     }
 }
@@ -431,6 +465,84 @@ fun QueueUndo(pick: QueuePick, modifier: Modifier) {
 }
 
 private const val UNDO_MS = 5_000L
+
+/** Shuffle's pick ([id], its [title]) or a line about it; [n] counts the taps, so a second pick of the same game lights again. */
+@Immutable
+data class QueueLit(val id: String, val title: String, val n: Int)
+
+/** The web's toast stays about this long. */
+private const val NOTE_MS = 2_400L
+
+/** Shuffle's ring (`.qslit`, 27417): 2.3 s, in to full by 12%, held to 75%, out by the end, on the web's ease. */
+private const val LIT_MS = 2_300
+
+/** The line Shuffle leaves ("Tonight: …"), where the Undo bar goes (it waits while an Undo bar shows). */
+@Composable
+fun QueueNote(pick: QueuePick, modifier: Modifier) {
+    val u = pick.note ?: return
+    if (pick.undo != null) return
+    LaunchedEffect(u) { kotlinx.coroutines.delay(NOTE_MS); if (pick.note === u) pick.note = null }
+    BasicText(
+        u.title,
+        modifier.widthIn(max = 440.dp).fillMaxWidth().padding(horizontal = 16.dp)
+            .background(Pn.card2, Pn.rs).border(1.dp, Pn.line2, Pn.rs).padding(horizontal = 16.dp, vertical = 13.dp),
+        style = Type.body.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/**
+ * The ring on the row Shuffle picked (`.qslit`): an inside line in --ice and a wider one in the game's colour, faded in
+ * and out (only its alpha moves), then gone.
+ */
+@Composable
+private fun BoxScope.LitRing(lit: QueueLit, accent: Color, r: Dp, gap: Dp, calm: Boolean) {
+    val a = remember(lit) { Animatable(0f) }
+    LaunchedEffect(lit) {
+        a.animateTo(1f, keyframes {
+            durationMillis = LIT_MS
+            0f at 0
+            1f at (LIT_MS * .12f).toInt() using Ease.glide
+            1f at (LIT_MS * .75f).toInt()
+            0f at LIT_MS using Ease.glide
+        })
+    }
+    val ring = remember(accent, r) { mixA(accent, Color.Transparent, .6f) }
+    Box(
+        Modifier.matchParentSize().padding(bottom = gap)
+            .graphicsLayer { alpha = if (calm) (if (a.isRunning) 1f else 0f) else a.value }
+            .drawBehind {
+                val w2 = 2.dp.toPx()
+                val w6 = 6.dp.toPx()
+                drawRoundRect(ring, Offset(w6 / 2, w6 / 2), Size(size.width - w6, size.height - w6), CornerRadius((r.toPx() - w6 / 2).coerceAtLeast(0f)), style = Stroke(w6))
+                drawRoundRect(Pn.ice, Offset(w2 / 2, w2 / 2), Size(size.width - w2, size.height - w2), CornerRadius((r.toPx() - w2 / 2).coerceAtLeast(0f)), style = Stroke(w2))
+            },
+    )
+}
+
+/**
+ * Brings Shuffle's pick to the middle of the list (`scrollIntoView({block: "center"})`): when its row isn't on screen
+ * the list first goes to it (rows sit together, so a row on screen tells where the others are), then centres it.
+ */
+internal suspend fun LazyListState.centerRow(id: String, shown: List<Game>, calm: Boolean) {
+    val at = shown.indexOfFirst { it.id == id }
+    if (at < 0) return
+    repeat(4) {
+        val vis = layoutInfo.visibleItemsInfo
+        val item = vis.firstOrNull { it.key == "q:$id" }
+        if (item != null) {
+            val mid = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+            val by = (item.offset + item.size / 2 - mid).toFloat()
+            if (calm) scrollBy(by) else animateScrollBy(by, tween(LIT_SCROLL_MS, easing = Ease.glide))
+            return
+        }
+        val anchor = vis.firstOrNull { (it.key as? String)?.startsWith("q:") == true }
+        val to = if (anchor != null) anchor.index + at - shown.indexOfFirst { "q:" + it.id == anchor.key } else (vis.lastOrNull()?.index ?: return) + 1
+        val i = to.coerceIn(0, (layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+        if (calm) scrollToItem(i) else animateScrollToItem(i)
+    }
+}
+
+private const val LIT_SCROLL_MS = 420
 
 /**
  * The red button under a swiped row (`.qdel`: the row's height, its right corners): a tap deletes the game. It is as
@@ -824,15 +936,82 @@ private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifi
             }
         }
     }
+    // Boss (`#fx-boss`): the Shadow's HP only while Grumble is on (v286, v302), else the word "Boss"
+    val hp = if (Backup.truthy(q.lib["grum"])) q.boss else null
     if (folded) {
         Column(mod.padding(top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             tabRow(Modifier.fillMaxWidth())
-            OrderButton(v, pick, true, Modifier.fillMaxWidth())
+            // folded: Order grows, Shuffle and Boss share its line
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OrderButton(v, pick, true, Modifier.weight(1f))
+                ShuffleButton(q, pick, true)
+                BossButton(hp, true)
+            }
         }
     } else {
-        Row(mod.padding(top = 6.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        // (`.qdeck` centres its buttons against the tab strip: they sit in the middle of two lines of tabs)
+        Row(mod.padding(top = 6.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             tabRow(Modifier.weight(1f))
             OrderButton(v, pick, false, Modifier.widthIn(min = 148.dp))
+            ShuffleButton(q, pick, false)
+            BossButton(hp, false)
+        }
+    }
+}
+
+/**
+ * Shuffle (`[data-qshuf]`, `.qdshuf`): a tap picks tonight's game, lights its row and brings it to the middle, with the
+ * nudge sound and "Tonight: …". Its hold (the Game Shuffler deck) comes with the deck.
+ */
+@Composable
+private fun ShuffleButton(q: Queue, pick: QueuePick, folded: Boolean) {
+    val volt = LocalLook.current.volt
+    val shape = RoundedCornerShape(if (folded) 16.dp else 18.dp)
+    Box(
+        Modifier.height(if (folded) 48.dp else 54.dp).widthIn(min = Pn.touch)
+            .background(Pn.pan, shape).border(1.dp, Pn.line2, shape)
+            .semantics { contentDescription = "Shuffle: pick tonight's game" }
+            .clickable(role = Role.Button) {
+                Crumbs.tap("shuffle", "games/queue")
+                Sounds.play(if (pick.shuffle(q) != null) Sfx.Nudge else Sfx.Tap)
+            }
+            .padding(horizontal = if (folded) 12.dp else 14.dp),
+        contentAlignment = Alignment.Center,
+    ) { QdIcon("shuf", volt, 20.dp) }
+}
+
+/**
+ * Boss (`#fx-boss`, `.qdboss`): the Shadow of the Backlog's icon in --hot on a hot-tinted button; with Grumble on its
+ * HP over a bar filled to HP / the most it has been (`--hp`, scaleX from the left), else just "Boss". Its tap opens the
+ * Boss screen on the web (`bossScreen`), which comes with Phase 9, so here it only shows.
+ */
+@Composable
+private fun BossButton(hp: Pair<Double, Double>?, folded: Boolean) {
+    val shape = RoundedCornerShape(if (folded) 16.dp else 18.dp)
+    val hot = Pn.hot
+    val fill = remember(hot) { Brush.verticalGradient(listOf(mixA(hot, Pn.pan, .13f), mixA(hot, Pn.pan, .04f))) }
+    val n = hp?.first?.let { Backup.jsNumber(it).content }
+    Row(
+        Modifier.height(if (folded) 48.dp else 54.dp)
+            .background(fill, shape).border(1.dp, mixA(hot, Color.Transparent, .38f), shape)
+            .semantics { contentDescription = "Boss: the Shadow of the Backlog" + (n?.let { ", $it HP" } ?: "") }
+            .padding(horizontal = if (folded) 12.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        QdIcon("boss", hot, 24.dp)
+        Column(Modifier.widthIn(min = if (folded) 60.dp else 58.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                BasicText(n ?: "Boss", style = QType.bold.fixed(), maxLines = 1, softWrap = false)
+                if (n != null) BasicText("HP", style = QType.hp.fixed(), maxLines = 1, softWrap = false)
+            }
+            if (hp != null) {
+                val k = (hp.first / hp.second).toFloat().coerceIn(0f, 1f)
+                val bar = remember(hot) { Brush.horizontalGradient(listOf(hot, mixA(hot, Color.White, .55f))) }
+                Box(Modifier.fillMaxWidth().height(6.dp).background(Color.White.copy(alpha = .08f), RoundedCornerShape(3.dp))) {
+                    Box(Modifier.matchParentSize().graphicsLayer { scaleX = k; transformOrigin = TransformOrigin(0f, .5f) }.background(bar, RoundedCornerShape(3.dp)))
+                }
+            }
         }
     }
 }
@@ -1413,6 +1592,14 @@ private val QD_IC = mapOf(
     "order" to listOf("M4 5h16v2.4H4z" to 1f, "M4 10.8h11v2.4H4z" to .35f, "M4 16.6h6.5V19H4z" to 1f),
     "car" to listOf("M6.5 9h11L12 15.5z" to 1f),
     "list" to listOf("M4 5h16v14H4z" to .35f, "M11 8h2v3h3v2h-3v3h-2v-3H8v-2h3z" to 1f),
+    "shuf" to listOf(
+        "M3 6.5h4.2l9 11H21v-2.4h-3.6l-9-11H3z" to .35f,
+        "M16.2 4.1h3.6L21 2.6v6l-1.2-1.4h-3.6l-2.6 3.1-1.6-1.9zM3 15.1h4.2l2.6-3.1 1.6 1.9-3.2 3.6H3z" to 1f,
+    ),
+    "boss" to listOf(
+        "M12 6.5c3.9 0 7 3 7 6.8v2.4c0 1.4-1.1 2.5-2.5 2.5H15v2.3H9v-2.3H7.5C6.1 18.2 5 17.1 5 15.7v-2.4c0-3.8 3.1-6.8 7-6.8z" to .35f,
+        "M3.6 2.8c-.6 3.3.4 5.7 3.3 6.8l-1 1.7C2.6 9.8 1.9 6.4 3.6 2.8zm16.8 0c1.7 3.6 1 7-2.3 8.5l-1-1.7c2.9-1.1 3.9-3.5 3.3-6.8zM8.2 12.4h3v2.6h-3zM12.8 12.4h3v2.6h-3z" to 1f,
+    ),
 )
 private val qdVectors = HashMap<String, ImageVector>()
 
@@ -1440,6 +1627,7 @@ private object QType {
     val count = base.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
     val small = base.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)
     val bold = base.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
+    val hp = base.copy(fontSize = 11.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, color = Pn.mute)
     val group = base.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)
     val option = base.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
     val deckHead = base.copy(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute, letterSpacing = .08.em)
