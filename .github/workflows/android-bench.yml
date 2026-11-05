@@ -1,0 +1,112 @@
+# Gate 3's second half (docs/ANDROID-PLAN.md, "How we keep it free of lag and glitches"): on every pull request that changes
+# the Android app, main's build and the PR's build take turns A/B/A/B on one emulator under the same Macrobenchmark class
+# (android/baselineprofile/.../SpeedBenchmark.kt: a cold start to Home, the Queue flung up and down; the made-up backup),
+# and tools/android-bench.mjs fails the run only on a clear slowdown: worse in both rounds by more than a share and an
+# amount. The PR's test APK drives both apps (it runs itself and only names the app's package), so main needs only its
+# app built. Builds use --no-daemon and nothing runs beside the emulator (L207); ANGLE on SwiftShader (L208); animations
+# stay on (the app's calm mode would hide the motion). No secrets, read-only token, every action pinned (public repo).
+name: Android speed
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "android/**"
+      - "!android/parity/**"
+      - ".github/workflows/android-bench.yml"
+      - "tools/android-bench.sh"
+      - "tools/android-bench.mjs"
+permissions:
+  contents: read
+concurrency:
+  group: android-bench-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+jobs:
+  bench:
+    name: "Speed: main vs this PR (cold start, Queue frames)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: "The compare tool's own test"
+        run: node tools/android-bench.mjs --self-test
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+          validate-wrappers: true
+      - name: "SDK packages (best effort: Gradle fetches anything missing by itself)"
+        run: |
+          set -uo pipefail
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then
+            yes 2>/dev/null | "$SDKM" --licenses >/dev/null 2>&1 || true
+            "$SDKM" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null 2>&1 \
+              || echo "::notice::sdkmanager couldn't preinstall platform 37.0 / build-tools 37.0.0; Gradle will fetch them"
+          fi
+          exit 0
+      - name: "Build this PR's app and the benchmark"
+        working-directory: android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleBenchmarkRelease :baselineprofile:assembleBenchmarkRelease
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp app/build/outputs/apk/benchmarkRelease/app-benchmarkRelease.apk "$RUNNER_TEMP/apk/pr.apk"
+          cp baselineprofile/build/outputs/apk/benchmarkRelease/baselineprofile-benchmarkRelease.apk "$RUNNER_TEMP/apk/bench.apk"
+      - name: "Build main's app (the PR's base)"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/main" "$BASE"
+          cd "$RUNNER_TEMP/main/android"
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleBenchmarkRelease
+          cp app/build/outputs/apk/benchmarkRelease/app-benchmarkRelease.apk "$RUNNER_TEMP/apk/main.apk"
+          ls -l "$RUNNER_TEMP/apk"
+      - name: Let the emulator use KVM and all the memory
+        run: |
+          set -euo pipefail
+          pkill -f '[G]radleDaemon' || true
+          pkill -f '[K]otlinCompileDaemon' || true
+          free -m
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: "Main, PR, main, PR on one emulator"
+        timeout-minutes: 35
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          cores: 4
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: bash "$GITHUB_WORKSPACE/tools/android-bench.sh" "$RUNNER_TEMP/apk/main.apk" "$RUNNER_TEMP/apk/pr.apk" "$RUNNER_TEMP/apk/bench.apk" "$RUNNER_TEMP/bench" 5
+      - name: "Clearly slower than main? (tools/android-bench.mjs)"
+        run: node tools/android-bench.mjs "$RUNNER_TEMP/bench"
+      - name: "When it failed: the runner's memory and the kernel's last words about the emulator"
+        if: failure()
+        run: |
+          free -m || true
+          k=$(sudo dmesg | grep -iE 'out of memory|oom-kill|killed process|segfault|qemu|emulator' | tail -n 10 || true)
+          echo "${k:-Nothing about memory or the emulator in the kernel log.}"
+      - name: Keep the benchmark runs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-bench
+          path: ${{ runner.temp }}/bench/
+          if-no-files-found: ignore

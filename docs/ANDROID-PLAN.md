@@ -98,7 +98,7 @@ A phase counts as done only when all of these pass, and the owner approves it on
 
    The emulator's Macrobenchmark runs the same journeys on main's build and the PR's build. Its numbers are hints, except a clear slowdown against main, which fails.
 
-   Phase 0 built the stability check (`tools/compose-check.mjs`), the main-thread check (StrictMode's findings from the release build's walk, `tools/android-smoke.sh`) and the Baseline Profile walking real screens; the Macrobenchmark and redraw counts move to the start of Phase 1, which has the first real list (android/parity/0.md "Gates").
+   Phase 0 built the stability check (`tools/compose-check.mjs`), the main-thread check (StrictMode's findings from the release build's walk, `tools/android-smoke.sh`) and the Baseline Profile walking real screens; the Macrobenchmark and redraw counts move to the start of Phase 1, which has the first real list (android/parity/0.md "Gates"). Built Nov 5: redraw counts (`ui/RedrawTest`, android/redraw-budget.txt, run by android-check with every unit test) and the Macrobenchmark (`android-bench.yml`, "Android speed": `SpeedBenchmark` cold start + Queue flings, main and the PR A/B/A/B on one emulator, `tools/android-bench.mjs` fails only when the PR is worse in both rounds past a share and an amount). Before merging an Android PR, wait for Android speed too (release-guard only waits for android-check).
 4. **Pictures:**
    - **Screenshot tests** at the phone's real folded and unfolded widths, compared with the approved ones.
    - **Parity sheets:** for each finished screen, CI shows the web app (`kit.mjs look`, same seed) and the app side by side with a difference overlay. Claude reads every sheet before the phase's Perfect run, and your approval message links them.
