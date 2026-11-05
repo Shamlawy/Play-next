@@ -238,7 +238,12 @@ for (const [name, at] of CLOCKS) {
         prog: Number(qsProg(g, st)), short: shortDate(g.date), dust: dustDays(g), lvl: dustLvl(g), why: deckWhy(g) || platList(g.genres).slice(0, 2).join(" · "),
         exp: expected(g), meta: dzMeta(g).replace(/<[^>]+>/g, "|").split("|").filter(x => x.trim()).join("/") };
     }
-    return { tabs, counts, sorts, per };
+    /* Shuffle's pool (qdShuffle's own filters, with and without a last pick) and the Boss's HP (window.bossHP) */
+    const live = allGames().filter(g => !isPlayed(g) && !isDropped(g)), outs = live.filter(isOutNow), base = outs.length ? outs : live;
+    const poolOf = last => base.filter(g => g.id !== last || (outs.length || live.length) < 2).map(g => g.id);
+    const shuffle = { none: poolOf(undefined), last: base.length ? base[0].id : "", afterLast: poolOf(base.length ? base[0].id : undefined) };
+    const boss = typeof window.bossHP === "function" ? window.bossHP() : null;
+    return { tabs, counts, sorts, per, shuffle, boss };
   });
   out.queue.push({ name, at, now: Date.parse(at), raw, ...q });
   await ctx.close();

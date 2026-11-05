@@ -41,6 +41,27 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
     /** `qWaiting()`: not played and not dropped. */
     fun waiting(g: Game) = !rk.isPlayed(g) && !rk.isDropped(g)
 
+    /**
+     * Shuffle's pool (`qdShuffle`, index.html 8810): the games not played or dropped, only those out now when any are,
+     * and never [last] twice running unless it's the only one.
+     */
+    fun shufflePool(last: String?): List<Game> {
+        val live = games.filter(::waiting)
+        val base = live.filter(::isOutNow).ifEmpty { live }
+        return base.filter { it.id != last || base.size < 2 }
+    }
+
+    /**
+     * The Shadow of the Backlog (`bossNow`, index.html 13912): its HP is the hours (20 when not known, `+g.hours || 20`)
+     * of every game that isn't competitive, played or dropped and is in the backlog, playing or out; its bar's top is
+     * the most it has been (`S.fxBossMax`), at least 1 (`window.bossHP`, 13916).
+     */
+    val boss: Pair<Double, Double> by lazy {
+        val hp = games.filter { !it.comp && !rk.isPlayed(it) && it.rawState != "played" && !rk.isDropped(it) && (it.state == "backlog" || it.rawState == "playing" || isOutNow(it)) }
+            .sumOf { g -> Backup.num(g["hours"], 0.0, -1e9, 1e9).let { if (it == 0.0) 20.0 else it } }
+        hp to maxOf(hp, Backup.num(lib["fxBossMax"], 0.0, 0.0, 1e9)).let { if (it == 0.0) 1.0 else it }
+    }
+
     /** `qNow()`: the saved tab when it still exists, else All (a genre or "like" tab comes back with the game page, Phase 2). */
     fun tabNow(saved: String): String =
         if (saved in TABS || (saved.startsWith("L:") && lists.any { "L:" + it.id == saved })) saved else "all"
