@@ -166,6 +166,8 @@ class RedrawTest {
             .associate { it.substringBefore(' ') to it.substringAfterLast(' ').toInt() }
         val report = got.entries.joinToString("\n") { (k, v) -> "$k $v" + (budget[k]?.let { b -> " (budget $b)" } ?: " (no budget)") }
         println("redraw counts:\n$report")
+        // also on disk: a Robolectric run keeps no stdout in its report (L240)
+        java.io.File("build/redraw-counts.txt").writeText(report + "\n")
         val over = got.filter { (k, v) -> v > (budget[k] ?: Int.MAX_VALUE) }
         val missing = got.keys.filter { it !in budget }
         assertTrue("redraws over the budget (android/redraw-budget.txt):\n" + over.entries.joinToString("\n") { "${it.key} ${it.value} > ${budget[it.key]}" }, over.isEmpty())

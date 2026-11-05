@@ -50,6 +50,9 @@ QueueCard.g: Game
 QueueCard.q: Queue
 QueueGroups.lib: Library
 QueueRow.g: Game
+# the card folding into its row (android-v18): the same Game and Queue the open card had, composed once per fold
+ShutGhost.g: Game
+ShutGhost.q: Queue
 QueueRow.q: Queue
 RenameRow.l: QList
 SettingsSheet.games: State
