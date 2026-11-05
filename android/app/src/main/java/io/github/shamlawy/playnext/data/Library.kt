@@ -19,6 +19,20 @@ class Library(val state: JsonObject) {
     val played: List<Played> = (state["played"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Played) }
     val duels: List<Duel> = (state["duels"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Duel) }
 
+    /**
+     * This backup without the games [ids], their finishes and every duel they're in (the web's delete, index.html
+     * 15120-15135; the Queue's practice delete keeps the result in memory only).
+     */
+    fun without(ids: Set<String>): Library {
+        if (ids.isEmpty()) return this
+        fun list(key: String, keep: (JsonObject) -> Boolean) = (state[key] as? JsonArray)?.let { a -> JsonArray(a.filter { e -> (e as? JsonObject)?.let(keep) ?: true }) }
+        val out = state.toMutableMap()
+        list("games") { Game(it).id !in ids }?.let { out["games"] = it }
+        list("played") { Played(it).id !in ids }?.let { out["played"] = it }
+        list("duels") { Duel(it).let { d -> d.a !in ids && d.b !in ids } }?.let { out["duels"] = it }
+        return Library(JsonObject(out))
+    }
+
     /** A saved setting as the web app reads it (`S[key]`): absent → null. */
     operator fun get(key: String): JsonElement? = state[key]
 

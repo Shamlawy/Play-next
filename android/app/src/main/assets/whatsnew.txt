@@ -98,3 +98,9 @@ go=home
 at=
 say=Hold a game in the Queue and drag it to a new spot, and a tapped card now folds straight into its row.
 tryIt=Open Games › Queue in My order. Hold any game (closed row or the open card) for a moment: it lights up with a ring and follows your finger, the games it passes step aside, and where you let go is its new spot. It's a practice order for now: it stays while the app is open and resets when you open it again. In a sorted order (Hype, Overall…) the same hold opens the game's page instead. Then tap the open card once: it folds into its row right away and the games under it glide up.
+
+v=17
+go=home
+at=
+say=Swipe a game left in the Queue to delete it (with Undo), and a held game now scrolls the list at the edges.
+tryIt=Open Games › Queue in My order. Hold a game and drag it to the bottom (or top) of the screen: the list scrolls by itself, faster the closer you are to the edge, so you can take it anywhere. Then swipe any game left: a red Delete shows under it. Tap Delete: the game goes and an Undo bar shows for 5 seconds; tap Undo to bring it back. A short swipe slides back, and a tap anywhere else closes it. It's a practice delete for now: nothing is saved, and the game is back when you open the app again.
