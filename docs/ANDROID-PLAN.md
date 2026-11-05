@@ -203,7 +203,7 @@ The owner picked 1, 2, 4, 5, 6, 7, 9, 10, 11, 13 and 14 ("wow claude those were 
 
 1. Live timer on the lock screen and the Now Bar ("Playing · 1h 12m", Pause / Stop), and release day as a live countdown (Phase 5, Phase 9).
 2. A Quick Settings tile: "What should I play?" or start/stop a session (Phase 5).
-3. PlayStation and Xbox play time and trophies filled in by themselves, like Steam sync (Phase 9). PlayStation has no official way in: it needs a code pasted once and can break. *Not picked.*
+3. PlayStation and Xbox play time and trophies filled in by themselves, like Steam sync (Phase 9). PlayStation has no official way in: it needs a code pasted once and can break. *Not picked.* Nov 5: the owner plays mostly on PS5 and asked to keep the PS5 ideas for the phase: see "Now Bar and PS5 (Nov 5 notes)" below (still not built until a Brief adds it).
 4. Half-open Fold layouts: the book opens across the fold like a real book, the timer stands on its own (Phases 5, 6).
 5. Buttons on notifications ("Played it", "Snooze", "Buy"), sent at the hour you usually play (Phase 9).
 6. Add a game by pointing the camera at its box or a screenshot, or by dragging a link in from Chrome in split screen (Phase 4).
