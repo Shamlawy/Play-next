@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.performScrollToNode
@@ -62,6 +63,7 @@ class QueueDragTest {
     }
 
     private var extra = ""
+    private var more = ""
     private val lib get() = Library(
         Json.parseToJsonElement(
             """
@@ -71,7 +73,7 @@ class QueueDragTest {
                {"id":"b","title":"Hollow Tide","state":"playing","date":"2026-08-02","ord":2,"colour":"#C2413A","genres":"Adventure, RPG","hours":40,"logged":12,"added":"2026-09-02"},
                {"id":"c","title":"Ninefold Gate","state":"upcoming","date":"2026-11-14","ord":3,"colour":"#B06AD8","genres":["RPG","Strategy"],"platforms":"PS4, PS5, Vita","added":"2026-10-25"},
                {"id":"f","title":"Paper Kingdom","state":"played","date":"2025-12-01","ord":6,"colour":"#5AB3C9","genres":["Strategy","RPG"],"added":"2026-01-10",
-                "mine":{"story":9,"music":8.5,"gameplay":8,"replay":6,"visuals":9,"world":8,"chars":7.5,"pace":7}}
+                "mine":{"story":9,"music":8.5,"gameplay":8,"replay":6,"visuals":9,"world":8,"chars":7.5,"pace":7}}$more
              ],
              "played":[{"id":"f","real":9.2,"t":"2026-09-12"}]}
             """.trimIndent(),
@@ -175,6 +177,30 @@ class QueueDragTest {
         rule.mainClock.advanceTimeBy(1_000)
         assertEquals(listOf("game:b"), nav.stack)
         assertTrue("the lift taps nothing: no card opened", !open("Hollow Tide"))
+    }
+
+    /** A finger that stops a fling is the list's: held still for 500 ms in a sorted order it opens no game page. */
+    @Test fun aFingerStoppingAFlingNeverHolds() {
+        extra = "\"sort\":\"hype\","
+        more = (1..12).joinToString("") { k ->
+            ",{\"id\":\"m$k\",\"title\":\"Filler Quest $k\",\"state\":\"backlog\",\"date\":\"2026-0${1 + k % 9}-10\",\"ord\":${6 + k},\"colour\":\"#4A7A5C\",\"genres\":[\"Puzzle\"],\"hype\":${k % 7 + 1},\"added\":\"2026-10-01\"}"
+        }
+        show()
+        val scroller = rule.onAllNodes(hasScrollToNodeAction()).onLast()
+        fun firstTop() = rule.onAllNodes(hasText("Filler Quest", substring = true) and hasClickAction()).fetchSemanticsNodes()
+            .minOf { it.boundsInRoot.top }
+        val before = firstTop()
+        scroller.performTouchInput {
+            // a quick flick up, let go, and 30 ms later a finger lands mid-list and stays still
+            swipeUp(startY = height * .85f, endY = height * .25f, durationMillis = 60)
+            advanceEventTime(30)
+            down(center)
+            advanceEventTime(500)
+            up()
+        }
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue("the flick scrolled the list", firstTop() < before)
+        assertEquals("no game page opened", emptyList<String>(), nav.stack)
     }
 
     @Test fun oneTapClosesTheCardRightAfterItsWait() {
