@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -272,9 +271,6 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     }
                 }
             }
-            // what scrolls under the status bar fades out under the clock (the owner's screenshot, Nov 6: the Queue's
-            // title sat right on the time); taps go through it
-            StatusFade(Modifier.align(Alignment.TopCenter).graphicsLayer { alpha = if (covered) 0f else 1f })
             // the Queue's notes sit over the middle of the page, just above the taskbar
             val noteAt = Modifier
                 .graphicsLayer { alpha = if (covered) 0f else 1f }
@@ -400,19 +396,6 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
  * last card scroll clear of it.
  */
 private fun foot(bars: PaddingValues, room: Dp, big: Boolean) = maxOf(bars.calculateBottomPadding(), room) + if (big) 60.dp else 40.dp
-
-/** A fade on the page's own ground behind the status bar, 14 taller than it, so the clock and icons stay readable. */
-@Composable
-private fun StatusFade(modifier: Modifier) {
-    val ground = LocalLook.current.bgBase
-    Box(
-        modifier
-            .fillMaxWidth()
-            .drawBehind { drawRect(Brush.verticalGradient(0f to ground.copy(alpha = .92f), .55f to ground.copy(alpha = .7f), 1f to ground.copy(alpha = 0f))) }
-            .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
-            .padding(bottom = 14.dp),
-    )
-}
 
 /** The page's side gutters: 16, or 22 from 700 wide. */
 private fun side(w: Dp) = if (w >= 700.dp) 22.dp else 16.dp
@@ -666,9 +649,16 @@ private fun RailViews(views: List<Pair<String, String>>, on: String?, volt: Colo
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .background(Pn.pan, RAIL_TRAY)
-            .border(1.dp, Pn.line, RAIL_TRAY)
+            // the tray is drawn 8 in from the rail's sides, but each line takes taps across the rail's whole width
+            .drawBehind {
+                val inset = 8.dp.toPx()
+                val r = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx())
+                val at = Offset(inset, 0f)
+                val sz = Size(size.width - inset * 2, size.height)
+                drawRoundRect(Pn.pan, at, sz, r)
+                val hw = .5.dp.toPx()
+                drawRoundRect(Pn.line, Offset(inset + hw, hw), Size(sz.width - hw * 2, sz.height - hw * 2), androidx.compose.ui.geometry.CornerRadius(r.x - hw), style = androidx.compose.ui.graphics.drawscope.Stroke(hw * 2))
+            }
             .padding(vertical = RAIL_TRAY_PAD)
             .semantics { contentDescription = "Views" },
     ) {
@@ -684,7 +674,7 @@ private fun RailViews(views: List<Pair<String, String>>, on: String?, volt: Colo
             ) {
                 Box(
                     Modifier
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = 12.dp)
                         .fillMaxWidth()
                         .height(38.dp)
                         .then(if (sel) Modifier.background(volt.copy(alpha = .18f), RoundedCornerShape(13.dp)) else Modifier),
@@ -705,8 +695,7 @@ private fun RailViews(views: List<Pair<String, String>>, on: String?, volt: Colo
     }
 }
 
-/** The views' tray in the rail: round 18, 4 of air above and below its lines. */
-private val RAIL_TRAY = RoundedCornerShape(18.dp)
+/** The air above and below the lines in the views' tray (round 18, 8 in from the rail's sides). */
 private val RAIL_TRAY_PAD = 4.dp
 
 /** A view's word in the rail: Poppins 13. */
