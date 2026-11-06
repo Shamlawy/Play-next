@@ -34,3 +34,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E27 | 2026-11-05 3:23 PM | release | 75 min | 87 min | 1.16 | I'll fix all three, test them, release android-v18, and send you what to try. | <!-- at=2026-11-05T11:23:59.034Z note=ended_at_the_release_(4:50_PM),_not_at_the_handoff -->
 | E28 | 2026-11-05 4:15 PM | release | 45 min | 35 min | 0.78 | I'll merge android-v18 once its two Android checks pass, then tell you when it reaches your phone. | <!-- at=2026-11-05T12:15:18.631Z -->
 | E30 | 2026-11-06 1:59 PM | video | 1.5 h | 12 min | 0.13 | I'll build both fixes, run the kit on every tab at folded and unfolded widths, and send the PR link with screenshots. | <!-- at=2026-11-06T09:59:34.812Z -->
+| E31 | 2026-11-06 2:13 PM | video | 45 min | open |  | fix the 4 tests, re-record screenshots, run the checks, a review, then open the PR and send you the link. | <!-- at=2026-11-06T10:13:38.896Z -->
