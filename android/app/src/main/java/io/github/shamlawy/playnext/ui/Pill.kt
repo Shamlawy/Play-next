@@ -62,14 +62,6 @@ fun ViewBar(views: List<Pair<String, String>>, on: String, pick: (String) -> Uni
             .shadow(12.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.pan, shape)
             .border(1.dp, Pn.line2, shape)
-            .pointerInput(scroll) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val e = awaitPointerEvent(PointerEventPass.Initial)
-                        if (scroll.maxValue > 0 && e.changes.any { it.pressed && !it.previousPressed }) guard.inScroller = true
-                    }
-                }
-            }
             .padding(4.dp),
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -92,7 +84,18 @@ fun ViewBar(views: List<Pair<String, String>>, on: String, pick: (String) -> Uni
                         }
                     }
                 },
-                modifier = Modifier.horizontalScroll(scroll),
+                // the side-scroller mark sits on the segments' own bounds, not the padded bar: a pointer input on the
+                // bar's 4dp rim would take a tap just off a segment, so Compose's 48dp widening never reached it (L245)
+                modifier = Modifier
+                    .pointerInput(scroll) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val e = awaitPointerEvent(PointerEventPass.Initial)
+                                if (scroll.maxValue > 0 && e.changes.any { it.pressed && !it.previousPressed }) guard.inScroller = true
+                            }
+                        }
+                    }
+                    .horizontalScroll(scroll),
             ) { parts, _ ->
                 val h = SEG_H.roundToPx()
                 val gap = 2.dp.roundToPx()

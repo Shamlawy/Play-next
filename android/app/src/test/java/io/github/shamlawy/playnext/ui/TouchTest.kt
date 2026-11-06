@@ -201,14 +201,18 @@ class TouchTest {
         val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
         val games = rule.onNodeWithContentDescription("Games").fetchSemanticsNode().boundsInRoot
         val labels = Prefs.of(lib).views("games").map { it.second }
+        // the Queue's chip row can show the same word (Played), so the rail's is the rightmost node (L246)
+        fun inRail(l: String): Int = rule.onAllNodesWithContentDescription(l).fetchSemanticsNodes()
+            .withIndex().maxBy { it.value.boundsInRoot.left }.index
         for (l in labels) {
-            val b = rule.onAllNodesWithContentDescription(l).fetchSemanticsNodes().single().boundsInRoot
+            val b = rule.onAllNodesWithContentDescription(l).fetchSemanticsNodes()[inRail(l)].boundsInRoot
             assertTrue("$l in the rail on the right ($b)", b.left > root.right * .8f)
             assertTrue("$l under the Games icon ($b, $games)", b.top >= games.bottom - 1f)
         }
         val px = 3f
-        assertTrue("the rail is wide enough for its words", rule.onNodeWithContentDescription(labels[1]).fetchSemanticsNode().boundsInRoot.width / px >= 100f)
-        rule.onNodeWithContentDescription(labels[1]).performClick()
+        val second = rule.onAllNodesWithContentDescription(labels[1])[inRail(labels[1])]
+        assertTrue("the rail is wide enough for its words", second.fetchSemanticsNode().boundsInRoot.width / px >= 100f)
+        second.performClick()
         rule.waitForIdle()
         assertEquals(Prefs.of(lib).views("games")[1].first, nav.views["games"])
         // Plan's views follow Plan's icon
