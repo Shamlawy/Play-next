@@ -24,6 +24,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
+import io.github.shamlawy.playnext.data.Shuffler
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.kit.Shared
 import io.github.shamlawy.playnext.update.Updater
@@ -308,6 +309,29 @@ class ScreensTest {
     }
     @Test fun listsAdd412() = shot("lists-add", 412, l = listsLib, ready = openAdd) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
     @Test fun listsAdd859() = shot("lists-add", 859, l = listsLib, ready = openAdd) { Shell(Nav("games", listOf("lists"), mapOf("games" to "queue")), Games.State.Ready(listsLib, now - 3 * 3_600_000L), go = {}) }
+
+    /** The Game shuffler (android-v24): the deck on its first card, and the picks once three tempted you. */
+    private fun deckShot(name: String, width: Int, then: () -> Unit = {}) {
+        Shuffler.rnd = kotlin.random.Random(7)
+        try {
+            // the card's opening (the strap, the glint) played out
+            shot(name, width, ready = { rule.mainClock.advanceTimeBy(2_500); rule.waitForIdle(); then() }) { Shell(Nav("games", listOf("shuffle"), mapOf("games" to "queue")), ready, go = {}) }
+        } finally {
+            Shuffler.rnd = kotlin.random.Random.Default
+        }
+    }
+    private val tempt3 = {
+        rule.mainClock.advanceTimeBy(1_000)
+        repeat(3) {
+            rule.onNodeWithContentDescription("Tempted").performClick()
+            rule.waitForIdle()
+        }
+        rule.onNodeWithContentDescription("Your picks, 3").performClick()
+        rule.waitForIdle()
+    }
+    @Test fun shuffle412() = deckShot("shuffle", 412)
+    @Test fun shuffle859() = deckShot("shuffle", 859)
+    @Test fun shufflePicks412() = deckShot("shuffle-picks", 412, tempt3)
 
     /** The header card's Customise chip opens the Queue's Customise; Close and back shut it. */
     @Test fun theQueuesCustomiseChipOpensItsOwnGroups() {

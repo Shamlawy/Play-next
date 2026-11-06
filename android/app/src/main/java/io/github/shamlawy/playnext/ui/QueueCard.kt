@@ -215,6 +215,30 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     }
 }
 
+/**
+ * The open card's front on its own, for the Game Shuffler's deck (the owner, Nov 2: "yeah queue card is better"): the
+ * same picture, strap, ticket and logo, at the folded or the [big] (from 620 wide) size; no taps of its own but the box
+ * art's (the game's page). [fresh] plays its opening (the strap sliding in, the glint) as each card comes up.
+ */
+@Composable
+fun QueueFace(q: Queue, g: Game, n: Int, big: Boolean, fresh: Boolean, mod: Modifier) {
+    val calm = LocalCalm.current
+    val st = remember(g, q) { q.stat(g) }
+    val enter = remember(g.id) { Animatable(if (fresh && !calm) 0f else ENTER_END) }
+    androidx.compose.runtime.LaunchedEffect(g.id) {
+        if (enter.value < ENTER_END) enter.animateTo(ENTER_END, tween(ENTER_END.toInt(), easing = LinearEasing))
+    }
+    val d = if (big) CardDims.wide else CardDims.folded
+    val shape = RoundedCornerShape(Web.U_R.dp)
+    Box(
+        mod.fillMaxWidth().height(d.h).clip(shape).background(Pn.void).border(1.dp, Pn.line, shape)
+            .semantics { contentDescription = g.title + ", " + st.head },
+    ) { Front(q, g, n, st, Color(g.colour), d, enter, false) }
+}
+
+/** The card's height at the folded or [big] size. */
+fun queueFaceHeight(big: Boolean): Dp = if (big) CardDims.wide.h else CardDims.folded.h
+
 private class Taps {
     var at = 0L
     var pending: Job? = null

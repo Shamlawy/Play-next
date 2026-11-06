@@ -17,6 +17,7 @@ Counts.counts: List<Pair<String, Int>>
 CustomiseSheet.games: State
 DeckCard.g: Game
 DeckCard.q: Queue
+DeckCard.unstable x: Animatable<Float, *>
 DrawnCover.g: Game
 DropRow.l: QList
 Fan.covers: List<Game>
@@ -43,11 +44,17 @@ Panel.lines: List<String>
 PicBox.g: Game?
 PicBox.pic: Pic
 PickRow.g: Game
+PickRow.q: Queue
+Picks.byId: Map<String, Game>
+Picks.lib: Library
+Picks.q: Queue
 PictureCard.picture: ImageBitmap?
 PlatRow.chips: List<Chip>
 PlayNextRoot.link: Route?
 QueueCard.g: Game
 QueueCard.q: Queue
+QueueFace.g: Game
+QueueFace.q: Queue
 QueueGroups.lib: Library
 QueueRow.g: Game
 QueueRow.q: Queue
@@ -59,10 +66,13 @@ SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State
 Shell.nav: Nav
+ShuffleDeck.games: State
+ShuffleDeck.pick: QueuePick?
 ShutGhost.g: Game
 ShutGhost.q: Queue
 Spotlight.l: Line
 Stats.stats: List<Stat>
+Strip.byId: Map<String, Game>
 TabPage.games: State
 TabTop.games: State
 Ticket.st: Stat
