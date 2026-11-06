@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.data
 
+import androidx.compose.runtime.Immutable
 import kotlin.random.Random
 
 /**
@@ -54,6 +55,7 @@ object Shuffler {
      * ([picks], in the order you picked them) and [steps] for Back one. Plain values, so the screen keeps it while a game
      * page is open over the deck.
      */
+    @Immutable
     data class Deck(
         val mode: String,
         val ids: List<String>,
@@ -88,6 +90,16 @@ object Shuffler {
         /** A fresh shuffle of [mode] (the picks start over too, as on the web). */
         fun again(mode: String, ids: List<String>) = Deck(mode, ids)
 
+        /**
+         * Past the cards whose game is gone from [have] (a newer backup took it away while the deck was kept): the next
+         * card that's still there, or the picks when none is left.
+         */
+        fun past(have: Set<String>): Deck {
+            if (done) return this
+            val i = (at until ids.size).firstOrNull { ids[it] in have } ?: return copy(at = ids.size, done = true)
+            return if (i == at) this else copy(at = i)
+        }
+
         /** To card [i] (a tap on the strip of covers). */
         fun go(i: Int) = if (i in ids.indices) copy(at = i, done = false) else this
 
@@ -106,6 +118,7 @@ object Shuffler {
     }
 
     /** One swipe: the card [at], its game [id], which way, and whether it was a pick already. */
+    @Immutable
     data class Step(val at: Int, val id: String, val yes: Boolean, val had: Boolean) {
         fun save() = "$at|$id|$yes|$had"
 

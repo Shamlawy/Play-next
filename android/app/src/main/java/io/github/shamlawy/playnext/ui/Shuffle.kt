@@ -129,16 +129,25 @@ fun ShuffleDeck(modifier: Modifier, games: Games.State, pick: QueuePick?, close:
         if (Buzz.swipes) Buzz.ms(if (yes) 14L else 6L)
         Crumbs.tap(if (yes) "tempted" else "not now", "shuffle")
         scope.launch {
-            if (!calm) x.animateTo((if (yes) 1f else -1f) * cardW * FLY, tween(FLY_MS, easing = FLY_EASE))
-            deck = deck.swipe(yes)
-            x.snapTo(0f)
-            busy = false
+            // a fly cut short (a new deal snaps the card back) decides nothing, but never leaves the deck stuck busy
+            val from = deck
+            try {
+                if (!calm) x.animateTo((if (yes) 1f else -1f) * cardW * FLY, tween(FLY_MS, easing = FLY_EASE))
+                if (deck === from) deck = deck.swipe(yes)
+                x.snapTo(0f)
+            } finally {
+                busy = false
+            }
         }
     }
     val deal = { mode: String ->
         deck = deck.again(mode, Shuffler.deck(q, mode))
         scope.launch { x.snapTo(0f) }
         busy = false
+    }
+    // a kept deck can name a game a newer backup took away: skip to the next card that's still there
+    LaunchedEffect(deck, byId) {
+        if (!deck.done && deck.id != null && deck.id !in byId) deck = deck.past(byId.keys)
     }
     val guard = LocalSwipeGuard.current
     Box(
@@ -263,7 +272,11 @@ private fun DeckCard(q: Queue, g: Game, n: Int, big: Boolean, x: Animatable<Floa
     val calm = LocalCalm.current
     val scope = rememberCoroutineScope()
     val rise = remember { Animatable(if (calm) 1f else 0f) }
-    LaunchedEffect(Unit) { if (rise.value < 1f) rise.animateTo(1f, tween(420, easing = IN_EASE)) }
+    LaunchedEffect(Unit) {
+        // the last card's spring-back can be cut short (a tap on the strip, Back one): this one starts straight
+        x.snapTo(0f)
+        if (rise.value < 1f) rise.animateTo(1f, tween(420, easing = IN_EASE))
+    }
     val volt = LocalLook.current.volt
     Box(
         Modifier.fillMaxWidth()
@@ -328,7 +341,7 @@ private fun Tag(word: String, lit: Boolean) {
 private fun Strip(deck: Shuffler.Deck, byId: Map<String, Game>, go: (Int) -> Unit) {
     val volt = LocalLook.current.volt
     val from = maxOf(0, minOf(deck.at - 2, deck.ids.size - 6))
-    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
         for (i in from until minOf(from + 6, deck.ids.size)) {
             val g = byId[deck.ids[i]] ?: continue
             val on = i == deck.at
@@ -461,7 +474,7 @@ private fun Picks(q: Queue, deck: Shuffler.Deck, byId: Map<String, Game>, lib: L
                 }
             }
             WideButton("Shuffle again", true, again)
-            if (deck.at < deck.ids.size) WideButton("Keep going", false, resume)
+            if (deck.ids.subList(minOf(deck.at, deck.ids.size), deck.ids.size).any { it in byId }) WideButton("Keep going", false, resume)
         }
     }
 }

@@ -232,6 +232,15 @@ class ShuffleDeckTest {
         assertEquals(listOf("a"), d.undo().picks)
     }
 
+    @Test fun cardsWhoseGameIsGoneAreSkipped() {
+        val d = Shuffler.Deck(Shuffler.ALL, listOf("a", "b", "c"))
+        assertEquals(d, d.past(setOf("a", "b", "c")))
+        assertEquals(2, d.past(setOf("c")).at)
+        val none = d.past(emptySet())
+        assertTrue("nothing left: the picks show", none.done)
+        assertEquals(3, none.at)
+    }
+
     @Test fun theWordsUnderACard() {
         val q = queue()
         // at the web's 4 hours an evening: 12 h is 3 evenings
