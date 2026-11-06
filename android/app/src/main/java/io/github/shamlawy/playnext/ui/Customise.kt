@@ -149,7 +149,7 @@ private fun Label(text: String) = BasicText(text, style = Type.label, modifier =
 
 /** `.chips`: pills with a hairline; the picked one in your accent with `--void` words (`html.ui2 .chip`). */
 @Composable
-private fun Chips(items: List<Pair<String, String>>, picked: String, pick: (String) -> Unit) {
+internal fun Chips(items: List<Pair<String, String>>, picked: String, pick: (String) -> Unit) {
     val volt = LocalLook.current.volt
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((v, label) in items) {

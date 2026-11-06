@@ -120,7 +120,7 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
             ) { BasicText("✕", style = DyType.x) }
         }
         BasicText(
-            "Your own shelves. Pick one in the Queue's filter menu to see just those games.",
+            "Your own shelves. Each one is a chip in the Queue's bar: tap it to see just those games.",
             style = DyType.q, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
         )
         if (lists.isEmpty()) {
@@ -441,6 +441,8 @@ internal fun DyFrame(modifier: Modifier, title: String, close: () -> Unit, lazy:
                 // a sheet holding its own lazy list scrolls that list instead of itself
                 .then(if (lazy) Modifier else Modifier.verticalScroll(rememberScrollState()))
                 .windowInsetsPadding(WindowInsets.navigationBars)
+                // and the taskbar's room when Android doesn't report it (Taskbar)
+                .padding(bottom = overNavBar(LocalBottomRoom.current))
                 .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
             content = content,
         )

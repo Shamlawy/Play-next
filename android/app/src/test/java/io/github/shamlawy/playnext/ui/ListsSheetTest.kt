@@ -12,6 +12,8 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -88,6 +90,7 @@ class ListsSheetTest {
     private fun show(l: Library, stack: List<String> = emptyList()): () -> Nav {
         state.value = Games.State.Ready(l, now - 3_600_000L)
         var nav by mutableStateOf(Nav("games", stack, mapOf("games" to "queue")))
+        reopen = { nav = nav.open("lists") }
         rule.setContent {
             val games by Games.state.collectAsState()
             Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, games, go = { nav = it }) }
@@ -97,9 +100,24 @@ class ListsSheetTest {
 
     private val ready get() = state.value as Games.State.Ready
 
-    @Test fun theBarsListsButtonOpensYourLists() {
+    /** Opens Your lists again over what [show] shows (the bar's lists button did this before Option B). */
+    private var reopen: () -> Unit = {}
+
+    /** The old "+" is gone (Option B, Nov 6): Your lists opens from Sort's menu. */
+    @Test fun sortsMenuOpensYourLists() {
         val nav = show(lib("[]"))
-        rule.onNodeWithContentDescription("Make a list").performClick()
+        rule.onNode(hasContentDescription("Sort: ", substring = true)).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Your lists").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("lists"), nav().stack)
+        rule.onNodeWithText("No lists yet. Make your first one below.").assertExists()
+        assertEquals("the menu closed", 0, rule.onAllNodesWithContentDescription("Shuffle the queue").fetchSemanticsNodes().size)
+    }
+
+    @Test fun yourListsOpensAndCloses() {
+        // (the Queue bar's lists button is gone, Option B Nov 6: the sheet opens from its step)
+        val nav = show(lib("[]"), listOf("lists"))
         rule.waitForIdle()
         assertEquals(listOf("lists"), nav().stack)
         rule.onNodeWithText("No lists yet. Make your first one below.").assertExists()
@@ -156,7 +174,8 @@ class ListsSheetTest {
         rule.onNodeWithText("Add to Short ones").assertExists()
         rule.onNodeWithText("Done").performClick()
         rule.waitForIdle()
-        rule.onNodeWithText("Short ones").assertExists()
+        // the sheet's own row (the Queue's bar under the sheet shows "Short ones" too, L246)
+        rule.onNodeWithContentDescription("Short ones, 0 games, show in queue").assertExists()
         rule.onNodeWithText("0 games · show in queue").assertExists()
         assertEquals("the moon's emoji, as the web stores it", Lists.MARKS[4].emo, Lists.of(ready.lib)[0].e)
         assertEquals("list:moon", Lists.icon(Lists.of(ready.lib)[0].e))
@@ -234,7 +253,7 @@ class ListsSheetTest {
         rule.waitForIdle()
         assertEquals(emptyList<String>(), nav().stack)
         rule.mainClock.advanceTimeBy(1_000)
-        rule.onNodeWithContentDescription("Manage lists").performClick()
+        rule.runOnIdle { reopen() }
         rule.waitForIdle()
         // a tap right after a sheet opens lands on nothing (Shell's settle): a finger waits a moment
         rule.mainClock.advanceTimeBy(1_000)

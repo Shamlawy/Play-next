@@ -49,7 +49,7 @@ import java.util.TimeZone
 
 /**
  * The screens as pictures (Robolectric draws them, no emulator): restore, Home, each tab's views with their header
- * cards and the view pill (or its chips), the tab-switch slash mid-sweep, Settings and Home without a code, folded
+ * cards and the views (the rail unfolded, the sticky top bar folded), the tab-switch slash mid-sweep, Settings and Home without a code, folded
  * (412) and unfolded (859). The approved pictures live in src/test/screenshots; android-check fails when
  * one changes (verifyRoborazziDebug), and `./gradlew :app:recordRoborazziDebug` writes new ones after a meant change.
  * Made-up games only: the repo is public. The clock is fixed, so "as of" and "in N days" never move.
@@ -199,8 +199,8 @@ class ScreensTest {
         rule.runOnIdle { assertEquals(Nav("games"), nav) }
     }
 
-    /** The pill off: the views as chips under the card; header cards Simple (numbers and covers). */
-    @Test fun chips412() = lib(""","pill":false,"shxX":["fan"]""").let { l -> shot("chips", 412, l = l, content = tab("games", "replay", l)) }
+    /** Header cards Simple (numbers and covers). */
+    @Test fun simple412() = lib(""","shxX":["fan"]""").let { l -> shot("simple", 412, l = l, content = tab("games", "replay", l)) }
 
     /** Header cards off: a plain title. */
     @Test fun plain859() = lib(""","shxOff":true""").let { l -> shot("plain", 859, l = l, content = tab("taste", "duels", l)) }

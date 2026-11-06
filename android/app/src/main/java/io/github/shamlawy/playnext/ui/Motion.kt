@@ -41,16 +41,13 @@ object Ease {
 
     /** The Queue's order-change glide (index.html 11585: 560ms `cubic-bezier(.2,.9,.25,1)`). */
     val glide = CubicBezierEasing(.2f, .9f, .25f, 1f)
-
-    /** The view pill's lit segment sliding across. */
-    val slide = CubicBezierEasing(.4f, 0f, .2f, 1f)
 }
 
 /** Settings › Switching tabs (`S.tabFade`): the Persona slash (the default), Fade in, or Instant. */
 enum class TabFade { Slash, Fade, Instant }
 
 /**
- * The settings from your backup that shape the shared kit: motion, the tab switch, the view pill, the header cards and
+ * The settings from your backup that shape the shared kit: motion, the tab switch, the header cards and
  * which view each tab opens on. Read only: the app never writes them back (a practice copy until switch day).
  */
 @Immutable
@@ -60,8 +57,6 @@ data class Prefs(
     /** Battery saver doesn't calm the app (`S.batOff`). */
     val batOff: Boolean = false,
     val tabFade: TabFade = TabFade.Slash,
-    /** The floating view pill (`S.pill !== false`); off, a row of chips stands in. */
-    val pill: Boolean = true,
     /** Header cards off: a plain title (`S.shxOff`). */
     val shxOff: Boolean = false,
     /** What's on the header cards (`S.shxX`, every extra when it was never set). */
@@ -81,7 +76,7 @@ data class Prefs(
     /** Settings › Open the app on (`S.startTab`): the tab and view to start on; null for Home. */
     val start: Pair<String, String?>? = null,
 ) {
-    /** A tab's views in the pill's order (Plan's Timer only while it's switched on); empty for Home and Add. */
+    /** A tab's views in their order (Plan's Timer only while it's switched on); empty for Home and Add. */
     fun views(tab: String): List<Pair<String, String>> = Web.VIEWS[tab].orEmpty().filter { it.first != "timer" || timerOn }
 
     /** `subOf(tab)`: the view open in [tab]: yours in this app, else the web app's saved one, else the tab's default. */
@@ -109,7 +104,6 @@ data class Prefs(
                 motionOff = lib.off("motion"),
                 batOff = Backup.truthy(lib["batOff"]),
                 tabFade = fade,
-                pill = !lib.off("pill"),
                 shxOff = Backup.truthy(lib["shxOff"]),
                 shx = x?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content } ?: SHX_FULL,
                 timerOn = Backup.truthy(lib["timerOn"]),

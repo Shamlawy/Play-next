@@ -1,7 +1,18 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.foundation.layout.sizeIn
@@ -36,7 +47,6 @@ import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.keyframes
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -99,7 +109,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -256,6 +265,9 @@ class QueuePick(lib: Library) {
         return g
     }
 
+    /** A short line where Shuffle's goes (Boss mode's "comes in a later update"). */
+    fun say(text: String) { note = QueueLit("", text, ++taps) }
+
     /** One tap on the open card [id]: it closes into its row. */
     fun close(id: String? = null) { shutBack = id != null && flip == id; focus = null; collapsed = true; fresh = null; flip = null; shut = id }
 
@@ -336,7 +348,7 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
         item("q-empty") { Empty("Queue is empty. Open Add and search for the first game.", mod) }
         return
     }
-    item("q-bar") { QueueBar(v, pick, folded, mod, lists) }
+    item("q-bar") { QueueBar(v, pick, mod, lists) }
     val deck = if (q.lib.off("deckOff") || Backup.truthy(q.lib["deckOff"]) || v.tab == "done") emptyList() else q.deck(v.tab)
     if (deck.isNotEmpty()) item("q-deck") { OnDeck(q, v.tab, deck, mod, open) }
     if (v.shown.isEmpty()) item("q-none") { Empty("Nothing here right now. Try another filter.", mod) }
@@ -878,295 +890,217 @@ private fun Empty(text: String, mod: Modifier) {
     }
 }
 
-// ---------------------------------------------------------------- the bar (`qdDeck`, CSS 27439-27520)
+// ---------------------------------------------------------------- the bar (Option B, Nov 6: one row of chips + Sort)
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The Queue's bar (the owner's Option B, Nov 6): one row of pill chips, All · Out · Coming · Played (and your lists)
+ * with their live counts, the lit one filled in your accent, the rest dark with a hairline. The row never wraps: when
+ * it runs out of room it scrolls sideways (a touch on it is its own, not a view swipe). At its end one Sort button
+ * opens a small menu with the orders, Shuffle and Boss (the old Order button, Shuffle and Boss, moved in there).
+ */
 @Composable
-private fun QueueBar(v: QueueView, pick: QueuePick, folded: Boolean, mod: Modifier, lists: () -> Unit) {
+private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, lists: () -> Unit) {
     val q = v.q
-    val volt = LocalLook.current.volt
     val tabs = Queue.TABS + q.lists.map { "L:" + it.id }
-    // each tab is at least as wide as what it says and shares the room left (`flex: 1 0 auto`); a full line wraps
-    // (`flex-wrap: wrap`) instead of squeezing the lit tab's name and count to "…" (FlowRow's weights did)
-    val measure = rememberTextMeasurer()
-    val px = LocalDensity.current
-    // remembered: TabLines gets the very same list back until a tab, its count or the lit one changes (compose-check)
-    val wordStyle = (if (folded) QType.tabF else QType.tab).fixed()
-    val countStyle = QType.count.fixed()
-    val needs = remember(q, folded, v.tab, px, measure, wordStyle, countStyle) { tabs.map { t ->
-        with(px) {
-            val icon = 17.dp
-            val word = if (!folded || t == v.tab) measure.measure(q.tabName(t), wordStyle).size.width.toDp() + (if (folded) 5.dp else 7.dp) else 0.dp
-            val count = measure.measure((q.counts[t] ?: 0).toString(), countStyle).size.width.toDp() + (if (folded) 5.dp else 7.dp)
-            icon + word + count + (if (folded) 18.dp else 24.dp)
-        }
-    } + LIST_BTN }
-    val tabRow = @Composable { m: Modifier ->
-        TabLines(
-            m.background(Pn.pan, RoundedCornerShape(18.dp)).border(1.dp, Pn.line2, RoundedCornerShape(18.dp)).padding(horizontal = 4.dp, vertical = if (folded) 0.dp else 2.dp),
-            needs,
+    val guard = LocalSwipeGuard.current
+    val scroll = rememberScrollState()
+    // Boss (`#fx-boss`): the Shadow's HP only while Grumble is on (v286, v302)
+    val hp = if (Backup.truthy(q.lib["grum"])) q.boss else null
+    Row(mod.padding(top = 6.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier
+                .weight(1f)
+                .pointerInput(scroll) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val e = awaitPointerEvent(PointerEventPass.Initial)
+                            if (scroll.maxValue > 0 && e.changes.any { it.pressed && !it.previousPressed }) guard.inScroller = true
+                        }
+                    }
+                }
+                .horizontalScroll(scroll),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             for (t in tabs) {
-                val on = t == v.tab
-                val name = q.tabName(t)
-                val n = q.counts[t] ?: 0
-                Box(
-                    Modifier.height(48.dp)
-                        .semantics { contentDescription = "$name, $n"; selected = on }
-                        .clickable(role = Role.Tab) {
-                            if (t != pick.tab) {
-                                Sounds.play(Sfx.Tap)
-                                Crumbs.tap("queue tab", "games/queue")
-                                pick.tab = t
-                            }
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().height(if (folded) 40.dp else 44.dp)
-                            .then(if (on) Modifier.background(Brush.verticalGradient(listOf(volt.copy(alpha = .3f), volt.copy(alpha = .16f))), RoundedCornerShape(14.dp)).border(1.dp, volt.copy(alpha = .55f), RoundedCornerShape(14.dp)) else Modifier)
-                            .padding(horizontal = if (folded) 9.dp else 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(if (folded) 5.dp else 7.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val tint = if (on) volt else Pn.mute
-                        val list = q.lists.firstOrNull { "L:" + it.id == t }
-                        // a list's tab wears its mark as a drawn icon (the web draws the stored emoji there: T56, never here)
-                        if (list != null) PnIcon(Lists.icon(list.e), tint, 17.dp, null) else QIcon(t, tint, 17.dp)
-                        // folded, only the lit tab says its name (the others: icon + count)
-                        if (!folded || on) {
-                            BasicText(name, style = (if (folded) QType.tabF else QType.tab).copy(color = if (on) Pn.ice else Pn.mute).fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
-                        }
-                        BasicText(n.toString(), style = QType.count.copy(color = tint).fixed(), maxLines = 1, softWrap = false)
+                FilterChip(q.tabName(t), q.counts[t] ?: 0, t == v.tab) {
+                    if (t != pick.tab) {
+                        Sounds.play(Sfx.Tap)
+                        Crumbs.tap("queue tab", "games/queue")
+                        pick.tab = t
                     }
                 }
             }
-            // the lists button (`.qdtab.qdlist`): as wide as its icon (`flex: 0 0 auto`), it opens Your lists
-            Box(
-                Modifier.height(48.dp)
-                    .semantics { contentDescription = if (q.lists.isEmpty()) "Make a list" else "Manage lists" }
-                    .clickable(role = Role.Button) {
-                        Sounds.play(Sfx.Tap)
-                        Crumbs.tap("lists", "games/queue")
-                        lists()
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.height(if (folded) 40.dp else 44.dp).padding(horizontal = 11.dp), contentAlignment = Alignment.Center) {
-                    QdIcon("list", Pn.mute, 17.dp)
-                }
-            }
         }
-    }
-    // Boss (`#fx-boss`): the Shadow's HP only while Grumble is on (v286, v302), else the word "Boss"
-    val hp = if (Backup.truthy(q.lib["grum"])) q.boss else null
-    if (folded) {
-        Column(mod.padding(top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            tabRow(Modifier.fillMaxWidth())
-            // folded: Order grows, Shuffle and Boss share its line
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OrderButton(v, pick, true, Modifier.weight(1f))
-                ShuffleButton(v, pick, true)
-                BossButton(hp, true)
-            }
-        }
-    } else {
-        // (`.qdeck` centres its buttons against the tab strip: they sit in the middle of two lines of tabs)
-        Row(mod.padding(top = 6.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            tabRow(Modifier.weight(1f))
-            OrderButton(v, pick, false, Modifier.widthIn(min = 148.dp))
-            ShuffleButton(v, pick, false)
-            BossButton(hp, false)
-        }
+        SortButton(v, pick, hp, lists)
     }
 }
 
-/**
- * Shuffle (`[data-qshuf]`, `.qdshuf`): a tap picks tonight's game, lights its row and brings it to the middle, with the
- * nudge sound and "Tonight: …". Its hold (the Game Shuffler deck) comes with the deck.
- */
+/** One chip: "Out 26", 36 tall inside a 48 touch; lit = filled with your accent, else `--u-card` with a hairline. */
 @Composable
-private fun ShuffleButton(v: QueueView, pick: QueuePick, folded: Boolean) {
+private fun FilterChip(name: String, n: Int, on: Boolean, tap: () -> Unit) {
     val volt = LocalLook.current.volt
-    val shape = RoundedCornerShape(if (folded) 16.dp else 18.dp)
     Box(
-        Modifier.height(if (folded) 48.dp else 54.dp).widthIn(min = Pn.touch)
-            .background(Pn.pan, shape).border(1.dp, Pn.line2, shape)
-            .semantics { contentDescription = "Shuffle: pick tonight's game" }
-            .clickable(role = Role.Button) {
-                Crumbs.tap("shuffle", "games/queue")
-                // nothing to pick from: only the line, no sound
-                if (pick.shuffle(v.q) != null) Sounds.play(Sfx.Nudge)
-            }
-            .padding(horizontal = if (folded) 12.dp else 14.dp),
+        Modifier.height(Pn.touch)
+            .semantics { contentDescription = "$name, $n"; selected = on }
+            .clickable(role = Role.Tab, onClick = tap),
         contentAlignment = Alignment.Center,
-    ) { QdIcon("shuf", volt, 20.dp) }
-}
-
-/**
- * Boss (`#fx-boss`, `.qdboss`): the Shadow of the Backlog's icon in --hot on a hot-tinted button; with Grumble on its
- * HP over a bar filled to HP / the most it has been (`--hp`, scaleX from the left), else just "Boss". Its tap opens the
- * Boss screen on the web (`bossScreen`), which comes with Phase 9, so here it only shows.
- */
-@Composable
-private fun BossButton(hp: Pair<Double, Double>?, folded: Boolean) {
-    val shape = RoundedCornerShape(if (folded) 16.dp else 18.dp)
-    val hot = Pn.hot
-    val fill = remember(hot) { Brush.verticalGradient(listOf(mixA(hot, Pn.pan, .13f), mixA(hot, Pn.pan, .04f))) }
-    val n = hp?.first?.let { Backup.jsNumber(it).content }
-    Row(
-        Modifier.height(if (folded) 48.dp else 54.dp)
-            .background(fill, shape).border(1.dp, mixA(hot, Color.Transparent, .38f), shape)
-            .semantics { contentDescription = "Boss: the Shadow of the Backlog" + (n?.let { ", $it HP" } ?: "") }
-            .padding(horizontal = if (folded) 12.dp else 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        QdIcon("boss", hot, 24.dp)
-        Column(Modifier.widthIn(min = if (folded) 60.dp else 58.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                BasicText(n ?: "Boss", style = QType.bold.fixed(), maxLines = 1, softWrap = false)
-                if (n != null) BasicText("HP", style = QType.hp.fixed(), maxLines = 1, softWrap = false)
-            }
-            if (hp != null) {
-                val k = (hp.first / hp.second).toFloat().coerceIn(0f, 1f)
-                val bar = remember(hot) { Brush.horizontalGradient(listOf(hot, mixA(hot, Color.White, .55f))) }
-                Box(Modifier.fillMaxWidth().height(6.dp).background(Color.White.copy(alpha = .08f), RoundedCornerShape(3.dp))) {
-                    Box(Modifier.matchParentSize().graphicsLayer { scaleX = k; transformOrigin = TransformOrigin(0f, .5f) }.background(bar, RoundedCornerShape(3.dp)))
-                }
-            }
+        Row(
+            Modifier.height(CHIP_H)
+                .then(if (on) Modifier.background(volt, Pn.pill) else Modifier.background(Pn.card, Pn.pill).border(1.dp, Pn.line2, Pn.pill))
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            BasicText(name, style = QType.chip.copy(color = if (on) Pn.void else Pn.ice).fixed(), maxLines = 1, softWrap = false)
+            BasicText(n.toString(), style = QType.count.copy(color = if (on) Pn.void.copy(alpha = .72f) else Pn.mute).fixed(), maxLines = 1, softWrap = false)
         }
     }
 }
 
-/** The lists button's width: its icon and 11 each side. It never grows. */
-private val LIST_BTN = 39.dp
+/** The chips' and Sort's height (inside their 48 touch). */
+private val CHIP_H = 36.dp
 
 /**
- * `.qdtabs` (`display: flex; flex-wrap: wrap; gap: 4px`, each tab `flex: 1 0 auto`): the tabs at [needs] wide go on a
- * line while they fit, the rest wraps; each tab on a line gets an equal share of what's left (the lists button, the
- * last, keeps its width). Every item is 48 tall.
+ * Sort: a sliders icon and "Sort", as tall as the chips (its line in your accent while the Queue isn't in your own
+ * order). A tap opens [SortMenu] under it; a tap outside closes it.
  */
 @Composable
-private fun TabLines(modifier: Modifier, needs: List<Dp>, content: @Composable () -> Unit) {
-    Layout(content, modifier) { ms, c ->
-        val gap = 4.dp.roundToPx()
-        val w = c.maxWidth
-        val need = ms.indices.map { (needs.getOrNull(it) ?: 0.dp).roundToPx() }
-        val lines = ArrayList<List<Int>>()
-        var line = ArrayList<Int>()
-        var used = 0
-        for (i in ms.indices) {
-            val add = need[i] + if (line.isEmpty()) 0 else gap
-            if (line.isNotEmpty() && used + add > w) {
-                lines += line
-                line = ArrayList()
-                used = 0
-            }
-            used += need[i] + if (line.isEmpty()) 0 else gap
-            line += i
-        }
-        if (line.isNotEmpty()) lines += line
-        val grows = { i: Int -> i < ms.size - 1 }
-        val rowH = 48.dp.roundToPx()
-        val placed = lines.map { l ->
-            val sum = l.sumOf { need[it] } + gap * (l.size - 1)
-            val k = l.count(grows)
-            val extra = if (k > 0) ((w - sum).coerceAtLeast(0)) / k else 0
-            l.map { i -> ms[i].measure(Constraints.fixed(minOf(w, need[i] + if (grows(i)) extra else 0), rowH)) }
-        }
-        val h = if (placed.isEmpty()) 0 else placed.size * rowH + (placed.size - 1) * gap
-        layout(w, h) {
-            placed.forEachIndexed { r, l ->
-                var x = 0
-                for (pl in l) {
-                    pl.place(x, r * (rowH + gap))
-                    x += pl.width + gap
-                }
-            }
-        }
-    }
-}
-
-/** Order (`#sortby`): "Order" over the order's name, a caret; its menu groups the orders (`#sortpop`). */
-@Composable
-private fun OrderButton(v: QueueView, pick: QueuePick, folded: Boolean, modifier: Modifier) {
+private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?, lists: () -> Unit) {
     val volt = LocalLook.current.volt
-    val manual = v.sort == "manual"
+    val sorted = v.sort != "manual"
     var open by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(if (folded) 16.dp else 18.dp)
-    Box(modifier) {
-        Row(
-            Modifier.height(if (folded) 48.dp else 54.dp)
-                .background(Pn.pan, shape).border(1.dp, if (!manual) volt.copy(alpha = .6f) else Pn.line2, shape)
-                .semantics { contentDescription = "Order: " + Queue.sortName(v.sort) }
+    val d = LocalDensity.current
+    // from the menu's top to the window's foot (px): the menu ends above the taskbar's room, not in it
+    var below by remember { mutableIntStateOf(Int.MAX_VALUE) }
+    val foot = maxOf(LocalBottomRoom.current, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    Box(
+        Modifier.onGloballyPositioned { c ->
+            val top = c.positionInRoot().y + with(d) { (Pn.touch + 2.dp).toPx() }
+            below = (c.findRootCoordinates().size.height - top).toInt()
+        },
+    ) {
+        Box(
+            Modifier.height(Pn.touch)
+                .semantics { contentDescription = "Sort: " + Queue.sortName(v.sort) }
                 .clickable(role = Role.Button) {
                     Sounds.play(Sfx.Tap)
+                    Crumbs.tap("sort", "games/queue")
                     open = !open
-                }
-                .padding(horizontal = if (folded) 12.dp else 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                },
+            contentAlignment = Alignment.Center,
         ) {
-            QdIcon("order", if (!manual) volt else Pn.ice, 20.dp)
-            Column(Modifier.weight(1f, fill = folded)) {
-                BasicText("Order", style = QType.small.fixed(), maxLines = 1)
-                BasicText(Queue.sortName(v.sort), style = QType.bold.fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            Row(
+                Modifier.height(CHIP_H)
+                    .background(Pn.card, Pn.pill).border(1.dp, if (sorted) volt.copy(alpha = .6f) else Pn.line2, Pn.pill)
+                    .padding(start = 12.dp, end = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                QdIcon("sort", if (sorted) volt else Pn.ice, 18.dp)
+                BasicText("Sort", style = QType.chip.copy(color = Pn.ice).fixed(), maxLines = 1, softWrap = false)
             }
-            QdIcon("car", Pn.mute, 16.dp, Modifier.graphicsLayer { rotationZ = if (open) 180f else 0f })
         }
         if (open) {
-            val d = LocalDensity.current
+            val room = if (below == Int.MAX_VALUE) Dp.Infinity else with(d) { below.toDp() } - foot - 12.dp
             Popup(
-                alignment = if (folded) Alignment.TopStart else Alignment.TopEnd,
-                offset = with(d) { IntOffset(0, ((if (folded) 48.dp else 54.dp) + 8.dp).roundToPx()) },
+                alignment = Alignment.TopEnd,
+                offset = with(d) { IntOffset(0, (Pn.touch + 2.dp).roundToPx()) },
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
-                OrderMenu(v.sort) { k ->
-                    open = false
-                    if (k != pick.sort) pick.sort = k
-                }
+                val n = hp?.first?.let { Backup.jsNumber(it).content }
+                SortMenu(
+                    v.sort, n, room,
+                    choose = { k -> open = false; if (k != pick.sort) pick.sort = k },
+                    lists = {
+                        open = false
+                        Crumbs.tap("lists", "games/queue")
+                        lists()
+                    },
+                    shuffle = {
+                        open = false
+                        Crumbs.tap("shuffle", "games/queue")
+                        // nothing to pick from: only the line, no sound
+                        if (pick.shuffle(v.q) != null) Sounds.play(Sfx.Nudge)
+                    },
+                    boss = {
+                        open = false
+                        Sounds.play(Sfx.Tap)
+                        Crumbs.tap("boss", "games/queue")
+                        // the Boss screen comes with Phase 9 (the old button only showed): a line says so, never a dead tap
+                        pick.say(BOSS_SOON)
+                    },
+                )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** What Boss mode says until its screen is built (Phase 9). */
+internal const val BOSS_SOON = "Boss mode's screen comes in a later update"
+
+/**
+ * Sort's menu: the orders in their three groups (`QD_GROUPS`), the one in use ticked; a line; "Your lists" (the
+ * owner, Nov 6: "do whatever", the PR's suggested home for the old "+", the only way into the lists sheet); "Shuffle the queue";
+ * "Boss mode" (the only red thing, with the Shadow's HP while Grumble is on). On a short screen the orders scroll and
+ * Shuffle and Boss stay in view.
+ */
 @Composable
-private fun OrderMenu(sort: String, choose: (String) -> Unit) {
+private fun SortMenu(sort: String, hp: String?, room: Dp, choose: (String) -> Unit, lists: () -> Unit, shuffle: () -> Unit, boss: () -> Unit) {
     val volt = LocalLook.current.volt
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(18.dp)
+    val tall = LocalConfiguration.current.screenHeightDp.dp
+    // at most 62% of the screen, and never past the taskbar's room under Sort ([room]); 160 at the least
+    val most = minOf(maxOf(240.dp, tall * .62f), maxOf(160.dp, room))
     Column(
-        Modifier.widthIn(max = 470.dp).padding(horizontal = 16.dp)
-            .background(Pn.card, shape).border(1.dp, Pn.line2, shape).padding(14.dp),
+        Modifier.padding(end = 0.dp, start = 16.dp).width(264.dp).heightIn(max = most)
+            .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
+            .background(Pn.card, shape).border(1.dp, Pn.line2, shape).padding(vertical = 6.dp),
     ) {
-        for ((head, keys) in Queue.GROUPS) {
-            BasicText(head, style = QType.group.fixed(), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 8.dp))
-            FlowRow(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            for ((head, keys) in Queue.GROUPS) {
+                BasicText(head, style = QType.group.fixed(), modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp))
                 for (k in keys) {
                     val on = k == sort
-                    val s = RoundedCornerShape(12.dp)
-                    Box(
-                        Modifier.heightIn(min = 48.dp).semantics { selected = on }.clickable(role = Role.RadioButton) { choose(k) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        BasicText(
-                            Queue.sortName(k),
-                            style = QType.option.copy(color = if (on) Pn.void else Pn.ice).fixed(),
-                            maxLines = 1,
-                            modifier = Modifier.height(38.dp).background(if (on) volt else Pn.card2, s)
-                                .then(if (on) Modifier else Modifier.border(1.dp, Pn.line, s)).padding(horizontal = 13.dp).wrapCenter(),
-                        )
+                    MenuRow(Queue.sortName(k), Modifier.semantics { selected = on }, Role.RadioButton, { choose(k) }) {
+                        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { if (on) QdIcon("tick", volt, 20.dp) }
+                        BasicText(Queue.sortName(k), style = QType.option.copy(color = if (on) Pn.ice else Pn.ice.copy(alpha = .86f)).fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
         }
+        Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).fillMaxWidth().height(1.dp).background(Pn.line2))
+        MenuRow("Your lists", Modifier, Role.Button, lists) {
+            QdIcon("list", volt, 20.dp)
+            BasicText("Your lists", style = QType.option.fixed(), maxLines = 1, softWrap = false)
+        }
+        MenuRow("Shuffle the queue", Modifier, Role.Button, shuffle) {
+            QdIcon("shuf", volt, 20.dp)
+            BasicText("Shuffle the queue", style = QType.option.fixed(), maxLines = 1, softWrap = false)
+        }
+        MenuRow("Boss mode" + (hp?.let { ", $it HP" } ?: ""), Modifier, Role.Button, boss) {
+            QdIcon("boss", Pn.hot, 20.dp)
+            BasicText("Boss mode", style = QType.option.copy(color = Pn.hot).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
+            if (hp != null) BasicText("$hp HP", style = QType.hp.copy(color = Pn.hot.copy(alpha = .8f)).fixed(), maxLines = 1, softWrap = false)
+        }
     }
 }
 
-/** A single line of text centred in its box's height (the web's 38px option buttons). */
-private fun Modifier.wrapCenter() = this.then(Modifier.padding(top = 9.dp))
+/** One line of Sort's menu: 48 tall, its icon then its words. */
+@Composable
+private fun MenuRow(label: String, modifier: Modifier, role: Role, tap: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier.fillMaxWidth().height(Pn.touch)
+            .semantics { contentDescription = label }
+            .clickable(role = role, onClick = tap)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        content = content,
+    )
+}
 
 // ---------------------------------------------------------------- On deck (v259 photo cards, v303)
 
@@ -1586,34 +1520,12 @@ private fun LogoSlot(url: String, rowW: Dp, folded: Boolean, lib: Library) {
 
 // ---------------------------------------------------------------- icons
 
-/** `QICON` (index.html 7335): the tabs' 16x16 icons, drawn (they have strokes, so not through [Icons]). */
-@Composable
-private fun QIcon(kind: String, tint: Color, size: Dp) {
-    Canvas(Modifier.size(size)) {
-        scale(this.size.width / 16f, pivot = Offset.Zero) {
-            fun rr(x: Float, y: Float, w: Float, h: Float, r: Float, a: Float = 1f) = drawRoundRect(tint, Offset(x, y), Size(w, h), CornerRadius(r), alpha = a)
-            val ring = { drawCircle(tint, 6.4f, Offset(8f, 8f), alpha = .55f, style = Stroke(1.6f)) }
-            when (kind) {
-                "all" -> { rr(2f, 2.2f, 12f, 3f, 1.2f, .45f); rr(2f, 6.4f, 12f, 3f, 1.2f, .75f); rr(2f, 10.6f, 12f, 3f, 1.2f) }
-                "out" -> { ring(); drawPath(Path().apply { moveTo(6.6f, 5.2f); lineTo(11f, 8f); lineTo(6.6f, 10.8f); close() }, tint) }
-                "done" -> {
-                    ring()
-                    drawPath(Path().apply { moveTo(5f, 8.3f); lineTo(7.1f, 10.4f); lineTo(11f, 6.2f) }, tint, style = Stroke(1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                }
-                else -> {
-                    drawRoundRect(tint, Offset(1.6f, 3.2f), Size(12.8f, 11f), CornerRadius(2f), alpha = .55f, style = Stroke(1.5f))
-                    rr(1.6f, 3.2f, 12.8f, 3.2f, 1.6f); rr(4.4f, 1.2f, 1.6f, 3.2f, .8f); rr(10f, 1.2f, 1.6f, 3.2f, .8f)
-                    drawCircle(tint, 1.7f, Offset(8f, 10.4f))
-                }
-            }
-        }
-    }
-}
-
 /** `QD_IC` (index.html 8769): the bar's 24x24 icons, in the v247 style (one part at .35). */
 private val QD_IC = mapOf(
-    "order" to listOf("M4 5h16v2.4H4z" to 1f, "M4 10.8h11v2.4H4z" to .35f, "M4 16.6h6.5V19H4z" to 1f),
-    "car" to listOf("M6.5 9h11L12 15.5z" to 1f),
+    // Sort's sliders and the menu's tick (Android's own, in the same style: one part at .35)
+    "sort" to listOf("M3 5.8h18v2.4H3zM3 10.8h18v2.4H3zM3 15.8h18v2.4H3z" to .35f, "M6 3.5h3.2v7H6zM14.8 8.5H18v7h-3.2zM9 13.5h3.2v7H9z" to 1f),
+    "tick" to listOf("M9.6 15.6 5.4 11.4 3.7 13.1l5.9 5.9L20.3 8.3l-1.7-1.7z" to 1f),
+    // Your lists (the old lists button's mark: a box with a plus)
     "list" to listOf("M4 5h16v14H4z" to .35f, "M11 8h2v3h3v2h-3v3h-2v-3H8v-2h3z" to 1f),
     "shuf" to listOf(
         "M3 6.5h4.2l9 11H21v-2.4h-3.6l-9-11H3z" to .35f,
@@ -1642,13 +1554,12 @@ private fun QdIcon(name: String, tint: Color, size: Dp, modifier: Modifier = Mod
 
 private object QType {
     private val base = TextStyle(fontFamily = Fonts.poppins, color = Pn.ice)
-    val tab = base.copy(fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
-    val tabF = tab.copy(fontSize = 13.5.sp)
 
     /** The Delete button under a swiped row (`.qdel`: 14, .04em, Poppins Bold: it has no 800; sentence case, not the web's capitals). */
     val del = base.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.04.em)
+    /** A bar chip's name (and Sort's word). */
+    val chip = base.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
     val count = base.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
-    val small = base.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)
     val bold = base.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold)
     val hp = base.copy(fontSize = 11.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, color = Pn.mute)
     val group = base.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)

@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -181,7 +182,7 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () 
                 Column(
                     Modifier.widthIn(max = 880.dp).fillMaxWidth().offset(y = (-56).dp)
                         // unfolded, the rail stays over the page: its words keep clear of it (`#full .gd-body`, 104)
-                        .padding(start = if (wide) 28.dp else 20.dp, end = if (wide) 104.dp else 20.dp),
+                        .padding(start = if (wide) 28.dp else 20.dp, end = if (wide) RAIL_OUT + 20.dp else 20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -211,13 +212,15 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () 
                         BasicText("Pictures, prices, reviews, hours to beat, news, your notes, Where was I, Similar and Edit, all from the web app.", style = Type.note)
                     }
                 }
+                // the page ends above the taskbar
+                Spacer(Modifier.height(LocalBottomRoom.current))
             }
             // Back, top right (`#full .hub .fullx`, index.html 16523): 16 in, 100 unfolded where the rail sits
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 8.dp, end = if (wide) 92.dp else 8.dp)
+                    .padding(top = 8.dp, end = if (wide) RAIL_OUT + 8.dp else 8.dp)
                     .sizeIn(minWidth = Pn.touch, minHeight = Pn.touch)
                     .clickable(role = Role.Button) { closing = true }
                     .semantics { contentDescription = "Back" },

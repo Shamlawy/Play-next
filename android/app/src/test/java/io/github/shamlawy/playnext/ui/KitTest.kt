@@ -16,7 +16,6 @@ class KitTest {
     @Test fun defaultsWhenNothingWasSet() {
         val p = Prefs.of(lib(""))
         assertEquals(TabFade.Slash, p.tabFade)
-        assertTrue(p.pill)
         assertFalse(p.motionOff)
         assertFalse(p.shxOff)
         assertEquals(Prefs.SHX_FULL, p.shx)
@@ -54,13 +53,11 @@ class KitTest {
     @Test fun switchesAreOffOnlyWhenSavedFalse() {
         val p = Prefs.of(lib(""","motion":false,"pill":false,"batOff":true,"shxOff":1,"timerOn":true"""))
         assertTrue(p.motionOff)
-        assertFalse(p.pill)
         assertTrue(p.batOff)
         assertTrue(p.shxOff)
         assertFalse(p.shxOn("fan"))
         // a null or 0 isn't S.x === false
         assertFalse(Prefs.of(lib(""","motion":null,"pill":0""")).motionOff)
-        assertTrue(Prefs.of(lib(""","pill":0""")).pill)
     }
 
     @Test fun headerCardExtras() {

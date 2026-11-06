@@ -50,24 +50,24 @@ QueueCard.g: Game
 QueueCard.q: Queue
 QueueGroups.lib: Library
 QueueRow.g: Game
-# the card folding into its row (android-v18): the same Game and Queue the open card had, composed once per fold
-ShutGhost.g: Game
-ShutGhost.q: Queue
 QueueRow.q: Queue
+Rail.views: List<Pair<String, String>>
+RailColumn.views: List<Pair<String, String>>
+RailViews.views: List<Pair<String, String>>
 RenameRow.l: QList
 SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State
 Shell.nav: Nav
+ShutGhost.g: Game
+ShutGhost.q: Queue
 Spotlight.l: Line
 Stats.stats: List<Stat>
-TabLines.needs: List<Dp>
 TabPage.games: State
 TabTop.games: State
 Ticket.st: Stat
 TicketHalf.enter: Animatable<Float, AnimationVector1D>
 TryRow.items: List<Pair<String, Function0<Unit>>>
 Vessel.t: Animatable<Float, AnimationVector1D>
-ViewChips.views: List<Pair<String, String>>
-ViewPill.views: List<Pair<String, String>>
+ViewBar.views: List<Pair<String, String>>
 Waiting.f: Fetching?

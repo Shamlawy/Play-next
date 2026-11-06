@@ -1,5 +1,9 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -88,11 +92,18 @@ import kotlin.math.abs
 /** Below this width the tab bar sits at the top of the page; from it Nexi's rail replaces it (the web app's 620px). */
 val RAIL_FROM = 620.dp
 
+/** The rail's width: wide enough for its tab's views as words (the owner's Option B, Nov 6; the web's is 72). */
+val RAIL_W = 112.dp
+
+/** From the screen's right edge to the rail's inner side (12 of air on its right). */
+val RAIL_OUT = RAIL_W + 12.dp
+
 /**
  * The tabs: the page in the web app's `.wrap` (max 880 wide, centred), with the tab bar at its top when folded, or the
  * rail on the right when unfolded. Each tab keeps its own scroll spot, also across a fold or unfold. A tab with views
- * (Games, Plan, Taste) has the view pill floating at the foot; a sideways swipe with one finger walks the views, with
- * two the tabs. Switching tabs plays your Switching tabs choice (the slash by default), never when calm.
+ * (Games, Plan, Taste) lists them in the rail under its icon unfolded, and as a sticky bar at the top of the page folded
+ * (the owner's Option B, Nov 6: nothing at the foot, where Samsung's taskbar sits); a sideways swipe with one finger walks
+ * the views, with two the tabs. Pages, the rail and the sheets end above the taskbar ([Taskbar]). Switching tabs plays your Switching tabs choice (the slash by default), never when calm.
  */
 @Composable
 fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
@@ -175,20 +186,31 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), here so the lists sheet
     // can show a list in it too
     val qpicks = remember { arrayOfNulls<QueuePick>(1) }
+    // Your lists, from Sort's menu
     val openLists = { step(nav.open("lists")) }
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
             val w = maxWidth
             val wide = w >= RAIL_FROM
+            // the room kept for Samsung's taskbar at the foot (Settings › Taskbar room)
+            val room = Taskbar.room(Taskbar.choice, reportedBottom(), wide)
+            // one list per tab and prefs, so the rail and the view bar (which compare it by identity) skip when nothing changed
+            val views = remember(prefs, nav.tab) { prefs.views(nav.tab) }
+            // folded, the views sit in a sticky bar at the top of the page
+            val topBar = !wide && view != null && views.isNotEmpty()
             val pick = { t: String ->
                 if (t != nav.tab) Sounds.play(Sfx.Tap)
                 Crumbs.tap("tab", here)
                 go(nav.go(t))
             }
             val pickView = { v: String ->
-                Sounds.play(Sfx.Tap)
-                Crumbs.tap("view", here)
-                go(nav.view(nav.tab, v))
+                // over a game page or Settings (the rail stays in sight), a view closes them like a tab does; the lit
+                // view with nothing over it is a no-op
+                if (v != view || nav.overlay != null) {
+                    Sounds.play(Sfx.Tap)
+                    Crumbs.tap("view", here)
+                    go(nav.go(nav.tab).view(nav.tab, v))
+                }
             }
             val settings = {
                 Sounds.play(Sfx.Open)
@@ -197,6 +219,10 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 val i = shutting?.let { k -> nav.stack.indices.firstOrNull { nav.key(it) == k } }
                 step((if (i != null) nav.closeAt(i) else nav).open("settings"))
             }
+            val viewBar: LazyListScope.(Modifier) -> Unit = { cap ->
+                if (topBar && view != null) stickyHeader("views") { ViewBarBand(cap) { ViewBar(views, view, pickView) } }
+            }
+            CompositionLocalProvider(LocalBottomRoom provides room) {
             holder.SaveableStateProvider(nav.tab) {
                 val ready = games as? Games.State.Ready
                 if (nav.tab == "games" && view == "queue" && ready != null) {
@@ -220,54 +246,43 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                             }
                         }
                     }
-                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist) { cap ->
+                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist, room, topBar) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
-                        item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w, pickView) } }
+                        viewBar(cap)
+                        item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w) } }
                         queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter), openLists) { id -> opener(id, null) }
                     }
+                } else if (view != null && views.isNotEmpty()) {
+                    // a page with views is a lazy list at both widths (folded, the sticky view bar is its sticky header),
+                    // so folding or unfolding mid-scroll keeps the scroll spot: the same state in the same place
+                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, rememberLazyListState(), room, topBar) { cap ->
+                        if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
+                        viewBar(cap)
+                        item("page") {
+                            Column(cap.entrance(enter)) { TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }) }
+                        }
+                    }
                 } else {
-                    Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }) {
+                    Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, room) {
                         if (!wide) TabBar(nav.tab, pick, settings)
                         Column(Modifier.entrance(enter)) {
-                            TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }, pickView = pickView)
+                            TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) })
                         }
                     }
                 }
             }
-            val views = prefs.views(nav.tab)
-            if (prefs.pill && view != null && views.isNotEmpty()) {
-                ViewPill(
-                    views, view, w, pickView,
-                    Modifier
-                        .graphicsLayer { alpha = if (covered) 0f else 1f }
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(bottom = 18.dp)
-                        // unfolded the web's pill sits 13 right of the middle (`html.rail.railoff .vpill`)
-                        .offset(x = if (wide) 13.dp else 0.dp),
-                )
-            }
+            // the Queue's notes sit over the middle of the page, just above the taskbar
+            val noteAt = Modifier
+                .graphicsLayer { alpha = if (covered) 0f else 1f }
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = overNavBar(room) + 18.dp)
+                .offset(x = if (wide) -pageShift(w) else 0.dp)
             // the Queue's Undo bar after a delete, above the view pill (and Shuffle's "Tonight: …" there when none shows)
             val qp = qpicks[0]
             if (nav.tab == "games" && view == "queue" && qp != null) {
-                QueueNote(
-                    qp,
-                    Modifier
-                        .graphicsLayer { alpha = if (covered) 0f else 1f }
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(bottom = if (prefs.pill && views.isNotEmpty()) 76.dp else 18.dp)
-                        .offset(x = if (wide) 13.dp else 0.dp),
-                )
-                QueueUndo(
-                    qp,
-                    Modifier
-                        .graphicsLayer { alpha = if (covered) 0f else 1f }
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(bottom = if (prefs.pill && views.isNotEmpty()) 76.dp else 18.dp)
-                        .offset(x = if (wide) 13.dp else 0.dp),
-                )
+                QueueNote(qp, noteAt)
+                QueueUndo(qp, noteAt)
             }
             // each step keeps its place while it's open; a closed step forgets its own, so opening it again starts fresh
             val keys = nav.stack.indices.map { nav.key(it) }
@@ -318,9 +333,10 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away
-            if (wide) Rail(nav.tab, pick, settings, Modifier.align(Alignment.CenterEnd))
+            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, Modifier.align(Alignment.CenterEnd))
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
+            }
             }
         }
     }
@@ -373,49 +389,86 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
     }
 }
 
-/** [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). */
+/** The page's side gutters: 16, or 22 from 700 wide. */
+private fun side(w: Dp) = if (w >= 700.dp) 22.dp else 16.dp
+
+/**
+ * The room on the right for the rail, from 620 wide until the 880 page's own margin clears it with the same 12 of air
+ * ([RAIL_CLEAR], 1152: the 112 rail made 1100 too early); wider, it floats over the page's margin.
+ */
+private fun railRoom(w: Dp) = if (w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
+
+/** From this width the centred 880 page leaves the rail and its 12 of air free on both sides. */
+private val RAIL_CLEAR = 880.dp + (RAIL_OUT + 12.dp) * 2
+
+/** How far the page's middle sits left of the screen's (the rail's room is wider than the left gutter). */
+internal fun pageShift(w: Dp) = (railRoom(w) - side(w)) / 2
+
+/** The page's room between its left gutter and the rail's room: what a sheet over it may fill without meeting the rail. */
+internal fun pageRoom(w: Dp) = w - side(w) - railRoom(w)
+
+/**
+ * [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). With a sticky
+ * view bar ([stick]) the list starts under the status bar, so the bar sticks just below it. It ends above the taskbar
+ * ([room]): what scrolls never passes under it.
+ */
 @Composable
-private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, content: LazyListScope.(Modifier) -> Unit) {
+private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, room: Dp, stick: Boolean, content: LazyListScope.(Modifier) -> Unit) {
     val big = w >= 700.dp
-    val side = if (big) 22.dp else 16.dp
-    val railRoom = if (w >= RAIL_FROM && w < 1100.dp) 96.dp else side
     val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val dir = LocalLayoutDirection.current
     val cap = Modifier.widthIn(max = 880.dp).fillMaxWidth()
     LazyColumn(
-        modifier.fillMaxSize(),
+        modifier
+            .fillMaxSize()
+            .then(if (stick) Modifier.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top)) else Modifier)
+            .padding(bottom = room),
         state = state,
         contentPadding = PaddingValues(
-            start = bars.calculateStartPadding(dir) + side,
-            end = bars.calculateEndPadding(dir) + railRoom,
-            top = bars.calculateTopPadding() + if (big) 26.dp else 20.dp,
-            bottom = bars.calculateBottomPadding() + if (big) 60.dp else 40.dp,
+            start = bars.calculateStartPadding(dir) + side(w),
+            end = bars.calculateEndPadding(dir) + railRoom(w),
+            top = (if (stick) 0.dp else bars.calculateTopPadding()) + if (big) 26.dp else 20.dp,
+            bottom = (bars.calculateBottomPadding() - room).coerceAtLeast(0.dp) + if (big) 60.dp else 40.dp,
         ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) { content(cap) }
 }
 
 /**
- * `.wrap`: padding 20/16/40 (26/22/60 from 700 wide), at most 880 wide and centred; from 620 to 1099 wide it leaves
- * 96 on the right for the rail, which floats over the wider screens. Under the status bar and the cutout, edge to edge.
+ * The sticky view bar's band: the bar with a little air round it on the page's own ground, fading out at its foot, so
+ * what scrolls under it never shows through behind the words.
  */
 @Composable
-private fun Page(w: Dp, modifier: Modifier, content: @Composable () -> Unit) {
+private fun ViewBarBand(cap: Modifier, bar: @Composable () -> Unit) {
+    val ground = LocalLook.current.bgBase
+    Box(
+        cap
+            .drawBehind { drawRect(Brush.verticalGradient(0f to ground, .78f to ground, 1f to ground.copy(alpha = 0f))) }
+            .padding(top = 6.dp, bottom = 14.dp),
+    ) { bar() }
+}
+
+/**
+ * `.wrap`: padding 20/16/40 (26/22/60 from 700 wide), at most 880 wide and centred; from 620 wide to [RAIL_CLEAR] it leaves
+ * room on the right for the rail, which floats over the wider screens. Under the status bar and the cutout, edge to
+ * edge; it ends above the taskbar ([room]).
+ */
+@Composable
+private fun Page(w: Dp, modifier: Modifier, room: Dp, content: @Composable () -> Unit) {
     val big = w >= 700.dp
-    val side = if (big) 22.dp else 16.dp
-    val railRoom = if (w >= RAIL_FROM && w < 1100.dp) 96.dp else side
     val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val dir = LocalLayoutDirection.current
     Column(
         modifier
             .fillMaxSize()
+            .padding(bottom = room)
             .verticalScroll(rememberScrollState())
             .padding(
                 PaddingValues(
-                    start = bars.calculateStartPadding(dir) + side,
-                    end = bars.calculateEndPadding(dir) + railRoom,
+                    start = bars.calculateStartPadding(dir) + side(w),
+                    end = bars.calculateEndPadding(dir) + railRoom(w),
                     top = bars.calculateTopPadding() + if (big) 26.dp else 20.dp,
-                    bottom = bars.calculateBottomPadding() + if (big) 60.dp else 40.dp,
+                    bottom = (bars.calculateBottomPadding() - room).coerceAtLeast(0.dp) + if (big) 60.dp else 40.dp,
                 ),
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -490,40 +543,70 @@ private fun Modifier.notch(fill: Color, withLeft: Boolean) = drawBehind {
 }
 
 /**
- * The unfolded rail (`#hrail`, index.html 2132, 2250): 72 wide, 12 in from the edges, round 30, `--ink` with an
- * `--edge` line: the four tabs, a line, Add and Settings. The dice, the live queue and hiding it come with Home's
+ * The unfolded rail (`#hrail`, index.html 2132, 2250): [RAIL_W] wide, 12 in from the edges, round 30, `--ink` with an
+ * `--edge` line: the four tabs, a line, Add and Settings. Under the open tab's icon its views as words (the owner's
+ * Option B, Nov 6, in place of the floating pill): the open one bright, on a soft wash in your accent with a bar of it on
+ * its right edge. It ends above the taskbar ([LocalBottomRoom]). The dice, the live queue and hiding it come with Home's
  * phase (3); Nexi's seat with the Queue's (1).
  */
 @Composable
-fun Rail(tab: String, pick: (String) -> Unit, settings: () -> Unit, modifier: Modifier = Modifier) {
+fun Rail(
+    tab: String,
+    views: List<Pair<String, String>>,
+    view: String?,
+    pick: (String) -> Unit,
+    pickView: (String) -> Unit,
+    settings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val look = LocalLook.current
     val shape = RoundedCornerShape(30.dp)
+    val d = LocalDensity.current
+    val room = LocalBottomRoom.current
+    // the bottom: the taskbar's room when that's more than the bars Android reports
+    val bottom = maxOf(room, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
     BoxWithConstraints(
         modifier
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End))
-            .padding(12.dp)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = bottom + 12.dp)
             .fillMaxHeight()
-            .width(72.dp),
+            .width(RAIL_W),
     ) {
         // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
         // so Settings is never squashed to a sliver
-        val roomy = maxHeight >= RAIL_TALL
-        RailColumn(tab, pick, settings, look.volt, shape, roomy)
+        val shown = if (view != null) views else emptyList()
+        // the views are one more item in the column, so one more 10 gap
+        val roomy = maxHeight >= RAIL_TALL + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + 10.dp
+        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy)
     }
 }
 
 /** The rail's height with its usual gaps: four tabs, the gap, a line, Add and Settings. */
 private val RAIL_TALL = 14.dp * 2 + 48.dp * 6 + 1.dp + 10.dp * 7
 
+/** One view's line in the rail (a 48 touch). */
+private val RAIL_VIEW_H = 48.dp
+
 @Composable
-private fun RailColumn(tab: String, pick: (String) -> Unit, settings: () -> Unit, volt: Color, shape: RoundedCornerShape, roomy: Boolean) {
+private fun RailColumn(
+    tab: String,
+    views: List<Pair<String, String>>,
+    view: String?,
+    pick: (String) -> Unit,
+    pickView: (String) -> Unit,
+    settings: () -> Unit,
+    volt: Color,
+    shape: RoundedCornerShape,
+    roomy: Boolean,
+) {
     Column(
         Modifier
             .fillMaxSize()
             .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.ink, shape)
             .border(1.dp, Pn.edge, shape)
-            .then(if (roomy) Modifier else Modifier.clip(shape).verticalScroll(rememberScrollState()))
+            .clip(shape)
+            .then(if (roomy) Modifier else Modifier.verticalScroll(rememberScrollState()))
             .padding(vertical = if (roomy) 14.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (roomy) 10.dp else 4.dp),
@@ -541,6 +624,7 @@ private fun RailColumn(tab: String, pick: (String) -> Unit, settings: () -> Unit
                     PnIcon(t.key, if (on) Pn.void else Pn.mute, 20.dp, null)
                 }
             }
+            if (on && views.isNotEmpty()) RailViews(views, view, volt, pickView)
         }
         if (roomy) Spacer(Modifier.weight(1f))
         Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
@@ -548,6 +632,37 @@ private fun RailColumn(tab: String, pick: (String) -> Unit, settings: () -> Unit
         RailButton("settings", "Settings", on = false, onClick = settings)
     }
 }
+
+/** The open tab's views under its icon in the rail: words, the open one bright on an accent wash with a bar on its right. */
+@Composable
+private fun RailViews(views: List<Pair<String, String>>, on: String?, volt: Color, pickView: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().semantics { contentDescription = "Views" }) {
+        for ((k, label) in views) {
+            val sel = k == on
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(RAIL_VIEW_H)
+                    .padding(start = 6.dp)
+                    .then(if (sel) Modifier.background(volt.copy(alpha = .14f), RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)) else Modifier)
+                    .clickable(role = Role.Tab) { pickView(k) }
+                    .semantics { selected = sel; contentDescription = label },
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                BasicText(
+                    label,
+                    style = RAIL_VIEW.copy(color = if (sel) Pn.ice else Pn.mute, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium).fixed(),
+                    maxLines = 1, softWrap = false,
+                    modifier = Modifier.padding(start = 10.dp, end = 8.dp),
+                )
+                if (sel) Box(Modifier.align(Alignment.CenterEnd).size(3.dp, 26.dp).background(volt, RoundedCornerShape(2.dp)))
+            }
+        }
+    }
+}
+
+/** A view's word in the rail: Poppins 13. */
+private val RAIL_VIEW = androidx.compose.ui.text.TextStyle(fontFamily = Fonts.poppins, fontSize = 13.sp, lineHeight = 18.sp)
 
 @Composable
 private fun RailButton(icon: String, label: String, on: Boolean, onClick: () -> Unit) {

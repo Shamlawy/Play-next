@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.ui.test.SemanticsMatcher
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -299,13 +300,21 @@ class QueueSwipeTest {
         assertTrue("closed: no card says which side shows", !open("Starfall Lantern"))
     }
 
+    /** Shuffle lives in Sort's menu (Option B, Nov 6): open the menu, then tap "Shuffle the queue" (with the clock by hand). */
+    private fun shuffleTap() {
+        rule.onNode(hasContentDescription("Sort: ", substring = true)).performClick()
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        rule.onNodeWithContentDescription("Shuffle the queue").performClick()
+    }
+
     /** android-v20: Shuffle picks a game that's out, says "Tonight: …" and brings its row to the middle of the list. */
     @Test fun shuffleBringsTonightsGameToTheMiddle() {
         fillers = 24
         show()
         // the clock by hand: left to itself, the test waits out the scroll and the line's 2.4 s with it
         rule.mainClock.autoAdvance = false
-        rule.onNodeWithContentDescription("Shuffle: pick tonight's game").performClick()
+        shuffleTap()
         androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
         rule.mainClock.advanceTimeBy(400)
         val note = rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes()
@@ -345,18 +354,18 @@ class QueueSwipeTest {
         fillers = 24
         deep = true
         show()
-        val shuf = "Shuffle: pick tonight's game"
-        fun bar() = rule.onAllNodesWithContentDescription(shuf).fetchSemanticsNodes().size
+        // the bar shows while its Sort button does
+        fun bar() = rule.onAllNodes(hasContentDescription("Sort: ", substring = true)).fetchSemanticsNodes().size
         fun apply() = androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
         rule.mainClock.autoAdvance = false
-        rule.onNodeWithContentDescription(shuf).performClick()
+        shuffleTap()
         apply()
         // the scroll, then the ring's 2.3 s
         rule.mainClock.advanceTimeBy(5_000)
         assertEquals("the pick (the last filler) took the list down, past the bar", 0, bar())
         list.performScrollToIndex(0)
         rule.mainClock.advanceTimeBy(500)
-        assertEquals("back at the top, Shuffle shows", 1, bar())
+        assertEquals("back at the top, Sort shows", 1, bar())
         nav = Nav("home")
         apply()
         rule.mainClock.advanceTimeBy(1_500)
@@ -379,7 +388,7 @@ class QueueSwipeTest {
         rule.mainClock.advanceTimeBy(800)
         assertEquals(1, rule.onAllNodes(hasText("Deleted Ninefold Gate")).fetchSemanticsNodes().size)
         rule.mainClock.autoAdvance = false
-        rule.onNodeWithContentDescription("Shuffle: pick tonight's game").performClick()
+        shuffleTap()
         androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
         rule.mainClock.advanceTimeBy(300)
         assertEquals("the Undo bar holds the place", 0, rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes().size)
@@ -388,16 +397,58 @@ class QueueSwipeTest {
         assertEquals("and the old line stays gone", 0, rule.onAllNodes(hasText("Tonight: ", substring = true)).fetchSemanticsNodes().size)
     }
 
-    /** android-v20: Boss says "Boss", and with Grumble on the Shadow's HP (the backlog's hours: 22 + 40 here). */
+    /** Sort's menu: Boss mode (no HP without Grumble); its tap closes the menu and says its screen comes later (no dead tap). */
     @Test fun bossShowsItsHpOnlyWithGrumble() {
         show()
-        assertEquals(1, rule.onAllNodesWithContentDescription("Boss: the Shadow of the Backlog").fetchSemanticsNodes().size)
-        assertEquals(1, rule.onAllNodes(hasText("Boss")).fetchSemanticsNodes().size)
+        assertEquals("Boss is in Sort's menu, not on the bar", 0, rule.onAllNodes(hasContentDescription("Boss", substring = true)).fetchSemanticsNodes().size)
+        rule.onNode(hasContentDescription("Sort: ", substring = true)).performClick()
+        rule.waitForIdle()
+        assertEquals(1, rule.onAllNodesWithContentDescription("Boss mode").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodes(hasText("HP", substring = true)).fetchSemanticsNodes().size)
+        rule.onNodeWithContentDescription("Boss mode").performClick()
+        rule.waitForIdle()
+        assertEquals("the menu closed", 0, rule.onAllNodesWithContentDescription("Boss mode").fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodes(hasText(BOSS_SOON)).fetchSemanticsNodes().size)
+        assertEquals("no view walked", "queue", nav.views["games"])
     }
 
+    /** android-v20: with Grumble on, Boss mode carries the Shadow's HP (the backlog's hours: 22 + 40 here). */
     @Test fun bossWithGrumbleOn() {
         grum = true
         show()
-        assertEquals(1, rule.onAllNodesWithContentDescription("Boss: the Shadow of the Backlog, 62 HP").fetchSemanticsNodes().size)
+        rule.onNode(hasContentDescription("Sort: ", substring = true)).performClick()
+        rule.waitForIdle()
+        assertEquals(1, rule.onAllNodesWithContentDescription("Boss mode, 62 HP").fetchSemanticsNodes().size)
+    }
+
+    /** Option B (Nov 6), folded: the views sit in a bar at the top that stays there while the Queue scrolls. */
+    @Test fun theViewBarStaysAtTheTopFolded() {
+        fillers = 24
+        show()
+        fun seg() = rule.onAllNodes(hasContentDescription("Queue") and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true)).fetchSemanticsNodes()
+        assertEquals(1, seg().size)
+        list.performScrollToIndex(14)
+        rule.waitForIdle()
+        val b = seg().single().boundsInRoot
+        assertTrue("stuck at the top: $b", b.top >= 0f && b.top < 80f * 3f)
+        // and a tap on it still picks a view
+        rule.onNodeWithContentDescription("Library").performClick()
+        rule.waitForIdle()
+        assertEquals("lib", nav.views["games"])
+    }
+
+    /** Option B: one row of chips with counts that never wraps, and Sort's menu picks an order (ticked) and closes. */
+    @Test fun sortPicksAnOrder() {
+        show()
+        val chips = listOf("All", "Out", "Coming", "Played").map { w -> rule.onNode(hasContentDescription("$w, ", substring = true) and hasClickAction()).fetchSemanticsNode().boundsInRoot }
+        assertTrue("one line: ${chips}", chips.all { kotlin.math.abs(it.center.y - chips[0].center.y) < 1f })
+        assertEquals("no lists button", 0, rule.onAllNodesWithContentDescription("Make a list").fetchSemanticsNodes().size)
+        rule.onNodeWithContentDescription("Sort: My order").performClick()
+        rule.waitForIdle()
+        rule.onNode(hasContentDescription("My order") and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true)).assertExists()
+        rule.onNodeWithContentDescription("Soonest").performClick()
+        rule.waitForIdle()
+        assertEquals("the menu closed", 0, rule.onAllNodesWithContentDescription("Shuffle the queue").fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodesWithContentDescription("Sort: Soonest").fetchSemanticsNodes().size)
     }
 }
