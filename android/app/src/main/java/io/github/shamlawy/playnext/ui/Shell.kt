@@ -186,6 +186,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), here so the lists sheet
     // can show a list in it too
     val qpicks = remember { arrayOfNulls<QueuePick>(1) }
+    // Your lists, from Sort's menu
+    val openLists = { step(nav.open("lists")) }
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
             val w = maxWidth
@@ -248,7 +250,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         viewBar(cap)
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w) } }
-                        queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter)) { id -> opener(id, null) }
+                        queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter), openLists) { id -> opener(id, null) }
                     }
                 } else if (view != null && views.isNotEmpty()) {
                     // a page with views is a lazy list at both widths (folded, the sticky view bar is its sticky header),

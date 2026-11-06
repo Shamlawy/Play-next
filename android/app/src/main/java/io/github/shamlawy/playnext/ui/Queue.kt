@@ -342,13 +342,13 @@ fun stateTone(k: Queue.Kind, volt: Color): Color = when (k) {
 }
 
 /** The Queue's items in the page's lazy list: the bar, On deck and the rows (or what's empty). */
-fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState, folded: Boolean, calm: Boolean, mod: Modifier, open: (String) -> Unit) {
+fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState, folded: Boolean, calm: Boolean, mod: Modifier, lists: () -> Unit, open: (String) -> Unit) {
     val q = v.q
     if (q.lib.games.isEmpty()) {
         item("q-empty") { Empty("Queue is empty. Open Add and search for the first game.", mod) }
         return
     }
-    item("q-bar") { QueueBar(v, pick, mod) }
+    item("q-bar") { QueueBar(v, pick, mod, lists) }
     val deck = if (q.lib.off("deckOff") || Backup.truthy(q.lib["deckOff"]) || v.tab == "done") emptyList() else q.deck(v.tab)
     if (deck.isNotEmpty()) item("q-deck") { OnDeck(q, v.tab, deck, mod, open) }
     if (v.shown.isEmpty()) item("q-none") { Empty("Nothing here right now. Try another filter.", mod) }
@@ -899,7 +899,7 @@ private fun Empty(text: String, mod: Modifier) {
  * opens a small menu with the orders, Shuffle and Boss (the old Order button, Shuffle and Boss, moved in there).
  */
 @Composable
-private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier) {
+private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, lists: () -> Unit) {
     val q = v.q
     val tabs = Queue.TABS + q.lists.map { "L:" + it.id }
     val guard = LocalSwipeGuard.current
@@ -932,7 +932,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier) {
                 }
             }
         }
-        SortButton(v, pick, hp)
+        SortButton(v, pick, hp, lists)
     }
 }
 
@@ -967,7 +967,7 @@ private val CHIP_H = 36.dp
  * order). A tap opens [SortMenu] under it; a tap outside closes it.
  */
 @Composable
-private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?) {
+private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?, lists: () -> Unit) {
     val volt = LocalLook.current.volt
     val sorted = v.sort != "manual"
     var open by remember { mutableStateOf(false) }
@@ -1014,6 +1014,11 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?)
                 SortMenu(
                     v.sort, n, room,
                     choose = { k -> open = false; if (k != pick.sort) pick.sort = k },
+                    lists = {
+                        open = false
+                        Crumbs.tap("lists", "games/queue")
+                        lists()
+                    },
                     shuffle = {
                         open = false
                         Crumbs.tap("shuffle", "games/queue")
@@ -1037,12 +1042,13 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?)
 internal const val BOSS_SOON = "Boss mode's screen comes in a later update"
 
 /**
- * Sort's menu: the orders in their three groups (`QD_GROUPS`), the one in use ticked; a line; "Shuffle the queue";
+ * Sort's menu: the orders in their three groups (`QD_GROUPS`), the one in use ticked; a line; "Your lists" (the
+ * owner, Nov 6: "do whatever", the PR's suggested home for the old "+", the only way into the lists sheet); "Shuffle the queue";
  * "Boss mode" (the only red thing, with the Shadow's HP while Grumble is on). On a short screen the orders scroll and
  * Shuffle and Boss stay in view.
  */
 @Composable
-private fun SortMenu(sort: String, hp: String?, room: Dp, choose: (String) -> Unit, shuffle: () -> Unit, boss: () -> Unit) {
+private fun SortMenu(sort: String, hp: String?, room: Dp, choose: (String) -> Unit, lists: () -> Unit, shuffle: () -> Unit, boss: () -> Unit) {
     val volt = LocalLook.current.volt
     val shape = RoundedCornerShape(18.dp)
     val tall = LocalConfiguration.current.screenHeightDp.dp
@@ -1066,6 +1072,10 @@ private fun SortMenu(sort: String, hp: String?, room: Dp, choose: (String) -> Un
             }
         }
         Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).fillMaxWidth().height(1.dp).background(Pn.line2))
+        MenuRow("Your lists", Modifier, Role.Button, lists) {
+            QdIcon("list", volt, 20.dp)
+            BasicText("Your lists", style = QType.option.fixed(), maxLines = 1, softWrap = false)
+        }
         MenuRow("Shuffle the queue", Modifier, Role.Button, shuffle) {
             QdIcon("shuf", volt, 20.dp)
             BasicText("Shuffle the queue", style = QType.option.fixed(), maxLines = 1, softWrap = false)
@@ -1515,6 +1525,8 @@ private val QD_IC = mapOf(
     // Sort's sliders and the menu's tick (Android's own, in the same style: one part at .35)
     "sort" to listOf("M3 5.8h18v2.4H3zM3 10.8h18v2.4H3zM3 15.8h18v2.4H3z" to .35f, "M6 3.5h3.2v7H6zM14.8 8.5H18v7h-3.2zM9 13.5h3.2v7H9z" to 1f),
     "tick" to listOf("M9.6 15.6 5.4 11.4 3.7 13.1l5.9 5.9L20.3 8.3l-1.7-1.7z" to 1f),
+    // Your lists (the old lists button's mark: a box with a plus)
+    "list" to listOf("M4 5h16v14H4z" to .35f, "M11 8h2v3h3v2h-3v3h-2v-3H8v-2h3z" to 1f),
     "shuf" to listOf(
         "M3 6.5h4.2l9 11H21v-2.4h-3.6l-9-11H3z" to .35f,
         "M16.2 4.1h3.6L21 2.6v6l-1.2-1.4h-3.6l-2.6 3.1-1.6-1.9zM3 15.1h4.2l2.6-3.1 1.6 1.9-3.2 3.6H3z" to 1f,

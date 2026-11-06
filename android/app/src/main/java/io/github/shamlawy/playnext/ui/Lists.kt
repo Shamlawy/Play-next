@@ -120,7 +120,7 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
             ) { BasicText("✕", style = DyType.x) }
         }
         BasicText(
-            "Your own shelves. Pick one in the Queue's filter menu to see just those games.",
+            "Your own shelves. Each one is a chip in the Queue's bar: tap it to see just those games.",
             style = DyType.q, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
         )
         if (lists.isEmpty()) {

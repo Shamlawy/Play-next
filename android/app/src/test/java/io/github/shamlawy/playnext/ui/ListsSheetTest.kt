@@ -12,6 +12,8 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -100,6 +102,18 @@ class ListsSheetTest {
 
     /** Opens Your lists again over what [show] shows (the bar's lists button did this before Option B). */
     private var reopen: () -> Unit = {}
+
+    /** The old "+" is gone (Option B, Nov 6): Your lists opens from Sort's menu. */
+    @Test fun sortsMenuOpensYourLists() {
+        val nav = show(lib("[]"))
+        rule.onNode(hasContentDescription("Sort: ", substring = true)).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Your lists").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("lists"), nav().stack)
+        rule.onNodeWithText("No lists yet. Make your first one below.").assertExists()
+        assertEquals("the menu closed", 0, rule.onAllNodesWithContentDescription("Shuffle the queue").fetchSemanticsNodes().size)
+    }
 
     @Test fun yourListsOpensAndCloses() {
         // (the Queue bar's lists button is gone, Option B Nov 6: the sheet opens from its step)
