@@ -140,3 +140,9 @@ go=home
 at=
 say=Small polish: the folded view bar keeps the background's glow behind it, Sort's menu has its full shadow, and the lit chip is always in sight.
 tryIt=Open Games › Queue, tap Sort: the menu's shadow fades out softly all round. Show a list from Sort › Your lists: if its chip is far along the bar, the bar slides to it. Folded, scroll a page: the view bar at the top no longer sits on a flat dark strip.
+
+v=24
+go=home
+at=
+say=New: the Game shuffler. Swipe through your waiting games one card at a time, each drawn like your open Queue card, and keep the ones that tempt you.
+tryIt=Open Games › Queue, tap Sort, then Game shuffler. Swipe a card right if it tempts you, left for not now (or use the star and the cross), tap Back one to undo, then Your picks. With two or more picks, Save as a list makes a chip in the Queue's bar.

@@ -186,8 +186,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), here so the lists sheet
     // can show a list in it too
     val qpicks = remember { arrayOfNulls<QueuePick>(1) }
-    // Your lists, from Sort's menu
-    val openLists = { step(nav.open("lists")) }
+    // Your lists and the Game shuffler, from Sort's menu
+    val openSheet = { o: String -> step(nav.open(o)) }
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
             val w = maxWidth
@@ -250,7 +250,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         viewBar(cap)
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w) } }
-                        queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter), openLists) { id -> opener(id, null) }
+                        queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter), openSheet) { id -> opener(id, null) }
                     }
                 } else if (view != null && views.isNotEmpty()) {
                     // a page with views is a lazy list at both widths (folded, the sticky view bar is its sticky header),
@@ -290,9 +290,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 (pagesKept - keys.toSet()).forEach { pages.removeState(it) }
                 pagesKept.retainAll(keys.toSet())
             }
-            // Settings (or a screen's Customise, or your lists) stays under what you open from it, so back finds it where
-            // you left it
-            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it.startsWith("customise:") }
+            // Settings (or a screen's Customise, your lists or the Game shuffler) stays under what you open from it, so
+            // back finds it where you left it
+            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it == "shuffle" || it.startsWith("customise:") }
             if (s >= 0) {
                 val k = keys[s]
                 val sheet = nav.stack[s]
@@ -315,6 +315,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                                 },
                                 close = { step(nav.closeAt(s)) },
                             )
+                        } else if (sheet == "shuffle") {
+                            ShuffleDeck(m, games, qpicks[0], close = { step(nav.closeAt(s)) })
                         } else {
                             CustomiseSheet(m, sheet.removePrefix("customise:"), games, close = { step(nav.closeAt(s)) })
                         }
@@ -404,7 +406,7 @@ private fun side(w: Dp) = if (w >= 700.dp) 22.dp else 16.dp
  * The room on the right for the rail, from 620 wide until the 880 page's own margin clears it with the same 12 of air
  * ([RAIL_CLEAR], 1152: the 112 rail made 1100 too early); wider, it floats over the page's margin.
  */
-private fun railRoom(w: Dp) = if (w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
+internal fun railRoom(w: Dp) = if (w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
 
 /** From this width the centred 880 page leaves the rail and its 12 of air free on both sides. */
 private val RAIL_CLEAR = 880.dp + (RAIL_OUT + 12.dp) * 2
