@@ -121,7 +121,7 @@ internal fun LazyListScope.selectItems(v: QueueView, pick: QueuePick, cols: Int,
     }
     val lines = (shown.size + cols - 1) / cols
     for (r in 0 until lines) {
-        item("qs:$r") {
+        item(selLine(v.tab, r)) {
             Row(mod.padding(top = if (r == 0) 14.dp else 0.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(SEL_GAP.dp)) {
                 for (c in 0 until cols) {
                     val i = r * cols + c
@@ -138,25 +138,32 @@ internal fun LazyListScope.selectItems(v: QueueView, pick: QueuePick, cols: Int,
 }
 
 /**
+ * A line of covers' key: it names the tab, so right after Shuffle sends the Queue back to All a layout still showing the
+ * old tab (with or without On deck above the grid) is never taken for the new one's lines.
+ */
+private fun selLine(tab: String, r: Int) = "qs:$tab:$r"
+
+/**
  * Shuffle's pick in Character select: the line of covers holding it comes to the middle (`scrollIntoView({block:
  * "center"})` on its cover), going there first when it's off screen (lines sit together, so one on screen tells where).
  */
-internal suspend fun LazyListState.centerCover(id: String, shownNow: () -> List<Game>, cols: Int, calm: Boolean) {
-    val shown = kotlinx.coroutines.withTimeoutOrNull(1_000L) { androidx.compose.runtime.snapshotFlow { shownNow() }.first { s -> s.any { it.id == id } } } ?: return
-    val line = shown.indexOfFirst { it.id == id } / cols
+internal suspend fun LazyListState.centerCover(id: String, viewNow: () -> QueueView, cols: Int, calm: Boolean) {
+    val v = kotlinx.coroutines.withTimeoutOrNull(1_000L) { androidx.compose.runtime.snapshotFlow { viewNow() }.first { v -> v.shown.any { it.id == id } } } ?: return
+    val line = v.shown.indexOfFirst { it.id == id } / cols
+    val pre = selLine(v.tab, 0).dropLast(1)
     repeat(4) {
         val vis = layoutInfo.visibleItemsInfo
-        val item = vis.firstOrNull { it.key == "qs:$line" }
+        val item = vis.firstOrNull { it.key == pre + line }
         if (item != null) {
             val mid = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
             val by = (item.offset + item.size / 2 - mid).toFloat()
             if (calm) scrollBy(by) else animateScrollBy(by, tween(420, easing = Ease.glide))
             return
         }
-        val anchor = vis.firstOrNull { (it.key as? String)?.startsWith("qs:") == true }
+        val anchor = vis.firstOrNull { (it.key as? String)?.startsWith(pre) == true }
         val panel = vis.firstOrNull { it.key == "q-sel" }
         val to = when {
-            anchor != null -> anchor.index + line - (anchor.key as String).removePrefix("qs:").toInt()
+            anchor != null -> anchor.index + line - (anchor.key as String).removePrefix(pre).toInt()
             panel != null -> panel.index + 1 + line
             else -> (vis.lastOrNull()?.index ?: return) + 1
         }

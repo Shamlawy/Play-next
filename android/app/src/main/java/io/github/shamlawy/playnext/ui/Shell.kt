@@ -242,7 +242,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         snapshotFlow { qpick.lit }.collectLatest { l ->
                             if (l != null) try {
                                 withFrameNanos { }
-                                if (qvNow.q.lib.charSelect()) qlist.centerCover(l.id, { qvNow.shown }, qcolsNow, calm)
+                                if (qvNow.q.lib.charSelect()) qlist.centerCover(l.id, { qvNow }, qcolsNow, calm)
                                 else qlist.centerRow(l.id, { qvNow.shown }, calm)
                                 kotlinx.coroutines.delay(LIT_MS.toLong())
                             } finally {
