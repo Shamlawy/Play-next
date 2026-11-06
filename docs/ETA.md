@@ -37,4 +37,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E31 | 2026-11-06 2:13 PM | build | 45 min | 24 min | 0.53 | fix the 4 tests, re-record screenshots, run the checks, a review, then open the PR and send you the link. | <!-- at=2026-11-06T10:13:38.896Z -->
 | E32 | 2026-11-06 2:48 PM | ci | 40 min | 40 min | 1.00 | I'll put Your lists in the ▢ menu (the suggested home), test it, wait for ▢ checks, merge, and tell you when it reaches your phone | <!-- at=2026-11-06T10:48:53.253Z -->
 | E33 | 2026-11-06 7:20 PM | ci | 60 min | 10 min | 0.17 | including ▢ checks and the release build. I'll send before/after pictures and tell you when it's out. | <!-- at=2026-11-06T15:20:46.323Z -->
-| E34 | 2026-11-06 7:36 PM | release | 35 min | open |  | for the whole release: I'll merge it and tell you when android-v23 is out. ▢ around 8:10 PM UAE if the checks pass. | <!-- at=2026-11-06T15:36:26.879Z bg=1 -->
+| E34 | 2026-11-06 7:36 PM | release | 35 min | 60 min | 1.71 | for the whole release: I'll merge it and tell you when android-v23 is out. ▢ around 8:10 PM UAE if the checks pass. | <!-- at=2026-11-06T15:36:26.879Z bg=1 -->
