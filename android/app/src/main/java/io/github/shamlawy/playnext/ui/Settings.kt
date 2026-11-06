@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import kotlin.math.roundToInt
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -99,6 +100,7 @@ fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: 
         BasicText("Settings", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
         BackupCard(games, askCode)
         SoundsCard()
+        TaskbarCard(wide)
         BuildCards(openProbe)
         Btn("Close", onClick = close)
     }
@@ -135,6 +137,8 @@ internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composa
                 Column(
                     Modifier
                         .windowInsetsPadding(WindowInsets.navigationBars)
+                        // and the taskbar's room when Android doesn't report it (Taskbar)
+                        .padding(bottom = (LocalBottomRoom.current - reportedBottom()).coerceAtLeast(0.dp))
                         .imePadding()
                         .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 34.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -451,6 +455,31 @@ private fun SoundsCard() {
         TryRow(Big.entries.map { b -> b.label to { Buzz.big(b) } } + ("Swipe tick" to { Buzz.ms(9) }))
     }
 }
+
+/**
+ * Taskbar room (the owner, Nov 6): how much space stays free at the foot of the screen so Samsung's taskbar never
+ * covers the page, the rail or a sheet. Auto, or a size picked here (kept on this phone only). It says what Android
+ * reports at the bottom, so a wrong guess shows.
+ */
+@Composable
+private fun TaskbarCard(wide: Boolean) {
+    val reported = reportedBottom()
+    val room = LocalBottomRoom.current
+    val choice = Taskbar.choice
+    Card {
+        BasicText("Taskbar room", style = Type.head)
+        BasicText("Space kept free at the bottom of the screen, so Samsung's taskbar never covers your games, the rail or a sheet.", style = Type.note)
+        BasicText(
+            "Here your phone reports ${reported.value.roundToInt()} at the bottom, and the app keeps ${room.value.roundToInt()} free." +
+                if (wide && choice == Taskbar.AUTO && reported < Taskbar.REPORTED_MIN) " Android doesn't report the taskbar here, so Auto keeps ${Taskbar.FALLBACK.value.roundToInt()}: pick a size below if that's too much or too little." else "",
+            style = Type.note,
+        )
+        Chips(TASKBAR_CHOICES, if (choice == Taskbar.AUTO) "auto" else choice.toString()) { Taskbar.pick(it.toIntOrNull() ?: Taskbar.AUTO) }
+    }
+}
+
+/** Taskbar room's chips: Auto, None, then the sizes. */
+private val TASKBAR_CHOICES = listOf("auto" to "Auto") + Taskbar.CHOICES.map { it.toString() to if (it == 0) "None" else it.toString() }
 
 /** The sounds by where the web app plays them. */
 private val SOUND_GROUPS = listOf(

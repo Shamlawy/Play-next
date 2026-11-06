@@ -122,3 +122,9 @@ go=home
 at=
 say=Shuffle picks tonight's game for you, and the Boss sits in the Queue's bar.
 tryIt=Open Games › Queue and tap the crossed arrows next to Order: a game that's out lights up in the middle of the list and the line at the bottom names it. Tap again for another (never the same twice running). The red Boss button next to it shows the Shadow of the Backlog's HP when Grumble is on.
+
+v=21
+go=home
+at=
+say=The Queue's bar is one tidy row with a Sort menu, and the view tabs moved off the bottom, clear of Samsung's taskbar.
+tryIt=Open Games › Queue: All, Out, Coming and Played sit in one row of chips, and Sort at its end holds the orders, Shuffle and Boss. Unfolded, Queue, Library, Played and Replay are now words in the rail under the Games icon; folded they're a bar at the top that stays while you scroll. If the bottom of the page still hides behind the taskbar (or leaves too big a gap), set Settings › Taskbar room.

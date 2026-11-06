@@ -14,6 +14,9 @@ object Store {
     fun init(ctx: Context) {
         prefs = ctx.getSharedPreferences("pn", Context.MODE_PRIVATE)
     }
+
+    /** Opened already (the tests' bare screens have no store). */
+    fun ready() = ::prefs.isInitialized
 }
 
 /** Which screen is open: reports name it, and Android's exit records keep it (setProcessStateSummary). */

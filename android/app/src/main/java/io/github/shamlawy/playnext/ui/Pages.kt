@@ -40,7 +40,7 @@ import java.time.ZoneId
  * Every tab and view already has its place, its icon and its scroll spot.
  */
 @Composable
-fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp, askCode: () -> Unit, pickView: (String) -> Unit) {
+fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp, askCode: () -> Unit) {
     if (tab == "home") {
         HomePage(games, wide, askCode)
         return
@@ -48,7 +48,7 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
     val v = view ?: tab
     // the header card's screen (`SHX_PANELS`): each Games view its own, Plan and Taste one each; the book has none
     val ready = games as? Games.State.Ready
-    TabTop(tab, view, games, wide, screen, pickView)
+    TabTop(tab, view, games, wide, screen)
     if (ready == null) {
         Card { if (games is Games.State.NoCode) NoGames(askCode) else Waiting(games as? Games.State.Fetching, askCode) }
         return
@@ -57,9 +57,9 @@ fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, scree
     Card { BasicText(SOON[v] ?: "", style = Type.note) }
 }
 
-/** A tab's top: its header card (or plain title) and, with the pill off, its views as chips. */
+/** A tab's top: its header card (or plain title). Its views are in the rail unfolded, in the sticky bar above it folded. */
 @Composable
-fun TabTop(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp, pickView: (String) -> Unit) {
+fun TabTop(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp) {
     val prefs = LocalPrefs.current
     val views = prefs.views(tab)
     val v = view ?: tab
@@ -71,7 +71,6 @@ fun TabTop(tab: String, view: String?, games: Games.State, wide: Boolean, screen
     }
     val ready = games as? Games.State.Ready
     if (ready != null && kind != null) HeaderCard(kind, title, ready.lib, screen, ready.cards) else PlainTitle(title, wide)
-    if (!prefs.pill && views.isNotEmpty()) ViewChips(views, v, pickView)
 }
 
 /** Something shared into the app (a store page, a trailer, a name): the game it names; adding it comes with Add's phase. */

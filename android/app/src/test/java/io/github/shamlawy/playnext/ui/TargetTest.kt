@@ -29,7 +29,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Touch targets drawn smaller than 48dp (the pill's views ~32, the chips ~38): Compose takes a tap that lands just
+ * Touch targets drawn smaller than 48dp (the top bar's views, 40): Compose takes a tap that lands just
  * outside one as its own, up to 48dp, so they keep the web's look and still get Android's 48 (Perfect run, touch 8).
  */
 @RunWith(RobolectricTestRunner::class)
@@ -71,7 +71,7 @@ class TargetTest {
         assertEquals("played", nav.views["games"])
     }
 
-    @Test fun thePillsViewsTakeATapJustOff() = check("", below = true)
+    @Test fun theBarsViewsTakeATapJustOffBelow() = check("", below = true)
 
-    @Test fun theChipsTakeATapJustOff() = check(""","pill":false""", below = false)
+    @Test fun theBarsViewsTakeATapJustOffAbove() = check("", below = false)
 }

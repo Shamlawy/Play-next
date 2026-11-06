@@ -441,6 +441,8 @@ internal fun DyFrame(modifier: Modifier, title: String, close: () -> Unit, lazy:
                 // a sheet holding its own lazy list scrolls that list instead of itself
                 .then(if (lazy) Modifier else Modifier.verticalScroll(rememberScrollState()))
                 .windowInsetsPadding(WindowInsets.navigationBars)
+                // and the taskbar's room when Android doesn't report it (Taskbar)
+                .padding(bottom = (LocalBottomRoom.current - reportedBottom()).coerceAtLeast(0.dp))
                 .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
             content = content,
         )

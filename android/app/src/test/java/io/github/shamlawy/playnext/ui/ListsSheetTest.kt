@@ -88,6 +88,7 @@ class ListsSheetTest {
     private fun show(l: Library, stack: List<String> = emptyList()): () -> Nav {
         state.value = Games.State.Ready(l, now - 3_600_000L)
         var nav by mutableStateOf(Nav("games", stack, mapOf("games" to "queue")))
+        reopen = { nav = nav.open("lists") }
         rule.setContent {
             val games by Games.state.collectAsState()
             Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, games, go = { nav = it }) }
@@ -97,9 +98,12 @@ class ListsSheetTest {
 
     private val ready get() = state.value as Games.State.Ready
 
-    @Test fun theBarsListsButtonOpensYourLists() {
-        val nav = show(lib("[]"))
-        rule.onNodeWithContentDescription("Make a list").performClick()
+    /** Opens Your lists again over what [show] shows (the bar's lists button did this before Option B). */
+    private var reopen: () -> Unit = {}
+
+    @Test fun yourListsOpensAndCloses() {
+        // (the Queue bar's lists button is gone, Option B Nov 6: the sheet opens from its step)
+        val nav = show(lib("[]"), listOf("lists"))
         rule.waitForIdle()
         assertEquals(listOf("lists"), nav().stack)
         rule.onNodeWithText("No lists yet. Make your first one below.").assertExists()
@@ -234,7 +238,7 @@ class ListsSheetTest {
         rule.waitForIdle()
         assertEquals(emptyList<String>(), nav().stack)
         rule.mainClock.advanceTimeBy(1_000)
-        rule.onNodeWithContentDescription("Manage lists").performClick()
+        rule.runOnIdle { reopen() }
         rule.waitForIdle()
         // a tap right after a sheet opens lands on nothing (Shell's settle): a finger waits a moment
         rule.mainClock.advanceTimeBy(1_000)

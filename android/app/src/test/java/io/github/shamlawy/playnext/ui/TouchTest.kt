@@ -189,43 +189,33 @@ class TouchTest {
         assertTrue("a double tap on Close closed Settings and opened something under it: ${nav.stack}", nav.stack.isEmpty())
     }
 
-    /** The pill's lit segment: a second pick while it still slides carries on from where it's drawn, no jump. */
-    @Test fun thePillsSegmentNeverJumps() {
-        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+    /**
+     * Option B (Nov 6), unfolded: no pill at the foot; the open tab's views are words in the rail under its icon, the open
+     * one selected, and a tap on another picks it.
+     */
+    @Test fun theRailListsTheOpenTabsViews() {
+        RuntimeEnvironment.setQualifiers("w859dp-h1000dp-xxhdpi")
         var nav by mutableStateOf(Nav("games"))
-        val look = Look.of(lib)
-        rule.setContent { Frame(look, Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
         rule.waitForIdle()
-        val volt = look.volt
-        fun btn(label: String) = rule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().minBy { it.size.height }.boundsInRoot
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        val games = rule.onNodeWithContentDescription("Games").fetchSemanticsNode().boundsInRoot
         val labels = Prefs.of(lib).views("games").map { it.second }
-        val b0 = btn(labels[0])
-        val b1 = btn(labels[1])
-        val b2 = btn(labels[2])
-        fun segLeft(): Int {
-            val px = rule.onRoot().captureToImage().toPixelMap()
-            val y = b1.center.y.toInt()
-            for (x in (b0.left.toInt() - 30).coerceAtLeast(0) until (b2.right.toInt() + 30).coerceAtMost(px.width - 1)) {
-                val c = px[x, y]
-                if (abs(c.red - volt.red) < .12f && abs(c.green - volt.green) < .12f && abs(c.blue - volt.blue) < .12f) return x
-            }
-            return -1
+        for (l in labels) {
+            val b = rule.onAllNodesWithContentDescription(l).fetchSemanticsNodes().single().boundsInRoot
+            assertTrue("$l in the rail on the right ($b)", b.left > root.right * .8f)
+            assertTrue("$l under the Games icon ($b, $games)", b.top >= games.bottom - 1f)
         }
-        rule.mainClock.autoAdvance = false
-        rule.onRoot().performTouchInput { click(b1.center) }
-        Snapshot.sendApplyNotifications()
-        val trail = mutableListOf<Int>()
-        repeat(6) { rule.mainClock.advanceTimeBy(16); trail += segLeft() }
-        rule.onRoot().performTouchInput { click(b2.center) }
-        Snapshot.sendApplyNotifications()
-        val trail2 = mutableListOf<Int>()
-        repeat(4) { rule.mainClock.advanceTimeBy(16); trail2 += segLeft() }
-        rule.mainClock.autoAdvance = true
-        // the frames the second tap itself takes keep the first slide moving, so the second starts a little further on,
-        // never back where the first began and never at the first one's end (the old jump: it restarted from there)
-        val end1 = b1.left.toInt()
-        val all = trail + trail2
-        assertTrue("the segment jumped from ${trail.last()} to ${trail2.first()} ($trail then $trail2)", trail2.first() < end1 - 40)
-        assertTrue("the segment went back ($trail then $trail2)", all.zipWithNext().all { (a, b) -> b >= a - 2 })
+        val px = 3f
+        assertTrue("the rail is wide enough for its words", rule.onNodeWithContentDescription(labels[1]).fetchSemanticsNode().boundsInRoot.width / px >= 100f)
+        rule.onNodeWithContentDescription(labels[1]).performClick()
+        rule.waitForIdle()
+        assertEquals(Prefs.of(lib).views("games")[1].first, nav.views["games"])
+        // Plan's views follow Plan's icon
+        nav = Nav("plan")
+        rule.waitForIdle()
+        assertEquals(0, rule.onAllNodesWithContentDescription(labels[1]).fetchSemanticsNodes().size)
+        val plan = Prefs.of(lib).views("plan").first().second
+        assertEquals(1, rule.onAllNodesWithContentDescription(plan).fetchSemanticsNodes().size)
     }
 }
