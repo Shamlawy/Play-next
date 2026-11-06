@@ -84,6 +84,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -904,6 +906,24 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, lists: () -> 
     val tabs = Queue.TABS + q.lists.map { "L:" + it.id }
     val guard = LocalSwipeGuard.current
     val scroll = rememberScrollState()
+    // each chip's left edge and width in the row (px), for bringing the lit one into view
+    val spots = remember { HashMap<String, IntArray>() }
+    val calm = LocalCalm.current
+    val air = with(LocalDensity.current) { 16.dp.roundToPx() }
+    // the lit chip is always in sight: one lit far along the row (a list shown from Your lists, or the tab kept from
+    // before) scrolls the row to it; a chip already on screen leaves the row where it is
+    LaunchedEffect(v.tab) {
+        withFrameNanos { }
+        val at = spots[v.tab] ?: return@LaunchedEffect
+        val view = scroll.viewportSize
+        if (view <= 0) return@LaunchedEffect
+        val to = when {
+            at[0] < scroll.value -> at[0] - air
+            at[0] + at[1] > scroll.value + view -> at[0] + at[1] - view + air
+            else -> return@LaunchedEffect
+        }.coerceIn(0, scroll.maxValue)
+        if (calm) scroll.scrollTo(to) else scroll.animateScrollTo(to)
+    }
     // Boss (`#fx-boss`): the Shadow's HP only while Grumble is on (v286, v302)
     val hp = if (Backup.truthy(q.lib["grum"])) q.boss else null
     Row(mod.padding(top = 6.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -923,7 +943,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, lists: () -> 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             for (t in tabs) {
-                FilterChip(q.tabName(t), q.counts[t] ?: 0, t == v.tab) {
+                FilterChip(q.tabName(t), q.counts[t] ?: 0, t == v.tab, Modifier.onPlaced { c -> spots[t] = intArrayOf(c.positionInParent().x.toInt(), c.size.width) }) {
                     if (t != pick.tab) {
                         Sounds.play(Sfx.Tap)
                         Crumbs.tap("queue tab", "games/queue")
@@ -938,10 +958,10 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, lists: () -> 
 
 /** One chip: "Out 26", 36 tall inside a 48 touch; lit = filled with your accent, else `--u-card` with a hairline. */
 @Composable
-private fun FilterChip(name: String, n: Int, on: Boolean, tap: () -> Unit) {
+private fun FilterChip(name: String, n: Int, on: Boolean, mod: Modifier, tap: () -> Unit) {
     val volt = LocalLook.current.volt
     Box(
-        Modifier.height(Pn.touch)
+        mod.height(Pn.touch)
             .semantics { contentDescription = "$name, $n"; selected = on }
             .clickable(role = Role.Tab, onClick = tap),
         contentAlignment = Alignment.Center,
@@ -1006,7 +1026,9 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?,
             val room = if (below == Int.MAX_VALUE) Dp.Infinity else with(d) { below.toDp() } - foot - 12.dp
             Popup(
                 alignment = Alignment.TopEnd,
-                offset = with(d) { IntOffset(0, (Pn.touch + 2.dp).roundToPx()) },
+                // the menu sits [MENU_SHADE] in from the popup's edges, so its shadow fits inside the popup's window
+                // (it was cut off flat at the menu's edges); the offset puts the menu itself where it was
+                offset = with(d) { IntOffset(MENU_SHADE.roundToPx(), (Pn.touch + 2.dp - MENU_SHADE).roundToPx()) },
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
@@ -1038,6 +1060,9 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?,
     }
 }
 
+/** The room round Sort's menu inside its popup for the menu's 20 shadow to fade out in. */
+private val MENU_SHADE = 24.dp
+
 /** What Boss mode says until its screen is built (Phase 9). */
 internal const val BOSS_SOON = "Boss mode's screen comes in a later update"
 
@@ -1055,7 +1080,7 @@ private fun SortMenu(sort: String, hp: String?, room: Dp, choose: (String) -> Un
     // at most 62% of the screen, and never past the taskbar's room under Sort ([room]); 160 at the least
     val most = minOf(maxOf(240.dp, tall * .62f), maxOf(160.dp, room))
     Column(
-        Modifier.padding(end = 0.dp, start = 16.dp).width(264.dp).heightIn(max = most)
+        Modifier.padding(MENU_SHADE).width(264.dp).heightIn(max = most)
             .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.card, shape).border(1.dp, Pn.line2, shape).padding(vertical = 6.dp),
     ) {
