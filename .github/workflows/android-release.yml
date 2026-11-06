@@ -204,6 +204,24 @@ jobs:
           k=$(sudo dmesg | grep -iE 'out of memory|oom-kill|killed process|segfault|general protection|qemu|emulator' | tail -n 10 || true)
           echo "${k:-Nothing about memory or the emulator in the kernel log.}"
           find /tmp/android-* "$HOME/.android" -maxdepth 3 -iname '*crash*' 2> /dev/null | head -n 5 || true
+      # L251 (twice in a row): the log only said "There were failing tests", so name the test and keep its report + logcat
+      - name: "When the profile run failed: which test failed and why"
+        if: failure()
+        run: |
+          r=android/baselineprofile/build/outputs/androidTest-results
+          f=$(grep -rl '<failure' "$r" 2> /dev/null || true)
+          if [ -z "$f" ]; then echo "No failing test recorded under $r (the run may have died before the tests)."; fi
+          for x in $f; do echo "== $x"; grep -B2 -A15 '<failure' "$x" | head -n 60; done
+      - name: Keep the profile run's test report and logcat
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-profile-v${{ needs.version.outputs.code }}-try${{ github.run_attempt }}
+          path: |
+            android/baselineprofile/build/reports/androidTests/
+            android/baselineprofile/build/outputs/androidTest-results/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: The Baseline Profile is there
         run: |
           set -euo pipefail
