@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -271,6 +272,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     }
                 }
             }
+            // what scrolls under the status bar fades out under the clock (the owner's screenshot, Nov 6: the Queue's
+            // title sat right on the time); taps go through it
+            StatusFade(Modifier.align(Alignment.TopCenter).graphicsLayer { alpha = if (covered) 0f else 1f })
             // the Queue's notes sit over the middle of the page, just above the taskbar
             val noteAt = Modifier
                 .graphicsLayer { alpha = if (covered) 0f else 1f }
@@ -389,6 +393,27 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
     }
 }
 
+/**
+ * A page's room at its foot: the bars Android reports or the taskbar's [room], whichever is taller, plus 40 (60 from
+ * 700 wide). The page itself runs to the foot of the screen, so what scrolls shows under the floating taskbar as it did
+ * before android-v21 (the owner, Nov 6: "I hate the my apps have a black bar under it"); this padding only lets the
+ * last card scroll clear of it.
+ */
+private fun foot(bars: PaddingValues, room: Dp, big: Boolean) = maxOf(bars.calculateBottomPadding(), room) + if (big) 60.dp else 40.dp
+
+/** A fade on the page's own ground behind the status bar, 14 taller than it, so the clock and icons stay readable. */
+@Composable
+private fun StatusFade(modifier: Modifier) {
+    val ground = LocalLook.current.bgBase
+    Box(
+        modifier
+            .fillMaxWidth()
+            .drawBehind { drawRect(Brush.verticalGradient(0f to ground.copy(alpha = .92f), .55f to ground.copy(alpha = .7f), 1f to ground.copy(alpha = 0f))) }
+            .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
+            .padding(bottom = 14.dp),
+    )
+}
+
 /** The page's side gutters: 16, or 22 from 700 wide. */
 private fun side(w: Dp) = if (w >= 700.dp) 22.dp else 16.dp
 
@@ -409,8 +434,8 @@ internal fun pageRoom(w: Dp) = w - side(w) - railRoom(w)
 
 /**
  * [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). With a sticky
- * view bar ([stick]) the list starts under the status bar, so the bar sticks just below it. It ends above the taskbar
- * ([room]): what scrolls never passes under it.
+ * view bar ([stick]) the list starts under the status bar, so the bar sticks just below it. It runs to the foot of the
+ * screen, under the taskbar ([foot]).
  */
 @Composable
 private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, room: Dp, stick: Boolean, content: LazyListScope.(Modifier) -> Unit) {
@@ -421,14 +446,13 @@ private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, room: Dp, 
     LazyColumn(
         modifier
             .fillMaxSize()
-            .then(if (stick) Modifier.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top)) else Modifier)
-            .padding(bottom = room),
+            .then(if (stick) Modifier.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top)) else Modifier),
         state = state,
         contentPadding = PaddingValues(
             start = bars.calculateStartPadding(dir) + side(w),
             end = bars.calculateEndPadding(dir) + railRoom(w),
             top = (if (stick) 0.dp else bars.calculateTopPadding()) + if (big) 26.dp else 20.dp,
-            bottom = (bars.calculateBottomPadding() - room).coerceAtLeast(0.dp) + if (big) 60.dp else 40.dp,
+            bottom = foot(bars, room, big),
         ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) { content(cap) }
@@ -451,7 +475,7 @@ private fun ViewBarBand(cap: Modifier, bar: @Composable () -> Unit) {
 /**
  * `.wrap`: padding 20/16/40 (26/22/60 from 700 wide), at most 880 wide and centred; from 620 wide to [RAIL_CLEAR] it leaves
  * room on the right for the rail, which floats over the wider screens. Under the status bar and the cutout, edge to
- * edge; it ends above the taskbar ([room]).
+ * edge, under the taskbar too ([foot]).
  */
 @Composable
 private fun Page(w: Dp, modifier: Modifier, room: Dp, content: @Composable () -> Unit) {
@@ -461,14 +485,13 @@ private fun Page(w: Dp, modifier: Modifier, room: Dp, content: @Composable () ->
     Column(
         modifier
             .fillMaxSize()
-            .padding(bottom = room)
             .verticalScroll(rememberScrollState())
             .padding(
                 PaddingValues(
                     start = bars.calculateStartPadding(dir) + side(w),
                     end = bars.calculateEndPadding(dir) + railRoom(w),
                     top = bars.calculateTopPadding() + if (big) 26.dp else 20.dp,
-                    bottom = (bars.calculateBottomPadding() - room).coerceAtLeast(0.dp) + if (big) 60.dp else 40.dp,
+                    bottom = foot(bars, room, big),
                 ),
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -545,8 +568,8 @@ private fun Modifier.notch(fill: Color, withLeft: Boolean) = drawBehind {
 /**
  * The unfolded rail (`#hrail`, index.html 2132, 2250): [RAIL_W] wide, 12 in from the edges, round 30, `--ink` with an
  * `--edge` line: the four tabs, a line, Add and Settings. Under the open tab's icon its views as words (the owner's
- * Option B, Nov 6, in place of the floating pill): the open one bright, on a soft wash in your accent with a bar of it on
- * its right edge. It ends above the taskbar ([LocalBottomRoom]). The dice, the live queue and hiding it come with Home's
+ * Option B, Nov 6, in place of the floating pill) in a tray, centred: the open one bright on a soft pill of your accent
+ * ([RailViews]). It ends above the taskbar ([LocalBottomRoom]). The dice, the live queue and hiding it come with Home's
  * phase (3); Nexi's seat with the Queue's (1).
  */
 @Composable
@@ -576,7 +599,7 @@ fun Rail(
         // so Settings is never squashed to a sliver
         val shown = if (view != null) views else emptyList()
         // the views are one more item in the column, so one more 10 gap
-        val roomy = maxHeight >= RAIL_TALL + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + 10.dp
+        val roomy = maxHeight >= RAIL_TALL + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
         RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy)
     }
 }
@@ -633,33 +656,58 @@ private fun RailColumn(
     }
 }
 
-/** The open tab's views under its icon in the rail: words, the open one bright on an accent wash with a bar on its right. */
+/**
+ * The open tab's views under its icon in the rail: a tray on `--u-pan` (8 in from the rail's sides) holding one 48 line
+ * per view, each word centred under the icon (the owner, Nov 6: the words sat off-centre, left-aligned with a bar on one
+ * side). The open one is a centred pill in a soft wash of your accent, its word bright; the others mute.
+ */
 @Composable
 private fun RailViews(views: List<Pair<String, String>>, on: String?, volt: Color, pickView: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().semantics { contentDescription = "Views" }) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .background(Pn.pan, RAIL_TRAY)
+            .border(1.dp, Pn.line, RAIL_TRAY)
+            .padding(vertical = RAIL_TRAY_PAD)
+            .semantics { contentDescription = "Views" },
+    ) {
         for ((k, label) in views) {
             val sel = k == on
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(RAIL_VIEW_H)
-                    .padding(start = 6.dp)
-                    .then(if (sel) Modifier.background(volt.copy(alpha = .14f), RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)) else Modifier)
                     .clickable(role = Role.Tab) { pickView(k) }
                     .semantics { selected = sel; contentDescription = label },
-                contentAlignment = Alignment.CenterStart,
+                contentAlignment = Alignment.Center,
             ) {
-                BasicText(
-                    label,
-                    style = RAIL_VIEW.copy(color = if (sel) Pn.ice else Pn.mute, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium).fixed(),
-                    maxLines = 1, softWrap = false,
-                    modifier = Modifier.padding(start = 10.dp, end = 8.dp),
-                )
-                if (sel) Box(Modifier.align(Alignment.CenterEnd).size(3.dp, 26.dp).background(volt, RoundedCornerShape(2.dp)))
+                Box(
+                    Modifier
+                        .padding(horizontal = 4.dp)
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .then(if (sel) Modifier.background(volt.copy(alpha = .18f), RoundedCornerShape(13.dp)) else Modifier),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicText(
+                        label,
+                        style = RAIL_VIEW.copy(
+                            color = if (sel) Pn.ice else Pn.mute,
+                            fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        ).fixed(),
+                        maxLines = 1, softWrap = false,
+                    )
+                }
             }
         }
     }
 }
+
+/** The views' tray in the rail: round 18, 4 of air above and below its lines. */
+private val RAIL_TRAY = RoundedCornerShape(18.dp)
+private val RAIL_TRAY_PAD = 4.dp
 
 /** A view's word in the rail: Poppins 13. */
 private val RAIL_VIEW = androidx.compose.ui.text.TextStyle(fontFamily = Fonts.poppins, fontSize = 13.sp, lineHeight = 18.sp)

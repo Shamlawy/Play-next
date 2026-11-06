@@ -1247,9 +1247,9 @@ private fun QueueRow(q: Queue, g: Game, n: Int, sort: String, folded: Boolean, m
                     val kick = if (n == 1 && st.kind != Queue.Kind.Playing && st.kind != Queue.Kind.Played) "Up next" else st.word
                     BasicText(kick, style = QType.kicker.copy(color = mixOk(accent, Color.White, .45f)).fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                BasicText(
-                    g.title, style = (if (folded) QType.nameF else QType.name).fixed(), maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = if (folded) 0.dp else 2.dp).then(if (folded) Modifier else Modifier.heightIn(min = 48.dp)),
+                WholeName(
+                    g.title, (if (folded) QType.nameF else QType.name).fixed(),
+                    Modifier.padding(top = if (folded) 0.dp else 2.dp).then(if (folded) Modifier else Modifier.heightIn(min = 48.dp)),
                 )
                 Row(Modifier.padding(top = if (folded) 4.dp else 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (folded) 8.dp else 10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1582,3 +1582,28 @@ private object QType {
     val ticketValue = base.copy(fontSize = 16.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
     val ticketLabel = base.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = QTone.pale.copy(alpha = .62f))
 }
+
+/**
+ * A closed row's name in at most two lines that never breaks inside a word (the owner's screenshot, Nov 6: a one-word
+ * series name split as "Danganr / onpa"; the web keeps short things whole too): when its longest word is wider than the
+ * line, the name shrinks until that word fits, to [NAME_LEAST] of its size at the least.
+ */
+@Composable
+private fun WholeName(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier) {
+        val wpx = constraints.maxWidth
+        val sized = remember(text, style, wpx) {
+            val longest = if (wpx == Constraints.Infinity) 0 else text.split(' ').filter { it.isNotEmpty() }
+                .maxOfOrNull { measurer.measure(it, style, softWrap = false, maxLines = 1).size.width } ?: 0
+            if (longest <= wpx) style else {
+                val k = (wpx * .98f / longest).coerceAtLeast(NAME_LEAST)
+                style.copy(fontSize = style.fontSize * k, lineHeight = style.lineHeight * k)
+            }
+        }
+        BasicText(text, style = sized, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** How small [WholeName] may shrink a name so its longest word stays whole. */
+private const val NAME_LEAST = .72f
