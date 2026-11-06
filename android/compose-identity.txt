@@ -62,6 +62,11 @@ Rail.views: List<Pair<String, String>>
 RailColumn.views: List<Pair<String, String>>
 RailViews.views: List<Pair<String, String>>
 RenameRow.l: QList
+SelCell.g: Game
+SelCell.pick: QueuePick
+SelCell.q: Queue
+SelPanel.g: Game
+SelPanel.q: Queue
 SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State
