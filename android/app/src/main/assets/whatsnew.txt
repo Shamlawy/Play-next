@@ -134,3 +134,9 @@ go=home
 at=
 say=No more black band under your taskbar: the pages run under it again, and the rail's words sit centred under their icon.
 tryIt=Unfold, open the Queue and scroll to the bottom: the cards slide under the taskbar and the last one still scrolls clear of it.
+
+v=23
+go=home
+at=
+say=Small polish: the folded view bar keeps the background's glow behind it, Sort's menu has its full shadow, and the lit chip is always in sight.
+tryIt=Open Games › Queue, tap Sort: the menu's shadow fades out softly all round. Show a list from Sort › Your lists: if its chip is far along the bar, the bar slides to it. Folded, scroll a page: the view bar at the top no longer sits on a flat dark strip.

@@ -442,15 +442,15 @@ private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, room: Dp, 
 }
 
 /**
- * The sticky view bar's band: the bar with a little air round it on the page's own ground, fading out at its foot, so
- * what scrolls under it never shows through behind the words.
+ * The sticky view bar's band: the bar with a little air round it on the background's own piece ([backdropBand]: the
+ * glow carries on behind it), fading out at its foot, so what scrolls under it never shows through behind the words.
  */
 @Composable
 private fun ViewBarBand(cap: Modifier, bar: @Composable () -> Unit) {
-    val ground = LocalLook.current.bgBase
     Box(
         cap
-            .drawBehind { drawRect(Brush.verticalGradient(0f to ground, .78f to ground, 1f to ground.copy(alpha = 0f))) }
+            // the background's own piece (its glow too), not a flat strip of the base colour over the glow
+            .backdropBand(.78f)
             .padding(top = 6.dp, bottom = 14.dp),
     ) { bar() }
 }

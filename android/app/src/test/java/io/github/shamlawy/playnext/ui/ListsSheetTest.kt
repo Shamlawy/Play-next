@@ -18,6 +18,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
@@ -263,5 +265,21 @@ class ListsSheetTest {
         rule.waitForIdle()
         rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("All, 3")) and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
             .assertExists()
+    }
+
+    /** A list shown from Your lists whose chip sits far along the bar: the row scrolls so its chip is in sight. */
+    @Test fun aListFarAlongTheBarScrollsIntoView() {
+        val many = (1..10).joinToString(",") { """{"id":"l$it","n":"Long weekend list $it","e":"🛋️"}""" }
+        val nav = show(lib("[$many]"), listOf("lists"))
+        rule.onNodeWithContentDescription("Long weekend list 10, 0 games, show in queue").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(emptyList<String>(), nav().stack)
+        val node = rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Long weekend list 10, 0")) and SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+            .fetchSemanticsNode()
+        // where the chip really is (boundsInRoot is clipped to the row, so a chip scrolled off would still pass)
+        val x = node.layoutInfo.coordinates.positionInRoot().x
+        val w = node.layoutInfo.coordinates.size.width
+        val wide = rule.onRoot().fetchSemanticsNode().boundsInRoot.width
+        assert(x >= 0f && x + w <= wide) { "the lit chip is on screen: $x + $w in $wide" }
     }
 }
