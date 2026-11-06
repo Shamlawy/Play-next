@@ -128,3 +128,9 @@ go=home
 at=
 say=The Queue's bar is one tidy row with a Sort menu, and the view tabs moved off the bottom, clear of Samsung's taskbar.
 tryIt=Open Games › Queue: All, Out, Coming and Played sit in one row of chips, and Sort at its end holds the orders, Your lists, Shuffle and Boss. Unfolded, Queue, Library, Played and Replay are now words in the rail under the Games icon; folded they're a bar at the top that stays while you scroll. If the bottom of the page still hides behind the taskbar (or leaves too big a gap), set Settings › Taskbar room.
+
+v=22
+go=home
+at=
+say=No more black band under your taskbar: the pages run under it again, and the rail's words sit centred under their icon.
+tryIt=Unfold, open the Queue and scroll to the bottom: the cards slide under the taskbar and the last one still scrolls clear of it.
