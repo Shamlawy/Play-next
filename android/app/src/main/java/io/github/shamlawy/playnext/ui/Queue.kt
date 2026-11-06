@@ -1584,8 +1584,8 @@ private object QType {
 }
 
 /**
- * A closed row's name in at most two lines that never breaks inside a word (the owner's screenshot, Nov 6: a one-word
- * series name split as "Danganr / onpa"; the web keeps short things whole too): when its longest word is wider than the
+ * A closed row's name in at most two lines that never breaks inside a word (the owner's screenshot, Nov 6: a long
+ * one-word name split mid-word; the web keeps short things whole too): when its longest word is wider than the
  * line, the name shrinks until that word fits, to [NAME_LEAST] of its size at the least.
  */
 @Composable
