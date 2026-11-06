@@ -114,7 +114,7 @@ internal fun LazyListScope.selectItems(v: QueueView, pick: QueuePick, cols: Int,
     item("q-sel") {
         if (openId != null) {
             QueueCard(q, g, at + 1, pick.fresh == g.id, pick.flip == g.id, mod, entered = { if (pick.fresh == g.id) pick.fresh = null },
-                flip = { back -> pick.flip = if (back) g.id else null }) { Sounds.play(Sfx.Back); pick.close() }
+                flip = { back -> pick.flip = if (back) g.id else null }) { pick.sel = g.id; pick.close() } // the card plays its own shut sound
         } else {
             SelPanel(q, g, at + 1, folded, calm, mod, tap = { Crumbs.tap("panel", "queue"); pick.tapCover(g.id, v.shown) }, page = open)
         }
@@ -158,6 +158,12 @@ internal suspend fun LazyListState.centerCover(id: String, viewNow: () -> QueueV
             val mid = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
             val by = (item.offset + item.size / 2 - mid).toFloat()
             if (calm) scrollBy(by) else animateScrollBy(by, tween(420, easing = Ease.glide))
+            // the change that picked it (a card closing into the panel, On deck coming back) may land after the first
+            // measure: measure again once and make up what's left
+            layoutInfo.visibleItemsInfo.firstOrNull { it.key == pre + line }?.let { now ->
+                val left = (now.offset + now.size / 2 - mid).toFloat()
+                if (kotlin.math.abs(left) > 1f) { if (calm) scrollBy(left) else animateScrollBy(left, tween(240, easing = Ease.glide)) }
+            }
             return
         }
         val anchor = vis.firstOrNull { (it.key as? String)?.startsWith(pre) == true }

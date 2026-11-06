@@ -9,6 +9,9 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.geometry.Offset
@@ -54,15 +57,23 @@ class CharSelectTest {
 
     private fun put(name: String, v: Any?) = Games::class.java.getDeclaredField(name).apply { isAccessible = true }.set(Games, v)
 
+    private var fillers = 0
+    private var deckOff = true
+
     private fun lib(look: String) = Library(
         Json.parseToJsonElement(
             """
-            {"theme":"midnight","lists":[],"deckOff":true$look,
+            {"theme":"midnight","lists":[],"deckOff":$deckOff$look,
              "games":[
                {"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","ord":1,"hours":12,"hype":8},
                {"id":"b","title":"Copper Meadow","state":"playing","date":"2026-05-11","ord":2,"hours":30,"logged":10},
                {"id":"c","title":"Ninefold Gate","state":"upcoming","date":"2026-11-14","ord":3},
-               {"id":"d","title":"Quiet Harbour","state":"played","date":"2025-02-01","ord":4}
+               {"id":"d","title":"Quiet Harbour","state":"played","date":"2025-02-01","ord":4}${
+                (1..fillers).joinToString("") { k ->
+                    val n = k.toString().padStart(2, '0')
+                    ",{\"id\":\"m$k\",\"title\":\"Filler $n\",\"state\":\"backlog\",\"date\":\"2026-0${1 + k % 9}-10\",\"ord\":${4 + k}}"
+                }
+            }
              ],"duels":[],"played":[{"id":"d","score":8}]}
             """.trimIndent(),
         ).jsonObject,
@@ -136,6 +147,51 @@ class CharSelectTest {
         // and a tap on the open one closes it
         tap("Ninefold Gate")
         assertEquals(1, panelFor("Ninefold Gate"))
+    }
+
+    /**
+     * Review of android-v25: Shuffle closes the open card into the panel (and from Played brings On deck back) in the
+     * same change, so the layout it first measures is about to move; the pick's cover must still end in the middle.
+     */
+    private fun shuffleCentres(look: String, width: Int = 412) {
+        fillers = 40
+        RuntimeEnvironment.setQualifiers("w${width}dp-h915dp-xxhdpi")
+        show(look)
+        val list = rule.onAllNodes(androidx.compose.ui.test.hasScrollToNodeAction()).onLast()
+        rule.mainClock.autoAdvance = false
+        repeat(8) { k ->
+            // every pick starts with a card open: a tap on the picked cover opens its card in the panel's place
+            if (k > 0) tap(picked())
+            // Sort sits in the bar at the top: back there first (the list disposes it once scrolled away)
+            list.performScrollToIndex(0)
+            rule.mainClock.advanceTimeBy(100)
+            rule.onNode(hasContentDescription("Sort: ", substring = true)).performClick()
+            androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+            rule.mainClock.advanceTimeBy(100)
+            rule.onNode(hasContentDescription("Shuffle the queue")).performClick()
+            androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+            // the list's own jump and the 420 ms centring, then measure once settled (L244)
+            rule.mainClock.advanceTimeBy(2_000)
+            val name = picked()
+            val box = rule.onAllNodes(isCover and hasContentDescription(name)).fetchSemanticsNodes()
+                .first { it.boundsInRoot.height > 0f }.boundsInRoot
+            val view = list.fetchSemanticsNode().boundsInRoot
+            val y = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+            val edge = y.value() >= y.maxValue() - 1f || y.value() <= 1f
+            val off = kotlin.math.abs(box.center.y - view.center.y)
+            assertTrue("pick $k ($name): its cover ${box.center.y} vs the list's middle ${view.center.y} (at an end: $edge)",
+                off < view.height * .04f || edge)
+            rule.mainClock.advanceTimeBy(3_000) // the ring and the line run out
+        }
+    }
+
+    @Test fun shuffleCentresThePickWithTheCardOpen() = shuffleCentres(""","qLook":"select"""")
+
+    @Test fun shuffleCentresThePickUnfolded() = shuffleCentres(""","qLook":"select"""", 859)
+
+    @Test fun shuffleFromPlayedCentresThePickWithOnDeckBack() {
+        deckOff = false
+        shuffleCentres(""","qLook":"select","qFilter":"done"""")
     }
 
     @Test fun customiseSwitchesRowsAndCovers() {
