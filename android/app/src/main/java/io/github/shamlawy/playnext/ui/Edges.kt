@@ -18,9 +18,10 @@ import io.github.shamlawy.playnext.Store
  * over the app, the view pill got squashed into it and cards scrolled under it). Pages, the rail and the sheets end
  * above it.
  *
- * Auto uses what Android reports at the bottom (the navigation bar or the taskbar, whichever is taller). Unfolded,
- * when that is under [REPORTED_MIN] (only the gesture handle: the taskbar isn't reported, as on the owner's phone), it
- * keeps [FALLBACK] instead. Settings › Taskbar room sets it by hand; that choice lives on this phone only (never in the
+ * Auto, unfolded, uses what Android reports at the bottom (the navigation bar or the taskbar, whichever is taller);
+ * folded it keeps none (no taskbar there: pages draw edge to edge, as before). When the unfolded report is under
+ * [REPORTED_MIN] (only the gesture handle: the taskbar isn't reported, as on the owner's phone), it keeps [FALLBACK]
+ * instead. Settings › Taskbar room sets it by hand; that choice lives on this phone only (never in the
  * backup).
  */
 object Taskbar {
@@ -50,7 +51,9 @@ object Taskbar {
     /** What the room comes to: [reported] is Android's bottom inset, [wide] whether the app is unfolded (the rail shows). */
     fun room(choice: Int, reported: Dp, wide: Boolean): Dp = when {
         choice >= 0 -> choice.dp
-        wide && reported < REPORTED_MIN -> FALLBACK
+        // folded there's no taskbar: the pages draw edge to edge as before, their own padding clears the bars
+        !wide -> 0.dp
+        reported < REPORTED_MIN -> FALLBACK
         else -> reported
     }
 }

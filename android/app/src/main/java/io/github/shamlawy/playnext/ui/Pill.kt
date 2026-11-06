@@ -62,7 +62,8 @@ fun ViewBar(views: List<Pair<String, String>>, on: String, pick: (String) -> Uni
             .shadow(12.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.pan, shape)
             .border(1.dp, Pn.line2, shape)
-            .padding(4.dp),
+            // only the sides: the segments themselves are the bar's whole height, so a tap anywhere on it is a view's
+            .padding(horizontal = 4.dp),
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val avail = constraints.maxWidth
@@ -73,9 +74,11 @@ fun ViewBar(views: List<Pair<String, String>>, on: String, pick: (String) -> Uni
                             val sel = k == on
                             Box(
                                 Modifier
-                                    .then(if (sel) Modifier.background(volt, shape) else Modifier)
                                     .clickable(role = Role.Tab) { if (!sel) pick(k) }
                                     .semantics { selected = sel; contentDescription = label }
+                                    // the 48 touch, its pill drawn 40 tall inside it (L245)
+                                    .padding(vertical = SEG_INSET)
+                                    .then(if (sel) Modifier.background(volt, shape) else Modifier)
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -118,8 +121,9 @@ fun ViewBar(views: List<Pair<String, String>>, on: String, pick: (String) -> Uni
     }
 }
 
-/** A segment's height: 40, so with the bar's 4 round it the touch is 48. */
-private val SEG_H = 40.dp
+/** A segment's height, the whole bar's: a 48 touch, its pill drawn [SEG_INSET] in from the top and the foot (40). */
+private val SEG_H = 48.dp
+private val SEG_INSET = 4.dp
 
 /** The segments' words: Poppins 600 13.5, sentence case. */
 private val BAR = androidx.compose.ui.text.TextStyle(fontFamily = Fonts.poppins, fontSize = 13.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)

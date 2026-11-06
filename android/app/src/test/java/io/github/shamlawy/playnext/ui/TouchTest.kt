@@ -220,7 +220,8 @@ class TouchTest {
         rule.waitForIdle()
         assertEquals(0, rule.onAllNodesWithContentDescription(labels[1]).fetchSemanticsNodes().size)
         val plan = Prefs.of(lib).views("plan").first().second
-        assertEquals(1, rule.onAllNodesWithContentDescription(plan).fetchSemanticsNodes().size)
+        // once in the rail (Plan's page may say the word too)
+        assertEquals(1, rule.onAllNodesWithContentDescription(plan).fetchSemanticsNodes().count { it.boundsInRoot.left > root.right * .8f })
     }
 
     /** Over a game page the rail stays in sight: a view in it closes the page like a tab does (it only swapped the page under it). */

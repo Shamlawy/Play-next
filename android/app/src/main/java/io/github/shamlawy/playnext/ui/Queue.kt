@@ -8,6 +8,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.foundation.layout.sizeIn
@@ -42,7 +47,6 @@ import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.keyframes
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -105,7 +109,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -968,7 +971,16 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?)
     val volt = LocalLook.current.volt
     val sorted = v.sort != "manual"
     var open by remember { mutableStateOf(false) }
-    Box {
+    val d = LocalDensity.current
+    // from the menu's top to the window's foot (px): the menu ends above the taskbar's room, not in it
+    var below by remember { mutableIntStateOf(Int.MAX_VALUE) }
+    val foot = maxOf(LocalBottomRoom.current, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    Box(
+        Modifier.onGloballyPositioned { c ->
+            val top = c.positionInRoot().y + with(d) { (Pn.touch + 2.dp).toPx() }
+            below = (c.findRootCoordinates().size.height - top).toInt()
+        },
+    ) {
         Box(
             Modifier.height(Pn.touch)
                 .semantics { contentDescription = "Sort: " + Queue.sortName(v.sort) }
@@ -991,7 +1003,7 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?)
             }
         }
         if (open) {
-            val d = LocalDensity.current
+            val room = if (below == Int.MAX_VALUE) Dp.Infinity else with(d) { below.toDp() } - foot - 12.dp
             Popup(
                 alignment = Alignment.TopEnd,
                 offset = with(d) { IntOffset(0, (Pn.touch + 2.dp).roundToPx()) },
@@ -1000,7 +1012,7 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?)
             ) {
                 val n = hp?.first?.let { Backup.jsNumber(it).content }
                 SortMenu(
-                    v.sort, n,
+                    v.sort, n, room,
                     choose = { k -> open = false; if (k != pick.sort) pick.sort = k },
                     shuffle = {
                         open = false
@@ -1030,12 +1042,14 @@ internal const val BOSS_SOON = "Boss mode's screen comes in a later update"
  * Shuffle and Boss stay in view.
  */
 @Composable
-private fun SortMenu(sort: String, hp: String?, choose: (String) -> Unit, shuffle: () -> Unit, boss: () -> Unit) {
+private fun SortMenu(sort: String, hp: String?, room: Dp, choose: (String) -> Unit, shuffle: () -> Unit, boss: () -> Unit) {
     val volt = LocalLook.current.volt
     val shape = RoundedCornerShape(18.dp)
     val tall = LocalConfiguration.current.screenHeightDp.dp
+    // at most 62% of the screen, and never past the taskbar's room under Sort ([room]); 160 at the least
+    val most = minOf(maxOf(240.dp, tall * .62f), maxOf(160.dp, room))
     Column(
-        Modifier.padding(end = 0.dp, start = 16.dp).width(264.dp).heightIn(max = maxOf(240.dp, tall * .62f))
+        Modifier.padding(end = 0.dp, start = 16.dp).width(264.dp).heightIn(max = most)
             .shadow(20.dp, shape, ambientColor = Pn.shade, spotColor = Pn.shade)
             .background(Pn.card, shape).border(1.dp, Pn.line2, shape).padding(vertical = 6.dp),
     ) {
@@ -1495,30 +1509,6 @@ private fun LogoSlot(url: String, rowW: Dp, folded: Boolean, lib: Library) {
 }
 
 // ---------------------------------------------------------------- icons
-
-/** `QICON` (index.html 7335): the tabs' 16x16 icons, drawn (they have strokes, so not through [Icons]). */
-@Composable
-private fun QIcon(kind: String, tint: Color, size: Dp) {
-    Canvas(Modifier.size(size)) {
-        scale(this.size.width / 16f, pivot = Offset.Zero) {
-            fun rr(x: Float, y: Float, w: Float, h: Float, r: Float, a: Float = 1f) = drawRoundRect(tint, Offset(x, y), Size(w, h), CornerRadius(r), alpha = a)
-            val ring = { drawCircle(tint, 6.4f, Offset(8f, 8f), alpha = .55f, style = Stroke(1.6f)) }
-            when (kind) {
-                "all" -> { rr(2f, 2.2f, 12f, 3f, 1.2f, .45f); rr(2f, 6.4f, 12f, 3f, 1.2f, .75f); rr(2f, 10.6f, 12f, 3f, 1.2f) }
-                "out" -> { ring(); drawPath(Path().apply { moveTo(6.6f, 5.2f); lineTo(11f, 8f); lineTo(6.6f, 10.8f); close() }, tint) }
-                "done" -> {
-                    ring()
-                    drawPath(Path().apply { moveTo(5f, 8.3f); lineTo(7.1f, 10.4f); lineTo(11f, 6.2f) }, tint, style = Stroke(1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                }
-                else -> {
-                    drawRoundRect(tint, Offset(1.6f, 3.2f), Size(12.8f, 11f), CornerRadius(2f), alpha = .55f, style = Stroke(1.5f))
-                    rr(1.6f, 3.2f, 12.8f, 3.2f, 1.6f); rr(4.4f, 1.2f, 1.6f, 3.2f, .8f); rr(10f, 1.2f, 1.6f, 3.2f, .8f)
-                    drawCircle(tint, 1.7f, Offset(8f, 10.4f))
-                }
-            }
-        }
-    }
-}
 
 /** `QD_IC` (index.html 8769): the bar's 24x24 icons, in the v247 style (one part at .35). */
 private val QD_IC = mapOf(

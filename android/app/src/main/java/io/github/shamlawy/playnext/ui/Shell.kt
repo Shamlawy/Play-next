@@ -192,7 +192,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             val wide = w >= RAIL_FROM
             // the room kept for Samsung's taskbar at the foot (Settings › Taskbar room)
             val room = Taskbar.room(Taskbar.choice, reportedBottom(), wide)
-            val views = prefs.views(nav.tab)
+            // one list per tab and prefs, so the rail and the view bar (which compare it by identity) skip when nothing changed
+            val views = remember(prefs, nav.tab) { prefs.views(nav.tab) }
             // folded, the views sit in a sticky bar at the top of the page
             val topBar = !wide && view != null && views.isNotEmpty()
             val pick = { t: String ->
@@ -249,10 +250,11 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w) } }
                         queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter)) { id -> opener(id, null) }
                     }
-                } else if (topBar) {
-                    // a page with the sticky view bar is a lazy list too (its sticky header): the tab bar, the bar, the page
-                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, rememberLazyListState(), room, true) { cap ->
-                        item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
+                } else if (view != null && views.isNotEmpty()) {
+                    // a page with views is a lazy list at both widths (folded, the sticky view bar is its sticky header),
+                    // so folding or unfolding mid-scroll keeps the scroll spot: the same state in the same place
+                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, rememberLazyListState(), room, topBar) { cap ->
+                        if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         viewBar(cap)
                         item("page") {
                             Column(cap.entrance(enter)) { TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) }) }
@@ -399,6 +401,9 @@ private val RAIL_CLEAR = 880.dp + (RAIL_OUT + 12.dp) * 2
 
 /** How far the page's middle sits left of the screen's (the rail's room is wider than the left gutter). */
 internal fun pageShift(w: Dp) = (railRoom(w) - side(w)) / 2
+
+/** The page's room between its left gutter and the rail's room: what a sheet over it may fill without meeting the rail. */
+internal fun pageRoom(w: Dp) = w - side(w) - railRoom(w)
 
 /**
  * [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). With a sticky

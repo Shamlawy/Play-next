@@ -112,6 +112,9 @@ fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: 
 internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     BoxWithConstraints(modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
         val round = maxWidth >= 660.dp
+        val shift = pageShift(maxWidth)
+        // with the rail, at most the page's own room (620 to ~730 wide the 620 sheet would meet the rail or the left edge)
+        val most = if (maxWidth >= RAIL_FROM) minOf(620.dp, pageRoom(maxWidth)) else 620.dp
         val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
         val gap = maxHeight * .04f
         val pull = rememberPull(close, constraints.maxHeight.toFloat())
@@ -128,10 +131,10 @@ internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composa
         ) {
             Box(
                 Modifier
-                    .widthIn(max = 620.dp)
+                    .widthIn(max = most)
                     .fillMaxWidth()
                     // centred on the page, not the screen: at 859 the 620 sheet would run 5 under the 112 rail
-                    .offset(x = -pageShift(maxWidth))
+                    .offset(x = -shift)
                     .background(Pn.pan, shape)
                     .border(1.dp, Pn.line2, shape)
                     // taps on the sheet are the sheet's: only the scrim round it closes

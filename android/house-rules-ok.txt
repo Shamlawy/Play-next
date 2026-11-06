@@ -6,8 +6,6 @@ calm ui/Wipe.kt val pop = remember(key) { Animatable(0f) } — SlashWipe only ru
 calm ui/Wipe.kt private val p = Animatable(if (kind == null) 1f else 0f) — Enter's kind is null when calm, so it starts finished
 uppercase ui/Wipe.kt label.uppercase(Locale.ROOT) — the slash wipe's tab name is in capitals on the web (pnWipe, allowed by v188)
 italic ui/Wipe.kt fontStyle = FontStyle.Italic — the slash wipe is Archivo italic 900 (allowed by v188)
-uppercase ui/Pill.kt val text = label.uppercase(Locale.ROOT) — the view pill's buttons are uppercase on the web (.vpill button), copied as it is
-font-weight ui/Pill.kt fontWeight = FontWeight.Black — the view pill asks for 900 like the web; Poppins draws its 700 (Type.kt maps Black to poppins_700)
 uppercase ui/Cover.kt .uppercase(Locale.ROOT) } — a drawn cover's initials are capitals on the web (cover() draws them into an image)
 italic ui/Cover.kt fontStyle = FontStyle.Italic — a drawn cover's initials are the phone's sans-serif italic 900, as the web's image draws them
 font-weight ui/Cover.kt fontWeight = FontWeight.Black — a drawn cover's initials are the phone's sans-serif italic 900, as the web's image draws them

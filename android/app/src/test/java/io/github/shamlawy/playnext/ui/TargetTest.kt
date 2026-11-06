@@ -29,8 +29,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Touch targets drawn smaller than 48dp (the top bar's views, 40): Compose takes a tap that lands just
- * outside one as its own, up to 48dp, so they keep the web's look and still get Android's 48 (Perfect run, touch 8).
+ * The top bar's views are drawn as 40 tall pills but each is a 48 touch, the bar's whole height: a tap on the bar's
+ * rim just above or below a pill is that view's (Perfect run, touch 8; L245: a pointer input on a padded bar took
+ * those taps before Compose's own widening could).
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -51,10 +52,10 @@ class TargetTest {
         RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
     }
 
-    /** A tap [dy] px off the drawn edge of the smallest node labelled [label] (above it when negative). */
-    private fun tapBeside(label: String, dy: Float): Float {
-        val b = rule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().minBy { it.size.height }.boundsInRoot
-        val y = if (dy < 0) b.top + dy else b.bottom + dy
+    /** A tap [dy] px inside the top (positive) or the foot (negative) of the node labelled [label]; its height. */
+    private fun tapInside(label: String, dy: Float): Float {
+        val b = rule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().minBy { it.boundsInRoot.top }.boundsInRoot // the bar is at the top
+        val y = if (dy > 0) b.top + dy else b.bottom + dy
         rule.onRoot().performTouchInput { click(Offset(b.center.x, y)) }
         rule.waitForIdle()
         return b.height
@@ -66,8 +67,9 @@ class TargetTest {
         rule.setContent { Frame(Look.of(l), Prefs.of(l)) { Shell(nav, Games.State.Ready(l, 0), go = { nav = it }) } }
         rule.waitForIdle()
         val px = 3f // xxhdpi
-        val h = tapBeside("Played", if (below) 5 * px else -5 * px)
-        assertTrue("the target is already ${h / px}dp tall", h / px < 44f)
+        // 2dp in from the touch's edge: 2dp off the drawn pill, on the bar's rim
+        val h = tapInside("Played", if (below) -2 * px else 2 * px)
+        assertTrue("the target is ${h / px}dp tall", h / px >= 48f)
         assertEquals("played", nav.views["games"])
     }
 
