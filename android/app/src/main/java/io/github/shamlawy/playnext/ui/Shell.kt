@@ -230,6 +230,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     val qpick = qpicks[0] ?: QueuePick(ready.lib).also { qpicks[0] = it }
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
+                    // Character select's covers per line: the page's width inside its gutters and the rail's room
+                    val qcols = selCols(minOf(880.dp, w - side(w) - railRoom(w)))
+                    val qcolsNow by rememberUpdatedState(qcols)
                     val qlist = rememberLazyListState()
                     // Shuffle's pick: once the list shows it (its tab may have just gone back to All), bring it to the middle
                     val qvNow by rememberUpdatedState(qv)
@@ -239,7 +242,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         snapshotFlow { qpick.lit }.collectLatest { l ->
                             if (l != null) try {
                                 withFrameNanos { }
-                                qlist.centerRow(l.id, { qvNow.shown }, calm)
+                                if (qvNow.q.lib.charSelect()) qlist.centerCover(l.id, { qvNow.shown }, qcolsNow, calm)
+                                else qlist.centerRow(l.id, { qvNow.shown }, calm)
                                 kotlinx.coroutines.delay(LIT_MS.toLong())
                             } finally {
                                 if (qpick.lit === l) qpick.lit = null
@@ -250,7 +254,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         viewBar(cap)
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w) } }
-                        queueItems(qv, qpick, qlist, folded, calm, cap.entrance(enter), openSheet) { id -> opener(id, null) }
+                        queueItems(qv, qpick, qlist, folded, qcols, calm, cap.entrance(enter), openSheet) { id -> opener(id, null) }
                     }
                 } else if (view != null && views.isNotEmpty()) {
                     // a page with views is a lazy list at both widths (folded, the sticky view bar is its sticky header),

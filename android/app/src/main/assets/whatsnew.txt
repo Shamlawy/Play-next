@@ -146,3 +146,9 @@ go=home
 at=
 say=New: the Game shuffler. Swipe through your waiting games one card at a time, each drawn like your open Queue card, and keep the ones that tempt you.
 tryIt=Open Games › Queue, tap Sort, then Game shuffler. Swipe a card right if it tempts you, left for not now (or use the star and the cross), tap Back one to undo, then Your picks. With two or more picks, Save as a list makes a chip in the Queue's bar.
+
+v=25
+go=home
+at=
+say=New: Character select for your Queue. Your picked game fills a big panel with its logo, colour and three bars, over a grid of every cover.
+tryIt=Open Games › Queue, tap Customise, and under Queue cards › Closed games pick Character select. Tap a cover to move the panel to it, tap it again (or the panel) to open its card, and tap Shuffle to see its pick light up.

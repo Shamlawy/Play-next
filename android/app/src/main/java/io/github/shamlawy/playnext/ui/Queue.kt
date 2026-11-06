@@ -236,6 +236,9 @@ class QueuePick(lib: Library) {
     /** Just dropped: the rows snap into their new places with no glide (the web skips it after a drop), for two frames. */
     var dropped by mutableStateOf<String?>(null)
 
+    /** Character select's picked game (`qfSel`): the panel shows it while no card is open. */
+    var sel by mutableStateOf<String?>(null)
+
     /** Shuffle's last pick (`qdLast`, memory only): never the same game twice running. */
     var lastShuf by mutableStateOf<String?>(null)
 
@@ -262,6 +265,7 @@ class QueuePick(lib: Library) {
         val g = pool[rnd.nextInt(pool.size)]
         lastShuf = g.id
         if (q.list(q.tabNow(tab)).none { it.id == g.id }) tab = "all"
+        if (q.lib.charSelect()) { sel = g.id; focus = null; collapsed = true; fresh = null; flip = null }
         lit = QueueLit(g.id, g.title, n)
         note = QueueLit(g.id, "Tonight: " + g.title, n)
         return g
@@ -344,7 +348,7 @@ fun stateTone(k: Queue.Kind, volt: Color): Color = when (k) {
 }
 
 /** The Queue's items in the page's lazy list: the bar, On deck and the rows (or what's empty). */
-fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState, folded: Boolean, calm: Boolean, mod: Modifier, sheet: (String) -> Unit, open: (String) -> Unit) {
+fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState, folded: Boolean, cols: Int, calm: Boolean, mod: Modifier, sheet: (String) -> Unit, open: (String) -> Unit) {
     val q = v.q
     if (q.lib.games.isEmpty()) {
         item("q-empty") { Empty("Queue is empty. Open Add and search for the first game.", mod) }
@@ -354,6 +358,8 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
     val deck = if (q.lib.off("deckOff") || Backup.truthy(q.lib["deckOff"]) || v.tab == "done") emptyList() else q.deck(v.tab)
     if (deck.isNotEmpty()) item("q-deck") { OnDeck(q, v.tab, deck, mod, open) }
     if (v.shown.isEmpty()) item("q-none") { Empty("Nothing here right now. Try another filter.", mod) }
+    // Settings › Queue cards › Closed games: Character select draws a panel over a grid of covers instead of the rows
+    if (q.lib.charSelect()) { selectItems(v, pick, cols, folded, calm, mod, open); return }
     val openId = pick.openIn(v.shown)
     itemsIndexed(v.shown, key = { _, g -> "q:" + g.id }) { i, g ->
         val dr = pick.drag
@@ -513,7 +519,7 @@ fun QueueNote(pick: QueuePick, modifier: Modifier) {
  * and out (only its alpha moves), then gone.
  */
 @Composable
-private fun BoxScope.LitRing(lit: QueueLit, accent: Color, r: Dp, gap: Dp, calm: Boolean, slid: Modifier) {
+internal fun BoxScope.LitRing(lit: QueueLit, accent: Color, r: Dp, gap: Dp, calm: Boolean, slid: Modifier) {
     val a = remember(lit) { Animatable(0f) }
     LaunchedEffect(lit) {
         a.animateTo(1f, keyframes {
