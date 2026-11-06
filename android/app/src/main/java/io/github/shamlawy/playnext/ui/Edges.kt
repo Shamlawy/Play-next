@@ -63,5 +63,15 @@ fun reportedBottom(): Dp {
     return with(d) { px.toDp() }
 }
 
+/**
+ * What [room] adds on top of the navigation bar, for things padded by `windowInsetsPadding(navigationBars)` first: so
+ * they end [room] above the foot even when the tappable inset (the taskbar) is taller than the navigation bar.
+ */
+@Composable
+fun overNavBar(room: Dp): Dp {
+    val d = LocalDensity.current
+    return (room - with(d) { WindowInsets.navigationBars.getBottom(d).toDp() }).coerceAtLeast(0.dp)
+}
+
 /** The room at the foot of the screen ([Taskbar]); the shell provides it, 0 outside it (the tests' bare screens). */
 val LocalBottomRoom = compositionLocalOf { 0.dp }

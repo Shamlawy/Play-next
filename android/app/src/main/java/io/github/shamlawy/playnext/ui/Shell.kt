@@ -201,9 +201,13 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 go(nav.go(t))
             }
             val pickView = { v: String ->
-                Sounds.play(Sfx.Tap)
-                Crumbs.tap("view", here)
-                go(nav.view(nav.tab, v))
+                // over a game page or Settings (the rail stays in sight), a view closes them like a tab does; the lit
+                // view with nothing over it is a no-op
+                if (v != view || nav.overlay != null) {
+                    Sounds.play(Sfx.Tap)
+                    Crumbs.tap("view", here)
+                    go(nav.go(nav.tab).view(nav.tab, v))
+                }
             }
             val settings = {
                 Sounds.play(Sfx.Open)
@@ -268,7 +272,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 .graphicsLayer { alpha = if (covered) 0f else 1f }
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = (room - reportedBottom()).coerceAtLeast(0.dp) + 18.dp)
+                .padding(bottom = overNavBar(room) + 18.dp)
                 .offset(x = if (wide) -pageShift(w) else 0.dp)
             // the Queue's Undo bar after a delete, above the view pill (and Shuffle's "Tonight: …" there when none shows)
             val qp = qpicks[0]
@@ -384,8 +388,14 @@ private fun Modifier.swipes(guard: SwipeGuard, touched: (Offset) -> Unit, act: (
 /** The page's side gutters: 16, or 22 from 700 wide. */
 private fun side(w: Dp) = if (w >= 700.dp) 22.dp else 16.dp
 
-/** The room on the right for the rail (620 to 1099 wide; wider, it floats over the page's margin). */
-private fun railRoom(w: Dp) = if (w >= RAIL_FROM && w < 1100.dp) RAIL_OUT + 12.dp else side(w)
+/**
+ * The room on the right for the rail, from 620 wide until the 880 page's own margin clears it with the same 12 of air
+ * ([RAIL_CLEAR], 1152: the 112 rail made 1100 too early); wider, it floats over the page's margin.
+ */
+private fun railRoom(w: Dp) = if (w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
+
+/** From this width the centred 880 page leaves the rail and its 12 of air free on both sides. */
+private val RAIL_CLEAR = 880.dp + (RAIL_OUT + 12.dp) * 2
 
 /** How far the page's middle sits left of the screen's (the rail's room is wider than the left gutter). */
 internal fun pageShift(w: Dp) = (railRoom(w) - side(w)) / 2
@@ -432,7 +442,7 @@ private fun ViewBarBand(cap: Modifier, bar: @Composable () -> Unit) {
 }
 
 /**
- * `.wrap`: padding 20/16/40 (26/22/60 from 700 wide), at most 880 wide and centred; from 620 to 1099 wide it leaves
+ * `.wrap`: padding 20/16/40 (26/22/60 from 700 wide), at most 880 wide and centred; from 620 wide to [RAIL_CLEAR] it leaves
  * room on the right for the rail, which floats over the wider screens. Under the status bar and the cutout, edge to
  * edge; it ends above the taskbar ([room]).
  */
@@ -558,7 +568,8 @@ fun Rail(
         // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
         // so Settings is never squashed to a sliver
         val shown = if (view != null) views else emptyList()
-        val roomy = maxHeight >= RAIL_TALL + RAIL_VIEW_H * shown.size
+        // the views are one more item in the column, so one more 10 gap
+        val roomy = maxHeight >= RAIL_TALL + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + 10.dp
         RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy)
     }
 }
@@ -627,7 +638,7 @@ private fun RailViews(views: List<Pair<String, String>>, on: String?, volt: Colo
                     .height(RAIL_VIEW_H)
                     .padding(start = 6.dp)
                     .then(if (sel) Modifier.background(volt.copy(alpha = .14f), RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)) else Modifier)
-                    .clickable(role = Role.Tab) { if (!sel) pickView(k) }
+                    .clickable(role = Role.Tab) { pickView(k) }
                     .semantics { selected = sel; contentDescription = label },
                 contentAlignment = Alignment.CenterStart,
             ) {

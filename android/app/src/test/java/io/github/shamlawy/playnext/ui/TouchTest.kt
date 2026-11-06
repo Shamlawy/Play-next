@@ -222,4 +222,23 @@ class TouchTest {
         val plan = Prefs.of(lib).views("plan").first().second
         assertEquals(1, rule.onAllNodesWithContentDescription(plan).fetchSemanticsNodes().size)
     }
+
+    /** Over a game page the rail stays in sight: a view in it closes the page like a tab does (it only swapped the page under it). */
+    @Test fun aRailViewOverAGamePageTakesYouThere() {
+        RuntimeEnvironment.setQualifiers("w859dp-h1000dp-xxhdpi")
+        var nav by mutableStateOf(Nav("games").open("game:a"))
+        rule.setContent { Frame(Look.of(lib), Prefs.of(lib), now = { now }) { Shell(nav, ready, go = { nav = it }) } }
+        rule.waitForIdle()
+        val (k, label) = Prefs.of(lib).views("games")[1]
+        val rail = rule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().withIndex().maxBy { it.value.boundsInRoot.left }.index
+        rule.onAllNodesWithContentDescription(label)[rail].performClick()
+        rule.waitForIdle()
+        assertEquals("the game page closed", null, nav.overlay)
+        assertEquals(k, nav.views["games"])
+        // the lit view with nothing over it changes nothing
+        val was = nav
+        rule.onAllNodesWithContentDescription(label)[rule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().withIndex().maxBy { it.value.boundsInRoot.left }.index].performClick()
+        rule.waitForIdle()
+        assertTrue("same nav", was === nav)
+    }
 }

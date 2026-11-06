@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -129,6 +130,8 @@ internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composa
                 Modifier
                     .widthIn(max = 620.dp)
                     .fillMaxWidth()
+                    // centred on the page, not the screen: at 859 the 620 sheet would run 5 under the 112 rail
+                    .offset(x = -pageShift(maxWidth))
                     .background(Pn.pan, shape)
                     .border(1.dp, Pn.line2, shape)
                     // taps on the sheet are the sheet's: only the scrim round it closes
@@ -138,7 +141,7 @@ internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composa
                     Modifier
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         // and the taskbar's room when Android doesn't report it (Taskbar)
-                        .padding(bottom = (LocalBottomRoom.current - reportedBottom()).coerceAtLeast(0.dp))
+                        .padding(bottom = overNavBar(LocalBottomRoom.current))
                         .imePadding()
                         .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 34.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
