@@ -97,9 +97,11 @@ import kotlin.math.abs
  */
 @Composable
 fun ShuffleDeck(modifier: Modifier, games: Games.State, pick: QueuePick?, close: () -> Unit) {
-    val lib = (games as? Games.State.Ready)?.lib ?: return
+    val ready = games as? Games.State.Ready ?: return
+    val lib = ready.lib
     val p = pick ?: remember(lib) { QueuePick(lib) }
-    val v = rememberQueueView(lib, p)
+    // the Queue the day build made off Main, as the Queue page uses it (else the deck's first frame builds a Rank)
+    val v = rememberQueueView(lib, p, ready.cards?.queue)
     val q = v.q
     val calm = LocalCalm.current
     val scope = rememberCoroutineScope()
@@ -162,7 +164,7 @@ fun ShuffleDeck(modifier: Modifier, games: Games.State, pick: QueuePick?, close:
             // unfolded, the rail stays over the deck (as over every sheet): the deck keeps clear of its room
             val rail = if (maxWidth >= RAIL_FROM) railRoom(maxWidth) else 0.dp
             // the big card (from 620 wide) only when the screen is tall enough for it and the words under it
-            val big = maxWidth - rail >= 620.dp && maxHeight >= queueFaceHeight(true) + ROOM_UNDER
+            val big = maxWidth - rail - 32.dp >= 620.dp && maxHeight >= queueFaceHeight(true) + ROOM_UNDER
             Column(Modifier.fillMaxSize().padding(end = rail)) {
                 TopBar(deck.mode, choose = { m ->
                     if (m != deck.mode) {
@@ -453,7 +455,9 @@ private fun Picks(q: Queue, deck: Shuffler.Deck, byId: Map<String, Game>, lib: L
             BasicText("${deck.ids.size} shuffled", style = Type.label.fixed())
             BasicText(if (picks.isNotEmpty()) "Tempted by ${picks.size}" else "Nothing grabbed you", style = DType.title.fixed())
             BasicText(
-                if (picks.isNotEmpty()) "Open one to have a look." else "Shuffle again, or switch to games that are out.",
+                if (picks.isNotEmpty()) "Open one to have a look."
+                else if (deck.mode == Shuffler.OUT) "Shuffle again, or switch to everything waiting."
+                else "Shuffle again, or switch to games that are out.",
                 style = DType.why.fixed(), modifier = Modifier.padding(bottom = 6.dp),
             )
             for (g in picks) PickRow(q, g) {
