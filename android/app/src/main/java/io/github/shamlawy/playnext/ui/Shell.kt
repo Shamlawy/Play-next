@@ -118,8 +118,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val guard = remember { SwipeGuard() }
     // where the rail and floating Nexi are (yours from the backup until you move them here) and Nexi himself
     val spot = remember(prefs.railHide, prefs.railLeft, prefs.bubY) { RailSpot(prefs) }
-    val nx = remember { NexiState() }
     val nxScope = rememberCoroutineScope()
+    val nx = remember { NexiState(nxScope) }
     val view = prefs.viewOf(nav.tab, nav.views)
     // the tab drawn last time (none before the first draw), read while composing: a switch shows from its very first
     // frame (the slab over the new tab, the page at the start of its entrance), never a frame later from an effect

@@ -78,12 +78,16 @@ class NexiSeatTest {
         state.value = Games.State.Starting
     }
 
+    /** What's open: a test can open the shuffler (Nexi leaves the screen) and close it again. */
+    private val nav = androidx.compose.runtime.mutableStateOf(Nav())
+
     private fun show(extra: String = "", tab: String = "games") {
         val l = lib(extra)
         state.value = Games.State.Ready(l, now - 3_600_000L, cards = Shx.all(l, now, ZoneId.of("UTC")))
+        nav.value = Nav(tab, views = mapOf("games" to "queue"))
         rule.setContent {
             val games by Games.state.collectAsState()
-            Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(Nav(tab, views = mapOf("games" to "queue")), games, go = {}) }
+            Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav.value, games, go = {}) }
         }
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(1_000)
@@ -141,6 +145,7 @@ class NexiSeatTest {
         assertTrue("floating once the rail is hidden", floating())
         val f = nexi()
         assertTrue("he glided out of the seat: $seat → $f", f.top < seat.top - 40f)
+        assertTrue("from the seat's own height, 90 above the foot (pnBubEdge from the seat): $seat → $f", f.top > seat.top - 120f * density())
         assertTrue("34 from the right edge", kotlin.math.abs(width - f.right - 34f * density()) < 2f)
         assertTrue("the rail took its buttons away", railSettings().left >= width)
         assertTrue("leaving the seat he says the day's brief", says("Today's brief"))
@@ -183,6 +188,43 @@ class NexiSeatTest {
         rule.onNode(hasContentDescription("Nexi: ", substring = true)).performTouchInput { up() }
         settle(100)
         assertTrue("still seated", !floating())
+    }
+
+    /** His line's timer lives with him, not his seat: the shuffler opening mid-line (he leaves the screen) never strands it. */
+    @Test fun aLineStillGoesAfterHeLeavesTheScreenMidLine() {
+        show()
+        rule.onNode(hasContentDescription("Nexi: ", substring = true)).performTouchInput {
+            click()
+            advanceEventTime(120)
+            click()
+        }
+        settle(500)
+        assertTrue(says(MENU_LATER))
+        nav.value = nav.value.copy(stack = listOf("shuffle"))
+        settle(500)
+        assertEquals("the shuffler is his place to stay out of", 0, nexiCount())
+        nav.value = nav.value.copy(stack = emptyList())
+        settle(6_000)
+        assertEquals(1, nexiCount())
+        assertTrue("his line went on time", !says(MENU_LATER))
+    }
+
+    /** A flick to the other side glides there (520 ms): changing sides used to restart his placing, a jump. */
+    @Test fun aFlickToTheOtherSideGlidesThere() {
+        show(""","railHide":true""")
+        settle()
+        // the clock moves only when told, so reading his place doesn't run the glide to its end
+        rule.mainClock.autoAdvance = false
+        rule.onNode(hasContentDescription("Nexi: ", substring = true)).performTouchInput {
+            down(center)
+            repeat(20) { moveBy(Offset(-25f * density(), 0f)) }
+            up()
+        }
+        rule.mainClock.advanceTimeBy(64)
+        val mid = nexi()
+        assertTrue("on his way, not there yet: $mid", mid.left - 34f * density() > 4f * density())
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue("then 34 from the left edge", kotlin.math.abs(nexi().left - 34f * density()) < 2f)
     }
 
     @Test fun draggedHeSnapsToTheNearestSideAndTheRailOpensThere() {

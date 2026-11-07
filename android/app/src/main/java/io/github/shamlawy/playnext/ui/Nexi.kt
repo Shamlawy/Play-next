@@ -3,15 +3,11 @@ package io.github.shamlawy.playnext.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.InfiniteRepeatableSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.StartOffset
-import androidx.compose.animation.core.StartOffsetType
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -31,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -39,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -75,6 +73,8 @@ import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.report.Crumbs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 import kotlin.math.max
@@ -169,7 +169,7 @@ class NexiLine(val text: String, val n: Int)
  * his pop. One per window, made by the Shell.
  */
 @Stable
-class NexiState {
+class NexiState(private val scope: kotlinx.coroutines.CoroutineScope) {
     val pos = Animatable(Offset.Unspecified, Offset.VectorConverter)
     val eyes = Animatable(Offset.Zero, Offset.VectorConverter)
     val pop = Animatable(1f)
@@ -180,7 +180,13 @@ class NexiState {
     private var moodJob: Job? = null
     private var lineJob: Job? = null
 
-    fun mood(m: Mood, ms: Long, scope: kotlinx.coroutines.CoroutineScope) {
+    /** Whether he was floating when last shown (null: never shown yet), so a fold or the shuffler closing never re-pops him. */
+    var shownFloating: Boolean? = null
+
+    /** On while floating Nexi is on screen: only then do his eyes follow a finger (`watch`). */
+    var watching = false
+
+    fun mood(m: Mood, ms: Long) {
         mood = m
         moodJob?.cancel()
         moodJob = scope.launch {
@@ -190,10 +196,10 @@ class NexiState {
     }
 
     /** `pnBubSay`: shows [text] for 5.5 s, his mouth talking for 1.7 s. */
-    fun say(text: String, scope: kotlinx.coroutines.CoroutineScope) {
+    fun say(text: String) {
         val l = NexiLine(text, ++said)
         line = l
-        mood(Mood.Talk, 1700, scope)
+        mood(Mood.Talk, 1700)
         lineJob?.cancel()
         lineJob = scope.launch {
             delay(SAY_MS)
@@ -267,26 +273,29 @@ fun NexiSeat(
     // the first place is a snap; a change between seat and floating glides (skipped when calm or under 4 px); a new
     // window size (a fold, a turn) puts him straight where he belongs
     val was = remember { arrayOf<Boolean?>(null) }
-    LaunchedEffect(floating, seat, wPx, hPx) {
+    LaunchedEffect(floating, if (floating) null else seat, wPx, hPx) {
         val from = nx.pos.value
         val glide = was[0] != null && was[0] != floating && !calmNow && from.isSpecified() && (from - target).getDistance() > 4f
         was[0] = floating
         if (glide) nx.pos.animateTo(target, tween(560, easing = GLIDE)) else nx.pos.snapTo(target)
     }
     // leaving the seat (`pnBubShow`): he pops (`bubPop`), smiles, then says the day's news once a day
-    val shownOnce = remember { arrayOf(false) }
-    val atStart = remember { floating }
+    val nexiNow by rememberUpdatedState(nexi)
+    DisposableEffect(floating) {
+        nx.watching = floating
+        onDispose { nx.watching = false }
+    }
     LaunchedEffect(floating) {
-        if (!floating) return@LaunchedEffect
-        val first = !shownOnce[0]
-        shownOnce[0] = true
+        val before = nx.shownFloating
+        nx.shownFloating = floating
+        if (!floating || before == true) return@LaunchedEffect
         // the rail hidden when the app opens: he shows 300 ms after it's drawn (`pnRailShown`)
-        if (first && atStart) delay(300)
+        if (before == null) delay(300)
         if (!calmNow) launch { nx.pop.snapTo(.2f); nx.pop.animateTo(1f, tween(600, easing = POP)) }
-        nx.mood(Mood.Happy, 1200, scope)
-        val l = nexi?.let { news(it, prefs, clock()) } ?: return@LaunchedEffect
+        nx.mood(Mood.Happy, 1200)
         delay(1200)
-        nx.say(l, scope)
+        val n = nexiNow ?: snapshotFlow { nexiNow }.filterNotNull().first()
+        news(n, prefs, clock())?.let { nx.say(it) }
     }
     // asleep 01:00-06:00 (checked every minute, as the web's nap), on the app's clock
     val hour = { java.time.Instant.ofEpochMilli(clock()).atZone(java.time.ZoneId.systemDefault()).hour }
@@ -303,9 +312,9 @@ fun NexiSeat(
     var taps by remember { mutableStateOf(0) }
     val tapJob = remember { arrayOfNulls<Job>(1) }
     val menu = {
-        nx.mood(Mood.Happy, 900, scope)
+        nx.mood(Mood.Happy, 900)
         Crumbs.tap("nexi menu", "rail")
-        nx.say(MENU_LATER, scope)
+        nx.say(MENU_LATER)
     }
     val tap = {
         tapJob[0]?.cancel()
@@ -323,6 +332,9 @@ fun NexiSeat(
                         spot.show(nx.pos.value.x + px / 2 < wPx / 2)
                     } else {
                         Crumbs.tap("nexi: hide the rail", "rail")
+                        // he floats from his seat (`pnBubShow` → `pnBubEdge` from the seat's own place): the same side,
+                        // at most 90 above the foot, not the height he last floated at
+                        spot.park(floatAt(seat.x, seat.y).y / d.density, spot.left)
                         spot.hide()
                     }
                 }
@@ -334,6 +346,7 @@ fun NexiSeat(
     val menuNow by rememberUpdatedState(menu)
     val floatingNow by rememberUpdatedState(floating)
     val floatAtNow by rememberUpdatedState(floatAt)
+    val wNow by rememberUpdatedState(wPx)
     Box(
         modifier
             .layout { m, c ->
@@ -345,7 +358,8 @@ fun NexiSeat(
                         if (at.isSpecified()) {
                             translationX = at.x
                             translationY = at.y
-                        }
+                            alpha = 1f
+                        } else alpha = 0f
                     }
                 }
             }
@@ -413,8 +427,8 @@ fun NexiSeat(
                     val flung = start + drag + vel * 120f
                     val to = floatAtNow(flung.x, flung.y)
                     val fast = vel.getDistance() / density > 1.2f
-                    nx.mood(if (fast) Mood.Dizzy else Mood.Happy, if (fast) 1600 else 900, scope)
-                    spot.park(to.y / density, to.x + px / 2 < wPx / 2)
+                    nx.mood(if (fast) Mood.Dizzy else Mood.Happy, if (fast) 1600 else 900)
+                    spot.park(to.y / density, to.x + px / 2 < wNow / 2)
                     scope.launch {
                         if (calmNow) nx.pos.snapTo(to) else {
                             nx.pos.snapTo(flung)
@@ -557,21 +571,27 @@ private fun DrawScope.faceGround() {
 @Composable
 private fun BoxScope.Eyes(nx: NexiState, still: Boolean, asleep: Boolean, moving: Boolean) {
     val loops = rememberInfiniteTransition("eyes")
-    val blinkSpec = { lag: Int ->
-        InfiniteRepeatableSpec<Float>(
-            keyframes {
-                durationMillis = 4600
-                1f at 0
-                1f at 4278
-                .1f at 4416
-                1f at 4600
-            },
-            RepeatMode.Restart, StartOffset(lag, StartOffsetType.Delay),
-        )
-    }
     val blinks = !still && !asleep && nx.mood != Mood.Happy && nx.mood != Mood.Dizzy
-    val bl by if (blinks) loops.animateFloat(1f, 1f, blinkSpec(0), "l") else remember { mutableStateOf(1f) }
-    val br by if (blinks) loops.animateFloat(1f, 1f, blinkSpec(40), "r") else remember { mutableStateOf(1f) }
+    // the blink (4.6 s: shut to .1 at 93.8%, open at 100%; the right .04 s later) as a timed loop, not an endless
+    // transition: between blinks he asks for no frames, so seated at rest the screen can idle at 120 Hz
+    val blA = remember { Animatable(1f) }
+    val brA = remember { Animatable(1f) }
+    LaunchedEffect(blinks) {
+        blA.snapTo(1f)
+        brA.snapTo(1f)
+        if (!blinks) return@LaunchedEffect
+        val shut: suspend (Animatable<Float, *>) -> Unit = { a ->
+            a.animateTo(.1f, tween(138, easing = LinearEasing))
+            a.animateTo(1f, tween(184, easing = LinearEasing))
+        }
+        while (true) {
+            delay(4278)
+            launch { shut(blA) }
+            delay(40)
+            launch { shut(brA) }
+            delay(282)
+        }
+    }
     val spin by if (nx.mood == Mood.Dizzy && moving) loops.animateFloat(0f, 360f, infiniteRepeatable(tween(450, easing = LinearEasing)), "dz") else remember { mutableStateOf(0f) }
     val mood = nx.mood
     Box(
@@ -588,7 +608,7 @@ private fun BoxScope.Eyes(nx: NexiState, still: Boolean, asleep: Boolean, moving
                 Modifier
                     .matchParentSize()
                     .graphicsLayer {
-                        scaleY = if (right) br else bl
+                        scaleY = if (right) brA.value else blA.value
                         // each eye blinks round its own middle
                         transformOrigin = TransformOrigin(if (right) .73f - 5.5f / 56 else .27f + 5.5f / 56, .32f + 7.5f / 56)
                     }
@@ -777,7 +797,7 @@ private fun Saying(nx: NexiState, line: NexiLine, px: Float, wPx: Float, calm: B
 /** Where a finger is, for floating Nexi's eyes (up to 5 toward it, 180 ms ease-out, `look`). */
 internal fun NexiState.lookAt(finger: Offset, px: Float, maxPx: Float, calm: Boolean, scope: kotlinx.coroutines.CoroutineScope) {
     val at = pos.value
-    if (!at.isSpecified() || dragging) return
+    if (!watching || !at.isSpecified() || dragging) return
     val dx = finger.x - at.x - px / 2
     val dy = finger.y - at.y - px / 2
     val dist = max(1f, hypot(dx, dy))
