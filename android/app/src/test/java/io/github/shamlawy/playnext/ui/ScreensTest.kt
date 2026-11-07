@@ -15,6 +15,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.isSelected
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -121,6 +125,19 @@ class ScreensTest {
     /** The Queue's rows with On deck off (On deck's cards are 410 tall: with them the rows start below the picture). */
     @Test fun queue412() = lib(""","deckOff":true,"sort":"hype","qFilter":"all"""").let { l -> shot("queue", 412, l = l, content = tab("games", "queue", l)) }
     @Test fun queue859() = lib(""","deckOff":true""").let { l -> shot("queue", 859, l = l, content = tab("games", "queue", l)) }
+    /** Character select (android-v25): the first card closed into the picked game's panel, over the covers. */
+    private val selLib = lib(""","deckOff":true,"qLook":"select"""")
+    private val closeFirst = {
+        rule.mainClock.advanceTimeBy(2_500)
+        rule.onNode(SemanticsMatcher("the picked cover") { it.config.getOrElseNullable(SemanticsActions.OnClick) { null }?.label == "Pick" } and isSelected()).performScrollTo()
+            .performTouchInput { click(Offset(width / 2f, height * .15f)) }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onNode(hasContentDescription("Sort: ", substring = true)).performScrollTo()
+        rule.waitForIdle()
+    }
+    @Test fun charsel412() = shot("charsel", 412, l = selLib, ready = closeFirst, content = tab("games", "queue", selLib))
+    @Test fun charsel859() = shot("charsel", 859, l = selLib, ready = closeFirst, content = tab("games", "queue", selLib))
     @Test fun played412() = shot("played", 412, content = tab("games", "played"))
     @Test fun played859() = shot("played", 859, content = tab("games", "played"))
     @Test fun plan412() = shot("plan", 412, content = tab("plan"))

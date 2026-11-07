@@ -123,6 +123,9 @@ private fun QueueGroups(lib: Library) {
     }
     Card {
         BasicText("Queue cards", style = Type.head)
+        Label("Closed games")
+        Chips(Q_LOOK, if (lib.charSelect()) "select" else "strap") { set("qLook", JsonPrimitive(it)) }
+        BasicText("Rows: each game on a strip in its colour, with a ticket and its logo. Character select: the picked game in a big panel over a grid of covers.", style = Type.note)
         Label("Card background")
         BasicText("A wide image bleeding in from the right, faded out before it reaches your text. Plain leaves the row in its colour only.", style = Type.note)
         Chips(CARD_BG, if (Backup.str(lib["cardBg"]) == "plain") "plain" else "hero") { set("cardBg", JsonPrimitive(it)) }
@@ -141,6 +144,7 @@ private fun QueueGroups(lib: Library) {
 
 // the chips' choices, made once (a list built while drawing would be a new object on every redraw)
 private val DECK_ROW = listOf("on" to "Show it", "off" to "Hide it")
+private val Q_LOOK = listOf("strap" to "Rows", "select" to "Character select")
 private val CARD_BG = listOf("hero" to "Art only", "plain" to "Plain")
 private val ROW_ART = listOf("yes" to "In its own spot on the row", "no" to "Off")
 

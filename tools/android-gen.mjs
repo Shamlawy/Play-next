@@ -136,6 +136,10 @@ const RULES = {
   Q_TICKET: cssColour("#p-queue .qstk > span", "background"), Q_PALE: cssColour("#p-queue .qstk small", "color"),
   Q_PHOTO: cssColour(".dzd-ph", "background"), Q_ON_VOLT: cssColour(".dzd-s .dzd-btn2", "color"),
   Q_DUST: dust(0), Q_DUST_VEIL: dust(2),
+  /* Character select (v301): the panel's veil (`.qfsel::before`: the shade mixed with the game's colour, the far shade,
+     the foot along the panel and the covers) and a bar's unlit segment */
+  QF_SHADE: cssColour("#p-queue .qfsel::before", "background", 0), QF_SHADE_FAR: cssColour("#p-queue .qfsel::before", "background", 1),
+  QF_FOOT: cssColour("#p-queue .qfsel::before", "background", 2), QF_SEG_OFF: cssColour("#p-queue .qfseg i", "background"),
   /* the open card (v299/v300): its status dots and the two near-blacks its strap and ticket mix the game's colour with */
   QK_OUT: cssColour(".qk-out", "--qsc"), QK_PLAYING: cssColour(".qk-playing", "--qsc"), QK_PLAYED: cssColour(".qk-played", "--qsc"),
   QK_DEEP: cssColour(".qkstrap", "background"), QK_TICKET: cssColour(".qktk > div", "background"),
