@@ -30,10 +30,14 @@ class Nexi(private val lib: Library, private val rk: Rank, private val now: Long
      * hours, or nothing. Streak, level and to-score need his own records and come with his phase (8a): no badge till then.
      */
     fun badge(mode: String): String = when (mode) {
-        "", "count" -> if (party) "TODAY" else next?.let { "${it.second}d" } ?: ""
-        "hours" -> lib.games.filter { !rk.isPlayed(it) }.sumOf { rk.hrsOf(it).coerceIn(0.0, 1000.0) }.let { if (it > 0) "${Math.round(it)}h" else "" }
+        "", "count" -> count
+        "hours" -> hours
         else -> ""
     }
+
+    // both worked out here, off Main, so drawing his badge only picks one
+    private val count = if (party) "TODAY" else next?.let { "${it.second}d" } ?: ""
+    private val hours = lib.games.filter { !rk.isPlayed(it) }.sumOf { rk.hrsOf(it).coerceIn(0.0, 1000.0) }.let { if (it > 0) "${Math.round(it)}h" else "" }
 
     /**
      * The daily brief, once a day as he leaves his seat (`pnBubShow`): this week's releases (a date from yesterday on to a

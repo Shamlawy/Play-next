@@ -31,7 +31,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +71,7 @@ import io.github.shamlawy.playnext.report.Crumbs
  * (the web's `openLists(gid)` turned round: one list, many games; the game page's own Lists button comes in Phase 2).
  */
 @Composable
-fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, close: () -> Unit) {
+fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, close: () -> Unit, top: Boolean = true) {
     val lib = (games as? Games.State.Ready)?.lib
     val lists = remember(lib) { lib?.let { Lists.of(it) }.orEmpty() }
     // the mark for a new list moves on to the next one once a list is made (the web draws the sheet again); it is the
@@ -84,7 +86,15 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
     var addingName by rememberSaveable { mutableStateOf("") }
     val put = { l: List<Queue.QList> -> Games.customise("lists", Lists.json(l)) }
     val over = { Games.practiced(Lists.IN) as? kotlinx.serialization.json.JsonObject }
-    val pickFor = adding
+    // back steps out of what's open in the sheet first (Phase 1 check A6): Add games, a rename, the delete question
+    BackHandler(enabled = top && (adding != null || editing != null || dropping != null)) {
+        // (as its own Done and Keep: Done sounds, a rename or the question just closes)
+        if (adding != null) { Sounds.play(Sfx.Back); adding = null } else { editing = null; dropping = null }
+    }
+    // a list made in the practice copy is gone after Android closes the app in the background (the copy starts over,
+    // the sheet's own state comes back): its Add games doesn't come back with it (Phase 1 check C2)
+    val pickFor = adding?.takeIf { id -> lists.any { it.id == id } || Lists.holds(Games.practiced("lists"), id) }
+    if (adding != null && pickFor == null && lib != null) LaunchedEffect(Unit) { adding = null }
     if (pickFor != null && lib != null) {
         AddGames(modifier, lib, pickFor, lists.firstOrNull { it.id == pickFor }?.let { it.n to it.e } ?: (addingName to emo), flip = { g ->
             Games.customise(Lists.IN, Lists.flipped(over(), g, pickFor))

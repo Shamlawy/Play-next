@@ -184,6 +184,9 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
     // the tabs and Settings keep their place (scroll spots, the open sheet) while the 120 Hz test or the restore code
     // covers them, so back finds them as you left them
     val kept = rememberSaveableStateHolder()
+    // and the Queue keeps its picks (tab, order, open card, drags, deletes) there too, held up here; Android closing the
+    // app in the background keeps the tab, order, open card, its side and Character select's pick (Phase 1 check A4, C1)
+    val queue = rememberSaveable(saver = QueueHold.Saver) { QueueHold() }
     Frame(look, prefs) {
             when {
                 nav.overlay == "probe" -> {
@@ -218,7 +221,7 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                     }
                     BackHandler(enabled = nav.canGoBack) { nav = nav.back() }
                     CompositionLocalProvider(LocalShared provides shared) {
-                        kept.SaveableStateProvider("shell") { Shell(nav, games, go = { nav = it }) }
+                        kept.SaveableStateProvider("shell") { Shell(nav, games, queue, go = { nav = it }) }
                     }
                 }
             }

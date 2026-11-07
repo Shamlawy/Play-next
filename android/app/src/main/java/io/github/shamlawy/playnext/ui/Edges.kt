@@ -1,7 +1,10 @@
 package io.github.shamlawy.playnext.ui
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.tappableElement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
@@ -12,6 +15,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.Store
+
+/**
+ * The system bars and the camera cutout, never the keyboard (`safeDrawing` without the IME): Nexi, the rail and the Sort
+ * menu stay where they are when the keyboard opens, as on the web, where the keyboard only covers the page.
+ */
+val WindowInsets.Companion.steady: WindowInsets
+    @Composable get() = systemBars.union(displayCutout)
 
 /**
  * The room kept free at the foot of the screen for Samsung's taskbar (the owner, Nov 6: unfolded, the taskbar floats

@@ -87,6 +87,18 @@ function cssColour(sel, prop, n = 0) {
   }
   fail(`no colour ${n} for ${prop} in "${sel} { … }"`);
 }
+/* a `color-mix(in oklab, var(--accent…) A%, white B%)` in a rule: the accent's share of the mix (A / (A + B)) and the
+   alpha the missing part leaves ((A + B) / 100), as the browser mixes it */
+function cssMix(sel, prop) {
+  const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const m of src.matchAll(new RegExp("(?:^|[\\s},])" + esc + "\\s*\\{([^}]*)\\}", "g"))) {
+    const d = new RegExp("(?:^|[;{\\s])" + prop + "\\s*:\\s*([^;}]+)").exec(m[1]);
+    const x = d && /color-mix\(in oklab,\s*var\(--accent[^)]*\)\)?\s+([\d.]+)%,\s*white\s+([\d.]+)%\)/.exec(d[1]);
+    if (x) { const a = +x[1], b = +x[2]; return [r4(a / (a + b)), r4((a + b) / 100)]; }
+  }
+  fail(`no accent/white color-mix for ${prop} in "${sel} { … }"`);
+}
+const r4 = n => +n.toFixed(4);
 const PLACEHOLDER_BG = (/function placeholder\(g\)[\s\S]{0,400}?<rect width="300" height="400" fill="(#[0-9A-Fa-f]{6})"/.exec(src) || [])[1];
 need(PLACEHOLDER_BG, "placeholder(): the cover's #hex ground");
 const STEAM_CDN = table("STEAM_CDN");
@@ -140,6 +152,8 @@ const RULES = {
      the foot along the panel and the covers) and a bar's unlit segment */
   QF_SHADE: cssColour("#p-queue .qfsel::before", "background", 0), QF_SHADE_FAR: cssColour("#p-queue .qfsel::before", "background", 1),
   QF_FOOT: cssColour("#p-queue .qfsel::before", "background", 2), QF_SEG_OFF: cssColour("#p-queue .qfseg i", "background"),
+  /* the panel's box art: its 2px light edge (`.qfcv`'s second box-shadow) */
+  QF_CV_EDGE: cssColour("#p-queue .qfcv", "box-shadow", 1),
   /* the open card (v299/v300): its status dots and the two near-blacks its strap and ticket mix the game's colour with */
   QK_OUT: cssColour(".qk-out", "--qsc"), QK_PLAYING: cssColour(".qk-playing", "--qsc"), QK_PLAYED: cssColour(".qk-played", "--qsc"),
   QK_DEEP: cssColour(".qkstrap", "background"), QK_TICKET: cssColour(".qktk > div", "background"),
@@ -157,6 +171,10 @@ const RULES = {
 };
 /* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
 const PN_EDGE = table("PN_EDGE"), PN_EVO = table("PN_EVO");
+/* Character select: the picked cover's ring (`.qfc.on`'s first box-shadow), the P1 tag (`.qfp1`) and a bar's lit
+   segment (`.qfseg i.on`), each the game's colour mixed with white: [accent share, alpha] */
+const QF_RING = cssMix("#p-queue .qfc.on", "box-shadow"), QF_P1 = cssMix("#p-queue .qfp1", "background"),
+  QF_SEG = cssMix("#p-queue .qfseg i.on", "background");
 need(Number.isFinite(PN_EDGE) && Array.isArray(PN_EVO) && PN_EVO.length === 5 && PN_EVO.every(Number.isInteger), "PN_EDGE: a number, PN_EVO: five whole numbers");
 
 /* ---------- the tab bar's icons (the web nav's inline SVGs, v247 style) ---------- */
@@ -311,6 +329,14 @@ const lines = [
   "    // Nexi: how far he floats from the edge (v198) and the scored finishes each stage of his ring needs (v131)",
   `    const val PN_EDGE = ${PN_EDGE}`,
   `    val PN_EVO: List<Int> = listOf(${PN_EVO.join(", ")})`,
+  "",
+  "    // Character select: the game's colour's share of its white mix and the mix's alpha (the picked cover's ring, P1, a lit bar)",
+  `    const val QF_RING_MIX = ${QF_RING[0]}f`,
+  `    const val QF_RING_ALPHA = ${QF_RING[1]}f`,
+  `    const val QF_P1_MIX = ${QF_P1[0]}f`,
+  `    const val QF_P1_ALPHA = ${QF_P1[1]}f`,
+  `    const val QF_SEG_MIX = ${QF_SEG[0]}f`,
+  `    const val QF_SEG_ALPHA = ${QF_SEG[1]}f`,
   "",
   `    const val STEAM_CDN = ${ks(STEAM_CDN)}`,
   "",

@@ -12,7 +12,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.foundation.layout.sizeIn
@@ -28,6 +27,7 @@ import androidx.compose.ui.layout.LocalPinnableContainer
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.abs
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -110,6 +110,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -165,8 +166,10 @@ import kotlin.math.tan
  * The Queue's list (Phase 1 piece 1; android/parity/1-map/1-list.md): the bar under the header (`qdDeck`: the tabs with
  * their counts and your lists, one Order button with its grouped menu), On deck's three photo cards (v303) and the
  * closed rows (v301 Strap, the v290 logo slot) with the Dusty mark, in a lazy list so only the rows on screen are drawn.
- * A tap on a row opens its card (QueueCard.kt, piece 2); Shuffle, Boss, drag, swipe to delete and Character select
- * (piece 3) come next. A practice copy: the tab, order and open card you pick last until the app reopens.
+ * A tap on a row opens its card (QueueCard.kt, piece 2); a hold drags it, a swipe left deletes it with Undo; Shuffle,
+ * the Game shuffler, Boss and Your lists sit in Sort's menu, and Character select (CharSelect.kt) is the other look for
+ * the closed games. A practice copy: the tab, order, open card, drags and deletes last until the app reopens, past the
+ * restore screen; after Android closes it in the background the tab, order and open card come back ([QueueHold]).
  */
 @Immutable
 class QueueView(val q: Queue, val tab: String, val sort: String, val shown: List<Game>, val now: Long, val src: Library = q.lib)
@@ -211,6 +214,10 @@ class QueuePick(lib: Library) {
     /** The card that's open in [shown]: the one you tapped, else the first, none once closed. */
     fun openIn(shown: List<Game>): String? = if (collapsed || shown.isEmpty()) null else focus?.takeIf { id -> shown.any { it.id == id } } ?: shown[0].id
 
+    /** Another tab (`data-qfilter`) or order (`data-sort`): the card you opened lets go, as the web's `focusId = null`. */
+    fun show(t: String) { tab = t; focus = null }
+    fun order(k: String) { sort = k; focus = null }
+
     /** A tap on a closed row: its card opens and the one that was open closes into its row. */
     fun open(id: String) { focus = id; collapsed = false; fresh = id; flip = null; shut = null }
 
@@ -238,6 +245,25 @@ class QueuePick(lib: Library) {
 
     /** Character select's picked game (`qfSel`): the panel shows it while no card is open. */
     var sel by mutableStateOf<String?>(null)
+
+    /**
+     * Character select's panel swaps (`qfswap`): counted up by a tap that leaves the panel showing (a new pick, or a card
+     * closed into it, [tapCover]); the panel plays each count once ([selSwapSeen]), never on a tab change or a Shuffle.
+     */
+    var selSwap by mutableIntStateOf(0)
+    var selSwapSeen by mutableIntStateOf(0)
+
+    /** What comes back after Android closes the app in the background: the tab, the order, the open card, its side and Character select's pick. */
+    fun saved(): ArrayList<String?> = arrayListOf(tab, sort, focus, if (collapsed) "1" else null, flip, sel)
+
+    fun restore(s: List<String?>) {
+        s.getOrNull(0)?.let { tab = it }
+        s.getOrNull(1)?.let { sort = it }
+        focus = s.getOrNull(2)
+        collapsed = s.getOrNull(3) != null
+        flip = s.getOrNull(4)
+        sel = s.getOrNull(5)
+    }
 
     /** Shuffle's last pick (`qdLast`, memory only): never the same game twice running. */
     var lastShuf by mutableStateOf<String?>(null)
@@ -305,6 +331,44 @@ class QueuePick(lib: Library) {
         val u = undo ?: return
         deleted = deleted - u.id
         undo = null
+    }
+}
+
+/**
+ * The Queue's picks for as long as the app runs (Phase 1 check A4, C1): held by the root, above the 120 Hz test and the
+ * restore screen, which take the tabs away while they show (the tabs came back with the tab, the order, the open card,
+ * the drags and the deletes all reset). After Android closes the app in the background, [QueuePick.saved] comes back the
+ * next time your games show ([Saver]); the practice drags and deletes start over then, as when the app opens again.
+ */
+@Stable
+class QueueHold(private val kept: ArrayList<String?>? = null) {
+    /** Made the first time the Queue (or Your lists) needs it, from your games then; read here, it redraws when made. */
+    var made by mutableStateOf<QueuePick?>(null, referentialEqualityPolicy())
+        private set
+
+    fun pick(lib: Library): QueuePick =
+        androidx.compose.runtime.snapshots.Snapshot.withoutReadObservation { made } ?: QueuePick(lib).also { p -> kept?.let(p::restore); made = p }
+
+    companion object {
+        val Saver = androidx.compose.runtime.saveable.Saver<QueueHold, ArrayList<String?>>(
+            save = { h -> h.made?.saved() ?: h.kept },
+            restore = { QueueHold(it) },
+        )
+    }
+}
+
+/**
+ * The Undo bar's and Shuffle's line's time, counted wherever you are (Phase 1 check A5, L243 again): the bar and the
+ * line show only on Games › Queue, and a timer there stopped while you were away, so they came back minutes later.
+ */
+@Composable
+fun QueueClock(pick: QueuePick) {
+    LaunchedEffect(pick) {
+        snapshotFlow { pick.undo }.collectLatest { u -> if (u != null) { kotlinx.coroutines.delay(UNDO_MS); if (pick.undo === u) pick.undo = null } }
+    }
+    // the line's time runs while an Undo bar covers it too, so an old line never comes back once the Undo bar goes
+    LaunchedEffect(pick) {
+        snapshotFlow { pick.note }.collectLatest { u -> if (u != null) { kotlinx.coroutines.delay(NOTE_MS); if (pick.note === u) pick.note = null } }
     }
 }
 
@@ -472,7 +536,6 @@ fun LazyListScope.queueItems(v: QueueView, pick: QueuePick, list: LazyListState,
 fun QueueUndo(pick: QueuePick, modifier: Modifier) {
     val u = pick.undo ?: return
     val volt = LocalLook.current.volt
-    LaunchedEffect(u) { kotlinx.coroutines.delay(UNDO_MS); if (pick.undo === u) pick.undo = null }
     Row(
         modifier.widthIn(max = 440.dp).fillMaxWidth().padding(horizontal = 16.dp)
             .background(Pn.card2, Pn.rs).border(1.dp, Pn.line2, Pn.rs).padding(start = 16.dp),
@@ -503,8 +566,7 @@ internal const val LIT_MS = 2_300
 @Composable
 fun QueueNote(pick: QueuePick, modifier: Modifier) {
     val u = pick.note ?: return
-    // the time runs while an Undo bar covers it too, so an old line never comes back once the Undo bar goes
-    LaunchedEffect(u) { kotlinx.coroutines.delay(NOTE_MS); if (pick.note === u) pick.note = null }
+    // (its time runs in [QueueClock])
     if (pick.undo != null) return
     BasicText(
         u.title,
@@ -738,7 +800,10 @@ private fun Modifier.hold(id: String, i: Int, view: () -> QueueView, pick: Queue
                 val start = down.position + list.rowAt(id)
                 val let = withTimeoutOrNull(HOLD_MS) {
                     while (true) {
-                        val c = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
+                        val e = awaitPointerEvent(PointerEventPass.Final)
+                        // a second finger is a two-finger swipe (the tabs), never a hold (Phase 1 check A3)
+                        if (e.changes.count { it.pressed } > 1) break
+                        val c = e.changes.firstOrNull { it.id == down.id } ?: break
                         if (!c.pressed || c.isConsumed || list.isScrollInProgress || (c.position + list.rowAt(id) - start).getDistance() > slop) break
                     }
                     true
@@ -861,6 +926,9 @@ private fun Modifier.swipeDelete(id: String, pick: QueuePick, slide: QueueSlide,
         try {
             while (true) {
                 val e = awaitPointerEvent(PointerEventPass.Initial)
+                // a second finger: a two-finger swipe walks the tabs, the row goes back to where it was (`qdel` drops a
+                // touch of 2+ fingers, Phase 1 check A3)
+                if (e.changes.count { it.pressed } > 1) break
                 val c = e.changes.firstOrNull { it.id == down.id } ?: break
                 if (!c.pressed) {
                     if (sliding || eat) c.consume()
@@ -953,7 +1021,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, sheet: (Strin
                     if (t != pick.tab) {
                         Sounds.play(Sfx.Tap)
                         Crumbs.tap("queue tab", "games/queue")
-                        pick.tab = t
+                        pick.show(t)
                     }
                 }
             }
@@ -1000,7 +1068,7 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?,
     val d = LocalDensity.current
     // from the menu's top to the window's foot (px): the menu ends above the taskbar's room, not in it
     var below by remember { mutableIntStateOf(Int.MAX_VALUE) }
-    val foot = maxOf(LocalBottomRoom.current, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    val foot = maxOf(LocalBottomRoom.current, with(d) { WindowInsets.steady.getBottom(d).toDp() })
     Box(
         Modifier.onGloballyPositioned { c ->
             val top = c.positionInRoot().y + with(d) { (Pn.touch + 2.dp).toPx() }
@@ -1041,7 +1109,7 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?,
                 val n = hp?.first?.let { Backup.jsNumber(it).content }
                 SortMenu(
                     v.sort, n, room,
-                    choose = { k -> open = false; if (k != pick.sort) pick.sort = k },
+                    choose = { k -> open = false; if (k != pick.sort) pick.order(k) },
                     lists = {
                         open = false
                         Crumbs.tap("lists", "games/queue")
@@ -1239,25 +1307,24 @@ private fun QueueRow(q: Queue, g: Game, n: Int, sort: String, folded: Boolean, m
         // the game's picture from 28% (folded 34%) across, under a veil that keeps the left side near-black
         if (pic != null) {
             Box(Modifier.fillMaxHeight().fillMaxWidth().padding(start = rowW * (if (folded) .34f else .28f)).background(Pn.void)) {
-                val bx = Backup.num(g["bgX"], 100.0, 0.0, 100.0).toFloat() / 50 - 1
-                val by = Backup.num(g["bgY"], 50.0, 0.0, 100.0).toFloat() / 50 - 1
-                PicBox(pic, g, Modifier.fillMaxSize(), align = BiasAlignment(bx, by))
+                val at = remember(g) { BiasAlignment(Backup.num(g["bgX"], 100.0, 0.0, 100.0).toFloat() / 50 - 1, Backup.num(g["bgY"], 50.0, 0.0, 100.0).toFloat() / 50 - 1) }
+                PicBox(pic, g, Modifier.fillMaxSize(), align = at)
             }
             val played = st.kind == Queue.Kind.Played
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        *(if (played) arrayOf(
-                            .22f to Pn.void, .40f to mixA(accent, QTone.shade.copy(alpha = .93f), .18f),
-                            .66f to QTone.shade.copy(alpha = .74f), 1f to QTone.shade.copy(alpha = .62f),
-                        ) else arrayOf(
-                            .22f to Pn.void, .40f to mixA(accent, QTone.shade.copy(alpha = .9f), .34f),
-                            .64f to mixA(accent, QTone.shade.copy(alpha = .62f), .14f), .78f to QTone.shade.copy(alpha = .5f),
-                            1f to QTone.shadeDeep.copy(alpha = .66f),
-                        )),
-                    ),
-                ),
-            )
+            // made once per game and how it stands, not on every redraw (Phase 1 check B3)
+            val veil = remember(accent, played) {
+                Brush.horizontalGradient(
+                    *(if (played) arrayOf(
+                        .22f to Pn.void, .40f to mixA(accent, QTone.shade.copy(alpha = .93f), .18f),
+                        .66f to QTone.shade.copy(alpha = .74f), 1f to QTone.shade.copy(alpha = .62f),
+                    ) else arrayOf(
+                        .22f to Pn.void, .40f to mixA(accent, QTone.shade.copy(alpha = .9f), .34f),
+                        .64f to mixA(accent, QTone.shade.copy(alpha = .62f), .14f), .78f to QTone.shade.copy(alpha = .5f),
+                        1f to QTone.shadeDeep.copy(alpha = .66f),
+                    )),
+                )
+            }
+            Box(Modifier.fillMaxSize().background(veil))
         }
         Strap(accent, folded)
         if (art != null) LogoSlot(art, rowW, folded, lib)
@@ -1278,9 +1345,8 @@ private fun QueueRow(q: Queue, g: Game, n: Int, sort: String, folded: Boolean, m
             val ch = if (folded) 68.dp else 86.dp
             val cs = RoundedCornerShape(if (folded) 8.dp else 10.dp)
             Box(Modifier.size(cw, ch).border(2.dp, Color.White.copy(alpha = .22f), cs).padding(0.dp).clip(cs)) {
-                val ix = Backup.num(g["imgX"], 50.0, 0.0, 100.0).toFloat() / 50 - 1
-                val iy = Backup.num(g["imgY"], 50.0, 0.0, 100.0).toFloat() / 50 - 1
-                PicBox(Pic.cover(g), g, Modifier.fillMaxSize(), align = BiasAlignment(ix, iy), ground = Color(Web.COVER_BG))
+                val at = remember(g) { BiasAlignment(Backup.num(g["imgX"], 50.0, 0.0, 100.0).toFloat() / 50 - 1, Backup.num(g["imgY"], 50.0, 0.0, 100.0).toFloat() / 50 - 1) }
+                PicBox(remember(g) { Pic.cover(g) }, g, Modifier.fillMaxSize(), align = at, ground = Color(Web.COVER_BG))
             }
             Spacer(Modifier.width(if (folded) 34.dp else 54.dp)) // the empty gutter column and its two gaps
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -1312,19 +1378,20 @@ private fun QueueRow(q: Queue, g: Game, n: Int, sort: String, folded: Boolean, m
         }
         // the line along the foot: how far along (played full, coming how close, dashed)
         Box(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = .07f)).drawBehind {
+            Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = .07f)).drawWithCache {
+                // worked out once per size (Phase 1 check B2): the dashes' places or the gradient
                 val w = size.width * prog
-                if (w <= 0f) return@drawBehind
-                if (st.kind == Queue.Kind.Coming) {
-                    var x = 0f
+                val dashed = st.kind == Queue.Kind.Coming
+                val dashes = if (!dashed || w <= 0f) FloatArray(0) else {
                     val dash = 8.dp.toPx()
-                    val gap = 5.dp.toPx()
-                    while (x < w) {
-                        drawRect(tone, Offset(x, 0f), Size(min(dash, w - x), size.height))
-                        x += dash + gap
-                    }
-                } else {
-                    drawRect(Brush.horizontalGradient(listOf(mixOk(accent, Color.White, .7f), tone), 0f, w), size = Size(w, size.height))
+                    val step = dash + 5.dp.toPx()
+                    val n = kotlin.math.ceil(w / step).toInt()
+                    FloatArray(n * 2) { k -> val x = (k / 2) * step; if (k % 2 == 0) x else min(dash, w - x) }
+                }
+                val fill = if (dashed || w <= 0f) null else Brush.horizontalGradient(listOf(mixOk(accent, Color.White, .7f), tone), 0f, w)
+                onDrawBehind {
+                    for (k in dashes.indices step 2) drawRect(tone, Offset(dashes[k], 0f), Size(dashes[k + 1], size.height))
+                    if (fill != null) drawRect(fill, size = Size(w, size.height))
                 }
             },
         )
@@ -1426,39 +1493,52 @@ private fun TicketCell(v: Pair<String, String>, fill: Color, modifier: Modifier)
 @Composable
 private fun Dust(level: Int) {
     Box(
-        Modifier.fillMaxSize().alpha(when (level) { 1 -> .5f; 2 -> .8f; else -> 1f }).drawBehind {
-            drawRect(Brush.verticalGradient(listOf(QTone.dustVeil.copy(alpha = .10f), QTone.dustVeil.copy(alpha = .04f))))
-            fun grid(tw: Float, th: Float, ox: Float, oy: Float, r: Float, a: Float) {
-                val c = QTone.dust.copy(alpha = a)
+        Modifier.fillMaxSize().alpha(when (level) { 1 -> .5f; 2 -> .8f; else -> 1f }).drawWithCache {
+            // the dots' places worked out once per size, not per dot on every draw (Phase 1 check B2)
+            val veil = Brush.verticalGradient(listOf(QTone.dustVeil.copy(alpha = .10f), QTone.dustVeil.copy(alpha = .04f)))
+            fun grid(tw: Float, th: Float, ox: Float, oy: Float): List<Offset> {
+                val out = ArrayList<Offset>()
+                val dx = tw.dp.toPx()
+                val dy = th.dp.toPx()
                 var y = oy.dp.toPx()
                 while (y < size.height) {
                     var x = ox.dp.toPx()
-                    while (x < size.width) {
-                        drawCircle(c, r.dp.toPx(), Offset(x, y))
-                        x += tw.dp.toPx()
-                    }
-                    y += th.dp.toPx()
+                    while (x < size.width) { out += Offset(x, y); x += dx }
+                    y += dy
                 }
+                return out
             }
             // the CSS tiles put each dot at the tile's middle, offset by the background position
-            grid(23f, 19f, 3f + 11.5f, 5f + 9.5f, 1.05f, .55f)
-            grid(13f, 17f, 9f + 6.5f, 2f + 8.5f, .85f, .4f)
-            if (level == 3) {
-                val s = 15.dp.toPx()
-                val x0 = size.width - 10.dp.toPx() - s
-                val y0 = 2.dp.toPx()
-                val web = QTone.dust.copy(alpha = .8f)
-                val stroke = Stroke(1.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                // a corner cobweb: spokes from the top-right corner and two arcs across them (drawn, no emoji: v297)
-                val c = Offset(x0 + s, y0)
-                for (a in listOf(90f, 120f, 150f, 180f)) {
-                    val r = Math.toRadians(a.toDouble())
-                    drawLine(web, c, Offset(c.x + (s * Math.cos(r)).toFloat(), c.y + (s * Math.sin(r)).toFloat()), stroke.width)
-                }
-                for (rr in listOf(.45f, .8f)) drawArc(web, 90f, 90f, false, Offset(c.x - s * rr, c.y - s * rr), Size(2 * s * rr, 2 * s * rr), style = stroke)
-            }
+            val big = grid(23f, 19f, 3f + 11.5f, 5f + 9.5f)
+            val small = grid(13f, 17f, 9f + 6.5f, 2f + 8.5f)
+            val bigC = QTone.dust.copy(alpha = .55f)
+            val smallC = QTone.dust.copy(alpha = .4f)
+            val bigR = 1.05.dp.toPx()
+            val smallR = .85.dp.toPx()
+            onDrawBehind { drawDust(level, veil, big, bigC, bigR, small, smallC, smallR) }
         },
     )
+}
+
+/** The Dusty mark's drawing, from what [Dust] worked out once per size. */
+private fun DrawScope.drawDust(level: Int, veil: Brush, big: List<Offset>, bigC: Color, bigR: Float, small: List<Offset>, smallC: Color, smallR: Float) {
+    drawRect(veil)
+    for (o in big) drawCircle(bigC, bigR, o)
+    for (o in small) drawCircle(smallC, smallR, o)
+    if (level == 3) {
+        val s = 15.dp.toPx()
+        val x0 = size.width - 10.dp.toPx() - s
+        val y0 = 2.dp.toPx()
+        val web = QTone.dust.copy(alpha = .8f)
+        val stroke = Stroke(1.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        // a corner cobweb: spokes from the top-right corner and two arcs across them (drawn, no emoji: v297)
+        val c = Offset(x0 + s, y0)
+        for (a in listOf(90f, 120f, 150f, 180f)) {
+            val r = Math.toRadians(a.toDouble())
+            drawLine(web, c, Offset(c.x + (s * Math.cos(r)).toFloat(), c.y + (s * Math.sin(r)).toFloat()), stroke.width)
+        }
+        for (rr in listOf(.45f, .8f)) drawArc(web, 90f, 90f, false, Offset(c.x - s * rr, c.y - s * rr), Size(2 * s * rr, 2 * s * rr), style = stroke)
+    }
 }
 
 // ---------------------------------------------------------------- the logo slot (v290, `lfRule`)

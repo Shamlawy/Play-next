@@ -348,7 +348,7 @@ Mark: an overlay on the whole row (also the open card), `inset 0`, `border-radiu
 
 | Need | Android today |
 |---|---|
-| Queue screen | `ui/Pages.kt` `QueueSoon` (208): a placeholder card per state from `Library.byState` (Group of games sorted by `ord` then title). Nothing of the rows, bar, deck, select or gestures |
+| Queue screen | Then (before Phase 1): `ui/Pages.kt` `QueueSoon` (208), a placeholder card per state. Now: `ui/Queue.kt` (rows, bar, On deck, drag, swipe to delete), `ui/CharSelect.kt` (select), android-v11 to v27 |
 | Header above the list | `ui/HeaderCard.kt` + `PlainTitle`; `ViewPill`/`ViewChips` (`ui/Pill.kt`); `SwipeGuard` (Pill.kt 59) already stops the view walk for a side scroller |
 | Game data | `data/Library.kt` `Game` (id, title, rawState/state, date, ord, colour, comp, `isUpcoming`, `isFresh`; `get(key)` for the rest) + `Library.off(key)` |
 | Played / Elo / On deck / hours | `data/Rank.kt`: `isPlayed`, `playedRec`, `isDropped`, `elo`, `rankTable`, `onDeck(n)` (unfiltered), `hrsOf`, `platList`, `onPlat`, `tierOf`. Missing: `Played.runs`, `deckShown`, `deckWhy`, `expected`/`hypeBias`/`genrePattern`, `myScore`/`avgScore`, `rankedGames`/`rankOf` if used |

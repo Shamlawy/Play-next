@@ -79,13 +79,13 @@ v=13
 go=home
 at=
 say=Your own lists are in the Queue now: make one with a name and a drawn icon, rename it, delete it, or tap it to see just its games.
-tryIt=Open Games › Queue and tap the square button at the end of the tabs. Pick one of the twelve icons (a couch, a moon, a ghost…), type a name like "Couch nights" and tap Make: its tab joins the bar. Tap the list's name to see just its games. Rename and delete are beside it. Also: Customise's size and strength sliders now stay where you let go, and the header card's small words (waiting, to beat, out now) sit right under their numbers as in the web app. It's a practice copy: your lists last until the app closes.
+tryIt=Open Games › Queue, tap Sort, then Your lists. Pick one of the twelve icons (a couch, a moon, a ghost…), type a name like "Couch nights" and tap Make: its tab joins the bar. Tap the list's name to see just its games. Rename and delete are beside it. Also: Customise's size and strength sliders now stay where you let go, and the header card's small words (waiting, to beat, out now) sit right under their numbers as in the web app. It's a practice copy: your lists last until the app closes.
 
 v=14
 go=home
 at=
 say=Fill your lists with games: a list's + opens every game you have, and a tap puts one in or takes it out.
-tryIt=Open Games › Queue and tap the square button at the end of the tabs. Make a new list: it opens straight on your games. Tap a few (a tick shows they're in), use the search at the top to find one fast, then tap Done. Tap the list's name to see just those games in the Queue. For a list you already have, tap the + beside its name. It's a practice copy: your lists and what's in them last until the app closes.
+tryIt=Open Games › Queue, tap Sort, then Your lists. Make a new list: it opens straight on your games. Tap a few (a tick shows they're in), use the search at the top to find one fast, then tap Done. Tap the list's name to see just those games in the Queue. For a list you already have, tap the + beside its name. It's a practice copy: your lists and what's in them last until the app closes.
 
 v=15
 go=home
@@ -121,7 +121,7 @@ v=20
 go=home
 at=
 say=Shuffle picks tonight's game for you, and the Boss sits in the Queue's bar.
-tryIt=Open Games › Queue and tap the crossed arrows next to Order: a game that's out lights up in the middle of the list and the line at the bottom names it. Tap again for another (never the same twice running). The red Boss button next to it shows the Shadow of the Backlog's HP when Grumble is on.
+tryIt=Open Games › Queue, tap Sort, then Shuffle the queue: a game that's out lights up in the middle of the list and the line at the bottom names it. Do it again for another (never the same twice running). Boss mode, in red at the foot of the same menu, shows the Shadow of the Backlog's HP when Grumble is on.
 
 v=21
 go=home
@@ -151,10 +151,16 @@ v=25
 go=home
 at=
 say=New: Character select for your Queue. Your picked game fills a big panel with its logo, colour and three bars, over a grid of every cover.
-tryIt=Open Games › Queue, tap Customise, and under Queue cards › Closed games pick Character select. Tap a cover to move the panel to it, tap it again (or the panel) to open its card, and tap Shuffle to see its pick light up.
+tryIt=Open Games › Queue, tap Customise, and under Queue cards › Closed games pick Character select. Tap a cover to move the panel to it, tap it again (or the panel) to open its card, and pick Sort › Shuffle the queue to see its pick light up.
 
 v=26
 go=home
 at=
 say=New: Nexi sits in the rail. Unfolded, he's at its foot on every screen, blinking; one tap hides the rail and he floats free.
 tryIt=Unfold, tap Nexi at the foot of the rail: the rail slides away and he says the day's brief. Drag him to the other side and let go: he snaps to that edge. Tap him again: the rail comes back on his side.
+
+v=27
+go=home
+at=
+say=Phase 1's last check: back now closes the Queue's open card or a swiped row, and the Queue keeps your tab and open card when Android closes the app in the background.
+tryIt=Open Games › Queue and tap a game: its card opens. Press back: the card closes (the card open at start doesn't take a back, so back still leaves the app). Swipe a game left and press back: Delete slides shut. In Character select, pick Coming: the panel moves to a game that's coming. Also: the tour steps for Your lists, Shuffle and Boss now point at Sort's menu, where they live.

@@ -78,6 +78,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -107,7 +108,7 @@ val RAIL_OUT = RAIL_W + 12.dp
  * the views, with two the tabs. Pages, the rail and the sheets end above the taskbar ([Taskbar]). Switching tabs plays your Switching tabs choice (the slash by default), never when calm.
  */
 @Composable
-fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
+fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold() }, go: (Nav) -> Unit) {
     val holder = rememberSaveableStateHolder()
     // each open step's place (Settings, game pages) by its Nav.key, and which keys it holds: saved too, so a step closed
     // after Android recreated the app, or while the 120 Hz test covered the tabs, still forgets its own
@@ -188,9 +189,8 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
         step(nav.open("customise:$scope"))
     }
     val customiser = remember { { scope: String -> openCustomise(scope) } }
-    // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), here so the lists sheet
-    // can show a list in it too
-    val qpicks = remember { arrayOfNulls<QueuePick>(1) }
+    // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), held by the root ([queue])
+    // so the 120 Hz test or the restore screen never resets them, and the lists sheet can show a list in it too
     // Your lists and the Game shuffler, from Sort's menu
     val openSheet = { o: String -> step(nav.open(o)) }
     val rail = spot.at
@@ -233,13 +233,32 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 val ready = games as? Games.State.Ready
                 if (nav.tab == "games" && view == "queue" && ready != null) {
                     // the Queue's rows are many: a lazy page draws only the ones on screen
-                    val qpick = qpicks[0] ?: QueuePick(ready.lib).also { qpicks[0] = it }
+                    val qpick = queue.pick(ready.lib)
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
                     // Character select's covers per line: the page's width inside its gutters and the rail's room
                     val qcols = selCols(minOf(880.dp, pageRoom(w, rail)))
                     val qcolsNow by rememberUpdatedState(qcols)
                     val qlist = rememberLazyListState()
+                    val sel = ready.lib.charSelect()
+                    // back closes what the Queue has open before it leaves the app (Phase 1 check A1): a row swiped to
+                    // its Delete, then a card you opened (the one open at start isn't yours: back leaves from the tab)
+                    val f = qpick.focus
+                    BackHandler(enabled = nav.overlay == null && (qpick.swiped != null || f != null && qpick.openIn(qv.shown) == f)) {
+                        if (qpick.swiped != null) qpick.swiped = null
+                        else if (f != null) {
+                            Sounds.play(Sfx.CardShut)
+                            Crumbs.add("back closed a card on $here")
+                            // as the card's own tap: in Character select it closes into the panel
+                            if (sel) { qpick.sel = f; qpick.close() } else qpick.close(f)
+                        }
+                    }
+                    // Character select (M78): a row swiped open stays shut behind the covers, and the pick follows the
+                    // tab: one the tab doesn't show gives way to its first game, as the web's `qfSel` (index.html 8954)
+                    LaunchedEffect(qpick, sel) { if (sel) qpick.swiped = null }
+                    LaunchedEffect(qpick, sel, qv.shown) {
+                        if (sel && qv.shown.isNotEmpty() && qv.shown.none { it.id == qpick.sel }) qpick.sel = qv.shown[0].id
+                    }
                     // Shuffle's pick: once the list shows it (its tab may have just gone back to All), bring it to the middle
                     val qvNow by rememberUpdatedState(qv)
                     // then the pick is done: cleared once its ring has run, or as soon as the Queue goes, so coming back
@@ -289,7 +308,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 .padding(bottom = overNavBar(room) + 18.dp)
                 .offset(x = if (wide) -pageShift(w, rail) else 0.dp)
             // the Queue's Undo bar after a delete, above the view pill (and Shuffle's "Tonight: …" there when none shows)
-            val qp = qpicks[0]
+            val qp = queue.made
+            // their time runs wherever you are, so they never come back later ([QueueClock])
+            if (qp != null) QueueClock(qp)
             if (nav.tab == "games" && view == "queue" && qp != null) {
                 QueueNote(qp, noteAt)
                 QueueUndo(qp, noteAt)
@@ -320,13 +341,14 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                             ListsSheet(
                                 m, games,
                                 show = { t ->
-                                    (qpicks[0] ?: (games as? Games.State.Ready)?.let { QueuePick(it.lib).also { p -> qpicks[0] = p } })?.tab = t
+                                    (games as? Games.State.Ready)?.let { queue.pick(it.lib).show(t) }
                                     step(nav.closeAt(s))
                                 },
                                 close = { step(nav.closeAt(s)) },
+                                top = nav.overlay == sheet,
                             )
                         } else if (sheet == "shuffle") {
-                            ShuffleDeck(m, games, qpicks[0], close = { step(nav.closeAt(s)) })
+                            ShuffleDeck(m, games, queue.made, close = { step(nav.closeAt(s)) })
                         } else {
                             CustomiseSheet(m, sheet.removePrefix("customise:"), games, close = { step(nav.closeAt(s)) })
                         }
@@ -614,7 +636,7 @@ fun Rail(
     val d = LocalDensity.current
     val room = LocalBottomRoom.current
     // the bottom: the taskbar's room when that's more than the bars Android reports
-    val bottom = maxOf(room, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    val bottom = maxOf(room, with(d) { WindowInsets.steady.getBottom(d).toDp() })
     val out by androidx.compose.animation.core.animateFloatAsState(if (at.shown) 0f else 1f, if (calm) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(450, easing = Ease.house), label = "rail out")
     val fade by androidx.compose.animation.core.animateFloatAsState(if (at.shown) 1f else 0f, if (calm) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "rail fade")
     val left = at.left
@@ -628,8 +650,11 @@ fun Rail(
                 translationX = out * 1.3f * size.width * if (left) -1f else 1f
                 alpha = fade
             }
-            // hidden (or sliding away), its buttons take no touches
-            .then(if (at.shown) Modifier else Modifier.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } } }),
+            // hidden (or sliding away), its buttons take no touches and TalkBack doesn't find them
+            .then(
+                if (at.shown) Modifier
+                else Modifier.clearAndSetSemantics { }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } } },
+            ),
     ) {
         // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
         // so Settings is never squashed to a sliver

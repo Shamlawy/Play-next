@@ -32,6 +32,9 @@ object Lists {
         (e as? JsonObject)?.let { Queue.QList(Backup.str(it["id"]), Backup.str(it["n"]), Backup.str(it["e"])) }
     }
 
+    /** Whether the lists [put] (a practice `S.lists`, [Games.practiced]) hold the list [id]: one just made, on its way into the copy. */
+    fun holds(put: JsonElement?, id: String): Boolean = (put as? JsonArray).orEmpty().any { (it as? JsonObject)?.let { o -> Backup.str(o["id"]) } == id }
+
     /** `LIST_EMO[L.length % LIST_EMO.length]`: the mark picked when the sheet opens (the web's emoji). */
     fun nextEmo(lists: List<Queue.QList>) = MARKS[lists.size % MARKS.size].emo
 
