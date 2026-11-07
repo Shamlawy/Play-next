@@ -693,7 +693,7 @@ private fun BoxScope.Zz(calm: Boolean) {
                 scaleX = .6f + .6f * t
                 scaleY = scaleX
             },
-        style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, lineHeight = 11.sp, color = Color(Web.NX_ZZ)),
+        style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 11.sp, color = Color(Web.NX_ZZ)),
     )
 }
 
@@ -713,7 +713,7 @@ private fun BoxScope.Badge(text: String, scale: Float) {
             .shadow(4.dp, shape, ambientColor = Color(Web.NX_BADGE_SHADE), spotColor = Color(Web.NX_BADGE_SHADE))
             .background(LocalLook.current.volt2, shape)
             .padding(horizontal = 7.dp, vertical = 2.dp),
-        style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.ExtraBold, fontSize = 10.sp, lineHeight = 13.sp, color = Color(Web.NX_BADGE_INK)),
+        style = TextStyle(fontFamily = Fonts.poppins, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 13.sp, color = Color(Web.NX_BADGE_INK)),
         maxLines = 1, softWrap = false,
     )
 }
@@ -737,7 +737,8 @@ private fun Saying(nx: NexiState, line: NexiLine, px: Float, wPx: Float, calm: B
     val right by remember(wPx) { androidx.compose.runtime.derivedStateOf { nx.pos.value.let { it.isSpecified() && it.x > wPx / 2 } } }
     // his eyes turn 4 toward it while he talks
     LaunchedEffect(line, right) {
-        nx.eyes.animateTo(with(d) { Offset((if (right) -4 else 4).dp.toPx(), 1.dp.toPx()) }, tween(180))
+        val to = with(d) { Offset((if (right) -4 else 4).dp.toPx(), 1.dp.toPx()) }
+        if (calm) nx.eyes.snapTo(to) else nx.eyes.animateTo(to, tween(180))
     }
     BasicText(
         line.text,
@@ -774,12 +775,13 @@ private fun Saying(nx: NexiState, line: NexiLine, px: Float, wPx: Float, calm: B
 }
 
 /** Where a finger is, for floating Nexi's eyes (up to 5 toward it, 180 ms ease-out, `look`). */
-internal fun NexiState.lookAt(finger: Offset, px: Float, maxPx: Float, scope: kotlinx.coroutines.CoroutineScope) {
+internal fun NexiState.lookAt(finger: Offset, px: Float, maxPx: Float, calm: Boolean, scope: kotlinx.coroutines.CoroutineScope) {
     val at = pos.value
     if (!at.isSpecified() || dragging) return
     val dx = finger.x - at.x - px / 2
     val dy = finger.y - at.y - px / 2
     val dist = max(1f, hypot(dx, dy))
     val k = min(1f, dist / (maxPx * 20)) * maxPx
-    scope.launch { eyes.animateTo(Offset(dx / dist * k, dy / dist * k), tween(180, easing = CubicBezierEasing(0f, 0f, .58f, 1f))) }
+    val to = Offset(dx / dist * k, dy / dist * k)
+    scope.launch { if (calm) eyes.snapTo(to) else eyes.animateTo(to, tween(180, easing = CubicBezierEasing(0f, 0f, .58f, 1f))) }
 }

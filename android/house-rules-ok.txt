@@ -15,3 +15,6 @@ italic ui/Type.kt Font(R.font.archivo_italic — Archivo's italic face, for the 
 font-weight ui/Type.kt Font(R.font.archivo_italic — Archivo's italic face, for the slash wipe and celebrations
 italic ui/Type.kt r.resolve(archivo, FontWeight.Black, FontStyle.Italic) — warms Archivo italic before the first slash wipe
 uppercase ui/Restore.kt capitalization = KeyboardCapitalization.Characters — the restore code is typed in capitals (the code's own alphabet), not a heading
+calm ui/Nexi.kt val pos = Animatable(Offset.Unspecified, Offset.VectorConverter) — NexiState only holds it; NexiSeat moves it and snaps when calm (the glide, the drag's snap to a side)
+calm ui/Nexi.kt val eyes = Animatable(Offset.Zero, Offset.VectorConverter) — NexiState only holds it; Saying and lookAt move it and snap when calm
+calm ui/Nexi.kt val pop = Animatable(1f) — NexiState only holds it; NexiSeat pops it only when not calm

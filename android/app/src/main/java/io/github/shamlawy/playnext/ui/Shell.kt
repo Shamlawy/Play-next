@@ -195,7 +195,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val openSheet = { o: String -> step(nav.open(o)) }
     val rail = spot.at
     CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser, LocalRailAt provides rail) {
-        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }.watchFinger(nx, rail.shown, nxScope)) {
+        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }.watchFinger(nx, rail.shown, calm, nxScope)) {
             val w = maxWidth
             val wide = w >= RAIL_FROM
             // the room kept for Samsung's taskbar at the foot (Settings › Taskbar room)
@@ -440,14 +440,14 @@ internal fun pageRoom(w: Dp, at: RailAt) = w - railStart(w, at) - railRoom(w, at
 val LocalRailAt = androidx.compose.runtime.compositionLocalOf { RailAt() }
 
 /** Floating Nexi's eyes follow every finger on the screen (`watch`, index.html 12043), only while he floats. */
-private fun Modifier.watchFinger(nx: NexiState, railShown: Boolean, scope: kotlinx.coroutines.CoroutineScope) =
-    if (railShown) this else pointerInput(nx) {
+private fun Modifier.watchFinger(nx: NexiState, railShown: Boolean, calm: Boolean, scope: kotlinx.coroutines.CoroutineScope) =
+    if (railShown) this else pointerInput(nx, calm) {
         val px = NX_PX.toPx()
         val most = 5.dp.toPx()
         awaitPointerEventScope {
             while (true) {
                 val e = awaitPointerEvent(PointerEventPass.Initial)
-                e.changes.firstOrNull { it.pressed }?.let { nx.lookAt(it.position, px, most, scope) }
+                e.changes.firstOrNull { it.pressed }?.let { nx.lookAt(it.position, px, most, calm, scope) }
             }
         }
     }
