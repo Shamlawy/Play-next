@@ -78,7 +78,7 @@ Back tests need `createAndroidComposeRule<ComponentActivity>()` + `rule.activity
 8. **A8 low unsure** A cancelled touch may count as a lift (hold's drop at Queue.kt ~771 → the order changes; QueueCard
    ~173's waitForUpOrCancellation). Check with `performTouchInput { down; advanceEventTime(500); moveBy; cancel() }`.
 
-## Fix status (branch claude/bold-meitner-v7rray, not yet released)
+## Fix status (branch claude/bold-meitner-v7rray, released as android-v27)
 
 Done in this branch (compiled; tests not yet re-run after the last three):
 - v26 leftovers: Nexi's badge worked out off Main (data/Nexi.kt `count`/`hours`); `WindowInsets.steady` (bars + cutout,
@@ -102,8 +102,10 @@ run against the old code to see each fail):
   SelBar), B3 remembered veil/alignments, B4 `TRAIL_NUM`.
 - C3/C4 put off to Phase 2 in docs/ANDROID-PLAN.md; C6 map tables marked as snapshots.
 - NexiSeatTest updated for the hidden rail's cleared semantics (it was the one red test of the first chat's edits).
-Left: C6's header comment in ui/Queue.kt (~163-169: "Shuffle, Boss, drag… come next"); C7 whatsnew v=13/14/20/25 steps
-(Sort › Your lists / Shuffle the queue / Boss mode); whatsnew v=27 + release=27 + LOG android-v27; prove the new tests
-fail on the old code (git worktree of 2ecb795, copy QueueCheckTest in); full unit run, Roborazzi re-record (Character
-select's gap changed), compileReleaseKotlin + compose-check, android-rules, lintRelease; PR, android-check, release;
-the Approve Phase 1 issue. Not fixed, noted: B1 (subcompositions per row), B6/B7 (cut chip/kicker at 412), C5, A8.
+Done in the third chat: C6 (ui/Queue.kt's header comment says what's built), C7 (whatsnew v=13/14/20/25 name Sort ›
+Your lists / Shuffle the queue / Boss mode); QueueCheckTest run against 2ecb795 (a worktree, the test copied in): all 12
+red, each on its own assertion (Delete still showing, a game page opened, the Undo bar back, 40 dp instead of 22, the
+sheet closed, Add games reopened, Coming lost twice, the old pick kept, the new card shut, the old card kept); on this
+branch all green. Released as android-v27 (whatsnew v=27, LOG android-v27). Not fixed, noted: B1 (subcompositions per
+row), B6/B7 (cut chip/kicker at 412), C5, A8. Asked in the approval issue: should the card open at start take the
+first back (A1)?

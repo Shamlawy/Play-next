@@ -166,8 +166,10 @@ import kotlin.math.tan
  * The Queue's list (Phase 1 piece 1; android/parity/1-map/1-list.md): the bar under the header (`qdDeck`: the tabs with
  * their counts and your lists, one Order button with its grouped menu), On deck's three photo cards (v303) and the
  * closed rows (v301 Strap, the v290 logo slot) with the Dusty mark, in a lazy list so only the rows on screen are drawn.
- * A tap on a row opens its card (QueueCard.kt, piece 2); Shuffle, Boss, drag, swipe to delete and Character select
- * (piece 3) come next. A practice copy: the tab, order and open card you pick last until the app reopens.
+ * A tap on a row opens its card (QueueCard.kt, piece 2); a hold drags it, a swipe left deletes it with Undo; Shuffle,
+ * the Game shuffler, Boss and Your lists sit in Sort's menu, and Character select (CharSelect.kt) is the other look for
+ * the closed games. A practice copy: the tab, order, open card, drags and deletes last until the app reopens, past the
+ * restore screen; after Android closes it in the background the tab, order and open card come back ([QueueHold]).
  */
 @Immutable
 class QueueView(val q: Queue, val tab: String, val sort: String, val shown: List<Game>, val now: Long, val src: Library = q.lib)
