@@ -122,7 +122,7 @@ import kotlin.math.tan
  * box art opens the game's page. The back's Edit and ⋯ come with the game page (Phase 2).
  */
 @Composable
-fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: Modifier, entered: () -> Unit, flip: (Boolean) -> Unit, close: () -> Unit) {
+fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: Modifier, entered: () -> Unit, flip: (Boolean) -> Unit, foot: Dp = 26.dp, close: () -> Unit) {
     val calm = LocalCalm.current
     val st = remember(g, q) { q.stat(g) }
     val accent = Color(g.colour)
@@ -171,7 +171,7 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     }
     val shape = RoundedCornerShape(Web.U_R.dp)
     BoxWithConstraints(
-        mod.padding(bottom = 26.dp).fillMaxWidth()
+        mod.padding(bottom = foot).fillMaxWidth()
             .pointerInput(g.id) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)

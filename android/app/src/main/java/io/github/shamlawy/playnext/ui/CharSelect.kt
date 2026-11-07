@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,7 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -113,8 +114,12 @@ internal fun LazyListScope.selectItems(v: QueueView, pick: QueuePick, cols: Int,
     val g = shown[at]
     item("q-sel") {
         if (openId != null) {
-            QueueCard(q, g, at + 1, pick.fresh == g.id, pick.flip == g.id, mod, entered = { if (pick.fresh == g.id) pick.fresh = null },
-                flip = { back -> pick.flip = if (back) g.id else null }) { pick.sel = g.id; pick.close() } // the card plays its own shut sound
+            // one card per game (Phase 1 check A2): another cover tapped while this card waits out its one-tap close
+            // takes the wait with it, so the new card never snaps shut
+            key(g.id) {
+                QueueCard(q, g, at + 1, pick.fresh == g.id, pick.flip == g.id, mod, entered = { if (pick.fresh == g.id) pick.fresh = null },
+                    flip = { back -> pick.flip = if (back) g.id else null }, foot = 0.dp) { pick.sel = g.id; pick.close() } // the card plays its own shut sound
+            }
         } else {
             SelPanel(q, g, at + 1, pick, folded, calm, mod, tap = { Crumbs.tap("panel", "queue"); pick.tapCover(g.id, v.shown) }, page = open)
         }
@@ -122,7 +127,8 @@ internal fun LazyListScope.selectItems(v: QueueView, pick: QueuePick, cols: Int,
     val lines = (shown.size + cols - 1) / cols
     for (r in 0 until lines) {
         item(selLine(v.tab, r)) {
-            Row(mod.padding(top = if (r == 0) 14.dp else 0.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(SEL_GAP.dp)) {
+            // under the panel or the open card: their 14 (`.qfsel`, `.qfwrap > .hero`) and the grid's own 8 on top
+            Row(mod.padding(top = if (r == 0) 22.dp else 0.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(SEL_GAP.dp)) {
                 for (c in 0 until cols) {
                     val i = r * cols + c
                     val cg = shown.getOrNull(i)
@@ -318,17 +324,16 @@ private fun SelBar(b: SelBarV, accent: Color, folded: Boolean) {
         BasicText(b.label, style = (if (folded) SType.barF else SType.bar).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.width(if (folded) 52.dp else 64.dp))
         val lit = (b.v.coerceIn(0f, 1f) * 10).roundToInt()
         Box(
-            Modifier.weight(1f).height(if (folded) 8.dp else 10.dp).padding(start = 2.dp).drawBehind {
+            Modifier.weight(1f).height(if (folded) 8.dp else 10.dp).padding(start = 2.dp).drawWithCache {
+                // the ten shapes made once per size, not on every draw (Phase 1 check B2)
                 val gap = 3.dp.toPx()
                 val w = (size.width - gap * 9) / 10
                 val lean = size.height * .25f // skewX(-14deg)
-                for (k in 0 until 10) {
+                val segs = List(10) { k ->
                     val x = k * (w + gap)
-                    val p = Path().apply {
-                        moveTo(x + lean, 0f); lineTo(x + w, 0f); lineTo(x + w - lean, size.height); lineTo(x, size.height); close()
-                    }
-                    drawPath(p, if (k < lit) on else OFF)
+                    Path().apply { moveTo(x + lean, 0f); lineTo(x + w, 0f); lineTo(x + w - lean, size.height); lineTo(x, size.height); close() }
                 }
+                onDrawBehind { segs.forEachIndexed { k, p -> drawPath(p, if (k < lit) on else OFF) } }
             },
         )
         BasicText(

@@ -204,7 +204,7 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
         val day = shortDate(g.date)
         val yr = year(g.date)
         val hb = (if (hrs != 0.0) jsNum(hrs) + " h" else DASH) to "to beat"
-        val strip = { s: String -> s.replace(Regex(" \\d+$"), "") }
+        val strip = { s: String -> s.replace(TRAIL_NUM, "") }
         rk.playedRec(g)?.let { p ->
             val runs = Backup.num(p.o["runs"], 1.0, 1.0, 99.0).toInt()
             val v = myScore(g).takeIf { it != 0 } ?: if (p.scored) Rank.jsRound(p.real!! * 10).toInt() else 0
@@ -405,6 +405,8 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
         /** en-GB's short months as Chrome writes them ("Sept", checked against Chromium). */
         private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec")
         private val YMD = Regex("^\\d{4}-\\d{2}-\\d{2}$")
+        /** A trailing " 2" (a version in a name), made once: [stat] runs per cover in Character select (Phase 1 check B4). */
+        private val TRAIL_NUM = Regex(" \\d+$")
 
         /** A number as JavaScript writes it: 12 not 12.0, 6.5 as is. */
         fun jsNum(v: Double): String = if (v == Math.floor(v) && Math.abs(v) < 1e15) v.toLong().toString() else v.toString()

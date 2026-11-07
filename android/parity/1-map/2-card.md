@@ -278,11 +278,16 @@ Out of scope here: his menu `pnBubWheel` (12363; hook points: hold 600 ms or dou
 | Speed rule | Animate only transform/opacity; no looping blur. |
 | Sounds | Everything through `sfx()`/`beep()`, gated by Settings › Sounds (`S.sound`, off by default); the Shuffler uses `beep()`. |
 
-# 9. What the Android code has today (android/app/src/main/java/io/github/shamlawy/playnext)
+# 9. What the Android code had when this map was made (android/app/src/main/java/io/github/shamlawy/playnext)
+
+(A snapshot from before Phase 1. Built since, Nov 2-7: the rows, bar and On deck (android-v11), the open card, its
+back, the turn and one-tap close (v15, the close fold v18), drag and swipe to delete (v16, v17), Shuffle and Boss (v20),
+the Shuffler deck (v24), Character select (v25), Nexi's seat (v26); the Phase 1 check's fixes in android-v27,
+android/parity/1-perfect.md. What's still to come is in that file's "Left for Phase 2".)
 
 | Need | Status |
 |---|---|
-| Queue screen, open card, back, turn, close fold | **Nothing yet.** `ui/Pages.kt:206` (`QueueSoon`) lists the backup's games as plain text until Phase 1. No `Card`/`Queue` composables. |
+| Queue screen, open card, back, turn, close fold | Then: **nothing yet** (`QueueSoon` listed the games as plain text). Now: `ui/Queue.kt`, `ui/QueueCard.kt` (android-v11, v15, v18). |
 | Card sounds | **Done**: `kit/Recipes.kt` renders `CardOpen`, `CardTear`, `CardFlip`, `CardFlipBack`, `CardShut`, `CardBack` (plus `Open`, `Add`, `Tap`, `Back`, `Nudge` for the Shuffler); `kit/Sounds.kt` plays them (`Sounds.play`, off unless `Prefs.sound`). Not triggered by any card. |
 | Haptics | **Done**: `kit/Buzz.kt` `Big.CardTurn` (primitives LOW_TICK + TICK, fallback 8 ms), `Buzz.ms(...)` for the 6/8/14 ms ticks. Not wired. |
 | Calm / reduced motion | **Done**: `ui/Motion.kt` `LocalCalm`, `rememberCalm(prefs)` (animations off in the backup, the phone's animator scale 0, battery saver); `Ease.house` is `--ease`; `Ease.enter` is `(.16,1,.3,1)`. The card's own curves are not defined: `cubic-bezier(.3,0,.15,1)` (turn), `(.34,1.56,.64,1)` (ticket), `(.34,1.3,.64,1)` / `(.34,1.45,.64,1)` (Nexi). Add them to `Ease`. |
@@ -293,7 +298,7 @@ Out of scope here: his menu `pnBubWheel` (12363; hook points: hold 600 ms or dou
 | Dates | `data/Times.kt` has only "Mar 12" US forms; the card needs `shortDate` (en-GB "12 Mar" / "12 Mar 27") and the UTC-midnight day count: new helpers. |
 | Platform logos (`PLAT_LOGO`, `platOf`, `platChips`) | Not seen in Android sources (not searched beyond file names): needs the 9 SVG paths (index.html 7796) as Compose `PathParser` paths, plus the family/version matching. |
 | Logo luminance (`lfMeasure`) | Not present; needs a per-URL cached mean-luminance measure. Piece 1 shares it (the closed rows' logo slot). |
-| Game Shuffler deck | **Nothing yet.** Bar's Shuffle (tap/hold) is piece 3. |
+| Game Shuffler deck | Then: **nothing yet**. Now: `ui/Shuffle.kt` (Shuffle's tap android-v20, the deck v24, from Sort's menu). |
 | Nexi's seat | **Built in android-v26** (Nov 7): `ui/Nexi.kt` (face, ring, blink, moods, badge, his line), seated at the rail's foot on every tab, one tap hides the rail (`RailSpot`, `LocalRailAt`: pages, Settings, the shuffler and game pages follow its side), floating drag + edge snap, a tap brings the rail back on his side; `data/Nexi.kt` (pnNext, badge, brief, party, stage) off Main. Not ported yet: picture modes (`S.bubImg`/`S.bubMode`), the #1 cover's tint, orbs, flame, hats, `.pty`, `pnBubReact`, his menu (double tap / hold say it comes later), the » hide button when the seat is off. |
 | Edit / Diary / Competitive sheets | Not present (Phase 2 / later). The card's buttons need entry points only. |
 

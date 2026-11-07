@@ -89,8 +89,21 @@ Done in this branch (compiled; tests not yet re-run after the last three):
   (`QF_RING_MIX/ALPHA`, `QF_P1_*`, `QF_SEG_*` via `cssMix`); the panel's swap plays only on a tap that leaves the panel
   showing (`QueuePick.selSwap`/`selSwapSeen`, also on a card closed into it, as `qfTap`); `QueuePick.saved()`/`restore()`
   written (not wired yet).
-Left: wire saved()/restore() (Shell: `LocalSaveableStateRegistry.registerProvider("qpick") { qpicks[0]?.saved() }` and
-`consumeRestored` where the pick is made; also fixes A4 if the pick moves above Root's `when`); Character select's sel
-reset when it leaves the tab (web 8954) + `swiped = null` on a switch to it (LaunchedEffect in Shell's Queue branch);
-the 40dp-vs-14 gap under an open card in Character select (web `.qfwrap > .hero { margin-bottom: 14px }`); A1-A3, A5-A7,
-C2, C6, C7; B2-B4; defer C3 (Like this row) and C4 (Queue entry points) to Phase 2 in writing; tests for each.
+Done in the second chat (commit after 2ecb795; android/app/src/test/.../ui/QueueCheckTest.kt, 12 tests, all green; not yet
+run against the old code to see each fail):
+- A4/C1: `QueueHold` (ui/Queue.kt) held by Root through `rememberSaveable(QueueHold.Saver)` and passed to Shell (`queue`,
+  default `remember { QueueHold() }` for tests); `pick(lib)` restores `saved()`; `selSwapSeen` is snapshot state again
+  (QueuePick stable: drop `SelPanel.pick` from compose-identity.txt if compose-check says it's gone).
+- A1 BackHandler in Shell's Queue branch (swiped row, then a card you opened; the card open at start doesn't take back).
+- A2 `key(g.id)` round Character select's card; gap 22 under the card (`QueueCard(foot = 0.dp)`) and the panel (14 + 8).
+- A3 two fingers end swipeDelete and hold's wait. A5 `QueueClock` in Shell (timers out of QueueUndo/QueueNote).
+- A6 ListsSheet BackHandler (`top` param); C2 `Lists.holds` guard on `adding`. A7 `QueuePick.show(t)` / `order(k)`.
+- M78 sel follows the tab + swiped = null on the switch (LaunchedEffects in Shell). B2 drawWithCache (Dust, progress,
+  SelBar), B3 remembered veil/alignments, B4 `TRAIL_NUM`.
+- C3/C4 put off to Phase 2 in docs/ANDROID-PLAN.md; C6 map tables marked as snapshots.
+- NexiSeatTest updated for the hidden rail's cleared semantics (it was the one red test of the first chat's edits).
+Left: C6's header comment in ui/Queue.kt (~163-169: "Shuffle, Boss, drag… come next"); C7 whatsnew v=13/14/20/25 steps
+(Sort › Your lists / Shuffle the queue / Boss mode); whatsnew v=27 + release=27 + LOG android-v27; prove the new tests
+fail on the old code (git worktree of 2ecb795, copy QueueCheckTest in); full unit run, Roborazzi re-record (Character
+select's gap changed), compileReleaseKotlin + compose-check, android-rules, lintRelease; PR, android-check, release;
+the Approve Phase 1 issue. Not fixed, noted: B1 (subcompositions per row), B6/B7 (cut chip/kicker at 412), C5, A8.
