@@ -143,7 +143,21 @@ const RULES = {
   /* the open card (v299/v300): its status dots and the two near-blacks its strap and ticket mix the game's colour with */
   QK_OUT: cssColour(".qk-out", "--qsc"), QK_PLAYING: cssColour(".qk-playing", "--qsc"), QK_PLAYED: cssColour(".qk-played", "--qsc"),
   QK_DEEP: cssColour(".qkstrap", "background"), QK_TICKET: cssColour(".qktk > div", "background"),
+  /* Nexi (v85 #pnbub): his face's ground (near, far), cheeks, eyes and their glow, mouth, the night's z, his ring (two
+     colours between the accent's and its soft edge; on a release day its four), his shadow, the badge's words and shadow, his line's shadow */
+  NX_FACE: cssColour("#pnbub .face", "background", 0), NX_FACE_FAR: cssColour("#pnbub .face", "background", 1),
+  NX_CHEEK: cssColour("#pnbub .face::after", "background"), NX_EYE: cssColour("#pnbub .eye", "background"),
+  NX_GLOW: cssColour("#pnbub .eye", "box-shadow"), NX_MOUTH: cssColour("#pnbub .mouth", "border"), NX_ZZ: cssColour("#pnbub .zz", "color"),
+  NX_AURA_A: cssColour("#pnbub .aura", "background", 0), NX_AURA_B: cssColour("#pnbub .aura", "background", 1),
+  NX_AURA_G2: cssColour("#pnbub .aura", "background", 2), NX_AURA_EDGE: cssColour("#pnbub .aura", "box-shadow"),
+  NX_PARTY_0: cssColour("#pnbub.party .aura", "background", 0), NX_PARTY_1: cssColour("#pnbub.party .aura", "background", 1),
+  NX_PARTY_2: cssColour("#pnbub.party .aura", "background", 2), NX_PARTY_3: cssColour("#pnbub.party .aura", "background", 3),
+  NX_SHADE: cssColour("#pnbub .core", "box-shadow"), NX_BADGE_INK: cssColour("#pnbub .badge", "color"),
+  NX_BADGE_SHADE: cssColour("#pnbub .badge", "box-shadow"), NX_SAY_SHADE: cssColour("#pnbubmsg", "box-shadow"),
 };
+/* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
+const PN_EDGE = table("PN_EDGE"), PN_EVO = table("PN_EVO");
+need(Number.isFinite(PN_EDGE) && Array.isArray(PN_EVO) && PN_EVO.length === 5 && PN_EVO.every(Number.isInteger), "PN_EDGE: a number, PN_EVO: five whole numbers");
 
 /* ---------- the tab bar's icons (the web nav's inline SVGs, v247 style) ---------- */
 const NAV = (/\n  <nav>([\s\S]*?)<\/nav>/.exec(src) || [])[1];
@@ -293,6 +307,10 @@ const lines = [
   "    // the open card's back (v300): the controller, a round button and the liquid's wave (`QB_PAD`, `QB_BTN`, `QB_WAVE`), the areas' short names",
   ...Object.entries(QB_PATHS).map(([k, v]) => `    const val ${k} = ${ks(v)}`),
   `    val RING_CAP: Map<String, String> = mapOf(${Object.entries(RING_CAP).map(([k, v]) => `${ks(k)} to ${ks(v)}`).join(", ")})`,
+  "",
+  "    // Nexi: how far he floats from the edge (v198) and the scored finishes each stage of his ring needs (v131)",
+  `    const val PN_EDGE = ${PN_EDGE}`,
+  `    val PN_EVO: List<Int> = listOf(${PN_EVO.join(", ")})`,
   "",
   `    const val STEAM_CDN = ${ks(STEAM_CDN)}`,
   "",

@@ -152,3 +152,9 @@ go=home
 at=
 say=New: Character select for your Queue. Your picked game fills a big panel with its logo, colour and three bars, over a grid of every cover.
 tryIt=Open Games › Queue, tap Customise, and under Queue cards › Closed games pick Character select. Tap a cover to move the panel to it, tap it again (or the panel) to open its card, and tap Shuffle to see its pick light up.
+
+v=26
+go=home
+at=
+say=New: Nexi sits in the rail. Unfolded, he's at its foot on every screen, blinking; one tap hides the rail and he floats free.
+tryIt=Unfold, tap Nexi at the foot of the rail: the rail slides away and he says the day's brief. Drag him to the other side and let go: he snaps to that edge. Tap him again: the rail comes back on his side.
