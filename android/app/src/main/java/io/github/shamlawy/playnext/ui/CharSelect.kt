@@ -214,11 +214,11 @@ private fun SelPanel(q: Queue, g: Game, n: Int, folded: Boolean, calm: Boolean, 
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     .18f to Pn.void,
-                    .46f to mixA(accent, SHADE.copy(alpha = .8f), .3f),
-                    .80f to SHADE.copy(alpha = .22f),
-                    1f to SHADE.copy(alpha = .22f),
+                    .46f to mixA(accent, SHADE, .3f),
+                    .80f to SHADE_FAR,
+                    1f to SHADE_FAR,
                 ),
-            ).background(Brush.verticalGradient(0f to Color.Transparent, .58f to Color.Transparent, 1f to FOOT.copy(alpha = .85f))),
+            ).background(Brush.verticalGradient(0f to Color.Transparent, .58f to Color.Transparent, 1f to FOOT)),
         )
         val sw = maxWidth
         Column(
@@ -370,7 +370,7 @@ private fun SelCell(q: Queue, g: Game, n: Int, on: Boolean, pick: QueuePick, cal
             val ix = Backup.num(g["imgX"], 50.0, 0.0, 100.0).toFloat() / 50 - 1
             val iy = Backup.num(g["imgY"], 50.0, 0.0, 100.0).toFloat() / 50 - 1
             PicBox(Pic.cover(g), g, Modifier.fillMaxSize(), align = BiasAlignment(ix, iy), ground = Color(Web.COVER_BG))
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, .55f to Color.Transparent, 1f to FOOT.copy(alpha = .85f))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, .55f to Color.Transparent, 1f to FOOT)))
             BasicText(
                 n.toString().padStart(2, '0'), style = SType.spot.fixed(), maxLines = 1, softWrap = false,
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 7.dp, bottom = 6.dp),
@@ -391,9 +391,11 @@ private fun SelCell(q: Queue, g: Game, n: Int, on: Boolean, pick: QueuePick, cal
     }
 }
 
-private val SHADE = Color(0xFF070A14) // rgba(7,10,20,…) in `.qfsel::before`
-private val FOOT = Color(0xFF04060C) // rgba(4,6,12,.85) along the panel's and the covers' foot
-private val OFF = Color.White.copy(alpha = .1f) // `.qfseg i`: rgba(255,255,255,.1)
+// `.qfsel::before` and `.qfseg i`, read from index.html by tools/android-gen.mjs (alpha included)
+private val SHADE = Color(Web.QF_SHADE)
+private val SHADE_FAR = Color(Web.QF_SHADE_FAR)
+private val FOOT = Color(Web.QF_FOOT) // along the panel's and the covers' foot
+private val OFF = Color(Web.QF_SEG_OFF)
 
 private object SType {
     private val base = Type.body
