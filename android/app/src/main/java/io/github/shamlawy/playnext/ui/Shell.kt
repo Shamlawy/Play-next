@@ -54,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -115,6 +116,10 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val prefs = LocalPrefs.current
     val calm = LocalCalm.current
     val guard = remember { SwipeGuard() }
+    // where the rail and floating Nexi are (yours from the backup until you move them here) and Nexi himself
+    val spot = remember(prefs.railHide, prefs.railLeft, prefs.bubY) { RailSpot(prefs) }
+    val nxScope = rememberCoroutineScope()
+    val nx = remember { NexiState(nxScope) }
     val view = prefs.viewOf(nav.tab, nav.views)
     // the tab drawn last time (none before the first draw), read while composing: a switch shows from its very first
     // frame (the slab over the new tab, the page at the start of its entrance), never a frame later from an effect
@@ -188,8 +193,9 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
     val qpicks = remember { arrayOfNulls<QueuePick>(1) }
     // Your lists and the Game shuffler, from Sort's menu
     val openSheet = { o: String -> step(nav.open(o)) }
-    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser) {
-        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }) {
+    val rail = spot.at
+    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser, LocalRailAt provides rail) {
+        BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }.watchFinger(nx, rail.shown, calm, nxScope)) {
             val w = maxWidth
             val wide = w >= RAIL_FROM
             // the room kept for Samsung's taskbar at the foot (Settings › Taskbar room)
@@ -231,7 +237,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
                     val folded = w <= 500.dp
                     // Character select's covers per line: the page's width inside its gutters and the rail's room
-                    val qcols = selCols(minOf(880.dp, w - side(w) - railRoom(w)))
+                    val qcols = selCols(minOf(880.dp, pageRoom(w, rail)))
                     val qcolsNow by rememberUpdatedState(qcols)
                     val qlist = rememberLazyListState()
                     // Shuffle's pick: once the list shows it (its tab may have just gone back to All), bring it to the middle
@@ -250,7 +256,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                             }
                         }
                     }
-                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist, room, topBar) { cap ->
+                    LazyPage(w, rail, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, qlist, room, topBar) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         viewBar(cap)
                         item("top") { Column(cap.entrance(enter)) { TabTop(nav.tab, view, games, wide, w) } }
@@ -259,7 +265,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 } else if (view != null && views.isNotEmpty()) {
                     // a page with views is a lazy list at both widths (folded, the sticky view bar is its sticky header),
                     // so folding or unfolding mid-scroll keeps the scroll spot: the same state in the same place
-                    LazyPage(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, rememberLazyListState(), room, topBar) { cap ->
+                    LazyPage(w, rail, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, rememberLazyListState(), room, topBar) { cap ->
                         if (!wide) item("tabbar") { Box(cap) { TabBar(nav.tab, pick, settings) } }
                         viewBar(cap)
                         item("page") {
@@ -267,7 +273,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                         }
                     }
                 } else {
-                    Page(w, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, room) {
+                    Page(w, rail, Modifier.graphicsLayer { alpha = if (covered) 0f else 1f }, room) {
                         if (!wide) TabBar(nav.tab, pick, settings)
                         Column(Modifier.entrance(enter)) {
                             TabPage(nav.tab, view, games, wide, w, askCode = { step(nav.open("code")) })
@@ -281,7 +287,7 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = overNavBar(room) + 18.dp)
-                .offset(x = if (wide) -pageShift(w) else 0.dp)
+                .offset(x = if (wide) -pageShift(w, rail) else 0.dp)
             // the Queue's Undo bar after a delete, above the view pill (and Shuffle's "Tonight: …" there when none shows)
             val qp = qpicks[0]
             if (nav.tab == "games" && view == "queue" && qp != null) {
@@ -339,7 +345,13 @@ fun Shell(nav: Nav, games: Games.State, go: (Nav) -> Unit) {
             }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away
-            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, Modifier.align(Alignment.CenterEnd))
+            // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden
+            val seated = !prefs.nxSeatOff
+            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, rail, seated, calm, Modifier.align(if (rail.left) Alignment.CenterStart else Alignment.CenterEnd))
+            // the Game shuffler is his place to stay out of (`html.shuffling #pnbub`)
+            if (wide && "shuffle" !in nav.stack) {
+                NexiSeat(nx, spot, seated, w, maxHeight, room, (games as? Games.State.Ready)?.cards?.nexi, prefs, calm)
+            }
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
             }
@@ -407,19 +419,40 @@ private fun foot(bars: PaddingValues, room: Dp, big: Boolean) = maxOf(bars.calcu
 private fun side(w: Dp) = if (w >= 700.dp) 22.dp else 16.dp
 
 /**
- * The room on the right for the rail, from 620 wide until the 880 page's own margin clears it with the same 12 of air
- * ([RAIL_CLEAR], 1152: the 112 rail made 1100 too early); wider, it floats over the page's margin.
+ * The page's room on the right: the rail's, from 620 wide until the 880 page's own margin clears it with the same 12 of
+ * air ([RAIL_CLEAR], 1152: the 112 rail made 1100 too early; wider, it floats over the page's margin), while it's shown
+ * on the right; else the gutter. [railStart] is the same on the left (the rail opens on Nexi's side, v221).
  */
-internal fun railRoom(w: Dp) = if (w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
+internal fun railRoom(w: Dp, at: RailAt) = if (at.shown && !at.left && w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
+
+internal fun railStart(w: Dp, at: RailAt) = if (at.shown && at.left && w >= RAIL_FROM && w < RAIL_CLEAR) RAIL_OUT + 12.dp else side(w)
 
 /** From this width the centred 880 page leaves the rail and its 12 of air free on both sides. */
 private val RAIL_CLEAR = 880.dp + (RAIL_OUT + 12.dp) * 2
 
-/** How far the page's middle sits left of the screen's (the rail's room is wider than the left gutter). */
-internal fun pageShift(w: Dp) = (railRoom(w) - side(w)) / 2
+/** How far the page's middle sits left of the screen's (the rail's room is wider than the gutter; right of it, the rail on the left). */
+internal fun pageShift(w: Dp, at: RailAt) = (railRoom(w, at) - railStart(w, at)) / 2
 
-/** The page's room between its left gutter and the rail's room: what a sheet over it may fill without meeting the rail. */
-internal fun pageRoom(w: Dp) = w - side(w) - railRoom(w)
+/** The page's room between its gutters and the rail's room: what a sheet over it may fill without meeting the rail. */
+internal fun pageRoom(w: Dp, at: RailAt) = w - railStart(w, at) - railRoom(w, at)
+
+/** The rail as the screen's layout sees it ([RailSpot.at]): Settings, the shuffler and game pages keep clear of it. */
+val LocalRailAt = androidx.compose.runtime.compositionLocalOf { RailAt() }
+
+/** Floating Nexi's eyes follow every finger on the screen (`watch`, index.html 12043), only while he floats. */
+private fun Modifier.watchFinger(nx: NexiState, railShown: Boolean, calm: Boolean, scope: kotlinx.coroutines.CoroutineScope) =
+    if (railShown) this else pointerInput(nx, calm) {
+        val px = NX_PX.toPx()
+        val most = 5.dp.toPx()
+        awaitPointerEventScope {
+            while (true) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                e.changes.firstOrNull { it.pressed }?.let { nx.lookAt(it.position, px, most, calm, scope) }
+            }
+        }
+    }
+
+private val NX_PX = 62.dp
 
 /**
  * [Page] as a lazy list: the same paddings and 880 cap ([content] gets the cap as each item's modifier). With a sticky
@@ -427,7 +460,7 @@ internal fun pageRoom(w: Dp) = w - side(w) - railRoom(w)
  * screen, under the taskbar ([foot]).
  */
 @Composable
-private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, room: Dp, stick: Boolean, content: LazyListScope.(Modifier) -> Unit) {
+private fun LazyPage(w: Dp, rail: RailAt, modifier: Modifier, state: LazyListState, room: Dp, stick: Boolean, content: LazyListScope.(Modifier) -> Unit) {
     val big = w >= 700.dp
     val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val dir = LocalLayoutDirection.current
@@ -438,8 +471,8 @@ private fun LazyPage(w: Dp, modifier: Modifier, state: LazyListState, room: Dp, 
             .then(if (stick) Modifier.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top)) else Modifier),
         state = state,
         contentPadding = PaddingValues(
-            start = bars.calculateStartPadding(dir) + side(w),
-            end = bars.calculateEndPadding(dir) + railRoom(w),
+            start = bars.calculateStartPadding(dir) + railStart(w, rail),
+            end = bars.calculateEndPadding(dir) + railRoom(w, rail),
             top = (if (stick) 0.dp else bars.calculateTopPadding()) + if (big) 26.dp else 20.dp,
             bottom = foot(bars, room, big),
         ),
@@ -467,7 +500,7 @@ private fun ViewBarBand(cap: Modifier, bar: @Composable () -> Unit) {
  * edge, under the taskbar too ([foot]).
  */
 @Composable
-private fun Page(w: Dp, modifier: Modifier, room: Dp, content: @Composable () -> Unit) {
+private fun Page(w: Dp, rail: RailAt, modifier: Modifier, room: Dp, content: @Composable () -> Unit) {
     val big = w >= 700.dp
     val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val dir = LocalLayoutDirection.current
@@ -477,8 +510,8 @@ private fun Page(w: Dp, modifier: Modifier, room: Dp, content: @Composable () ->
             .verticalScroll(rememberScrollState())
             .padding(
                 PaddingValues(
-                    start = bars.calculateStartPadding(dir) + side(w),
-                    end = bars.calculateEndPadding(dir) + railRoom(w),
+                    start = bars.calculateStartPadding(dir) + railStart(w, rail),
+                    end = bars.calculateEndPadding(dir) + railRoom(w, rail),
                     top = bars.calculateTopPadding() + if (big) 26.dp else 20.dp,
                     bottom = foot(bars, room, big),
                 ),
@@ -558,8 +591,10 @@ private fun Modifier.notch(fill: Color, withLeft: Boolean) = drawBehind {
  * The unfolded rail (`#hrail`, index.html 2132, 2250): [RAIL_W] wide, 12 in from the edges, round 30, `--ink` with an
  * `--edge` line: the four tabs, a line, Add and Settings. Under the open tab's icon its views as words (the owner's
  * Option B, Nov 6, in place of the floating pill) in a tray, centred: the open one bright on a soft pill of your accent
- * ([RailViews]). It ends above the taskbar ([LocalBottomRoom]). The dice, the live queue and hiding it come with Home's
- * phase (3); Nexi's seat with the Queue's (1).
+ * ([RailViews]). It ends above the taskbar ([LocalBottomRoom]). With Nexi seated ([seat]) it keeps [SEAT_ROOM] at its
+ * foot for him. Hidden ([RailAt.shown] false: one tap on him), it slides 130% off its side and fades (`#hrail`'s
+ * transform .45s `--ease`, opacity .35s), taking no touches; it opens on his side ([RailAt.left], v221). The dice and the
+ * live queue come with Home's phase (3).
  */
 @Composable
 fun Rail(
@@ -569,6 +604,9 @@ fun Rail(
     pick: (String) -> Unit,
     pickView: (String) -> Unit,
     settings: () -> Unit,
+    at: RailAt,
+    seat: Boolean,
+    calm: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val look = LocalLook.current
@@ -577,19 +615,28 @@ fun Rail(
     val room = LocalBottomRoom.current
     // the bottom: the taskbar's room when that's more than the bars Android reports
     val bottom = maxOf(room, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    val out by androidx.compose.animation.core.animateFloatAsState(if (at.shown) 0f else 1f, if (calm) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(450, easing = Ease.house), label = "rail out")
+    val fade by androidx.compose.animation.core.animateFloatAsState(if (at.shown) 1f else 0f, if (calm) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "rail fade")
+    val left = at.left
     BoxWithConstraints(
         modifier
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + if (left) WindowInsetsSides.Start else WindowInsetsSides.End))
             .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = bottom + 12.dp)
             .fillMaxHeight()
-            .width(RAIL_W),
+            .width(RAIL_W)
+            .graphicsLayer {
+                translationX = out * 1.3f * size.width * if (left) -1f else 1f
+                alpha = fade
+            }
+            // hidden (or sliding away), its buttons take no touches
+            .then(if (at.shown) Modifier else Modifier.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } } }),
     ) {
         // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
         // so Settings is never squashed to a sliver
         val shown = if (view != null) views else emptyList()
-        // the views are one more item in the column, so one more 10 gap
-        val roomy = maxHeight >= RAIL_TALL + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
-        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy)
+        // the views are one more item in the column, so one more 10 gap; Nexi's seat takes its room in place of the 14 at the foot
+        val roomy = maxHeight >= RAIL_TALL + (if (seat) SEAT_ROOM - 14.dp else 0.dp) + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
+        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy, if (seat) SEAT_ROOM else 0.dp)
     }
 }
 
@@ -610,6 +657,7 @@ private fun RailColumn(
     volt: Color,
     shape: RoundedCornerShape,
     roomy: Boolean,
+    seat: Dp,
 ) {
     Column(
         Modifier
@@ -618,8 +666,10 @@ private fun RailColumn(
             .background(Pn.ink, shape)
             .border(1.dp, Pn.edge, shape)
             .clip(shape)
+            // Nexi's seat stays clear of what scrolls in a short rail
+            .padding(bottom = seat)
             .then(if (roomy) Modifier else Modifier.verticalScroll(rememberScrollState()))
-            .padding(vertical = if (roomy) 14.dp else 8.dp),
+            .padding(top = if (roomy) 14.dp else 8.dp, bottom = if (seat > 0.dp) 0.dp else if (roomy) 14.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (roomy) 10.dp else 4.dp),
     ) {

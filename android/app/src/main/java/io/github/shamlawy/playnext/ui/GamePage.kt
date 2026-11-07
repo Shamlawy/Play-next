@@ -107,6 +107,10 @@ private val FLY = CubicBezierEasing(.3f, .9f, .35f, 1f)
 fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () -> Unit = {}, covers: (Boolean) -> Unit = {}, close: () -> Unit) {
     val calm = LocalCalm.current
     val motion = !calm && LocalPrefs.current.hubAnim
+    // unfolded, which side the rail is on (none while it's hidden behind Nexi): the words and Back keep clear of it
+    val rail = LocalRailAt.current
+    val railR = rail.shown && !rail.left
+    val railL = rail.shown && rail.left
     // a page you come back to (back from one opened on top of it) is already open: no second grow or flight
     var opened by rememberSaveable { mutableStateOf(false) }
     val grow = remember { Animatable(if (calm || opened) 1f else 0f) }
@@ -182,7 +186,7 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () 
                 Column(
                     Modifier.widthIn(max = 880.dp).fillMaxWidth().offset(y = (-56).dp)
                         // unfolded, the rail stays over the page: its words keep clear of it (`#full .gd-body`, 104)
-                        .padding(start = if (wide) 28.dp else 20.dp, end = if (wide) RAIL_OUT + 20.dp else 20.dp),
+                        .padding(start = if (wide) (if (railL) RAIL_OUT + 20.dp else 28.dp) else 20.dp, end = if (wide) (if (railR) RAIL_OUT + 20.dp else 28.dp) else 20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -220,7 +224,7 @@ fun GamePage(g: Game, tap: Offset, from: FlyFrom?, wide: Boolean, shrinking: () 
                 Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 8.dp, end = if (wide) RAIL_OUT + 8.dp else 8.dp)
+                    .padding(top = 8.dp, end = if (wide && railR) RAIL_OUT + 8.dp else 8.dp)
                     .sizeIn(minWidth = Pn.touch, minHeight = Pn.touch)
                     .clickable(role = Role.Button) { closing = true }
                     .semantics { contentDescription = "Back" },

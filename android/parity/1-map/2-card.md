@@ -294,7 +294,7 @@ Out of scope here: his menu `pnBubWheel` (12363; hook points: hold 600 ms or dou
 | Platform logos (`PLAT_LOGO`, `platOf`, `platChips`) | Not seen in Android sources (not searched beyond file names): needs the 9 SVG paths (index.html 7796) as Compose `PathParser` paths, plus the family/version matching. |
 | Logo luminance (`lfMeasure`) | Not present; needs a per-URL cached mean-luminance measure. Piece 1 shares it (the closed rows' logo slot). |
 | Game Shuffler deck | **Nothing yet.** Bar's Shuffle (tap/hold) is piece 3. |
-| Nexi's seat | **Nothing yet.** `ui/Shell.kt:388-389` notes "Nexi's seat with the Queue's (Phase 1)"; the rail itself exists (72dp wide, `Shell.kt`). No Nexi face, bubble or `Sounds.nexi` caller. |
+| Nexi's seat | **Built in android-v26** (Nov 7): `ui/Nexi.kt` (face, ring, blink, moods, badge, his line), seated at the rail's foot on every tab, one tap hides the rail (`RailSpot`, `LocalRailAt`: pages, Settings, the shuffler and game pages follow its side), floating drag + edge snap, a tap brings the rail back on his side; `data/Nexi.kt` (pnNext, badge, brief, party, stage) off Main. Not ported yet: picture modes (`S.bubImg`/`S.bubMode`), the #1 cover's tint, orbs, flame, hats, `.pty`, `pnBubReact`, his menu (double tap / hold say it comes later), the » hide button when the seat is off. |
 | Edit / Diary / Competitive sheets | Not present (Phase 2 / later). The card's buttons need entry points only. |
 
 # 10. Not found, not verified, and open questions

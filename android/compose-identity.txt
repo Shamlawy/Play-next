@@ -38,6 +38,7 @@ ListRow.l: QList
 ListsSheet.games: State
 LogoSlot.lib: Library
 MixBar.segs: List<Seg>
+NexiSeat.nexi: Nexi?
 OnDeck.deck: List<Game>
 OnDeck.q: Queue
 Panel.lines: List<String>

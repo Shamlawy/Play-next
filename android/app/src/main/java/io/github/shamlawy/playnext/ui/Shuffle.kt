@@ -162,10 +162,15 @@ fun ShuffleDeck(modifier: Modifier, games: Games.State, pick: QueuePick?, close:
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // unfolded, the rail stays over the deck (as over every sheet): the deck keeps clear of its room
-            val rail = if (maxWidth >= RAIL_FROM) railRoom(maxWidth) else 0.dp
+            // (on the side it's on, none while it's hidden behind Nexi)
+            val at = LocalRailAt.current
+            val wide = maxWidth >= RAIL_FROM && at.shown
+            val railEnd = if (wide && !at.left) railRoom(maxWidth, at) else 0.dp
+            val railStartPad = if (wide && at.left) railStart(maxWidth, at) else 0.dp
+            val rail = railEnd + railStartPad
             // the big card (from 620 wide) only when the screen is tall enough for it and the words under it
             val big = maxWidth - rail - 32.dp >= 620.dp && maxHeight >= queueFaceHeight(true) + ROOM_UNDER
-            Column(Modifier.fillMaxSize().padding(end = rail)) {
+            Column(Modifier.fillMaxSize().padding(start = railStartPad, end = railEnd)) {
                 TopBar(deck.mode, choose = { m ->
                     if (m != deck.mode) {
                         Sounds.play(Sfx.Tap)

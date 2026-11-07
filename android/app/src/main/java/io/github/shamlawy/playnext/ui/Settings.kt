@@ -112,9 +112,10 @@ fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: 
 internal fun SheetFrame(modifier: Modifier, close: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     BoxWithConstraints(modifier.fillMaxSize().background(Pn.void.copy(alpha = .86f))) {
         val round = maxWidth >= 660.dp
-        val shift = pageShift(maxWidth)
+        val at = LocalRailAt.current
+        val shift = pageShift(maxWidth, at)
         // with the rail, at most the page's own room (620 to ~730 wide the 620 sheet would meet the rail or the left edge)
-        val most = if (maxWidth >= RAIL_FROM) minOf(620.dp, pageRoom(maxWidth)) else 620.dp
+        val most = if (maxWidth >= RAIL_FROM) minOf(620.dp, pageRoom(maxWidth, at)) else 620.dp
         val shape = if (round) RoundedCornerShape(28.dp) else RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp)
         val gap = maxHeight * .04f
         val pull = rememberPull(close, constraints.maxHeight.toFloat())

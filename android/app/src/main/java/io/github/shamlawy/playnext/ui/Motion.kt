@@ -23,6 +23,7 @@ import io.github.shamlawy.playnext.data.Backup
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.gen.Web
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** The web app's easings (android/parity/0-map/2-look.md §5). */
@@ -75,6 +76,16 @@ data class Prefs(
     val hubAnim: Boolean = true,
     /** Settings › Open the app on (`S.startTab`): the tab and view to start on; null for Home. */
     val start: Pair<String, String?>? = null,
+    /** Settings › Extra features › Nexi sits in the rail off (`S.nxSeatOff`). */
+    val nxSeatOff: Boolean = false,
+    /** The rail hidden behind floating Nexi (`S.railHide`) and on the left (`S.railSide === "left"`), till you move them here. */
+    val railHide: Boolean = false,
+    val railLeft: Boolean = false,
+    /** Where floating Nexi was parked (`S.bubPos.y`, CSS px = dp); null when never moved. */
+    val bubY: Float? = null,
+    /** What his badge counts (`S.nxBadge`, the countdown when never set) and what he calls you (`S.userName`). */
+    val nxBadge: String = "count",
+    val userName: String = "",
 ) {
     /** A tab's views in their order (Plan's Timer only while it's switched on); empty for Home and Add. */
     fun views(tab: String): List<Pair<String, String>> = Web.VIEWS[tab].orEmpty().filter { it.first != "timer" || timerOn }
@@ -123,6 +134,12 @@ data class Prefs(
                     in Web.VIEWS["games"].orEmpty().map { it.first } -> "games" to t
                     else -> null
                 },
+                nxSeatOff = Backup.truthy(lib["nxSeatOff"]),
+                railHide = Backup.truthy(lib["railHide"]),
+                railLeft = Backup.str(lib["railSide"]) == "left",
+                bubY = ((lib["bubPos"] as? JsonObject)?.get("y") as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toFloatOrNull()?.takeIf { it.isFinite() },
+                nxBadge = Backup.str(lib["nxBadge"]).ifEmpty { "count" },
+                userName = Backup.str(lib["userName"]).trim(),
             )
         }
     }
