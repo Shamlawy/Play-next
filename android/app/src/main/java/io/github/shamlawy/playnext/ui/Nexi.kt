@@ -360,8 +360,12 @@ fun NexiSeat(
                     down.consume()
                     // his touches are his own: never a swipe between tabs or views
                     guard.inScroller = true
-                    nx.hush()
-                    nx.mood = Mood.Grab
+                    // only floating Nexi is grabbed: seated, a touch keeps his face and his line (the web's seat handler
+                    // stops the free one, so no `.grab` and no `pnBubHush` there)
+                    if (floatingNow) {
+                        nx.hush()
+                        nx.mood = Mood.Grab
+                    }
                     nx.dragging = true
                     val slop = 14.dp.toPx()
                     val start = nx.pos.value

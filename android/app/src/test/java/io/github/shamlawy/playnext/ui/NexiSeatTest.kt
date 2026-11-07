@@ -167,6 +167,24 @@ class NexiSeatTest {
         assertTrue("he says his menu is coming", says(MENU_LATER))
     }
 
+    /** Seated, a finger on him isn't a grab (web: the seat's handler stops the free one): his line stays while it's down. */
+    @Test fun aTouchOnSeatedNexiKeepsHisLine() {
+        show()
+        rule.onNode(hasContentDescription("Nexi: ", substring = true)).performTouchInput {
+            click()
+            advanceEventTime(120)
+            click()
+        }
+        settle()
+        assertTrue(says(MENU_LATER))
+        rule.onNode(hasContentDescription("Nexi: ", substring = true)).performTouchInput { down(center) }
+        settle(200)
+        assertTrue("his line stays under a seated touch", says(MENU_LATER))
+        rule.onNode(hasContentDescription("Nexi: ", substring = true)).performTouchInput { up() }
+        settle(100)
+        assertTrue("still seated", !floating())
+    }
+
     @Test fun draggedHeSnapsToTheNearestSideAndTheRailOpensThere() {
         show(""","railHide":true""")
         settle()
