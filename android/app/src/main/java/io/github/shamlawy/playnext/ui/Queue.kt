@@ -12,7 +12,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.foundation.layout.sizeIn
@@ -238,6 +237,25 @@ class QueuePick(lib: Library) {
 
     /** Character select's picked game (`qfSel`): the panel shows it while no card is open. */
     var sel by mutableStateOf<String?>(null)
+
+    /**
+     * Character select's panel swaps (`qfswap`): counted up by a tap that leaves the panel showing (a new pick, or a card
+     * closed into it, [tapCover]); the panel plays each count once ([selSwapSeen]), never on a tab change or a Shuffle.
+     */
+    var selSwap by mutableIntStateOf(0)
+    var selSwapSeen = 0
+
+    /** What comes back after Android closes the app in the background: the tab, the order, the open card, its side and Character select's pick. */
+    fun saved(): ArrayList<String?> = arrayListOf(tab, sort, focus, if (collapsed) "1" else null, flip, sel)
+
+    fun restore(s: List<String?>) {
+        s.getOrNull(0)?.let { tab = it }
+        s.getOrNull(1)?.let { sort = it }
+        focus = s.getOrNull(2)
+        collapsed = s.getOrNull(3) != null
+        flip = s.getOrNull(4)
+        sel = s.getOrNull(5)
+    }
 
     /** Shuffle's last pick (`qdLast`, memory only): never the same game twice running. */
     var lastShuf by mutableStateOf<String?>(null)
@@ -1000,7 +1018,7 @@ private fun SortButton(v: QueueView, pick: QueuePick, hp: Pair<Double, Double>?,
     val d = LocalDensity.current
     // from the menu's top to the window's foot (px): the menu ends above the taskbar's room, not in it
     var below by remember { mutableIntStateOf(Int.MAX_VALUE) }
-    val foot = maxOf(LocalBottomRoom.current, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    val foot = maxOf(LocalBottomRoom.current, with(d) { WindowInsets.steady.getBottom(d).toDp() })
     Box(
         Modifier.onGloballyPositioned { c ->
             val top = c.positionInRoot().y + with(d) { (Pn.touch + 2.dp).toPx() }

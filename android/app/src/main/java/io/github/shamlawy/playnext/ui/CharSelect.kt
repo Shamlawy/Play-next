@@ -96,9 +96,9 @@ internal fun QueuePick.selIn(shown: List<Game>): String? = sel?.takeIf { id -> s
 internal fun QueuePick.tapCover(id: String, shown: List<Game>) {
     val open = openIn(shown)
     when {
-        open == id -> { Sounds.play(Sfx.Back); close() }
+        open == id -> { Sounds.play(Sfx.Back); close(); selSwap++ }
         open != null || id == selIn(shown) -> open(id) // the card plays its own entrance and sound
-        else -> Sounds.play(Sfx.Tap)
+        else -> { Sounds.play(Sfx.Tap); selSwap++ }
     }
     sel = id
 }
@@ -116,7 +116,7 @@ internal fun LazyListScope.selectItems(v: QueueView, pick: QueuePick, cols: Int,
             QueueCard(q, g, at + 1, pick.fresh == g.id, pick.flip == g.id, mod, entered = { if (pick.fresh == g.id) pick.fresh = null },
                 flip = { back -> pick.flip = if (back) g.id else null }) { pick.sel = g.id; pick.close() } // the card plays its own shut sound
         } else {
-            SelPanel(q, g, at + 1, folded, calm, mod, tap = { Crumbs.tap("panel", "queue"); pick.tapCover(g.id, v.shown) }, page = open)
+            SelPanel(q, g, at + 1, pick, folded, calm, mod, tap = { Crumbs.tap("panel", "queue"); pick.tapCover(g.id, v.shown) }, page = open)
         }
     }
     val lines = (shown.size + cols - 1) / cols
@@ -187,17 +187,24 @@ internal suspend fun LazyListState.centerCover(id: String, viewNow: () -> QueueV
  * box art (`qfswap`, 420 ms; only moves and fades).
  */
 @Composable
-private fun SelPanel(q: Queue, g: Game, n: Int, folded: Boolean, calm: Boolean, mod: Modifier, tap: () -> Unit, page: (String) -> Unit) {
+private fun SelPanel(q: Queue, g: Game, n: Int, pick: QueuePick, folded: Boolean, calm: Boolean, mod: Modifier, tap: () -> Unit, page: (String) -> Unit) {
     val lib = q.lib
     val accent = remember(g.colour) { Color(g.colour) }
     val volt = LocalLook.current.volt
     val st = remember(g, q) { q.stat(g) }
     val pic = remember(g, lib) { rowPic(g, lib) }
     val shape = RoundedCornerShape(if (folded) 20.dp else 24.dp)
-    // the first game shown just sits there; a new pick plays the swap
-    val first = remember { g.id }
-    val swap = remember(g.id) { Animatable(if (calm || g.id == first) 1f else 0f) }
-    LaunchedEffect(swap) { if (swap.value < 1f) swap.animateTo(1f, tween(420, easing = Ease.house)) }
+    // a tap that leaves the panel showing (a new pick, a card closed into it) plays the swap once; a tab change, a
+    // Shuffle or the panel scrolling back into view just shows it (`qfTap` adds `.qfswap` only there)
+    val swap = remember { Animatable(if (!calm && pick.selSwap != pick.selSwapSeen) 0f else 1f) }
+    LaunchedEffect(pick.selSwap) {
+        if (pick.selSwap == pick.selSwapSeen) return@LaunchedEffect
+        pick.selSwapSeen = pick.selSwap
+        if (calm) swap.snapTo(1f) else {
+            swap.snapTo(0f)
+            swap.animateTo(1f, tween(420, easing = Ease.house))
+        }
+    }
     val bars = remember(g, q, st) { selBars(q, g, st) }
     BoxWithConstraints(
         mod.fillMaxWidth().height(if (folded) 236.dp else 300.dp).clip(shape).background(Pn.void)
@@ -269,7 +276,7 @@ private fun SelPanel(q: Queue, g: Game, n: Int, folded: Boolean, calm: Boolean, 
                     alpha = t
                 }
                 .size(cvW, cvH).shadow(18.dp, cs, ambientColor = Color.Black, spotColor = Color.Black)
-                .clip(cs).border(2.dp, Color.White.copy(alpha = .22f), cs)
+                .clip(cs).border(2.dp, CV_EDGE, cs)
                 .clickable(role = Role.Button) { Crumbs.tap("panel cover", "queue"); page(g.id) }
                 .semantics { contentDescription = "Open " + g.title + "'s page" },
         ) {
@@ -306,7 +313,7 @@ private fun selBars(q: Queue, g: Game, st: Queue.Stat): List<SelBarV> {
 /** `.qfseg`: ten slanted segments, the first [SelBarV.v] of them lit in the game's colour. */
 @Composable
 private fun SelBar(b: SelBarV, accent: Color, folded: Boolean) {
-    val on = remember(accent) { mixOk(accent, Color.White, .78f).copy(alpha = .9f) }
+    val on = remember(accent) { mixOk(accent, Color.White, Web.QF_SEG_MIX).copy(alpha = Web.QF_SEG_ALPHA) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         BasicText(b.label, style = (if (folded) SType.barF else SType.bar).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.width(if (folded) 52.dp else 64.dp))
         val lit = (b.v.coerceIn(0f, 1f) * 10).roundToInt()
@@ -357,7 +364,7 @@ private fun SelCell(q: Queue, g: Game, n: Int, on: Boolean, pick: QueuePick, cal
     val volt = LocalLook.current.volt
     val kind = remember(g, q) { q.stat(g).kind }
     val shape = RoundedCornerShape(14.dp)
-    val ring = remember(accent) { mixOk(accent, Color.White, .74f) }
+    val ring = remember(accent) { mixOk(accent, Color.White, Web.QF_RING_MIX).copy(alpha = Web.QF_RING_ALPHA) }
     Box(modifier.aspectRatio(2f / 3f)) {
         Box(
             Modifier.fillMaxSize()
@@ -382,7 +389,7 @@ private fun SelCell(q: Queue, g: Game, n: Int, on: Boolean, pick: QueuePick, cal
             BasicText(
                 "P1", style = SType.p1.fixed(), maxLines = 1, softWrap = false,
                 modifier = Modifier.align(Alignment.TopCenter).offset(y = (-12).dp)
-                    .background(mixOk(accent, Color.White, .78f).copy(alpha = .9f), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+                    .background(mixOk(accent, Color.White, Web.QF_P1_MIX).copy(alpha = Web.QF_P1_ALPHA), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
         // Shuffle's pick lights up where it sits (read through derivedStateOf: a pick redraws only its own cover)
@@ -391,11 +398,13 @@ private fun SelCell(q: Queue, g: Game, n: Int, on: Boolean, pick: QueuePick, cal
     }
 }
 
-// `.qfsel::before` and `.qfseg i`, read from index.html by tools/android-gen.mjs (alpha included)
+// `.qfsel::before`, `.qfseg i` and `.qfcv`, read from index.html by tools/android-gen.mjs (alpha included); the ring,
+// P1 and a lit segment mix the game's colour with white by `.qfc.on`'s, `.qfp1`'s and `.qfseg i.on`'s own shares
 private val SHADE = Color(Web.QF_SHADE)
 private val SHADE_FAR = Color(Web.QF_SHADE_FAR)
 private val FOOT = Color(Web.QF_FOOT) // along the panel's and the covers' foot
 private val OFF = Color(Web.QF_SEG_OFF)
+private val CV_EDGE = Color(Web.QF_CV_EDGE) // the box art's 2px light edge (`.qfcv`)
 
 private object SType {
     private val base = Type.body

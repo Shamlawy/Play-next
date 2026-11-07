@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -171,6 +170,12 @@ class NexiLine(val text: String, val n: Int)
 @Stable
 class NexiState(private val scope: kotlinx.coroutines.CoroutineScope) {
     val pos = Animatable(Offset.Unspecified, Offset.VectorConverter)
+
+    /** Where a finger holds him while it moves (set straight from the touch, no coroutine per move); unset, [pos] places him. */
+    var grabAt by mutableStateOf(Offset.Unspecified)
+
+    /** Where he is now: [grabAt] while dragged, else [pos]. */
+    val at: Offset get() = grabAt.takeIf { it.isSpecified() } ?: pos.value
     val eyes = Animatable(Offset.Zero, Offset.VectorConverter)
     val pop = Animatable(1f)
     var mood by mutableStateOf(Mood.None)
@@ -246,7 +251,7 @@ fun NexiSeat(
     val guard = LocalSwipeGuard.current
     val look = LocalLook.current
     val clock = LocalNow.current
-    val ins = WindowInsets.safeDrawing
+    val ins = WindowInsets.steady
     val px = with(d) { NX.toPx() }
     val wPx = with(d) { w.toPx() }
     val hPx = with(d) { h.toPx() }
@@ -285,6 +290,8 @@ fun NexiSeat(
         nx.watching = floating
         onDispose { nx.watching = false }
     }
+    // gone mid-drag (the seat switched off, the window closing): the finger's place goes with him
+    DisposableEffect(Unit) { onDispose { nx.grabAt = Offset.Unspecified; nx.dragging = false } }
     LaunchedEffect(floating) {
         val before = nx.shownFloating
         nx.shownFloating = floating
@@ -329,7 +336,7 @@ fun NexiSeat(
                     nx.hush()
                     if (spot.hidden) {
                         Crumbs.tap("nexi: show the rail", "rail")
-                        spot.show(nx.pos.value.x + px / 2 < wPx / 2)
+                        spot.show(nx.at.x + px / 2 < wPx / 2)
                     } else {
                         Crumbs.tap("nexi: hide the rail", "rail")
                         // he floats from his seat (`pnBubShow` → `pnBubEdge` from the seat's own place): the same side,
@@ -354,7 +361,7 @@ fun NexiSeat(
                 layout(c.maxWidth, c.maxHeight) {
                     // placed with a layer, so moving him never lays anything out
                     p.placeWithLayer(0, 0) {
-                        val at = nx.pos.value
+                        val at = nx.at
                         if (at.isSpecified()) {
                             translationX = at.x
                             translationY = at.y
@@ -382,7 +389,7 @@ fun NexiSeat(
                     }
                     nx.dragging = true
                     val slop = 14.dp.toPx()
-                    val start = nx.pos.value
+                    val start = nx.at
                     var drag = Offset.Zero
                     var moved = false
                     var held = false
@@ -412,11 +419,13 @@ fun NexiSeat(
                             val dt = max(1L, c.uptimeMillis - lastT)
                             vel = Offset(dd.x / dt, dd.y / dt)
                             lastT = c.uptimeMillis
-                            scope.launch { nx.pos.snapTo(start + drag) }
+                            nx.grabAt = start + drag
                         }
                     }
                     nx.dragging = false
                     if (nx.mood == Mood.Grab) nx.mood = Mood.None
+                    // a hold, a tap or a move while seated never placed him: he stays where [pos] has him
+                    if (held || !moved || !floatingNow || !nx.grabAt.isSpecified()) nx.grabAt = Offset.Unspecified
                     if (held) return@awaitEachGesture
                     if (!moved) {
                         tapNow()
@@ -430,10 +439,10 @@ fun NexiSeat(
                     nx.mood(if (fast) Mood.Dizzy else Mood.Happy, if (fast) 1600 else 900)
                     spot.park(to.y / density, to.x + px / 2 < wNow / 2)
                     scope.launch {
-                        if (calmNow) nx.pos.snapTo(to) else {
-                            nx.pos.snapTo(flung)
-                            nx.pos.animateTo(to, tween(520, easing = SNAP))
-                        }
+                        // [pos] takes over from the finger's place in the same frame
+                        nx.pos.snapTo(if (calmNow) to else flung)
+                        nx.grabAt = Offset.Unspecified
+                        if (!calmNow) nx.pos.animateTo(to, tween(520, easing = SNAP))
                     }
                 }
             },
@@ -608,18 +617,24 @@ private fun BoxScope.Eyes(nx: NexiState, still: Boolean, asleep: Boolean, moving
                 Modifier
                     .matchParentSize()
                     .graphicsLayer {
-                        scaleY = if (right) brA.value else blA.value
-                        // each eye blinks round its own middle
-                        transformOrigin = TransformOrigin(if (right) .73f - 5.5f / 56 else .27f + 5.5f / 56, .32f + 7.5f / 56)
+                        if (mood == Mood.Dizzy && !asleep) {
+                            // the dizzy ring spins in its layer round its own middle (12 wide at 32%), drawn once
+                            rotationZ = spin
+                            transformOrigin = TransformOrigin(if (right) .73f - 6f / 56 else .27f + 6f / 56, .32f + 6f / 56)
+                        } else {
+                            scaleY = if (right) brA.value else blA.value
+                            // each eye blinks round its own middle
+                            transformOrigin = TransformOrigin(if (right) .73f - 5.5f / 56 else .27f + 5.5f / 56, .32f + 7.5f / 56)
+                        }
                     }
-                    .drawBehind { eye(right, mood, asleep, spin) },
+                    .drawBehind { eye(right, mood, asleep) },
             )
         }
     }
 }
 
 /** One eye in the face's 56 box: the plain oval with its glow, or its look in a mood. */
-private fun DrawScope.eye(right: Boolean, mood: Mood, asleep: Boolean, spin: Float) {
+private fun DrawScope.eye(right: Boolean, mood: Mood, asleep: Boolean) {
     val u = size.width / 56f
     val ink = Color(Web.NX_EYE)
     val glow = Color(Web.NX_GLOW)
@@ -636,12 +651,10 @@ private fun DrawScope.eye(right: Boolean, mood: Mood, asleep: Boolean, spin: Flo
             drawArc(ink, 180f, 180f, false, Offset(x + 1.5f * u, top + 1.5f * u), Size(8 * u, 10 * u), style = Stroke(3 * u, cap = StrokeCap.Round))
         }
         mood == Mood.Dizzy -> {
-            // `.dizzy .eye`: a 12 ring, open on one side, spinning
+            // `.dizzy .eye`: a 12 ring, open on one side (it spins in the eye's layer)
             val x = at(12f)
             val top = size.height * .32f
-            rotate(spin, Offset(x + 6 * u, top + 6 * u)) {
-                drawArc(ink, 0f, 270f, false, Offset(x + 1.25f * u, top + 1.25f * u), Size(9.5f * u, 9.5f * u), style = Stroke(2.5f * u))
-            }
+            drawArc(ink, 0f, 270f, false, Offset(x + 1.25f * u, top + 1.25f * u), Size(9.5f * u, 9.5f * u), style = Stroke(2.5f * u))
         }
         else -> {
             val x = at(11f)
@@ -754,7 +767,7 @@ private fun Saying(nx: NexiState, line: NexiLine, px: Float, wPx: Float, calm: B
     val down = with(d) { 8.dp.toPx() }
     val shape = RoundedCornerShape(16.dp)
     // read through derivedStateOf: his line moves with him, but only a change of side redraws it
-    val right by remember(wPx) { androidx.compose.runtime.derivedStateOf { nx.pos.value.let { it.isSpecified() && it.x > wPx / 2 } } }
+    val right by remember(wPx) { androidx.compose.runtime.derivedStateOf { nx.at.let { it.isSpecified() && it.x > wPx / 2 } } }
     // his eyes turn 4 toward it while he talks
     LaunchedEffect(line, right) {
         val to = with(d) { Offset((if (right) -4 else 4).dp.toPx(), 1.dp.toPx()) }
@@ -767,7 +780,7 @@ private fun Saying(nx: NexiState, line: NexiLine, px: Float, wPx: Float, calm: B
                 val p = m.measure(Constraints(maxWidth = min(c.maxWidth, with(d) { 240.dp.roundToPx() })))
                 layout(c.maxWidth, c.maxHeight) {
                     p.placeWithLayer(0, 0) {
-                        val at = nx.pos.value
+                        val at = nx.at
                         val x = if (right) at.x - p.width - gap else at.x + far
                         translationX = x
                         translationY = at.y + down
@@ -796,7 +809,7 @@ private fun Saying(nx: NexiState, line: NexiLine, px: Float, wPx: Float, calm: B
 
 /** Where a finger is, for floating Nexi's eyes (up to 5 toward it, 180 ms ease-out, `look`). */
 internal fun NexiState.lookAt(finger: Offset, px: Float, maxPx: Float, calm: Boolean, scope: kotlinx.coroutines.CoroutineScope) {
-    val at = pos.value
+    val at = this.at
     if (!watching || !at.isSpecified() || dragging) return
     val dx = finger.x - at.x - px / 2
     val dy = finger.y - at.y - px / 2

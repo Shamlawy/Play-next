@@ -78,6 +78,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -614,7 +615,7 @@ fun Rail(
     val d = LocalDensity.current
     val room = LocalBottomRoom.current
     // the bottom: the taskbar's room when that's more than the bars Android reports
-    val bottom = maxOf(room, with(d) { WindowInsets.safeDrawing.getBottom(d).toDp() })
+    val bottom = maxOf(room, with(d) { WindowInsets.steady.getBottom(d).toDp() })
     val out by androidx.compose.animation.core.animateFloatAsState(if (at.shown) 0f else 1f, if (calm) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(450, easing = Ease.house), label = "rail out")
     val fade by androidx.compose.animation.core.animateFloatAsState(if (at.shown) 1f else 0f, if (calm) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "rail fade")
     val left = at.left
@@ -628,8 +629,11 @@ fun Rail(
                 translationX = out * 1.3f * size.width * if (left) -1f else 1f
                 alpha = fade
             }
-            // hidden (or sliding away), its buttons take no touches
-            .then(if (at.shown) Modifier else Modifier.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } } }),
+            // hidden (or sliding away), its buttons take no touches and TalkBack doesn't find them
+            .then(
+                if (at.shown) Modifier
+                else Modifier.clearAndSetSemantics { }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } } },
+            ),
     ) {
         // a short window (folded on its side, a split screen) brings the buttons closer and then lets the rail scroll,
         // so Settings is never squashed to a sliver

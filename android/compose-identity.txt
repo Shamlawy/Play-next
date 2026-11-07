@@ -67,6 +67,7 @@ SelCell.g: Game
 SelCell.pick: QueuePick
 SelCell.q: Queue
 SelPanel.g: Game
+SelPanel.pick: QueuePick
 SelPanel.q: Queue
 SettingsSheet.games: State
 SharedCard.s: Shared
