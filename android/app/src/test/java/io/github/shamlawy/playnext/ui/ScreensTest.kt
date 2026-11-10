@@ -25,6 +25,8 @@ import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.test.core.app.ApplicationProvider
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
@@ -154,6 +156,21 @@ class ScreensTest {
     @Test fun game412() = shot("game", 412) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
     @Test fun game859() = shot("game", 859) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
     @Test fun gamePlayed412() = shot("game-played", 412) { Shell(Nav("games", listOf("game:f")), ready, go = {}) }
+
+    // a game's Edit over its page (Phase 2 piece 2): the Game tab's groups, one group open, the Played group, Look
+    private fun editOpen(vararg taps: String) = {
+        for (t in taps) {
+            rule.mainClock.advanceTimeBy(400)
+            // the last match: the tab bar can say the same word ("Played")
+            rule.onAllNodesWithText(t).onLast().performClick()
+            rule.waitForIdle()
+        }
+    }
+    @Test fun edit412() = shot("edit", 412) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
+    @Test fun edit859() = shot("edit", 859) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
+    @Test fun editRelease412() = shot("edit-release", 412, ready = editOpen("Release")) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
+    @Test fun editPlayed412() = shot("edit-played", 412, ready = editOpen("Scores", "Played")) { Shell(Nav("games", listOf("game:f", "edit:f")), ready, go = {}) }
+    @Test fun editLook412() = shot("edit-look", 412, ready = editOpen("Look", "Cover and colour")) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
 
     /**
      * A tap on a header card's cover opens its game: 60ms in, the page is growing from the tap and the cover's copy is

@@ -6,6 +6,8 @@ AsOf.r: Ready
 Back.g: Game
 Back.q: Queue
 Back.t: Animatable<Float, AnimationVector1D>
+BackButtons.g: Game
+BackMenu.g: Game
 BackupCard.games: State
 CardLogo.enter: Animatable<Float, AnimationVector1D>
 CardLogo.g: Game
@@ -21,6 +23,7 @@ DeckCard.q: Queue
 DeckCard.unstable x: Animatable<Float, *>
 DrawnCover.g: Game
 DropRow.l: QList
+EditSheet.games: State
 Fan.covers: List<Game>
 Fan.t: Animatable<Float, AnimationVector1D>
 FlyingCover.f: Flight
@@ -42,6 +45,7 @@ HomePage.games: State
 ListRow.l: QList
 ListsSheet.games: State
 LogoSlot.lib: Library
+LookPreview.g: Game
 MainRow.g: Game
 MainRow.lib: Library
 MainRow.page: Page
@@ -62,6 +66,7 @@ PictureCard.picture: ImageBitmap?
 PlatPill.chips: List<Chip>
 PlatRow.chips: List<Chip>
 PlayNextRoot.link: Route?
+PlayedGroup.rec: Played
 Progress.g: Game
 Progress.page: Page
 QueueCard.g: Game
@@ -106,6 +111,7 @@ Ticket.st: Stat
 TicketHalf.enter: Animatable<Float, AnimationVector1D>
 Tiles.g: Game
 Tiles.page: Page
+Toggles.items: List<Pair<String, String>>
 TryRow.items: List<Pair<String, Function0<Unit>>>
 Vessel.t: Animatable<Float, AnimationVector1D>
 ViewBar.views: List<Pair<String, String>>

@@ -16,7 +16,7 @@ import java.time.ZoneId
  * tab (`deckShown`, `deckHead`, `deckWhy`, `dzMeta`) and the Dusty mark (`dustDays`, `dustLvl`). Pure: the clock and the
  * zone are passed in; GoldenTest checks it against the web app's own answers.
  */
-class Queue(val lib: Library, val rk: Rank, private val now: Long, private val zone: ZoneId) {
+class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: ZoneId) {
     private val games = lib.games
 
     /** `S.lists`: your lists, each `{id, n, e}` (name, emoji). */

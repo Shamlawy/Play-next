@@ -85,6 +85,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.data.Games
+import kotlinx.coroutines.delay
+import io.github.shamlawy.playnext.data.Edit
 import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.kit.Sfx
 import io.github.shamlawy.playnext.kit.Sounds
@@ -110,6 +112,7 @@ val RAIL_OUT = RAIL_W + 12.dp
 @Composable
 fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold() }, go: (Nav) -> Unit) {
     val holder = rememberSaveableStateHolder()
+    val clock = LocalNow.current
     // each open step's place (Settings, game pages) by its Nav.key, and which keys it holds: saved too, so a step closed
     // after Android recreated the app, or while the 120 Hz test covered the tabs, still forgets its own
     val pages = rememberSaveableStateHolder()
@@ -189,12 +192,32 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
         step(nav.open("customise:$scope"))
     }
     val customiser = remember { { scope: String -> openCustomise(scope) } }
+    // a game's Edit (the page's pencil, the card back's): a step over what's open, so back returns there
+    val openEdit by rememberUpdatedState { id: String ->
+        Sounds.play(Sfx.Open)
+        step(nav.open("edit:$id"))
+    }
+    // the line Edit leaves at the foot once it closes ("Saved")
+    var edited by remember { mutableStateOf<PageToast?>(null) }
+    LaunchedEffect(edited) { val t = edited ?: return@LaunchedEffect; delay(2_400); if (edited === t) edited = null }
+    val editActs = remember {
+        EditActs(
+            open = { id -> openEdit(id) },
+            say = { t -> edited = PageToast(t, (edited?.n ?: 0) + 1) },
+            comp = { g ->
+                Sounds.play(Sfx.Tap)
+                Games.change(Edit.comp(g, !g.comp) { Games.practiced(it) })
+                val t = if (!g.comp) g.title + " is competitive — immune ∞" else g.title + " counts again"
+                queue.made?.say(t) ?: run { edited = PageToast(t, (edited?.n ?: 0) + 1) }
+            },
+        )
+    }
     // the Queue's tab and order stay yours while the app is open (the web saves `S.qFilter`), held by the root ([queue])
     // so the 120 Hz test or the restore screen never resets them, and the lists sheet can show a list in it too
     // Your lists and the Game shuffler, from Sort's menu
     val openSheet = { o: String -> step(nav.open(o)) }
     val rail = spot.at
-    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalCustomise provides customiser, LocalRailAt provides rail) {
+    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalEditActs provides editActs, LocalCustomise provides customiser, LocalRailAt provides rail) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }.watchFinger(nx, rail.shown, calm, nxScope)) {
             val w = maxWidth
             val wide = w >= RAIL_FROM
@@ -383,6 +406,43 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                     }
                 }
             }
+            // a game's Edit, over the page or the Queue it opened from (newer than both)
+            val ed = nav.stack.indexOfLast { it.startsWith("edit:") }
+            if (ed >= 0 && ed > at && ed > s) {
+                val k = keys[ed]
+                pagesKept += k
+                val eid = nav.stack[ed].removePrefix("edit:")
+                key(k) {
+                    pages.SaveableStateProvider(k) {
+                        EditSheet(
+                            Modifier, games, eid,
+                            close = { step(nav.closeAt(ed)) },
+                            end = { e ->
+                                val lib = (games as? Games.State.Ready)?.lib
+                                when (e) {
+                                    EditEnd.Saved -> {
+                                        Sounds.play(Sfx.Add)
+                                        step(nav.closeAt(ed))
+                                        edited = PageToast("Saved", (edited?.n ?: 0) + 1)
+                                    }
+                                    // the Queue's practice delete, with its Undo (3-critic.md X3): it shows in the Queue
+                                    is EditEnd.Removed -> {
+                                        if (lib != null) queue.pick(lib).delete(lib, e.g)
+                                        go(nav.go("games").view("games", "queue"))
+                                    }
+                                    is EditEnd.Unplayed -> {
+                                        Sounds.play(Sfx.Add)
+                                        Games.change(Edit.unplay(e.g, clock()) { Games.practiced(it) })
+                                        if (lib != null) queue.pick(lib).say(e.g.title + " is back in the queue")
+                                        go(nav.go("games").view("games", "queue"))
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+            edited?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = overNavBar(room) + 20.dp)) }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away
             // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden
