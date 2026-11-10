@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasContentDescription
@@ -133,8 +134,11 @@ class EditSheetTest {
         rule.onNodeWithText("Save").performClick()
         rule.mainClock.advanceTimeBy(100)
         assertEquals("Save closes Edit, back to the page", listOf("game:a"), nav.stack)
-        waitFor("the practice copy has the new name") { ready.lib.games.first { it.id == "a" }.title == "Starfall Lantern Deluxe" }
+        // the note right away: on a busy machine the wait below can outlast its 2.4s
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
         rule.onNodeWithText("Saved").assertExists()
+        waitFor("the practice copy has the new name") { ready.lib.games.first { it.id == "a" }.title == "Starfall Lantern Deluxe" }
         assertTrue("the page shows the new name", rule.onAllNodes(hasText("Starfall Lantern Deluxe")).fetchSemanticsNodes().isNotEmpty())
     }
 
