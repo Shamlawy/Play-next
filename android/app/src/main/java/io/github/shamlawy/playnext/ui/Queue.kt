@@ -149,9 +149,11 @@ import coil3.size.Size as CoilSize
 import coil3.transform.Transformation
 import io.github.shamlawy.playnext.data.Backup
 import io.github.shamlawy.playnext.data.Game
+import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.data.Lists
 import io.github.shamlawy.playnext.data.Pic
+import io.github.shamlawy.playnext.data.Practice
 import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Rank
 import io.github.shamlawy.playnext.gen.Web
@@ -187,13 +189,13 @@ fun rememberQueueView(lib: Library, pick: QueuePick, made: Queue? = null): Queue
     val day = io.github.shamlawy.playnext.data.JsDate.todayLocal(now, zone)
     val utcDay = Math.floorDiv(now, io.github.shamlawy.playnext.data.JsDate.DAY)
     // the practice deletes (read every time, as [QueuePick.moved]): the Queue works on the backup without them
-    val gone = pick.deleted.takeIf { pick.deletedFor === lib } ?: emptySet()
+    val gone = pick.deleted.let { d -> if (pick.deletedFor === lib.from) d else emptySet() }
     val base = remember(lib, gone) { lib.without(gone) }
     val q = remember(base, day, utcDay, made) { made?.takeIf { it.lib === base && it.covers(now, zone) } ?: Queue(base, Rank(base, now, zone), now, zone) }
     val tab = q.tabNow(pick.tab)
     val sort = pick.sort
     val all = pick.moved // read every time, so a first drop redraws
-    val moved = if (pick.movedFor === lib) all else emptyMap()
+    val moved = if (pick.movedFor === lib.from) all else emptyMap()
     val shown = remember(q, tab, sort, moved) { q.sort(q.list(tab), sort, moved) }
     return QueueView(q, tab, sort, shown, now, lib)
 }
@@ -216,8 +218,14 @@ class QueuePick(lib: Library) {
     /** The card that's open in [shown]: the one you tapped, else the first, none once closed. */
     fun openIn(shown: List<Game>): String? = if (collapsed || shown.isEmpty()) null else focus?.takeIf { id -> shown.any { it.id == id } } ?: shown[0].id
 
+    /**
+     * The genre tab (`G:<genre>`, `gtagFilter`): one at a time, kept in the bar after you pick another tab until a new
+     * genre replaces it, as the web's `QFILTERS` keeps it for the visit.
+     */
+    var genre by mutableStateOf(Backup.str(lib["qFilter"]).takeIf { it.startsWith("G:") })
+
     /** Another tab (`data-qfilter`) or order (`data-sort`): the card you opened lets go, as the web's `focusId = null`. */
-    fun show(t: String) { tab = t; focus = null }
+    fun show(t: String) { if (t.startsWith("G:")) genre = t; tab = t; focus = null }
     fun order(k: String) { sort = k; focus = null }
 
     /** A tap on a closed row: its card opens and the one that was open closes into its row. */
@@ -237,7 +245,7 @@ class QueuePick(lib: Library) {
     var moved by mutableStateOf<Map<String, Double>>(emptyMap())
 
     /** The backup [moved] belongs to: a newer backup (the start-up check, back after a while) starts from its own order. */
-    var movedFor by mutableStateOf<Library?>(null, referentialEqualityPolicy())
+    var movedFor by mutableStateOf<Any?>(null, referentialEqualityPolicy())
 
     /** The row (or open card) held and moving, null when none. */
     var drag by mutableStateOf<QueueDrag?>(null)
@@ -259,7 +267,7 @@ class QueuePick(lib: Library) {
     fun saved(): ArrayList<String?> = arrayListOf(tab, sort, focus, if (collapsed) "1" else null, flip, sel)
 
     fun restore(s: List<String?>) {
-        s.getOrNull(0)?.let { tab = it }
+        s.getOrNull(0)?.let { tab = it; if (it.startsWith("G:")) genre = it }
         s.getOrNull(1)?.let { sort = it }
         focus = s.getOrNull(2)
         collapsed = s.getOrNull(3) != null
@@ -313,15 +321,17 @@ class QueuePick(lib: Library) {
      * again, nothing saved. [deletedFor] is the backup they belong to (a newer one starts whole).
      */
     var deleted by mutableStateOf<Set<String>>(emptySet())
-    var deletedFor by mutableStateOf<Library?>(null, referentialEqualityPolicy())
+    var deletedFor by mutableStateOf<Any?>(null, referentialEqualityPolicy())
 
     /** The last delete, offered back on the Undo bar for a few seconds. */
     var undo by mutableStateOf<QueueGone?>(null)
 
     /** Delete [g] from [lib]'s Queue (the web's `qdel`, with Android's Undo in place of its question). */
     fun delete(lib: Library, g: Game) {
-        if (deletedFor !== lib) { deleted = emptySet(); deletedFor = lib }
+        if (deletedFor !== lib.from) { deleted = emptySet(); deletedFor = lib.from }
         deleted = deleted + g.id
+        // and into the one practice copy, so every other screen (the header numbers, a game page's swipe) follows
+        Games.change(mapOf(Practice.GONE to Practice.gone(Games.practiced(Practice.GONE), g.id, true)))
         if (focus == g.id) focus = null
         if (flip == g.id) flip = null
         swiped = null
@@ -333,6 +343,7 @@ class QueuePick(lib: Library) {
         val u = undo ?: return
         deleted = deleted - u.id
         undo = null
+        Games.change(mapOf(Practice.GONE to Practice.gone(Games.practiced(Practice.GONE), u.id, false)))
     }
 }
 
@@ -846,7 +857,7 @@ private fun Modifier.hold(id: String, i: Int, view: () -> QueueView, pick: Queue
                     val ids = v.shown.map { it.id }.toMutableList()
                     ids.add(d.to, ids.removeAt(d.from))
                     pick.dropped = id
-                    if (pick.movedFor !== v.src) { pick.moved = emptyMap(); pick.movedFor = v.src }
+                    if (pick.movedFor !== v.src.from) { pick.moved = emptyMap(); pick.movedFor = v.src.from }
                     pick.moved = pick.moved + ids.mapIndexed { k, x -> x to (k + 1).toDouble() }
                     pick.sort = "manual"
                     Sounds.play(Sfx.Tap)
@@ -979,7 +990,7 @@ private fun Empty(text: String, mod: Modifier) {
 @Composable
 private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, sheet: (String) -> Unit) {
     val q = v.q
-    val tabs = Queue.TABS + q.lists.map { "L:" + it.id }
+    val tabs = Queue.TABS + q.lists.map { "L:" + it.id } + listOfNotNull(pick.genre)
     val guard = LocalSwipeGuard.current
     val scroll = rememberScrollState()
     // each chip's left edge and width in the row (px), for bringing the lit one into view
@@ -1035,7 +1046,7 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, sheet: (Strin
             verticalAlignment = Alignment.CenterVertically,
         ) {
             for (t in tabs) {
-                FilterChip(q.tabName(t), q.counts[t] ?: 0, t == v.tab, Modifier.onPlaced { c -> spots[t] = intArrayOf(c.positionInParent().x.toInt(), c.size.width) }) {
+                FilterChip(q.tabName(t), q.count(t), t == v.tab, Modifier.onPlaced { c -> spots[t] = intArrayOf(c.positionInParent().x.toInt(), c.size.width) }) {
                     if (t != pick.tab) {
                         Sounds.play(Sfx.Tap)
                         Crumbs.tap("queue tab", "games/queue")
