@@ -201,11 +201,12 @@ class EditTest {
     private fun libWith(edit: (String) -> String) = Library(Json.parseToJsonElement(edit(LIB)).jsonObject)
 
     @Test fun aBackupThatLandsWhileEditIsOpenKeepsTheFieldsYouDidntTouch() {
-        val d = Edit.open(lib, g("a")).set("in:title", JsonPrimitive("Starfall Lantern Deluxe"))
-        val newer = libWith { it.replace("A lantern that remembers", "A lantern that forgets") }
-        val f = fields(Edit.save(newer, newer.games.first { it.id == "a" }, d, now, none), "a")
-        assertEquals(setOf("title"), f.keys)
-        assertEquals("the review lists only your change", listOf("Title"), Edit.review(newer, newer.games.first { it.id == "a" }, d).map { it.field })
+        val d = Edit.open(lib, g("b")).set("in:title", JsonPrimitive("Copper Meadow Deluxe"))
+        val newer = libWith { it.replace("\"hours\":12,\"hype\":8", "\"hours\":12,\"hype\":9") }
+        val gb = newer.games.first { it.id == "b" }
+        val f = fields(Edit.save(newer, gb, d, now, none), "b")
+        assertEquals("the newer hype stays (not the 8 Edit opened with)", setOf("title"), f.keys)
+        assertEquals("the review lists only your change", listOf("Title"), Edit.review(newer, gb, d).map { it.field })
     }
 
     @Test fun theSavedDraftHoldsOnlyYourChanges() {
