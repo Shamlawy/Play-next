@@ -15,11 +15,11 @@ Already decided: the hub figure (the cut-out character you upload in Edit, its f
    your progress track, About with Read more, and the screenshots strip. Swipe sideways to the next or previous game in
    your order; a small top bar sticks when you scroll. Try: open a game, swipe through a few, tap a genre.
 2. **Edit.** All three tabs: Game (name, release date picker, hours main / extras / 100%, play style, where it stands,
-   platforms, genres and tags, notes), Scores (hype, critics, your rating Simple or Advanced, Played: finish-month
+   platforms, genres and tags, notes), Scores (hype, critics, your rating Simple or Advanced with the 8 areas (moved here from piece 3, Map X1), Played: finish-month
    picker, times through, what got you), Look (art from SteamGridDB and the stores, cover and colour, backdrop, logo).
    Until switch day your edits are a practice copy, as in Phase 1: they show on the phone and reset when the app
    restarts; the web backup is never changed. Try: change a date and the hours, see the tiles follow.
-3. **Score and notes.** Score it (your score and the 8 areas), reset one game's scores, Where was I (a note for next
+3. **Score and notes.** Score it (your one score, 0-10; the 8 areas are in Edit, piece 2: Map X1), reset one game's scores, Where was I (a note for next
    time) and the story so far, Finish forecast, Then & now, the Drifting card. Try: score a game, leave yourself a note.
 4. **From the helper.** Reviews (Steam players, critics, "you, probably"), Prices (Steam, PS Store, eShop), hours to
    beat from HowLongToBeat (a tap on the hours tile), Why you'll love it, Similar, and the Queue card back's "Like
