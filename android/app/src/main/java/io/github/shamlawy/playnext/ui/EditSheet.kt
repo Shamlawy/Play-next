@@ -158,11 +158,18 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
     var msg by remember { mutableStateOf<String?>(null) }
     var diff by remember { mutableStateOf<List<Edit.Change>?>(null) }
     val scroll = rememberScrollState()
-    var listAt by remember { mutableIntStateOf(0) }
+    var listAt by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    val set = { nd: Edit.Draft -> d = nd }
+    // a change makes Review's list old: it goes until Review is tapped again
+    val set = { nd: Edit.Draft -> d = nd; diff = null }
     BackHandler { if (open != null) open = null else close() }
-    LaunchedEffect(open) { if (open == null) scroll.scrollTo(listAt) else scroll.scrollTo(0) }
+    // only when the open group changes: coming back (Settings over Edit, unfolded) keeps the restored spot
+    var shownOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(open) {
+        if (open == shownOpen) return@LaunchedEffect
+        if (open == null) scroll.scrollTo(listAt) else scroll.scrollTo(0)
+        shownOpen = open
+    }
 
     EditFrame(modifier, close) { pull ->
         // the head: the name, and the tabs while no group is open
@@ -800,11 +807,7 @@ private fun LinkRow(c: Ctx, box: String, role: String, field: String, hint: Stri
             is Edit.Link.Bad -> line = l.why
             is Edit.Link.Use -> {
                 line = "Trying it…"
-                val keep = mutableMapOf<String, kotlinx.serialization.json.JsonElement?>(field to JsonPrimitive(l.url), "in:$box" to JsonPrimitive(l.url))
-                if (l.steamId != null) keep["steamId"] = JsonPrimitive(l.steamId)
-                if (field == "img") keep["imgCleared"] = null
-                if (field == "art") keep["artCleared"] = null
-                now.set(now.d.setAll(keep))
+                now.set(now.d.setAll(Edit.useLink(field, box, l)))
                 scope.launch {
                     val r = SingletonImageLoader.get(ctx).execute(ImageRequest.Builder(ctx).data(picUrl(l.url)).build())
                     line = when (r) {

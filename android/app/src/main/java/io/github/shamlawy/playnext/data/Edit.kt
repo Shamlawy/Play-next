@@ -278,6 +278,16 @@ object Edit {
         data class Bad(val why: String) : Link
     }
 
+    /** What "Use this link" puts in the draft (`bindLink`): the picture, the box, Steam's id; a backdrop turns back on. */
+    fun useLink(field: String, box: String, l: Link.Use): Map<String, JsonElement?> {
+        val keep = linkedMapOf<String, JsonElement?>(field to JsonPrimitive(l.url), "in:$box" to JsonPrimitive(l.url))
+        if (l.steamId != null) keep["steamId"] = JsonPrimitive(l.steamId)
+        if (field == "img") keep["imgCleared"] = null
+        if (field == "art") keep["artCleared"] = null
+        if (field == "hero") keep["bgOff"] = JsonPrimitive(false)
+        return keep
+    }
+
     private val STEAM = Regex("store\\.steampowered\\.com/app/(\\d+)|steamcommunity\\.com/app/(\\d+)")
     private val GH = Regex("^https?://github\\.com/([^/]+)/([^/]+)/(?:blob|raw)/(.+)$")
 
@@ -406,7 +416,8 @@ object Edit {
         // dropped with no drop point yet (index.html 23946): when, and how far in you were
         if (state == "dropped" && !Backup.truthy(g["dropP"])) {
             f["dropAt"] = JsonPrimitive(now)
-            val h = Rank(lib, now, ZoneId.of("UTC")).hrsOf(g)
+            // with the hours typed in the same Save (the web's hook runs after Object.assign)
+            val h = Rank(lib, now, ZoneId.of("UTC")).hrsOf(Game(JsonObject(g.o + f)))
             val lg = Backup.num(g["logged"], 0.0, 0.0, 100000.0)
             if (h > 0 && lg > 0) f["dropP"] = Backup.jsNumber(Rank.jsRound(minOf(1.0, lg / h) * 100) / 100.0)
         }

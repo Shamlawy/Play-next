@@ -227,6 +227,22 @@ class EditTest {
         assertEquals("10h of 60 (extras: 40 × 1.5)", 0.17, (f["dropP"] as JsonPrimitive).content.toDouble(), 1e-9)
     }
 
+    @Test fun aBackdropLinkTurnsTheBackdropBackOn() {
+        val off = libWith { it.replace("\"mine\":{\"story\":7}", "\"mine\":{\"story\":7},\"bgOff\":true") }
+        val ga = off.games.first { it.id == "a" }
+        val d = Edit.open(off, ga).setAll(Edit.useLink("hero", "back", Edit.Link.Use("https://example.com/wide.jpg", "")))
+        val f = fields(Edit.save(off, ga, d, now, none), "a")
+        assertEquals(JsonPrimitive("https://example.com/wide.jpg"), f["hero"])
+        assertEquals(JsonPrimitive(false), f["bgOff"])
+    }
+
+    @Test fun theDropPointUsesTheHoursTypedInTheSameSave() {
+        val l = libWith { it.replace("\"plAt\":1760000000000,\"hours\":40", "\"plAt\":1760000000000,\"logged\":10") }
+        val gc = l.games.first { it.id == "c" }
+        val d = Edit.open(l, gc).set("state", JsonPrimitive("dropped")).set("in:hours", JsonPrimitive("40"))
+        assertEquals("10h of 60 (extras: 40 × 1.5)", 0.17, (fields(Edit.save(l, gc, d, now, none), "c")["dropP"] as JsonPrimitive).content.toDouble(), 1e-9)
+    }
+
     @Test fun theFinishMonth() {
         val today = LocalDate.of(2026, 10, 27)
         assertEquals("same month keeps the day", "2025-06-20", Edit.finDate("2025-06-20", 2025, 6, today))
