@@ -239,10 +239,10 @@ class EditTest {
 
     @Test fun theDraftSurvivesBeingSaved() {
         val d = Edit.open(lib, g("b")).set("in:title", JsonPrimitive("x")).rec("dk", JsonPrimitive(true))
-        val back = Edit.Draft.of(d.text())!!
+        val back = Edit.Draft.of(d.text(), Edit.open(lib, g("b")))!!
         assertEquals(d.g, back.g)
         assertEquals(d.p, back.p)
-        assertNull(Edit.Draft.of("not json"))
+        assertNull(Edit.Draft.of("not json", Edit.open(lib, g("b"))))
     }
 
     @Test fun thePaletteRunsRoundTheWheelWithGreysLast() {
