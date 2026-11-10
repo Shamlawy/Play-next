@@ -49,4 +49,4 @@ Then the check (Perfect, in a fresh chat: L262) and "Approve Phase 2 on your pho
    the queue", "Remove", "Don't remember").
 4. **Game news:** Phase 9 (Runs by itself), with the other notifications; not on the game page in Phase 2.
 
-Next: the Map, in a new chat with "ultracode" in the owner's message (L170).
+Next: the Map (done Nov 10, android/parity/2-map/), then the owner answers 3-critic.md's 4 questions.
