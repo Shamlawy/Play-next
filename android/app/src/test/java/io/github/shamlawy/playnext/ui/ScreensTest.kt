@@ -150,9 +150,10 @@ class ScreensTest {
         CompositionLocalProvider(LocalShared provides Shared("Lantern Hollow", 123450)) { tab("add")() }
     }
 
-    /** A game's page (a placeholder until phase 2): its picture, the tilted cover, its state and name. */
+    /** A game's page (Phase 2's New style): the hero, the tilted cover and kicker, the tags, tiles, the main button, Your progress; a game with no box art. A finished one shows no main button yet. */
     @Test fun game412() = shot("game", 412) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
     @Test fun game859() = shot("game", 859) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
+    @Test fun gamePlayed412() = shot("game-played", 412) { Shell(Nav("games", listOf("game:f")), ready, go = {}) }
 
     /**
      * A tap on a header card's cover opens its game: 60ms in, the page is growing from the tap and the cover's copy is

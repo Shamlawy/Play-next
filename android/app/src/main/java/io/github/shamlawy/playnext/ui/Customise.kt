@@ -140,9 +140,31 @@ private fun QueueGroups(lib: Library) {
         Label("On a row — how strong")
         Range(Backup.num(lib["rowArtOp"], 95.0, 10.0, 100.0).roundToInt(), 10, 100, "%", "On a row, how strong") { set("rowArtOp", JsonPrimitive(it)) }
     }
+    PageGroup(lib)
+}
+
+/**
+ * "A game's own page" (index.html 6403, scope games, so it shows in the Queue's Customise too; 3-critic.md M1): its two
+ * controls that change the New page. The rest (wallpaper, the figure, giant title, style) is Showcase's or the hub
+ * figure's, not ported (the owner, Nov 10).
+ */
+@Composable
+internal fun PageGroup(lib: Library) {
+    val set = Games::customise
+    Card {
+        BasicText("A game's own page", style = Type.head)
+        BasicText("Tapping a game opens its own page.", style = Type.note)
+        Label("Motion on this page")
+        Chips(ON_OFF, if (lib.off("hubAnim")) "off" else "on") { set("hubAnim", JsonPrimitive(it == "on")) }
+        BasicText("Off freezes everything on a game's page: the slide between games, every fade. Nothing moves, nothing can land in the wrong place. The rest of the app keeps its motion.", style = Type.note)
+        Label("Platforms")
+        Chips(PLAT_TEXT, if (Backup.truthy(lib["platText"])) "text" else "logo") { set("platText", JsonPrimitive(it == "text")) }
+    }
 }
 
 // the chips' choices, made once (a list built while drawing would be a new object on every redraw)
+private val ON_OFF = listOf("on" to "On", "off" to "Off")
+private val PLAT_TEXT = listOf("logo" to "Logos", "text" to "Names")
 private val DECK_ROW = listOf("on" to "Show it", "off" to "Hide it")
 private val Q_LOOK = listOf("strap" to "Rows", "select" to "Character select")
 private val CARD_BG = listOf("hero" to "Art only", "plain" to "Plain")

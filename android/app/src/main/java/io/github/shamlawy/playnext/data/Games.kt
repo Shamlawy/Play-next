@@ -288,7 +288,11 @@ object Games {
         val parts = Seal.split(text)
         val rb = Backup.read(parts.state)
         if (!rb.ok || rb.data == null) throw BadBackup(rb.msg)
-        val d = make(Backup.apply(rb.data), clock(), zone())
+        val applied = Backup.apply(rb.data)
+        // a newer backup starts your games whole again: a practice start, finish or delete made on the older one would
+        // hide its real finishes and keep a game deleted the Queue already shows again (Customise's changes stay)
+        if (day?.applied.let { it != null && it != applied }) practice = practice - Practice.KEYS
+        val d = make(applied, clock(), zone())
         rawg = parts.rawgKey
         Reporter.names = d.lib.privateNames
         setDay(d)
@@ -330,7 +334,7 @@ object Games {
     }
 
     private fun make(applied: JsonObject, now: Long, zone: ZoneId): Day {
-        val lib = Library(Backup.load(if (practice.isEmpty()) applied else Lists.laid(JsonObject(applied + practice)), now, zone))
+        val lib = Library(Backup.load(if (practice.isEmpty()) applied else Practice.laid(Lists.laid(JsonObject(applied + practice))), now, zone), from = applied)
         return Day(applied, now, zone, lib, Shx.all(lib, now, zone))
     }
 
@@ -373,8 +377,15 @@ object Games {
     fun practiced(key: String): JsonElement? = practice[key]
 
     /** A Customise change: your games rebuilt off Main with it, so every screen and number follows. */
-    fun customise(key: String, value: JsonElement) {
-        practice = practice + (key to value)
+    fun customise(key: String, value: JsonElement) = change(mapOf(key to value))
+
+    /**
+     * Practice changes to your games ([Practice]: a game started or finished, one deleted), all at once: rebuilt off
+     * Main like a Customise change, so every screen follows (android/parity/2-map/3-critic.md M7).
+     */
+    fun change(edits: Map<String, JsonElement>) {
+        if (edits.isEmpty()) return
+        practice = practice + edits
         scope.launch { relay() }
     }
 
@@ -383,7 +394,7 @@ object Games {
         val d = day
         if (d == null || cur.lib !== d.lib) {
             // a Ready made by hand (the tests): the change on top of it
-            _state.value = cur.copy(lib = Library(Lists.laid(JsonObject(cur.lib.state + practice))), cards = null)
+            _state.value = cur.copy(lib = Library(Practice.laid(Lists.laid(JsonObject(cur.lib.base + practice))), from = cur.lib.from, base = cur.lib.base), cards = null)
             return@withLock
         }
         val next = withContext(Dispatchers.Default) { make(d.applied, clock(), zone()) }

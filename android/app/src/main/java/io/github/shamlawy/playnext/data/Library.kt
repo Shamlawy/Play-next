@@ -12,7 +12,17 @@ import java.time.ZoneId
  * Your games as the backup holds them: the web app's saved state `S`, kept whole as JSON (unknown keys survive), with
  * typed reads for what the screens show. Read-only until switch day.
  */
-class Library(val state: JsonObject) {
+class Library(
+    val state: JsonObject,
+    /**
+     * The backup this copy was made from (the opened copy, before today's `load()` and any practice change): the same
+     * object for every rebuild of one backup (a practice change, a new day), a new one for a newer backup. The Queue's
+     * practice drags and deletes hold on to it, so a change elsewhere never undoes them.
+     */
+    val from: Any = state,
+    /** A copy made by hand (the tests): the state practice changes are laid over again on each rebuild. */
+    val base: JsonObject = state,
+) {
     val games: List<Game> = (state["games"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Game) }
 
     /** `S.played` (one record per finish; a replay adds another) and `S.duels`. */

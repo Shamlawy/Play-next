@@ -170,3 +170,9 @@ go=home
 at=
 say=Small fix: words on the folded Queue are never cut mid-word now. The chip strip fades out at its end, and Character select's line stays whole.
 tryIt=Fold the phone and open Games › Queue: the chip next to Sort fades out instead of showing half a word; swipe the strip and the start fades too. In Character select, the line above the big panel shows whole words.
+
+v=29
+go=home
+at=
+say=Every game has its own page now: the picture, the cover, its tags, four numbers, one smart button and how far you are, and a swipe takes you to the next game.
+tryIt=Open Games › Queue, tap a game, then tap the box art on its card: its page opens. Swipe sideways to walk through your Queue, tap a genre to see every game in it, tap Start playing and watch Your progress move (a practice copy: it resets when the app reopens). Swipe back slowly, then let go: the page comes back.

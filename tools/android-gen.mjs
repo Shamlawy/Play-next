@@ -56,6 +56,16 @@ need(typeof CB_ALPHA === "string" && CB_ALPHA.length === 32 && new Set(CB_ALPHA)
 const BK_SECRET = table("BK_SECRET");
 need(Array.isArray(BK_SECRET) && BK_SECRET.every(k => typeof k === "string") && BK_SECRET.includes("rawgKey"), "BK_SECRET: a list of key names");
 const STATES = table("STATES");
+/* Steam players' tags the game page leaves out (`ST_GENERIC`, a Set of plain words: only its list is read) */
+const ST_GENERIC = (() => {
+  const m = /^const ST_GENERIC = new Set\((\[[\s\S]*?\])\);/m.exec(src);
+  need(m, "const ST_GENERIC = new Set([...]);");
+  const ctx = vm.createContext(Object.create(null));
+  try { vm.runInContext("var L = " + m[1] + ";", ctx, { timeout: 1000 }); } catch (e) { fail(`ST_GENERIC is no longer a list of plain words (${e.message})`); }
+  const l = JSON.parse(JSON.stringify(ctx.L));
+  need(Array.isArray(l) && l.length > 10 && l.every(w => typeof w === "string"), "ST_GENERIC: a list of words");
+  return l;
+})();
 need(Array.isArray(STATES) && STATES.every(s => Array.isArray(s) && s.length === 2) && STATES[0][0] === "upcoming", "STATES: [[key, label]…], upcoming first");
 const APP_V = (/^const APP_V = "(\d+)"/m.exec(src) || [])[1];
 need(APP_V, "APP_V");
@@ -168,6 +178,11 @@ const RULES = {
   NX_PARTY_2: cssColour("#pnbub.party .aura", "background", 2), NX_PARTY_3: cssColour("#pnbub.party .aura", "background", 3),
   NX_SHADE: cssColour("#pnbub .core", "box-shadow"), NX_BADGE_INK: cssColour("#pnbub .badge", "color"),
   NX_BADGE_SHADE: cssColour("#pnbub .badge", "box-shadow"), NX_SAY_SHADE: cssColour("#pnbubmsg", "box-shadow"),
+  /* a game's page, New style (v195, v232-v234) */
+  GD_BG: cssColour(".gd-bg", "background"), GD_HERO_TOP: cssColour(".gd-hero::after", "background", 0),
+  GD_KICK_INK: cssColour("#full .gd-tt .hub-kick", "color"), GD_ACC_BASE: cssColour(".gd-tags span.acc", "background"),
+  GD_DESC: cssColour(".gd-desc", "color"), GD_DROP: cssColour(".gd-st.drop i", "background"),
+  GD_LIFT: cssColour(".gd-sec .wis", "background"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
 };
 /* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
 const PN_EDGE = table("PN_EDGE"), PN_EVO = table("PN_EVO");
@@ -275,6 +290,15 @@ const LIST_ICONS = LIST_MARKS.map(([, n, , d]) => ["list:" + n, typeof d === "fu
    in the v247 style: 24x24, fill-only, one part at .35 */
 const APP_DRAWN = {
   tick: '<circle opacity=".35" cx="12" cy="12" r="10.2"/><path d="M10.4 17.2 5.8 12.6l1.7-1.7 2.9 2.9 6.1-6.1 1.7 1.7z"/>',
+  /* a game's page (the web's emoji: ◀ Back, 🧭 Your progress, 📖 About, 📷 Screenshots, ▶ Start playing / the trailer,
+     🏁 I finished it, ✕ closing the screenshot viewer) */
+  back: '<path d="M14.6 4.2 16.4 6l-6 6 6 6-1.8 1.8L6.8 12z"/>',
+  compass: '<circle opacity=".35" cx="12" cy="12" r="10"/><path d="M16.6 7.4 13.8 13.8 7.4 16.6l2.8-6.4z"/>',
+  book: '<path opacity=".35" d="M11 6.4C9 4.9 6.2 4.3 2.6 4.4v14.4c3.6-.1 6.4.5 8.4 2z"/><path d="M13 6.4c2-1.5 4.8-2.1 8.4-2v14.4c-3.6-.1-6.4.5-8.4 2z"/>',
+  camera: '<path opacity=".35" d="M8.6 4.4h6.8l1.7 2.4H20a2 2 0 0 1 2 2v9.4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.8a2 2 0 0 1 2-2h2.9z"/><circle cx="12" cy="13.4" r="4.3"/>',
+  play: '<circle opacity=".35" cx="12" cy="12" r="10.2"/><path d="M9.6 7.4v9.2l7.2-4.6z"/>',
+  flag: '<rect x="4" y="2.6" width="2.2" height="19" rx="1.1"/><path opacity=".35" d="M6.2 3.6h13.2l-3 4.6 3 4.6H6.2z"/>',
+  close: '<path d="m6.3 4.7 5.7 5.6 5.7-5.6 1.6 1.6-5.6 5.7 5.6 5.7-1.6 1.6-5.7-5.6-5.7 5.6-1.6-1.6 5.6-5.7-5.6-5.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
 const PLAT_LOGO = table("PLAT_LOGO");
@@ -344,6 +368,7 @@ const lines = [
   `    const val CB_ALPHA = ${ks(CB_ALPHA)}`,
   `    val BK_SECRET: List<String> = ${kl(BK_SECRET.map(ks))}`,
   `    val STATES: List<Pair<String, String>> = ${kl(STATES.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
+  `    val ST_GENERIC: List<String> = ${kl(ST_GENERIC.map(ks))}`,
   "",
   "    // the views inside a tab, in the pill's order (SUBS after the later scripts' changes), each tab's default and its saved key",
   `    val VIEWS: Map<String, List<Pair<String, String>>> = mapOf(${Object.entries(VIEWS.subs).map(([t, l]) => `${ks(t)} to ${kl(l.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`).join(", ")})`,

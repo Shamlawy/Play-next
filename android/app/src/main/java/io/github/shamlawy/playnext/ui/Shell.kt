@@ -363,7 +363,25 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 val k = keys[at]
                 pagesKept += k
                 val l = launch?.takeIf { it.key == k }
-                key(k) { pages.SaveableStateProvider(k) { GamePage(game, l?.tap ?: Offset.Unspecified, l?.from?.takeIf { it.g.id == game.id }, wide, shrinking = { shutting = k }, covers = { covered = it }, close = { go(nav.closeAt(at)) }) } }
+                val ready = games as Games.State.Ready
+                val pv = rememberPageView(ready, queue.pick(ready.lib))
+                key(k) {
+                    pages.SaveableStateProvider(k) {
+                        GamePage(
+                            game, pv, l?.tap ?: Offset.Unspecified, l?.from?.takeIf { it.g.id == game.id }, wide,
+                            shrinking = { shutting = k }, covers = { covered = it },
+                            // a genre's tap (`gtagFilter`): the Queue shows that genre's games, with how many there are
+                            toQueue = { t ->
+                                val qp = queue.pick(ready.lib)
+                                qp.show(t)
+                                val c = pv.page.q.count(t)
+                                qp.say("$c ${if (c == 1) "game" else "games"} tagged ${t.removePrefix("G:")} · tap All to see everything again")
+                                go(nav.go("games").view("games", "queue"))
+                            },
+                            close = { go(nav.closeAt(at)) },
+                        )
+                    }
+                }
             }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away

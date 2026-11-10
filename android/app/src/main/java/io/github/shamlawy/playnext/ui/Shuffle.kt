@@ -108,7 +108,7 @@ fun ShuffleDeck(modifier: Modifier, games: Games.State, pick: QueuePick?, close:
     val byId = remember(q) { q.lib.games.associateBy { it.id } }
     // each game's place in your order (the card's "3rd in queue"), as the Queue's All tab shows it
     val spots = remember(q, v.sort, p.moved) {
-        val moved = if (p.movedFor === lib) p.moved else emptyMap()
+        val moved = p.moved.let { m -> if (p.movedFor === lib.from) m else emptyMap() }
         q.sort(q.list("all"), v.sort, moved).withIndex().associate { (i, g) -> g.id to i + 1 }
     }
     var deck by rememberSaveable(stateSaver = DeckSaver) {

@@ -4,6 +4,7 @@ calm probe/ProbeScreen.kt rememberInfiniteTransition(label = "blink") — the 12
 calm ui/Wipe.kt val slide = remember(key) { Animatable(0f) } — SlashWipe only runs when not calm (the shell picks no wipe when calm)
 calm ui/Wipe.kt val pop = remember(key) { Animatable(0f) } — SlashWipe only runs when not calm (the shell picks no wipe when calm)
 calm ui/Wipe.kt private val p = Animatable(if (kind == null) 1f else 0f) — Enter's kind is null when calm, so it starts finished
+calm ui/GamePage.kt val p = Animatable(0f) — the cover's Flight only starts when not still: landed starts true when still (or calm), so the page opens with the cover in place
 uppercase ui/Wipe.kt label.uppercase(Locale.ROOT) — the slash wipe's tab name is in capitals on the web (pnWipe, allowed by v188)
 italic ui/Wipe.kt fontStyle = FontStyle.Italic — the slash wipe is Archivo italic 900 (allowed by v188)
 uppercase ui/Cover.kt .uppercase(Locale.ROOT) } — a drawn cover's initials are capitals on the web (cover() draws them into an image)

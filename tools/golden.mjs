@@ -226,6 +226,8 @@ for (const [name, at] of CLOCKS) {
     const tabs = {};
     for (const t of ["all", "out", "soon", "done", "L:q1", "L:q2", "L:gone", "G:RPG"]) {
       S.qFilter = t;
+      /* a saved genre tab comes back at load (index.html, after gtagFilter: pushed into QFILTERS), so qNow keeps it */
+      if (/^G:/.test(t) && !QFILTERS.some(x => x[0] === t)) { for (let i = QFILTERS.length - 1; i >= 0; i--) if (/^G:/.test(QFILTERS[i][0])) QFILTERS.splice(i, 1); QFILTERS.push([t, t.slice(2)]); }
       tabs[t] = { now: qNow(), ids: queueList().map(g => g.id), deck: deckShown(3).map(g => g.id), head: deckHead() };
     }
     const counts = qCounts();

@@ -64,7 +64,13 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
 
     /** `qNow()`: the saved tab when it still exists, else All (a genre or "like" tab comes back with the game page, Phase 2). */
     fun tabNow(saved: String): String =
-        if (saved in TABS || (saved.startsWith("L:") && lists.any { "L:" + it.id == saved })) saved else "all"
+        if (saved in TABS || (saved.startsWith("L:") && lists.any { "L:" + it.id == saved }) || (saved.startsWith("G:") && gdKey(saved.drop(2)).isNotEmpty())) saved else "all"
+
+    /** How many games [tab] holds: [counts], and a genre tab (`G:`, the game page's genre tap) counted when asked. */
+    fun count(tab: String): Int = counts[tab] ?: if (tab.startsWith("G:")) genreCounts.getOrPut(tab) { list(tab).size } else 0
+
+    /** A genre tab's count, worked out once per Queue (the bar asks on every redraw). */
+    private val genreCounts = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /** `qCounts()`: how many games each tab holds. */
     val counts: Map<String, Int> by lazy {
@@ -81,6 +87,8 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
     /** `queueList()`: the games under [tab] (as [tabNow] gives it), in the backup's order. */
     fun list(tab: String): List<Game> = when {
         tab.startsWith("L:") -> games.filter { tab.removePrefix("L:") in listsOf(it) }
+        // `G:<genre>` (v234's `extend("queueList")`): every game, in any state, whose genres or Steam tags hold it
+        tab.startsWith("G:") -> gdKey(tab.drop(2)).let { k -> games.filter { k in genreSet(it) } }
         tab == "all" -> games
         tab == "done" -> games.filter(rk::isPlayed)
         tab == "soon" -> games.filter { waiting(it) && !isOutNow(it) }
@@ -407,6 +415,14 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
         private val YMD = Regex("^\\d{4}-\\d{2}-\\d{2}$")
         /** A trailing " 2" (a version in a name), made once: [stat] runs per cover in Character select (Phase 1 check B4). */
         private val TRAIL_NUM = Regex(" \\d+$")
+
+        /** `gdKey` (index.html 21999): a tag as the genre tap compares it, lower case, letters and digits only. */
+        fun gdKey(t: String): String = t.lowercase(java.util.Locale.ROOT).replace(NOT_KEY, "")
+        private val NOT_KEY = Regex("[^a-z0-9]+")
+
+        /** `gdGenreSet` (index.html 22000): a game's genres and Steam players' tags (`g.stTags`), by [gdKey]. */
+        fun genreSet(g: Game): Set<String> =
+            (Rank.platList(g["genres"]) + (g["stTags"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }).map(::gdKey).toSet()
 
         /** A number as JavaScript writes it: 12 not 12.0, 6.5 as is. */
         fun jsNum(v: Double): String = if (v == Math.floor(v) && Math.abs(v) < 1e15) v.toLong().toString() else v.toString()
