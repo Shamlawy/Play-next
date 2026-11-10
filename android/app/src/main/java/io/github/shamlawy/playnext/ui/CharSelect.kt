@@ -55,6 +55,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -249,7 +252,7 @@ private fun SelPanel(q: Queue, g: Game, n: Int, pick: QueuePick, folded: Boolean
                     modifier = Modifier.background(mixOk(accent, Color.Black, .75f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 3.dp),
                 )
                 Box(Modifier.size(8.dp).background(stateTone(st.kind, volt), Pn.pill))
-                BasicText(st.word + " · " + st.head, style = SType.kick.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                WholeKick(st.word + " · " + st.head, st.head, SType.kick.fixed())
             }
             val art = Backup.str(g["art"])
             if (art.isNotEmpty()) {
@@ -424,4 +427,22 @@ private object SType {
     val valF = value.copy(fontSize = 11.sp, lineHeight = 14.sp)
     val spot = base.copy(fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = Pn.ice)
     val p1 = base.copy(fontSize = 11.5.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold, color = Pn.void)
+}
+
+/**
+ * The panel's kicker kept whole (Phase 1 check B7): "Out now · Ready to play" when it fits, else the headline alone
+ * ("Ready to play"; the dot beside it already says the state), never a word cut with "…". One layout, both texts
+ * measured, the one that fits placed: no subcomposition, no second frame.
+ */
+@Composable
+private fun WholeKick(full: String, short: String, style: TextStyle) {
+    Layout({
+        BasicText(full, style = style, maxLines = 1, softWrap = false)
+        BasicText(short, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }) { ms, c ->
+        val loose = c.copy(minWidth = 0, maxWidth = Constraints.Infinity)
+        val a = ms[0].measure(loose)
+        val p = if (a.width <= c.maxWidth) a else ms[1].measure(c.copy(minWidth = 0))
+        layout(p.width, p.height) { p.place(0, 0) }
+    }
 }

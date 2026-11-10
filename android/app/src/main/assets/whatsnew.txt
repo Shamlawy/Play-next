@@ -164,3 +164,9 @@ go=home
 at=
 say=Phase 1's last check: back now closes the Queue's open card or a swiped row, and the Queue keeps your tab and open card when Android closes the app in the background.
 tryIt=Open Games › Queue and tap a game: its card opens. Press back: the card closes (the card open at start doesn't take a back, so back still leaves the app). Swipe a game left and press back: Delete slides shut. In Character select, pick Coming: the panel moves to a game that's coming. Also: the tour steps for Your lists, Shuffle and Boss now point at Sort's menu, where they live.
+
+v=28
+go=home
+at=
+say=Small fix: words on the folded Queue are never cut mid-word now. The chip strip fades out at its end, and Character select's line stays whole.
+tryIt=Fold the phone and open Games › Queue: the chip next to Sort fades out instead of showing half a word; swipe the strip and the start fades too. In Character select, the line above the big panel shows whole words.

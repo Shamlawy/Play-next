@@ -107,5 +107,5 @@ Your lists / Shuffle the queue / Boss mode); QueueCheckTest run against 2ecb795 
 red, each on its own assertion (Delete still showing, a game page opened, the Undo bar back, 40 dp instead of 22, the
 sheet closed, Add games reopened, Coming lost twice, the old pick kept, the new card shut, the old card kept); on this
 branch all green. Released as android-v27 (whatsnew v=27, LOG android-v27). Not fixed, noted: B1 (subcompositions per
-row), B6/B7 (cut chip/kicker at 412), C5, A8. Asked in the approval issue: should the card open at start take the
+row), B6/B7 (cut chip/kicker at 412; fixed in android-v28: the strip's ends fade, the kicker drops to the headline), C5, A8. Asked in the approval issue: should the card open at start take the
 first back (A1)?
