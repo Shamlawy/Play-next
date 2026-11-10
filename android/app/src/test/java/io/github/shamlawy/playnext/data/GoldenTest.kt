@@ -160,7 +160,10 @@ class GoldenTest {
                 assertEquals("$at: On deck", w.jsonObject["deck"]!!.jsonArray.map { it.s }, q.deck(tab).map { it.id })
                 assertEquals("$at: On deck's heading", w.jsonObject["head"]!!.s, q.deckHead(tab))
             }
-            assertEquals("$name: counts", c["counts"]!!.jsonObject.mapValues { it.value.jsonPrimitive.long.toInt() }, q.counts)
+            val webCounts = c["counts"]!!.jsonObject.mapValues { it.value.jsonPrimitive.long.toInt() }
+            // the web's qCounts also counts the genre tab it holds (v234's extend); Android counts a G: tab when asked
+            assertEquals("$name: counts", webCounts.filterKeys { !it.startsWith("G:") }, q.counts)
+            for ((k, n) in webCounts.filterKeys { it.startsWith("G:") }) assertEquals("$name: count $k", n, q.count(k))
             // Shuffle's pool and the Boss's HP (android-v20)
             val sh = c["shuffle"]!!.jsonObject
             assertEquals("$name: Shuffle's pool", sh["none"]!!.jsonArray.map { it.s }, q.shufflePool(null).map { it.id })

@@ -449,7 +449,8 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 Progress(g, page, still, volt, shift)
                 val about = page.about(g)
                 if (about.isNotEmpty()) About(about, still, aboutSlide, shift)
-                val shots = page.shots(g)
+                // one list per game and copy, so the strip isn't redrawn on every pass of the page
+                val shots = remember(page, g) { page.shots(g) }
                 if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + aboutSlide.value })
             }
             Spacer(Modifier.height(top))

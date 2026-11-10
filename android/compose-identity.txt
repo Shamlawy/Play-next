@@ -1,5 +1,6 @@
 # Composable parameters Compose compares by identity (unstable types; tools/compose-check.mjs). Each was
 # checked: the caller passes the same object until it really changes (a new backup, a new day, a new list).
+About.unstable slide: Animatable<Float, *>
 AddGames.lib: Library
 AsOf.r: Ready
 Back.g: Game
@@ -28,19 +29,27 @@ Front.enter: Animatable<Float, AnimationVector1D>
 Front.g: Game
 Front.q: Queue
 Front.st: Stat
+GameBody.g: Game
 GamePage.from: FlyFrom?
 GamePage.g: Game
 Genres.tags: List<Pair<String, Int>>
+Head.g: Game
+Head.page: Page
 HeaderCard.cards: Cards?
 HeaderCard.lib: Library
+Hero.g: Game
 HomePage.games: State
 ListRow.l: QList
 ListsSheet.games: State
 LogoSlot.lib: Library
+MainRow.g: Game
+MainRow.lib: Library
+MainRow.page: Page
 MixBar.segs: List<Seg>
 NexiSeat.nexi: Nexi?
 OnDeck.deck: List<Game>
 OnDeck.q: Queue
+PageGroup.lib: Library
 Panel.lines: List<String>
 PicBox.g: Game?
 PicBox.pic: Pic
@@ -50,8 +59,11 @@ Picks.byId: Map<String, Game>
 Picks.lib: Library
 Picks.q: Queue
 PictureCard.picture: ImageBitmap?
+PlatPill.chips: List<Chip>
 PlatRow.chips: List<Chip>
 PlayNextRoot.link: Route?
+Progress.g: Game
+Progress.page: Page
 QueueCard.g: Game
 QueueCard.q: Queue
 QueueFace.g: Game
@@ -73,17 +85,27 @@ SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State
 Shell.nav: Nav
+ShotViewer.shots: List<Pair<String, String>>
+Shots.g: Game
+Shots.shots: List<Pair<String, String>>
 ShuffleDeck.games: State
 ShuffleDeck.pick: QueuePick?
 ShutGhost.g: Game
 ShutGhost.q: Queue
 Spotlight.l: Line
 Stats.stats: List<Stat>
+StickyBar.g: Game
 Strip.byId: Map<String, Game>
 TabPage.games: State
 TabTop.games: State
+Tags.g: Game
+Tags.lib: Library
+Tags.page: Page
+Tags.unstable slide: Animatable<Float, *>
 Ticket.st: Stat
 TicketHalf.enter: Animatable<Float, AnimationVector1D>
+Tiles.g: Game
+Tiles.page: Page
 TryRow.items: List<Pair<String, Function0<Unit>>>
 Vessel.t: Animatable<Float, AnimationVector1D>
 ViewBar.views: List<Pair<String, String>>
