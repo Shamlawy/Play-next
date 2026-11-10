@@ -204,6 +204,10 @@ function shapeD(tag, at) {
     const cx = num(at.cx), cy = num(at.cy), r = num(at.r);
     return `M${r2(cx - r)} ${cy}a${r} ${r} 0 1 0 ${r2(2 * r)} 0a${r} ${r} 0 1 0 ${r2(-2 * r)} 0z`;
   }
+  if (tag === "ellipse") {
+    const cx = num(at.cx), cy = num(at.cy), rx = num(at.rx), ry = num(at.ry);
+    return `M${r2(cx - rx)} ${cy}a${rx} ${ry} 0 1 0 ${r2(2 * rx)} 0a${rx} ${ry} 0 1 0 ${r2(-2 * rx)} 0z`;
+  }
   if (tag === "rect") {
     const x = num(at.x || 0), y = num(at.y || 0), w = num(at.width), h = num(at.height), rx = Math.min(num(at.rx || at.ry || 0), w / 2, h / 2);
     if (!rx) return `M${x} ${y}h${w}v${h}h${-w}z`;
@@ -234,7 +238,7 @@ need(UIC_SRC, "const UIC (uiIc's icons)");
 function uicIcon(name) {
   const m = new RegExp(`\\n\\s*${name}: "([^"]*)"`).exec(UIC_SRC);
   need(m, `uiIc's ${name} icon`);
-  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle)\b/g, `<$1 opacity="${o}"`));
+  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle|ellipse)\b/g, `<$1 opacity="${o}"`));
   return icon(`<svg viewBox="0 0 24 24">${flat}</svg>`, `uiIc ${name}`);
 }
 /* gIcon's drawings (`GICON`, index.html: Settings' group icons), by their group name */
@@ -243,7 +247,7 @@ need(GICON_SRC, "const GICON (gIcon's icons)");
 function giconIcon(name) {
   const m = new RegExp(`\\n\\s*"${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}": "([^"]*)"`).exec(GICON_SRC);
   need(m, `gIcon's "${name}" icon`);
-  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle)\b/g, `<$1 opacity="${o}"`));
+  const flat = m[1].replace(/'/g, '"').replace(/<g opacity="([^"]*)">([\s\S]*?)<\/g>/g, (_, o, inner) => inner.replace(/<(path|rect|circle|ellipse)\b/g, `<$1 opacity="${o}"`));
   return icon(`<svg viewBox="0 0 24 24">${flat}</svg>`, `gIcon ${name}`);
 }
 
@@ -309,9 +313,27 @@ need(QB_SRC, "const QB_IC (the card back's icons)");
 const qbIcon = n => { const m = new RegExp(`\\b${n}: '([^']*)'`).exec(QB_SRC); need(m, `QB_IC.${n}`); return icon(`<svg viewBox="0 0 24 24">${m[1]}</svg>`, `QB_IC ${n}`); };
 const QB_PATHS = Object.fromEntries(["QB_PAD", "QB_BTN", "QB_WAVE"].map(n => { const m = new RegExp(`\\b${n} = "([^"]+)"`).exec(src); need(m, n); return [n, m[1]]; }));
 const RING_CAP = table("RING_CAP");
+/* Edit (Phase 2 piece 2, android/parity/2-map/2-edit.md): its groups (each drawn by gIcon), the 8 areas and their parts,
+   what got you about a game, the genre picker's three groups, the platform picker's names and the play styles */
+const EDIT_GROUPS = ["Name", "Release", "Where it stands", "Platforms", "Genres and tags", "Notes", "Hype", "Critics", "My rating", "Played",
+  "Cover and colour", "Backdrop", "Logo / character art"];
+const RATINGS = table("RATINGS"), SUBRATE = table("SUBRATE"), WHY_GROUPS = table("WHY_GROUPS"), GENRE_GROUPS = table("GENRE_GROUPS");
+const PLAY_STYLES = table("PLAY_STYLES"), PLATS = table("PLATS");
+/* gIcon's "Name" pencil is a <g transform="rotate(45 12 12)">: the same drawing with its corners turned here (the app
+   draws paths, not transforms); a changed pencil on the web fails the build until this follows it */
+need(/^"<g transform='rotate\(45 12 12\)'><rect x='9\.6' y='1\.2' width='4\.8' height='15' rx='1\.2'\/><path d='M9\.6 17\.6h4\.8L12 21\.6z'\/><\/g><g opacity='\.35'><rect x='13' y='19\.4' width='8\.5' height='2\.2' rx='1\.1'\/><\/g>"/.test((/\n\s*"Name": ("[^\n]*"),?\n/.exec(GICON_SRC) || [])[1] || ""),
+  `gIcon's "Name" pencil changed: turn its new corners in NAME_PEN`);
+const NAME_PEN = icon(`<svg viewBox="0 0 24 24"><path d="M17.94 2.67L21.33 6.06L10.73 16.67L7.33 13.27z"/><path d="M6.34 14.26L9.74 17.66L5.21 18.79z"/><rect opacity=".35" x="13" y="19.4" width="8.5" height="2.2" rx="1.1"/></svg>`, "Name pencil");
+const pairs = l => Array.isArray(l) && l.every(x => Array.isArray(x) && typeof x[0] === "string" && typeof x[1] === "string");
+need(pairs(RATINGS) && RATINGS.length === 8 && RATINGS.every(([k]) => pairs(SUBRATE[k]) && SUBRATE[k].length === 3), "RATINGS: 8 [key, label], SUBRATE: 3 parts each");
+need(Array.isArray(WHY_GROUPS) && WHY_GROUPS.every(([h, l]) => typeof h === "string" && pairs(l)), "WHY_GROUPS: [heading, [[key, label]…]]…");
+need(Array.isArray(GENRE_GROUPS) && GENRE_GROUPS.length === 3 && GENRE_GROUPS.every(([h, l]) => typeof h === "string" && l.every(x => typeof x === "string")), "GENRE_GROUPS: 3 [heading, [names]]");
+need(pairs(PLAY_STYLES) && PLAY_STYLES[0][0] === "main", "PLAY_STYLES: [key, label]…, main first");
+need(Array.isArray(PLATS) && PLATS.every(x => typeof x[0] === "string"), "PLATS: [name, …]…");
 const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash", "plus", "search"].map(n => ["ui:" + n, uicIcon(n)]),
   ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS,
-  ...["edit", "more"].map(n => ["qb:" + n, qbIcon(n)])];
+  ...["edit", "more", "comp"].map(n => ["qb:" + n, qbIcon(n)]), ...["unsure", "spark"].map(n => ["ui:" + n, uicIcon(n)]),
+  ...EDIT_GROUPS.map(n => ["gi:" + n, n === "Name" ? NAME_PEN : giconIcon(n)])];
 
 /* ---------- Kotlin ---------- */
 const ks = s => JSON.stringify(s).replace(/\$/g, "\\$");   // a JSON string is a valid Kotlin string once $ is escaped
@@ -368,6 +390,12 @@ const lines = [
   `    const val CB_ALPHA = ${ks(CB_ALPHA)}`,
   `    val BK_SECRET: List<String> = ${kl(BK_SECRET.map(ks))}`,
   `    val STATES: List<Pair<String, String>> = ${kl(STATES.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
+  `    val RATINGS: List<Pair<String, String>> = ${kl(RATINGS.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
+  `    val SUBRATE: Map<String, List<Pair<String, String>>> = mapOf(${RATINGS.map(([k]) => `${ks(k)} to ${kl(SUBRATE[k].map(([a, b]) => `${ks(a)} to ${ks(b)}`))}`).join(", ")})`,
+  `    val WHY_GROUPS: List<Pair<String, List<Pair<String, String>>>> = ${kl(WHY_GROUPS.map(([h, l]) => `${ks(h)} to ${kl(l.map(([a, b]) => `${ks(a)} to ${ks(b)}`))}`))}`,
+  `    val GENRE_GROUPS: List<Pair<String, List<String>>> = ${kl(GENRE_GROUPS.map(([h, l]) => `${ks(h)} to ${kl(l.map(ks))}`))}`,
+  `    val PLAY_STYLES: List<Pair<String, String>> = ${kl(PLAY_STYLES.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
+  `    val PLATS: List<String> = ${kl(PLATS.map(x => ks(x[0])))}`,
   `    val ST_GENERIC: List<String> = ${kl(ST_GENERIC.map(ks))}`,
   "",
   "    // the views inside a tab, in the pill's order (SUBS after the later scripts' changes), each tab's default and its saved key",

@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBars
@@ -397,7 +398,7 @@ private class PageActs(val leave: (String?) -> Unit, val say: (String) -> Unit, 
 private class CoverSpot(val placed: (LayoutCoordinates) -> Unit, val landed: Boolean)
 
 @Immutable
-private class PageToast(val text: String, val n: Int)
+internal class PageToast(val text: String, val n: Int)
 
 /** Your progress's lit steps as last shown, per game, for as long as the app runs (v271's `seen`): a move draws itself. */
 private val trackSeen = HashMap<String, Int>()
@@ -463,7 +464,7 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
 
 /** The hero: the backdrop (`bgSource`, framed by `bgX`/`bgY`, 50/30 here), its shade and the game's colour, the logo. */
 @Composable
-private fun Hero(g: Game, h: Dp, big: Boolean, accent: Color) {
+internal fun Hero(g: Game, h: Dp, big: Boolean, accent: Color) {
     val glow = remember(accent) { accent.copy(alpha = .34f) }
     val top = remember { Color(Web.GD_HERO_TOP) }
     Box(Modifier.fillMaxWidth().height(h).clipToBounds()) {
@@ -698,11 +699,15 @@ private fun Tiles(g: Game, page: Page, pageW: Dp, big: Boolean, shift: Modifier)
     }
 }
 
-/** The main row (`gdNext`): the one thing worth doing next, in your accent. Edit and ⋯ come with pieces 2 and 5. */
+/**
+ * The main row (`gdNext`): the one thing worth doing next, in your accent, then Edit (a round 50 wide button with the
+ * drawn pencil, `.gd-main button.ic`). The ⋯ drawer comes with piece 5.
+ */
 @Composable
 private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageActs, shift: Modifier) {
     val next = page.next(g)
-    if (next.isEmpty()) return
+    val edit = LocalEditActs.current
+    if (next.isEmpty() && edit == null) return
     val volt = LocalLook.current.volt
     val ctx = LocalContext.current
     val now = LocalNow.current
@@ -741,6 +746,17 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
                 PnIcon(icon, Pn.void, 18.dp, label = null)
                 BasicText(b.label, style = Type.button.copy(fontSize = 14.sp, lineHeight = 20.sp, color = Pn.void).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 14.sp, stepSize = .5.sp))
             }
+        }
+        if (edit != null) {
+            Box(
+                Modifier.width(50.dp).sizeIn(minHeight = Pn.touch).background(Pn.card, Pn.pill).border(1.dp, Pn.line2, Pn.pill)
+                    .clickable(role = Role.Button) {
+                        Crumbs.tap("edit", "game page")
+                        edit.open(g.id)
+                    }
+                    .semantics { contentDescription = "Edit" },
+                contentAlignment = Alignment.Center,
+            ) { PnIcon("ui:edit", Pn.ice, 18.dp, label = null) }
         }
     }
 }
@@ -813,7 +829,8 @@ private fun Progress(g: Game, page: Page, still: Boolean, volt: Color, modifier:
                     Column(Modifier.weight(1f).semantics(mergeDescendants = true) { }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         val on = s.c == "done" || s.c == "now"
                         Box(Modifier.size(14.dp).graphicsLayer { val p = pops[i].value; scaleX = p; scaleY = p }, contentAlignment = Alignment.Center) {
-                            if (s.c == "now") Box(Modifier.size(22.dp).background(volt.copy(alpha = .2f), CircleShape))
+                            // requiredSize: the 22 halo spills out of its 14 dot box (a plain size was held to 14 and never showed, M80)
+                            if (s.c == "now") Box(Modifier.requiredSize(22.dp).background(volt.copy(alpha = .2f), CircleShape))
                             Box(
                                 Modifier.size(14.dp).clip(CircleShape).background(
                                     when (s.c) { "done" -> volt; "drop" -> Color(Web.GD_DROP); else -> Pn.pan },
@@ -985,7 +1002,7 @@ private fun StickyBar(g: Game, scroll: androidx.compose.foundation.ScrollState, 
 
 /** A line a button leaves, at the foot for a moment (the web's toast). */
 @Composable
-private fun PageNote(t: PageToast, modifier: Modifier) {
+internal fun PageNote(t: PageToast, modifier: Modifier) {
     BasicText(
         t.text,
         modifier.widthIn(max = 440.dp).fillMaxWidth().padding(horizontal = 16.dp)

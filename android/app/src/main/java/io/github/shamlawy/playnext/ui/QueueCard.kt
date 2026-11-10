@@ -10,6 +10,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
+import io.github.shamlawy.playnext.report.Crumbs
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -119,7 +122,7 @@ import kotlin.math.tan
  * platforms and genres; a ticket bottom-left (a released game's stub torn off), the logo bottom-right. One tap closes
  * it into its row (after 320 ms, waiting for a second), two quick taps turn it over in 420 ms, always the same way. A
  * double tap while it turns sends it back from where it is (the owner, Nov 3: "As you like"; the web ignores it). The
- * box art opens the game's page. The back's Edit and ⋯ come with the game page (Phase 2).
+ * box art opens the game's page. The back's Edit opens the game's Edit; its ⋯ holds Competitive.
  */
 @Composable
 fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: Modifier, entered: () -> Unit, flip: (Boolean) -> Unit, foot: Dp = 26.dp, close: () -> Unit) {
@@ -567,6 +570,9 @@ private fun Back(q: Queue, g: Game, n: Int, accent: Color, d: CardDims, t: Anima
     val p = rk.playedRec(g)
     val score = q.myScore(g)
     val big = areas?.big(score)
+    // ⋯'s menu, open until a pick or the card turns back
+    var menu by remember(g.id) { mutableStateOf(false) }
+    LaunchedEffect(onBack) { if (!onBack) menu = false }
     val runs = p?.let { Backup.num(it.o["runs"], 1.0, 1.0, 99.0).toInt() } ?: 1
     val hrs = rk.hrsOf(g)
     val num = { v: Double -> Queue.jsNum(v) }
@@ -598,7 +604,7 @@ private fun Back(q: Queue, g: Game, n: Int, accent: Color, d: CardDims, t: Anima
             Modifier.fillMaxSize().then(if (onBack) Modifier.verticalScroll(scroll) else Modifier).padding(start = d.padSide, end = d.padSide, top = d.pad, bottom = d.padBottom),
             verticalArrangement = Arrangement.spacedBy(d.gap),
         ) {
-            // the header: box art and the logo (Edit and ⋯ come with the game page)
+            // the header: box art, the logo, Edit and ⋯
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val cs = RoundedCornerShape(6.dp)
                 Box(Modifier.width(if (d.cols == 8) 44.dp else 30.dp).aspectRatio(2f / 3f).clip(cs).border(1.dp, Pn.ice.copy(alpha = .18f), cs)) {
@@ -614,7 +620,11 @@ private fun Back(q: Queue, g: Game, n: Int, accent: Color, d: CardDims, t: Anima
                             colorFilter = if (ink?.dark == true) SILHOUETTE else null, onSuccess = { ink = LogoInk.known[art] }, modifier = Modifier.fillMaxSize())
                     } else BasicText(g.title, style = CType.base.copy(fontSize = d.bTitle, lineHeight = d.bTitle * 1.1f, fontWeight = FontWeight.Bold, letterSpacing = (-.015).em).fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                // Edit and ⋯ (`.qbib`): the drawn pencil opens Edit, ⋯ holds Competitive (Diary comes with Phase 5)
+                LocalEditActs.current?.let { acts -> BackButtons(g, acts, onBack) { menu = !menu } }
             }
+            val acts = LocalEditActs.current
+            if (menu && onBack && acts != null) BackMenu(g) { menu = false; acts.comp(g) }
             BasicText(
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = mixA(accent, Pn.ice, .4f))) { append(q.spot(n, true)) }
@@ -784,3 +794,41 @@ private fun Vessel(big: Boolean, v: Double, fill: Color, guess: Boolean, t: Anim
         }
     }
 }
+
+/**
+ * The back's round buttons (`.qbi`, 32 on `--u-card`, a 48 touch): Edit, and ⋯ for its small menu. Only while the back
+ * shows: hidden, they'd take the front's taps.
+ */
+@Composable
+private fun BackButtons(g: Game, acts: EditActs, onBack: Boolean, more: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+        for ((icon, label) in QB_BTNS) {
+            Box(
+                Modifier.size(Pn.touch).then(
+                    if (onBack) Modifier.clickable(role = Role.Button) {
+                        if (icon == "qb:edit") { Crumbs.tap("card back edit", "queue"); acts.open(g.id) } else more()
+                    } else Modifier,
+                ).semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(32.dp).background(Pn.card, Pn.pill).border(1.dp, Pn.line2, Pn.pill), contentAlignment = Alignment.Center) { PnIcon(icon, Pn.ice, 18.dp, null) }
+            }
+        }
+    }
+}
+
+/** ⋯'s menu (`.hmenu`): Competitive, with the drawn tick when it is (Diary comes with Phase 5). */
+@Composable
+private fun BackMenu(g: Game, comp: () -> Unit) {
+    Row(
+        Modifier.background(Pn.pan, Pn.rs).border(1.dp, Pn.line2, Pn.rs).sizeIn(minHeight = Pn.touch).clickable(role = Role.Button, onClick = comp).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PnIcon("qb:comp", Pn.ice, 18.dp, null)
+        BasicText("Competitive", style = Type.label.copy(color = Pn.ice), maxLines = 1, softWrap = false)
+        if (g.comp) PnIcon("ui:tick", Pn.ice, 16.dp, "on")
+    }
+}
+
+private val QB_BTNS = listOf("qb:edit" to "Edit", "qb:more" to "More")
