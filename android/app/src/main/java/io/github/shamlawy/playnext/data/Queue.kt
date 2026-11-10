@@ -67,7 +67,10 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, private val z
         if (saved in TABS || (saved.startsWith("L:") && lists.any { "L:" + it.id == saved }) || (saved.startsWith("G:") && gdKey(saved.drop(2)).isNotEmpty())) saved else "all"
 
     /** How many games [tab] holds: [counts], and a genre tab (`G:`, the game page's genre tap) counted when asked. */
-    fun count(tab: String): Int = counts[tab] ?: if (tab.startsWith("G:")) list(tab).size else 0
+    fun count(tab: String): Int = counts[tab] ?: if (tab.startsWith("G:")) genreCounts.getOrPut(tab) { list(tab).size } else 0
+
+    /** A genre tab's count, worked out once per Queue (the bar asks on every redraw). */
+    private val genreCounts = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /** `qCounts()`: how many games each tab holds. */
     val counts: Map<String, Int> by lazy {

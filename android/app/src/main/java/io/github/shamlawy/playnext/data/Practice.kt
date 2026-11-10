@@ -26,6 +26,9 @@ object Practice {
     /** `[gameId]`: games you deleted (the Queue's swipe, with Undo), gone with their finishes and duels (`qdel`). */
     const val GONE = "pn:gone"
 
+    /** The keys that change your games (not Customise's): a newer backup drops them ([Games] build). */
+    val KEYS = setOf(GAMES, RECS, GONE)
+
     /** Left in the built copy (never in a backup): the games a practice change touched, for the page's thin line. */
     const val CHANGED = "pn:changed"
 

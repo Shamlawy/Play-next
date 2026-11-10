@@ -40,6 +40,14 @@ class PageTest {
         one("""{"id":"a","title":"A","state":"played"}""", """{"id":"a","real":8}""").let { (p, g) -> assertEquals("Finished", p.kicker(g)) }
     }
 
+    @Test fun screenshotsKeepOnlyWhatTheWebShows() {
+        val shots = ""","shots":[{"u":"u1"},{"u":"u2","t":"t2","b":"b2"},{"t":"t3","b":"b3"},{"u":""},{"u":"u5"},{"u":"u6"},{"u":"u7"}]"""
+        one("""{"id":"a","title":"A","state":"backlog"$shots}""").let { (p, g) ->
+            // an entry with no `u` is dropped (`filter(x => x && x.u)`); the strip shows t or u, the viewer b or u; five at most
+            assertEquals(listOf("u1" to "u1", "t2" to "b2", "u5" to "u5", "u6" to "u6", "u7" to "u7"), p.shots(g))
+        }
+    }
+
     @Test fun theFourTilesTakeEveryBranch() {
         one("""{"id":"a","title":"A","state":"upcoming"}""").let { (p, g) ->
             assertEquals(listOf("TBA", "—", "—", "—"), p.tiles(g).map { it.value })

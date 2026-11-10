@@ -124,9 +124,11 @@ import io.github.shamlawy.playnext.kit.Sfx
 import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.report.Crumbs
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -253,7 +255,8 @@ fun GamePage(
             events.collect { e -> if (!still) shut.snapTo(e.progress * .35f) }
             closing = true
         } catch (c: CancellationException) {
-            if (!still) shut.animateTo(0f, tween(180, easing = Ease.house))
+            // the handler's job is already cancelled here, so the spring back runs outside it (else it never moves)
+            if (!still) withContext(NonCancellable) { shut.animateTo(0f, tween(180, easing = Ease.house)) }
             throw c
         }
     }
@@ -321,8 +324,13 @@ fun GamePage(
     // the whole screen is the page's to touch, also round its edges while it grows or shrinks: a tap there never reaches
     // what's under it (the rail's Settings opened under a closing page, which then stayed open, unseen). It only
     // listens: being touchable is enough to keep the touch from what's under it, and consuming here would cancel the
-    // page's own buttons (a tap checks, after its parents, that nothing consumed it)
-    Box(Modifier.fillMaxSize().onGloballyPositioned { at[0] = it }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }) {
+    // page's own buttons (a tap checks, after its parents, that nothing consumed it). Every sideways swipe here is the
+    // page's (the pager, the strip, the viewer): the Shell's tab swipe leaves its lift alone, so a quick flick turns the
+    // page instead of ending as a cancelled drag (as the shuffler does)
+    val guard = LocalSwipeGuard.current
+    Box(Modifier.fillMaxSize().onGloballyPositioned { at[0] = it }.pointerInput(Unit) {
+        awaitPointerEventScope { while (true) { val e = awaitPointerEvent(); if (e.changes.any { it.pressed && !it.previousPressed }) guard.inScroller = true } }
+    }) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -414,8 +422,10 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
     // change and settles back, so nothing jumps
     val tagSlide = remember(g.id) { Animatable(0f) }
     val aboutSlide = remember(g.id) { Animatable(0f) }
-    val padS = if (railL) 110.dp else if (big) 28.dp else 16.dp
-    val padE = if (railR) 104.dp else if (big) 28.dp else 16.dp
+    // the web keeps 104 / 110 from a 72-wide rail; Android's rail is 112 wide (the owner's Option B), so the body keeps
+    // the room every other screen does (railRoom: RAIL_OUT + 12), or the tiles and cards run under it
+    val padS = if (railL) RAIL_OUT + 12.dp else if (big) 28.dp else 16.dp
+    val padE = if (railR) RAIL_OUT + 12.dp else if (big) 28.dp else 16.dp
     val top = LocalBottomRoom.current
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
@@ -510,7 +520,8 @@ private fun Head(g: Game, page: Page, vw: Dp, big: Boolean, accent: Color, cover
             BasicText(
                 page.kicker(g),
                 style = Type.kicker.copy(fontSize = 10.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = .06.em, color = Color(Web.GD_KICK_INK)).fixed(),
-                maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false,
+                // short things stay whole: it shrinks to fit, never "…"
+                maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 10.5.sp, stepSize = .5.sp),
                 modifier = Modifier.padding(bottom = 6.dp).background(accent, Pn.pill).padding(horizontal = 10.dp, vertical = 4.dp),
             )
             // `clamp(24px, 7vw, 40px)/1.08`, 700, -.02em, white, wrapping
@@ -709,7 +720,7 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
                             "start" -> {
                                 Sounds.play(Sfx.Add)
                                 Games.change(Practice.start(lib, g, now()) { Games.practiced(it) })
-                                acts.say("${g.title} is now Playing · I'll keep your place and forecast the finish")
+                                acts.say("${g.title} is now Playing")
                             }
                             "finish" -> {
                                 Sounds.play(Sfx.Add)
@@ -727,7 +738,7 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
                 PnIcon(icon, Pn.void, 18.dp, label = null)
-                BasicText(b.label, style = Type.button.copy(fontSize = 14.sp, lineHeight = 20.sp, color = Pn.void).fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                BasicText(b.label, style = Type.button.copy(fontSize = 14.sp, lineHeight = 20.sp, color = Pn.void).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 14.sp, stepSize = .5.sp))
             }
         }
     }
@@ -741,7 +752,7 @@ private fun Section(icon: String, title: String, meta: String, modifier: Modifie
         Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PnIcon(icon, Pn.ice, 17.dp, label = null)
             BasicText(title, style = Type.head.copy(fontSize = 13.sp, lineHeight = 16.sp).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
-            if (meta.isNotEmpty()) BasicText(meta, style = Type.note.copy(fontSize = 11.5.sp, lineHeight = 14.sp).fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (meta.isNotEmpty()) BasicText(meta, style = Type.note.copy(fontSize = 11.5.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.5.sp, stepSize = .5.sp))
         }
         content()
     }
@@ -808,8 +819,8 @@ private fun Progress(g: Game, page: Page, still: Boolean, volt: Color, modifier:
                                 ).border(2.dp, when (s.c) { "done", "now" -> volt; "drop" -> Color(Web.GD_DROP); else -> Color(Web.GD_DOT_EDGE) }, CircleShape),
                             )
                         }
-                        BasicText(s.name, style = Type.label.copy(fontSize = 12.5.sp, lineHeight = 15.sp, letterSpacing = 0.em, color = if (on) Pn.ice else Pn.mute).fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
-                        BasicText(s.sub.ifEmpty { " " }, style = Type.note.copy(fontSize = 11.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                        BasicText(s.name, style = Type.label.copy(fontSize = 12.5.sp, lineHeight = 15.sp, letterSpacing = 0.em, color = if (on) Pn.ice else Pn.mute).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 12.5.sp, stepSize = .5.sp))
+                        BasicText(s.sub.ifEmpty { " " }, style = Type.note.copy(fontSize = 11.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 11.sp, stepSize = .5.sp))
                     }
                 }
             }
@@ -865,17 +876,16 @@ private fun Shots(g: Game, shots: List<Pair<String, String>>, big: Boolean, acts
     val src = Backup.str(g["shotsSrc"])
     Section("ui:camera", "Screenshots", if (src.isNotEmpty()) "from $src" else "", modifier) {
         val list = rememberLazyListState()
-        val guard = LocalSwipeGuard.current
         BoxWithConstraints(Modifier.padding(top = 10.dp).fillMaxWidth()) {
             val w = if (big) 260.dp else minOf(maxWidth * .78f, 300.dp)
             LazyRow(
                 state = list,
                 flingBehavior = rememberSnapFlingBehavior(list, SnapPosition.Start),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                // the strip keeps its own sideways drag: it never turns the page to the next game (a web quirk not copied)
-                modifier = Modifier.fillMaxWidth().pointerInput(Unit) {
-                    awaitPointerEventScope { while (true) { val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); if (e.changes.any { it.pressed && !it.previousPressed }) guard.inScroller = true } }
-                },
+                // the strip keeps its own sideways drag: it never turns the page to the next game (a web quirk not copied),
+                // also past its first or last shot (the pager's own page connection keeps what the strip can't use;
+                // GamePageGestureTest), and the page's guard keeps it from the Shell's tab swipe
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 itemsIndexed(shots) { i, s ->
                     val shape = RoundedCornerShape(14.dp)
@@ -955,7 +965,7 @@ private fun StickyBar(g: Game, scroll: androidx.compose.foundation.ScrollState, 
     ) {
         Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         Row(
-            Modifier.height(56.dp).fillMaxWidth().padding(start = 16.dp, end = if (railR) 100.dp else 8.dp),
+            Modifier.height(56.dp).fillMaxWidth().padding(start = 16.dp, end = if (railR) RAIL_OUT + 8.dp else 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {

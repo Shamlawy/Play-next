@@ -288,7 +288,11 @@ object Games {
         val parts = Seal.split(text)
         val rb = Backup.read(parts.state)
         if (!rb.ok || rb.data == null) throw BadBackup(rb.msg)
-        val d = make(Backup.apply(rb.data), clock(), zone())
+        val applied = Backup.apply(rb.data)
+        // a newer backup starts your games whole again: a practice start, finish or delete made on the older one would
+        // hide its real finishes and keep a game deleted the Queue already shows again (Customise's changes stay)
+        if (day?.applied.let { it != null && it != applied }) practice = practice - Practice.KEYS
+        val d = make(applied, clock(), zone())
         rawg = parts.rawgKey
         Reporter.names = d.lib.privateNames
         setDay(d)

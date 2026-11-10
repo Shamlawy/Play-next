@@ -63,8 +63,8 @@ class PracticeTest {
         Games.zone = ZoneId::systemDefault
     }
 
-    private fun open(): Games.State.Ready {
-        val lib = Games::class.java.getDeclaredMethod("build", String::class.java).apply { isAccessible = true }.invoke(Games, backup) as Library
+    private fun open(text: String = backup): Games.State.Ready {
+        val lib = Games::class.java.getDeclaredMethod("build", String::class.java).apply { isAccessible = true }.invoke(Games, text) as Library
         val ready = Games::class.java.getDeclaredMethod("ready", Library::class.java, Long::class.javaPrimitiveType).apply { isAccessible = true }
             .invoke(Games, lib, now - 3_600_000L) as Games.State.Ready
         state.value = ready
@@ -114,6 +114,24 @@ class PracticeTest {
         Games.change(mapOf(Practice.GONE to Practice.gone(Games.practiced(Practice.GONE), "b", false)))
         waitFor("b is back") { ready.lib.games.any { it.id == "b" } }
         assertSame(first.lib.from, ready.lib.from)
+    }
+
+    @Test fun aNewerBackupStartsYourGamesWholeAgain() {
+        val first = open()
+        Games.change(Practice.start(first.lib, first.lib.games.first { it.id == "a" }, now) { Games.practiced(it) })
+        Games.change(mapOf(Practice.GONE to Practice.gone(Games.practiced(Practice.GONE), "b", true)))
+        Games.customise("deckOff", JsonPrimitive(true))
+        waitFor("the practice changes") { ready.lib.games.none { it.id == "b" } && ready.lib["deckOff"] == JsonPrimitive(true) }
+        open(backup) // the same backup again (a check that found nothing new): the changes stay
+        assertEquals("playing", ready.lib.games.first { it.id == "a" }.rawState)
+        assertTrue(ready.lib.games.none { it.id == "b" })
+        // a newer backup where a was finished for real: its finish shows, b is back, Customise's change stays
+        open(backup.replace("\"played\":[]", "\"played\":[{\"id\":\"a\",\"real\":8.5,\"t\":\"2026-10-26\"}]").replace("\"state\":\"backlog\"", "\"state\":\"played\""))
+        assertEquals("played", ready.lib.games.first { it.id == "a" }.rawState)
+        assertEquals(1, ready.lib.played.size)
+        assertTrue("the delete was on the older backup", ready.lib.games.any { it.id == "b" })
+        assertEquals(JsonPrimitive(true), ready.lib["deckOff"])
+        assertEquals(emptySet<String>(), Practice.changed(ready.lib))
     }
 
     @Test fun nothingIsWritten() {

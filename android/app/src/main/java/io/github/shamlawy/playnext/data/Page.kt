@@ -185,10 +185,10 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
     /** The screenshots (`g.shots`, five at most): each one's small copy and big one. */
     fun shots(g: Game): List<Pair<String, String>> = (g["shots"] as? JsonArray).orEmpty().mapNotNull { e ->
         val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-        val u = Backup.str(o["u"])
-        val big = Backup.str(o["b"]).ifEmpty { u }
-        val small = Backup.str(o["t"]).ifEmpty { u }
-        if (big.isEmpty() && small.isEmpty()) null else small.ifEmpty { big } to big.ifEmpty { small }
+        // the web keeps only entries with a `u` (`filter(x => x && x.u)`): the strip shows `t` or `u` (shotThumb), the
+        // viewer `b` or `u`
+        val u = Backup.str(o["u"]).ifEmpty { return@mapNotNull null }
+        Backup.str(o["t"]).ifEmpty { u } to Backup.str(o["b"]).ifEmpty { u }
     }.take(5)
 
     companion object {
