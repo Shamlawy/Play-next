@@ -41,5 +41,12 @@ Then the check (Perfect, in a fresh chat: L262) and "Approve Phase 2 on your pho
 4. **Game news.** On the web it never shows on the page, only as a notification. Suggested: leave it for Phase 9
    (Runs by itself), with the other notifications.
 
-## Answers
-(waiting)
+## Answers (Nov 10, the owner picked each suggestion in the app's question card)
+1. **Page style:** only New. Showcase and Plain stay on the web; no style switch on Android.
+2. **The ⋯ menu's extras:** bring them all (Calling card, Trailer, Why you'll love it, Reset scores, Similar's
+   "Show these in the queue").
+3. **Edit's rarely used buttons:** bring them all ("Pull score, date, tags and blurb", "Review changes", "Move back to
+   the queue", "Remove", "Don't remember").
+4. **Game news:** Phase 9 (Runs by itself), with the other notifications; not on the game page in Phase 2.
+
+Next: the Map, in a new chat with "ultracode" in the owner's message (L170).
