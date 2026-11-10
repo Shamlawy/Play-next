@@ -44,3 +44,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E39 | 2026-11-07 2:06 PM | release | 75 min | 50 min | 0.67 | android-v27: Phase 1's last checks, release and approval issue (closed late by hand) | <!-- at=2026-11-07T10:06:00.000Z -->
 | E40 | 2026-11-10 11:42 AM | release | 60 min | 51 min | 0.85 | I'll fix the two cut-off labels on the folded screen, clear out the stale notes and the dead ▢, then release android-v28 and send you what | <!-- at=2026-11-10T07:42:20.815Z -->
 | E41 | 2026-11-10 1:45 PM | kit | 2 h | open |  | I'll build piece 1 (the shared practice copy, then the real game page), test it with ▢, release it as android-v29 and merge. ▢ be | <!-- at=2026-11-10T09:45:45.326Z bg=1 -->
+| E42 | 2026-11-10 2:02 PM | release | 1.5 h | open |  | I'll finish the Android game page tests, check the screenshots, and release android-v29. ▢ the end I'll send the PR link and the main scree | <!-- at=2026-11-10T10:02:08.930Z -->
