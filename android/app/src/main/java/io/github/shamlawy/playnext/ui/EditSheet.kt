@@ -151,7 +151,7 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
     val q = ready.cards?.queue?.takeIf { it.lib === lib } ?: remember(lib) { Queue(lib, Rank(lib, now(), zone), now(), zone) }
     val rec = remember(lib, id) { lib.played.firstOrNull { it.id == id } }
     val sums = remember(lib, g) { Edit.sums(q, g, rec) }
-    val held: MutableState<Edit.Draft> = rememberSaveable(saver = DRAFT_SAVER) { mutableStateOf(Edit.open(lib, g)) }
+    val held: MutableState<Edit.Draft> = rememberSaveable(saver = draftSaver { Edit.open(lib, g) }) { mutableStateOf(Edit.open(lib, g)) }
     var d by held
     var tab by rememberSaveable { mutableStateOf("game") }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
@@ -256,6 +256,8 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
             }
             diff?.let { l ->
                 BasicText(Edit.reviewHead(l.size), style = Type.note)
+                // its own short scroll: a long list mustn't squeeze the groups above to nothing
+                Column(Modifier.heightIn(max = 132.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in l) {
                     BasicText(
                         buildAnnotatedString {
@@ -266,13 +268,15 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
                         style = Type.note,
                     )
                 }
+                }
             }
             msg?.let { BasicText(it, style = Type.note) }
         }
     }
 }
 
-private val DRAFT_SAVER = Saver<MutableState<Edit.Draft>, String>(save = { it.value.text() }, restore = { t -> Edit.Draft.of(t)?.let { mutableStateOf(it) } })
+// only your changes are kept (a whole game can pass the 1 MB of saved state), laid over the game as it is on return
+private fun draftSaver(base: () -> Edit.Draft) = Saver<MutableState<Edit.Draft>, String>(save = { it.value.text() }, restore = { t -> Edit.Draft.of(t, base())?.let { mutableStateOf(it) } })
 
 private val HYPES = (1..10).map { it.toString() to it.toString() }
 private val SIMPLE_ADV = listOf("simple" to "Simple", "adv" to "Advanced")
@@ -539,7 +543,7 @@ private fun DatePick(value: String, todayDay: Long, pick: (String) -> Unit) {
                             val on = cur != null && cur.year == year && cur.monthValue == month && cur.dayOfMonth == n
                             Box(
                                 Modifier.fillMaxSize().background(if (on) volt else Pn.card, RoundedCornerShape(10.dp))
-                                    .clickable(role = Role.Button) { pick("%04d-%02d-%02d".format(year, month, n)); shown = false }
+                                    .clickable(role = Role.Button) { pick(String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, month, n)); shown = false }
                                     .semantics { selected = on },
                                 contentAlignment = Alignment.Center,
                             ) { BasicText(n.toString(), style = Type.label.copy(color = if (on) Pn.void else Pn.ice)) }
@@ -665,7 +669,7 @@ private fun PlayedGroup(c: Ctx, rec: io.github.shamlawy.playnext.data.Played, no
         Arrow("Year after", false, enabled = year < today.year) { year++ }
     }
     MonthGrid(if (fd != null && fd.year == year) fd.monthValue else 0, { m -> year > today.year || (year == today.year && m > today.monthValue) }) { m ->
-        c.set(c.d.rec("fin", JsonPrimitive(Edit.finDate(Backup.str(rec.o["t"]), year, m, today))))
+        c.set(c.d.rec("fin", JsonPrimitive(Edit.finDate(fin, year, m, today))))
     }
     Note("Pick the month. Your monthly and yearly recaps count the game there.")
     Label("What got you about it")

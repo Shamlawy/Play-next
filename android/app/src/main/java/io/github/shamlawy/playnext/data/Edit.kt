@@ -30,22 +30,39 @@ object Edit {
      * "fin"), null for a game without one.
      */
     @androidx.compose.runtime.Immutable
-    class Draft(val g: JsonObject, val p: JsonObject?) {
-        fun set(k: String, v: JsonElement?): Draft = Draft(JsonObject(if (v == null) g - k else g + (k to v)), p)
-        fun setAll(m: Map<String, JsonElement?>): Draft = Draft(JsonObject(m.entries.fold(g.toMap()) { a, (k, v) -> if (v == null) a - k else a + (k to v) }), p)
-        fun rec(k: String, v: JsonElement?): Draft = Draft(g, p?.let { JsonObject(if (v == null) it - k else it + (k to v)) })
+    class Draft(val g: JsonObject, val p: JsonObject?, private val ch: Set<String> = emptySet()) {
+        fun set(k: String, v: JsonElement?): Draft = Draft(JsonObject(if (v == null) g - k else g + (k to v)), p, ch + k)
+        fun setAll(m: Map<String, JsonElement?>): Draft = Draft(JsonObject(m.entries.fold(g.toMap()) { a, (k, v) -> if (v == null) a - k else a + (k to v) }), p, ch + m.keys)
+        fun rec(k: String, v: JsonElement?): Draft = Draft(g, p?.let { JsonObject(if (v == null) it - k else it + (k to v)) }, ch)
         operator fun get(k: String): JsonElement? = g[k]
         fun str(k: String): String = Backup.str(g[k])
 
         /** A typed box's text: what was typed, else what the game had. */
         fun typed(k: String, had: String): String = (g["in:$k"] as? JsonPrimitive)?.content ?: had
 
-        fun text(): String = JsonObject(mapOf("g" to g, "p" to (p ?: JsonNull))).toString()
+        /**
+         * What you changed laid over [base] (`open` of the game as it is now): a backup that lands while Edit is open
+         * keeps its values for every field you didn't touch, and Save never writes the old ones back.
+         */
+        fun over(base: Draft): Draft = Draft(
+            JsonObject(ch.fold(base.g.toMap()) { a, k -> g[k]?.let { a + (k to it) } ?: (a - k) }),
+            if (base.p == null) null else p ?: base.p, ch,
+        )
+
+        /** Only your changes and the record's (a whole game, with an uploaded data: picture, can pass Android's 1 MB). */
+        fun text(): String = JsonObject(mapOf(
+            "c" to JsonObject(ch.mapNotNull { k -> g[k]?.let { k to it } }.toMap()),
+            "x" to JsonArray(ch.filter { g[it] == null }.map { JsonPrimitive(it) }),
+            "p" to (p ?: JsonNull),
+        )).toString()
 
         companion object {
-            fun of(text: String): Draft? = runCatching {
+            /** [text] laid back over [base]. */
+            fun of(text: String, base: Draft): Draft? = runCatching {
                 val o = kotlinx.serialization.json.Json.parseToJsonElement(text) as JsonObject
-                Draft(o["g"] as JsonObject, o["p"] as? JsonObject)
+                val c = o["c"] as JsonObject
+                val x = (o["x"] as JsonArray).map { (it as JsonPrimitive).content }
+                Draft(JsonObject(base.g + c - x.toSet()), if (base.p == null) null else (o["p"] as? JsonObject ?: base.p), c.keys + x)
             }.getOrNull()
         }
     }
@@ -241,19 +258,16 @@ object Edit {
     }
 
     /** `#RRGGBB` for a colour of the palette (how the web stores `g.colour`). */
-    fun hex(argb: Long): String = "#%06X".format(argb and 0xFFFFFF)
+    fun hex(argb: Long): String = String.format(java.util.Locale.ROOT, "#%06X", argb and 0xFFFFFF)
 
     // ---- When you finished it (`finPick`, index.html 12826) ----
 
-    /** The month picked: same month keeps the day, another month the 15th, this month at most today. */
+    /** The month picked (from the last pick [old]): same month keeps the day, another the 15th; this month at most today. */
     fun finDate(old: String, year: Int, month: Int, today: LocalDate): String {
         val od = runCatching { LocalDate.parse(old) }.getOrNull()
-        val day = when {
-            od != null && od.year == year && od.monthValue == month -> od.dayOfMonth
-            year == today.year && month == today.monthValue -> minOf(od?.dayOfMonth ?: 15, today.dayOfMonth)
-            else -> 15
-        }
-        return "%04d-%02d-%02d".format(year, month, day)
+        val d = if (od != null && od.year == year && od.monthValue == month) od.dayOfMonth else 15
+        val day = if (year == today.year && month == today.monthValue) minOf(d, today.dayOfMonth) else d
+        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, month, day)
     }
 
     // ---- Look: links (`resolveLink` / `smartUrl`, index.html 7620, 4207) ----
@@ -364,7 +378,9 @@ object Edit {
      * changed, 23427), `syncPlayed` for the state, then the record: Don't remember or the score (`scoreWrite`), times
      * through, another run, the month you finished it.
      */
-    fun save(lib: Library, g: Game, d: Draft, now: Long, cur: (String) -> JsonElement?): Map<String, JsonElement> {
+    fun save(lib: Library, g: Game, d0: Draft, now: Long, cur: (String) -> JsonElement?): Map<String, JsonElement> {
+        // your changes over the game as it is now (a backup may have landed while Edit was open)
+        val d = d0.over(open(lib, g))
         val next = collect(g, d)
         // against what the untouched draft would write (the web writes every field, its defaults included: framing 50,
         // backdrop off false; here only what you changed goes in)
@@ -384,10 +400,16 @@ object Edit {
         val state = d.str("state").ifEmpty { "upcoming" }
         val out = LinkedHashMap<String, JsonElement>()
         val rec0 = lib.played.firstOrNull { it.id == g.id }
-        // `syncPlayed`'s v218 hook: starting play stamps when, leaving playing for another state forgets it
+        // `syncPlayed`'s hooks as Save meets them: the web copies the new state onto the game first, so leaving playing
+        // never forgets plAt here (v218's delete only runs for other callers); starting play stamps when
         if (state == "playing" && !Backup.truthy(g["plAt"])) f["plAt"] = JsonPrimitive(now)
-        if (state != "playing" && Backup.truthy(g["plAt"]) && state != g.rawState) f["plAt"] = JsonNull
-        if (state == "dropped" && g.rawState != "dropped" && !Backup.truthy(g["dropP"])) f["dropAt"] = JsonPrimitive(now)
+        // dropped with no drop point yet (index.html 23946): when, and how far in you were
+        if (state == "dropped" && !Backup.truthy(g["dropP"])) {
+            f["dropAt"] = JsonPrimitive(now)
+            val h = Rank(lib, now, ZoneId.of("UTC")).hrsOf(g)
+            val lg = Backup.num(g["logged"], 0.0, 0.0, 100000.0)
+            if (h > 0 && lg > 0) f["dropP"] = Backup.jsNumber(Rank.jsRound(minOf(1.0, lg / h) * 100) / 100.0)
+        }
         var rec: JsonObject? = rec0?.o
         if (state == "played" && rec == null) rec = JsonObject(mapOf("id" to JsonPrimitive(g.id), "real" to JsonPrimitive(0), "t" to JsonPrimitive(JsDate.todayUtc(now))))
         if (state != "played") rec = null
@@ -453,7 +475,8 @@ object Edit {
     data class Change(val field: String, val was: String, val now: String)
 
     /** Every field Save would change, in the web's order. */
-    fun review(lib: Library, g: Game, d: Draft): List<Change> {
+    fun review(lib: Library, g: Game, d0: Draft): List<Change> {
+        val d = d0.over(open(lib, g))
         val next = LinkedHashMap<String, JsonElement?>(collect(g, d))
         // the web compares with the saved game, so an untouched framing or backdrop switch shows as a change
         // ("empty → 50"); here a field you left alone never shows

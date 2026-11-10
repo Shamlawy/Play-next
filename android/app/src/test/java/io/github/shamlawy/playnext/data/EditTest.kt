@@ -26,20 +26,7 @@ class EditTest {
     private val now = Instant.parse("2026-10-27T08:00:00Z").toEpochMilli()
     private val zone = ZoneId.of("Asia/Dubai")
 
-    private val lib = Library(
-        Json.parseToJsonElement(
-            """
-            {"rateMode":"simple","playStyle":"extras",
-             "games":[
-               {"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","status":"confirmed","ord":1,"hours":22,"platforms":"PS5, Wii","genres":"JRPG",
-                "hl":{"m":20,"x":30,"c":50,"cnt":900},"desc":"A lantern that remembers","mine":{"story":7}},
-               {"id":"b","title":"Copper Meadow","state":"played","date":"2025-05-11","ord":2,"hours":12,"hype":8,"why":["chars"]},
-               {"id":"c","title":"Quiet Harbour","state":"playing","date":"2026-01-02","ord":3,"plAt":1760000000000,"hours":40}
-             ],
-             "duels":[],"played":[{"id":"b","real":8.5,"t":"2025-06-20","runs":1}]}
-            """.trimIndent(),
-        ).jsonObject,
-    )
+    private val lib = Library(Json.parseToJsonElement(LIB).jsonObject)
     private fun g(id: String) = lib.games.first { it.id == id }
     private val none: (String) -> JsonElement? = { null }
 
@@ -160,7 +147,7 @@ class EditTest {
         val made = Edit.save(lib, g("c"), Edit.open(lib, g("c")).set("state", JsonPrimitive("played")), now, none)
         val r = (made[Practice.RECS] as JsonObject)["c"] as JsonObject
         assertEquals("syncPlayed dates by UTC (3-critic.md C8)", JsonPrimitive("2026-10-27"), r["t"])
-        assertEquals("leaving playing forgets when it started", JsonNull, fields(made, "c")["plAt"])
+        assertFalse("Save keeps when play started (the web copies the state on first, so syncPlayed keeps plAt)", fields(made, "c").containsKey("plAt"))
         val gone = Edit.save(lib, g("b"), Edit.open(lib, g("b")).set("state", JsonPrimitive("dropped")), now, none)
         assertEquals(JsonNull, (gone[Practice.RECS] as JsonObject)["b"])
         assertEquals(JsonPrimitive(now), fields(gone, "b")["dropAt"])
@@ -211,13 +198,43 @@ class EditTest {
         assertTrue(Backup.str(fields(Edit.save(lib, g("a"), d, now, none), "a")["img"]).endsWith("library_600x900_2x.jpg"))
     }
 
+    private fun libWith(edit: (String) -> String) = Library(Json.parseToJsonElement(edit(LIB)).jsonObject)
+
+    @Test fun aBackupThatLandsWhileEditIsOpenKeepsTheFieldsYouDidntTouch() {
+        val d = Edit.open(lib, g("a")).set("in:title", JsonPrimitive("Starfall Lantern Deluxe"))
+        val newer = libWith { it.replace("A lantern that remembers", "A lantern that forgets") }
+        val f = fields(Edit.save(newer, newer.games.first { it.id == "a" }, d, now, none), "a")
+        assertEquals(setOf("title"), f.keys)
+        assertEquals("the review lists only your change", listOf("Title"), Edit.review(newer, newer.games.first { it.id == "a" }, d).map { it.field })
+    }
+
+    @Test fun theSavedDraftHoldsOnlyYourChanges() {
+        val big = libWith { it.replace("\"desc\":\"A lantern that remembers\"", "\"desc\":\"A lantern that remembers\",\"img\":\"data:image/jpeg;base64,${"A".repeat(400_000)}\"") }
+        val ga = big.games.first { it.id == "a" }
+        val d = Edit.open(big, ga).set("hype", JsonPrimitive(7)).set("status", null)
+        val t = d.text()
+        assertTrue("a few bytes, not the picture (${t.length})", t.length < 200)
+        val back = Edit.Draft.of(t, Edit.open(big, ga))!!
+        assertEquals(d.g, back.g)
+        assertEquals(Edit.save(big, ga, d, now, none), Edit.save(big, ga, back, now, none))
+    }
+
+    @Test fun droppingStampsWhenAndHowFarIn() {
+        val l = libWith { it.replace("\"plAt\":1760000000000,\"hours\":40", "\"plAt\":1760000000000,\"hours\":40,\"logged\":10") }
+        val f = fields(Edit.save(l, l.games.first { it.id == "c" }, Edit.open(l, l.games.first { it.id == "c" }).set("state", JsonPrimitive("dropped")), now, none), "c")
+        assertEquals(JsonPrimitive(now), f["dropAt"])
+        assertEquals("10h of 60 (extras: 40 × 1.5)", 0.17, (f["dropP"] as JsonPrimitive).content.toDouble(), 1e-9)
+    }
+
     @Test fun theFinishMonth() {
         val today = LocalDate.of(2026, 10, 27)
         assertEquals("same month keeps the day", "2025-06-20", Edit.finDate("2025-06-20", 2025, 6, today))
         assertEquals("another month the 15th", "2025-03-15", Edit.finDate("2025-06-20", 2025, 3, today))
-        assertEquals("this month: the old day while it's not past today", "2026-10-20", Edit.finDate("2025-06-20", 2026, 10, today))
-        assertEquals("this month at most today", "2026-10-27", Edit.finDate("2025-06-30", 2026, 10, today))
+        assertEquals("this month from another: the 15th too (finWire)", "2026-10-15", Edit.finDate("2025-06-20", 2026, 10, today))
         assertEquals("2026-10-03", Edit.finDate("2026-10-03", 2026, 10, today))
+        val early = LocalDate.of(2026, 10, 10)
+        assertEquals("this month at most today", "2026-10-10", Edit.finDate("2025-06-30", 2026, 10, early))
+        assertEquals("the same month is capped too", "2026-10-10", Edit.finDate("2026-10-25", 2026, 10, early))
     }
 
     @Test fun theDraftSurvivesBeingSaved() {
@@ -240,3 +257,14 @@ class EditTest {
         assertEquals(JsonArray(listOf(JsonPrimitive("chars"), JsonPrimitive("music"))), fields(Edit.save(lib, g("b"), d, now, none), "b")["why"])
     }
 }
+
+private val LIB = """
+            {"rateMode":"simple","playStyle":"extras",
+             "games":[
+               {"id":"a","title":"Starfall Lantern","state":"backlog","date":"2026-09-30","status":"confirmed","ord":1,"hours":22,"platforms":"PS5, Wii","genres":"JRPG",
+                "hl":{"m":20,"x":30,"c":50,"cnt":900},"desc":"A lantern that remembers","mine":{"story":7}},
+               {"id":"b","title":"Copper Meadow","state":"played","date":"2025-05-11","ord":2,"hours":12,"hype":8,"why":["chars"]},
+               {"id":"c","title":"Quiet Harbour","state":"playing","date":"2026-01-02","ord":3,"plAt":1760000000000,"hours":40}
+             ],
+             "duels":[],"played":[{"id":"b","real":8.5,"t":"2025-06-20","runs":1}]}
+            """.trimIndent()

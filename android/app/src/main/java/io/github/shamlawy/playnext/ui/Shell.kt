@@ -112,6 +112,7 @@ val RAIL_OUT = RAIL_W + 12.dp
 @Composable
 fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold() }, go: (Nav) -> Unit) {
     val holder = rememberSaveableStateHolder()
+    val clock = LocalNow.current
     // each open step's place (Settings, game pages) by its Nav.key, and which keys it holds: saved too, so a step closed
     // after Android recreated the app, or while the 120 Hz test covered the tabs, still forgets its own
     val pages = rememberSaveableStateHolder()
@@ -431,7 +432,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                                     }
                                     is EditEnd.Unplayed -> {
                                         Sounds.play(Sfx.Add)
-                                        Games.change(Edit.unplay(e.g, System.currentTimeMillis()) { Games.practiced(it) })
+                                        Games.change(Edit.unplay(e.g, clock()) { Games.practiced(it) })
                                         if (lib != null) queue.pick(lib).say(e.g.title + " is back in the queue")
                                         go(nav.go("games").view("games", "queue"))
                                     }
@@ -441,7 +442,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                     }
                 }
             }
-            edited?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).padding(bottom = room + 20.dp)) }
+            edited?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = overNavBar(room) + 20.dp)) }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away
             // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden
