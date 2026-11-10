@@ -26,7 +26,8 @@ defaults:
 jobs:
   bench:
     name: "Speed: main vs this PR (cold start, Queue frames)"
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not latest: on Nov 10 2026 latest became 26.04, where Playwright 1.56.1 cannot install Chromium (and the emulator flags were tuned on 24.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

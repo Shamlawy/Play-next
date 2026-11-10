@@ -32,7 +32,8 @@ defaults:
 jobs:
   changes:
     name: What changed
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not latest: on Nov 10 2026 latest became 26.04, where Playwright 1.56.1 cannot install Chromium (and the emulator flags were tuned on 24.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       app: ${{ steps.what.outputs.app }}
@@ -65,7 +66,8 @@ jobs:
     name: Build, unit tests, lint (release, debug-signed)
     needs: changes
     if: needs.changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not latest: on Nov 10 2026 latest became 26.04, where Playwright 1.56.1 cannot install Chromium (and the emulator flags were tuned on 24.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     defaults:
       run:
@@ -237,7 +239,8 @@ jobs:
     name: "Live helper: Origin rule"
     needs: changes
     if: needs.changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not latest: on Nov 10 2026 latest became 26.04, where Playwright 1.56.1 cannot install Chromium (and the emulator flags were tuned on 24.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: "The live helper answers our Origin and refuses another"
@@ -282,7 +285,8 @@ jobs:
 
   bugsync:
     name: Problem-report filing rules (bugsync-check)
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not latest: on Nov 10 2026 latest became 26.04, where Playwright 1.56.1 cannot install Chromium (and the emulator flags were tuned on 24.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

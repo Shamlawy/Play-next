@@ -98,7 +98,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
@@ -1012,6 +1014,22 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, sheet: (Strin
                         }
                     }
                 }
+                // a chip running under Sort fades out instead of being cut mid-word ("Playe", Phase 1 check B6): a soft end
+                // only on the side there's more to scroll to, drawn as a mask, so nothing moves and nothing redraws at rest
+                .graphicsLayer { compositingStrategy = if (scroll.maxValue > 0) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
+                .drawWithContent {
+                    drawContent()
+                    val fade = BAR_FADE.toPx()
+                    val l = if (scroll.canScrollBackward) fade else 0f
+                    val r = if (scroll.canScrollForward) fade else 0f
+                    if (l > 0f || r > 0f) drawRect(
+                        Brush.horizontalGradient(
+                            0f to (if (l > 0f) Color.Transparent else Color.Black), (l / size.width) to Color.Black,
+                            (1f - r / size.width) to Color.Black, 1f to (if (r > 0f) Color.Transparent else Color.Black),
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                }
                 .horizontalScroll(scroll),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1029,6 +1047,9 @@ private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, sheet: (Strin
         SortButton(v, pick, hp, sheet)
     }
 }
+
+/** How far the chip strip's ends fade when it can scroll that way. */
+private val BAR_FADE = 28.dp
 
 /** One chip: "Out 26", 36 tall inside a 48 touch; lit = filled with your accent, else `--u-card` with a hairline. */
 @Composable
