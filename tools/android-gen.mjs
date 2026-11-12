@@ -66,6 +66,15 @@ const setOf = name => {
   return l;
 };
 const PS_NONE = setOf("PS_NONE"), PS_ARAB = setOf("PS_ARAB");
+/* Score and notes (piece 3): Where was I's quick chips and how many notes a game keeps (v212), and the finish burst's
+   colours (`celebrate`: the game's colour, or its fallback, then three more) */
+const WI_QUICK = table("WI_QUICK"), WI_MAX = table("WI_MAX");
+need(Array.isArray(WI_QUICK) && WI_QUICK.length && WI_QUICK.every(w => typeof w === "string") && Number.isInteger(WI_MAX), "WI_QUICK: plain words, WI_MAX: a whole number");
+const CELE = (() => {
+  const m = /function celebrate\(g\) \{[\s\S]{0,200}?const c0 = g\.colour \|\| "(#[0-9A-Fa-f]{6})", cols = \[c0, "(#[0-9A-Fa-f]{6})", "(#[0-9A-Fa-f]{6})", "(#[0-9A-Fa-f]{6})"\]/.exec(src);
+  need(m, "celebrate(): const c0 = g.colour || \"#hex\", cols = [c0, three #hex]");
+  return m.slice(1);
+})();
 const ART_HERO_OK = (() => {
   const m = /^const ART_HERO_OK = \/([^\n]+)\/;/m.exec(src);
   need(m && !/[\\[(]/.test(m[1].replace(/\|/g, "")), "const ART_HERO_OK = /a|b|c/; (plain words only)");
@@ -197,7 +206,10 @@ const RULES = {
   GD_BG: cssColour(".gd-bg", "background"), GD_HERO_TOP: cssColour(".gd-hero::after", "background", 0),
   GD_KICK_INK: cssColour("#full .gd-tt .hub-kick", "color"), GD_ACC_BASE: cssColour(".gd-tags span.acc", "background"),
   GD_DESC: cssColour(".gd-desc", "color"), GD_DROP: cssColour(".gd-st.drop i", "background"),
-  GD_LIFT: cssColour(".gd-sec .wis", "background"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
+  GD_LIFT: cssColour(".gd-sec .wis", "background"), GD_WI: cssColour(".gd-sec .wi, .gd-sec .wi.back", "background"),
+  /* the finish moment (v120s: the PLAYED stamp, the burst's card) and the tier badges (`.tier`, v184) */
+  STAMP: cssColour("#pnstamp b", "border"), STAMP_BG: cssColour("#pnstamp b", "background"), CELE_BG: cssColour("#cele .msg", "background"),
+  TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
 };
 /* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
 const PN_EDGE = table("PN_EDGE"), PN_EVO = table("PN_EVO");
@@ -317,6 +329,8 @@ const APP_DRAWN = {
   camera: '<path opacity=".35" d="M8.6 4.4h6.8l1.7 2.4H20a2 2 0 0 1 2 2v9.4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.8a2 2 0 0 1 2-2h2.9z"/><circle cx="12" cy="13.4" r="4.3"/>',
   play: '<circle opacity=".35" cx="12" cy="12" r="10.2"/><path d="M9.6 7.4v9.2l7.2-4.6z"/>',
   flag: '<rect x="4" y="2.6" width="2.2" height="19" rx="1.1"/><path opacity=".35" d="M6.2 3.6h13.2l-3 4.6 3 4.6H6.2z"/>',
+  /* Where was I's 📍 (v212): a map pin, its head lit */
+  pin: '<path opacity=".35" d="M12 2a7.2 7.2 0 0 0-7.2 7.2c0 5.3 7.2 12.8 7.2 12.8s7.2-7.5 7.2-12.8A7.2 7.2 0 0 0 12 2z"/><circle cx="12" cy="9.2" r="2.8"/>',
   close: '<path d="m6.3 4.7 5.7 5.6 5.7-5.6 1.6 1.6-5.6 5.7 5.6 5.7-1.6 1.6-5.7-5.6-5.7 5.6-1.6-1.6 5.6-5.7-5.6-5.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
@@ -350,7 +364,7 @@ need(pairs(PLAY_STYLES) && PLAY_STYLES[0][0] === "main", "PLAY_STYLES: [key, lab
 need(Array.isArray(PLATS) && PLATS.every(x => typeof x[0] === "string"), "PLATS: [name, …]…");
 const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash", "plus", "search"].map(n => ["ui:" + n, uicIcon(n)]),
   ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS,
-  ...["edit", "more", "comp"].map(n => ["qb:" + n, qbIcon(n)]), ...["unsure", "spark"].map(n => ["ui:" + n, uicIcon(n)]),
+  ...["edit", "more", "comp"].map(n => ["qb:" + n, qbIcon(n)]), ...["unsure", "spark", "star"].map(n => ["ui:" + n, uicIcon(n)]),
   ...EDIT_GROUPS.map(n => ["gi:" + n, n === "Name" ? NAME_PEN : giconIcon(n)])];
 
 /* ---------- Kotlin ---------- */
@@ -422,6 +436,9 @@ const lines = [
   `    val PS_NONE: Set<String> = setOf(${PS_NONE.map(ks).join(", ")})`,
   `    val PS_ARAB: Set<String> = setOf(${PS_ARAB.map(ks).join(", ")})`,
   `    val ART_HERO_OK: List<String> = ${kl(ART_HERO_OK.map(ks))}`,
+  `    val WI_QUICK: List<String> = ${kl(WI_QUICK.map(ks))}`,
+  `    const val WI_MAX = ${WI_MAX}`,
+  `    val CELE: List<Long> = ${kl(CELE.map(h => argb(h) + "L"))}`,
   "",
   "    // the views inside a tab, in the pill's order (SUBS after the later scripts' changes), each tab's default and its saved key",
   `    val VIEWS: Map<String, List<Pair<String, String>>> = mapOf(${Object.entries(VIEWS.subs).map(([t, l]) => `${ks(t)} to ${kl(l.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`).join(", ")})`,

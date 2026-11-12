@@ -130,7 +130,16 @@ import kotlin.math.roundToInt
 
 /** What a game's Edit can ask of the screen round it: open it for a game, a line at the foot, the card back's Competitive. */
 @androidx.compose.runtime.Stable
-class EditActs(val open: (String) -> Unit, val say: (String) -> Unit, val comp: (Game) -> Unit)
+class EditActs(
+    val open: (String) -> Unit,
+    val say: (String) -> Unit,
+    val comp: (Game) -> Unit,
+    /** The Score sheet for a game (piece 3), and Where was I's note sheet. */
+    val score: (String) -> Unit = {},
+    val note: (String) -> Unit = {},
+    /** "I finished it": the finish moment, then the Score sheet 1200 ms later (`fnDone`). */
+    val finished: (Game) -> Unit = {},
+)
 
 val LocalEditActs = staticCompositionLocalOf<EditActs?> { null }
 
@@ -261,6 +270,8 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
                 EBtn("Save", Kind.Go, Modifier.weight(1f)) {
                     Crumbs.tap("edit save", "edit")
                     Games.change(Edit.save(lib, g, d, now()) { Games.practiced(it) })
+                    // Save to Played: the finish moment (`syncPlayed`'s stamp and burst)
+                    if (lib.played.none { it.id == g.id } && d.over(Edit.open(lib, g)).str("state") == "played") Moment.finished(g)
                     end(EditEnd.Saved)
                 }
                 EBtn("Review changes", Kind.Plain, Modifier.weight(1f)) {

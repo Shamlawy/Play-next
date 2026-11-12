@@ -455,6 +455,8 @@ object Edit {
             val lg = Backup.num(g["logged"], 0.0, 0.0, 100000.0)
             if (h > 0 && lg > 0) f["dropP"] = Backup.jsNumber(Rank.jsRound(minOf(1.0, lg / h) * 100) / 100.0)
         }
+        // Then & now's snapshot when Save makes the game played (`syncPlayed`'s v220 hook)
+        if (state == "played" && rec0 == null) Score.capOnFinish(lib, g, now, f)
         var rec: JsonObject? = rec0?.o
         if (state == "played" && rec == null) rec = JsonObject(mapOf("id" to JsonPrimitive(g.id), "real" to JsonPrimitive(0), "t" to JsonPrimitive(JsDate.todayUtc(now))))
         if (state != "played") rec = null
