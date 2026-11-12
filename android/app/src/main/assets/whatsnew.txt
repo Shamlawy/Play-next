@@ -192,5 +192,11 @@ tryIt=Open a game's page, tap the pencil, then Look › Art from SteamGridDB and
 v=32
 go=home
 at=
+say=The tickets on your Queue look like one ticket now: the dashed tear line sits inside it, not in the gap after the stub tears off.
+tryIt=Open Games › Queue and look at a played game's row: the line is printed on the half that stays. Tap a game you're playing to open its card and look at the ticket bottom-left.
+
+v=33
+go=home
+at=
 say=Score a game right from its page, leave yourself a note about where you stopped, and finishing a game now lands a big PLAYED stamp.
 tryIt=Open a game you're playing and tap the card under its line ("Where are you up to?"): write where you stopped, or tap a quick chip, and Save note. Then tap I finished it: the stamp lands, the page shakes, and the Score sheet opens so you can score it. On a finished game tap Score it (or its score) to change it. It's a practice copy: everything resets when the app reopens.
