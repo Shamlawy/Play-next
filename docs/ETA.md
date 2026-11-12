@@ -48,3 +48,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E43 | 2026-11-10 9:38 PM | kit | 60 min | 62 min | 0.59 | fix the 4 failing tests, review, run the android-check steps, open the PR and merge android-v30. | <!-- at=2026-11-10T17:38:54.234Z more=45 -->
 | E44 | 2026-11-12 3:06 PM | release | 20 min | 12 min | 0.60 | I'll wait for android-check and Android speed on PR #731, merge it, then send what to try. | <!-- at=2026-11-12T11:06:36.425Z -->
 | E45 | 2026-11-12 3:18 PM | build | 50 min | 60 min | 1.20 | I'm re-recording the one failed screenshot, merging android-v31, then getting piece 3a to compile and pass tests. First I'm installing the A | <!-- at=2026-11-12T11:18:31.572Z -->
+| E48 | 2026-11-12 11:41 PM | release | 35 min | open |  | I'll merge #736 once its checks pass, then tell you when android-v34 is out. | <!-- at=2026-11-12T19:41:22.410Z -->
