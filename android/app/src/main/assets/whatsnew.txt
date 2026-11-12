@@ -188,3 +188,9 @@ go=home
 at=
 say=Edit finds a game's pictures for you now: covers, backdrops and logos from SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG, or your own photos.
 tryIt=Open a game's page, tap the pencil, then Look › Art from SteamGridDB and the stores. Tap Auto-pick all, or Browse and choose and tap a store's chip to see only its pictures. In Cover and colour tap the first swatch (the sparkle) to take the colour from the cover, or upload a photo. In Scores › Critics tap Pull score, date, tags and blurb. It's a practice copy: everything resets when the app reopens.
+
+v=32
+go=home
+at=
+say=The tickets on your Queue look like one ticket now: the dashed tear line sits inside it, not in the gap after the stub tears off.
+tryIt=Open Games › Queue and look at a played game's row: the line is printed on the half that stays. Tap a game you're playing to open its card and look at the ticket bottom-left.

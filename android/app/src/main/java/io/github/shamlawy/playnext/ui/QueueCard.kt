@@ -445,8 +445,13 @@ private fun PlatRow(chips: List<Plat.Chip>, size: Dp, gap: Dp, ver: TextUnit, up
     }
 }
 
-/** A ticket half's outline: rounded on its outer side, a 7dp half-circle bitten out of each inner corner. */
-private class Notched(private val stub: Boolean, private val r: Dp, private val bite: Dp) : Shape {
+/**
+ * A ticket half's outline: rounded on its outer side, with a 7dp half-circle bitten out at each end of the perforation.
+ * A whole ticket's perforation is the seam, so both halves are bitten there; on a torn one it lies [perf] inside the
+ * body (the owner, Nov 12: the line sat in the gap between the pieces, not inside the ticket), and the stub that tore
+ * off has a plain straight edge.
+ */
+private class Notched(private val stub: Boolean, private val r: Dp, private val bite: Dp, private val perf: Dp?) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val rr = with(density) { r.toPx() }
         val b = with(density) { bite.toPx() }
@@ -456,7 +461,8 @@ private class Notched(private val stub: Boolean, private val r: Dp, private val 
                 else RoundRect(Rect(Offset.Zero, size), CornerRadius.Zero, CornerRadius(rr), CornerRadius(rr), CornerRadius.Zero),
             )
         }
-        val x = if (stub) size.width else 0f
+        if (stub && perf != null) return Outline.Generic(body)
+        val x = if (stub) size.width else with(density) { (perf ?: 0.dp).toPx() }
         val holes = Path().apply {
             addOval(Rect(Offset(x, 0f), b))
             addOval(Rect(Offset(x, size.height), b))
@@ -465,10 +471,14 @@ private class Notched(private val stub: Boolean, private val r: Dp, private val 
     }
 }
 
+/** How far inside the body a torn ticket's perforation runs (just past the notch's radius, so the line reads as printed on it). */
+private val TORN_PERF = 9.dp
+
 @Composable
 private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animatable<Float, AnimationVector1D>, modifier: Modifier) {
-    val stubShape = remember { Notched(true, 12.dp, 7.dp) }
-    val bodyShape = remember { Notched(false, 12.dp, 7.dp) }
+    val perf = if (st.torn) TORN_PERF else null
+    val stubShape = remember(perf) { Notched(true, 12.dp, 7.dp, perf) }
+    val bodyShape = remember(perf) { Notched(false, 12.dp, 7.dp, perf) }
     val num = CType.base.copy(fontSize = d.tkNum, lineHeight = d.tkNum, fontWeight = FontWeight.Bold, letterSpacing = (-.03).em, fontFeatureSettings = "tnum").fixed()
     val label = CType.base.copy(fontSize = d.tkLabel, lineHeight = d.tkLabel * 1.2f, fontWeight = FontWeight.SemiBold).fixed()
     Row(
@@ -485,7 +495,7 @@ private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animat
     }
 }
 
-/** One half of the ticket: the stub (the game's colour, torn off a released game) or the body with its perforation. */
+/** One half of the ticket: the stub (the game's colour, torn off a released game) or the body with its perforation (at its seam, or [TORN_PERF] inside it once torn). */
 @Composable
 private fun TicketHalf(v: Pair<String, String>, stub: Boolean, torn: Boolean, accent: Color, d: CardDims, enter: Animatable<Float, AnimationVector1D>, shape: Shape, num: TextStyle, label: TextStyle) {
     val deep = Color(Web.QK_DEEP)
@@ -507,9 +517,10 @@ private fun TicketHalf(v: Pair<String, String>, stub: Boolean, torn: Boolean, ac
             if (stub) Modifier.background(Brush.linearGradient(listOf(accent, mixA(accent, deep, .68f)), Offset.Zero, Offset(120f, 330f)), shape)
             else Modifier.background(mixA(accent, Color(Web.QK_TICKET), .3f), shape).drawBehind {
                 val sw = 2.dp.toPx()
-                drawLine(mixA(accent, Pn.ice.copy(alpha = .4f), .55f), Offset(sw / 2, 0f), Offset(sw / 2, size.height), sw, pathEffect = PathEffect.dashPathEffect(floatArrayOf(sw * 3, sw * 2)))
+                val x = if (torn) TORN_PERF.toPx() else sw / 2
+                drawLine(mixA(accent, Pn.ice.copy(alpha = .4f), .55f), Offset(x, 0f), Offset(x, size.height), sw, pathEffect = PathEffect.dashPathEffect(floatArrayOf(sw * 3, sw * 2)))
             },
-        ).padding(horizontal = d.tkPad),
+        ).padding(start = d.tkPad + if (torn && !stub) TORN_PERF else 0.dp, end = d.tkPad),
         verticalArrangement = Arrangement.Center,
     ) {
         BasicText(v.first, style = num.copy(color = if (stub) Color.White else Pn.ice, shadow = if (stub) Shadow(Color.Black.copy(alpha = .35f), Offset(0f, 1f), 6f) else null), maxLines = 1, softWrap = false)
