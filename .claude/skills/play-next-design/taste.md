@@ -284,3 +284,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: rememeber never do emjoy generate icons if needed
 - rule: No emoji anywhere in the Android app, list emoji included: a list's picker and its tab draw generated icons (24x24, fill-only, one part at .35, from the web's own SVGs through tools/android-gen.mjs); a list's stored emoji maps to its drawn icon
 - check: tools/android-rules.mjs emoji-icon (extend it to data/ and list emoji)
+
+### T57 · vandroid-v32 · Queue · hate
+- said: The line on the ticket feels off I dont like how its between the ticket and not inside the ticket itself
+- rule: A ticket's dashed tear line is printed inside the ticket: on a whole ticket it is the seam of one outline, on a torn one it runs a little inside the half that stays (notches with it) and the torn stub has a clean edge; never a line floating in the gap between the pieces
+- check: Roborazzi queue-held-859, card-front shots
