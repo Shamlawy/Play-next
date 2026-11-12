@@ -287,8 +287,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 
 ### T57 · vandroid-v32 · Queue · hate
 - said: The line on the ticket feels off I dont like how its between the ticket and not inside the ticket itself
-- rule: A ticket's dashed tear line is printed inside the ticket: on a whole ticket it is the seam of one outline, on a torn one it runs a little inside the half that stays (notches with it) and the torn stub has a clean edge; never a line floating in the gap between the pieces
-- check: Roborazzi queue-held-859, card-front shots
+- rule: Replaced by T58 (android-v34: the Android ticket never tears and has no dashed line). What still holds: a ticket's line is printed inside the ticket, never floating in a gap between pieces
+- check: Roborazzi queue/card shots (T58's look)
 
 ### T58 · vandroid-v34 · Queue · pick
 - said: D clean do the animations good and smooth

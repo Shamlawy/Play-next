@@ -482,7 +482,7 @@ private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animat
     val bodyFill = mixA(accent, Color(Web.QK_TICKET), .3f)
     val lineCol = mixA(accent, Pn.ice.copy(alpha = .5f), .45f)
     var seam by remember { mutableFloatStateOf(0f) }
-    Row(
+    Box(
         modifier.height(d.tkH).graphicsLayer {
             val t = enter.value
             val p = seg(t, 750f, 600f, CubicBezierEasing(.34f, 1.56f, .64f, 1f))
@@ -497,12 +497,23 @@ private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animat
                     drawRect(bodyFill)
                     drawRect(stubBrush, size = Size(seam, size.height))
                 }
-                ticketLine(seam, lineCol, ticketLineIn(enter.value))
             }
         },
     ) {
-        TicketHalf(st.stub, true, d, num, label, Modifier.onSizeChanged { seam = it.width.toFloat() })
-        TicketHalf(st.body, false, d, num, label, Modifier)
+        // The line is drawn once at full length in its own layer and grows from its middle through scaleY/alpha only,
+        // so the outline above is never redrawn while it draws in (second-look on #736, like v33's finish burst).
+        Box(
+            Modifier.matchParentSize().graphicsLayer {
+                val p = ticketLineIn(enter.value)
+                scaleY = p
+                alpha = p.coerceIn(0f, 1f)
+                transformOrigin = TransformOrigin(.5f, .5f)
+            }.drawBehind { ticketLine(seam, lineCol, 1f) },
+        )
+        Row(Modifier.fillMaxHeight()) {
+            TicketHalf(st.stub, true, d, num, label, Modifier.onSizeChanged { seam = it.width.toFloat() })
+            TicketHalf(st.body, false, d, num, label, Modifier)
+        }
     }
 }
 
