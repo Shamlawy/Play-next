@@ -20,9 +20,10 @@ for i in 1 2 3 4 5 6; do
   # only this try's test results count: an older failure left on disk mustn't start another try
   fresh=$(find app/build/test-results -name '*.xml' -newer "$stamp" 2>/dev/null)
   if ! grep -qE "$net" "$log" && ! { [ -n "$fresh" ] && grep -ql "Failed to fetch maven artifact" $fresh; }; then break; fi
-  # Maven Central's 429s can last for every try (L199): this machine only, never the repo, use Google's mirror of it
+  # Maven Central's 429s can last for every try (L199), and its redirect to gcp.mirrors.maven.org can answer 403 through
+  # the proxy on every try (Nov 12): this machine only, never the repo, use Google's mirror of it
   mirror="$HOME/.gradle/init.d/central-mirror.gradle"
-  if grep -q "429" "$log" && [ ! -f "$mirror" ]; then
+  if grep -qE "429|status code 403" "$log" && [ ! -f "$mirror" ]; then
     mkdir -p "$(dirname "$mirror")"
     cat > "$mirror" <<'GRADLE'
 // Written by tools/gradle-retry.sh after a 429 (L199): Maven Central through Google's mirror, on this machine only.
@@ -44,7 +45,7 @@ allprojects {
     tasks.withType(Test).configureEach { systemProperty 'robolectric.dependency.repo.url', mirror }
 }
 GRADLE
-    echo "Maven Central said 429: $mirror now points this machine at Google's mirror"
+    echo "Maven Central said 429/403: $mirror now points this machine at Google's mirror"
   fi
   [ "$i" -lt 6 ] && sleep $((20 * i))
 done
