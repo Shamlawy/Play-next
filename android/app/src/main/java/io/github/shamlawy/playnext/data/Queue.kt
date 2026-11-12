@@ -173,6 +173,42 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
         return maxOf(1.0, minOf(10.0, Rank.jsRound((h + shift) * 10) / 10))
     }
 
+    private fun critic(g: Game) = Backup.num(g["critic"], 0.0, -1e9, 1e9)
+
+    /** `rvBias()` (index.html 20441): your score minus the critics', over your scored games with a critic score. */
+    private val rvRows: List<Pair<Double, Game>> by lazy { playedRows.filter { critic(it.second) > 0 }.map { (p, g) -> p.real!! - critic(g) / 10 to g } }
+    private val rvMean: Double by lazy { if (rvRows.isEmpty()) 0.0 else rvRows.sumOf { it.first } / rvRows.size }
+    private val rvGenre: Map<String, Double> by lazy {
+        val by = LinkedHashMap<String, MutableList<Double>>()
+        for ((d, g) in rvRows) for (gn in Rank.platList(g["genres"])) by.getOrPut(gn) { mutableListOf() } += d
+        by.filter { it.value.size >= 2 }.mapValues { it.value.sum() / it.value.size }
+    }
+
+    /**
+     * `rvFor(g).v` (index.html 20450): Nexi's guess from the critics (`g.rv.mc` or `g.critic`, Steam's players `g.rv.st`
+     * with 30+ reviews), moved by how you land against them, blended with [expected]. Null for a played or competitive
+     * game, or one with no critic score. (Its words, `why` and `sure`, come with piece 4's reviews.)
+     */
+    fun rvGuess(g: Game): Double? {
+        if (g.comp || rk.isPlayed(g)) return null
+        val rv = g["rv"] as? JsonObject
+        val mc = Backup.num(rv?.get("mc"), 0.0, -1e9, 1e9).takeIf { it != 0.0 } ?: critic(g)
+        val st = (rv?.get("st") as? JsonObject)?.takeIf { Backup.num(it["n"], 0.0, 0.0, 1e12) >= 30 && it["p"] != null && it["p"] !is kotlinx.serialization.json.JsonNull }
+        val stTen = st?.let { maxOf(1.0, minOf(10.0, 1 + .085 * Backup.num(it["p"], 0.0, -1e9, 1e9))) }
+        if (mc == 0.0 && stTen == null) return null
+        val crit = if (mc != 0.0 && stTen != null) mc / 10 * .7 + stTen * .3 else if (mc != 0.0) mc / 10 else stTen!!
+        val n = rvRows.size
+        var shift = 0.0
+        if (n >= 3) {
+            val gs = Rank.platList(g["genres"]).mapNotNull { rvGenre[it] }
+            val gm = if (gs.isNotEmpty()) gs.sum() / gs.size else null
+            shift = (if (gm == null) rvMean else .5 * rvMean + .5 * gm) * (n / (n + 3.0))
+        }
+        val e = expected(g)
+        val v1 = crit + shift
+        return maxOf(1.0, minOf(10.0, Rank.jsRound((if (e != null) v1 * .65 + e * .35 else v1) * 10) / 10))
+    }
+
     /** The small pill a scored order adds to each row (`sortVal`): null when the order has none. */
     fun sortValue(g: Game, key: String): String? {
         val trim = { v: Double -> jsNum(Rank.jsRound(v * 10) / 10) }

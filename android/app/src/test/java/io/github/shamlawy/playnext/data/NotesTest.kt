@@ -83,6 +83,16 @@ class NotesTest {
         assertEquals(JsonPrimitive("newest"), (all.last() as JsonObject)["x"])
     }
 
+    @Test fun aQuickSecondTapSeesTheFirstOnesWrite() {
+        // the library is rebuilt off the main thread, so a second delete can still be handed the old game
+        val g = game(1761000000000L to "n0", 1761500000000L to "n1", 1761600000000L to "n2", 1761700000000L to "n3")
+        val first = Notes.drop(g, 3, none)
+        val second = Notes.drop(g, 2) { first[it] }
+        assertEquals("the note deleted first stays gone", listOf("n0", "n1"), notes(second).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
+        val added = Notes.add(g, "n4", now) { first[it] }
+        assertEquals(listOf("n0", "n1", "n2", "n4"), notes(added).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
+    }
+
     @Test fun aDeleteTakesThatNoteOnly() {
         val g = game(1761000000000L to "first", 1761500000000L to "second", 1761600000000L to "third")
         assertEquals(listOf("first", "third"), notes(Notes.drop(g, 1, none)).map { ((it as JsonObject)["x"] as JsonPrimitive).content })

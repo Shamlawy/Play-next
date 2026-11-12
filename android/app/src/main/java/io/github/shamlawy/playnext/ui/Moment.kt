@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -100,10 +101,15 @@ private fun keys(p: Float, at: FloatArray, v: FloatArray, e: androidx.compose.an
 fun FinishMoment(calm: Boolean) {
     val f = Moment.fin ?: return
     if (calm) {
-        LaunchedEffect(f) { Moment.done(f) }
+        LaunchedEffect(f) {
+            Moment.shake.value = Offset.Zero
+            Moment.done(f)
+        }
         return
     }
     key(f.n) {
+        // a moment that leaves mid-shake (calm turned on, the screen gone) never leaves the page shifted
+        DisposableEffect(Unit) { onDispose { Moment.shake.value = Offset.Zero } }
         val stamp = remember { Animatable(0f) }
         val burst = remember { Animatable(0f) }
         val card = remember { Animatable(0f) }
@@ -201,7 +207,7 @@ fun FinishMoment(calm: Boolean) {
                             .border(5.dp, ink, shape2)
                             .padding(horizontal = 28.dp, vertical = 14.dp),
                         style = Type.stat.copy(
-                            fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, letterSpacing = .08.em, color = ink,
+                            fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Bold, letterSpacing = .08.em, color = ink,
                             shadow = Shadow(LocalLook.current.volt2, blurRadius = 20f),
                         ).fixed(),
                         maxLines = 1, softWrap = false,

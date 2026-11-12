@@ -469,6 +469,8 @@ object Edit {
                 val n = Backup.num(v, Backup.num(r["real"], 0.0, 0.0, 10.0), 0.0, 10.0)
                 r["real"] = Backup.jsNumber(n); r.remove("dk")
                 if (n == 0.0) r["z"] = JsonPrimitive(1) else r.remove("z")
+                // the crystal ball: Save's scoreWrite keeps the first real score after Nexi's guess (21162)
+                Score.got(f["cap"] ?: g["cap"], n)?.let { f["cap"] = it }
             }
             r["runs"] = Backup.jsNumber(Backup.num(p["runs"], Backup.num(r["runs"], 1.0, 1.0, 12.0), 1.0, 12.0))
             p["again"]?.let { r["again"] = it }

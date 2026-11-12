@@ -62,6 +62,19 @@ class ScoreTest {
         assertFalse(r.containsKey("z"))
     }
 
+    @Test fun theSnapshotKeepsTheCriticsGuessAndTheFirstForecast() {
+        val e = Game(JsonObject(mapOf(
+            "id" to JsonPrimitive("e"), "title" to JsonPrimitive("Ember Loom"), "state" to JsonPrimitive("playing"), "critic" to JsonPrimitive(84),
+            "eta0" to Json.parseToJsonElement("""{"d":"2026-11-20","at":1}"""),
+        )))
+        val l = Library(JsonObject(lib.state + ("games" to kotlinx.serialization.json.JsonArray(lib.games.map { it.o } + e.o))))
+        val cap = fields(Score.set(l, l.games.first { it.id == "e" }, 9.0, now, none), "e")["cap"] as JsonObject
+        assertEquals("rvFor: the critics alone (no hype, fewer than 3 games with critic scores)", JsonPrimitive(8.4), cap["pr"])
+        assertEquals(JsonPrimitive(84), cap["cr"])
+        assertEquals("the crystal ball's first finish forecast", JsonPrimitive("2026-11-20"), cap["e0"])
+        assertEquals("and the score it was waiting for", JsonPrimitive(9), cap["got"])
+    }
+
     @Test fun aSnapshotIsTakenOnlyOnce() {
         val f = linkedMapOf<String, JsonElement>()
         Score.capOnFinish(lib, g("c"), now, f)

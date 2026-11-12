@@ -473,7 +473,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 } else key(k) {
                     pages.SaveableStateProvider(k) {
                         if (what.startsWith("score:")) {
-                            ScoreSheet(scLib, sg, clock, close = { step(nav.closeAt(sc)) }) { had, v, first ->
+                            ScoreSheet(scLib, sg, (games as? Games.State.Ready)?.cards?.queue?.rk, clock, close = { step(nav.closeAt(sc)) }) { had, v, first ->
                                 // scoring a game you hadn't marked played marks it: the stamp and the burst
                                 if (first) Moment.finished(sg)
                                 // where it landed, once the redraw has settled (`qScoreSet`: 3 s, 400 ms when calm)

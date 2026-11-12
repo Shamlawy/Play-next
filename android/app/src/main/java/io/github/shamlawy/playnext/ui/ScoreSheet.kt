@@ -60,11 +60,13 @@ import kotlinx.coroutines.delay
  * Score it (`qScore`, index.html 13142; android/parity/2-map/1-page.md §5.1): the game (cover, name, a small line, the
  * score now with its tier), the whole points on top and the halves between them under it, "Don't remember". A tap
  * lights the button, writes the practice copy, and the sheet closes 260 ms later. [scored] gets the score you had and
- * the new one ([Score] null: Don't remember) for what comes after (the rank toast, the finish moment).
+ * the new one ([Score] null: Don't remember) for what comes after (the rank toast, the finish moment). [ready] is the
+ * day build's ranking, used when it is for [lib].
  */
 @Composable
-fun ScoreSheet(lib: Library, g: Game, now: () -> Long, close: () -> Unit, scored: (had: Double?, v: Double?, first: Boolean) -> Unit) {
-    val rk = remember(lib) { Rank(lib, now(), java.time.ZoneId.systemDefault()) }
+fun ScoreSheet(lib: Library, g: Game, ready: Rank?, now: () -> Long, close: () -> Unit, scored: (had: Double?, v: Double?, first: Boolean) -> Unit) {
+    // the day build's ranking when it's for this library (built off Main), else one made here
+    val rk = ready?.takeIf { it.lib === lib } ?: remember(lib) { Rank(lib, now(), java.time.ZoneId.systemDefault()) }
     val had = remember(lib, g) { Score.current(rk, g) }
     val dk = remember(lib, g) { rk.playedRec(g)?.let { io.github.shamlawy.playnext.data.Backup.truthy(it.o["dk"]) } == true }
     val line = remember(lib, g) { Score.line(rk, g) }
@@ -175,7 +177,7 @@ private fun ScoreKey(v: Double, on: Boolean, big: Boolean, modifier: Modifier, t
         BasicText(
             Score.label(v),
             style = Type.button.copy(
-                fontSize = if (big) 16.sp else 12.sp, lineHeight = if (big) 20.sp else 16.sp, fontWeight = FontWeight.ExtraBold,
+                fontSize = if (big) 16.sp else 12.sp, lineHeight = if (big) 20.sp else 16.sp, fontWeight = FontWeight.Bold,
                 color = if (on) Pn.void else if (big) Pn.ice else Pn.mute,
             ).fixed(),
             maxLines = 1, softWrap = false,

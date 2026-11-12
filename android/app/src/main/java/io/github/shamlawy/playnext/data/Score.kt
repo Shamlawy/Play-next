@@ -64,15 +64,35 @@ object Score {
         )
     }
 
-    /** Nexi's guess for [g] as the snapshot keeps it (`rvFor(g)` waits for piece 4's reviews, so `expected(g) || 0`). */
+    /** Nexi's guess for [g] as the snapshot keeps it: `rvFor(g).v` (the critics, from the backup), else `expected(g) || 0`. */
     fun guess(lib: Library, g: Game, now: Long): Double {
         val utc = ZoneId.of("UTC")
-        return Queue(lib, Rank(lib, now, utc), now, utc).expected(g) ?: 0.0
+        val q = Queue(lib, Rank(lib, now, utc), now, utc)
+        return q.rvGuess(g) ?: q.expected(g) ?: 0.0
     }
 
-    /** [f] with the snapshot added when the game had none (`!g.cap`), as `syncPlayed`'s v220 hook does on the way to played. */
+    /**
+     * [f] with the snapshot added when the game had none (`!g.cap`), as `syncPlayed`'s v220 hook does on the way to played;
+     * [g] is the game with [f] already laid over it (the web's Save copies the draft onto the game first). The crystal
+     * ball's hook (21161) adds the first finish forecast, `g.eta0.d`, as `e0`.
+     */
     fun capOnFinish(lib: Library, g: Game, now: Long, f: MutableMap<String, JsonElement>) {
-        if (!Backup.truthy(g["cap"])) f["cap"] = cap(g, guess(lib, g, now), now)
+        if (Backup.truthy(g["cap"])) return
+        val at = Game(JsonObject(g.o + f))
+        var c = cap(at, guess(lib, at, now), now)
+        val e0 = (at["eta0"] as? JsonObject)?.get("d")
+        if (e0 != null && Backup.truthy(e0)) c = JsonObject(c + ("e0" to e0))
+        f["cap"] = c
+    }
+
+    /**
+     * The crystal ball (`scoreWrite`'s hook, 21162): the first real score after a snapshot with Nexi's guess is kept as
+     * `cap.got`. [cap] is the snapshot as it stands (one just taken, or the game's); null when nothing changes.
+     */
+    fun got(cap: JsonElement?, v: Double?): JsonObject? {
+        val c = cap as? JsonObject ?: return null
+        if (v == null || Backup.num(c["pr"], 0.0, -1e9, 1e9) <= 0 || (c["got"] != null && c["got"] !is JsonNull)) return null
+        return JsonObject(c + ("got" to Backup.jsNumber(v)))
     }
 
     /**
@@ -99,10 +119,7 @@ object Score {
             if (v == 0.0) r["z"] = JsonPrimitive(1) else r.remove("z")
         }
         if (!Backup.truthy(r["t"])) r["t"] = JsonPrimitive(JsDate.todayUtc(now))
-        val cap = (f["cap"] ?: g["cap"]) as? JsonObject
-        if (v != null && cap != null && Backup.num(cap["pr"], 0.0, -1e9, 1e9) > 0 && (cap["got"] == null || cap["got"] is JsonNull)) {
-            f["cap"] = JsonObject(cap + ("got" to Backup.jsNumber(v)))
-        }
+        got(f["cap"] ?: g["cap"], v)?.let { f["cap"] = it }
         val out = LinkedHashMap<String, JsonElement>()
         if (f.isNotEmpty()) out[Practice.GAMES] = Practice.fields(cur(Practice.GAMES), g.id, f)
         out[Practice.RECS] = Practice.record(cur(Practice.RECS), g.id, JsonObject(r))

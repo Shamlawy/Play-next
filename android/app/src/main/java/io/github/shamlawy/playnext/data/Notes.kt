@@ -57,17 +57,24 @@ object Notes {
         return if (b.isNotEmpty()) b.replace(Regex("[.,;]?$"), "") + ", " + chip.lowercase() else chip
     }
 
+    /**
+     * The notes as they stand right now: a practice write not yet in the library (it's rebuilt off the main thread, so a
+     * quick second tap would still see the old [g]) wins over the game's own `wasI`, as the web's splice is at once.
+     */
+    private fun current(g: Game, cur: (String) -> JsonElement?): JsonArray? =
+        ((cur(Practice.GAMES) as? JsonObject)?.get(g.id) as? JsonObject)?.get("wasI") as? JsonArray ?: g["wasI"] as? JsonArray
+
     /** `wiAdd`: the note at the end, the oldest dropped past [Web.WI_MAX]; nothing when the words are blank. */
     fun add(g: Game, text: String, now: Long, cur: (String) -> JsonElement?): Map<String, JsonElement> {
         val x = clean(text)
         if (x.isEmpty()) return emptyMap()
-        val all = (g["wasI"] as? JsonArray).orEmpty() + JsonObject(mapOf("t" to JsonPrimitive(now), "x" to JsonPrimitive(x)))
+        val all = current(g, cur).orEmpty() + JsonObject(mapOf("t" to JsonPrimitive(now), "x" to JsonPrimitive(x)))
         return mapOf(Practice.GAMES to Practice.fields(cur(Practice.GAMES), g.id, mapOf("wasI" to JsonArray(all.takeLast(Web.WI_MAX)))))
     }
 
     /** An earlier note's delete (`[data-widel]`): the entry at [at] in `g.wasI` goes. */
     fun drop(g: Game, at: Int, cur: (String) -> JsonElement?): Map<String, JsonElement> {
-        val all = (g["wasI"] as? JsonArray).orEmpty()
+        val all = current(g, cur).orEmpty()
         if (at !in all.indices) return emptyMap()
         return mapOf(Practice.GAMES to Practice.fields(cur(Practice.GAMES), g.id, mapOf("wasI" to JsonArray(all.filterIndexed { i, _ -> i != at }))))
     }
