@@ -171,6 +171,40 @@ class ScreensTest {
     @Test fun editRelease412() = shot("edit-release", 412, ready = editOpen("Release")) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
     @Test fun editPlayed412() = shot("edit-played", 412, ready = editOpen("Scores", "Played")) { Shell(Nav("games", listOf("game:f", "edit:f")), ready, go = {}) }
     @Test fun editLook412() = shot("edit-look", 412, ready = editOpen("Look", "Cover and colour")) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
+    /** Look › Art from SteamGridDB and the stores after Browse (piece 2b): a chip per place, a row per job, each tile's place and size. */
+    @Test fun editArt412() {
+        val px = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        fun pic(s: String, r: String, w: Int, h: Int, k: String) = """{"s":"$s","r":"$r","u":"https://x/$s$r$w.jpg","th":"$px","w":$w,"h":$h,"k":"$k"}"""
+        val pics = listOf(pic("st", "cover", 600, 900, "Library cover"), pic("ps", "cover", 1440, 2160, "Portrait"), pic("xb", "hero", 3840, 2160, "4K backdrop"),
+            pic("st", "hero", 1920, 620, "Library hero"), pic("ps", "art", 800, 300, "Logo"), pic("xb", "shot", 3840, 2160, "Screenshot"), pic("st", "shot", 600, 338, "Screenshot"))
+        io.github.shamlawy.playnext.data.ArtNet.forget()
+        // the tiles' thumbnails decode on Coil's own threads: on a slow CI machine the shot caught them still blank
+        // (a checker without its picture), so this shot's loader decodes right where it's asked, done before the shot
+        @OptIn(coil3.annotation.DelicateCoilApi::class)
+        coil3.SingletonImageLoader.setUnsafe(
+            coil3.ImageLoader.Builder(androidx.test.core.app.ApplicationProvider.getApplicationContext())
+                .coroutineContext(kotlinx.coroutines.Dispatchers.Unconfined).build(),
+        )
+        io.github.shamlawy.playnext.data.ArtNet.get = { 200 to "{\"data\":[]}" }
+        io.github.shamlawy.playnext.data.ArtNet.post = { _, _ -> 200 to """{"ok":true,"found":{},"pics":[${pics.joinToString(",")}]}""" }
+        try {
+            shot("edit-art", 412, ready = {
+                editOpen("Look", "Art from SteamGridDB and the stores")()
+                rule.onNodeWithText("Browse and choose").performClick()
+                // the fake answer comes back on a background thread: on a slow CI machine 600ms of test clock passed
+                // before it landed and the shot caught the half-loaded list, so wait for its chips in real time
+                rule.waitUntil(10_000) { rule.onAllNodesWithText("All 7").fetchSemanticsNodes().isNotEmpty() }
+                rule.waitForIdle()
+                rule.mainClock.advanceTimeBy(600)
+                rule.waitForIdle()
+            }) { Shell(Nav("games", listOf("game:b", "edit:b")), ready, go = {}) }
+        } finally {
+            io.github.shamlawy.playnext.data.ArtNet.get = { url -> io.github.shamlawy.playnext.net.Net.call(okhttp3.Request.Builder().url(url).build()) { it.code to it.body.string() } }
+            io.github.shamlawy.playnext.data.ArtNet.post = { url, body -> io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(url, body)) { it.code to it.body.string() } }
+            io.github.shamlawy.playnext.data.ArtNet.forget()
+            coil3.SingletonImageLoader.reset()
+        }
+    }
 
     /**
      * A tap on a header card's cover opens its game: 60ms in, the page is growing from the tap and the cover's copy is

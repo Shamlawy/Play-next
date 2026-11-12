@@ -125,7 +125,7 @@ class EditTest {
         assertEquals(6, Edit.groups("game", false).size)
         assertEquals(listOf("Hype", "Critics", "My rating"), Edit.groups("scores", false))
         assertEquals("Played", Edit.groups("scores", true).last())
-        assertEquals("no hub figure", listOf("Cover and colour", "Backdrop", "Logo / character art"), Edit.groups("look", true))
+        assertEquals("no hub figure", listOf("Art from SteamGridDB and the stores", "Cover and colour", "Backdrop", "Logo / character art"), Edit.groups("look", true))
     }
 
     @Test fun dontRememberAndTheScoreGoIntoTheRecord() {

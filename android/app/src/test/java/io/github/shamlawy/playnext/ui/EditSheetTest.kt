@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import io.github.shamlawy.playnext.Store
+import io.github.shamlawy.playnext.data.ArtNet
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
 import kotlinx.coroutines.Job
@@ -188,5 +189,89 @@ class EditSheetTest {
         assertEquals("games", nav.tab)
         waitFor("the game is gone") { ready.lib.games.none { it.id == "a" } }
         rule.onNodeWithText("Undo").assertExists()
+    }
+
+    // ---- piece 2b: pictures from SteamGridDB and the stores, and Pull (no network: ArtNet's two calls answer here) ----
+
+    private fun fakeNet(gets: Map<String, String>, art: String) {
+        ArtNet.forget()
+        ArtNet.get = { url -> gets.entries.firstOrNull { url.contains(it.key) }?.let { 200 to it.value } ?: (200 to "{\"data\":[]}") }
+        ArtNet.post = { _, _ -> 200 to art }
+    }
+
+    @After
+    fun netBack() {
+        ArtNet.get = { url -> io.github.shamlawy.playnext.net.Net.call(okhttp3.Request.Builder().url(url).build()) { it.code to it.body.string() } }
+        ArtNet.post = { url, body -> io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(url, body)) { it.code to it.body.string() } }
+        ArtNet.forget()
+        put("rawg", "")
+    }
+
+    private fun lookTab(group: String) {
+        rule.onNodeWithText("Look").performClick()
+        rule.onNodeWithText(group).performScrollTo().performClick()
+        rule.onNodeWithText("Back to all").assertExists()
+    }
+
+    @Test fun autoPickFillsThePicturesAndSaveKeepsThem() {
+        fakeNet(
+            mapOf(
+                "/search/autocomplete/" to """{"data":[{"id":7,"name":"Starfall Lantern"}]}""",
+                "/logos/game/7" to """{"data":[{"url":"https://sg/logo.png","width":800,"height":200}]}""",
+                "/heroes/game/7" to """{"data":[{"url":"https://sg/hero.jpg","width":1920,"height":620}]}""",
+            ),
+            """{"ok":true,"found":{},"pics":[{"s":"ps","r":"cover","u":"https://ps/box.jpg","w":600,"h":900,"k":"Portrait"}]}""",
+        )
+        show()
+        openEdit()
+        lookTab("Art from SteamGridDB and the stores")
+        rule.onNodeWithText("Auto-pick all").performClick()
+        waitFor("auto-pick answered") { rule.onAllNodes(hasText("Matched “Starfall Lantern” and filled 3 of 3. Tap Save to keep them.")).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("nothing in the game before Save", "", io.github.shamlawy.playnext.data.Backup.str(ready.lib.games.first { it.id == "a" }["art"]))
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithText("Save").performClick()
+        rule.mainClock.advanceTimeBy(100)
+        waitFor("the practice copy has the pictures") { io.github.shamlawy.playnext.data.Backup.str(ready.lib.games.first { it.id == "a" }["art"]) == "https://sg/logo.png" }
+        val a = ready.lib.games.first { it.id == "a" }
+        assertEquals("https://sg/hero.jpg", io.github.shamlawy.playnext.data.Backup.str(a["hero"]))
+        assertEquals("the store's box cover fills SteamGridDB's gap", "https://ps/box.jpg", io.github.shamlawy.playnext.data.Backup.str(a["img"]))
+    }
+
+    @Test fun browseShowsEachPlaceAndATapPicksIt() {
+        fakeNet(
+            mapOf(
+                "/search/autocomplete/" to """{"data":[{"id":7,"name":"Starfall Lantern"}]}""",
+                "/grids/game/7" to """{"data":[{"url":"https://sg/grid.jpg","width":600,"height":900}]}""",
+            ),
+            """{"ok":true,"found":{},"pics":[{"s":"st","r":"hero","u":"https://st/hero.jpg","w":3840,"h":1240,"k":"Library hero"}]}""",
+        )
+        show()
+        openEdit()
+        lookTab("Art from SteamGridDB and the stores")
+        rule.onNodeWithText("Browse and choose").performClick()
+        waitFor("browse answered") { rule.onAllNodes(hasText("2 pictures from SteamGridDB and Steam. Sharpest first, each with its size and where it's from. Tap one to use it.")).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("All 2").assertExists()
+        rule.onNodeWithText("Steam 1").performClick()
+        rule.onNodeWithContentDescription("SteamGridDB · Grid · 600×900").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Steam · Library hero · 3840×1240").performScrollTo().performClick()
+        rule.onNodeWithText("Picked — tap Save to keep it.").assertExists()
+        rule.onNodeWithText("Review changes").performClick()
+        rule.onNodeWithText("1 change waiting:").assertExists()
+    }
+
+    @Test fun pullAsksRawgAndOnlyFillsTheDraft() {
+        put("rawg", "k")
+        fakeNet(
+            mapOf("api.rawg.io/api/games?" to """{"results":[{"id":4242,"name":"Starfall Lantern","metacritic":82,"released":"2026-09-30","description_raw":"A lantern keeper.","tags":[]}]}"""),
+            "{}",
+        )
+        show()
+        openEdit()
+        rule.onNodeWithText("Scores").performClick()
+        rule.onNodeWithText("Critics").performClick()
+        rule.onNodeWithText("Pull score, date, tags and blurb").performClick()
+        waitFor("pull answered") { rule.onAllNodes(hasText("Got critic 82 — tap Save.")).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("the box shows it", "82", rule.onNode(hasContentDescription("Critic score out of 100")).fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
+        assertEquals("nothing in the game yet", null, ready.lib.games.first { it.id == "a" }["critic"])
     }
 }

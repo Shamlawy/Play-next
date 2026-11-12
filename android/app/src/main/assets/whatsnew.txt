@@ -182,3 +182,9 @@ go=home
 at=
 say=Edit any game: its name, date, hours, state, platforms, genres, notes, scores and pictures, from the pencil on its page or the back of its Queue card.
 tryIt=Open a game's page and tap the pencil next to the big button. Open Release, pick a new date, then Review changes and Save: the page shows it. On a finished game try Scores › Played and pick the month you finished it. Turn a Queue card over and try ⋯ › Competitive. It's a practice copy: everything resets when the app reopens.
+
+v=31
+go=home
+at=
+say=Edit finds a game's pictures for you now: covers, backdrops and logos from SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG, or your own photos.
+tryIt=Open a game's page, tap the pencil, then Look › Art from SteamGridDB and the stores. Tap Auto-pick all, or Browse and choose and tap a store's chip to see only its pictures. In Cover and colour tap the first swatch (the sparkle) to take the colour from the cover, or upload a photo. In Scores › Critics tap Pull score, date, tags and blurb. It's a practice copy: everything resets when the app reopens.
