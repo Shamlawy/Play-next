@@ -184,6 +184,9 @@ class ScreensTest {
             shot("edit-art", 412, ready = {
                 editOpen("Look", "Art from SteamGridDB and the stores")()
                 rule.onNodeWithText("Browse and choose").performClick()
+                // the fake answer comes back on a background thread: on a slow CI machine 600ms of test clock passed
+                // before it landed and the shot caught the half-loaded list, so wait for its chips in real time
+                rule.waitUntil(10_000) { rule.onAllNodesWithText("All 7").fetchSemanticsNodes().isNotEmpty() }
                 rule.waitForIdle()
                 rule.mainClock.advanceTimeBy(600)
                 rule.waitForIdle()
