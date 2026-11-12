@@ -1484,48 +1484,34 @@ private fun Strap(accent: Color, folded: Boolean) {
 }
 
 /**
- * The ticket (`.qstk`): the stub and the body as one ticket, the dashed perforation inside it at the seam; a released
- * game's stub hangs torn and its perforation stays on the body, a little inside its torn edge (the owner, Nov 12: the
- * line sat in the gap between the pieces, not inside the ticket).
+ * The ticket (`.qstk`), look D "Clean" (the owner, Nov 12): one rounded ticket with a notch top and bottom at the join and
+ * a short soft line in its middle (`ticketOutline` / `ticketLine` in QueueCard.kt). It never tears.
  */
 @Composable
 private fun Ticket(st: Queue.Stat, accent: Color, modifier: Modifier) {
     val fill = mixA(accent, QTone.ticket.copy(alpha = .88f), .26f)
     val edge = accent.copy(alpha = .55f)
-    val perf = mixA(accent, Color.White.copy(alpha = .35f), .5f)
-    val perfAt = if (st.torn) 8.dp else 0.dp
-    val whole = RoundedCornerShape(12.dp)
-    Row(modifier.height(62.dp).then(if (st.torn) Modifier else Modifier.background(fill, whole).border(1.dp, edge, whole))) {
-        TicketCell(
-            st.stub,
-            if (!st.torn) Modifier else {
-                val stubShape = RoundedCornerShape(12.dp, 2.dp, 4.dp, 12.dp)
-                Modifier.graphicsLayer {
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)
-                    translationX = -5.dp.toPx()
-                    translationY = 4.dp.toPx()
-                    rotationZ = -6f
-                }.background(fill, stubShape).border(1.dp, edge, stubShape)
-            },
-        )
-        val bodyShape = RoundedCornerShape(2.dp, 12.dp, 12.dp, 2.dp)
-        TicketCell(
-            st.body,
-            (if (st.torn) Modifier.background(fill, bodyShape).border(1.dp, edge, bodyShape) else Modifier).drawBehind {
-                val w = 2.dp.toPx()
-                val x = if (st.torn) perfAt.toPx() else 0f
-                // inset from the ticket's own edge line, so the dashes sit inside it rather than over the border
-                val y0 = 1.dp.toPx()
-                drawLine(perf, Offset(x, y0), Offset(x, size.height - y0), w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(w * 2, w * 2)))
-            },
-            extraStart = perfAt,
-        )
+    val line = mixA(accent, Color.White.copy(alpha = .45f), .4f)
+    var seam by remember { mutableFloatStateOf(0f) }
+    Row(
+        modifier.height(62.dp).drawWithCache {
+            val path = ticketOutline(size, seam, 14.dp.toPx(), 6.dp.toPx())
+            val stroke = Stroke(1.dp.toPx())
+            onDrawBehind {
+                drawPath(path, fill)
+                drawPath(path, edge, style = stroke)
+                ticketLine(seam, line, 1f)
+            }
+        },
+    ) {
+        TicketCell(st.stub, Modifier.onSizeChanged { seam = it.width.toFloat() })
+        TicketCell(st.body, Modifier)
     }
 }
 
 @Composable
-private fun TicketCell(v: Pair<String, String>, modifier: Modifier, extraStart: Dp = 0.dp) {
-    Column(modifier.fillMaxHeight().widthIn(min = 72.dp).padding(start = 13.dp + extraStart, end = 13.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+private fun TicketCell(v: Pair<String, String>, modifier: Modifier) {
+    Column(modifier.fillMaxHeight().widthIn(min = 72.dp).padding(horizontal = 13.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         BasicText(v.first, style = QType.ticketValue.fixed(), maxLines = 1, softWrap = false)
         BasicText(v.second, style = QType.ticketLabel.fixed(), maxLines = 1, softWrap = false)
     }

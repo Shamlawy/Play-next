@@ -194,3 +194,9 @@ go=home
 at=
 say=The tickets on your Queue look like one ticket now: the dashed tear line sits inside it, not in the gap after the stub tears off.
 tryIt=Open Games › Queue and look at a played game's row: the line is printed on the half that stays. Tap a game you're playing to open its card and look at the ticket bottom-left.
+
+v=33
+go=home
+at=
+say=Your Queue tickets are one clean piece now: no torn stub, just a soft line in the middle that draws in when a card opens.
+tryIt=Open Games › Queue and look at any row's ticket. Then tap a row to open its card and watch the ticket at the bottom left land and its line draw in.

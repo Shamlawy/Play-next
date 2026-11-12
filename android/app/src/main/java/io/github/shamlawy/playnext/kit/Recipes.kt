@@ -10,7 +10,7 @@ import kotlin.random.Random
 enum class Sfx(val seconds: Double, val label: String) {
     Tap(.07, "Tap"), Open(.16, "Open"), Add(.3, "Add"), Swipe(.14, "Swipe"), Nudge(.06, "Nudge"), Back(.08, "Back"),
     Hit(.31, "Hit"), Slash(.31, "Slash"), Tick(.09, "Tick"), Slam(.53, "Slam"), Crack(.13, "Crack"), Shatter(.58, "Shatter"),
-    Cheer(.57, "Cheer"), CardOpen(1.53, "Card opens"), CardTear(1.79, "Stub tears"), CardFlip(.65, "Card turns"),
+    Cheer(.57, "Cheer"), CardOpen(1.53, "Card opens"), CardTear(1.79, "Line clicks in"), CardFlip(.65, "Card turns"),
     CardFlipBack(.65, "Card turns back"), CardShut(.31, "Card shuts"), CardBack(1.25, "Card's back"),
     Zing(1.02, "Duel pick"), Boom(.56, "VS"), Clang(1.0, "CLEAR!"), Fanfare(1.4, "Out now"), Day(1.62, "New day"),
     Chime(.58, "Nexi's chime"),
