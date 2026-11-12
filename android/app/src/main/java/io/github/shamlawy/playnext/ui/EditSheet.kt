@@ -1,6 +1,17 @@
 package io.github.shamlawy.playnext.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
+import io.github.shamlawy.playnext.data.Art
+import io.github.shamlawy.playnext.data.ArtNet
+import io.github.shamlawy.playnext.data.Lookup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -110,6 +121,7 @@ import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.report.Crumbs
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.LocalDate
@@ -227,9 +239,11 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
                     }
                     "Critics" -> {
                         Field(ctx, "critic", "Critic score out of 100", if (Backup.truthy(g["critic"])) Backup.str(g["critic"]) else "", number = true)
+                        PullBtn(ctx)
                     }
                     "My rating" -> RatingGroup(ctx)
                     "Played" -> if (rec != null) PlayedGroup(ctx, rec, now) { end(EditEnd.Unplayed(g)) }
+                    "Art from SteamGridDB and the stores" -> ArtGroup(ctx)
                     "Cover and colour" -> CoverGroup(ctx)
                     "Backdrop" -> BackdropGroup(ctx)
                     "Logo / character art" -> LogoGroup(ctx)
@@ -365,7 +379,7 @@ private enum class Kind { Plain, Go, Del }
 
 /** `.btn` / `.btn.ghost` / `.btn.danger`: 48 tall, round, the accent for the main one. */
 @Composable
-private fun EBtn(text: String, kind: Kind, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+private fun EBtn(text: String, kind: Kind, modifier: Modifier = Modifier, enabled: Boolean = true, icon: String? = null, onClick: () -> Unit) {
     val volt = LocalLook.current.volt
     val bg = when (kind) { Kind.Go -> volt; Kind.Del -> Pn.hot.copy(alpha = .14f); Kind.Plain -> Pn.card }
     val ink = when { !enabled -> Pn.mute; kind == Kind.Go -> Pn.void; kind == Kind.Del -> Pn.hot; else -> Pn.ice }
@@ -374,7 +388,12 @@ private fun EBtn(text: String, kind: Kind, modifier: Modifier = Modifier, enable
             .then(if (enabled) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier.semantics { disabled() })
             .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center,
-    ) { BasicText(text, style = Type.button.copy(color = ink), maxLines = 1, softWrap = false, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp, stepSize = .5.sp)) }
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            icon?.let { PnIcon(it, ink, 16.dp, null) }
+            BasicText(text, style = Type.button.copy(color = ink), maxLines = 1, softWrap = false, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp, stepSize = .5.sp))
+        }
+    }
 }
 
 /** A text box (`input` / `textarea` in the sheet): `--void`, a hairline in steel, round 12, its label above. */
@@ -738,6 +757,7 @@ private fun CoverGroup(c: Ctx) {
     )
     Label("Cover")
     val img = Backup.str(pg["img"])
+    var upNote by remember { mutableStateOf<String?>(null) }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(84.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))) {
             PicBox(Pic.cover(pg), pg, Modifier.fillMaxSize(), ground = Color(Web.COVER_BG), align = framing(pg, "imgX", "imgY", 50.0))
@@ -746,6 +766,7 @@ private fun CoverGroup(c: Ctx) {
             Note(
                 when {
                     Backup.truthy(c.d["imgCleared"]) && img.isEmpty() -> "Removed — tap Save"
+                    img.startsWith("data:") && upNote != null -> upNote!!
                     img.startsWith("data:") -> "Uploaded · about ${Math.round(img.length * .75 / 1024)} KB"
                     img.isNotEmpty() -> "From a link"
                     else -> "None — showing a placeholder"
@@ -767,6 +788,15 @@ private fun CoverGroup(c: Ctx) {
     EBtn("Back to centre", Kind.Plain) { c.set(c.d.setAll(mapOf("imgX" to JsonPrimitive(50), "imgY" to JsonPrimitive(50)))) }
     LinkRow(c, "img", "cover", "img", "https://… or a Steam link")
     Note("Paste anything here — a direct image link, a github.com page, or a Steam store link or app ID. A Steam link pulls the right file for whichever picture this box is for. Links cost no storage and keep the picture at full size, so they beat uploading for anything large.")
+    val now by rememberUpdatedState(c)
+    UploadBtn("Replace with an upload", EditPics.coverW(Backup.str(c.lib["coverQ"])), 80, true, reading = { now.say("Reading…") }, failed = { now.say(it) }) { up ->
+        val m = linkedMapOf<String, JsonElement?>("img" to JsonPrimitive(up.data), "imgCleared" to null, "in:img" to JsonPrimitive(""))
+        // or the old link would win on Save; a cover's colour comes with it unless you picked one
+        if (up.colour != null) m += mapOf("colour" to JsonPrimitive(up.colour), "colourHand" to JsonPrimitive(false), "colourOf" to JsonPrimitive(Art.colKey(up.data)))
+        now.set(now.d.setAll(m))
+        upNote = "Uploaded · ${up.w}px wide · about ${up.kb} KB — tap Save"
+        now.say("New cover ready — ${up.w}px, ${up.kb} KB. Tap Save.")
+    }
 }
 
 /** The colour row (`swatchRow`): the palette round the colour wheel, greys last; a pick is yours (`colourHand`). */
@@ -774,7 +804,30 @@ private fun CoverGroup(c: Ctx) {
 @Composable
 private fun Swatches(c: Ctx) {
     val cur = Game.hex(c.d.str("colour"))
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val now by rememberUpdatedState(c)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // ✨ first: back to the art's colour, read now from the cover the form has (v294)
+        val auto = Art.colourAuto(c.d.g)
+        Box(
+            Modifier.size(Pn.touch).clickable(role = Role.RadioButton) {
+                Sounds.play(Sfx.Tap)
+                val src = Art.autoSrc(now.g, now.d)
+                now.set(now.d.setAll(mapOf("colourHand" to JsonPrimitive(false), "colourOf" to JsonPrimitive(""))))
+                scope.launch {
+                    val col = EditPics.colour(ctx, src)
+                    // only while it's still the same picture and no swatch was picked meanwhile
+                    if (Art.autoSrc(now.g, now.d) == src && !Backup.truthy(now.d["colourHand"])) now.set(now.d.setAll(Art.autoColour(src, col)))
+                }
+            }.semantics { selected = auto; contentDescription = "Colour from the game's art" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.size(34.dp).background(Pn.card, Pn.pill).then(if (auto) Modifier.border(3.dp, Pn.ice, Pn.pill) else Modifier.border(1.dp, Pn.line2, Pn.pill)),
+                contentAlignment = Alignment.Center,
+            ) { PnIcon("ui:spark", LocalLook.current.volt, 18.dp, null) }
+        }
         for (col in Edit.PALETTE_ROW) {
             val h = Edit.hex(col)
             val on = col == cur
@@ -839,6 +892,11 @@ private fun BackdropGroup(c: Ctx) {
     LinkRow(c, "back", "back", "hero", "https://… a wide shot, or a Steam link")
     val off = Backup.truthy(c.d["bgOff"])
     var said by remember { mutableStateOf<String?>(null) }
+    val now by rememberUpdatedState(c)
+    UploadBtn("Or upload one", 1280, 80, false, reading = { said = "Reading…" }, failed = { said = it }) { up ->
+        now.set(now.d.setAll(mapOf("hero" to JsonPrimitive(up.data), "bgOff" to JsonPrimitive(false), "in:back" to JsonPrimitive(""))))
+        said = "Backdrop ready — ${up.w}px, ${up.kb} KB. Tap Save."
+    }
     said?.let { Note(it) }
     EBtn(if (off) "Use a backdrop again" else "No backdrop on this game", Kind.Plain) {
         if (off) {
@@ -856,6 +914,11 @@ private fun LogoGroup(c: Ctx) {
     val art = Backup.str(c.g["art"])
     Note("A transparent PNG that floats over the card. RAWG has no cut-outs or logos, so this one is on you" + (if (art.isNotEmpty()) " — currently about ${Math.round(art.length * .75 / 1024)} KB" else "") + ".")
     LinkRow(c, "art", "art", "art", "https://… a transparent PNG, or a Steam link")
+    val cur by rememberUpdatedState(c)
+    UploadBtn("Or upload one", 460, 82, false, reading = { cur.say("Reading the art…") }, failed = { cur.say(it) }) { up ->
+        cur.set(cur.d.setAll(mapOf("art" to JsonPrimitive(up.data), "artCleared" to null, "in:art" to JsonPrimitive(""))))
+        cur.say("Art ready — ${up.w}px, ${up.kb} KB." + (if (up.kb > 400) " That's heavy for browser storage; a URL would be kinder if you have one." else "") + " Tap Save.")
+    }
     val now = Backup.str(Edit.collect(c.g, c.d)["art"])
     // on a checker, so a light or a dark cut-out both show (`.cutprev`)
     Box(
@@ -878,5 +941,192 @@ private fun LogoGroup(c: Ctx) {
     if (Backup.truthy(c.d["artCleared"])) Note("Art will be removed when you save.")
     EBtn("Remove art", Kind.Plain, enabled = now.isNotEmpty()) {
         c.set(c.d.setAll(mapOf("art" to JsonPrimitive(""), "artCleared" to JsonPrimitive(true), "in:art" to JsonPrimitive(""))))
+    }
+}
+
+// ---- Look: pictures from SteamGridDB, the stores and RAWG (piece 2b) ----
+
+/** Where the stores' search runs for this draft ([ArtNet.Ask]). */
+private fun ask(c: Ctx, title: String): ArtNet.Ask {
+    val cc = Art.cc(c.lib, java.util.TimeZone.getDefault().id, java.util.Locale.getDefault().country)
+    val sw2 = c.d.str("platforms").split(",").any { Regex("switch\\s*2", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+    val rid = c.d.str("rawgId").takeIf { Art.normT(c.d.str("title").ifEmpty { title }) == Art.normT(title) }.orEmpty()
+    return ArtNet.Ask(title, Art.steamId(c.d, title), cc, Art.psCC(c.lib, cc), sw2, Games.rawgKey, rid)
+}
+
+/** The title searched: what's in the Name box, else the game's. */
+private fun searchTitle(c: Ctx): String = c.d.typed("title", c.g.title).trim().ifEmpty { c.g.title }
+
+/**
+ * Art from SteamGridDB and the stores (`#e-sgauto`, `#e-sgdb`): Auto-pick all fills the logo, backdrop and cover with
+ * the sharpest picks; Browse and choose shows every picture, a chip per place, a row per job, each with its size.
+ */
+@Composable
+private fun ArtGroup(c: Ctx) {
+    val scope = rememberCoroutineScope()
+    val now by rememberUpdatedState(c)
+    var line by remember { mutableStateOf(Art.NOTE) }
+    var found by remember { mutableStateOf<ArtNet.Found?>(null) }
+    var only by remember { mutableStateOf("") }
+    var picked by remember { mutableStateOf<String?>(null) }
+    val dead = remember { mutableStateListOf<String>() }
+    var job by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        EBtn("Auto-pick all", Kind.Go, Modifier.weight(1f), icon = "ui:spark") {
+            val t = searchTitle(now)
+            if (t.isEmpty()) { line = Art.NO_TITLE; return@EBtn }
+            line = Art.PICKING
+            job?.cancel()
+            job = scope.launch {
+                val (top, err) = ArtNet.auto(ask(now, t))
+                if (err != null) { line = err; return@launch }
+                val (say, got) = Art.autoSay(top)
+                if (top != null && got.isNotEmpty()) now.set(now.d.setAll(Art.putTop(top)))
+                line = say
+                Sounds.play(Sfx.Add)
+            }
+        }
+        EBtn("Browse and choose", Kind.Plain, Modifier.weight(1f)) {
+            val t = searchTitle(now)
+            found = null
+            if (t.isEmpty()) { line = Art.NO_TITLE; return@EBtn }
+            line = Art.LOOKING
+            job?.cancel()
+            job = scope.launch {
+                val f = ArtNet.browse(ask(now, t))
+                only = ""
+                dead.clear()
+                found = f
+                line = Art.browseSay(f.pics, f.sgErr, f.old)
+            }
+        }
+    }
+    Note(line)
+    val f = found ?: return
+    if (f.pics.isEmpty()) return
+    val counts = remember(f) { Art.counts(f.pics) }
+    if (counts.size > 1) {
+        Chips(listOf("" to "All ${f.pics.size}") + counts.map { (k, n, m) -> k to "$n $m" }, only) {
+            Sounds.play(Sfx.Tap)
+            only = it
+        }
+    }
+    val rows = remember(f) { Art.rows(f.pics) }
+    for ((row, list) in rows) {
+        val shown = list.filter { (only.isEmpty() || it.s == only) && it.u !in dead }
+        if (shown.isEmpty()) continue
+        Label(row.second)
+        key(row.first, only) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+                items(shown, key = { it.u }) { p ->
+                    PickTile(p, row.third, p.u == picked, gone = { dead += p.u }) {
+                        Sounds.play(Sfx.Tap)
+                        now.set(now.d.setAll(Art.put(p.role, p.u)))
+                        picked = p.u
+                        now.say(Art.PICKED)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One picture to pick (`.sgpick`): its thumbnail on a checker, where it's from, its size with 4K / HD / Low. */
+@Composable
+private fun PickTile(p: Art.Pic, shape: String, on: Boolean, gone: () -> Unit, pick: () -> Unit) {
+    val volt = LocalLook.current.volt
+    val (w, h) = when (shape) { "tall" -> 96.dp to 144.dp; "logo" -> 116.dp to 74.dp; else -> 150.dp to 70.dp }
+    val r = RoundedCornerShape(8.dp)
+    val t = Art.tier(p.w, p.h)
+    Box(
+        Modifier.size(w, h).then(if (on) Modifier.border(2.dp, volt, r) else Modifier).padding(if (on) 3.dp else 0.dp).clip(r).drawBehind { checker(10.dp.toPx()) }
+            .clickable(role = Role.Button, onClick = pick)
+            .semantics { contentDescription = Art.srcName(p.s) + " · " + p.k + (if (p.w > 0) " · ${p.w}×${p.h}" else ""); selected = on },
+    ) {
+        AsyncImage(
+            model = picUrl(p.th), contentDescription = null, contentScale = if (shape == "logo") ContentScale.Fit else ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(), onError = { gone() },
+        )
+        BasicText(
+            Art.srcName(p.s), style = Type.note.copy(fontSize = 8.5.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold, color = Pn.ice),
+            maxLines = 1, softWrap = false,
+            modifier = Modifier.align(Alignment.TopStart).padding(3.dp).background(Pn.void.copy(alpha = .82f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp),
+        )
+        if (p.w > 0 && p.h > 0) {
+            Row(
+                Modifier.align(Alignment.BottomStart).padding(3.dp).background(Pn.void.copy(alpha = .82f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                val s = Type.note.copy(fontSize = 9.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold, color = Pn.ice)
+                BasicText("${p.w}×${p.h}", style = s, maxLines = 1, softWrap = false)
+                if (t == "4K") BasicText(t, style = s.copy(color = Pn.void, fontWeight = FontWeight.Bold), maxLines = 1, softWrap = false, modifier = Modifier.background(volt, RoundedCornerShape(4.dp)).padding(horizontal = 4.dp))
+                else if (t.isNotEmpty()) BasicText(t, style = s.copy(color = if (t == "HD") volt else Pn.ice, fontWeight = FontWeight.Bold), maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
+/** The checker a see-through picture sits on (`.cutprev`, `.sgpick`). */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.checker(s: Float) {
+    drawRect(Pn.card)
+    var y = 0f
+    var row = 0
+    while (y < size.height) {
+        var x = if (row % 2 == 0) 0f else s
+        while (x < size.width) { drawRect(Pn.line2, Offset(x, y), Size(s, s)); x += 2 * s }
+        y += s
+        row++
+    }
+}
+
+/**
+ * "Replace with an upload" / "Or upload one": the photo picker, then the picture made small ([EditPics.upload]) and
+ * handed to [done]. It lives in memory only, like every practice change.
+ */
+@Composable
+private fun UploadBtn(text: String, maxW: Int, q: Int, colour: Boolean, reading: () -> Unit, failed: (String) -> Unit, done: (EditPics.Up) -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val ok by rememberUpdatedState(done)
+    val bad by rememberUpdatedState(failed)
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        reading()
+        scope.launch { EditPics.upload(ctx, uri, maxW, q, colour).onSuccess { ok(it) }.onFailure { bad(it.message ?: EditPics.bigImg("read")) } }
+    }
+    EBtn(text, Kind.Plain) { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+}
+
+// ---- Scores › Critics: Pull score, date, tags and blurb ----
+
+@Composable
+private fun PullBtn(c: Ctx) {
+    val scope = rememberCoroutineScope()
+    val now by rememberUpdatedState(c)
+    var pending by remember { mutableStateOf<Lookup.Found.Game?>(null) }
+    EBtn("Pull score, date, tags and blurb", Kind.Plain) {
+        now.say("Asking RAWG…")
+        pending = null
+        scope.launch {
+            when (val f = ArtNet.pull(Games.rawgKey, now.g)) {
+                is Lookup.Found.Err -> now.say(f.text)
+                is Lookup.Found.Game -> if (!f.sure) {
+                    pending = f
+                    now.say(Lookup.notSure(f))
+                } else {
+                    val (nd, say) = Lookup.apply(now.g, now.d, f)
+                    now.set(nd)
+                    now.say(say)
+                }
+            }
+        }
+    }
+    pending?.let { f ->
+        EBtn("Use “${f.name}” anyway", Kind.Plain) {
+            val (nd, say) = Lookup.force(now.g, now.d, f)
+            now.set(nd)
+            now.say(say)
+            pending = null
+        }
     }
 }

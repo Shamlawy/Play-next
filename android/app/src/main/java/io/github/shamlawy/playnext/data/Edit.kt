@@ -49,9 +49,12 @@ object Edit {
             if (base.p == null) null else p ?: base.p, ch,
         )
 
-        /** Only your changes and the record's (a whole game, with an uploaded data: picture, can pass Android's 1 MB). */
+        /**
+         * Only your changes and the record's (a whole game, with an uploaded data: picture, can pass Android's 1 MB). An
+         * upload you just made stays in memory ([Big]): saved state holds only its ticket.
+         */
         fun text(): String = JsonObject(mapOf(
-            "c" to JsonObject(ch.mapNotNull { k -> g[k]?.let { k to it } }.toMap()),
+            "c" to JsonObject(ch.mapNotNull { k -> g[k]?.let { k to Big.out(it) } }.toMap()),
             "x" to JsonArray(ch.filter { g[it] == null }.map { JsonPrimitive(it) }),
             "p" to (p ?: JsonNull),
         )).toString()
@@ -60,10 +63,35 @@ object Edit {
             /** [text] laid back over [base]. */
             fun of(text: String, base: Draft): Draft? = runCatching {
                 val o = kotlinx.serialization.json.Json.parseToJsonElement(text) as JsonObject
-                val c = o["c"] as JsonObject
+                val c0 = o["c"] as JsonObject
+                // an upload whose ticket outlived this run (the app was closed) is dropped: the field stays as it was
+                val c = JsonObject(c0.mapNotNull { (k, v) -> Big.back(v)?.let { k to it } }.toMap())
                 val x = (o["x"] as JsonArray).map { (it as JsonPrimitive).content }
                 Draft(JsonObject(base.g + c - x.toSet()), if (base.p == null) null else (o["p"] as? JsonObject ?: base.p), c.keys + x)
             }.getOrNull()
+        }
+    }
+
+    /** Uploaded pictures kept in memory while Edit is open, so saved state only carries a ticket for each. */
+    internal object Big {
+        private const val AT = 20_000
+        private const val TICKET = "pn-big:"
+        private val kept = object : LinkedHashMap<String, String>() {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 8
+        }
+
+        fun out(e: JsonElement): JsonElement {
+            val v = (e as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return e
+            if (v.length < AT || !v.startsWith("data:")) return e
+            val k = TICKET + Integer.toHexString(v.hashCode()) + "-" + v.length
+            synchronized(kept) { kept[k] = v }
+            return JsonPrimitive(k)
+        }
+
+        fun back(e: JsonElement): JsonElement? {
+            val v = (e as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return e
+            if (!v.startsWith(TICKET)) return e
+            return synchronized(kept) { kept[v] }?.let { JsonPrimitive(it) }
         }
     }
 
@@ -82,7 +110,7 @@ object Edit {
     fun groups(tab: String, played: Boolean): List<String> = when (tab) {
         "game" -> listOf("Name", "Release", "Where it stands", "Platforms", "Genres and tags", "Notes")
         "scores" -> listOf("Hype", "Critics", "My rating") + if (played) listOf("Played") else emptyList()
-        else -> listOf("Cover and colour", "Backdrop", "Logo / character art")
+        else -> listOf("Art from SteamGridDB and the stores", "Cover and colour", "Backdrop", "Logo / character art")
     }
 
     /** The grey line under each group's name (`editSums`, index.html 5185), from the game as saved. */
@@ -110,6 +138,7 @@ object Edit {
             // the web's "of 4" with 8 areas, as printed (3-critic.md C17)
             "My rating" to if (rated > 0) "$rated of 4 rated · ${Rank.jsRound(q.avgScore(g) * 10).toInt()}/100" else "Not rated",
             "Played" to (rec?.let { Backup.str(it.o["real"]).takeIf { _ -> Backup.truthy(it.o["real"]) } } ?: Queue.DASH) + "/10",
+            "Art from SteamGridDB and the stores" to "SteamGridDB, Steam, Xbox, PlayStation",
             "Cover and colour" to if (img.isEmpty()) "Placeholder" else if (img.startsWith("data:")) "Uploaded" else "Linked",
             "Backdrop" to if (Backup.truthy(o["bgOff"])) "Off" else if (Backup.truthy(o["hero"]) || Backup.truthy(o["bg"]) || Backup.truthy(o["steamId"])) "Set" else "Auto",
             "Logo / character art" to if (art.isEmpty()) "None" else if (Backup.str(o["artSide"]) == "left") "Set, left" else "Set, right",
@@ -366,6 +395,10 @@ object Edit {
             },
         )
         out["steamId"] = JsonPrimitive(d.str("steamId").ifEmpty { s("steamId") })
+        // what Pull found: RAWG's id, "use it anyway", and RAWG's backdrop for a game without one
+        out["bg"] = JsonPrimitive(d.str("bg"))
+        out["rawgId"] = d["rawgId"]?.takeIf { Backup.truthy(it) } ?: o["rawgId"]?.takeIf { Backup.truthy(it) } ?: JsonNull
+        out["rawgOk"] = JsonPrimitive(Backup.truthy(d["rawgOk"]))
         out["why"] = d["why"] as? JsonArray ?: JsonArray(emptyList())
         out["mine"] = d["mine"] as? JsonObject ?: JsonObject(emptyMap())
         val subs = d["subs"] as? JsonObject
