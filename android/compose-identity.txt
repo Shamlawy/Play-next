@@ -112,7 +112,6 @@ Tags.lib: Library
 Tags.page: Page
 Tags.unstable slide: Animatable<Float, *>
 Ticket.st: Stat
-TicketHalf.enter: Animatable<Float, AnimationVector1D>
 Tiles.g: Game
 Tiles.page: Page
 Toggles.items: List<Pair<String, String>>
