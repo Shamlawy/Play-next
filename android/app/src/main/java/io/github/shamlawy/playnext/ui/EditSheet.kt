@@ -224,7 +224,7 @@ fun EditSheet(modifier: Modifier, games: Games.State, id: String, close: () -> U
                     PnIcon("gi:$o", LocalLook.current.volt, 22.dp, null)
                     BasicText(o, style = Type.head.copy(fontSize = 17.sp, lineHeight = 22.sp))
                 }
-                val ctx = Ctx(lib, g, q, d, set, { msg = it })
+                val ctx = Ctx(lib, g, q, d, set, { msg = it }) { held.value }
                 when (o) {
                     "Name" -> NameGroup(ctx)
                     "Release" -> ReleaseGroup(ctx, now)
@@ -309,7 +309,7 @@ private val STATUS = listOf("confirmed" to "confirmed", "rumoured" to "rumoured"
  * for each change of the draft (never changed in place), so it's compared like a value.
  */
 @androidx.compose.runtime.Immutable
-private class Ctx(val lib: Library, val g: Game, val q: Queue, val d: Edit.Draft, val set: (Edit.Draft) -> Unit, val say: (String?) -> Unit)
+private class Ctx(val lib: Library, val g: Game, val q: Queue, val d: Edit.Draft, val set: (Edit.Draft) -> Unit, val say: (String?) -> Unit, val cur: () -> Edit.Draft = { d })
 
 /**
  * The sheet itself (`#sheet`): at most 620 wide, `--u-pan` with a hairline, round 28 at the top (all round once
@@ -791,9 +791,9 @@ private fun CoverGroup(c: Ctx) {
     val now by rememberUpdatedState(c)
     UploadBtn("Replace with an upload", EditPics.coverW(Backup.str(c.lib["coverQ"])), 80, true, reading = { now.say("Reading…") }, failed = { now.say(it) }) { up ->
         val m = linkedMapOf<String, JsonElement?>("img" to JsonPrimitive(up.data), "imgCleared" to null, "in:img" to JsonPrimitive(""))
-        // or the old link would win on Save; a cover's colour comes with it unless you picked one
+        // or the old link would win on Save; the cover's colour comes with it, as on the web (a hand pick too)
         if (up.colour != null) m += mapOf("colour" to JsonPrimitive(up.colour), "colourHand" to JsonPrimitive(false), "colourOf" to JsonPrimitive(Art.colKey(up.data)))
-        now.set(now.d.setAll(m))
+        now.set(now.cur().setAll(m))
         upNote = "Uploaded · ${up.w}px wide · about ${up.kb} KB — tap Save"
         now.say("New cover ready — ${up.w}px, ${up.kb} KB. Tap Save.")
     }
@@ -813,12 +813,12 @@ private fun Swatches(c: Ctx) {
         Box(
             Modifier.size(Pn.touch).clickable(role = Role.RadioButton) {
                 Sounds.play(Sfx.Tap)
-                val src = Art.autoSrc(now.g, now.d)
-                now.set(now.d.setAll(mapOf("colourHand" to JsonPrimitive(false), "colourOf" to JsonPrimitive(""))))
+                val src = Art.autoSrc(now.g, now.cur())
+                now.set(now.cur().setAll(mapOf("colourHand" to JsonPrimitive(false), "colourOf" to JsonPrimitive(""))))
                 scope.launch {
                     val col = EditPics.colour(ctx, src)
                     // only while it's still the same picture and no swatch was picked meanwhile
-                    if (Art.autoSrc(now.g, now.d) == src && !Backup.truthy(now.d["colourHand"])) now.set(now.d.setAll(Art.autoColour(src, col)))
+                    if (Art.autoSrc(now.g, now.cur()) == src && !Backup.truthy(now.cur()["colourHand"])) now.set(now.cur().setAll(Art.autoColour(src, col)))
                 }
             }.semantics { selected = auto; contentDescription = "Colour from the game's art" },
             contentAlignment = Alignment.Center,
@@ -860,7 +860,7 @@ private fun LinkRow(c: Ctx, box: String, role: String, field: String, hint: Stri
             is Edit.Link.Bad -> line = l.why
             is Edit.Link.Use -> {
                 line = "Trying it…"
-                now.set(now.d.setAll(Edit.useLink(field, box, l)))
+                now.set(now.cur().setAll(Edit.useLink(field, box, l)))
                 scope.launch {
                     val r = SingletonImageLoader.get(ctx).execute(ImageRequest.Builder(ctx).data(picUrl(l.url)).build())
                     line = when (r) {
@@ -894,7 +894,7 @@ private fun BackdropGroup(c: Ctx) {
     var said by remember { mutableStateOf<String?>(null) }
     val now by rememberUpdatedState(c)
     UploadBtn("Or upload one", 1280, 80, false, reading = { said = "Reading…" }, failed = { said = it }) { up ->
-        now.set(now.d.setAll(mapOf("hero" to JsonPrimitive(up.data), "bgOff" to JsonPrimitive(false), "in:back" to JsonPrimitive(""))))
+        now.set(now.cur().setAll(mapOf("hero" to JsonPrimitive(up.data), "bgOff" to JsonPrimitive(false), "in:back" to JsonPrimitive(""))))
         said = "Backdrop ready — ${up.w}px, ${up.kb} KB. Tap Save."
     }
     said?.let { Note(it) }
@@ -914,10 +914,10 @@ private fun LogoGroup(c: Ctx) {
     val art = Backup.str(c.g["art"])
     Note("A transparent PNG that floats over the card. RAWG has no cut-outs or logos, so this one is on you" + (if (art.isNotEmpty()) " — currently about ${Math.round(art.length * .75 / 1024)} KB" else "") + ".")
     LinkRow(c, "art", "art", "art", "https://… a transparent PNG, or a Steam link")
-    val cur by rememberUpdatedState(c)
-    UploadBtn("Or upload one", 460, 82, false, reading = { cur.say("Reading the art…") }, failed = { cur.say(it) }) { up ->
-        cur.set(cur.d.setAll(mapOf("art" to JsonPrimitive(up.data), "artCleared" to null, "in:art" to JsonPrimitive(""))))
-        cur.say("Art ready — ${up.w}px, ${up.kb} KB." + (if (up.kb > 400) " That's heavy for browser storage; a URL would be kinder if you have one." else "") + " Tap Save.")
+    val artNow by rememberUpdatedState(c)
+    UploadBtn("Or upload one", 460, 82, false, reading = { artNow.say("Reading the art…") }, failed = { artNow.say(it) }) { up ->
+        artNow.set(artNow.cur().setAll(mapOf("art" to JsonPrimitive(up.data), "artCleared" to null, "in:art" to JsonPrimitive(""))))
+        artNow.say("Art ready — ${up.w}px, ${up.kb} KB." + (if (up.kb > 400) " That's heavy for browser storage; a URL would be kinder if you have one." else "") + " Tap Save.")
     }
     val now = Backup.str(Edit.collect(c.g, c.d)["art"])
     // on a checker, so a light or a dark cut-out both show (`.cutprev`)
@@ -950,7 +950,7 @@ private fun LogoGroup(c: Ctx) {
 private fun ask(c: Ctx, title: String): ArtNet.Ask {
     val cc = Art.cc(c.lib, java.util.TimeZone.getDefault().id, java.util.Locale.getDefault().country)
     val sw2 = c.d.str("platforms").split(",").any { Regex("switch\\s*2", RegexOption.IGNORE_CASE).containsMatchIn(it) }
-    val rid = c.d.str("rawgId").takeIf { Art.normT(c.d.str("title").ifEmpty { title }) == Art.normT(title) }.orEmpty()
+    val rid = c.d["rawgId"]?.takeIf { Backup.truthy(it) }?.let(Backup::str)?.takeIf { Art.normT(c.d.str("title").ifEmpty { title }) == Art.normT(title) }.orEmpty()
     return ArtNet.Ask(title, Art.steamId(c.d, title), cc, Art.psCC(c.lib, cc), sw2, Games.rawgKey, rid)
 }
 
@@ -981,7 +981,7 @@ private fun ArtGroup(c: Ctx) {
                 val (top, err) = ArtNet.auto(ask(now, t))
                 if (err != null) { line = err; return@launch }
                 val (say, got) = Art.autoSay(top)
-                if (top != null && got.isNotEmpty()) now.set(now.d.setAll(Art.putTop(top)))
+                if (top != null && got.isNotEmpty()) now.set(now.cur().setAll(Art.putTop(top)))
                 line = say
                 Sounds.play(Sfx.Add)
             }
@@ -1021,7 +1021,7 @@ private fun ArtGroup(c: Ctx) {
                 items(shown, key = { it.u }) { p ->
                     PickTile(p, row.third, p.u == picked, gone = { dead += p.u }) {
                         Sounds.play(Sfx.Tap)
-                        now.set(now.d.setAll(Art.put(p.role, p.u)))
+                        now.set(now.cur().setAll(Art.put(p.role, p.u)))
                         picked = p.u
                         now.say(Art.PICKED)
                     }
@@ -1114,7 +1114,7 @@ private fun PullBtn(c: Ctx) {
                     pending = f
                     now.say(Lookup.notSure(f))
                 } else {
-                    val (nd, say) = Lookup.apply(now.g, now.d, f)
+                    val (nd, say) = Lookup.apply(now.g, now.cur(), f)
                     now.set(nd)
                     now.say(say)
                 }
@@ -1123,7 +1123,7 @@ private fun PullBtn(c: Ctx) {
     }
     pending?.let { f ->
         EBtn("Use “${f.name}” anyway", Kind.Plain) {
-            val (nd, say) = Lookup.force(now.g, now.d, f)
+            val (nd, say) = Lookup.force(now.g, now.cur(), f)
             now.set(nd)
             now.say(say)
             pending = null

@@ -112,7 +112,7 @@ object Art {
     fun put(role: String, u: String): Map<String, JsonElement?> = when (role) {
         "art" -> mapOf("art" to JsonPrimitive(u), "artCleared" to null, "in:art" to JsonPrimitive(u))
         "hero" -> mapOf("hero" to JsonPrimitive(u), "bgOff" to JsonPrimitive(false), "in:back" to JsonPrimitive(u))
-        else -> mapOf("img" to JsonPrimitive(u), "in:img" to JsonPrimitive(u))
+        else -> mapOf("img" to JsonPrimitive(u), "imgCleared" to null, "in:img" to JsonPrimitive(u))
     }
 
     /** Auto-pick's pictures on the draft (`sgdbPut` for each job it filled). */
@@ -129,7 +129,7 @@ object Art {
         val r = row.first
         fun fit(p: Pic) = if (r != "cover" || p.w == 0 || portrait(p)) 1 else 0
         // a stable sort: equal sizes keep each place's own order
-        val l = pics.filter { it.r == r }.sortedWith(compareByDescending<Pic> { fit(it) }.thenByDescending { it.area }).take(40)
+        val l = pics.filter { it.r == r }.distinctBy { it.u }.sortedWith(compareByDescending<Pic> { fit(it) }.thenByDescending { it.area }).take(40)
         if (l.isEmpty()) null else row to l
     }
 

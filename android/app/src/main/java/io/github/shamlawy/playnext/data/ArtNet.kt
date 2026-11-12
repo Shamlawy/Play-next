@@ -145,7 +145,7 @@ object ArtNet {
     /** Pull score, date, tags and blurb (`rawgLookup`): RAWG's game by its id, else the closest title, with its description. */
     suspend fun pull(key: String, g: Game): Lookup.Found {
         if (key.isEmpty()) return Lookup.Found.Err("No RAWG key saved — add one in Settings.")
-        val rawgId = Backup.str(g["rawgId"])
+        val rawgId = g["rawgId"]?.takeIf { Backup.truthy(it) }?.let(Backup::str).orEmpty()
         return try {
             val o: JsonObject = if (rawgId.isNotEmpty()) rawg(key, "games/" + enc(rawgId)) else {
                 val r = rawg(key, "games?search=" + java.net.URLEncoder.encode(g.title, "UTF-8") + "&page_size=1")

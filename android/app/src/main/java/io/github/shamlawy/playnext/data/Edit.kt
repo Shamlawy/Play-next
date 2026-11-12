@@ -77,14 +77,15 @@ object Edit {
         private const val AT = 20_000
         private const val TICKET = "pn-big:"
         private val kept = object : LinkedHashMap<String, String>() {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 8
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 24
         }
 
         fun out(e: JsonElement): JsonElement {
             val v = (e as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return e
             if (v.length < AT || !v.startsWith("data:")) return e
             val k = TICKET + Integer.toHexString(v.hashCode()) + "-" + v.length
-            synchronized(kept) { kept[k] = v }
+            // saved again: newest again, so the one you just made is never the one let go
+            synchronized(kept) { kept.remove(k); kept[k] = v }
             return JsonPrimitive(k)
         }
 

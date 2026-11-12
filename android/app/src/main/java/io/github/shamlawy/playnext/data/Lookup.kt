@@ -56,7 +56,7 @@ object Lookup {
         val named = titleMatch(g.title, name)
         val released = Backup.str(d["released"])
         // a game you have as upcoming should not suddenly have shipped years ago
-        val old = released.isNotEmpty() && (runCatching { LocalDate.parse(released) < today }.getOrDefault(false)) && Backup.str(g["state"]).ifEmpty { "upcoming" } == "upcoming"
+        val old = released.isNotEmpty() && (runCatching { LocalDate.parse(released) <= today }.getOrDefault(false)) && Backup.str(g["state"]).ifEmpty { "upcoming" } == "upcoming"
         val who = name.ifEmpty { "?" }
         return Found.Game(
             id = d["id"] ?: JsonPrimitive(0),
