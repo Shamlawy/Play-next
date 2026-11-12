@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -102,7 +103,7 @@ fun WhereCard(g: Game, now: Long, open: () -> Unit, modifier: Modifier = Modifie
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteSheet(g: Game, now: () -> Long, close: () -> Unit, saved: () -> Unit) {
-    var box by rememberSaveable(g.id, stateSaver = TextFieldValue.Saver) { mutableTextFieldValue() }
+    var box by rememberSaveable(g.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(350)
@@ -197,7 +198,6 @@ fun NoteSheet(g: Game, now: () -> Long, close: () -> Unit, saved: () -> Unit) {
     }
 }
 
-private fun mutableTextFieldValue() = TextFieldValue("")
 
 /** An earlier note's date: day and short month in the phone's language, with the year when it isn't this one. */
 private fun noteDate(t: Long, zone: ZoneId, year: Int): String {

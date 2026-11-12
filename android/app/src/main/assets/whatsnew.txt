@@ -188,3 +188,9 @@ go=home
 at=
 say=Edit finds a game's pictures for you now: covers, backdrops and logos from SteamGridDB, Steam, Xbox, PlayStation, Nintendo and RAWG, or your own photos.
 tryIt=Open a game's page, tap the pencil, then Look › Art from SteamGridDB and the stores. Tap Auto-pick all, or Browse and choose and tap a store's chip to see only its pictures. In Cover and colour tap the first swatch (the sparkle) to take the colour from the cover, or upload a photo. In Scores › Critics tap Pull score, date, tags and blurb. It's a practice copy: everything resets when the app reopens.
+
+v=32
+go=home
+at=
+say=Score a game right from its page, leave yourself a note about where you stopped, and finishing a game now lands a big PLAYED stamp.
+tryIt=Open a game you're playing and tap the card under its line ("Where are you up to?"): write where you stopped, or tap a quick chip, and Save note. Then tap I finished it: the stamp lands, the page shakes, and the Score sheet opens so you can score it. On a finished game tap Score it (or its score) to change it. It's a practice copy: everything resets when the app reopens.

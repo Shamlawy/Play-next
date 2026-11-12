@@ -148,6 +148,10 @@ class EditTest {
         val r = (made[Practice.RECS] as JsonObject)["c"] as JsonObject
         assertEquals("syncPlayed dates by UTC (3-critic.md C8)", JsonPrimitive("2026-10-27"), r["t"])
         assertFalse("Save keeps when play started (the web copies the state on first, so syncPlayed keeps plAt)", fields(made, "c").containsKey("plAt"))
+        val cap = fields(made, "c")["cap"] as JsonObject
+        assertEquals("Then & now's snapshot on the way to played (v220)", JsonPrimitive(now), cap["at"])
+        assertEquals("from when you started", JsonPrimitive(1760000000000), cap["st"])
+        assertFalse("an already-played game gets none", fields(Edit.save(lib, g("b"), Edit.open(lib, g("b")).set("hype", JsonPrimitive(9)), now, none), "b").containsKey("cap"))
         val gone = Edit.save(lib, g("b"), Edit.open(lib, g("b")).set("state", JsonPrimitive("dropped")), now, none)
         assertEquals(JsonNull, (gone[Practice.RECS] as JsonObject)["b"])
         assertEquals(JsonPrimitive(now), fields(gone, "b")["dropAt"])

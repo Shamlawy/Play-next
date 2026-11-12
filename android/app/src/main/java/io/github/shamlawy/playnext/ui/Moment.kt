@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import io.github.shamlawy.playnext.data.Backup
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.kit.Big
@@ -67,7 +68,7 @@ object Moment {
 
     fun finished(g: Game) {
         n += 1
-        fin = Fin(g.id, g.title, g.colourOrNull, n)
+        fin = Fin(g.id, g.title, Game.hex(Backup.str(g["colour"])), n)
     }
 
     internal fun done(f: Fin) {
@@ -142,74 +143,76 @@ fun FinishMoment(calm: Boolean) {
             Moment.shake.value = Offset.Zero
             Moment.done(f)
         }
-        if (!on) return@key
-        val c0 = f.colour?.let { Color(it) } ?: Color(Web.CELE[0])
-        val cols = listOf(c0, Color(Web.CELE[1]), Color(Web.CELE[2]), Color(Web.CELE[3]))
-        Box(Modifier.fillMaxSize().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-            // the bits: from the middle, out to their spot as they grow from .3 and fade (`pnBurst`, 1.2 s, `--ease`)
-            Canvas(Modifier.fillMaxSize()) {
-                val ms = burst.value * 1320f
-                val mid = center
-                for ((to, lag, c) in bits) {
-                    val p = ((ms - lag * 1000f) / 1200f).coerceIn(0f, 1f)
-                    if (p <= 0f || p >= 1f) continue
-                    val e = Ease.house.transform(p)
-                    drawCircle(cols[c].copy(alpha = 1f - e), radius = 5.dp.toPx() * (.3f + .7f * e), center = mid + Offset(to.x.dp.toPx(), to.y.dp.toPx()) * e)
-                }
-            }
-            // the card: "Played!" and the game (`pnMsg`, 1.8 s), the game's colour round it
-            val shape = RoundedCornerShape(22.dp)
-            Column(
-                Modifier
-                    .graphicsLayer {
-                        val p = card.value
-                        val e = Ease.house
-                        alpha = keys(p, MSG_AT, floatArrayOf(0f, 1f, 1f, 1f, 0f), e)
-                        val s = keys(p, MSG_AT, floatArrayOf(.6f, 1.05f, 1f, 1f, .96f), e)
-                        scaleX = s
-                        scaleY = s
+        // no early return inside key { } (the compiler named a method "<anonymous>": ClassFormatError at load)
+        if (on) {
+            val c0 = f.colour?.let { Color(it) } ?: Color(Web.CELE[0])
+            val cols = listOf(c0, Color(Web.CELE[1]), Color(Web.CELE[2]), Color(Web.CELE[3]))
+            Box(Modifier.fillMaxSize().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+                // the bits: from the middle, out to their spot as they grow from .3 and fade (`pnBurst`, 1.2 s, `--ease`)
+                Canvas(Modifier.fillMaxSize()) {
+                    val ms = burst.value * 1320f
+                    val mid = center
+                    for ((to, lag, c) in bits) {
+                        val p = ((ms - lag * 1000f) / 1200f).coerceIn(0f, 1f)
+                        if (p <= 0f || p >= 1f) continue
+                        val e = Ease.house.transform(p)
+                        drawCircle(cols[c].copy(alpha = 1f - e), radius = 5.dp.toPx() * (.3f + .7f * e), center = mid + Offset(to.x.dp.toPx(), to.y.dp.toPx()) * e)
                     }
-                    .widthIn(max = 320.dp)
-                    .shadow(40.dp, shape, ambientColor = c0, spotColor = c0)
-                    .background(Color(Web.CELE_BG), shape)
-                    .border(2.dp, c0, shape)
-                    .padding(horizontal = 26.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                BasicText("Played!", style = Type.stat.copy(fontSize = 24.sp, lineHeight = 30.sp, textAlign = TextAlign.Center).fixed())
-                BasicText(f.title, style = Type.note.copy(textAlign = TextAlign.Center).fixed(), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            // the stamp, over the card: lands big and tilting, settles at -12°, fades at the end (`pnStamp`, 1.6 s)
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val shape2 = RoundedCornerShape(16.dp)
-                val ink = Color(Web.STAMP)
-                BasicText(
-                    "PLAYED ✓",
+                }
+                // the card: "Played!" and the game (`pnMsg`, 1.8 s), the game's colour round it
+                val shape = RoundedCornerShape(22.dp)
+                Column(
                     Modifier
                         .graphicsLayer {
-                            val p = stamp.value
-                            alpha = keys(p, STAMP_AT, floatArrayOf(0f, 1f, 1f, 1f, 0f), STAMP_EASE).coerceIn(0f, 1f)
-                            val s = keys(p, STAMP_AT, floatArrayOf(2.6f, .95f, 1f, 1f, 1f), STAMP_EASE)
+                            val p = card.value
+                            val e = Ease.house
+                            alpha = keys(p, MSG_AT, floatArrayOf(0f, 1f, 1f, 1f, 0f), e)
+                            val s = keys(p, MSG_AT, floatArrayOf(.6f, 1.05f, 1f, 1f, .96f), e)
                             scaleX = s
                             scaleY = s
-                            rotationZ = keys(p, STAMP_AT, floatArrayOf(-4f, -12f, -12f, -12f, -12f), STAMP_EASE)
                         }
-                        .shadow(40.dp, shape2, ambientColor = ink, spotColor = ink)
-                        .background(Color(Web.STAMP_BG), shape2)
-                        .border(5.dp, ink, shape2)
-                        .padding(horizontal = 28.dp, vertical = 14.dp),
-                    style = Type.stat.copy(
-                        fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, letterSpacing = .08.em, color = ink,
-                        shadow = Shadow(LocalLook.current.volt2, blurRadius = 20f),
-                    ).fixed(),
-                    maxLines = 1, softWrap = false,
-                )
-                BasicText(
-                    f.title,
-                    Modifier.padding(top = 4.dp).widthIn(max = 300.dp),
-                    style = Type.note.copy(fontSize = 13.sp, letterSpacing = .1.em, color = Pn.ice, textAlign = TextAlign.Center).fixed(),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+                        .widthIn(max = 320.dp)
+                        .shadow(40.dp, shape, ambientColor = c0, spotColor = c0)
+                        .background(Color(Web.CELE_BG), shape)
+                        .border(2.dp, c0, shape)
+                        .padding(horizontal = 26.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    BasicText("Played!", style = Type.stat.copy(fontSize = 24.sp, lineHeight = 30.sp, textAlign = TextAlign.Center).fixed())
+                    BasicText(f.title, style = Type.note.copy(textAlign = TextAlign.Center).fixed(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                // the stamp, over the card: lands big and tilting, settles at -12°, fades at the end (`pnStamp`, 1.6 s)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val shape2 = RoundedCornerShape(16.dp)
+                    val ink = Color(Web.STAMP)
+                    BasicText(
+                        "PLAYED ✓",
+                        Modifier
+                            .graphicsLayer {
+                                val p = stamp.value
+                                alpha = keys(p, STAMP_AT, floatArrayOf(0f, 1f, 1f, 1f, 0f), STAMP_EASE).coerceIn(0f, 1f)
+                                val s = keys(p, STAMP_AT, floatArrayOf(2.6f, .95f, 1f, 1f, 1f), STAMP_EASE)
+                                scaleX = s
+                                scaleY = s
+                                rotationZ = keys(p, STAMP_AT, floatArrayOf(-4f, -12f, -12f, -12f, -12f), STAMP_EASE)
+                            }
+                            .shadow(40.dp, shape2, ambientColor = ink, spotColor = ink)
+                            .background(Color(Web.STAMP_BG), shape2)
+                            .border(5.dp, ink, shape2)
+                            .padding(horizontal = 28.dp, vertical = 14.dp),
+                        style = Type.stat.copy(
+                            fontSize = 44.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, letterSpacing = .08.em, color = ink,
+                            shadow = Shadow(LocalLook.current.volt2, blurRadius = 20f),
+                        ).fixed(),
+                        maxLines = 1, softWrap = false,
+                    )
+                    BasicText(
+                        f.title,
+                        Modifier.padding(top = 4.dp).widthIn(max = 300.dp),
+                        style = Type.note.copy(fontSize = 13.sp, letterSpacing = .1.em, color = Pn.ice, textAlign = TextAlign.Center).fixed(),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

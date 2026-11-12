@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.shamlawy.playnext.data.Game
+import io.github.shamlawy.playnext.data.Pic
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.data.Queue
