@@ -91,9 +91,12 @@ class PageTest {
         assertEquals(listOf("Watch the trailer"), one("""{"id":"a","title":"A","state":"upcoming","date":"2027-01-01"}""").let { (p, g) -> p.next(g).map { it.label } })
         // an upcoming state with a past date reads as out (`isUpcoming`)
         assertEquals(listOf("Start playing"), one("""{"id":"a","title":"A","state":"upcoming","date":"2025-01-01"}""").let { (p, g) -> p.next(g).map { it.label } })
-        // Score it, Leave a note and Duel come later: no button that does nothing (the owner's Nov 10 answer)
-        assertTrue(one("""{"id":"a","title":"A","state":"played"}""", """{"id":"a","real":0}""").let { (p, g) -> p.next(g).isEmpty() })
-        assertTrue(one("""{"id":"a","title":"A","state":"playing","comp":true}""").let { (p, g) -> p.next(g).isEmpty() })
+        // a played game's Score it says its score once it has one; Duel waits for Phase 6 (no button that does nothing,
+        // the owner's Nov 10 answer); a competitive game's is Leave a note
+        assertEquals(listOf("Score it"), one("""{"id":"a","title":"A","state":"played"}""", """{"id":"a","real":0}""").let { (p, g) -> p.next(g).map { it.label } })
+        assertEquals(listOf("7.5"), one("""{"id":"a","title":"A","state":"played"}""", """{"id":"a","real":7.5}""").let { (p, g) -> p.next(g).map { it.label } })
+        assertEquals(listOf("score"), one("""{"id":"a","title":"A","state":"played"}""", """{"id":"a","real":7.5}""").let { (p, g) -> p.next(g).map { it.kind } })
+        assertEquals(listOf("Leave a note"), one("""{"id":"a","title":"A","state":"playing","comp":true}""").let { (p, g) -> p.next(g).map { it.label } })
     }
 
     @Test fun yourProgressLightsUpToWhereTheGameIs() {
@@ -187,6 +190,11 @@ class PageTest {
         assertFalse("played, not scored yet", x.played.single().scored)
         val q = Queue(x, Rank(x, now, zone), now, zone)
         assertEquals("the Queue counts it played at once", 1, q.counts["done"])
+        val cap = x.games[0]["cap"] as kotlinx.serialization.json.JsonObject
+        assertEquals("Then & now's snapshot (v220): when you started", JsonPrimitive(1000), cap["st"])
+        assertEquals("and when it was taken", JsonPrimitive(late), cap["at"])
+        val again = laid(x, Practice.finish(x, x.games[0], late + 1, zone) { null })
+        assertEquals("taken once", JsonPrimitive(late), (again.games[0]["cap"] as kotlinx.serialization.json.JsonObject)["at"])
     }
 
     @Test fun pickingAFinishedGameUpAgainTakesItsRecordAway() {

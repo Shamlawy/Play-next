@@ -156,6 +156,10 @@ class ScreensTest {
     @Test fun game412() = shot("game", 412) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
     @Test fun game859() = shot("game", 859) { Shell(Nav("games", listOf("game:b")), ready, go = {}) }
     @Test fun gamePlayed412() = shot("game-played", 412) { Shell(Nav("games", listOf("game:f")), ready, go = {}) }
+    /** Piece 3a: a playing game's Where was I card (no note yet: the prompt), the Score sheet and the note sheet. */
+    @Test fun gamePlaying412() = shot("game-playing", 412) { Shell(Nav("games", listOf("game:c")), ready, go = {}) }
+    @Test fun score412() = shot("score", 412) { Shell(Nav("games", listOf("game:f", "score:f")), ready, go = {}) }
+    @Test fun note412() = shot("note", 412) { Shell(Nav("games", listOf("game:c", "note:c")), ready, go = {}) }
 
     // a game's Edit over its page (Phase 2 piece 2): the Game tab's groups, one group open, the Played group, Look
     private fun editOpen(vararg taps: String) = {

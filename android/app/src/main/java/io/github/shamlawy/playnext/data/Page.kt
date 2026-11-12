@@ -102,19 +102,23 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
     }
 
     /**
-     * `gdNext` (index.html 22045): the one thing worth doing next. Score it, Leave a note and Duel come with piece 3 and
-     * Phase 6 (no button that does nothing, the owner's Nov 10 answer), so a played or competitive game shows none yet.
+     * `gdNext` (index.html 22045): the one thing worth doing next. A played game's Score it shows its score once it has
+     * one ("7.5", `aria-label` "Change your score (7.5)"); Duel waits for Phase 6 (no button that does nothing, the
+     * owner's Nov 10 answer); a competitive game's is Leave a note.
      */
     fun next(g: Game): List<Next> {
-        if (g.comp) return emptyList()
+        if (g.comp) return listOf(Next("note", "Leave a note"))
         return when (state(g)) {
+            "played" -> listOf(rk.playedRec(g)?.takeIf { it.scored }?.real?.let { Next("score", Queue.jsNum(it)) } ?: Next("score", "Score it"))
             "playing" -> listOf(Next("finish", "I finished it"))
             "dropped" -> listOf(Next("start", "Pick it up again"))
             "backlog" -> listOf(Next("start", "Start playing"))
-            "upcoming" -> listOf(Next("trailer", "Watch the trailer"))
-            else -> emptyList()
+            else -> listOf(Next("trailer", "Watch the trailer"))
         }
     }
+
+    /** Where was I's card goes under the line (`gdProgress`): every state but upcoming (index.html 21960-21964). */
+    fun notes(g: Game): Boolean = state(g) != "upcoming"
 
     /** `shortDate` of a moment (`new Date(t).toLocaleDateString("en-CA")` first, as Your progress does). */
     private fun shortOf(t: Long): String = q.shortDate(JsDate.todayLocal(t, zone))
@@ -145,7 +149,8 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
 
     /**
      * The line under the track (`gdProgress`'s body), as [bold] parts: upcoming, backlog, played and dropped have one;
-     * a playing game's Where was I card and Finish forecast come with piece 3. Null when there's none.
+     * a playing game has its Where was I card instead (Finish forecast and Then & now come with piece 3b). Null when
+     * there's none.
      */
     fun line(g: Game): List<Pair<String, Boolean>>? {
         val p = rk.playedRec(g)

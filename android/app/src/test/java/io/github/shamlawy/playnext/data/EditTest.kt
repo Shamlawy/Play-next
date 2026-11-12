@@ -148,9 +148,31 @@ class EditTest {
         val r = (made[Practice.RECS] as JsonObject)["c"] as JsonObject
         assertEquals("syncPlayed dates by UTC (3-critic.md C8)", JsonPrimitive("2026-10-27"), r["t"])
         assertFalse("Save keeps when play started (the web copies the state on first, so syncPlayed keeps plAt)", fields(made, "c").containsKey("plAt"))
+        val cap = fields(made, "c")["cap"] as JsonObject
+        assertEquals("Then & now's snapshot on the way to played (v220)", JsonPrimitive(now), cap["at"])
+        assertEquals("from when you started", JsonPrimitive(1760000000000), cap["st"])
+        assertFalse("an already-played game gets none", fields(Edit.save(lib, g("b"), Edit.open(lib, g("b")).set("hype", JsonPrimitive(9)), now, none), "b").containsKey("cap"))
         val gone = Edit.save(lib, g("b"), Edit.open(lib, g("b")).set("state", JsonPrimitive("dropped")), now, none)
         assertEquals(JsonNull, (gone[Practice.RECS] as JsonObject)["b"])
         assertEquals(JsonPrimitive(now), fields(gone, "b")["dropAt"])
+    }
+
+    @Test fun theSnapshotSeesWhatThisSaveChanged() {
+        // the web copies the draft onto the game before syncPlayed: hype and critics typed in the same Save count
+        val d = Edit.open(lib, g("a")).set("hype", JsonPrimitive(8)).set("in:critic", JsonPrimitive("80")).set("state", JsonPrimitive("played"))
+        val cap = fields(Edit.save(lib, g("a"), d, now, none), "a")["cap"] as JsonObject
+        assertEquals(JsonPrimitive(8), cap["h"])
+        assertEquals(JsonPrimitive(80), cap["cr"])
+        // rvFor: the critics' 8.0 blended with your hype's 8.5 (hype 8, scored half a point over it before)
+        assertEquals(JsonPrimitive(8.2), cap["pr"])
+    }
+
+    @Test fun savingAScoreKeepsTheCrystalBallsFirstAnswer() {
+        val b = Game(JsonObject(g("b").o + ("cap" to Json.parseToJsonElement("""{"h":8,"pr":7.5,"at":1}"""))))
+        val f = fields(Edit.save(lib, b, Edit.open(lib, b).rec("real", JsonPrimitive(9)), now, none), "b")
+        assertEquals(JsonPrimitive(9), (f["cap"] as JsonObject)["got"])
+        val kept = Game(JsonObject(b.o + ("cap" to f["cap"]!!)))
+        assertFalse("written once", Edit.save(lib, kept, Edit.open(lib, kept).rec("real", JsonPrimitive(4)), now, none).let { (it[Practice.GAMES] as? JsonObject)?.get("b") }.let { it is JsonObject && it.containsKey("cap") })
     }
 
     @Test fun moveBackToTheQueueGivesAStateThatIsntPlayed() {

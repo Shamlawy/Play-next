@@ -87,6 +87,9 @@ import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.data.Games
 import kotlinx.coroutines.delay
 import io.github.shamlawy.playnext.data.Edit
+import io.github.shamlawy.playnext.data.Rank
+import io.github.shamlawy.playnext.data.Score
+import kotlinx.coroutines.launch
 import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.kit.Sfx
 import io.github.shamlawy.playnext.kit.Sounds
@@ -200,8 +203,21 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     // the line Edit leaves at the foot once it closes ("Saved")
     var edited by remember { mutableStateOf<PageToast?>(null) }
     LaunchedEffect(edited) { val t = edited ?: return@LaunchedEffect; delay(2_400); if (edited === t) edited = null }
+    // the Score sheet and Where was I's note sheet (piece 3): steps over the page, as Edit is
+    val openScore by rememberUpdatedState { id: String -> step(nav.open("score:$id")) }
+    val openNote by rememberUpdatedState { id: String -> step(nav.open("note:$id")) }
     val editActs = remember {
         EditActs(
+            score = { id -> openScore(id) },
+            note = { id -> openNote(id) },
+            finished = { g ->
+                Moment.finished(g)
+                // straight on to the verdict while it's fresh (`fnDone`: the Score sheet 1200 ms later)
+                nxScope.launch {
+                    delay(1_200)
+                    openScore(g.id)
+                }
+            },
             open = { id -> openEdit(id) },
             say = { t -> edited = PageToast(t, (edited?.n ?: 0) + 1) },
             comp = { g ->
@@ -442,6 +458,44 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                     }
                 }
             }
+            // the Score sheet and the note sheet, over the page they came from (newer than it, Edit and Settings)
+            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") }
+            val scLib = (games as? Games.State.Ready)?.lib
+            if (sc >= 0 && sc > at && sc > s && sc > ed && scLib != null) {
+                val k = keys[sc]
+                pagesKept += k
+                val what = nav.stack[sc]
+                val gid = what.substringAfter(':')
+                val sg = scLib.games.firstOrNull { it.id == gid }
+                BackHandler(enabled = nav.overlay == what) { step(nav.closeAt(sc)) }
+                if (sg == null) {
+                    LaunchedEffect(what) { step(nav.closeAt(sc)) }
+                } else key(k) {
+                    pages.SaveableStateProvider(k) {
+                        if (what.startsWith("score:")) {
+                            ScoreSheet(scLib, sg, (games as? Games.State.Ready)?.cards?.queue?.rk, clock, close = { step(nav.closeAt(sc)) }) { had, v, first ->
+                                // scoring a game you hadn't marked played marks it: the stamp and the burst
+                                if (first) Moment.finished(sg)
+                                // where it landed, once the redraw has settled (`qScoreSet`: 3 s, 400 ms when calm)
+                                if (v != null && v != had) nxScope.launch {
+                                    delay(if (calm) 400 else 3_000)
+                                    val lib2 = (Games.state.value as? Games.State.Ready)?.lib ?: return@launch
+                                    val g2 = lib2.games.firstOrNull { it.id == sg.id } ?: return@launch
+                                    val r = Score.rankOf(Rank(lib2, clock(), java.time.ZoneId.systemDefault()), g2) ?: return@launch
+                                    edited = PageToast("${g2.title}: #$r · ${Rank.tierOf(v)} tier", (edited?.n ?: 0) + 1)
+                                }
+                            }
+                        } else {
+                            NoteSheet(sg, clock, close = { step(nav.closeAt(sc)) }) {
+                                step(nav.closeAt(sc))
+                                edited = PageToast("Note saved — it'll be here next time", (edited?.n ?: 0) + 1)
+                            }
+                        }
+                    }
+                }
+            }
+            // the moment a game becomes played: over everything
+            FinishMoment(calm)
             edited?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = overNavBar(room) + 20.dp)) }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away

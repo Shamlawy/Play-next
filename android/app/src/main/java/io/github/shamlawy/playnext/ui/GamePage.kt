@@ -343,6 +343,10 @@ fun GamePage(
                     scaleY = s
                     alpha = ((.35f + .65f * gv) * (1f - sv)).coerceIn(0f, 1f)
                     if (tap.isSpecified && size.width > 0f && size.height > 0f) transformOrigin = TransformOrigin(tap.x / size.width, tap.y / size.height)
+                    // the finish moment's shake (`pnStampShow`), in dp as the web's px
+                    val k = Moment.shake.value
+                    translationX = k.x * density
+                    translationY = k.y * density
                 }
                 .onGloballyPositioned { at[1] = it }
                 .background(Pn.pan)
@@ -713,7 +717,7 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
     val now = LocalNow.current
     Row(shift.padding(top = 16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (b in next) {
-            val icon = when (b.kind) { "finish" -> "ui:flag"; else -> "ui:play" }
+            val icon = when (b.kind) { "finish" -> "ui:flag"; "score" -> "ui:star"; "note" -> "ui:pin"; else -> "ui:play" }
             Row(
                 Modifier
                     .then(if (big) Modifier.widthIn(max = 300.dp) else Modifier.weight(1f))
@@ -731,6 +735,16 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
                             "finish" -> {
                                 Sounds.play(Sfx.Add)
                                 Games.change(Practice.finish(lib, g, now(), java.time.ZoneId.systemDefault()) { Games.practiced(it) })
+                                // the stamp and the burst, then straight on to the verdict while it's fresh (`fnDone`)
+                                edit?.finished(g)
+                            }
+                            "score" -> {
+                                Sounds.play(Sfx.Tap)
+                                edit?.score(g.id)
+                            }
+                            "note" -> {
+                                Sounds.play(Sfx.Tap)
+                                edit?.note(g.id)
                             }
                             "trailer" -> {
                                 Sounds.play(Sfx.Tap)
@@ -739,6 +753,7 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
                             }
                         }
                     }
+                    .then(if (b.kind == "score" && b.label != "Score it") Modifier.semantics { contentDescription = "Change your score (${b.label})" } else Modifier)
                     .padding(horizontal = 12.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -849,6 +864,11 @@ private fun Progress(g: Game, page: Page, still: Boolean, volt: Color, modifier:
                 style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.6.sp).fixed(),
                 modifier = Modifier.padding(top = 12.dp),
             )
+        }
+        // Where was I (v212): the newest note, or for a game you're playing a prompt to leave one
+        if (page.notes(g)) {
+            val edit = LocalEditActs.current
+            WhereCard(g, LocalNow.current(), open = { edit?.note(g.id) })
         }
     }
 }

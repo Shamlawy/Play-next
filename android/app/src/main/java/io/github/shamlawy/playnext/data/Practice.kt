@@ -95,10 +95,13 @@ object Practice {
     /**
      * "I finished it" (`fnDone`, index.html 20359): `g.state = "played"` first (so the v218 hook keeps `g.plAt`), then
      * `syncPlayed` adds the record `{id, real: 0, t}` with today's date on the phone (en-CA). The practice keys' new
-     * values. (The Score sheet that opens 1200 ms later, Then & now's snapshot and Drifting's way back come with piece 3.)
+     * values, with Then & now's snapshot. (The Score sheet opens 1200 ms later, from the page; Drifting's way back is 3b.)
      */
     fun finish(lib: Library, g: Game, now: Long, zone: ZoneId, cur: (String) -> JsonElement?): Map<String, JsonElement> {
-        val out = linkedMapOf<String, JsonElement>(GAMES to fields(cur(GAMES), g.id, mapOf("state" to JsonPrimitive("played"))))
+        val f = linkedMapOf<String, JsonElement>("state" to JsonPrimitive("played"))
+        // Then & now's snapshot (v220), on the way to played
+        if (lib.played.none { it.id == g.id }) Score.capOnFinish(lib, g, now, f)
+        val out = linkedMapOf<String, JsonElement>(GAMES to fields(cur(GAMES), g.id, f))
         if (lib.played.none { it.id == g.id }) {
             out[RECS] = record(cur(RECS), g.id, JsonObject(mapOf("id" to JsonPrimitive(g.id), "real" to JsonPrimitive(0), "t" to JsonPrimitive(JsDate.todayLocal(now, zone)))))
         }
