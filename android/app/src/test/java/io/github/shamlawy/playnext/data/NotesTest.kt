@@ -86,16 +86,20 @@ class NotesTest {
     @Test fun aQuickSecondTapSeesTheFirstOnesWrite() {
         // the library is rebuilt off the main thread, so a second delete can still be handed the old game
         val g = game(1761000000000L to "n0", 1761500000000L to "n1", 1761600000000L to "n2", 1761700000000L to "n3")
-        val first = Notes.drop(g, 3, none)
-        val second = Notes.drop(g, 2) { first[it] }
+        val first = Notes.drop(g, Notes.of(g)[3], none)
+        val second = Notes.drop(g, Notes.of(g)[2]) { first[it] }
         assertEquals("the note deleted first stays gone", listOf("n0", "n1"), notes(second).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
+        // an earlier note first: every place after it shifts, and the stale g still says the old places
+        val early = Notes.drop(g, Notes.of(g)[0], none)
+        val next = Notes.drop(g, Notes.of(g)[1]) { early[it] }
+        assertEquals("the second tap takes the note it showed", listOf("n2", "n3"), notes(next).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
         val added = Notes.add(g, "n4", now) { first[it] }
         assertEquals(listOf("n0", "n1", "n2", "n4"), notes(added).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
     }
 
     @Test fun aDeleteTakesThatNoteOnly() {
         val g = game(1761000000000L to "first", 1761500000000L to "second", 1761600000000L to "third")
-        assertEquals(listOf("first", "third"), notes(Notes.drop(g, 1, none)).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
-        assertEquals("a place that isn't there writes nothing", emptyMap<String, JsonElement>(), Notes.drop(g, 7, none))
+        assertEquals(listOf("first", "third"), notes(Notes.drop(g, Notes.of(g)[1], none)).map { ((it as JsonObject)["x"] as JsonPrimitive).content })
+        assertEquals("a note that isn't there writes nothing", emptyMap<String, JsonElement>(), Notes.drop(g, Notes.Note(1L, "gone", 7), none))
     }
 }

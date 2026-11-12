@@ -4,14 +4,15 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -155,15 +156,23 @@ fun FinishMoment(calm: Boolean) {
             val cols = listOf(c0, Color(Web.CELE[1]), Color(Web.CELE[2]), Color(Web.CELE[3]))
             Box(Modifier.fillMaxSize().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
                 // the bits: from the middle, out to their spot as they grow from .3 and fade (`pnBurst`, 1.2 s, `--ease`)
-                Canvas(Modifier.fillMaxSize()) {
-                    val ms = burst.value * 1320f
-                    val mid = center
-                    for ((to, lag, c) in bits) {
-                        val p = ((ms - lag * 1000f) / 1200f).coerceIn(0f, 1f)
-                        if (p <= 0f || p >= 1f) continue
-                        val e = Ease.house.transform(p)
-                        drawCircle(cols[c].copy(alpha = 1f - e), radius = 5.dp.toPx() * (.3f + .7f * e), center = mid + Offset(to.x.dp.toPx(), to.y.dp.toPx()) * e)
-                    }
+                // each bit is drawn once in its own layer and only moved, grown and faded there (transform + alpha only)
+                for ((to, lag, c) in bits) {
+                    Box(
+                        Modifier
+                            .graphicsLayer {
+                                val p = ((burst.value * 1320f - lag * 1000f) / 1200f).coerceIn(0f, 1f)
+                                val e = Ease.house.transform(p)
+                                alpha = if (p <= 0f || p >= 1f) 0f else 1f - e
+                                val s = .3f + .7f * e
+                                scaleX = s
+                                scaleY = s
+                                translationX = to.x.dp.toPx() * e
+                                translationY = to.y.dp.toPx() * e
+                            }
+                            .size(10.dp)
+                            .background(cols[c], CircleShape),
+                    )
                 }
                 // the card: "Played!" and the game (`pnMsg`, 1.8 s), the game's colour round it
                 val shape = RoundedCornerShape(22.dp)

@@ -72,10 +72,19 @@ object Notes {
         return mapOf(Practice.GAMES to Practice.fields(cur(Practice.GAMES), g.id, mapOf("wasI" to JsonArray(all.takeLast(Web.WI_MAX)))))
     }
 
-    /** An earlier note's delete (`[data-widel]`): the entry at [at] in `g.wasI` goes. */
-    fun drop(g: Game, at: Int, cur: (String) -> JsonElement?): Map<String, JsonElement> {
+    /**
+     * An earlier note's delete (`[data-widel]`): note [n] goes. It's found in the newest list by its time and words, not
+     * by its place in a [g] that may be stale (a quick earlier delete shifts every place after it); its place is only a
+     * tie-break between two notes that match.
+     */
+    fun drop(g: Game, n: Note, cur: (String) -> JsonElement?): Map<String, JsonElement> {
         val all = current(g, cur).orEmpty()
-        if (at !in all.indices) return emptyMap()
+        fun same(e: JsonElement): Boolean {
+            val o = e as? JsonObject ?: return false
+            val t = (o["t"] as? JsonPrimitive)?.longOrNull ?: (o["t"] as? JsonPrimitive)?.content?.toDoubleOrNull()?.toLong()
+            return t == n.t && Backup.str(o["x"]) == n.x
+        }
+        val at = all.indices.filter { same(all[it]) }.minByOrNull { kotlin.math.abs(it - n.at) } ?: return emptyMap()
         return mapOf(Practice.GAMES to Practice.fields(cur(Practice.GAMES), g.id, mapOf("wasI" to JsonArray(all.filterIndexed { i, _ -> i != at }))))
     }
 }

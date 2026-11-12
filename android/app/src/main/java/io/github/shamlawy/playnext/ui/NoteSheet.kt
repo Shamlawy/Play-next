@@ -183,7 +183,7 @@ fun NoteSheet(g: Game, now: () -> Long, close: () -> Unit, saved: () -> Unit) {
                         Box(
                             Modifier.size(Pn.touch).clickable(role = Role.Button) {
                                 Sounds.play(Sfx.Back)
-                                Games.change(Notes.drop(g, n.at) { Games.practiced(it) })
+                                Games.change(Notes.drop(g, n) { Games.practiced(it) })
                             }.semantics { contentDescription = "Delete this note" },
                             contentAlignment = Alignment.Center,
                         ) {
