@@ -292,5 +292,5 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 
 ### T58 · vandroid-v34 · Queue · pick
 - said: D clean do the animations good and smooth
-- rule: Queue tickets are look D 'Clean' (tools/demos/tickets/round1.html): one rounded ticket, a small notch top and bottom at the join, a short soft solid line in its middle that never reaches the edges; it never tears (no hanging stub, no dashed line); on an opening card the ticket lands, then the line grows out from its middle
+- rule: The Android app's Queue tickets are look D 'Clean' (the web keeps its v299/v301 torn stub) (tools/demos/tickets/round1.html): one rounded ticket, a small notch top and bottom at the join, a short soft solid line in its middle that never reaches the edges; it never tears (no hanging stub, no dashed line); on an opening card the ticket lands, then the line grows out from its middle
 - check: Roborazzi queue/card shots
