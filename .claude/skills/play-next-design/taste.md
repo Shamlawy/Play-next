@@ -290,7 +290,7 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - rule: A ticket's dashed tear line is printed inside the ticket: on a whole ticket it is the seam of one outline, on a torn one it runs a little inside the half that stays (notches with it) and the torn stub has a clean edge; never a line floating in the gap between the pieces
 - check: Roborazzi queue-held-859, card-front shots
 
-### T58 · vandroid-v33 · Queue · pick
+### T58 · vandroid-v34 · Queue · pick
 - said: D clean do the animations good and smooth
 - rule: Queue tickets are look D 'Clean' (tools/demos/tickets/round1.html): one rounded ticket, a small notch top and bottom at the join, a short soft solid line in its middle that never reaches the edges; it never tears (no hanging stub, no dashed line); on an opening card the ticket lands, then the line grows out from its middle
 - check: Roborazzi queue/card shots

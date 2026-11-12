@@ -51,6 +51,7 @@ MainRow.lib: Library
 MainRow.page: Page
 MixBar.segs: List<Seg>
 NexiSeat.nexi: Nexi?
+NoteSheet.g: Game
 OnDeck.deck: List<Game>
 OnDeck.q: Queue
 PageGroup.lib: Library
@@ -80,6 +81,9 @@ Rail.views: List<Pair<String, String>>
 RailColumn.views: List<Pair<String, String>>
 RailViews.views: List<Pair<String, String>>
 RenameRow.l: QList
+ScoreSheet.g: Game
+ScoreSheet.lib: Library
+ScoreSheet.ready: Rank?
 SelCell.g: Game
 SelCell.pick: QueuePick
 SelCell.q: Queue
@@ -116,3 +120,4 @@ TryRow.items: List<Pair<String, Function0<Unit>>>
 Vessel.t: Animatable<Float, AnimationVector1D>
 ViewBar.views: List<Pair<String, String>>
 Waiting.f: Fetching?
+WhereCard.g: Game

@@ -414,7 +414,7 @@ private fun LsBtn(text: String?, kind: LsKind, icon: String? = null, label: Stri
 }
 
 /** The dy sheets' words (index.html 2525-2538, 16117-16136). */
-private object DyType {
+internal object DyType {
     private val base = TextStyle(fontFamily = Fonts.poppins, color = Pn.ice)
     val head = base.copy(fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
     val x = base.copy(fontSize = 15.sp, lineHeight = 20.sp, color = Pn.mute)

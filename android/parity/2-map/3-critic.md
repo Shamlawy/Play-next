@@ -102,8 +102,8 @@ Checked at web APP_V 327 (index.html, Nov 10 2026). Read-only: the two maps (`1-
 
 1. **The page** ← 1-page §0-4, §7-9; M7 (the shared practice copy + its line, first), M1 (Customise group), M3 (track draw), M9 (back), M10 (numbers), M11 (flight), M12 (tests), the strip from the backup's `g.shots`; 2-edit §8 (`Queue.filter` with the `G:` tab for a genre tap, `Queue.show`). The main row's Start/Finish write here; "I finished it" opens the Score sheet once piece 3 lands (until then it only marks played). Duel per Q3.
 2. **Edit** ← 2-edit §1-6, §9; (a)-(d) above, M6, M8, X3, X5, Q2; My rating's 8 areas (X1).
-3. **Score and notes** ← 1-page §5 (Score sheet, Reset scores, Where was I + `/recap`, forecast, Then & now, Drifting per (h)), M2 per Q4.
+3. **Score and notes** ← 1-page §5, split Nov 12: **3a** the Score sheet, M2 per Q4 (the finish moment), Where was I and Then & now's snapshot; **3b** `/recap`, forecast, the Then & now card, Drifting per (h). Reset scores moves to piece 5 with the ⋯ drawer.
 4. **From the helper** ← 2-edit §7 (Reviews, Prices with `g.own` per M4, HLTB, Why, Similar + `S:` tab, Trailer, the card back's "Like this"), M5 (screenshot fetch). Every route it uses is already allowed in `net/Routes.kt` (`/reviews /hours /prices /steam /similar /why /art /recap /fx /sgdb/`); RAWG is a GET.
 5. **The ⋯ menu and the rest** ← 1-page §6 (Show in queue, Lists per game, Calling card, Trailer intent, Diary/Sessions entries hidden unless `S.diaryOn`/`S.timerOn`, their screens Phase 5), W1's drawer order.
 
-Move: the screenshot fetch from piece 1 to piece 4 (helper), keep the strip in piece 1; "Reset scores" stays in piece 3 (Brief) though it opens from ⋯.
+Move: the screenshot fetch from piece 1 to piece 4 (helper), keep the strip in piece 1; "Reset scores" moves to piece 5 with the ⋯ drawer it opens from (Nov 12; the Brief had it in piece 3).
