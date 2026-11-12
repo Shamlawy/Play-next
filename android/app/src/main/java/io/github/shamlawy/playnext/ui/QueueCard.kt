@@ -39,6 +39,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
@@ -75,6 +77,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -446,83 +449,78 @@ private fun PlatRow(chips: List<Plat.Chip>, size: Dp, gap: Dp, ver: TextUnit, up
 }
 
 /**
- * A ticket half's outline: rounded on its outer side, with a 7dp half-circle bitten out at each end of the perforation.
- * A whole ticket's perforation is the seam, so both halves are bitten there; on a torn one it lies [perf] inside the
- * body (the owner, Nov 12: the line sat in the gap between the pieces, not inside the ticket), and the stub that tore
- * off has a plain straight edge.
+ * The ticket's outline (look D "Clean", the owner, Nov 12, from four demos in tools/demos/tickets/round1.html): one
+ * rounded ticket with a small half-circle notch bitten out of its top and bottom edge at the join ([seam], px from the
+ * left). It never tears, so no line ever sits in a gap (android-v32's torn stub, the owner: "the lines are far and looks bad").
  */
-private class Notched(private val stub: Boolean, private val r: Dp, private val bite: Dp, private val perf: Dp?) : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val rr = with(density) { r.toPx() }
-        val b = with(density) { bite.toPx() }
-        val body = Path().apply {
-            addRoundRect(
-                if (stub) RoundRect(Rect(Offset.Zero, size), CornerRadius(rr), CornerRadius.Zero, CornerRadius.Zero, CornerRadius(rr))
-                else RoundRect(Rect(Offset.Zero, size), CornerRadius.Zero, CornerRadius(rr), CornerRadius(rr), CornerRadius.Zero),
-            )
-        }
-        if (stub && perf != null) return Outline.Generic(body)
-        val x = if (stub) size.width else with(density) { (perf ?: 0.dp).toPx() }
-        val holes = Path().apply {
-            addOval(Rect(Offset(x, 0f), b))
-            addOval(Rect(Offset(x, size.height), b))
-        }
-        return Outline.Generic(Path.combine(PathOperation.Difference, body, holes))
+internal fun ticketOutline(size: Size, seam: Float, r: Float, notch: Float): Path {
+    val body = Path().apply { addRoundRect(RoundRect(Rect(Offset.Zero, size), CornerRadius(r))) }
+    if (seam <= 0f) return body
+    val holes = Path().apply {
+        addOval(Rect(Offset(seam, 0f), notch))
+        addOval(Rect(Offset(seam, size.height), notch))
     }
+    return Path.combine(PathOperation.Difference, body, holes)
 }
 
-/** How far inside the body a torn ticket's perforation runs (just past the notch's radius, so the line reads as printed on it). */
-private val TORN_PERF = 9.dp
+/** The ticket's line: short and soft in the middle of the join, never reaching the edges; [p] 0..1 grows it out from its middle. */
+internal fun DrawScope.ticketLine(seam: Float, colour: Color, p: Float) {
+    if (seam <= 0f || p <= 0f) return
+    val half = size.height * .24f * p
+    val mid = size.height / 2
+    drawLine(colour, Offset(seam, mid - half), Offset(seam, mid + half), 2.dp.toPx(), cap = StrokeCap.Round, alpha = p.coerceAtMost(1f))
+}
+
+/** When the open card's ticket line draws in: once the ticket has landed (750 + 600 ms), with the released game's click at 1.4 s. */
+private fun ticketLineIn(t: Float) = seg(t, 1400f, 420f, CubicBezierEasing(.2f, 0f, 0f, 1f))
 
 @Composable
 private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animatable<Float, AnimationVector1D>, modifier: Modifier) {
-    val perf = if (st.torn) TORN_PERF else null
-    val stubShape = remember(perf) { Notched(true, 12.dp, 7.dp, perf) }
-    val bodyShape = remember(perf) { Notched(false, 12.dp, 7.dp, perf) }
     val num = CType.base.copy(fontSize = d.tkNum, lineHeight = d.tkNum, fontWeight = FontWeight.Bold, letterSpacing = (-.03).em, fontFeatureSettings = "tnum").fixed()
     val label = CType.base.copy(fontSize = d.tkLabel, lineHeight = d.tkLabel * 1.2f, fontWeight = FontWeight.SemiBold).fixed()
-    Row(
+    val deep = Color(Web.QK_DEEP)
+    val bodyFill = mixA(accent, Color(Web.QK_TICKET), .3f)
+    val lineCol = mixA(accent, Pn.ice.copy(alpha = .5f), .45f)
+    var seam by remember { mutableFloatStateOf(0f) }
+    Box(
         modifier.height(d.tkH).graphicsLayer {
             val t = enter.value
             val p = seg(t, 750f, 600f, CubicBezierEasing(.34f, 1.56f, .64f, 1f))
             alpha = seg(t, 750f, 600f, LinearEasing).coerceAtMost(1f)
             translationY = 40.dp.toPx() * (1 - p)
             rotationZ = -6f * (1 - p)
+        }.drawWithCache {
+            val path = ticketOutline(size, seam, 12.dp.toPx(), 6.dp.toPx())
+            val stubBrush = Brush.linearGradient(listOf(accent, mixA(accent, deep, .68f)), Offset.Zero, Offset(120f, 330f))
+            onDrawBehind {
+                clipPath(path) {
+                    drawRect(bodyFill)
+                    drawRect(stubBrush, size = Size(seam, size.height))
+                }
+            }
         },
     ) {
-        TicketHalf(st.stub, true, st.torn, accent, d, enter, stubShape, num, label)
-        TicketHalf(st.body, false, st.torn, accent, d, enter, bodyShape, num, label)
+        // The line is drawn once at full length in its own layer and grows from its middle through scaleY/alpha only,
+        // so the outline above is never redrawn while it draws in (second-look on #736, like v33's finish burst).
+        Box(
+            Modifier.matchParentSize().graphicsLayer {
+                val p = ticketLineIn(enter.value)
+                scaleY = p
+                alpha = p.coerceIn(0f, 1f)
+                transformOrigin = TransformOrigin(.5f, .5f)
+            }.drawBehind { ticketLine(seam, lineCol, 1f) },
+        )
+        Row(Modifier.fillMaxHeight()) {
+            TicketHalf(st.stub, true, d, num, label, Modifier.onSizeChanged { seam = it.width.toFloat() })
+            TicketHalf(st.body, false, d, num, label, Modifier)
+        }
     }
 }
 
-/** One half of the ticket: the stub (the game's colour, torn off a released game) or the body with its perforation (at its seam, or [TORN_PERF] inside it once torn). */
+/** One half of the ticket's words: the stub's (white, on the game's colour) or the body's. */
 @Composable
-private fun TicketHalf(v: Pair<String, String>, stub: Boolean, torn: Boolean, accent: Color, d: CardDims, enter: Animatable<Float, AnimationVector1D>, shape: Shape, num: TextStyle, label: TextStyle) {
-    val deep = Color(Web.QK_DEEP)
-    Column(
-        Modifier.fillMaxHeight().graphicsLayer {
-            if (!torn) return@graphicsLayer
-            val k = ((enter.value - 1400f) / 500f).coerceIn(0f, 1f)
-            if (stub) {
-                // none, a tug at 35%, past it at 70%, then at rest: hanging off at 8° (`qkTear`)
-                transformOrigin = TransformOrigin(0f, 1f)
-                val (tx, ty, r) = when {
-                    k < .35f -> Triple(-1f * k / .35f, 0f, -2f * k / .35f)
-                    k < .7f -> ((k - .35f) / .35f).let { u -> Triple(-1f - 4f * u, 5f * u, -2f + 12f * u) }
-                    else -> ((k - .7f) / .3f).let { u -> Triple(-5f, 5f - u, 10f - 2f * u) }
-                }
-                translationX = tx.dp.toPx(); translationY = ty.dp.toPx(); rotationZ = r
-            } else translationX = (if (k < .35f) k / .35f else 1f + 3f * (k - .35f) / .65f).dp.toPx()
-        }.then(
-            if (stub) Modifier.background(Brush.linearGradient(listOf(accent, mixA(accent, deep, .68f)), Offset.Zero, Offset(120f, 330f)), shape)
-            else Modifier.background(mixA(accent, Color(Web.QK_TICKET), .3f), shape).drawBehind {
-                val sw = 2.dp.toPx()
-                val x = if (torn) TORN_PERF.toPx() else sw / 2
-                drawLine(mixA(accent, Pn.ice.copy(alpha = .4f), .55f), Offset(x, 0f), Offset(x, size.height), sw, pathEffect = PathEffect.dashPathEffect(floatArrayOf(sw * 3, sw * 2)))
-            },
-        ).padding(start = d.tkPad + if (torn && !stub) TORN_PERF else 0.dp, end = d.tkPad),
-        verticalArrangement = Arrangement.Center,
-    ) {
+private fun TicketHalf(v: Pair<String, String>, stub: Boolean, d: CardDims, num: TextStyle, label: TextStyle, modifier: Modifier) {
+    Column(modifier.fillMaxHeight().padding(horizontal = d.tkPad), verticalArrangement = Arrangement.Center) {
         BasicText(v.first, style = num.copy(color = if (stub) Color.White else Pn.ice, shadow = if (stub) Shadow(Color.Black.copy(alpha = .35f), Offset(0f, 1f), 6f) else null), maxLines = 1, softWrap = false)
         BasicText(v.second, style = label.copy(color = if (stub) Color.White.copy(alpha = .85f) else Pn.ice.copy(alpha = .72f)), maxLines = 1, softWrap = false, modifier = Modifier.padding(top = 3.dp))
     }

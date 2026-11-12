@@ -200,3 +200,9 @@ go=home
 at=
 say=Score a game right from its page, leave yourself a note about where you stopped, and finishing a game now lands a big PLAYED stamp.
 tryIt=Open a game you're playing and tap the card under its line ("Where are you up to?"): write where you stopped, or tap a quick chip, and Save note. Then tap I finished it: the stamp lands, the page shakes, and the Score sheet opens so you can score it. On a finished game tap Score it (or its score) to change it. It's a practice copy: everything resets when the app reopens.
+
+v=34
+go=home
+at=
+say=Your Queue tickets are one clean piece now: no torn stub, just a soft line in the middle that draws in when a card opens.
+tryIt=Open Games › Queue and look at any row's ticket. Then tap a row to open its card and watch the ticket at the bottom left land and its line draw in.
