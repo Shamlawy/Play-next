@@ -184,7 +184,38 @@ jobs:
           free -m
       # -gpu swangle_indirect (ANGLE on SwiftShader): with swiftshader_indirect the emulator died as the app drew (android-v10:
       # after a cold start, mid-walk, 95 s into the profile run) with memory to spare; a step timeout lets the failure log run
+      # L251 (×3: android-v23, v36 and before): the profile run fails now and then with only "There were failing tests" and
+      # a re-run of the job passes, so a failed first try names its test and then runs again on a fresh emulator by itself
       - name: Baseline Profile on the emulator (debug-signed build)
+        id: prof1
+        continue-on-error: true
+        timeout-minutes: 30
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: ${{ steps.avd.outputs.target }}
+          arch: x86_64
+          profile: ${{ steps.avd.outputs.profile }}
+          cores: 4
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: android
+          script: ./gradlew :app:generateReleaseBaselineProfile -Pkotlin.compiler.execution.strategy=in-process --stacktrace
+      - name: "The profile run's first try failed: which test, then a second try"
+        if: steps.prof1.outcome == 'failure'
+        run: |
+          echo "::warning::The Baseline Profile's first try failed; trying once more on a fresh emulator (L251)."
+          r=android/baselineprofile/build/outputs/androidTest-results
+          n=0
+          while IFS= read -r -d '' x; do
+            n=$((n + 1)); echo "== $x"; grep -B2 -A15 '<failure' "$x" | head -n 60 || true
+          done < <(grep -rlZ '<failure' "$r" 2> /dev/null || true)
+          if [ "$n" = 0 ]; then echo "No failing test recorded under $r (the run may have died before the tests)."; fi
+          free -m
+      - name: Baseline Profile on the emulator, second try
+        if: steps.prof1.outcome == 'failure'
         timeout-minutes: 30
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
