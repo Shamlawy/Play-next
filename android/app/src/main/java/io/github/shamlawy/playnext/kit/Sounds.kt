@@ -26,7 +26,7 @@ object Sounds {
     @Volatile var nexi = true
 
     /** Bump when a recipe changes: the cached WAVs are made again. */
-    private const val VERSION = 1
+    private const val VERSION = 2
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var dir: File? = null
@@ -41,8 +41,13 @@ object Sounds {
         dir = File(ctx.cacheDir, "sfx-$VERSION")
     }
 
+    /** Tests hear every [play] here, Sounds on or off (when a sound plays against the card's own clock). */
+    @androidx.annotation.VisibleForTesting
+    internal var heard: ((Sfx) -> Unit)? = null
+
     /** A sound the app makes as you use it: only with Sounds on. */
     fun play(s: Sfx) {
+        heard?.invoke(s)
         if (on) now(s)
     }
 

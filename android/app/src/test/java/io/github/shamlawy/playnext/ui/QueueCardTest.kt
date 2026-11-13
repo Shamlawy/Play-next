@@ -20,7 +20,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
+import androidx.compose.runtime.snapshots.Snapshot
 import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.shamlawy.playnext.kit.Sfx
+import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
@@ -135,6 +138,36 @@ class QueueCardTest {
         rule.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("Customise", substring = true))
         rule.mainClock.advanceTimeBy(1_000)
         assertEquals("still on its back", "back", side("Starfall Lantern"))
+    }
+
+    /**
+     * A released game's tear sounds on the frame its stub starts to rip (android-v36, the owner: "The sound doesnt catch
+     * the cut animation"): the card opens with its open sound, the tear's own sound comes 1.4 s later on the card's clock;
+     * a coming game's ticket stays whole and makes no tear sound.
+     */
+    @Test fun theTearSoundsOnTheFrameTheStubRips() {
+        val heard = mutableListOf<Pair<Sfx, Long>>()
+        Sounds.heard = { heard += it to rule.mainClock.currentTime }
+        try {
+            show()
+            for ((name, head, torn) in listOf(Triple("Hollow Tide", "28 h left", true), Triple("Ninefold Gate", "Out in 18 days", false))) {
+                heard.clear()
+                val r = row(name, head)
+                rule.mainClock.autoAdvance = false
+                tapRow(r)
+                Snapshot.sendApplyNotifications()
+                repeat(170) { rule.mainClock.advanceTimeByFrame() }
+                rule.mainClock.autoAdvance = true
+                val open = heard.firstOrNull { it.first == Sfx.CardOpen }
+                assertTrue("$name opens with its sound: $heard", open != null)
+                val tear = heard.filter { it.first == Sfx.CardTear }
+                if (!torn) { assertTrue("a whole ticket makes no tear sound: $heard", tear.isEmpty()); continue }
+                assertEquals("one tear sound: $heard", 1, tear.size)
+                val at = tear[0].second - open!!.second
+                assertTrue("the tear sounds 1.4 s into the card's opening, within a frame or two: ${at} ms", at in 1_390L..1_440L)
+                rule.mainClock.advanceTimeBy(1_000)
+            }
+        } finally { Sounds.heard = null }
     }
 
     @Test fun aTapOnARowOpensItsCardAndClosesTheOther() {

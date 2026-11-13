@@ -212,3 +212,9 @@ go=home
 at=
 say=A released game's ticket really tears now: when its card opens, the stub rips off along the line, right on the cut sound.
 tryIt=Open Games › Queue and tap a game that's already out: watch the ticket at the bottom left land, its line draw in, then the stub tear off and hang at a slight tilt. Unfolded, its closed row shows the same torn stub. A game that's coming out stays whole.
+
+v=36
+go=home
+at=
+say=The ticket's tear sound now lands right on the cut: it plays on the very frame the stub rips off.
+tryIt=Turn on Sounds (Settings › Sounds), open Games › Queue and tap a game that's already out: the click comes exactly as the stub tears away. Settings › Sounds › Stub tears plays the cut on its own now.

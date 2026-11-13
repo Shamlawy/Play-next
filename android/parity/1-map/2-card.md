@@ -92,7 +92,7 @@ Total about 1.9 s. Calm (`html.still`, reduced motion, `S.motion===false`): no e
 | When | Web call | Recipe (11668-11676) | Android `Sfx` (kit/Recipes.kt:11-16) |
 |---|---|---|---|
 | card opens (snap false) | `sfx("qkopen", false)` | ink-drop bloop + soft chord + six plucks 0.6-1.06 s | `CardOpen` 1.53 s |
-| card opens, released game (snap true) | `sfx("qkopen", true)` | same + paper tear at 1.4 s + a note at 1.56 s | `CardTear` 1.79 s |
+| card opens, released game (snap true) | `sfx("qkopen", true)` | same + paper tear at 1.4 s + a note at 1.56 s | `CardOpen` 1.53 s, then `CardTear` (the cut alone, 0.45 s) when the card's `enter` reaches 1.4 s on Compose's clock (android-v36, `snapshotFlow` in `QueueCard`; never baked into one recording) |
 | turn to the back | `sfx("qkflip", true)` then `sfx("qkback")` | page-turn noise + rising notes 784 -> 1047; then click, 7 bubbles, 4-note start jingle at 0.9 s | `CardFlip`, `CardBack` |
 | turn back to the front | `sfx("qkflip", false)` | falling notes 1047 -> 784 | `CardFlipBack` |
 | one tap closes | `sfx("qkshut")` | two notes 659, 494 | `CardShut` |
@@ -288,7 +288,7 @@ android/parity/1-perfect.md. What's still to come is in that file's "Left for Ph
 | Need | Status |
 |---|---|
 | Queue screen, open card, back, turn, close fold | Then: **nothing yet** (`QueueSoon` listed the games as plain text). Now: `ui/Queue.kt`, `ui/QueueCard.kt` (android-v11, v15, v18). |
-| Card sounds | **Done**: `kit/Recipes.kt` renders `CardOpen`, `CardTear`, `CardFlip`, `CardFlipBack`, `CardShut`, `CardBack` (plus `Open`, `Add`, `Tap`, `Back`, `Nudge` for the Shuffler); `kit/Sounds.kt` plays them (`Sounds.play`, off unless `Prefs.sound`). Not triggered by any card. |
+| Card sounds | **Done**: `kit/Recipes.kt` renders `CardOpen`, `CardTear`, `CardFlip`, `CardFlipBack`, `CardShut`, `CardBack` (plus `Open`, `Add`, `Tap`, `Back`, `Nudge` for the Shuffler); `kit/Sounds.kt` plays them (`Sounds.play`, off unless `Prefs.sound`). The open card plays `CardOpen` and, for a released game, `CardTear` on the frame the stub rips (android-v36); the turn plays `CardFlip`/`CardBack`/`CardFlipBack`. |
 | Haptics | **Done**: `kit/Buzz.kt` `Big.CardTurn` (primitives LOW_TICK + TICK, fallback 8 ms), `Buzz.ms(...)` for the 6/8/14 ms ticks. Not wired. |
 | Calm / reduced motion | **Done**: `ui/Motion.kt` `LocalCalm`, `rememberCalm(prefs)` (animations off in the backup, the phone's animator scale 0, battery saver); `Ease.house` is `--ease`; `Ease.enter` is `(.16,1,.3,1)`. The card's own curves are not defined: `cubic-bezier(.3,0,.15,1)` (turn), `(.34,1.56,.64,1)` (ticket), `(.34,1.3,.64,1)` / `(.34,1.45,.64,1)` (Nexi). Add them to `Ease`. |
 | Cover flight onto the game page | **Done as a placeholder**: `ui/GamePage.kt` (`FlyFrom`, `GamePage(g, tap, from, ...)`, 380 ms flight, 220 ms close) takes any tapped cover; the card's box art can call it. |
