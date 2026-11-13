@@ -214,6 +214,8 @@ jobs:
           done < <(grep -rlZ '<failure' "$r" 2> /dev/null || true)
           if [ "$n" = 0 ]; then echo "No failing test recorded under $r (the run may have died before the tests)."; fi
           free -m
+          # set the first try's results aside, so the second try's failure steps only see its own (kept in the artifact)
+          if [ -d "$r" ]; then mv "$r" "$r-try1"; fi
       - name: Baseline Profile on the emulator, second try
         if: steps.prof1.outcome == 'failure'
         timeout-minutes: 30
@@ -256,6 +258,7 @@ jobs:
           path: |
             android/baselineprofile/build/reports/androidTests/
             android/baselineprofile/build/outputs/androidTest-results/
+            android/baselineprofile/build/outputs/androidTest-results-try1/
           if-no-files-found: ignore
           retention-days: 14
       - name: The Baseline Profile is there
