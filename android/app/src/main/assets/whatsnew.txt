@@ -206,3 +206,9 @@ go=home
 at=
 say=Your Queue tickets are one clean piece now: no torn stub, just a soft line in the middle that draws in when a card opens.
 tryIt=Open Games › Queue and look at any row's ticket. Then tap a row to open its card and watch the ticket at the bottom left land and its line draw in.
+
+v=35
+go=home
+at=
+say=A released game's ticket really tears now: when its card opens, the stub rips off along the line, right on the cut sound.
+tryIt=Open Games › Queue and tap a game that's already out: watch the ticket at the bottom left land, its line draw in, then the stub tear off and hang at a slight tilt. Unfolded, its closed row shows the same torn stub. A game that's coming out stays whole.

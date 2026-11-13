@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -141,7 +142,8 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     val backT = remember(g.id) { Animatable(BACK_END) }
     val onBack = Math.floorMod(turns, 2) == 1
     androidx.compose.runtime.LaunchedEffect(g.id) {
-        if (fresh) Sounds.play(if (st.torn) Sfx.CardTear else Sfx.CardOpen)
+        // calm opens straight on the torn ticket: no tear to hear (T59: a sound never plays a motion the screen doesn't show)
+        if (fresh) Sounds.play(if (st.torn && !calm) Sfx.CardTear else Sfx.CardOpen)
         // once: scrolled away and back, it doesn't open (or sound) again
         entered()
         if (enter.value < ENTER_END) enter.animateTo(ENTER_END, tween(ENTER_END.toInt(), easing = LinearEasing))
@@ -451,7 +453,8 @@ private fun PlatRow(chips: List<Plat.Chip>, size: Dp, gap: Dp, ver: TextUnit, up
 /**
  * The ticket's outline (look D "Clean", the owner, Nov 12, from four demos in tools/demos/tickets/round1.html): one
  * rounded ticket with a small half-circle notch bitten out of its top and bottom edge at the join ([seam], px from the
- * left). It never tears, so no line ever sits in a gap (android-v32's torn stub, the owner: "the lines are far and looks bad").
+ * left). A coming game's stays whole; a released game's tears along the join into two [ticketPiece]s, and its line goes
+ * with the cut, so no line ever sits in the gap (android-v32's torn stub, the owner: "the lines are far and looks bad").
  */
 internal fun ticketOutline(size: Size, seam: Float, r: Float, notch: Float): Path {
     val body = Path().apply { addRoundRect(RoundRect(Rect(Offset.Zero, size), CornerRadius(r))) }
@@ -471,8 +474,61 @@ internal fun DrawScope.ticketLine(seam: Float, colour: Color, p: Float) {
     drawLine(colour, Offset(seam, mid - half), Offset(seam, mid + half), 2.dp.toPx(), cap = StrokeCap.Round, alpha = p.coerceAtMost(1f))
 }
 
-/** When the open card's ticket line draws in: once the ticket has landed (750 + 600 ms), with the released game's click at 1.4 s. */
-private fun ticketLineIn(t: Float) = seg(t, 1400f, 420f, CubicBezierEasing(.2f, 0f, 0f, 1f))
+/**
+ * One piece of a torn ticket, in its own [size]: the stub (left, [stub]) or the body, rounded on its outer side, cut
+ * straight along the join, each keeping its half of the two notches (the same edge [ticketOutline] has at the join).
+ */
+internal fun ticketPiece(size: Size, stub: Boolean, r: Float, notch: Float): Path {
+    val c = CornerRadius(r)
+    val z = CornerRadius.Zero
+    val rect = Rect(Offset.Zero, size)
+    val body = Path().apply { addRoundRect(if (stub) RoundRect(rect, c, z, z, c) else RoundRect(rect, z, c, c, z)) }
+    val x = if (stub) size.width else 0f
+    val holes = Path().apply {
+        addOval(Rect(Offset(x, 0f), notch))
+        addOval(Rect(Offset(x, size.height), notch))
+    }
+    return Path.combine(PathOperation.Difference, body, holes)
+}
+
+/**
+ * The torn stub's pose at [k] 0..1 of its tear: translation x, y (dp) and turn (degrees, about its top-left corner, so
+ * its cut edge drops). A tug back, the rip as it swings down and away, then a soft settle where it hangs ([TEAR_REST]).
+ */
+internal fun tearPose(k: Float): FloatArray {
+    val tug = CubicBezierEasing(.3f, 0f, .6f, 1f)
+    val rip = CubicBezierEasing(.2f, .7f, .3f, 1f)
+    val settle = CubicBezierEasing(.25f, 0f, .2f, 1f)
+    return when {
+        k <= 0f -> floatArrayOf(0f, 0f, 0f)
+        k < .16f -> tug.transform(k / .16f).let { u -> floatArrayOf(-1f * u, 0f, -1.5f * u) }
+        k < .46f -> rip.transform((k - .16f) / .3f).let { u -> floatArrayOf(-1f - 4.5f * u, 3f * u, -1.5f + 9.5f * u) }
+        k < 1f -> settle.transform((k - .46f) / .54f).let { u -> floatArrayOf(-5.5f + 1.5f * u, 3f - 1f * u, 8f - 3f * u) }
+        else -> TEAR_REST
+    }
+}
+
+/** Where a torn stub hangs: 4dp out, 2dp down, turned 5° (the closed rows show it still, the open card settles there). */
+internal val TEAR_REST = floatArrayOf(-4f, 2f, 5f)
+
+/** The torn stub's own layer: [pose] from [tearPose], turned about its top-left corner. Read in the layer, never redrawn. */
+internal fun GraphicsLayerScope.tearAt(pose: FloatArray) {
+    transformOrigin = TransformOrigin(0f, 0f)
+    translationX = pose[0].dp.toPx()
+    translationY = pose[1].dp.toPx()
+    rotationZ = pose[2]
+}
+
+/**
+ * The open card's ticket line: once the ticket has landed (750 + 600 ms) a whole ticket's line draws in at 1.4 s; a
+ * released game's draws in a little earlier, so it is there when its stub tears off along it at the click (1.4 s).
+ */
+private fun ticketLineIn(t: Float, torn: Boolean) =
+    if (torn) seg(t, 1080f, 300f, CubicBezierEasing(.2f, 0f, 0f, 1f)) else seg(t, 1400f, 420f, CubicBezierEasing(.2f, 0f, 0f, 1f))
+
+/** The tear on the open card, timed to the sound's click at 1.4 s (`Sfx.CardTear`, "Stub tears"): 0..1 over 560 ms. */
+private fun tearIn(t: Float) = ((t - TEAR_AT) / 560f).coerceIn(0f, 1f)
+private const val TEAR_AT = 1400f
 
 @Composable
 private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animatable<Float, AnimationVector1D>, modifier: Modifier) {
@@ -481,6 +537,7 @@ private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animat
     val deep = Color(Web.QK_DEEP)
     val bodyFill = mixA(accent, Color(Web.QK_TICKET), .3f)
     val lineCol = mixA(accent, Pn.ice.copy(alpha = .5f), .45f)
+    val torn = st.torn
     var seam by remember { mutableFloatStateOf(0f) }
     Box(
         modifier.height(d.tkH).graphicsLayer {
@@ -489,31 +546,53 @@ private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animat
             alpha = seg(t, 750f, 600f, LinearEasing).coerceAtMost(1f)
             translationY = 40.dp.toPx() * (1 - p)
             rotationZ = -6f * (1 - p)
-        }.drawWithCache {
-            val path = ticketOutline(size, seam, 12.dp.toPx(), 6.dp.toPx())
-            val stubBrush = Brush.linearGradient(listOf(accent, mixA(accent, deep, .68f)), Offset.Zero, Offset(120f, 330f))
-            onDrawBehind {
-                clipPath(path) {
-                    drawRect(bodyFill)
-                    drawRect(stubBrush, size = Size(seam, size.height))
+        }.then(
+            // a whole ticket is one outline; a torn one's two pieces draw themselves (below)
+            if (torn) Modifier else Modifier.drawWithCache {
+                val path = ticketOutline(size, seam, 12.dp.toPx(), 6.dp.toPx())
+                val stubBrush = Brush.linearGradient(listOf(accent, mixA(accent, deep, .68f)), Offset.Zero, Offset(120f, 330f))
+                onDrawBehind {
+                    clipPath(path) {
+                        drawRect(bodyFill)
+                        drawRect(stubBrush, size = Size(seam, size.height))
+                    }
                 }
-            }
-        },
+            },
+        ),
     ) {
+        Row(Modifier.fillMaxHeight()) {
+            // A released game's stub tears off at the click (1.4 s): each piece is drawn once in its own size and only
+            // its layer moves (translation, turn), so nothing is redrawn while it tears; calm opens straight at the end.
+            TicketHalf(
+                st.stub, true, d, num, label,
+                Modifier.onSizeChanged { seam = it.width.toFloat() }.then(
+                    if (!torn) Modifier else Modifier.graphicsLayer { tearAt(tearPose(tearIn(enter.value))) }.drawWithCache {
+                        val piece = ticketPiece(size, true, 12.dp.toPx(), 6.dp.toPx())
+                        val stubBrush = Brush.linearGradient(listOf(accent, mixA(accent, deep, .68f)), Offset.Zero, Offset(120f, 330f))
+                        onDrawBehind { drawPath(piece, stubBrush) }
+                    },
+                ),
+            )
+            TicketHalf(
+                st.body, false, d, num, label,
+                if (!torn) Modifier else Modifier.drawWithCache {
+                    val piece = ticketPiece(size, false, 12.dp.toPx(), 6.dp.toPx())
+                    onDrawBehind { drawPath(piece, bodyFill) }
+                },
+            )
+        }
         // The line is drawn once at full length in its own layer and grows from its middle through scaleY/alpha only,
-        // so the outline above is never redrawn while it draws in (second-look on #736, like v33's finish burst).
+        // so the outline is never redrawn while it draws in (second-look on #736, like v33's finish burst). On a torn
+        // ticket it is the cut: it goes as the stub rips away, so no line is left in the gap.
         Box(
             Modifier.matchParentSize().graphicsLayer {
-                val p = ticketLineIn(enter.value)
+                val t = enter.value
+                val p = ticketLineIn(t, torn)
                 scaleY = p
-                alpha = p.coerceIn(0f, 1f)
+                alpha = p.coerceIn(0f, 1f) * (if (torn) 1f - seg(t, TEAR_AT + 60f, 120f, LinearEasing) else 1f)
                 transformOrigin = TransformOrigin(.5f, .5f)
             }.drawBehind { ticketLine(seam, lineCol, 1f) },
         )
-        Row(Modifier.fillMaxHeight()) {
-            TicketHalf(st.stub, true, d, num, label, Modifier.onSizeChanged { seam = it.width.toFloat() })
-            TicketHalf(st.body, false, d, num, label, Modifier)
-        }
     }
 }
 
