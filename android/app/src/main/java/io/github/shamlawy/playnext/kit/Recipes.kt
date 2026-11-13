@@ -10,7 +10,7 @@ import kotlin.random.Random
 enum class Sfx(val seconds: Double, val label: String) {
     Tap(.07, "Tap"), Open(.16, "Open"), Add(.3, "Add"), Swipe(.14, "Swipe"), Nudge(.06, "Nudge"), Back(.08, "Back"),
     Hit(.31, "Hit"), Slash(.31, "Slash"), Tick(.09, "Tick"), Slam(.53, "Slam"), Crack(.13, "Crack"), Shatter(.58, "Shatter"),
-    Cheer(.57, "Cheer"), CardOpen(1.53, "Card opens"), CardTear(1.79, "Stub tears"), CardFlip(.65, "Card turns"),
+    Cheer(.57, "Cheer"), CardOpen(1.53, "Card opens"), CardTear(.45, "Stub tears"), CardFlip(.65, "Card turns"),
     CardFlipBack(.65, "Card turns back"), CardShut(.31, "Card shuts"), CardBack(1.25, "Card's back"),
     Zing(1.02, "Duel pick"), Boom(.56, "VS"), Clang(1.0, "CLEAR!"), Fanfare(1.4, "Out now"), Day(1.62, "New day"),
     Chime(.58, "Nexi's chime"),
@@ -91,15 +91,17 @@ object Recipes {
                     repeat(12) { tone(Wave.Sine, 2600 + rnd.nextDouble() * 3800, 2400 + rnd.nextDouble() * 2000, .12, t + rnd.nextDouble() * .35, .18) }
                 }
                 Sfx.Cheer -> for ((i, f) in listOf(523.0, 659.0, 784.0, 1047.0).withIndex()) tone(Wave.Triangle, f, f, .22, t + i * .08, .3)
-                Sfx.CardOpen, Sfx.CardTear -> {
+                Sfx.CardOpen -> {
                     tone(Wave.Sine, 1100.0, 260.0, .45, t, .22, .003)
                     noise(Filter.Lowpass, 800.0, 200.0, .5, .12, t + .02, .5, .05)
                     for (f in listOf(262.0, 330.0, 392.0, 494.0)) tone(Wave.Triangle, f, f, .05, t + .1, 1.4, .35)
                     for ((d, f) in listOf(.6 to 523.0, .7 to 659.0, .77 to 784.0, .84 to 880.0, .95 to 1047.0, 1.06 to 1319.0)) tone(Wave.Triangle, f, f, .09, t + d, .28, .003)
-                    if (s == Sfx.CardTear) {
-                        noise(Filter.Bandpass, 3200.0, 1200.0, 1.4, .3, t + 1.4, .16, .01)
-                        tone(Wave.Triangle, 1568.0, 1175.0, .08, t + 1.56, .2, .003)
-                    }
+                }
+                // the web's card-open tail (`sfx('tear')` at +1.4 s) on its own: the open card plays it on the frame its stub
+                // starts to rip (android-v36), so the cut and its sound can't drift apart
+                Sfx.CardTear -> {
+                    noise(Filter.Bandpass, 3200.0, 1200.0, 1.4, .3, t, .16, .01)
+                    tone(Wave.Triangle, 1568.0, 1175.0, .08, t + .16, .2, .003)
                 }
                 Sfx.CardFlip, Sfx.CardFlipBack -> {
                     noise(Filter.Bandpass, 1200.0, 500.0, .8, .3, t, .26, .05)

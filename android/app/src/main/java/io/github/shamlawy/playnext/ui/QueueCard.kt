@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -116,6 +117,7 @@ import io.github.shamlawy.playnext.kit.Sounds
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.tan
@@ -142,11 +144,20 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     val backT = remember(g.id) { Animatable(BACK_END) }
     val onBack = Math.floorMod(turns, 2) == 1
     androidx.compose.runtime.LaunchedEffect(g.id) {
-        // calm opens straight on the torn ticket: no tear to hear (T59: a sound never plays a motion the screen doesn't show)
-        if (fresh) Sounds.play(if (st.torn && !calm) Sfx.CardTear else Sfx.CardOpen)
+        if (fresh) Sounds.play(Sfx.CardOpen)
         // once: scrolled away and back, it doesn't open (or sound) again
         entered()
-        if (enter.value < ENTER_END) enter.animateTo(ENTER_END, tween(ENTER_END.toInt(), easing = LinearEasing))
+        if (enter.value < ENTER_END) {
+            // A released game's tear sounds on the frame its stub starts to rip, read off the card's own clock: one recording
+            // with the click at 1.4 s drifted from the cut (the owner, android-v35: "The sound doesnt catch the cut
+            // animation"), since Compose scales the motion by the phone's animation speed and the sound runs in real time.
+            // Calm opens straight on the torn ticket, so there is no tear to hear (T59).
+            if (fresh && st.torn && !calm) launch {
+                snapshotFlow { enter.value >= TEAR_AT }.first { it }
+                Sounds.play(Sfx.CardTear)
+            }
+            enter.animateTo(ENTER_END, tween(ENTER_END.toInt(), easing = LinearEasing))
+        }
     }
     // one tap closes (after waiting [TAP_GAP] for a second), two turn; a tap on a button or a scroll is neither (v307)
     val taps = remember(g.id) { Taps() }
@@ -501,9 +512,9 @@ internal fun tearPose(k: Float): FloatArray {
     val settle = CubicBezierEasing(.25f, 0f, .2f, 1f)
     return when {
         k <= 0f -> floatArrayOf(0f, 0f, 0f)
-        k < .16f -> tug.transform(k / .16f).let { u -> floatArrayOf(-1f * u, 0f, -1.5f * u) }
-        k < .46f -> rip.transform((k - .16f) / .3f).let { u -> floatArrayOf(-1f - 4.5f * u, 3f * u, -1.5f + 9.5f * u) }
-        k < 1f -> settle.transform((k - .46f) / .54f).let { u -> floatArrayOf(-5.5f + 1.5f * u, 3f - 1f * u, 8f - 3f * u) }
+        k < .06f -> tug.transform(k / .06f).let { u -> floatArrayOf(-1f * u, 0f, -1.5f * u) }
+        k < .36f -> rip.transform((k - .06f) / .3f).let { u -> floatArrayOf(-1f - 4.5f * u, 3f * u, -1.5f + 9.5f * u) }
+        k < 1f -> settle.transform((k - .36f) / .64f).let { u -> floatArrayOf(-5.5f + 1.5f * u, 3f - 1f * u, 8f - 3f * u) }
         else -> TEAR_REST
     }
 }
@@ -526,7 +537,7 @@ internal fun GraphicsLayerScope.tearAt(pose: FloatArray) {
 private fun ticketLineIn(t: Float, torn: Boolean) =
     if (torn) seg(t, 1080f, 300f, CubicBezierEasing(.2f, 0f, 0f, 1f)) else seg(t, 1400f, 420f, CubicBezierEasing(.2f, 0f, 0f, 1f))
 
-/** The tear on the open card, timed to the sound's click at 1.4 s (`Sfx.CardTear`, "Stub tears"): 0..1 over 560 ms. */
+/** The tear on the open card, from 1.4 s (its sound, `Sfx.CardTear` "Stub tears", plays on the frame it starts): 0..1 over 560 ms. */
 private fun tearIn(t: Float) = ((t - TEAR_AT) / 560f).coerceIn(0f, 1f)
 private const val TEAR_AT = 1400f
 
@@ -561,7 +572,7 @@ private fun CardTicket(st: Queue.Stat, accent: Color, d: CardDims, enter: Animat
         ),
     ) {
         Row(Modifier.fillMaxHeight()) {
-            // A released game's stub tears off at the click (1.4 s): each piece is drawn once in its own size and only
+            // A released game's stub tears off at 1.4 s, with its sound: each piece is drawn once in its own size and only
             // its layer moves (translation, turn), so nothing is redrawn while it tears; calm opens straight at the end.
             TicketHalf(
                 st.stub, true, d, num, label,
