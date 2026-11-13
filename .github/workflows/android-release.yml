@@ -211,9 +211,12 @@ jobs:
         if: failure()
         run: |
           r=android/baselineprofile/build/outputs/androidTest-results
-          f=$(grep -rl '<failure' "$r" 2> /dev/null || true)
-          if [ -z "$f" ]; then echo "No failing test recorded under $r (the run may have died before the tests)."; fi
-          for x in $f; do echo "== $x"; grep -B2 -A15 '<failure' "$x" | head -n 60; done
+          # the result files are named "TEST-test(AVD) - 16.xml": spaces, so never split a list of them on whitespace
+          n=0
+          while IFS= read -r -d '' x; do
+            n=$((n + 1)); echo "== $x"; grep -B2 -A15 '<failure' "$x" | head -n 60 || true
+          done < <(grep -rlZ '<failure' "$r" 2> /dev/null || true)
+          if [ "$n" = 0 ]; then echo "No failing test recorded under $r (the run may have died before the tests)."; fi
       - name: Keep the profile run's test report and logcat
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
