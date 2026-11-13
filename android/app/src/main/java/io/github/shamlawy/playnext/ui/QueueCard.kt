@@ -142,7 +142,8 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     val backT = remember(g.id) { Animatable(BACK_END) }
     val onBack = Math.floorMod(turns, 2) == 1
     androidx.compose.runtime.LaunchedEffect(g.id) {
-        if (fresh) Sounds.play(if (st.torn) Sfx.CardTear else Sfx.CardOpen)
+        // calm opens straight on the torn ticket: no tear to hear (T59: a sound never plays a motion the screen doesn't show)
+        if (fresh) Sounds.play(if (st.torn && !calm) Sfx.CardTear else Sfx.CardOpen)
         // once: scrolled away and back, it doesn't open (or sound) again
         entered()
         if (enter.value < ENTER_END) enter.animateTo(ENTER_END, tween(ENTER_END.toInt(), easing = LinearEasing))
