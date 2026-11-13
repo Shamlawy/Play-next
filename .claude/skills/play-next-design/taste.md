@@ -292,5 +292,10 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 
 ### T58 · vandroid-v34 · Queue · pick
 - said: D clean do the animations good and smooth
-- rule: The Android app's Queue tickets are look D 'Clean' (the web keeps its v299/v301 torn stub) (tools/demos/tickets/round1.html): one rounded ticket, a small notch top and bottom at the join, a short soft solid line in its middle that never reaches the edges; it never tears (no hanging stub, no dashed line); on an opening card the ticket lands, then the line grows out from its middle
+- rule: (Torn again for released games since T59.) The Android app's Queue tickets are look D 'Clean' (the web keeps its v299/v301 torn stub) (tools/demos/tickets/round1.html): one rounded ticket, a small notch top and bottom at the join, a short soft solid line in its middle that never reaches the edges; it never tears (no hanging stub, no dashed line); on an opening card the ticket lands, then the line grows out from its middle
 - check: Roborazzi queue/card shots
+
+### T59 · vandroid-v35 · Queue · hate
+- said: The ticket doesn't get cut fix that only the sound works no animation
+- rule: A released game's ticket keeps look D (T58) but tears: on an opening card the ticket lands, its line draws in, then at the cut sound's click (1.4 s) the stub rips off along that line and hangs a few dp away, turned 5° (graphicsLayer only, a soft settle); the line goes with the cut, so nothing sits in the gap; each piece keeps its half of the notches; closed rows show that torn end state still; a coming game's ticket stays whole; a sound never plays a motion the screen doesn't show
+- check: Roborazzi queue/card shots (torn rows, card at rest)

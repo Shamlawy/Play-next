@@ -1485,13 +1485,22 @@ private fun Strap(accent: Color, folded: Boolean) {
 
 /**
  * The ticket (`.qstk`), look D "Clean" (the owner, Nov 12): one rounded ticket with a notch top and bottom at the join and
- * a short soft line in its middle (`ticketOutline` / `ticketLine` in QueueCard.kt). It never tears.
+ * a short soft line in its middle (`ticketOutline` / `ticketLine` in QueueCard.kt). A released game's shows the open
+ * card's end state, still: the stub torn off along the join, hanging where the card's settles ([TEAR_REST]), each piece
+ * with its own edge and its half of the notches, and no line (it went with the cut).
  */
 @Composable
 private fun Ticket(st: Queue.Stat, accent: Color, modifier: Modifier) {
     val fill = mixA(accent, QTone.ticket.copy(alpha = .88f), .26f)
     val edge = accent.copy(alpha = .55f)
     val line = mixA(accent, Color.White.copy(alpha = .45f), .4f)
+    if (st.torn) {
+        Row(modifier.height(62.dp)) {
+            TicketCell(st.stub, Modifier.graphicsLayer { tearAt(TEAR_REST) }.tornPiece(true, fill, edge))
+            TicketCell(st.body, Modifier.tornPiece(false, fill, edge))
+        }
+        return
+    }
     var seam by remember { mutableFloatStateOf(0f) }
     Row(
         modifier.height(62.dp).drawWithCache {
@@ -1506,6 +1515,16 @@ private fun Ticket(st: Queue.Stat, accent: Color, modifier: Modifier) {
     ) {
         TicketCell(st.stub, Modifier.onSizeChanged { seam = it.width.toFloat() })
         TicketCell(st.body, Modifier)
+    }
+}
+
+/** A torn row ticket's piece ([stub] or the body): its own outline, filled and edged like the whole ticket. */
+private fun Modifier.tornPiece(stub: Boolean, fill: Color, edge: Color) = drawWithCache {
+    val path = ticketPiece(size, stub, 14.dp.toPx(), 6.dp.toPx())
+    val stroke = Stroke(1.dp.toPx())
+    onDrawBehind {
+        drawPath(path, fill)
+        drawPath(path, edge, style = stroke)
     }
 }
 

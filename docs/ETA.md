@@ -51,3 +51,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E46 | 2026-11-12 11:12 PM | other | 25 min | 3 min | 0.12 | I'll make 4 ticket designs, show each on a closed row and an open card, and send you the pictures to pick from. ▢ be done around 11:40 | <!-- at=2026-11-12T19:12:29.951Z bg=1 -->
 | E47 | 2026-11-12 11:20 PM | release | 40 min | 1.6 h | 2.40 | I'll build ▢ on the closed rows and the open card, show you before/after pictures and release it as android-v33. It should reach your phone | <!-- at=2026-11-12T19:20:17.917Z bg=1 -->
 | E48 | 2026-11-12 11:41 PM | release | 35 min | 76 min | 2.17 | I'll merge #736 once its checks pass, then tell you when android-v34 is out. | <!-- at=2026-11-12T19:41:22.410Z -->
+| E49 | 2026-11-13 9:04 AM | video | 1.5 h | open |  | I'll build the stub tear for android-v35, film it frame by frame, and send you the strip plus before/after shots once it's merged. | <!-- at=2026-11-13T05:04:36.498Z -->
