@@ -709,11 +709,11 @@ private fun Tiles(g: Game, page: Page, lib: Library, pageW: Dp, big: Boolean, sh
             ) {
             if (hl) {
                 val src = Hours.src(g) == "hltb"
-                BasicText(
-                    if (src) "HLTB" else "↗",
-                    style = if (src) Type.note.copy(fontSize = 7.5.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .04.em) else Type.note.copy(fontSize = 10.sp, lineHeight = 10.sp),
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = if (src) 6.dp else 5.dp, end = if (src) 6.dp else 7.dp),
-                )
+                if (src) BasicText(
+                    "HLTB",
+                    style = Type.note.copy(fontSize = 7.5.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .04.em),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp),
+                ) else PnIcon("ui:out", Pn.mute, 10.dp, null, Modifier.align(Alignment.TopEnd).padding(top = 5.dp, end = 6.dp))
             }
             Column(
                 Modifier.fillMaxWidth()

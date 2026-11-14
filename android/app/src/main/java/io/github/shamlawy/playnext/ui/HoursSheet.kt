@@ -47,7 +47,6 @@ import io.github.shamlawy.playnext.report.Crumbs
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import java.text.NumberFormat
-import java.util.Locale
 
 /** HowLongToBeat's fields into the practice copy for game [id] (its hours, `hrsSrc`): every screen follows at once. */
 internal fun hoursFill(id: String): (Map<String, JsonElement>) -> Unit = { f ->
@@ -75,6 +74,7 @@ fun HoursSheet(lib: Library, g: Game, now: () -> Long, close: () -> Unit, said: 
     val h = tick.let { Hours.of(g) }
     val busy = tick.let { Hours.busy(g) }
     val volt = LocalLook.current.volt
+    val locale = androidx.compose.ui.platform.LocalLocale.current.platformLocale
     DyFrame(Modifier, "How long to beat", close) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             PnIcon("ui:clock", volt, 21.dp, null)
@@ -91,7 +91,7 @@ fun HoursSheet(lib: Library, g: Game, now: () -> Long, close: () -> Unit, said: 
             busy && h?.has != true -> BasicText("Asking HowLongToBeat…", style = line)
             h != null && h.has -> {
                 Numbers(h, Backup.str(lib["playStyle"]))
-                val by = (if (h.cnt > 0) "From ${NumberFormat.getIntegerInstance(Locale.getDefault()).format(h.cnt)} players' times" else "Players' times") +
+                val by = (if (h.cnt > 0) "From ${NumberFormat.getIntegerInstance(locale).format(h.cnt)} players' times" else "Players' times") +
                     " on HowLongToBeat" + (if (h.n.isNotEmpty() && !Lookup.titleMatch(g.title, h.n)) " · as “${h.n}”" else "")
                 BasicText(by, style = line, modifier = Modifier.padding(top = 10.dp))
                 val src = Hours.src(g)
@@ -135,7 +135,7 @@ fun HoursSheet(lib: Library, g: Game, now: () -> Long, close: () -> Unit, said: 
             else -> BasicText("Not checked yet.", style = line)
         }
         Row(Modifier.padding(top = 16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HBtn(if (h != null && h.id > 0) "HowLongToBeat ↗" else "Search it ↗", modifier = Modifier.weight(1f)) {
+            HBtn(if (h != null && h.id > 0) "HowLongToBeat" else "Search it", modifier = Modifier.weight(1f), icon = "ui:out") {
                 Crumbs.tap("open hltb", "hours sheet")
                 Sounds.play(Sfx.Tap)
                 runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Hours.url(g))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -185,7 +185,7 @@ private fun Numbers(h: Hours.Hl, style: String) {
 
 /** `.btn` / `.btn.ghost` in the sheet: 48 tall, round; the accent for Use HowLongToBeat's. */
 @Composable
-private fun HBtn(text: String, modifier: Modifier = Modifier, main: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+private fun HBtn(text: String, modifier: Modifier = Modifier, main: Boolean = false, enabled: Boolean = true, icon: String? = null, onClick: () -> Unit) {
     val volt = LocalLook.current.volt
     val ink = when { !enabled -> Pn.mute; main -> Pn.void; else -> Pn.ice }
     Box(
@@ -194,7 +194,11 @@ private fun HBtn(text: String, modifier: Modifier = Modifier, main: Boolean = fa
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText(text, style = Type.button.copy(color = ink), maxLines = 1, softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp, stepSize = .5.sp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            BasicText(text, style = Type.button.copy(color = ink), maxLines = 1, softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp, stepSize = .5.sp))
+            // the web's "↗" after the words: a link out of the app
+            icon?.let { PnIcon(it, ink, 15.dp, null) }
+        }
     }
 }

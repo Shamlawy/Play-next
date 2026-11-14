@@ -342,6 +342,8 @@ const APP_DRAWN = {
   warn: '<path opacity=".35" d="M12 2.6 22.8 21.2H1.2z"/><path d="M11 8.6h2v6.2h-2zm0 7.8h2v2.1h-2z"/>',
   close: '<path d="m6.3 4.7 5.7 5.6 5.7-5.6 1.6 1.6-5.6 5.7 5.6 5.7-1.6 1.6-5.7-5.6-5.7 5.6-1.6-1.6 5.6-5.7-5.6-5.7z"/>',
   /* piece 4 (the web's ⏱ How long to beat): a stopwatch, its face lit */
+  /* the web's ↗ (a link out, the length tile's corner) */
+  out: '<path opacity=".35" d="M5 7.6h6.2v2.2H7.2v7h7v-4h2.2v6.2H5z"/><path d="M13 3.6h7.4V11h-2.2V7.4l-6.7 6.7-1.6-1.6 6.7-6.7H13z"/>',
   clock: '<rect x="9.4" y="1" width="5.2" height="2.2" rx="1.1"/><circle opacity=".35" cx="12" cy="13.6" r="8.6"/><path d="M11 8.4h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
