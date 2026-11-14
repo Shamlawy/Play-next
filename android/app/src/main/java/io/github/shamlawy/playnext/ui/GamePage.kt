@@ -115,6 +115,7 @@ import io.github.shamlawy.playnext.data.Forecast
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
+import io.github.shamlawy.playnext.data.Hours
 import io.github.shamlawy.playnext.data.Page
 import io.github.shamlawy.playnext.data.Pic
 import io.github.shamlawy.playnext.data.Plat
@@ -443,7 +444,7 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 Head(g, page, pageW, big, accent, cover)
                 val shift = Modifier.graphicsLayer { translationY = tagSlide.value }
                 Tags(g, page, lib, still, acts, tagSlide)
-                Tiles(g, page, pageW, big, shift)
+                Tiles(g, page, lib, pageW, big, shift)
                 MainRow(g, page, lib, big, acts, shift)
                 if (g.id in view.changed) {
                     BasicText(
@@ -673,17 +674,49 @@ private fun PlatPill(chips: List<Plat.Chip>) {
     }
 }
 
-/** The four tiles (`gdGlance`): a number never cut short, its size coming down to fit (the web's check calls a cut one a bug). */
+/** The page's own ask to HowLongToBeat: off under Robolectric, so a screenshot test never reaches the live helper (a test turns it on). */
+@Volatile internal var hoursOnOpen: Boolean = android.os.Build.FINGERPRINT != "robolectric"
+
+/**
+ * The four tiles (`gdGlance`): a number never cut short, its size coming down to fit (the web's check calls a cut one a
+ * bug). The length tile opens How long to beat for every game but a competitive one (`extend("gdGlance")`, W4), with a
+ * small arrow in its corner, or "HLTB" once its hours are HowLongToBeat's; the page asks HowLongToBeat when it's due.
+ */
 @Composable
-private fun Tiles(g: Game, page: Page, pageW: Dp, big: Boolean, shift: Modifier) {
+private fun Tiles(g: Game, page: Page, lib: Library, pageW: Dp, big: Boolean, shift: Modifier) {
     val tiles = page.tiles(g)
     val volt = LocalLook.current.volt
+    val edit = LocalEditActs.current
+    val now = LocalNow.current
+    LaunchedEffect(g.id) {
+        delay(900)
+        if (hoursOnOpen && Hours.due(lib, g, now())) Hours.fetch(lib, g, now, force = false, fill = hoursFill(g.id))
+    }
     // `clamp(14px, 3.7vw, 22px)`
     val fs = (pageW.value * .037f).coerceIn(14f, 22f)
     Row(shift.padding(top = 16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for ((i, t) in tiles.withIndex()) {
+            val hl = i == 1 && !g.comp && edit != null
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Pn.card).border(1.dp, Pn.line, RoundedCornerShape(16.dp))
+                    .then(
+                        if (hl) Modifier.clickable(role = Role.Button) {
+                            Crumbs.tap("length tile", "game page")
+                            Sounds.play(Sfx.Tap)
+                            edit?.hours(g.id)
+                        }.semantics { contentDescription = "How long to beat" } else Modifier,
+                    ),
+            ) {
+            if (hl) {
+                val src = Hours.src(g) == "hltb"
+                BasicText(
+                    if (src) "HLTB" else "↗",
+                    style = if (src) Type.note.copy(fontSize = 7.5.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .04.em) else Type.note.copy(fontSize = 10.sp, lineHeight = 10.sp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = if (src) 6.dp else 5.dp, end = if (src) 6.dp else 7.dp),
+                )
+            }
             Column(
-                Modifier.weight(1f).background(Pn.card, RoundedCornerShape(16.dp)).border(1.dp, Pn.line, RoundedCornerShape(16.dp))
+                Modifier.fillMaxWidth()
                     .padding(start = 5.dp, end = 5.dp, top = 11.dp, bottom = 10.dp)
                     .semantics(mergeDescendants = true) { },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -699,6 +732,7 @@ private fun Tiles(g: Game, page: Page, pageW: Dp, big: Boolean, shift: Modifier)
                     autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 10.5.sp, stepSize = .5.sp),
                     modifier = Modifier.padding(top = 4.dp),
                 )
+            }
             }
         }
     }

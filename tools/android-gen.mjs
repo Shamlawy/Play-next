@@ -341,6 +341,8 @@ const APP_DRAWN = {
   leaf: '<path opacity=".35" d="M20.5 3C10 3 4 8.5 4 15.5c0 1.8.5 3.4 1.3 4.7C11 20.5 20.5 17 20.5 3z"/><path d="M5.6 21.4 4.2 20C8 14.5 12 10.8 17 8.2l.8 1.5C13 12.3 9.2 15.8 5.6 21.4z"/>',
   warn: '<path opacity=".35" d="M12 2.6 22.8 21.2H1.2z"/><path d="M11 8.6h2v6.2h-2zm0 7.8h2v2.1h-2z"/>',
   close: '<path d="m6.3 4.7 5.7 5.6 5.7-5.6 1.6 1.6-5.6 5.7 5.6 5.7-1.6 1.6-5.7-5.6-5.7 5.6-1.6-1.6 5.6-5.7-5.6-5.7z"/>',
+  /* piece 4 (the web's ⏱ How long to beat): a stopwatch, its face lit */
+  clock: '<rect x="9.4" y="1" width="5.2" height="2.2" rx="1.1"/><circle opacity=".35" cx="12" cy="13.6" r="8.6"/><path d="M11 8.4h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
 const PLAT_LOGO = table("PLAT_LOGO");
