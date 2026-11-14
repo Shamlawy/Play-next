@@ -150,12 +150,14 @@ internal fun ThenNowCard(c: ThenNow.Card, now: Long) {
 internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
     val tick by Recap.seen.collectAsState()
     val n = Notes.last(g) ?: return
-    if (!Recap.shows(lib, g)) return
     val now = LocalNow.current
-    LaunchedEffect(g.id, n.t) {
+    // before the error check: an error 6 hours old is asked again (wiStoryGet on every page open), and [tick]
+    // re-asks when a fetch for an older note held this one off
+    LaunchedEffect(g.id, n.t, tick) {
         delay(600)
         Recap.fetch(lib, g, now)
     }
+    if (!Recap.shows(lib, g)) return
     val c = remember(tick, g, n.t) { Recap.of(lib, g) }
     val volt = LocalLook.current.volt
     val shape = RoundedCornerShape(16.dp)

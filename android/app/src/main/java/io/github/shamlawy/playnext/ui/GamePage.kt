@@ -881,7 +881,8 @@ private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Co
         // a game you're playing: the Finish forecast (its first date kept for Then & now), then the Drifting card
         if (st == "playing") {
             val eta = remember(page, g) { page.eta(g) }
-            LaunchedEffect(eta) { Forecast.seen(g, eta) }
+            val now = LocalNow.current
+            LaunchedEffect(eta) { Forecast.seen(g, eta, now()) }
             remember(page, g) { page.forecast(g) }?.let { ForecastCard(it) }
             var answered by remember(g.id) { mutableStateOf(false) }
             val risk = remember(page, g) { page.drift(g) }

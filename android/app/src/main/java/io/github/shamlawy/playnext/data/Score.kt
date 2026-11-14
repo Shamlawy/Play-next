@@ -80,7 +80,7 @@ object Score {
         if (Backup.truthy(g["cap"])) return
         val at = Game(JsonObject(g.o + f))
         var c = cap(at, guess(lib, at, now), now)
-        val e0 = Forecast.first(at)
+        val e0 = Forecast.first(at, now)
         if (e0 != null) c = JsonObject(c + ("e0" to e0))
         f["cap"] = c
     }

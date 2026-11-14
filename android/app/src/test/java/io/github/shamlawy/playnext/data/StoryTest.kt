@@ -78,10 +78,18 @@ class StoryTest {
 
     @Test fun theFirstForecastRidesIntoTheSnapshot() {
         val r = rk()
-        Forecast.seen(g("p1"), Forecast.of(lib, r, g("p1"), now, utc))
+        Forecast.seen(g("p1"), Forecast.of(lib, r, g("p1"), now, utc), now)
         val out = Practice.finish(lib, g("p1"), now + day, utc, none)
         val cap = ((out[Practice.GAMES] as JsonObject)["p1"] as JsonObject)["cap"] as JsonObject
         assertEquals(JsonPrimitive("2026-11-10"), cap["e0"])
+    }
+
+    /** Android forgets its first forecasts on a restart: one first seen minutes before you finish isn't measured against. */
+    @Test fun aForecastFromFinishDayIsNotTheFirst() {
+        Forecast.seen(g("p1"), Forecast.of(lib, rk(), g("p1"), now, utc), now)
+        val out = Practice.finish(lib, g("p1"), now + 60_000L, utc, none)
+        val cap = ((out[Practice.GAMES] as JsonObject)["p1"] as JsonObject)["cap"] as JsonObject
+        assertNull(cap["e0"])
     }
 
     @Test fun thenAndNowLaysOutHowItWent() {

@@ -109,7 +109,7 @@ object Forecast {
         val r = lib.games.filter { r ->
             !rk.isPlayed(r) && !rk.isDropped(r) && !r.comp && r.date.isNotEmpty() && r.date > td && Backup.str(r["status"]) != "tba" &&
                 Backup.num(r["hype"], 0.0, 0.0, 10.0) >= 7 && r.date < e.date
-        }.sortedWith { a, b -> if (a.date < b.date) -1 else 1 }.firstOrNull() ?: return null
+        }.minByOrNull { it.date } ?: return null
         val at = Story.noon(r.date, zone) ?: return null
         val until = maxOf(1.0, Rank.jsRound((at - now).toDouble() / JsDate.DAY)).toInt()
         return if (until <= 60) Clash(g, r, until, e.left / until) else null
@@ -130,16 +130,22 @@ object Forecast {
      * The first forecast per game while the app runs (the web keeps it as `g.eta0` the first time `etaOf` gives one with
      * hours left, 21160): Then & now's "vs my finish forecast" reads it as the snapshot's `e0`. Kept off the practice
      * copy, so opening a page never counts as a change; a game whose backup has `eta0` already keeps that one.
+     * Its time is kept (the web's `eta0.at`): Android drops it on every restart, so one first seen on finish day
+     * would be a forecast from minutes before and "N days early" against it means nothing.
      */
-    private val firsts = ConcurrentHashMap<String, String>()
+    private val firsts = ConcurrentHashMap<String, Pair<String, Long>>()
 
-    fun seen(g: Game, e: Eta?) {
+    fun seen(g: Game, e: Eta?, now: Long) {
         if (e == null || e.left <= 0 || Backup.truthy(g["eta0"])) return
-        firsts.putIfAbsent(g.id, e.date)
+        firsts.putIfAbsent(g.id, e.date to now)
     }
 
-    /** The first forecast's date for [g]: the backup's `eta0.d`, else the one seen while the app runs. */
-    fun first(g: Game): JsonElement? = (g["eta0"] as? JsonObject)?.get("d")?.takeIf { Backup.truthy(it) } ?: firsts[g.id]?.let(::JsonPrimitive)
+    /**
+     * The first forecast's date for [g]: the backup's `eta0.d`, else one seen while the app runs, if it's at least
+     * a day older than [now] (a younger one isn't a forecast worth measuring against).
+     */
+    fun first(g: Game, now: Long): JsonElement? = (g["eta0"] as? JsonObject)?.get("d")?.takeIf { Backup.truthy(it) }
+        ?: firsts[g.id]?.takeIf { now - it.second >= JsDate.DAY }?.let { JsonPrimitive(it.first) }
 
     internal fun forget() = firsts.clear()
 }
@@ -413,9 +419,10 @@ object Recap {
             }
             // a newer note came in meanwhile: this recap is for the old one, keep it only under its own note's time
             mem[g.id] = e
-            seen.value++
         } finally {
             busy.remove(g.id)
+            // always, also when cancelled: a card whose fetch found this one busy (a note saved mid-call) asks again
+            seen.value++
         }
     }
 

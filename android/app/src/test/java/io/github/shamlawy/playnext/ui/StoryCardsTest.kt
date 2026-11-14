@@ -24,6 +24,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -60,11 +61,14 @@ class StoryCardsTest {
     private fun field(name: String): Any? = Games::class.java.getDeclaredField(name).apply { isAccessible = true }.get(Games)
     private fun put(name: String, v: Any?) = Games::class.java.getDeclaredField(name).apply { isAccessible = true }.set(Games, v)
 
+    /** Extra fields for game b (the playing one). */
+    private var storyB = ""
+
     private val backup get() = """
         {"rk":""}
         {"theme":"midnight","playStyle":"main","games":[
           {"id":"b","title":"Copper Meadow","state":"playing","date":"2026-05-11","ord":1,"colour":"#2E9E6A","genres":"Action","hours":12,"logged":4,
-           "plAt":${now - 4 * day},"platforms":"PC","wasI":[{"t":${now - day},"x":"Second island, the lighthouse"}]},
+           "plAt":${now - 4 * day},"platforms":"PC",$storyB"wasI":[{"t":${now - day},"x":"Second island, the lighthouse"}]},
           {"id":"h","title":"Lantern Rush","state":"upcoming","date":"2026-10-30","ord":2,"colour":"#3A6FD8","hype":8},
           {"id":"a","title":"Starfall Lantern","state":"played","date":"2026-01-30","ord":3,"colour":"#3A6FD8","genres":"Action","hours":22,"hype":7,
            "cap":{"h":7,"pr":7.4,"cr":80,"st":${noon("2026-02-10")},"ad":"2026-01-02","hrs":0,"n1":{"t":${noon("2026-02-11")},"x":"Just met the ferryman"},"at":${noon("2026-03-01")},"e0":"2026-02-27"},
@@ -83,10 +87,14 @@ class StoryCardsTest {
         RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
         Games.clock = { now }
         Games.zone = { ZoneId.of("UTC") }
+        load()
+        Recap.post = { """{"recap":"You reached the island chain and lit the first beacon; the lighthouse keeper sent you north.","where":"the lighthouse","sure":0.9}""" }
+    }
+
+    private fun load() {
         val lib = Games::class.java.getDeclaredMethod("build", String::class.java).apply { isAccessible = true }.invoke(Games, backup) as Library
         state.value = Games::class.java.getDeclaredMethod("ready", Library::class.java, Long::class.javaPrimitiveType).apply { isAccessible = true }
             .invoke(Games, lib, now - 3_600_000L) as Games.State.Ready
-        Recap.post = { """{"recap":"You reached the island chain and lit the first beacon; the lighthouse keeper sent you north.","where":"the lighthouse","sure":0.9}""" }
     }
 
     @After
@@ -138,6 +146,16 @@ class StoryCardsTest {
         rule.onNodeWithText("The story so far · the lighthouse").performScrollTo()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("src/test/screenshots/story-playing-412.png")
+    }
+
+    /** The web's backup can hold a failed recap: once it's 6 hours old the page asks again and the card comes back. */
+    @Test fun anOldFailedRecapIsAskedAgain() {
+        storyB = """"wiStory":{"t":${now - day},"x":"","err":"helper said no","at":${now - 7 * 3_600_000L}},"""
+        load()
+        show(listOf("game:b"))
+        assertFalse("an error shows no card", has("Remembering the story so far"))
+        rule.mainClock.advanceTimeBy(700)
+        waitFor("the recap came in") { has("The story so far · the lighthouse") }
     }
 
     @Test fun aFinishedGameShowsThenAndNow() {
