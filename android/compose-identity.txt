@@ -22,12 +22,14 @@ DeckCard.g: Game
 DeckCard.q: Queue
 DeckCard.unstable x: Animatable<Float, *>
 DrawnCover.g: Game
+DriftCard.r: Risk
 DropRow.l: QList
 EditSheet.games: State
 Fan.covers: List<Game>
 Fan.t: Animatable<Float, AnimationVector1D>
 FlyingCover.f: Flight
 FlyingCover.g: Game
+ForecastCard.words: Triple<List<Pair<String, Boolean>>, String, String?>
 Front.enter: Animatable<Float, AnimationVector1D>
 Front.g: Game
 Front.q: Queue
@@ -69,6 +71,7 @@ PlatRow.chips: List<Chip>
 PlayNextRoot.link: Route?
 PlayedGroup.rec: Played
 Progress.g: Game
+Progress.lib: Library
 Progress.page: Page
 QueueCard.g: Game
 QueueCard.q: Queue
@@ -94,6 +97,8 @@ SettingsSheet.games: State
 SharedCard.s: Shared
 Shell.games: State
 Shell.nav: Nav
+ShortSheet.g: Game
+ShortSheet.q: Queue
 ShotViewer.shots: List<Pair<String, String>>
 Shots.g: Game
 Shots.shots: List<Pair<String, String>>
@@ -104,6 +109,8 @@ ShutGhost.q: Queue
 Spotlight.l: Line
 Stats.stats: List<Stat>
 StickyBar.g: Game
+StoryCard.g: Game
+StoryCard.lib: Library
 Strip.byId: Map<String, Game>
 TabPage.games: State
 TabTop.games: State
@@ -111,6 +118,7 @@ Tags.g: Game
 Tags.lib: Library
 Tags.page: Page
 Tags.unstable slide: Animatable<Float, *>
+ThenNowCard.c: Card
 Ticket.st: Stat
 Tiles.g: Game
 Tiles.page: Page

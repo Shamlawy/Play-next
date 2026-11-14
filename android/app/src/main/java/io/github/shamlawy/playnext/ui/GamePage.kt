@@ -111,6 +111,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import coil3.compose.AsyncImage
 import io.github.shamlawy.playnext.data.Backup
+import io.github.shamlawy.playnext.data.Forecast
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
@@ -451,7 +452,7 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                         modifier = shift.padding(top = 10.dp),
                     )
                 }
-                Progress(g, page, still, volt, shift)
+                Progress(g, page, lib, still, volt, shift)
                 val about = page.about(g)
                 if (about.isNotEmpty()) About(about, still, aboutSlide, shift)
                 // one list per game and copy, so the strip isn't redrawn on every pass of the page
@@ -796,7 +797,7 @@ private fun Section(icon: String, title: String, meta: String, modifier: Modifie
  * and each new dot pops (v271; transform only, none when calm).
  */
 @Composable
-private fun Progress(g: Game, page: Page, still: Boolean, volt: Color, modifier: Modifier) {
+private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Color, modifier: Modifier) {
     val st = page.state(g)
     val steps = page.steps(g)
     val litN = steps.count { it.c == "done" || it.c == "now" }
@@ -858,17 +859,34 @@ private fun Progress(g: Game, page: Page, still: Boolean, volt: Color, modifier:
                 }
             }
         }
-        page.line(g)?.let { parts ->
-            BasicText(
-                buildAnnotatedString { for ((t, b) in parts) if (b) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t) } else append(t) },
-                style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.6.sp).fixed(),
-                modifier = Modifier.padding(top = 12.dp),
-            )
+        // a finished game's Then & now takes the place of the line and the note card (`gdProgress`: `c || line + wiCard`)
+        val cap = remember(page, g) { page.thenNow(g) }
+        if (cap != null) {
+            ThenNowCard(cap, LocalNow.current())
+        } else {
+            page.line(g)?.let { parts ->
+                BasicText(
+                    buildAnnotatedString { for ((t, b) in parts) if (b) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t) } else append(t) },
+                    style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.6.sp).fixed(),
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+            // Where was I (v212): the newest note, or for a game you're playing a prompt to leave one; the story so far under it
+            if (page.notes(g)) {
+                val edit = LocalEditActs.current
+                WhereCard(g, LocalNow.current(), open = { edit?.note(g.id) })
+                StoryCard(lib, g, still)
+            }
         }
-        // Where was I (v212): the newest note, or for a game you're playing a prompt to leave one
-        if (page.notes(g)) {
-            val edit = LocalEditActs.current
-            WhereCard(g, LocalNow.current(), open = { edit?.note(g.id) })
+        // a game you're playing: the Finish forecast (its first date kept for Then & now), then the Drifting card
+        if (st == "playing") {
+            val eta = remember(page, g) { page.eta(g) }
+            val now = LocalNow.current
+            LaunchedEffect(eta) { Forecast.seen(g, eta, now()) }
+            remember(page, g) { page.forecast(g) }?.let { ForecastCard(it) }
+            var answered by remember(g.id) { mutableStateOf(false) }
+            val risk = remember(page, g) { page.drift(g) }
+            if (risk != null && !answered) DriftCard(risk, rememberDriftActs(lib, g) { answered = true })
         }
     }
 }

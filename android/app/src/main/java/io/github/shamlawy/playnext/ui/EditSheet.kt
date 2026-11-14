@@ -139,6 +139,8 @@ class EditActs(
     val note: (String) -> Unit = {},
     /** "I finished it": the finish moment, then the Score sheet 1200 ms later (`fnDone`). */
     val finished: (Game) -> Unit = {},
+    /** The Drifting card's "Something short in between" sheet (piece 3b). */
+    val short: (String) -> Unit = {},
 )
 
 val LocalEditActs = staticCompositionLocalOf<EditActs?> { null }

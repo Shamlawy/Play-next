@@ -54,6 +54,8 @@ export const RULES = [
     line: (l, t, i, ls) => /\bAnimatable\s*\(|\banimate(Float|IntOffset|Offset)AsState\s*\(|\brememberInfiniteTransition\s*\(/.test(l) && !/\bcalm\b|\bstill\b|\bCalm\b/.test(fnAround(ls, i)) },
   { name: "loop-scroll-hold", why: "Loops keep running mid-scroll (v282, T26): never tie a loop to isScrollInProgress",
     line: (l, t) => /\bisScrollInProgress\b/.test(l) && /\brememberInfiniteTransition\s*\(|\binfiniteRepeatable\s*\(/.test(t) },
+  { name: "comparator-total", why: "A comparator says equal (L215 twice: Queue's unreadable dates, android-v37's clash pick): one that never returns 0, or returns 0 for a value it can't read, breaks TimSort's contract and can throw on 32+ items; use compareBy / minByOrNull or a total order",
+    line: (l, t, i, ls) => /\bsort(?:ed)?With\b|\bComparator\b/.test(l) && /(?:-1\s+else\s+1|\b1\s+else\s+-1)\b|\?:\s*return@sort(?:ed)?With\s+0\b/.test(ls.slice(i, i + 5).join("\n")) },
 ];
 
 /* Rules about the whole app: something must exist once. */
@@ -146,6 +148,7 @@ const PLANTS = {
   "looping-blur": ["val t = rememberInfiniteTransition(label = \"x\")\nBox(Modifier.blur(8.dp))", "Box(Modifier.blur(8.dp))"],
   "scroll-linked": ["val o = state.firstVisibleItemScrollOffset\nBox(Modifier.graphicsLayer { translationY = o * .3f })", "val o = state.firstVisibleItemIndex"],
   "calm": ["fun Spin() {\n    val p = remember { Animatable(0f) }\n}", "fun Spin() {\n    val calm = LocalCalm.current\n    val p = remember { Animatable(if (calm) 1f else 0f) }\n}"],
+  "comparator-total": ["val r = xs.sortedWith { a, b -> if (a.date < b.date) -1 else 1 }.firstOrNull()\nxs.sortedWith { a, b ->\n  val d = a.d ?: return@sortedWith 0", "val r = xs.minByOrNull { it.date }\nxs.sortedWith { a, b ->\n  if (a.tier == 1) return@sortedWith 0"],
   "loop-scroll-hold": ["val t = rememberInfiniteTransition(label = \"x\")\nif (state.isScrollInProgress) pause()", "if (state.isScrollInProgress) hide()"],
 };
 const ROOT_OK = "CompositionLocalProvider(LocalIndication provides NoIndication, LocalOverscrollFactory provides null, LocalCalm provides calm) {}";
