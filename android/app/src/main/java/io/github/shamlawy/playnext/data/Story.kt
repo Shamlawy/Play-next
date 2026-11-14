@@ -24,15 +24,12 @@ object Story {
     }
 
     /**
-     * The phone's own order for a day and short month (`toLocaleDateString(undefined, {day, month: "short"})`):
-     * "14 Nov" in the UK, "Nov 14" in the US, as NoteSheet's noteDate; [fallback] off a phone (plain unit tests).
+     * `etaNice(at)` (20786): "14 Nov", kept on one line (a date never breaks: the design eye). Day before month in
+     * every language, like the page's other dates (Queue.shortDate, the track's "Out 11 May"): the web follows the
+     * phone's order here only, so a US phone read "11 May" beside "~Nov 2" on one card (decided at android-v37).
      */
-    private fun pattern(locale: Locale, skel: String, fallback: String): String =
-        runCatching { android.text.format.DateFormat.getBestDateTimePattern(locale, skel) }.getOrNull()?.takeIf { it.isNotEmpty() } ?: fallback
-
-    /** `etaNice(at)` (20786): "14 Nov" in the phone's language, kept on one line (a date never breaks: the design eye). */
     fun nice(at: Long, zone: ZoneId, locale: Locale = Locale.getDefault()): String =
-        whole(Instant.ofEpochMilli(at).atZone(zone).toLocalDate().format(DateTimeFormatter.ofPattern(pattern(locale, "dMMM", "d MMM"), locale)))
+        whole(Instant.ofEpochMilli(at).atZone(zone).toLocalDate().format(DateTimeFormatter.ofPattern("d MMM", locale)))
 
     /** Spaces that never break, so "27 Feb" stays on one line. */
     fun whole(s: String): String = s.replace(' ', '\u00A0')
@@ -43,8 +40,7 @@ object Story {
         val at = noon(d, zone) ?: return d
         val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
         val year = Instant.ofEpochMilli(now).atZone(zone).year
-        val p = if (d.take(4) == year.toString()) pattern(locale, "dMMM", "d MMM") else pattern(locale, "dMMMy", "d MMM y")
-        return whole(day.format(DateTimeFormatter.ofPattern(p, locale)))
+        return whole(day.format(DateTimeFormatter.ofPattern(if (d.take(4) == year.toString()) "d MMM" else "d MMM y", locale)))
     }
 
     /** `smMed`: the middle value (the mean of the two middle ones), 0 for none. */

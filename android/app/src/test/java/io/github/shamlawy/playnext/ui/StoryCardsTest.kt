@@ -152,12 +152,11 @@ class StoryCardsTest {
         rule.onRoot().captureRoboImage("src/test/screenshots/story-playing-412.png")
     }
 
-    /** Dates follow the phone's own order, as the web's toLocaleDateString does: "Nov 4" in the US, "4 Nov" in the UK. */
-    @Test fun datesFollowThePhonesOrder() {
+    /** Day before month on a US phone too, like the page's other dates ("Out 11 May"), so one card never mixes orders. */
+    @Test fun datesKeepTheAppsOrder() {
         val utc = ZoneId.of("UTC")
-        assertEquals("Nov\u00A04", io.github.shamlawy.playnext.data.Story.nice(noon("2026-11-04"), utc, java.util.Locale.US))
-        assertEquals("4\u00A0Nov", io.github.shamlawy.playnext.data.Story.nice(noon("2026-11-04"), utc, java.util.Locale.UK))
-        assertEquals("Mar\u00A03,\u00A02027", io.github.shamlawy.playnext.data.Story.rdNice("2027-03-03", now, utc, java.util.Locale.US))
+        assertEquals("4\u00A0Nov", io.github.shamlawy.playnext.data.Story.nice(noon("2026-11-04"), utc, java.util.Locale.US))
+        assertEquals("3\u00A0Mar\u00A02027", io.github.shamlawy.playnext.data.Story.rdNice("2027-03-03", now, utc, java.util.Locale.US))
     }
 
     /** The web's backup can hold a failed recap: once it's 6 hours old the page asks again and the card comes back. */
