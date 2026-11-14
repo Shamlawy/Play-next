@@ -139,18 +139,36 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
             },
             when (st) { "playing" -> "now"; "played", "dropped" -> "done"; else -> "" },
         )
-        // the forecast's "~14 Mar" under Finished comes with Finish forecast (piece 3)
-        val s3 = if (st == "dropped") Step("Dropped", "", "drop") else Step("Finished", if (st == "played") p?.t?.takeIf { it.isNotEmpty() }?.let(::month) ?: "" else "", if (st == "played") "done" else "")
+        // a game you're playing shows the Finish forecast's "~14 Mar" under Finished (even with the card switched off, as the web)
+        val e = if (st == "playing") eta(g) else null
+        val s3 = if (st == "dropped") Step("Dropped", "", "drop")
+        else Step("Finished", if (st == "played") p?.t?.takeIf { it.isNotEmpty() }?.let(::month) ?: "" else if (e != null && e.left > 0) "~" + Story.nice(e.at, zone, locale) else "", if (st == "played") "done" else "")
         return listOf(s1, s2, s3)
     }
+
+    /** The Finish forecast for a game you're playing (`etaOf`), null when there's none. */
+    fun eta(g: Game): Forecast.Eta? = Forecast.of(lib, rk, g, now, zone)
+
+    /** The Finish forecast card: its words, or null when there's no forecast or it's switched off (`S.etaOff`). */
+    fun forecast(g: Game): Triple<List<Pair<String, Boolean>>, String, String?>? {
+        if (state(g) != "playing" || Forecast.off(lib)) return null
+        val e = eta(g) ?: return null
+        return Forecast.words(e, Forecast.clash(lib, rk, g, e, now, zone), now, zone, locale)
+    }
+
+    /** Then & now for a finished game (it takes the place of the line and the note card), or null. */
+    fun thenNow(g: Game): ThenNow.Card? = if (state(g) == "played") ThenNow.of(lib, rk, g, now, zone, locale) else null
+
+    /** The Drifting card's reasons for a game you're playing, or null. */
+    fun drift(g: Game): Drift.Risk? = if (state(g) == "playing") Drift.risk(lib, rk, g, now, zone) else null
 
     /** How far along the track is lit (the steps done or now, 0-3): Your progress draws the line between two of them (v271). */
     fun lit(g: Game): Int = steps(g).count { it.c == "done" || it.c == "now" || it.c == "drop" }
 
     /**
      * The line under the track (`gdProgress`'s body), as [bold] parts: upcoming, backlog, played and dropped have one;
-     * a playing game has its Where was I card instead (Finish forecast and Then & now come with piece 3b). Null when
-     * there's none.
+     * a playing game has its Where was I card and Finish forecast instead, and a finished one Then & now when it has
+     * something to say ([thenNow]). Null when there's none.
      */
     fun line(g: Game): List<Pair<String, Boolean>>? {
         val p = rk.playedRec(g)

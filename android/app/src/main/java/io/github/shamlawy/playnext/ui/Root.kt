@@ -143,7 +143,7 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
 
     // reports and Android's exit records name the open screen as the web app does ("games/queue", "settings")
     val ctx = LocalContext.current
-    val screen = nav.overlay?.let { if (it.startsWith("game:")) "game page" else if (it.startsWith("edit:")) "edit" else if (it.startsWith("score:")) "score" else if (it.startsWith("note:")) "note" else it }
+    val screen = nav.overlay?.let { if (it.startsWith("game:")) "game page" else if (it.startsWith("edit:")) "edit" else if (it.startsWith("score:")) "score" else if (it.startsWith("note:")) "note" else if (it.startsWith("short:")) "something short" else it }
         ?: (nav.tab + (prefs.viewOf(nav.tab, nav.views)?.let { "/$it" } ?: ""))
     LaunchedEffect(screen) {
         Screen.set(ctx, screen)

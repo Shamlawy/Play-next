@@ -218,3 +218,9 @@ go=home
 at=
 say=The ticket's tear sound now lands right on the cut: it plays on the very frame the stub rips off.
 tryIt=Turn on Sounds (Settings › Sounds), open Games › Queue and tap a game that's already out: the click comes exactly as the stub tears away. Settings › Sounds › Stub tears plays the cut on its own now.
+
+v=37
+go=home
+at=
+say=A game's page now works things out for you: when you'll finish, the story so far, how a finished game went, and when you're drifting from one.
+tryIt=Open a game you're playing (Games › Queue, tap its box art): under Your progress see Done around <date>, with a warning if a game you're hyped for comes out first, and after you leave a note, the story so far. A finished game shows Then & now: hype against your score, Nexi's guess, the days it took. A game you haven't touched in a while asks if you're drifting: Park it or Something short in between.

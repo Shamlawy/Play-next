@@ -207,6 +207,10 @@ const RULES = {
   GD_KICK_INK: cssColour("#full .gd-tt .hub-kick", "color"), GD_ACC_BASE: cssColour(".gd-tags span.acc", "background"),
   GD_DESC: cssColour(".gd-desc", "color"), GD_DROP: cssColour(".gd-st.drop i", "background"),
   GD_LIFT: cssColour(".gd-sec .wis", "background"), GD_WI: cssColour(".gd-sec .wi, .gd-sec .wi.back", "background"),
+  /* the story so far (v216), Finish forecast's clash (v220), Then & now's cells (v220) and the Drifting card (v222) */
+  WIS_INK: cssColour(".wis-t", "color"), WIS_DOT: cssColour(".wis-load .wis-t i", "background"),
+  ETA_CLASH: cssColour(".eta .clash", "background"), ETA_CLASH_EDGE: cssColour(".eta .clash", "border"),
+  CAP_CELL: cssColour(".cap-c", "background"), DW_LIFT: cssColour(".gd-sec .dwc", "background"),
   /* the finish moment (v120s: the PLAYED stamp, the burst's card) and the tier badges (`.tier`, v184) */
   STAMP: cssColour("#pnstamp b", "border"), STAMP_BG: cssColour("#pnstamp b", "background"), CELE_BG: cssColour("#cele .msg", "background"),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
@@ -331,6 +335,12 @@ const APP_DRAWN = {
   flag: '<rect x="4" y="2.6" width="2.2" height="19" rx="1.1"/><path opacity=".35" d="M6.2 3.6h13.2l-3 4.6 3 4.6H6.2z"/>',
   /* Where was I's 📍 (v212): a map pin, its head lit */
   pin: '<path opacity=".35" d="M12 2a7.2 7.2 0 0 0-7.2 7.2c0 5.3 7.2 12.8 7.2 12.8s7.2-7.5 7.2-12.8A7.2 7.2 0 0 0 12 2z"/><circle cx="12" cy="9.2" r="2.8"/>',
+  /* piece 3b (v216-v222's 📖 🏁 🕰️ 📉 🌿 ⚠️): Then & now's clock turning back, Drifting's falling line, Something short's
+     leaf, a clash's warning */
+  clockback: '<circle opacity=".35" cx="12" cy="12" r="10"/><path d="M11 6.4h2v5.1l3.7 2.2-1 1.7-4.7-2.8z"/>',
+  drift: '<path opacity=".35" d="M2.5 19.4h19v2h-19z"/><path d="M3.9 4.6 9 9.7l3-3 6.1 6.1v-2.9h2v6.3h-6.3v-2h2.9L12 9.5l-3 3-6.5-6.5z"/>',
+  leaf: '<path opacity=".35" d="M20.5 3C10 3 4 8.5 4 15.5c0 1.8.5 3.4 1.3 4.7C11 20.5 20.5 17 20.5 3z"/><path d="M5.6 21.4 4.2 20C8 14.5 12 10.8 17 8.2l.8 1.5C13 12.3 9.2 15.8 5.6 21.4z"/>',
+  warn: '<path opacity=".35" d="M12 2.6 22.8 21.2H1.2z"/><path d="M11 8.6h2v6.2h-2zm0 7.8h2v2.1h-2z"/>',
   close: '<path d="m6.3 4.7 5.7 5.6 5.7-5.6 1.6 1.6-5.6 5.7 5.6 5.7-1.6 1.6-5.7-5.6-5.7 5.6-1.6-1.6 5.6-5.7-5.6-5.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */

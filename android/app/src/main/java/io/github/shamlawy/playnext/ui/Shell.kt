@@ -87,6 +87,8 @@ import androidx.compose.ui.unit.dp
 import io.github.shamlawy.playnext.data.Games
 import kotlinx.coroutines.delay
 import io.github.shamlawy.playnext.data.Edit
+import io.github.shamlawy.playnext.data.Drift
+import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Rank
 import io.github.shamlawy.playnext.data.Score
 import kotlinx.coroutines.launch
@@ -206,10 +208,12 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     // the Score sheet and Where was I's note sheet (piece 3): steps over the page, as Edit is
     val openScore by rememberUpdatedState { id: String -> step(nav.open("score:$id")) }
     val openNote by rememberUpdatedState { id: String -> step(nav.open("note:$id")) }
+    val openShort by rememberUpdatedState { id: String -> step(nav.open("short:$id")) }
     val editActs = remember {
         EditActs(
             score = { id -> openScore(id) },
             note = { id -> openNote(id) },
+            short = { id -> openShort(id) },
             finished = { g ->
                 Moment.finished(g)
                 // straight on to the verdict while it's fresh (`fnDone`: the Score sheet 1200 ms later)
@@ -459,7 +463,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 }
             }
             // the Score sheet and the note sheet, over the page they came from (newer than it, Edit and Settings)
-            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") }
+            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") }
             val scLib = (games as? Games.State.Ready)?.lib
             if (sc >= 0 && sc > at && sc > s && sc > ed && scLib != null) {
                 val k = keys[sc]
@@ -484,6 +488,20 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                                     val r = Score.rankOf(Rank(lib2, clock(), java.time.ZoneId.systemDefault()), g2) ?: return@launch
                                     edited = PageToast("${g2.title}: #$r · ${Rank.tierOf(v)} tier", (edited?.n ?: 0) + 1)
                                 }
+                            }
+                        } else if (what.startsWith("short:")) {
+                            val sq = (games as? Games.State.Ready)?.cards?.queue?.takeIf { it.lib === scLib }
+                                ?: remember(scLib) { Queue(scLib, Rank(scLib, clock(), java.time.ZoneId.systemDefault()), clock(), java.time.ZoneId.systemDefault()) }
+                            ShortSheet(sq, sg, close = { step(nav.closeAt(sc)) }, start = { x ->
+                                // `[data-dwgo]`: it's playing now, and the drifting one remembers it
+                                Crumbs.tap("drifting: start a short one", "short sheet")
+                                Games.change(Drift.startShort(scLib, sg, x, clock()) { Games.practiced(it) })
+                                Sounds.play(Sfx.Open)
+                                step(nav.closeAt(sc))
+                                edited = PageToast("${x.title} is in Playing now. Finish it and I'll bring you back to ${sg.title}.", (edited?.n ?: 0) + 1)
+                            }) { x ->
+                                step(nav.closeAt(sc))
+                                nxScope.launch { delay(320); opener(x.id, null) }
                             }
                         } else {
                             NoteSheet(sg, clock, close = { step(nav.closeAt(sc)) }) {
