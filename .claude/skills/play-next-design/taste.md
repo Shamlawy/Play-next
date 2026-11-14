@@ -299,3 +299,8 @@ Every look call the owner (or the friend) made: their words, the rule it means, 
 - said: The ticket doesn't get cut fix that only the sound works no animation
 - rule: A released game's ticket keeps look D (T58) but tears: on an opening card the ticket lands, its line draws in, then at the cut sound's click (1.4 s) the stub rips off along that line and hangs a few dp away, turned 5° (graphicsLayer only, a soft settle); the line goes with the cut, so nothing sits in the gap; each piece keeps its half of the notches; closed rows show that torn end state still; a coming game's ticket stays whole; a sound never plays a motion the screen doesn't show
 - check: Roborazzi queue/card shots (torn rows, card at rest)
+
+### T60 · v327 · Game page · rule
+- said: when pressing on read more to read the game discription and story i want to press on the text for it to expand and compress not read more or less
+- rule: Long text that opens (a game's About, the story so far, any cut paragraph) opens and closes on a tap on the words themselves: four lines ending in an ellipsis, no Read more / Read less button or word on screen (keep the words only as the tap's TalkBack name). Android app first (android-v38).
+- check: StoryCardsTest.aTapOnTheWordsOpensAndClosesAbout

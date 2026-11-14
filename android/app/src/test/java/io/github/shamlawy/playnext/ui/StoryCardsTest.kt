@@ -6,6 +6,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -61,6 +64,8 @@ class StoryCardsTest {
     private fun field(name: String): Any? = Games::class.java.getDeclaredField(name).apply { isAccessible = true }.get(Games)
     private fun put(name: String, v: Any?) = Games::class.java.getDeclaredField(name).apply { isAccessible = true }.set(Games, v)
 
+    private val LONG = "A small comet drifts between floating islands. " .repeat(14).trim()
+
     /** Extra fields for game b (the playing one). */
     private var storyB = ""
 
@@ -76,7 +81,8 @@ class StoryCardsTest {
           {"id":"d","title":"Iron Tide","state":"playing","date":"2026-01-01","ord":4,"colour":"#B0412E","hours":20,"genres":"RPG, Action",
            "lgH":[[${noon("2026-10-07")},3],[${noon("2026-10-09")},3],[${noon("2026-10-11")},3],[${noon("2026-10-13")},1],[${noon("2026-10-18")},0.5]]},
           {"id":"x","title":"Fallen Kite","state":"dropped","date":"2025-01-01","ord":5,"genres":"RPG, Action"},
-          {"id":"s","title":"Pocket Comet","state":"backlog","date":"2026-01-01","ord":6,"colour":"#8A5CD0","hours":5,"genres":"Puzzle"}
+          {"id":"s","title":"Pocket Comet","state":"backlog","date":"2026-01-01","ord":6,"colour":"#8A5CD0","hours":5,"genres":"Puzzle",
+           "desc":"$LONG"}
         ],"duels":[],"played":[{"id":"a","real":8,"t":"2026-03-01"}]}
     """.trimIndent()
 
@@ -157,6 +163,26 @@ class StoryCardsTest {
         val utc = ZoneId.of("UTC")
         assertEquals("4\u00A0Nov", io.github.shamlawy.playnext.data.Story.nice(noon("2026-11-04"), utc, java.util.Locale.US))
         assertEquals("3\u00A0Mar\u00A02027", io.github.shamlawy.playnext.data.Story.rdNice("2027-03-03", now, utc, java.util.Locale.US))
+    }
+
+    /**
+     * The owner (Nov 14): "press on the text for it to expand and compress, not read more or less". About opens and
+     * closes on a tap on its words; no Read more / Read less words on the screen, only as the tap's name for TalkBack.
+     */
+    @Test fun aTapOnTheWordsOpensAndClosesAbout() {
+        show(listOf("game:s"))
+        fun label(l: String) = SemanticsMatcher("tap named $l") { n ->
+            n.config.getOrElseNullable(SemanticsActions.OnClick) { null }?.label == l && n.config.getOrElseNullable(SemanticsProperties.Text) { null }.orEmpty().any { it.text.startsWith("A small comet") }
+        }
+        rule.onNode(label("Read more")).performScrollTo()
+        assertFalse("no Read more word on the screen", has("Read more"))
+        rule.onNode(label("Read more")).performClick()
+        rule.waitForIdle()
+        rule.onNode(label("Read less")).assertExists()
+        assertFalse("no Read less word either", has("Read less"))
+        rule.onNode(label("Read less")).performClick()
+        rule.waitForIdle()
+        rule.onNode(label("Read more")).assertExists()
     }
 
     /** The web's backup can hold a failed recap: once it's 6 hours old the page asks again and the card comes back. */
