@@ -87,8 +87,8 @@ internal fun PricesSec(g: Game, page: Page, lib: Library, modifier: Modifier) {
         delay(700)
         if (askOnOpen && Prices.due(lib, rk, g, now())) Prices.fetch(lib, rk, g, cc, now)
     }
-    // read through the counter, so an answer or a busy state redraws the card
-    val card = tick.let { Prices.card(lib, rk, g, cc) }
+    // keyed on the counter, so an answer or a busy state builds a new card (and new chips) and nothing else does
+    val card = remember(tick, lib, rk, g, cc) { Prices.card(lib, rk, g, cc) }
     if (!Prices.show(card)) return
     card!!
     val edit = LocalEditActs.current

@@ -47,7 +47,7 @@ class PricesTest {
 
     @Test fun theAskNeverTouchesTheWatchList() = runBlocking {
         var asked = ""
-        Prices.post = { b -> asked = b; """{"ok":true,"res":{}}""" }
+        Prices.post = { b -> if (asked.isEmpty()) asked = b; """{"ok":true,"res":{}}""" }  // the first ask (a second goes for stores with no answer)
         Prices.fetch(lib, rk(lib), g(lib, "ps"), "ae", { now })
         val b = Json.parseToJsonElement(asked).jsonObject
         assertEquals("ae", (b["cc"] as JsonPrimitive).content)
@@ -81,8 +81,7 @@ class PricesTest {
         assertTrue("cheapest in one currency: ringed", st.best)
         assertEquals("AED 249", c.chips[0].label)
         assertEquals("n/a", c.chips[2].label)
-        assertTrue(c.cap, c.cap.startsWith("Steam is cheapest · ends "))
-        assertTrue(c.cap, c.cap.endsWith("≈ in AED"))
+        assertEquals("Steam's sale end isn't kept (index.html pxTake keeps it for the PS Store and eShop only)", "Steam is cheapest · ≈ in AED", c.cap)
         assertTrue(Prices.show(c))
         assertEquals("the store id it found is kept", 7001.0, Backup.num(Prices.f(g(l, "any"), "pxSt"), 0.0, 0.0, 1e9), 0.0)
         assertEquals("https://store.steampowered.com/app/7001/", Prices.url(l, g(l, "any"), "st", "ae"))

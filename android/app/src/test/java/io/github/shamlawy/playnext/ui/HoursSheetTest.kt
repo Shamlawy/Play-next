@@ -126,6 +126,7 @@ class HoursSheetTest {
     }
 
     private fun has(text: String) = rule.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
+    private fun said(text: String) = rule.onAllNodes(hasContentDescription(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     private val tile = hasContentDescription("How long to beat") and hasClickAction()
 
     @Test fun theLengthTileAsksHowLongToBeatAndFillsEmptyHours() {
@@ -199,8 +200,8 @@ class HoursSheetTest {
         rule.mainClock.advanceTimeBy(1_000)
         waitFor("the prices came in") { has("Steam is cheapest") }
         assertFalse("never the watch list", Regex("\"(id|watch|off|all)\"\\s*:").containsMatchIn(asked))
-        assertTrue(has("$29.99") && has("$48.99") && has("$49.99"))
-        assertTrue("Steam's sale badge", has("−50%"))
+        // each chip speaks its store, price and sale (its tip), like the web chip's title
+        assertTrue(said("Steam, $29.99, 50% off, was $59.99") && said("PS Store, $48.99, 30% off") && said("eShop, $49.99"))
         rule.onNode(hasText("Price alerts", substring = true)).performScrollTo()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("src/test/screenshots/prices-412.png")

@@ -16,6 +16,7 @@ CardTicket.st: Stat
 Cells.cells: List<Cell>
 Chart.c: Chart
 Chart.t: Animatable<Float, AnimationVector1D>
+Chip.c: Chip
 Chips.items: List<Pair<String, String>>
 Counts.counts: List<Pair<String, Int>>
 CustomiseSheet.games: State
@@ -74,6 +75,11 @@ PlatPill.chips: List<Chip>
 PlatRow.chips: List<Chip>
 PlayNextRoot.link: Route?
 PlayedGroup.rec: Played
+PricesSec.g: Game
+PricesSec.lib: Library
+PricesSec.page: Page
+PricesSheet.g: Game
+PricesSheet.lib: Library
 Progress.g: Game
 Progress.lib: Library
 Progress.page: Page
@@ -102,6 +108,9 @@ SelPanel.pick: QueuePick
 SelPanel.q: Queue
 SettingsSheet.games: State
 SharedCard.s: Shared
+SheetPrice.g: Game
+SheetPrice.lib: Library
+SheetPrice.p: Px?
 Shell.games: State
 Shell.nav: Nav
 ShortSheet.g: Game
