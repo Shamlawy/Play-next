@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.shamlawy.playnext.Store
@@ -63,7 +64,9 @@ class HoursSheetTest {
           {"id":"a","title":"Moonwell","state":"backlog","date":"2024-03-01","ord":1,"colour":"#2E9E6A","platforms":"PC"},
           {"id":"b","title":"Glass Road","state":"backlog","date":"2023-05-01","ord":2,"colour":"#3A6FD8","hours":25,"hrsSrc":"me",
            "hl":{"id":6,"n":"Glass Road","m":40,"x":50,"c":80,"cnt":1234,"at":${now - 86_400_000L}}},
-          {"id":"cp","title":"Arena Nine","state":"backlog","ord":3,"comp":true}
+          {"id":"cp","title":"Arena Nine","state":"backlog","ord":3,"comp":true},
+          {"id":"r","title":"Pocket Comet","state":"backlog","date":"2026-11-10","ord":4,"colour":"#8A5CD0","platforms":"PC","hours":9,
+           "rv":{"mc":84,"mcP":"PC","at":${now - 2 * 86_400_000L}}}
         ],"duels":[],"played":[]}
     """.trimIndent()
 
@@ -91,6 +94,8 @@ class HoursSheetTest {
         Games.clock = System::currentTimeMillis
         Games.zone = ZoneId::systemDefault
         Hours.forget()
+        io.github.shamlawy.playnext.data.Reviews.forget()
+        askOnOpen = false
     }
 
     private val ready get() = state.value as Games.State.Ready
@@ -155,5 +160,21 @@ class HoursSheetTest {
         show(listOf("game:cp"))
         rule.onAllNodes(tile).fetchSemanticsNodes().let { assertTrue("no How long to beat on a competitive game", it.isEmpty()) }
         assertTrue("its tile still says so", has("no end"))
+    }
+
+    /** Piece 4's Reviews: a game out 4 days ago, checked 2 days ago, asks again as its page opens; Steam's players join the critics. */
+    @Test fun aFreshGamesReviewsAreAskedAgainAsItsPageOpens() {
+        askOnOpen = true
+        io.github.shamlawy.playnext.data.Reviews.post = { """{"ok":true,"res":{"r":{"st":4410,"d":"Very Positive","p":91,"n":1234}}}""" }
+        show(listOf("game:r"))
+        rule.mainClock.advanceTimeBy(1_000)
+        waitFor("Steam's players came in") { has("Very Positive · 1,234 on Steam") }
+        assertTrue(has("Critics · PC"))
+        assertTrue(has("checked today"))
+        assertTrue("the guess's line (lower case on the web too when no reason comes first)", has("a first guess"))
+        assertFalse("the tile already says the guess", has("You, probably"))
+        rule.onNode(hasText("a first guess", substring = true)).performScrollTo()
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("src/test/screenshots/reviews-412.png")
     }
 }

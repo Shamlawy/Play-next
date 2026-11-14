@@ -48,8 +48,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import java.text.NumberFormat
 
-/** HowLongToBeat's fields into the practice copy for game [id] (its hours, `hrsSrc`): every screen follows at once. */
-internal fun hoursFill(id: String): (Map<String, JsonElement>) -> Unit = { f ->
+/** A helper answer's fields into the practice copy for game [id] (HowLongToBeat's hours, a critic score): every screen follows at once. */
+internal fun practiceFill(id: String): (Map<String, JsonElement>) -> Unit = { f ->
     Games.change(mapOf(Practice.GAMES to Practice.fields(Games.practiced(Practice.GAMES), id, f)))
 }
 
@@ -66,7 +66,7 @@ fun HoursSheet(lib: Library, g: Game, now: () -> Long, close: () -> Unit, said: 
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val off = Hours.off(lib)
-    val fill = hoursFill(g.id)
+    val fill = practiceFill(g.id)
     LaunchedEffect(g.id) {
         if (!off && Hours.of(g) == null && !Hours.busy(g)) Hours.fetch(lib, g, now, force = true, fill = fill)
     }

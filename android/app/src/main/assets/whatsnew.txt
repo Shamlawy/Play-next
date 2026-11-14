@@ -236,3 +236,9 @@ go=home
 at=
 say=Tap a game's length to see how long it takes to beat, from real players' times on HowLongToBeat.
 tryIt=Open any game (Games › Queue, tap its box art) and tap its length tile, the one with the small arrow: the sheet shows the main story, story + extras and everything, with how you play lit. Games with no hours yet fill them in by themselves; ones you typed offer Use HowLongToBeat's.
+
+v=40
+go=home
+at=
+say=A game you haven't played now shows its reviews: the critics and Steam's players, and which way they tip Nexi's guess.
+tryIt=Open a game you haven't played yet (Games › Queue, tap its box art) and scroll past the screenshots to Reviews: the critics' score, the players' score and how long ago they were checked. A finished game shows the critics next to your own score instead. The likely score tile up top now leans on those reviews too.

@@ -13,6 +13,7 @@ CardLogo.enter: Animatable<Float, AnimationVector1D>
 CardLogo.g: Game
 CardTicket.enter: Animatable<Float, AnimationVector1D>
 CardTicket.st: Stat
+Cells.cells: List<Cell>
 Chart.c: Chart
 Chart.t: Animatable<Float, AnimationVector1D>
 Chips.items: List<Pair<String, String>>
@@ -87,6 +88,9 @@ Rail.views: List<Pair<String, String>>
 RailColumn.views: List<Pair<String, String>>
 RailViews.views: List<Pair<String, String>>
 RenameRow.l: QList
+ReviewsSec.g: Game
+ReviewsSec.lib: Library
+ReviewsSec.page: Page
 ScoreSheet.g: Game
 ScoreSheet.lib: Library
 ScoreSheet.ready: Rank?

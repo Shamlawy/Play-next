@@ -77,7 +77,9 @@ class PageTest {
             assertEquals("a deliberate 0 is a score", "0", p.tiles(g)[3].value)
         }
         one("""{"id":"a","title":"A","state":"backlog","critic":84}""").let { (p, g) ->
-            assertEquals(listOf("84", "critics"), p.tiles(g)[3].let { listOf(it.value, it.label) })
+            // android-v40: the guess reads the reviews first (rvFor, from the critics' 84), as the web's gdGuess does
+            // (index.html 21930), so the tile is Nexi's likely score rather than the bare critics' number
+            assertEquals(listOf("8.4", "likely score"), p.tiles(g)[3].let { listOf(it.value, it.label) })
         }
         // Nexi's likely score: your hype against how your scores land (one played game 2 over its hype)
         val l = lib("""{"id":"a","title":"A","state":"backlog","hype":6},{"id":"b","title":"B","state":"played","hype":5}""", """{"id":"b","real":7,"t":"2026-01-02"}""")

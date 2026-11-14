@@ -184,14 +184,17 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
         by.filter { it.value.size >= 2 }.mapValues { it.value.sum() / it.value.size }
     }
 
+    /** `rvFor(g)`: the guess [v], the critics' score [mc] (0: none), Steam's players [st] (30+ reviews), the reasons and how sure. */
+    class RvFor(val v: Double, val mc: Double, val st: JsonObject?, val why: List<String>, val sure: String)
+
     /**
-     * `rvFor(g).v` (index.html 20450): Nexi's guess from the critics (`g.rv.mc` or `g.critic`, Steam's players `g.rv.st`
-     * with 30+ reviews), moved by how you land against them, blended with [expected]. Null for a played or competitive
-     * game, or one with no critic score. (Its words, `why` and `sure`, come with piece 4's reviews.)
+     * `rvFor(g)` (index.html 20450): Nexi's guess from the critics (`g.rv.mc` or `g.critic`, Steam's players `g.rv.st`
+     * with 30+ reviews, the answer this run's [Reviews] fetched first), moved by how you land against them, blended with
+     * [expected], and why in plain words. Null for a played or competitive game, or one with no critic score.
      */
-    fun rvGuess(g: Game): Double? {
+    fun rvFor(g: Game): RvFor? {
         if (g.comp || rk.isPlayed(g)) return null
-        val rv = g["rv"] as? JsonObject
+        val rv = Reviews.of(g)
         val mc = Backup.num(rv?.get("mc"), 0.0, -1e9, 1e9).takeIf { it != 0.0 } ?: critic(g)
         val st = (rv?.get("st") as? JsonObject)?.takeIf { Backup.num(it["n"], 0.0, 0.0, 1e12) >= 30 && it["p"] != null && it["p"] !is kotlinx.serialization.json.JsonNull }
         val stTen = st?.let { maxOf(1.0, minOf(10.0, 1 + .085 * Backup.num(it["p"], 0.0, -1e9, 1e9))) }
@@ -199,15 +202,32 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
         val crit = if (mc != 0.0 && stTen != null) mc / 10 * .7 + stTen * .3 else if (mc != 0.0) mc / 10 else stTen!!
         val n = rvRows.size
         var shift = 0.0
+        var how = ""
         if (n >= 3) {
             val gs = Rank.platList(g["genres"]).mapNotNull { rvGenre[it] }
             val gm = if (gs.isNotEmpty()) gs.sum() / gs.size else null
             shift = (if (gm == null) rvMean else .5 * rvMean + .5 * gm) * (n / (n + 3.0))
+            how = if (kotlin.math.abs(shift) >= .3) "you usually score ${String.format(java.util.Locale.ROOT, "%.1f", kotlin.math.abs(shift))} ${if (shift < 0) "below" else "above"} the critics${if (gm != null) " on games like this" else ""}"
+            else "you usually agree with the critics"
         }
         val e = expected(g)
         val v1 = crit + shift
-        return maxOf(1.0, minOf(10.0, Rank.jsRound((if (e != null) v1 * .65 + e * .35 else v1) * 10) / 10))
+        val v = maxOf(1.0, minOf(10.0, Rank.jsRound((if (e != null) v1 * .65 + e * .35 else v1) * 10) / 10))
+        // a genre shared with one of your top 6 ranked games
+        val tg = Rank.platList(g["genres"]).map { it.lowercase() }.toSet()
+        val like = rk.table.order.mapNotNull { id -> lib.games.firstOrNull { it.id == id } }.take(6)
+            .firstOrNull { f -> Rank.platList(f["genres"]).any { it.lowercase() in tg } }
+        val why = listOfNotNull(
+            how.ifEmpty { null },
+            e?.let { "your hype points to ${String.format(java.util.Locale.ROOT, "%.1f", it)}" },
+            like?.let { "it shares a genre with your #${(rk.table.pos[it.id] ?: 0) + 1} ${it.title}" },
+        )
+        val sure = if (n >= 6) "" else if (n >= 3) "a rough guess" else "a first guess (score a few games that have critic scores and I'll get sharper)"
+        return RvFor(v, mc, st, why, sure)
     }
+
+    /** `rvFor(g).v`: Nexi's guess from the critics, or null. */
+    fun rvGuess(g: Game): Double? = rvFor(g)?.v
 
     /** The small pill a scored order adds to each row (`sortVal`): null when the order has none. */
     fun sortValue(g: Game, key: String): String? {

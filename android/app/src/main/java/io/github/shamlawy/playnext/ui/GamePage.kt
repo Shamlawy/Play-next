@@ -459,6 +459,8 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 // one list per game and copy, so the strip isn't redrawn on every pass of the page
                 val shots = remember(page, g) { page.shots(g) }
                 if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + aboutSlide.value })
+                // the helper's cards (`gd-pair`): Reviews; Prices comes next
+                ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + aboutSlide.value })
             }
             Spacer(Modifier.height(top))
         }
@@ -674,8 +676,8 @@ private fun PlatPill(chips: List<Plat.Chip>) {
     }
 }
 
-/** The page's own ask to HowLongToBeat: off under Robolectric, so a screenshot test never reaches the live helper (a test turns it on). */
-@Volatile internal var hoursOnOpen: Boolean = android.os.Build.FINGERPRINT != "robolectric"
+/** The page's own asks to the helper (HowLongToBeat, reviews): off under Robolectric, so a screenshot test never reaches the live helper (a test turns it on). */
+@Volatile internal var askOnOpen: Boolean = android.os.Build.FINGERPRINT != "robolectric"
 
 /**
  * The four tiles (`gdGlance`): a number never cut short, its size coming down to fit (the web's check calls a cut one a
@@ -690,7 +692,7 @@ private fun Tiles(g: Game, page: Page, lib: Library, pageW: Dp, big: Boolean, sh
     val now = LocalNow.current
     LaunchedEffect(g.id) {
         delay(900)
-        if (hoursOnOpen && Hours.due(lib, g, now())) Hours.fetch(lib, g, now, force = false, fill = hoursFill(g.id))
+        if (askOnOpen && Hours.due(lib, g, now())) Hours.fetch(lib, g, now, force = false, fill = practiceFill(g.id))
     }
     // `clamp(14px, 3.7vw, 22px)`
     val fs = (pageW.value * .037f).coerceIn(14f, 22f)
@@ -813,7 +815,7 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
 
 /** A page section (`gdSec`): a card with its drawn icon, title and a small meta on the right. */
 @Composable
-private fun Section(icon: String, title: String, meta: String, modifier: Modifier, content: @Composable () -> Unit) {
+internal fun Section(icon: String, title: String, meta: String, modifier: Modifier, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(20.dp)
     Column(modifier.padding(top = 12.dp).fillMaxWidth().background(Pn.card, shape).border(1.dp, Pn.line, shape).padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 15.dp)) {
         Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

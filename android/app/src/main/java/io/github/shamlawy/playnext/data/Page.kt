@@ -66,8 +66,8 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
         else -> if (g.date.isNotEmpty()) days(g.date).ifEmpty { "Out now" } else "No date yet"
     }
 
-    /** `gdGuess` without the helper's reviews (piece 4): Nexi's expected score, 0 for a played or competitive game. */
-    fun guess(g: Game): Double = if (rk.isPlayed(g) || g.comp) 0.0 else q.expected(g) ?: 0.0
+    /** `gdGuess`: Nexi's guess from the critics (`rvFor`), else his expected score; 0 for a played or competitive game. */
+    fun guess(g: Game): Double = if (rk.isPlayed(g) || g.comp) 0.0 else q.rvGuess(g) ?: q.expected(g) ?: 0.0
 
     /** `gdGlance` (index.html 21936): release, length, hype, score, in that order for every game. */
     fun tiles(g: Game): List<Tile> {
