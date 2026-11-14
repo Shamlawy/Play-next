@@ -66,6 +66,15 @@ const setOf = name => {
   return l;
 };
 const PS_NONE = setOf("PS_NONE"), PS_ARAB = setOf("PS_ARAB");
+/* Prices (piece 4, `pxCard`, 2-edit.md §7b): how often, each region's currency, the pegged Gulf rates until the helper's,
+   currencies with no cents, where the eShop sells, the PS Plus tiers, the regions' names, the stores' names and logos */
+const PX_GAP = table("PX_GAP"), PX_RELOOK = (() => { const c = vm.createContext(Object.create(null)); vm.runInContext(statement("PX_GAP").replace(/^const /, "var "), c); return c.PX_RELOOK; })();
+const PX_CUR = table("PX_CUR"), FX_PEG = table("FX_PEG"), PX_ZD = setOf("PX_ZD"), NS_OK = setOf("NS_OK"), PS_PLUS = table("PS_PLUS");
+const PX_REGIONS = table("PX_REGIONS"), PX_NAME = table("PX_NAME"), PX_LOGO = table("PX_LOGO");
+need(Number.isInteger(PX_GAP) && Number.isInteger(PX_RELOOK), "PX_GAP, PX_RELOOK: whole ms");
+need(Object.values(PX_CUR).every(c => /^[A-Z]{3}$/.test(c)) && Object.values(FX_PEG).every(v => typeof v === "number" && v > 0), "PX_CUR: { cc: CUR }, FX_PEG: { CUR: rate }");
+need(Array.isArray(PS_PLUS) && PS_PLUS.length === 4 && Array.isArray(PX_REGIONS) && PX_REGIONS.every(r => r.length === 2), "PS_PLUS: 4 names, PX_REGIONS: [cc, name]…");
+need(["st", "ps", "ns"].every(k => typeof PX_NAME[k] === "string" && typeof PX_LOGO[k] === "string" && /^M[\d.\-\s\w,]+$/i.test(PX_LOGO[k])), "PX_NAME / PX_LOGO: st, ps, ns (one path each)");
 /* Score and notes (piece 3): Where was I's quick chips and how many notes a game keeps (v212), and the finish burst's
    colours (`celebrate`: the game's colour, or its fallback, then three more) */
 const WI_QUICK = table("WI_QUICK"), WI_MAX = table("WI_MAX");
@@ -166,6 +175,8 @@ function dust(n) {
   return argb(lit(c), "DUST_BASE");
 }
 const RULES = {
+  /* Prices (v224 `.px-c`): a store chip's ground, the PS Plus green (its ring, logo and ✓) and the sale badge's words */
+  PX_CHIP: cssColour(".px-c", "background"), PX_GREEN: cssColour(".px-c.incl svg", "fill"), PX_ON_GREEN: cssColour(".px-c em", "color"),
   PILL_BG: cssColour("html.fast .vpill", "background"), PILL_EDGE: cssColour(".vpill", "border"),
   SHX_EDGE: cssColour("html.ui2 .tabbar.shx", "border"), SHX_COVER: cssColour(".shx-fan button", "background"),
   SHX_TAG: cssColour(".shx-tg span", "background"), SHX_TAG_EDGE: cssColour(".shx-tg span", "border"),
@@ -344,6 +355,8 @@ const APP_DRAWN = {
   /* piece 4 (the web's ⏱ How long to beat): a stopwatch, its face lit */
   /* the web's ↗ (a link out, the length tile's corner) */
   out: '<path opacity=".35" d="M5 7.6h6.2v2.2H7.2v7h7v-4h2.2v6.2H5z"/><path d="M13 3.6h7.4V11h-2.2V7.4l-6.7 6.7-1.6-1.6 6.7-6.7H13z"/>',
+  /* Prices on a game's page (the web's 💸): a price tag */
+  tag: '<path opacity=".35" d="M2.4 12.4V3.6c0-.66.54-1.2 1.2-1.2h8.8l9.2 9.2-10 10z"/><circle cx="7.6" cy="7.6" r="2"/>',
   clock: '<rect x="9.4" y="1" width="5.2" height="2.2" rx="1.1"/><circle opacity=".35" cx="12" cy="13.6" r="8.6"/><path d="M11 8.4h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
@@ -376,7 +389,7 @@ need(Array.isArray(GENRE_GROUPS) && GENRE_GROUPS.length === 3 && GENRE_GROUPS.ev
 need(pairs(PLAY_STYLES) && PLAY_STYLES[0][0] === "main", "PLAY_STYLES: [key, label]…, main first");
 need(Array.isArray(PLATS) && PLATS.every(x => typeof x[0] === "string"), "PLATS: [name, …]…");
 const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash", "plus", "search"].map(n => ["ui:" + n, uicIcon(n)]),
-  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS,
+  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS, ...["st", "ps", "ns"].map(k => ["px:" + k, [{ d: PX_LOGO[k], alpha: 1, evenOdd: false }]]),
   ...["edit", "more", "comp"].map(n => ["qb:" + n, qbIcon(n)]), ...["unsure", "spark", "star"].map(n => ["ui:" + n, uicIcon(n)]),
   ...EDIT_GROUPS.map(n => ["gi:" + n, n === "Name" ? NAME_PEN : giconIcon(n)])];
 
@@ -448,6 +461,15 @@ const lines = [
   `    val PX_TZ: Map<String, String> = ${kmap(PX_TZ)}`,
   `    val PS_NONE: Set<String> = setOf(${PS_NONE.map(ks).join(", ")})`,
   `    val PS_ARAB: Set<String> = setOf(${PS_ARAB.map(ks).join(", ")})`,
+  `    const val PX_GAP = ${PX_GAP}L`,
+  `    const val PX_RELOOK = ${PX_RELOOK}L`,
+  `    val PX_CUR: Map<String, String> = ${kmap(PX_CUR)}`,
+  `    val FX_PEG: Map<String, Double> = mapOf(${Object.entries(FX_PEG).map(([k, v]) => `${ks(k)} to ${String(v).includes(".") || String(v).includes("e") ? v : v + ".0"}`).join(", ")})`,
+  `    val PX_ZD: Set<String> = setOf(${PX_ZD.map(ks).join(", ")})`,
+  `    val NS_OK: Set<String> = setOf(${NS_OK.map(ks).join(", ")})`,
+  `    val PS_PLUS: List<String> = ${kl(PS_PLUS.map(ks))}`,
+  `    val PX_REGIONS: List<Pair<String, String>> = ${kl(PX_REGIONS.map(([a, b]) => `${ks(a)} to ${ks(b)}`))}`,
+  `    val PX_NAME: Map<String, String> = ${kmap(PX_NAME)}`,
   `    val ART_HERO_OK: List<String> = ${kl(ART_HERO_OK.map(ks))}`,
   `    val WI_QUICK: List<String> = ${kl(WI_QUICK.map(ks))}`,
   `    const val WI_MAX = ${WI_MAX}`,

@@ -242,3 +242,9 @@ go=home
 at=
 say=A game you haven't played now shows its reviews: the critics and Steam's players, and which way they tip Nexi's guess.
 tryIt=Open a game you haven't played yet (Games › Queue, tap its box art) and scroll past the screenshots to Reviews: the critics' score, the players' score and how long ago they were checked. A finished game shows the critics next to your own score instead. The likely score tile up top now leans on those reviews too.
+
+v=41
+go=home
+at=
+say=A game you're waiting for now shows what it costs on Steam, the PS Store and the eShop, with the best deal ringed.
+tryIt=Open a game you haven't played (Games › Queue, tap its box art) and scroll to Prices under Reviews: each store's price in your currency, a sale's discount, the cheapest one ringed. Tap a store to open its page, or the line under them for every store's details and Check this game now. A game you own says so instead.

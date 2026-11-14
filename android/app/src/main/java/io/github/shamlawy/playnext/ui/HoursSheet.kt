@@ -185,7 +185,7 @@ private fun Numbers(h: Hours.Hl, style: String) {
 
 /** `.btn` / `.btn.ghost` in the sheet: 48 tall, round; the accent for Use HowLongToBeat's. */
 @Composable
-private fun HBtn(text: String, modifier: Modifier = Modifier, main: Boolean = false, enabled: Boolean = true, icon: String? = null, onClick: () -> Unit) {
+internal fun HBtn(text: String, modifier: Modifier = Modifier, main: Boolean = false, enabled: Boolean = true, icon: String? = null, onClick: () -> Unit) {
     val volt = LocalLook.current.volt
     val ink = when { !enabled -> Pn.mute; main -> Pn.void; else -> Pn.ice }
     Box(

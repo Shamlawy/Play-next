@@ -66,7 +66,8 @@ class HoursSheetTest {
            "hl":{"id":6,"n":"Glass Road","m":40,"x":50,"c":80,"cnt":1234,"at":${now - 86_400_000L}}},
           {"id":"cp","title":"Arena Nine","state":"backlog","ord":3,"comp":true},
           {"id":"r","title":"Pocket Comet","state":"backlog","date":"2026-11-10","ord":4,"colour":"#8A5CD0","platforms":"PC","hours":9,
-           "rv":{"mc":84,"mcP":"PC","at":${now - 2 * 86_400_000L}}}
+           "rv":{"mc":84,"mcP":"PC","at":${now - 2 * 86_400_000L}}},
+          {"id":"px","title":"Lantern Bay","state":"backlog","date":"2025-06-01","ord":5,"colour":"#C0563A","hours":14}
         ],"duels":[],"played":[]}
     """.trimIndent()
 
@@ -82,6 +83,7 @@ class HoursSheetTest {
         val lib = Games::class.java.getDeclaredMethod("build", String::class.java).apply { isAccessible = true }.invoke(Games, backup) as Library
         state.value = Games::class.java.getDeclaredMethod("ready", Library::class.java, Long::class.javaPrimitiveType).apply { isAccessible = true }
             .invoke(Games, lib, now - 3_600_000L) as Games.State.Ready
+        io.github.shamlawy.playnext.data.Prices.post = { """{"ok":true,"res":{}}""" }
         Hours.post = { calls++; """{"ok":true,"src":"hltb","res":{"a":{"id":5,"n":"Moonwell","m":11.5,"x":18,"c":30,"cnt":420}}}""" }
     }
 
@@ -95,6 +97,7 @@ class HoursSheetTest {
         Games.zone = ZoneId::systemDefault
         Hours.forget()
         io.github.shamlawy.playnext.data.Reviews.forget()
+        io.github.shamlawy.playnext.data.Prices.forget()
         askOnOpen = false
     }
 
@@ -176,5 +179,36 @@ class HoursSheetTest {
         rule.onNode(hasText("a first guess", substring = true)).performScrollTo()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("src/test/screenshots/reviews-412.png")
+    }
+
+    /**
+     * Piece 4's Prices: a game with no platforms is priced on all three stores as its page opens; the chips show each
+     * price (Steam's sale with its badge), the cheapest ringed, and the line under them says why; it opens the sheet.
+     */
+    @Test fun aGamesPricesComeInAsItsPageOpens() {
+        askOnOpen = true
+        var asked = ""
+        io.github.shamlawy.playnext.data.Prices.post = { b ->
+            asked = b
+            """{"ok":true,"res":{"px":{
+              "st":{"id":7001,"name":"Lantern Bay","cur":"USD","base":5999,"now":2999,"pct":50,"baseF":"$59.99","nowF":"$29.99","end":1795000000000},
+              "ps":{"id":"UP0001-CUSA00001_00-LANTERNBAY000000","name":"Lantern Bay","cur":"USD","base":6999,"now":4899,"pct":30,"baseF":"$69.99","nowF":"$48.99"},
+              "ns":{"id":"70010000000001","name":"Lantern Bay","cur":"USD","base":49.99,"now":49.99,"pct":0,"baseF":"$49.99","nowF":"$49.99"}}}}"""
+        }
+        show(listOf("game:px"))
+        rule.mainClock.advanceTimeBy(1_000)
+        waitFor("the prices came in") { has("Steam is cheapest") }
+        assertFalse("never the watch list", Regex("\"(id|watch|off|all)\"\\s*:").containsMatchIn(asked))
+        assertTrue(has("$29.99") && has("$48.99") && has("$49.99"))
+        assertTrue("Steam's sale badge", has("−50%"))
+        rule.onNode(hasText("Price alerts", substring = true)).performScrollTo()
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("src/test/screenshots/prices-412.png")
+        rule.onNode(hasText("Price alerts", substring = true)).performClick()
+        rule.mainClock.advanceTimeBy(600)
+        waitFor("the sheet") { has("Check this game now") }
+        assertTrue(has("Open Steam") && has("Open PS Store") && has("Open eShop"))
+        assertTrue("its old price", has("$69.99"))
+        rule.onRoot().captureRoboImage("src/test/screenshots/prices-sheet-412.png")
     }
 }
