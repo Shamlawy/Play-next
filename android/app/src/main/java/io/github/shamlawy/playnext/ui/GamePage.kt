@@ -891,7 +891,11 @@ private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Co
     }
 }
 
-/** About (`gdAbout`): four lines, then "Read more" when there's more to read; what's under it slides, the new lines fade in. */
+/**
+ * About (`gdAbout`): four lines ending in "…" when there's more; a tap on the words opens and closes it (the owner,
+ * Nov 14: "press on the text for it to expand and compress, not read more or less"); what's under it slides, the new
+ * lines fade in. TalkBack still hears "Read more" / "Read less" as the tap's name.
+ */
 @Composable
 private fun About(text: String, still: Boolean, slide: Animatable<Float, *>, modifier: Modifier) {
     var open by remember(text) { mutableStateOf(false) }
@@ -899,30 +903,26 @@ private fun About(text: String, still: Boolean, slide: Animatable<Float, *>, mod
     var h0 by remember(text) { mutableIntStateOf(-1) }
     val fade = remember(text) { Animatable(1f) }
     val scope = rememberCoroutineScope()
-    val volt = LocalLook.current.volt
+    val flip = {
+        Sounds.play(Sfx.Tap)
+        open = !open
+        if (open && !still) scope.launch { fade.snapTo(.45f); fade.animateTo(1f, tween(420, easing = EASE_OUT)) }
+    }
     Section("ui:book", "About", "", modifier) {
+        val more = text.length > 170 && (cut || open)
         BasicText(
             text,
             style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 20.9.sp, color = Color(Web.GD_DESC)).fixed(),
             maxLines = if (open) Int.MAX_VALUE else 4,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { r -> if (!open) cut = r.hasVisualOverflow },
-            modifier = Modifier.padding(top = 10.dp).graphicsLayer { alpha = fade.value }.onSizeChanged { s ->
+            modifier = Modifier.padding(top = 10.dp).clickable(enabled = more, onClickLabel = if (open) "Read less" else "Read more", onClick = flip)
+                .graphicsLayer { alpha = fade.value }.onSizeChanged { s ->
                 val was = h0
                 h0 = s.height
                 if (was >= 0 && was != s.height && !still) scope.launch { slide.snapTo((was - s.height).toFloat()); slide.animateTo(0f, tween(420, easing = Ease.house)) }
             },
         )
-        if (text.length > 170 && (cut || open)) {
-            Box(
-                Modifier.padding(top = 2.dp).sizeIn(minHeight = Pn.touch).clickable(role = Role.Button) {
-                    Sounds.play(Sfx.Tap)
-                    open = !open
-                    if (open && !still) scope.launch { fade.snapTo(.45f); fade.animateTo(1f, tween(420, easing = EASE_OUT)) }
-                },
-                contentAlignment = Alignment.CenterStart,
-            ) { BasicText(if (open) "Read less" else "Read more", style = Type.button.copy(fontSize = 13.sp, lineHeight = 16.sp, color = volt).fixed()) }
-        }
     }
 }
 

@@ -140,9 +140,9 @@ internal fun ThenNowCard(c: ThenNow.Card, now: Long) {
 }
 
 /**
- * The story so far (`wiStoryHtml`): under the note, "The story so far · <where>" and the recap in four lines with Read
- * more when it's cut (a tap on the words also opens and closes it, v244); while it's being written, three bars that
- * pulse (opacity only, still when calm). Asked for 600 ms after the page shows a note with none yet.
+ * The story so far (`wiStoryHtml`): under the note, "The story so far · <where>" and the recap in four lines ending in
+ * "…" when cut; a tap on the words opens and closes it (v244; its Read more button went, the owner, Nov 14: "press on
+ * the text"); while it's being written, three bars that pulse (opacity only, still when calm). Asked for 600 ms after the page shows a note with none yet.
  */
 @Composable
 internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
@@ -188,16 +188,11 @@ internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
                 c.x,
                 style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(),
                 maxLines = if (open) Int.MAX_VALUE else 4,
-                overflow = TextOverflow.Clip,
+                overflow = TextOverflow.Ellipsis,
                 onTextLayout = { if (!open) cut = it.hasVisualOverflow },
                 modifier = Modifier.graphicsLayer { alpha = fade.value }.clickable(enabled = cut || open, onClickLabel = if (open) "Read less" else "Read more", onClick = flip),
             )
             if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.padding(top = 6.dp))
-            if (cut || open) {
-                Box(Modifier.padding(top = 4.dp).sizeIn(minHeight = Pn.touch).clickable(role = Role.Button, onClick = flip), contentAlignment = Alignment.CenterStart) {
-                    BasicText(if (open) "Read less" else "Read more", style = Type.label.copy(fontSize = 13.sp, lineHeight = 16.sp, color = volt).fixed())
-                }
-            }
         }
     }
 }
