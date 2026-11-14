@@ -44,6 +44,8 @@ HeaderCard.cards: Cards?
 HeaderCard.lib: Library
 Hero.g: Game
 HomePage.games: State
+HoursSheet.g: Game
+HoursSheet.lib: Library
 ListRow.l: QList
 ListsSheet.games: State
 LogoSlot.lib: Library
@@ -54,6 +56,7 @@ MainRow.page: Page
 MixBar.segs: List<Seg>
 NexiSeat.nexi: Nexi?
 NoteSheet.g: Game
+Numbers.h: Hl
 OnDeck.deck: List<Game>
 OnDeck.q: Queue
 PageGroup.lib: Library
@@ -121,6 +124,7 @@ Tags.unstable slide: Animatable<Float, *>
 ThenNowCard.c: Card
 Ticket.st: Stat
 Tiles.g: Game
+Tiles.lib: Library
 Tiles.page: Page
 Toggles.items: List<Pair<String, String>>
 TryRow.items: List<Pair<String, Function0<Unit>>>
