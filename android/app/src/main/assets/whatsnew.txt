@@ -223,4 +223,4 @@ v=37
 go=home
 at=
 say=A game's page now works things out for you: when you'll finish, the story so far, how a finished game went, and when you're drifting from one.
-tryIt=Open a game you're playing (Games › Queue, tap its box art): under Your progress see Done around <date>, with a warning if a game you're hyped for comes out first, and after you leave a note, the story so far. A finished game shows Then & now: hype against your score, Nexi's guess, the days it took. A game you haven't touched in a while asks if you're drifting: Park it or Something short in between.
+tryIt=Open a game you're playing (Games › Queue, tap its box art): under Your progress see "Done around" and a date, with a warning if a game you're hyped for comes out first, and after you leave a note, the story so far. A finished game shows Then & now: hype against your score, Nexi's guess, the days it took. A game you haven't touched in a while asks if you're drifting: Park it or Something short in between.
