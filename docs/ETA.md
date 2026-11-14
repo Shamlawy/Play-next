@@ -54,3 +54,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E49 | 2026-11-13 9:04 AM | video | 1.5 h | 75 min | 0.83 | I'll build the stub tear for android-v35, film it frame by frame, and send you the strip plus before/after shots once it's merged. | <!-- at=2026-11-13T05:04:36.498Z -->
 | E50 | 2026-11-13 2:50 PM | release | 40 min | 52 min | 1.30 | until android-v36 reaches your phone. The checks should finish around 3:10 PM UAE, and the release build takes about 18 min after the merge. | <!-- at=2026-11-13T10:50:45.555Z bg=1 -->
 | E51 | 2026-11-14 11:15 AM | kit | 1.5 h | 24 min | 0.27 | I'll build Phase 2 piece 3b (the story so far, ▢ forecast, Then & now card, ▢), test it and release it as android-v37. | <!-- at=2026-11-14T07:15:55.739Z -->
+| E52 | 2026-11-14 11:41 AM | release | 30 min | 1 min | 0.03 | a review of the PR, fixes if any, then I'll merge android-v37 and tell you what to try. | <!-- at=2026-11-14T07:41:11.957Z -->
