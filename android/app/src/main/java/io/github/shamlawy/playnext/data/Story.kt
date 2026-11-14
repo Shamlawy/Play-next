@@ -23,9 +23,16 @@ object Story {
         return runCatching { LocalDate.parse(d).atTime(12, 0).atZone(zone).toInstant().toEpochMilli() }.getOrNull()
     }
 
+    /**
+     * The phone's own order for a day and short month (`toLocaleDateString(undefined, {day, month: "short"})`):
+     * "14 Nov" in the UK, "Nov 14" in the US, as NoteSheet's noteDate; [fallback] off a phone (plain unit tests).
+     */
+    private fun pattern(locale: Locale, skel: String, fallback: String): String =
+        runCatching { android.text.format.DateFormat.getBestDateTimePattern(locale, skel) }.getOrNull()?.takeIf { it.isNotEmpty() } ?: fallback
+
     /** `etaNice(at)` (20786): "14 Nov" in the phone's language, kept on one line (a date never breaks: the design eye). */
     fun nice(at: Long, zone: ZoneId, locale: Locale = Locale.getDefault()): String =
-        whole(Instant.ofEpochMilli(at).atZone(zone).toLocalDate().format(DateTimeFormatter.ofPattern("d MMM", locale)))
+        whole(Instant.ofEpochMilli(at).atZone(zone).toLocalDate().format(DateTimeFormatter.ofPattern(pattern(locale, "dMMM", "d MMM"), locale)))
 
     /** Spaces that never break, so "27 Feb" stays on one line. */
     fun whole(s: String): String = s.replace(' ', '\u00A0')
@@ -36,7 +43,8 @@ object Story {
         val at = noon(d, zone) ?: return d
         val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
         val year = Instant.ofEpochMilli(now).atZone(zone).year
-        return whole(day.format(DateTimeFormatter.ofPattern(if (d.take(4) == year.toString()) "d MMM" else "d MMM y", locale)))
+        val p = if (d.take(4) == year.toString()) pattern(locale, "dMMM", "d MMM") else pattern(locale, "dMMMy", "d MMM y")
+        return whole(day.format(DateTimeFormatter.ofPattern(p, locale)))
     }
 
     /** `smMed`: the middle value (the mean of the two middle ones), 0 for none. */
@@ -352,13 +360,19 @@ object Recap {
     private val mem = ConcurrentHashMap<String, Entry>()
     private val busy = ConcurrentHashMap.newKeySet<String>()
 
+    /** Games whose fetch found another one busy (a note saved mid-call): asked again when that one ends. */
+    private val again = ConcurrentHashMap.newKeySet<String>()
+
+    /** The helper answered, but not with a recap (its HTTP error): kept as an error, unlike no network. */
+    class HelperError(msg: String) : Exception(msg)
+
     /** What changed (a counter): the page's card reads it so a recap that arrives shows. */
     val seen = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /** The helper's call; tests swap it. */
     @Volatile internal var post: suspend (String) -> String = { body ->
         io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(io.github.shamlawy.playnext.net.Net.helper("/recap"), body)) { r ->
-            if (!r.isSuccessful) throw java.io.IOException("HTTP ${r.code}")
+            if (!r.isSuccessful) throw HelperError("HTTP ${r.code}")
             r.body.string()
         }
     }
@@ -399,13 +413,16 @@ object Recap {
         ).toString()
     }
 
-    /** Asks the helper when [g]'s newest note has no recap yet (or its error is 6 hours old). Never throws. */
+    /**
+     * Asks the helper when [g]'s newest note has no recap yet (or its error is 6 hours old). Never throws. No network
+     * records nothing (the web skips while `!navigator.onLine`): the card keeps its bars and the next page open asks.
+     */
     suspend fun fetch(lib: Library, g: Game, now: () -> Long) {
         val n = Notes.last(g) ?: return
         if (off(lib) || g.comp) return
         val c = of(lib, g)
         if (c != null && (c.x.isNotEmpty() || now() - c.at < RETRY)) return
-        if (!busy.add(g.id)) return
+        if (!busy.add(g.id)) { again.add(g.id); return }
         try {
             val e = try {
                 val j = kotlinx.serialization.json.Json.parseToJsonElement(post(body(g))) as? JsonObject
@@ -414,17 +431,20 @@ object Recap {
                 else Entry(n.t, x, Backup.str(j?.get("where")), Backup.num(j?.get("sure"), 0.0, -1e9, 1e9), false, now())
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: java.io.IOException) {
+                return
             } catch (e: Exception) {
                 Entry(n.t, "", "", 0.0, true, now())
             }
             // a newer note came in meanwhile: this recap is for the old one, keep it only under its own note's time
             mem[g.id] = e
+            seen.value++
         } finally {
             busy.remove(g.id)
-            // always, also when cancelled: a card whose fetch found this one busy (a note saved mid-call) asks again
-            seen.value++
+            // also when cancelled or offline: a card whose fetch found this one busy (a note saved mid-call) asks again
+            if (again.remove(g.id)) seen.value++
         }
     }
 
-    internal fun forget() { mem.clear(); busy.clear() }
+    internal fun forget() { mem.clear(); busy.clear(); again.clear() }
 }

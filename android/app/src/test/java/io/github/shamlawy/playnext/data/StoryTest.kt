@@ -152,6 +152,11 @@ class StoryTest {
         var t = now
         Recap.post = { calls++; throw java.io.IOException("offline") }
         Recap.fetch(lib, p1) { t }
+        assertNull("no network records nothing", Recap.of(lib, p1))
+        assertTrue("the card keeps its bars", Recap.shows(lib, p1))
+        calls = 0
+        Recap.post = { calls++; throw Recap.HelperError("HTTP 500") }
+        Recap.fetch(lib, p1) { t }
         assertFalse("an error shows nothing", Recap.shows(lib, p1))
         Recap.fetch(lib, p1) { t }
         assertEquals("not again within 6 hours", 1, calls)

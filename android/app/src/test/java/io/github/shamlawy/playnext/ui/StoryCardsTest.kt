@@ -80,10 +80,13 @@ class StoryCardsTest {
         ],"duels":[],"played":[{"id":"a","real":8,"t":"2026-03-01"}]}
     """.trimIndent()
 
+    private val locale0 = java.util.Locale.getDefault()
+
     @Before
     fun setUp() {
         Store.init(ApplicationProvider.getApplicationContext())
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        java.util.Locale.setDefault(java.util.Locale.UK) // the expectations are in day-month order
         RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
         Games.clock = { now }
         Games.zone = { ZoneId.of("UTC") }
@@ -108,6 +111,7 @@ class StoryCardsTest {
         Moment.reset()
         Recap.forget()
         Forecast.forget()
+        java.util.Locale.setDefault(locale0)
     }
 
     private val ready get() = state.value as Games.State.Ready
@@ -146,6 +150,14 @@ class StoryCardsTest {
         rule.onNodeWithText("The story so far · the lighthouse").performScrollTo()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("src/test/screenshots/story-playing-412.png")
+    }
+
+    /** Dates follow the phone's own order, as the web's toLocaleDateString does: "Nov 4" in the US, "4 Nov" in the UK. */
+    @Test fun datesFollowThePhonesOrder() {
+        val utc = ZoneId.of("UTC")
+        assertEquals("Nov\u00A04", io.github.shamlawy.playnext.data.Story.nice(noon("2026-11-04"), utc, java.util.Locale.US))
+        assertEquals("4\u00A0Nov", io.github.shamlawy.playnext.data.Story.nice(noon("2026-11-04"), utc, java.util.Locale.UK))
+        assertEquals("Mar\u00A03,\u00A02027", io.github.shamlawy.playnext.data.Story.rdNice("2027-03-03", now, utc, java.util.Locale.US))
     }
 
     /** The web's backup can hold a failed recap: once it's 6 hours old the page asks again and the card comes back. */

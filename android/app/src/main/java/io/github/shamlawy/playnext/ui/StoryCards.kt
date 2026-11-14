@@ -78,15 +78,13 @@ import kotlinx.coroutines.delay
 internal fun ForecastCard(words: Triple<List<Pair<String, Boolean>>, String, String?>) {
     val (line, by, clash) = words
     Column(Modifier.padding(top = 10.dp).fillMaxWidth().semantics(mergeDescendants = true) { }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PnIcon("ui:flag", LocalLook.current.volt, 17.dp, null, Modifier.padding(top = 1.dp))
-            Column(Modifier.weight(1f)) {
-                BasicText(
-                    buildAnnotatedString { for ((t, b) in line) if (b) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t) } else append(t) },
-                    style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.6.sp).fixed(),
-                )
-                BasicText(by, style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed())
-            }
+        // no flag: inside Your progress the web hides the card's own "🏁 Finish forecast" title (`.gd-sec .eta > b`)
+        Column {
+            BasicText(
+                buildAnnotatedString { for ((t, b) in line) if (b) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t) } else append(t) },
+                style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 19.6.sp).fixed(),
+            )
+            BasicText(by, style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed())
         }
         if (clash != null) {
             val shape = RoundedCornerShape(12.dp)
