@@ -34,6 +34,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -63,6 +64,12 @@ class QueueSwipeTest {
     fun setUp() {
         Store.init(ApplicationProvider.getApplicationContext())
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
+
+    // a delete whose Undo bar runs out stays in Games' practice copy; left there, it hid game "c" from later test classes
+    @After
+    fun tearDown() {
+        Games::class.java.getDeclaredField("practice").apply { isAccessible = true }.set(Games, emptyMap<String, Any>())
     }
 
     private var fillers = 0

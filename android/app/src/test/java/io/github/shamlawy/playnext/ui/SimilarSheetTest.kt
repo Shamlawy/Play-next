@@ -74,6 +74,9 @@ class SimilarSheetTest {
         SingletonImageLoader.setUnsafe(ImageLoader.Builder(ApplicationProvider.getApplicationContext()).coroutineContext(Dispatchers.Unconfined).build())
         Games.clock = { now }
         Games.zone = { ZoneId.of("UTC") }
+        // start from no practice changes: an earlier class's leftover delete once hid a game here (56% instead of 53%)
+        put("practice", emptyMap<String, Any>())
+        put("day", null)
         val lib = Games::class.java.getDeclaredMethod("build", String::class.java).apply { isAccessible = true }.invoke(Games, backup) as Library
         state.value = Games::class.java.getDeclaredMethod("ready", Library::class.java, Long::class.javaPrimitiveType).apply { isAccessible = true }
             .invoke(Games, lib, now - 3_600_000L) as Games.State.Ready
