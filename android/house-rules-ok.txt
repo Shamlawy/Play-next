@@ -19,3 +19,5 @@ uppercase ui/Restore.kt capitalization = KeyboardCapitalization.Characters — t
 calm ui/Nexi.kt val pos = Animatable(Offset.Unspecified, Offset.VectorConverter) — NexiState only holds it; NexiSeat moves it and snaps when calm (the glide, the drag's snap to a side)
 calm ui/Nexi.kt val eyes = Animatable(Offset.Zero, Offset.VectorConverter) — NexiState only holds it; Saying and lookAt move it and snap when calm
 calm ui/Nexi.kt val pop = Animatable(1f) — NexiState only holds it; NexiSeat pops it only when not calm
+uppercase ui/Prices.kt (PlayStation: the ${psc.uppercase()} store) — a PlayStation Store country code ("AE"), shown in capitals as on the web (pxSheet), not a heading
+uppercase ui/Prices.kt ?.second ?: cc.uppercase() — a region with no name falls back to its country code in capitals, as the web does (pxSheet), not a heading
