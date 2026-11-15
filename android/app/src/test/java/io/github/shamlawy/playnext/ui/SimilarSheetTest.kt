@@ -115,13 +115,24 @@ class SimilarSheetTest {
         rule.mainClock.advanceTimeBy(100)
     }
 
+    /** Every text on screen, unmerged, for a failure's message (CI's report can't be read from a cloud chat). */
+    private fun texts(): String {
+        val out = mutableListOf<String>()
+        fun walk(n: androidx.compose.ui.semantics.SemanticsNode) {
+            n.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.Text) { null }?.forEach { out += it.text }
+            n.children.forEach(::walk)
+        }
+        walk(rule.onRoot(useUnmergedTree = true).fetchSemanticsNode())
+        return out.joinToString(" | ")
+    }
+
     private fun has(text: String) = rule.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     private fun said(text: String) = rule.onAllNodes(hasContentDescription(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
 
     @Test fun yourGamesLikeItThenSteamsPicks() {
         show(listOf("similar:a"))
         assertTrue(has("Like Moonwell"))
-        assertTrue("how alike, in the strip", has("Glass Road · 53%"))
+        assertTrue("how alike, in the strip; on screen: ${texts()}", has("Glass Road · 53%"))
         waitFor("Steam's picks came in") { has("Tactics of the Tide") }
         assertEquals("asked once", 1, asked)
         assertTrue(has("Steam players who like Moonwell love this · both Souls-like"))
