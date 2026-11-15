@@ -36,15 +36,17 @@ object Reviews {
     val seen = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /** The helper's call and RAWG's GET; tests swap them. */
-    @Volatile internal var post: suspend (String) -> String = { body ->
+    private val realPost: suspend (String) -> String = { body ->
         io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(io.github.shamlawy.playnext.net.Net.helper("/reviews"), body)) { r ->
             if (!r.isSuccessful) throw Recap.HelperError("HTTP ${r.code}")
             r.body.string()
         }
     }
-    @Volatile internal var get: suspend (String) -> Pair<Int, String> = { url ->
+    @Volatile internal var post = realPost
+    private val realGet: suspend (String) -> Pair<Int, String> = { url ->
         io.github.shamlawy.playnext.net.Net.call(okhttp3.Request.Builder().url(url).build()) { it.code to it.body.string() }
     }
+    @Volatile internal var get = realGet
 
     /** `g.rv`: this run's answer, else the backup's. */
     fun of(g: Game): JsonObject? = mem[g.id] ?: (g["rv"] as? JsonObject)
@@ -188,5 +190,5 @@ object Reviews {
         }
     }
 
-    internal fun forget() { mem.clear(); busy.clear() }
+    internal fun forget() { mem.clear(); busy.clear(); post = realPost; get = realGet }
 }

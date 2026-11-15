@@ -224,8 +224,11 @@ class QueuePick(lib: Library) {
      */
     var genre by mutableStateOf(Backup.str(lib["qFilter"]).takeIf { it.startsWith("G:") })
 
+    /** The "like" tab (`S:<id>`, `simFilter`): one at a time, kept in the bar like [genre]. */
+    var like by mutableStateOf(Backup.str(lib["qFilter"]).takeIf { it.startsWith("S:") })
+
     /** Another tab (`data-qfilter`) or order (`data-sort`): the card you opened lets go, as the web's `focusId = null`. */
-    fun show(t: String) { if (t.startsWith("G:")) genre = t; tab = t; focus = null }
+    fun show(t: String) { if (t.startsWith("G:")) genre = t; if (t.startsWith("S:")) like = t; tab = t; focus = null }
     fun order(k: String) { sort = k; focus = null }
 
     /** A tap on a closed row: its card opens and the one that was open closes into its row. */
@@ -267,7 +270,7 @@ class QueuePick(lib: Library) {
     fun saved(): ArrayList<String?> = arrayListOf(tab, sort, focus, if (collapsed) "1" else null, flip, sel)
 
     fun restore(s: List<String?>) {
-        s.getOrNull(0)?.let { tab = it; if (it.startsWith("G:")) genre = it }
+        s.getOrNull(0)?.let { tab = it; if (it.startsWith("G:")) genre = it; if (it.startsWith("S:")) like = it }
         s.getOrNull(1)?.let { sort = it }
         focus = s.getOrNull(2)
         collapsed = s.getOrNull(3) != null
@@ -990,7 +993,7 @@ private fun Empty(text: String, mod: Modifier) {
 @Composable
 private fun QueueBar(v: QueueView, pick: QueuePick, mod: Modifier, sheet: (String) -> Unit) {
     val q = v.q
-    val tabs = Queue.TABS + q.lists.map { "L:" + it.id } + listOfNotNull(pick.genre)
+    val tabs = Queue.TABS + q.lists.map { "L:" + it.id } + listOfNotNull(pick.genre, pick.like?.takeIf { q.likeOf(it) != null })
     val guard = LocalSwipeGuard.current
     val scroll = rememberScrollState()
     // each chip's left edge and width in the row (px), for bringing the lit one into view

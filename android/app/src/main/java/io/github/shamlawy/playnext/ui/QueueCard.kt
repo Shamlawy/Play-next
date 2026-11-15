@@ -816,6 +816,7 @@ private fun Back(q: Queue, g: Game, n: Int, accent: Color, d: CardDims, t: Anima
                     style = CType.base.copy(fontSize = 13.sp, lineHeight = 19.sp, color = Pn.ice.copy(alpha = .78f)).fixed(),
                 )
             }
+            LikeThis(q, g, onBack)
         }
     }
 }

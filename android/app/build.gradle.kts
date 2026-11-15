@@ -111,6 +111,8 @@ android {
             it.systemProperty("pn.repo", repoDir)
             // Robolectric's SDK 36 sets up shared memory through a JDK internal (ApplicationSharedMemory)
             it.jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED", "--add-opens=java.base/java.io=ALL-UNNAMED")
+            // a failing test's message in the log itself: CI's report artifact can't be read from a cloud chat
+            it.testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL; showCauses = true; showStackTraces = false }
         }
     }
 }

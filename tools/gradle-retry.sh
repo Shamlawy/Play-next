@@ -23,8 +23,9 @@ for i in 1 2 3 4 5 6; do
   # Maven Central's 429s can last for every try (L199), and its redirect to gcp.mirrors.maven.org can answer 403 through
   # the proxy on every try (Nov 12): this machine only, never the repo, use Google's mirror of it
   mirror="$HOME/.gradle/init.d/central-mirror.gradle"
-  # Nov 15: Maven Central also answered 404 for jars it has ("Could not find x.jar"; Google's mirror had them)
-  if grep -qE "429|status code 403|Could not find [^ ]+\.jar" "$log" && [ ! -f "$mirror" ]; then
+  # Nov 15: Maven Central answered 404 for jars it has, and a 429 on a jar shows only as "Could not find x.jar"
+  # (curl saw the 429; Google's mirror had them), so both count
+  if grep -qE "429|status code 403|Could not find [^ ]+\.(jar|aar)" "$log" && [ ! -f "$mirror" ]; then
     mkdir -p "$(dirname "$mirror")"
     cat > "$mirror" <<'GRADLE'
 // Written by tools/gradle-retry.sh after a 429 (L199): Maven Central through Google's mirror, on this machine only.

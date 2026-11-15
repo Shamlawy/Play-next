@@ -41,12 +41,13 @@ object Hours {
     val seen = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /** The helper's call; tests swap it. */
-    @Volatile internal var post: suspend (String) -> String = { body ->
+    private val realPost: suspend (String) -> String = { body ->
         io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(io.github.shamlawy.playnext.net.Net.helper("/hours"), body)) { r ->
             if (!r.isSuccessful) throw Recap.HelperError("HTTP ${r.code}")
             r.body.string()
         }
     }
+    @Volatile internal var post = realPost
 
     private fun num(e: JsonElement?) = Backup.num(e, 0.0, 0.0, 1e9)
 
@@ -195,7 +196,7 @@ object Hours {
         }
     }
 
-    internal fun forget() { mem.clear(); busy.clear(); old = 0 }
+    internal fun forget() { mem.clear(); busy.clear(); old = 0; post = realPost }
 
     /** For tests: an answer as the backup would hold it. */
     internal fun put(id: String, o: JsonObject) { mem[id] = parse(o) }

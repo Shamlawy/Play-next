@@ -254,3 +254,9 @@ go=home
 at=
 say=Closing a game's About is smooth now, and every update shows you this: what changed and what to try.
 tryIt=Open a game with a long About (Games › Queue, tap its box art), tap the words to open it, scroll down to the screenshots and tap the words again to close it: the screenshots glide up and nothing jumps. This sheet comes back by itself after each update; Settings › Updates › What's new shows every release again.
+
+v=43
+go=home
+at=
+say=Turn a Queue card over: "Like this" shows your games most like it, and More like it opens a sheet of look-alikes with Steam players' picks.
+tryIt=In Games › Queue, double tap a card to turn it. At its foot, tap a game under Like this to open it, or More like it for the sheet: your games most like it (how alike), "show them in the Queue" for a Like tab, Steam players' picks for a game on Steam, and the trailer.

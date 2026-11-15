@@ -47,6 +47,8 @@ Hero.g: Game
 HomePage.games: State
 HoursSheet.g: Game
 HoursSheet.lib: Library
+LikeThis.g: Game
+LikeThis.q: Queue
 ListRow.l: QList
 ListsSheet.games: State
 LogoSlot.lib: Library
@@ -121,8 +123,12 @@ ShuffleDeck.games: State
 ShuffleDeck.pick: QueuePick?
 ShutGhost.g: Game
 ShutGhost.q: Queue
+SimilarSheet.g: Game
+SimilarSheet.q: Queue
 Spotlight.l: Line
 Stats.stats: List<Stat>
+SteamCard.c: Card
+SteamCard.lib: Library
 StickyBar.g: Game
 StoryCard.g: Game
 StoryCard.lib: Library

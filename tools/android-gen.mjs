@@ -89,16 +89,19 @@ const ART_HERO_OK = (() => {
   need(m && !/[\\[(]/.test(m[1].replace(/\|/g, "")), "const ART_HERO_OK = /a|b|c/; (plain words only)");
   return m[1].split("|");
 })();
-/* Steam players' tags the game page leaves out (`ST_GENERIC`, a Set of plain words: only its list is read) */
-const ST_GENERIC = (() => {
-  const m = /^const ST_GENERIC = new Set\((\[[\s\S]*?\])\);/m.exec(src);
-  need(m, "const ST_GENERIC = new Set([...]);");
+/* Steam players' tags the game page leaves out (`ST_GENERIC`, a Set of plain words: only its list is read), and the broad
+   ones that still count when Similar compares games (`ST_BROAD`, index.html 20096, stSimTags) */
+const wordSet = name => {
+  const m = new RegExp(`^const ${name} = new Set\\((\\[[\\s\\S]*?\\])\\);`, "m").exec(src);
+  need(m, `const ${name} = new Set([...]);`);
   const ctx = vm.createContext(Object.create(null));
-  try { vm.runInContext("var L = " + m[1] + ";", ctx, { timeout: 1000 }); } catch (e) { fail(`ST_GENERIC is no longer a list of plain words (${e.message})`); }
+  try { vm.runInContext("var L = " + m[1] + ";", ctx, { timeout: 1000 }); } catch (e) { fail(`${name} is no longer a list of plain words (${e.message})`); }
   const l = JSON.parse(JSON.stringify(ctx.L));
-  need(Array.isArray(l) && l.length > 10 && l.every(w => typeof w === "string"), "ST_GENERIC: a list of words");
+  need(Array.isArray(l) && l.length > 10 && l.every(w => typeof w === "string"), `${name}: a list of words`);
   return l;
-})();
+};
+const ST_GENERIC = wordSet("ST_GENERIC");
+const ST_BROAD = wordSet("ST_BROAD");
 need(Array.isArray(STATES) && STATES.every(s => Array.isArray(s) && s.length === 2) && STATES[0][0] === "upcoming", "STATES: [[key, label]…], upcoming first");
 const APP_V = (/^const APP_V = "(\d+)"/m.exec(src) || [])[1];
 need(APP_V, "APP_V");
@@ -456,6 +459,7 @@ const lines = [
   `    val PLAY_STYLES: List<Pair<String, String>> = ${kl(PLAY_STYLES.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
   `    val PLATS: List<String> = ${kl(PLATS.map(x => ks(x[0])))}`,
   `    val ST_GENERIC: List<String> = ${kl(ST_GENERIC.map(ks))}`,
+  `    val ST_BROAD: List<String> = ${kl(ST_BROAD.map(ks))}`,
   `    val TAG_ALIAS: Map<String, String> = ${kmap(TAG_ALIAS)}`,
   `    val GMAP: Map<String, String> = ${kmap(GMAP)}`,
   `    val PX_TZ: Map<String, String> = ${kmap(PX_TZ)}`,
