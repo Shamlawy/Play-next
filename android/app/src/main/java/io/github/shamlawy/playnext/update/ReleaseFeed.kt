@@ -57,6 +57,7 @@ object ReleaseFeed {
 
 /** android/app/src/main/assets/whatsnew.txt: blocks of key=value lines (v, go, at, say, tryIt), # comments. */
 object WhatsNew {
+    @androidx.compose.runtime.Immutable
     data class Entry(val v: Int, val go: String, val at: String, val say: String, val tryIt: String)
 
     fun parse(text: String): List<Entry> = text.lines()

@@ -75,7 +75,7 @@ class ReleaseFeedTest {
         assertTrue("whatsnew.txt has no block with v=$n", mine.isNotEmpty())
         for (e in mine) {
             assertTrue("v=$n lacks go/say/tryIt: $e", e.go.isNotBlank() && e.say.isNotBlank() && e.tryIt.isNotBlank())
-            assertTrue("go must be a screen the app has: ${e.go}", e.go in setOf("home", "probe"))
+            assertTrue("go must be a place the app's Show me knows (ui/Guide.kt): ${e.go}", io.github.shamlawy.playnext.ui.Guide.known(e.go))
         }
         assertEquals("versions only go up", all.map { it.v }.sorted(), all.map { it.v })
     }

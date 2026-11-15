@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -53,6 +54,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -207,6 +209,19 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     val ready = games is Games.State.Ready
     val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
     LaunchedEffect(ready) { if (ready) News.since()?.let { from -> News.load(appCtx); News.seen(); showNews(from) } }
+    // Show me (Guide.kt): a release's card in What's new takes you to what it changed, and its Try it bar stays at the
+    // foot while you test it (kept over a fold or Android recreating the app)
+    var trying by rememberSaveable { mutableStateOf<Int?>(null) }
+    val newsList by produceState(News.all, trying) { if (trying != null) value = News.load(appCtx) }
+    val showMe by rememberUpdatedState { e: io.github.shamlawy.playnext.update.WhatsNew.Entry ->
+        val lib = (games as? Games.State.Ready)?.lib
+        Sounds.play(Sfx.Open)
+        Crumbs.add("show me v${e.v}")
+        trying = e.v
+        step(Guide.nav(e, nav, lib, lib?.let { queue.pick(it) }))
+        // unfolded he says the first step from his seat (folded, the bar alone says it)
+        nx.say(Guide.line(e))
+    }
     // the line Edit leaves at the foot once it closes ("Saved")
     var edited by remember { mutableStateOf<PageToast?>(null) }
     LaunchedEffect(edited) { val t = edited ?: return@LaunchedEffect; delay(2_400); if (edited === t) edited = null }
@@ -393,7 +408,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                                 openNews = { step(nav.open("news:0")) },
                             )
                         } else if (sheet.startsWith("news:")) {
-                            WhatsNewSheet(m, sheet.removePrefix("news:").toIntOrNull()?.takeIf { it > 0 }, close = { step(nav.closeAt(s)) })
+                            WhatsNewSheet(m, sheet.removePrefix("news:").toIntOrNull()?.takeIf { it > 0 }, showMe = { e -> showMe(e) }, close = { step(nav.closeAt(s)) })
                         } else if (sheet == "lists") {
                             ListsSheet(
                                 m, games,
@@ -548,6 +563,22 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             // the moment a game becomes played: over everything
             FinishMoment(calm)
             edited?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = overNavBar(room) + 20.dp)) }
+            // the Try it bar of the release you're trying (Show me), over everything but What's new itself
+            val tryE = trying?.let { v -> newsList?.firstOrNull { it.v == v } }
+            if (tryE != null && nav.stack.none { it.startsWith("news") }) {
+                // over the keyboard too: Something's off is typed into it
+                val foot = Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(bottom = overNavBar(room) + 18.dp).offset(x = if (wide) -pageShift(w, rail) else 0.dp)
+                val qpNow = queue.made
+                // a sheet over the page (its own buttons sit at the foot) or the Queue's Undo / line: the bar folds to its pill
+                val sheetUp = nav.overlay?.let { o -> !o.startsWith("game:") } == true
+                val queueFoot = nav.tab == "games" && view == "queue" && nav.overlay == null && qpNow != null && (qpNow.undo != null || qpNow.note != null)
+                TryBar(
+                    tryE, newsList?.let { l -> Tried.left(l).firstOrNull { it.v != tryE.v } },
+                    Modifier.align(Alignment.BottomCenter).then(foot),
+                    Modifier.align(if (wide && rail.left) Alignment.BottomEnd else Alignment.BottomStart).then(foot).padding(horizontal = 16.dp),
+                    goNext = { e -> showMe(e) }, fold = sheetUp || queueFoot, close = { trying = null },
+                )
+            }
             // unfolded, the rail stays over Settings and game pages, as on the web (`#hrail`): your tabs are always a
             // tap away
             // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden

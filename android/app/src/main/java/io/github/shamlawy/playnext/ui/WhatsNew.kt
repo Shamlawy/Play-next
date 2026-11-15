@@ -37,8 +37,8 @@ import kotlinx.coroutines.withContext
  * What's new (android-v41, the owner, Nov 14: "add an update now to tell me what new thing you made and what to test
  * cuz I always dont know what you did"): the first open after an update brings up a sheet with every release since the
  * last one this phone showed, newest first, each with what changed and what to try (whatsnew.txt's say and tryIt; the
- * old Home card showed only the newest say). Settings › Updates › What's new shows every release again. The web's
- * nxTour walks the screens; here it's one sheet, and the tour waits for Nexi's phase (8a).
+ * old Home card showed only the newest say). Settings › Updates › What's new shows every release again. Like the web's
+ * nxTour, a release's Show me (android-v44, Guide.kt) opens the screen its Try it is about, with a Try it bar to answer.
  */
 internal object News {
     /** The newest release this phone has shown in the sheet (0 before android-v41). */
@@ -92,11 +92,12 @@ internal object News {
  * every release; else the ones after it, with Every release to see the rest.
  */
 @Composable
-internal fun WhatsNewSheet(modifier: Modifier, since: Int?, close: () -> Unit) {
+internal fun WhatsNewSheet(modifier: Modifier, since: Int?, showMe: ((WhatsNew.Entry) -> Unit)? = null, close: () -> Unit) {
     val ctx = LocalContext.current
     val list by produceState(News.all) { value = News.load(ctx.applicationContext) }
     var every by rememberSaveable { mutableStateOf(since == null) }
     val volt = LocalLook.current.volt
+    val tried = Tried.all()
     SheetFrame(modifier, close) {
         BasicText("What's new", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp).semantics { heading() })
         val shown = list?.let { l -> if (every || since == null) l else l.filter { it.v > since } }
@@ -106,7 +107,7 @@ internal fun WhatsNewSheet(modifier: Modifier, since: Int?, close: () -> Unit) {
                 every -> "Every release of the app, newest first."
                 shown.size == 1 -> "This update, and what to try."
                 else -> "${shown.size} updates since you last looked, newest first."
-            },
+            } + (list?.let { Tried.left(it).size }?.takeIf { it > 0 && showMe != null }?.let { " Show me takes you to each one: $it left to try." } ?: ""),
             style = Type.note,
         )
         shown?.forEach { e ->
@@ -128,6 +129,21 @@ internal fun WhatsNewSheet(modifier: Modifier, since: Int?, close: () -> Unit) {
                     ) {
                         BasicText("Try it", style = Type.label.copy(color = volt))
                         BasicText(News.words(e.tryIt), style = Type.note.copy(color = Pn.ice))
+                    }
+                }
+                // Show me (Guide.kt): takes you there, with the Try it bar at the foot; what you answered shows here
+                val mark = tried[e.v]
+                val can = showMe != null && Guide.shows(e)
+                if (can || mark != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (can) Btn(if (mark == null) "Show me" else "Show me again", primary = mark == null) { showMe?.invoke(e) }
+                        if (mark != null) {
+                            BasicText(
+                                if (mark == "ok") "\u2713 You said it works" else "You told Claude something's off",
+                                style = Type.label.copy(color = if (mark == "ok") volt else Pn.ice),
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
                     }
                 }
             }
