@@ -62,12 +62,19 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
         hp to maxOf(hp, Backup.num(lib["fxBossMax"], 0.0, 0.0, 1e9)).let { if (it == 0.0) 1.0 else it }
     }
 
-    /** `qNow()`: the saved tab when it still exists, else All (a genre or "like" tab comes back with the game page, Phase 2). */
+    /** `qNow()`: the saved tab when it still exists, else All (a genre tab, or a "like" tab whose game is still there). */
     fun tabNow(saved: String): String =
-        if (saved in TABS || (saved.startsWith("L:") && lists.any { "L:" + it.id == saved }) || (saved.startsWith("G:") && gdKey(saved.drop(2)).isNotEmpty())) saved else "all"
+        if (saved in TABS || (saved.startsWith("L:") && lists.any { "L:" + it.id == saved }) || (saved.startsWith("G:") && gdKey(saved.drop(2)).isNotEmpty()) ||
+            likeOf(saved) != null) saved else "all"
 
-    /** How many games [tab] holds: [counts], and a genre tab (`G:`, the game page's genre tap) counted when asked. */
-    fun count(tab: String): Int = counts[tab] ?: if (tab.startsWith("G:")) genreCounts.getOrPut(tab) { list(tab).size } else 0
+    /** How many games [tab] holds: [counts], and a genre or "like" tab counted when asked. */
+    fun count(tab: String): Int = counts[tab] ?: if (tab.startsWith("G:") || tab.startsWith("S:")) genreCounts.getOrPut(tab) { list(tab).size } else 0
+
+    /** Your games most like another (`simLocal`), worked out once per Queue. */
+    val sim: Similar.Index by lazy { Similar.Index(games) }
+
+    /** The game a "like" tab (`S:<id>`, Similar's "show them in the Queue") is for. */
+    fun likeOf(tab: String): Game? = if (tab.startsWith("S:")) tab.drop(2).let { id -> games.firstOrNull { it.id == id } } else null
 
     /** A genre tab's count, worked out once per Queue (the bar asks on every redraw). */
     private val genreCounts = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -89,6 +96,8 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
         tab.startsWith("L:") -> games.filter { tab.removePrefix("L:") in listsOf(it) }
         // `G:<genre>` (v234's `extend("queueList")`): every game, in any state, whose genres or Steam tags hold it
         tab.startsWith("G:") -> gdKey(tab.drop(2)).let { k -> games.filter { k in genreSet(it) } }
+        // `S:<id>` (`simFilter`'s `extend("queueList")`): every game like it, most alike first
+        tab.startsWith("S:") -> likeOf(tab)?.let { g -> sim.like(g, 99).map { it.g } }.orEmpty()
         tab == "all" -> games
         tab == "done" -> games.filter(rk::isPlayed)
         tab == "soon" -> games.filter { waiting(it) && !isOutNow(it) }
@@ -98,7 +107,7 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
     private fun listsOf(g: Game): List<String> = (g["lists"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
 
     /** A tab's word (`qdTabName`): All / Out / Coming / Played, a list's name. */
-    fun tabName(tab: String): String = TAB_WORD[tab] ?: lists.firstOrNull { "L:" + it.id == tab }?.n ?: tab.replace(Regex("^\\w:"), "")
+    fun tabName(tab: String): String = TAB_WORD[tab] ?: lists.firstOrNull { "L:" + it.id == tab }?.n ?: likeOf(tab)?.let { "Like " + it.title } ?: tab.replace(Regex("^\\w:"), "")
 
     // ---- the orders ----
 

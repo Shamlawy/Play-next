@@ -60,7 +60,7 @@ import kotlinx.coroutines.launch
 
 /** The phone's shop region (`pxCC`): yours from the backup, else the time zone's, else the phone's country. */
 @Composable
-private fun shopCC(lib: Library): String {
+internal fun shopCC(lib: Library): String {
     val country = LocalLocale.current.platformLocale.country
     return Art.cc(lib, java.util.TimeZone.getDefault().id, country)
 }

@@ -211,6 +211,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     val openShort by rememberUpdatedState { id: String -> step(nav.open("short:$id")) }
     val openHours by rememberUpdatedState { id: String -> step(nav.open("hours:$id")) }
     val openPrices by rememberUpdatedState { id: String -> step(nav.open("prices:$id")) }
+    val openSimilar by rememberUpdatedState { id: String -> step(nav.open("similar:$id")) }
     val editActs = remember {
         EditActs(
             score = { id -> openScore(id) },
@@ -218,6 +219,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             short = { id -> openShort(id) },
             hours = { id -> openHours(id) },
             prices = { id -> openPrices(id) },
+            similar = { id -> openSimilar(id) },
             finished = { g ->
                 Moment.finished(g)
                 // straight on to the verdict while it's fresh (`fnDone`: the Score sheet 1200 ms later)
@@ -467,7 +469,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 }
             }
             // the Score sheet and the note sheet, over the page they came from (newer than it, Edit and Settings)
-            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") || it.startsWith("hours:") || it.startsWith("prices:") }
+            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") || it.startsWith("hours:") || it.startsWith("prices:") || it.startsWith("similar:") }
             val scLib = (games as? Games.State.Ready)?.lib
             if (sc >= 0 && sc > at && sc > s && sc > ed && scLib != null) {
                 val k = keys[sc]
@@ -509,6 +511,19 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                             }
                         } else if (what.startsWith("prices:")) {
                             PricesSheet(scLib, sg, clock, close = { step(nav.closeAt(sc)) })
+                        } else if (what.startsWith("similar:")) {
+                            val sq = (games as? Games.State.Ready)?.cards?.queue?.takeIf { it.lib === scLib }
+                                ?: remember(scLib) { Queue(scLib, Rank(scLib, clock(), java.time.ZoneId.systemDefault()), clock(), java.time.ZoneId.systemDefault()) }
+                            SimilarSheet(sq, sg, clock, close = { step(nav.closeAt(sc)) }, toQueue = { t ->
+                                // `simFilter` + `goTab("queue")`: the Queue shows the games like it, the sheet closes
+                                val qp = queue.pick(scLib)
+                                qp.show(t)
+                                step(nav.closeAt(sc))
+                                go(nav.go("games").view("games", "queue"))
+                            }) { id ->
+                                step(nav.closeAt(sc))
+                                nxScope.launch { delay(320); opener(id, null) }
+                            }
                         } else if (what.startsWith("hours:")) {
                             HoursSheet(scLib, sg, clock, close = { step(nav.closeAt(sc)) }) { t ->
                                 edited = PageToast(t, (edited?.n ?: 0) + 1)

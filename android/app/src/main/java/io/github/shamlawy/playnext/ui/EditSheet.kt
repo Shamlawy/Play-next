@@ -145,6 +145,8 @@ class EditActs(
     val hours: (String) -> Unit = {},
     /** The Prices card's sheet (piece 4): each store's answer, its page, and Check this game now. */
     val prices: (String) -> Unit = {},
+    /** The Similar sheet (piece 4): the card back's "More like it". */
+    val similar: (String) -> Unit = {},
 )
 
 val LocalEditActs = staticCompositionLocalOf<EditActs?> { null }

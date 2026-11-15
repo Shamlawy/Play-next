@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -206,6 +207,26 @@ class QueueCardTest {
         rule.mainClock.advanceTimeBy(1_000)
         assertEquals(listOf("game:a"), nav.stack)
         assertTrue("the card stays open under the page", open("Starfall Lantern"))
+    }
+
+    /** Piece 4 (`simBack`, C3): the back's "Like this" row: a game like it opens its page, "More like it" the Similar sheet. */
+    @Test fun theBackShowsGamesLikeItAndMoreLikeIt() {
+        show()
+        tapRow(row("Ninefold Gate", "Out in 18 days"))
+        rule.mainClock.advanceTimeBy(2_500)
+        taps("Ninefold Gate"); rule.mainClock.advanceTimeBy(2_500)
+        assertEquals("back", side("Ninefold Gate"))
+        // the same two genres: the one game alike (the others share only RPG, which every game has)
+        rule.onNodeWithText("Like this").performScrollTo()
+        assertEquals(1, rule.onAllNodesWithContentDescription("Paper Kingdom").fetchSemanticsNodes().size)
+        rule.onNodeWithText("More like it").performScrollTo().performClick()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(listOf("similar:c"), nav.stack)
+        nav = Nav("games", views = mapOf("games" to "queue"))
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithContentDescription("Paper Kingdom").performScrollTo().performClick()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(listOf("game:f"), nav.stack)
     }
 
     // ---- pictures: the front and the back, folded and unfolded
