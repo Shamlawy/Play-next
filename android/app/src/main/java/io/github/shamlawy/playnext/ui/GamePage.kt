@@ -462,8 +462,8 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 // one list per game and copy, so the strip isn't redrawn on every pass of the page
                 val shots = remember(page, g) { page.shots(g) }
                 if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
-                // the helper's cards (`gd-pair`): Reviews; Prices comes next
-                ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
+                // the helper's cards (`gd-pair`): Reviews and Prices, side by side unfolded
+                HelperPair(g, page, lib, big, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
             }
             Spacer(Modifier.height(top))
         }

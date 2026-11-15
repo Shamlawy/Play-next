@@ -215,12 +215,14 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     val openNote by rememberUpdatedState { id: String -> step(nav.open("note:$id")) }
     val openShort by rememberUpdatedState { id: String -> step(nav.open("short:$id")) }
     val openHours by rememberUpdatedState { id: String -> step(nav.open("hours:$id")) }
+    val openPrices by rememberUpdatedState { id: String -> step(nav.open("prices:$id")) }
     val editActs = remember {
         EditActs(
             score = { id -> openScore(id) },
             note = { id -> openNote(id) },
             short = { id -> openShort(id) },
             hours = { id -> openHours(id) },
+            prices = { id -> openPrices(id) },
             finished = { g ->
                 Moment.finished(g)
                 // straight on to the verdict while it's fresh (`fnDone`: the Score sheet 1200 ms later)
@@ -473,7 +475,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 }
             }
             // the Score sheet and the note sheet, over the page they came from (newer than it, Edit and Settings)
-            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") || it.startsWith("hours:") }
+            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") || it.startsWith("hours:") || it.startsWith("prices:") }
             val scLib = (games as? Games.State.Ready)?.lib
             if (sc >= 0 && sc > at && sc > s && sc > ed && scLib != null) {
                 val k = keys[sc]
@@ -517,6 +519,10 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                             HoursSheet(scLib, sg, clock, close = { step(nav.closeAt(sc)) }) { t ->
                                 edited = PageToast(t, (edited?.n ?: 0) + 1)
                             }
+                        } else if (what.startsWith("prices:")) {
+                            val prk = (games as? Games.State.Ready)?.cards?.queue?.takeIf { it.lib === scLib }?.rk
+                                ?: remember(scLib) { Rank(scLib, clock(), java.time.ZoneId.systemDefault()) }
+                            PriceSheet(scLib, sg, prk, clock, close = { step(nav.closeAt(sc)) })
                         } else {
                             NoteSheet(sg, clock, close = { step(nav.closeAt(sc)) }) {
                                 step(nav.closeAt(sc))
