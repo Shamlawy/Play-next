@@ -200,11 +200,12 @@ internal fun TryBar(e: WhatsNew.Entry, next: WhatsNew.Entry?, modifier: Modifier
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BasicText("Try it · v${e.v}", style = Type.label.copy(color = look.volt), softWrap = false, maxLines = 1, modifier = Modifier.weight(1f))
-            BasicText(
+            // while your words are on their way the bar stays: closing it would cancel the send (second-look on #752)
+            if (!sending) BasicText(
                 "Hide", style = Type.label.copy(color = Pn.ice), softWrap = false, maxLines = 1,
                 modifier = Modifier.sizeIn(minHeight = Pn.touch).clickable(role = Role.Button) { small = true; unfolded = false }.padding(horizontal = 12.dp, vertical = 15.dp),
             )
-            BasicText(
+            if (!sending) BasicText(
                 "Close", style = Type.label.copy(color = Pn.ice), softWrap = false, maxLines = 1,
                 modifier = Modifier.sizeIn(minHeight = Pn.touch).clickable(role = Role.Button, onClick = close).padding(horizontal = 12.dp, vertical = 15.dp),
             )
