@@ -17,9 +17,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -31,6 +42,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -42,7 +54,7 @@ import kotlin.math.roundToInt
  *   foot ([clip]); a card around it draws its edge with the clip ([extra]);
  * - what's under it is moved back to where it was and glides into place ([below]);
  * - a close that will shrink the page past the scroll moves the whole page back by that much ([pageY]), so nothing jumps.
- * Draw and transform only: no layout runs while it moves. [k] is what's left of the move, 1 → 0.
+ * graphicsLayer only: no layout or redraw runs while it moves (second-look on #748). [k] is what's left of the move, 1 → 0.
  */
 @Stable
 internal class TextMove(private val scroll: ScrollState?) {
@@ -153,22 +165,84 @@ internal fun OpenText(text: String, style: TextStyle, still: Boolean, me: Int, m
                 if (over != cut) cut = over
                 layout(p.width, if (open) all.size.height else short) { p.place(0, 0) }
             }
-            .drawWithContent {
-                val h = move.clip(me)
-                if (h < 0f) drawContent() else clipRect(bottom = h) { this@drawWithContent.drawContent() }
+            // the walking foot without a redraw: this layer clips to its box and is stretched from its top to the drawn
+            // foot, the words inside are stretched back, so they stay put and only the clip's edge moves (graphicsLayer only)
+            .graphicsLayer {
+                val s = footScale(move.clip(me), size.height)
+                clip = s != 1f
+                transformOrigin = TOP
+                scaleY = s
             },
     ) {
-        BasicText(text, style = style, maxLines = if (whole) Int.MAX_VALUE else lines, overflow = TextOverflow.Ellipsis)
+        BasicText(
+            text, style = style, maxLines = if (whole) Int.MAX_VALUE else lines, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.graphicsLayer {
+                val s = footScale(move.clip(me), size.height)
+                transformOrigin = TOP
+                scaleY = if (s > .001f) 1f / s else 1f
+            },
+        )
     }
 }
 
-/** A rounded card drawn behind its content, [extra] px taller (or shorter) than its box, its edge [line] [w] px wide. */
-internal fun androidx.compose.ui.graphics.drawscope.DrawScope.growCard(extra: Float, r: Float, fill: androidx.compose.ui.graphics.Color, line: androidx.compose.ui.graphics.Color?, w: Float) {
-    val sz = androidx.compose.ui.geometry.Size(size.width, max(0f, size.height + extra))
-    val cr = androidx.compose.ui.geometry.CornerRadius(r, r)
-    drawRoundRect(fill, size = sz, cornerRadius = cr)
-    if (line != null) {
-        val h = w / 2
-        drawRoundRect(line, topLeft = androidx.compose.ui.geometry.Offset(h, h), size = androidx.compose.ui.geometry.Size(sz.width - w, sz.height - w), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r - h, r - h), style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+private val TOP = TransformOrigin(0f, 0f)
+
+/** How much a text's clipping layer stretches: its drawn foot [h] over its box [box]; 1 when it isn't moving. */
+private fun footScale(h: Float, box: Float): Float = if (h < 0f || box <= 0f) 1f else h / box
+
+/**
+ * A rounded card behind [content] whose foot follows [extra] (px taller or shorter than its box) while a text inside
+ * opens or closes, with no redraw (the house rule: graphicsLayer only): three pieces drawn once, the top cap still, the
+ * middle stretched from its top and the bottom cap moved by [extra]. Its edge is [line], [w] wide.
+ */
+@Composable
+internal fun GrowCard(extra: () -> Float, r: Dp, fill: Color, line: Color?, w: Dp, modifier: Modifier, content: @Composable () -> Unit) {
+    Box(modifier) {
+        Layout(
+            content = {
+                Spacer(Modifier.drawBehind { cap(true, r.toPx(), fill, line, w.toPx()) })
+                Spacer(
+                    Modifier
+                        .graphicsLayer {
+                            transformOrigin = TOP
+                            scaleY = if (size.height > 0f) max(0f, size.height + extra()) / size.height else 1f
+                        }
+                        .drawBehind {
+                            drawRect(fill)
+                            if (line != null) {
+                                val lw = w.toPx()
+                                drawRect(line, size = Size(lw, size.height))
+                                drawRect(line, topLeft = Offset(size.width - lw, 0f), size = Size(lw, size.height))
+                            }
+                        },
+                )
+                Spacer(Modifier.graphicsLayer { translationY = extra() }.drawBehind { cap(false, r.toPx(), fill, line, w.toPx()) })
+            },
+            modifier = Modifier.matchParentSize(),
+        ) { ms, cs ->
+            val wd = cs.maxWidth
+            val ht = cs.maxHeight
+            val rr = min(r.roundToPx(), ht / 2)
+            val ps = listOf(rr, ht - 2 * rr, rr).zip(ms) { h, m -> m.measure(Constraints.fixed(wd, h)) }
+            layout(wd, ht) {
+                ps[0].place(0, 0)
+                ps[1].place(0, rr)
+                ps[2].place(0, ht - rr)
+            }
+        }
+        content()
+    }
+}
+
+/** A card's rounded top ([top]) or bottom: the card's corner drawn in a strip [r] tall. */
+private fun DrawScope.cap(top: Boolean, r: Float, fill: Color, line: Color?, w: Float) {
+    val tall = size.height * 2 + 2f
+    val y = if (top) 0f else size.height - tall
+    clipRect {
+        drawRoundRect(fill, topLeft = Offset(0f, y), size = Size(size.width, tall), cornerRadius = CornerRadius(r, r))
+        if (line != null) {
+            val h = w / 2
+            drawRoundRect(line, topLeft = Offset(h, y + h), size = Size(size.width - w, tall - w), cornerRadius = CornerRadius(r - h, r - h), style = Stroke(w))
+        }
     }
 }

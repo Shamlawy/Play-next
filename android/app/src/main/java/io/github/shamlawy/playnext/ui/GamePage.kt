@@ -823,15 +823,18 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
 internal fun Section(icon: String, title: String, meta: String, modifier: Modifier, extra: (() -> Float)? = null, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(20.dp)
     // [extra]: a text inside is opening or closing (OpenText.kt), so the card's foot follows its drawn words, not its box
-    val card = if (extra == null) Modifier.background(Pn.card, shape).border(1.dp, Pn.line, shape) else Modifier.drawBehind { growCard(extra(), 20.dp.toPx(), Pn.card, Pn.line, 1.dp.toPx()) }
-    Column(modifier.padding(top = 12.dp).fillMaxWidth().then(card).padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 15.dp)) {
-        Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PnIcon(icon, Pn.ice, 17.dp, label = null)
-            BasicText(title, style = Type.head.copy(fontSize = 13.sp, lineHeight = 16.sp).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
-            if (meta.isNotEmpty()) BasicText(meta, style = Type.note.copy(fontSize = 11.5.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.5.sp, stepSize = .5.sp))
+    val body: @Composable (Modifier) -> Unit = { m ->
+        Column(m.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 15.dp)) {
+            Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PnIcon(icon, Pn.ice, 17.dp, label = null)
+                BasicText(title, style = Type.head.copy(fontSize = 13.sp, lineHeight = 16.sp).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
+                if (meta.isNotEmpty()) BasicText(meta, style = Type.note.copy(fontSize = 11.5.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.5.sp, stepSize = .5.sp))
+            }
+            content()
         }
-        content()
     }
+    if (extra == null) body(modifier.padding(top = 12.dp).fillMaxWidth().background(Pn.card, shape).border(1.dp, Pn.line, shape))
+    else GrowCard(extra, 20.dp, Pn.card, Pn.line, 1.dp, modifier.padding(top = 12.dp).fillMaxWidth()) { body(Modifier.fillMaxWidth()) }
 }
 
 /**

@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
@@ -158,23 +157,25 @@ internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
     val volt = LocalLook.current.volt
     val move = LocalTextMove.current
     // the card's foot follows the recap's drawn words while it opens or closes (OpenText.kt)
-    Column(Modifier.padding(top = 10.dp).fillMaxWidth().drawBehind { growCard(move?.extra(TextMove.STORY) ?: 0f, 16.dp.toPx(), Color(Web.GD_LIFT), null, 0f) }.padding(horizontal = 14.dp, vertical = 12.dp)) {
-        Row(Modifier.padding(bottom = 6.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PnIcon("ui:book", volt, 15.dp, null)
-            val head = if (c != null && c.x.isNotEmpty()) "The story so far" + (if (c.w.isNotEmpty()) " · " + c.w else "") else "Remembering the story so far…"
-            BasicText(head, style = Type.label.copy(fontSize = 12.sp, lineHeight = 16.sp, color = volt).fixed(), modifier = Modifier.weight(1f))
-        }
-        if (c == null || c.x.isEmpty()) {
-            Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                val pulse = if (still) null else rememberInfiniteTransition(label = "story")
-                for ((i, w) in listOf(1f, .86f, .6f).withIndex()) {
-                    val a = pulse?.animateFloat(.35f, 1f, infiniteRepeatable(tween(1200, delayMillis = 0), RepeatMode.Reverse, initialStartOffset = androidx.compose.animation.core.StartOffset(150 * i)), label = "bar$i")
-                    Box(Modifier.fillMaxWidth(w).height(10.dp).graphicsLayer { alpha = a?.value ?: 1f }.background(Color(Web.WIS_DOT), RoundedCornerShape(6.dp)))
-                }
+    GrowCard({ move?.extra(TextMove.STORY) ?: 0f }, 16.dp, Color(Web.GD_LIFT), null, 0.dp, Modifier.padding(top = 10.dp).fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(Modifier.padding(bottom = 6.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PnIcon("ui:book", volt, 15.dp, null)
+                val head = if (c != null && c.x.isNotEmpty()) "The story so far" + (if (c.w.isNotEmpty()) " · " + c.w else "") else "Remembering the story so far…"
+                BasicText(head, style = Type.label.copy(fontSize = 12.sp, lineHeight = 16.sp, color = volt).fixed(), modifier = Modifier.weight(1f))
             }
-        } else {
-            OpenText(c.x, style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(), still = still, me = TextMove.STORY)
-            if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.graphicsLayer { translationY = move?.extra(TextMove.STORY) ?: 0f }.padding(top = 6.dp))
+            if (c == null || c.x.isEmpty()) {
+                Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    val pulse = if (still) null else rememberInfiniteTransition(label = "story")
+                    for ((i, w) in listOf(1f, .86f, .6f).withIndex()) {
+                        val a = pulse?.animateFloat(.35f, 1f, infiniteRepeatable(tween(1200, delayMillis = 0), RepeatMode.Reverse, initialStartOffset = androidx.compose.animation.core.StartOffset(150 * i)), label = "bar$i")
+                        Box(Modifier.fillMaxWidth(w).height(10.dp).graphicsLayer { alpha = a?.value ?: 1f }.background(Color(Web.WIS_DOT), RoundedCornerShape(6.dp)))
+                    }
+                }
+            } else {
+                OpenText(c.x, style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(), still = still, me = TextMove.STORY)
+                if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.graphicsLayer { translationY = move?.extra(TextMove.STORY) ?: 0f }.padding(top = 6.dp))
+            }
         }
     }
 }
