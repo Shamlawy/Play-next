@@ -37,11 +37,23 @@ for (const f of plants) {
   const t = Date.now();
   if (bad.length) { rows.push({ f, ok: false, ms: 0, why: "a broken expect: line: " + bad.join(", ") }); continue; }
   console.log(`\n### ${f}${kit.length ? " (kit.mjs " + kit.join(" ") + ")" : sweep.length ? " (" + sweep.join(" ") + ")" : " (every width and screen)"}`);
-  const r = spawnSync(process.execPath, [path.join(ROOT, "tools/kit.mjs"), kit[0] || "sweep", "--plant", path.join(DIR, f), "--expect", ...sweep, ...pass,
-    ...expect.flatMap(e => ["--match", e])], { cwd: ROOT, encoding: "utf8", env: process.env, maxBuffer: 1 << 24 });
-  const out = (r.stdout + r.stderr).trim().split("\n").filter(l => l && !/^(All clear\.|\d+ problem\(s\)\.)$/.test(l));
-  console.log(out.join("\n"));
-  rows.push({ f, ok: r.status === 0, ms: Date.now() - t, why: r.status === 0 ? `${expect.length || "any"} expected report${expect.length === 1 ? "" : "s"} seen`
+  /* M89: a miss is tried once more in the same job. CI's runners missed a different plant on different runs (layer-pile,
+     eye-in-app, button-cut; L297, L298) while each passed locally on the same head, and every miss cost a re-run of the
+     whole job; a detector that is really blind misses both tries and still fails */
+  const once = () => {
+    const r = spawnSync(process.execPath, [path.join(ROOT, "tools/kit.mjs"), kit[0] || "sweep", "--plant", path.join(DIR, f), "--expect", ...sweep, ...pass,
+      ...expect.flatMap(e => ["--match", e])], { cwd: ROOT, encoding: "utf8", env: process.env, maxBuffer: 1 << 24 });
+    const out = (r.stdout + r.stderr).trim().split(/\r?\n/).filter(l => l && !/^(All clear\.|\d+ problem\(s\)\.)$/.test(l));
+    console.log(out.join("\n"));
+    return { r, out };
+  };
+  let { r, out } = once(), retried = "";
+  if (r.status !== 0) {
+    retried = out.filter(l => /✗/.test(l)).map(l => l.replace(/^\s*✗\s*/, "")).join("; ").slice(0, 200) || `kit.mjs exited ${r.status}`;
+    console.log(`  ↻ missed once (${retried}): trying ${f} again`);
+    ({ r, out } = once());
+  }
+  rows.push({ f, ok: r.status === 0, ms: Date.now() - t, why: r.status === 0 ? `${expect.length || "any"} expected report${expect.length === 1 ? "" : "s"} seen${retried ? " (missed once, caught on the retry)" : ""}`
     : (out.filter(l => /✗/.test(l)).map(l => l.replace(/^\s*✗\s*/, "")).join("; ").replace(/;? reported instead:$/, "").slice(0, 300) || `kit.mjs exited ${r.status}`) });
   if (!expect.length && !kit.length) console.log("  · no expect: lines, so any report counts: add the reports it must cause");
 }
