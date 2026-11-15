@@ -41,7 +41,7 @@ class InstallResultReceiver : BroadcastReceiver() {
     }
 }
 
-/** Runs in the new version right after an update: the next open says "Updated to vN" and the crash count starts over. */
+/** Runs in the new version right after an update: the next open shows What's new (ui/WhatsNew.kt) and the crash count starts over. */
 class PackageReplacedReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return // only the system's own broadcast (lint)

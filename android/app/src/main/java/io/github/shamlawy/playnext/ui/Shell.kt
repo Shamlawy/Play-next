@@ -202,6 +202,11 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
         Sounds.play(Sfx.Open)
         step(nav.open("edit:$id"))
     }
+    // the first open after an update: what's new since the release this phone last showed, and what to try (WhatsNew.kt)
+    val showNews by rememberUpdatedState { from: Int -> step(nav.open("news:$from")) }
+    val ready = games is Games.State.Ready
+    val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    LaunchedEffect(ready) { if (ready) News.since()?.let { from -> News.load(appCtx); News.seen(); showNews(from) } }
     // the line Edit leaves at the foot once it closes ("Saved")
     var edited by remember { mutableStateOf<PageToast?>(null) }
     LaunchedEffect(edited) { val t = edited ?: return@LaunchedEffect; delay(2_400); if (edited === t) edited = null }
@@ -372,7 +377,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             }
             // Settings (or a screen's Customise, your lists or the Game shuffler) stays under what you open from it, so
             // back finds it where you left it
-            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it == "shuffle" || it.startsWith("customise:") }
+            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it == "shuffle" || it.startsWith("customise:") || it.startsWith("news") }
             if (s >= 0) {
                 val k = keys[s]
                 val sheet = nav.stack[s]
@@ -385,7 +390,10 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                             SettingsSheet(
                                 m, games, wide,
                                 close = { step(nav.closeAt(s)) }, openProbe = { step(nav.open("probe")) }, askCode = { step(nav.open("code")) },
+                                openNews = { step(nav.open("news:0")) },
                             )
+                        } else if (sheet.startsWith("news:")) {
+                            WhatsNewSheet(m, sheet.removePrefix("news:").toIntOrNull()?.takeIf { it > 0 }, close = { step(nav.closeAt(s)) })
                         } else if (sheet == "lists") {
                             ListsSheet(
                                 m, games,
