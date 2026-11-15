@@ -152,7 +152,7 @@ class SimilarSheetTest {
         assertEquals("the sheet closed", emptyList<String>(), nav.stack)
         assertEquals("queue", nav.views["games"])
         rule.onNodeWithText("Like Moonwell").performScrollTo()
-        // the Like tab is the lit one (on All its chip is there too, just not selected; L301: found by its description)
+        // the Like tab is the lit one (on All its chip is there too, just not selected; L305: found by its description)
         assertEquals("the Like tab is lit", 1, rule.onAllNodes(hasContentDescription("Like Moonwell", substring = true) and isSelected()).fetchSemanticsNodes().size)
         assertTrue("its game", has("Glass Road"))
         assertFalse("games not like it are left out", has("Harbour Lights") || has("Tin Crown"))
