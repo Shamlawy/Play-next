@@ -249,7 +249,7 @@ at=
 say=A game you're waiting for now shows what it costs on Steam, the PS Store and the eShop, with the best deal ringed.
 tryIt=Open a game you haven't played (Games › Queue, tap its box art) and scroll to Prices under Reviews: each store's price in your currency, a sale's discount, the cheapest one ringed. Tap a store to open its page, or the line under them for every store's details and Check this game now. A game you own says so instead.
 
-v=42
+v=43
 go=home
 at=
 say=Turn a Queue card over: "Like this" shows your games most like it, and More like it opens a sheet of look-alikes with Steam players' picks.
