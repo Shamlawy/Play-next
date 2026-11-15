@@ -1,6 +1,5 @@
 package io.github.shamlawy.playnext.ui
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,16 +20,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.github.shamlawy.playnext.BuildConfig
-import io.github.shamlawy.playnext.Store
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.JsDate
 import io.github.shamlawy.playnext.data.Times
 import io.github.shamlawy.playnext.kit.Shared
-import io.github.shamlawy.playnext.update.WhatsNew
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.time.ZoneId
 
 /**
@@ -102,12 +95,6 @@ private val SOON = mapOf(
 /** Home's panel (`.dxw`: `--u-pan`, round 28): the folded tab bar's open tile runs into its top. */
 @Composable
 private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
-    val code = BuildConfig.VERSION_CODE
-    // "Updated to vN" once, at the first open after an update (no notification until Phase 9, G15)
-    val updated = remember {
-        val to = Store.prefs.getInt("updatedTo", 0)
-        (to == code && Store.prefs.getInt("updatedSeen", 0) != code).also { if (it) Store.prefs.edit().putInt("updatedSeen", code).apply() }
-    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -116,14 +103,6 @@ private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
             .padding(start = if (wide) 22.dp else 14.dp, end = if (wide) 22.dp else 14.dp, top = if (wide) 22.dp else 16.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        if (updated) {
-            val ctx = LocalContext.current
-            val say by produceState(News.said) { value = News.say(ctx.applicationContext, code) }
-            Card {
-                BasicText("Updated to v$code", style = Type.head)
-                say?.takeIf { it.isNotEmpty() }?.let { BasicText(it, style = Type.note) }
-            }
-        }
         when (games) {
             is Games.State.Ready -> {
                 val all = games.lib.games
@@ -139,17 +118,6 @@ private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
             Games.State.NoCode -> NoGames(askCode)
         }
     }
-}
-
-/** This version's whatsnew.txt line for "Updated to vN": read once, off the main thread, never in composition (speed 7). */
-private object News {
-    @Volatile var said: String? = null
-        private set
-
-    suspend fun say(ctx: Context, code: Int): String = said ?: withContext(Dispatchers.IO) {
-        runCatching { ctx.assets.open("whatsnew.txt").bufferedReader().use { WhatsNew.parse(it.readText()) } }.getOrDefault(emptyList())
-            .lastOrNull { it.v == code }?.say?.replace(Regex("<[^>]+>"), "").orEmpty()
-    }.also { said = it }
 }
 
 /** "Your games as of 2:05 PM", and a warning once the copy is over a day old. */

@@ -242,3 +242,9 @@ go=home
 at=
 say=A game you haven't played now shows its reviews: the critics and Steam's players, and which way they tip Nexi's guess.
 tryIt=Open a game you haven't played yet (Games › Queue, tap its box art) and scroll past the screenshots to Reviews: the critics' score, the players' score and how long ago they were checked. A finished game shows the critics next to your own score instead. The likely score tile up top now leans on those reviews too.
+
+v=41
+go=home
+at=
+say=Closing a game's About is smooth now, and every update shows you this: what changed and what to try.
+tryIt=Open a game with a long About (Games › Queue, tap its box art), tap the words to open it, scroll down to the screenshots and tap the words again to close it: the screenshots glide up and nothing jumps. This sheet comes back by itself after each update; Settings › Updates › What's new shows every release again.

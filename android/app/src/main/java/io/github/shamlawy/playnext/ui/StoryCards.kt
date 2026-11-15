@@ -1,6 +1,5 @@
 package io.github.shamlawy.playnext.ui
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -31,12 +30,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
@@ -158,8 +156,9 @@ internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
     if (!Recap.shows(lib, g)) return
     val c = remember(tick, g, n.t) { Recap.of(lib, g) }
     val volt = LocalLook.current.volt
-    val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.padding(top = 10.dp).fillMaxWidth().background(Color(Web.GD_LIFT), shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
+    val move = LocalTextMove.current
+    // the card's foot follows the recap's drawn words while it opens or closes (OpenText.kt)
+    Column(Modifier.padding(top = 10.dp).fillMaxWidth().drawBehind { growCard(move?.extra(TextMove.STORY) ?: 0f, 16.dp.toPx(), Color(Web.GD_LIFT), null, 0f) }.padding(horizontal = 14.dp, vertical = 12.dp)) {
         Row(Modifier.padding(bottom = 6.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             PnIcon("ui:book", volt, 15.dp, null)
             val head = if (c != null && c.x.isNotEmpty()) "The story so far" + (if (c.w.isNotEmpty()) " · " + c.w else "") else "Remembering the story so far…"
@@ -174,25 +173,8 @@ internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
                 }
             }
         } else {
-            var open by remember(c.x) { mutableStateOf(false) }
-            var cut by remember(c.x) { mutableStateOf(false) }
-            val fade = remember(c.x) { Animatable(1f) }
-            LaunchedEffect(open) { if (open && !still) { fade.snapTo(.45f); fade.animateTo(1f, tween(420)) } }
-            val flip = {
-                if (cut || open) {
-                    Sounds.play(Sfx.Tap)
-                    open = !open
-                }
-            }
-            BasicText(
-                c.x,
-                style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(),
-                maxLines = if (open) Int.MAX_VALUE else 4,
-                overflow = TextOverflow.Ellipsis,
-                onTextLayout = { if (!open) cut = it.hasVisualOverflow },
-                modifier = Modifier.graphicsLayer { alpha = fade.value }.clickable(enabled = cut || open, onClickLabel = if (open) "Read less" else "Read more", onClick = flip),
-            )
-            if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.padding(top = 6.dp))
+            OpenText(c.x, style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(), still = still, me = TextMove.STORY)
+            if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.graphicsLayer { translationY = move?.extra(TextMove.STORY) ?: 0f }.padding(top = 6.dp))
         }
     }
 }
