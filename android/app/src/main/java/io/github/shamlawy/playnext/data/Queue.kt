@@ -215,7 +215,8 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
         val v = maxOf(1.0, minOf(10.0, Rank.jsRound((if (e != null) v1 * .65 + e * .35 else v1) * 10) / 10))
         // a genre shared with one of your top 6 ranked games
         val tg = Rank.platList(g["genres"]).map { it.lowercase() }.toSet()
-        val like = rk.table.order.mapNotNull { id -> lib.games.firstOrNull { it.id == id } }.take(6)
+        // lazily: only the first six ranked games are ever looked up (second-look on #747)
+        val like = rk.table.order.asSequence().mapNotNull { id -> lib.games.firstOrNull { it.id == id } }.take(6)
             .firstOrNull { f -> Rank.platList(f["genres"]).any { it.lowercase() in tg } }
         val why = listOfNotNull(
             how.ifEmpty { null },

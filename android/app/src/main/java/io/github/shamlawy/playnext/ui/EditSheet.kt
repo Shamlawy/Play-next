@@ -143,6 +143,8 @@ class EditActs(
     val short: (String) -> Unit = {},
     /** The length tile's How long to beat sheet (piece 4). */
     val hours: (String) -> Unit = {},
+    /** The Prices card's sheet (piece 4): each store's answer, its page, and Check this game now. */
+    val prices: (String) -> Unit = {},
 )
 
 val LocalEditActs = staticCompositionLocalOf<EditActs?> { null }
