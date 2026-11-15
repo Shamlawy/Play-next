@@ -62,4 +62,5 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E57 | 2026-11-15 9:05 AM | kit | 2 h | 12 min | 0.10 | total: android-v41 merge once checks finish (~9:25 AM UAE), then ▢ built, tested and released as android-v42. | <!-- at=2026-11-15T05:05:38.845Z -->
 | E60 | 2026-11-15 9:33 AM | release | 50 min | 1 min | 0.01 | I'll finish android-v43 (▢), get it checked and reviewed, merge it, and send you a short summary. | <!-- at=2026-11-15T05:33:07.267Z more=30 -->
 | E58 | 2026-11-15 1:12 PM | kit | 15 min | 1 min | 0.07 | I'll find out why that one test fails and send you where v43 stands. | <!-- at=2026-11-15T09:12:37.724Z -->
-| E59 | 2026-11-15 1:21 PM | release | 25 min | open |  | the Android checks should finish around 1:45 PM UAE time, and then I'll merge. | <!-- at=2026-11-15T09:21:05.674Z bg=1 -->
+| E59 | 2026-11-15 1:21 PM | release | 25 min | 2 h | 4.80 | the Android checks should finish around 1:45 PM UAE time, and then I'll merge. | <!-- at=2026-11-15T09:21:05.674Z bg=1 -->
+| E61 | 2026-11-15 3:06 PM | ci | 20 min | 16 min | 0.80 | ▢ Android checks on the new head (e75f4d9) should finish around 3:25 PM UAE time. I'll merge v43 when they pass, and it reaches the p | <!-- at=2026-11-15T11:06:04.714Z bg=1 -->
