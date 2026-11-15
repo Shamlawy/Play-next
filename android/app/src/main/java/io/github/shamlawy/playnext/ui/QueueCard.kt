@@ -117,6 +117,7 @@ import io.github.shamlawy.playnext.kit.Sounds
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.cos
@@ -140,6 +141,8 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
     val angle = remember(g.id) { Animatable(if (flipped) 180f else 0f) }
     var turns by remember(g.id) { mutableStateOf(if (flipped) 1 else 0) }
     var backMade by remember(g.id) { mutableStateOf(flipped) }
+    // the side this card last asked its pick for: a pick that says otherwise was turned from outside (Show me)
+    var asked by remember(g.id) { mutableStateOf(flipped) }
     val enter = remember(g.id) { Animatable(if (fresh && !calm) 0f else ENTER_END) }
     val backT = remember(g.id) { Animatable(BACK_END) }
     val onBack = Math.floorMod(turns, 2) == 1
@@ -166,6 +169,7 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
         turns = if (!angle.isRunning) turns + 1
         else (if (angle.targetValue > angle.value) Math.floor(angle.value / 180.0) else Math.ceil(angle.value / 180.0)).toInt()
         val back = Math.floorMod(turns, 2) == 1
+        asked = back
         flip(back)
         if (back) {
             backMade = true
@@ -179,6 +183,18 @@ fun QueueCard(q: Queue, g: Game, n: Int, fresh: Boolean, flipped: Boolean, mod: 
             if (calm) angle.snapTo(to) else angle.animateTo(to, tween((TURN_MS * abs(to - angle.value) / 180f).toInt().coerceAtLeast(60), easing = TURN_EASE))
         }
         Unit
+    }
+    // turned from outside (What's new's Show me, Guide.kt, android-v44): a card already on screen turns as two taps
+    // would (a double tap's own flip() already matches, so it never turns twice)
+    val flippedNow by androidx.compose.runtime.rememberUpdatedState(flipped)
+    androidx.compose.runtime.LaunchedEffect(g.id) {
+        // only a change of the pick's side counts (a card whose caller keeps no side never turns by itself)
+        androidx.compose.runtime.snapshotFlow { flippedNow }.drop(1).collect { want ->
+            if (want == asked) return@collect
+            // one asked mid-turn waits for the turn to settle, then checks again
+            androidx.compose.runtime.snapshotFlow { angle.isRunning }.first { !it }
+            if (flippedNow != asked) turn()
+        }
     }
     // one tap: it folds into its row at once (the row fades in where the card was and the rows under it glide up, Queue.kt);
     // the web fades the card for 220 ms first, which left a still hole and then a jump (the owner, Nov 5: "sluggish")

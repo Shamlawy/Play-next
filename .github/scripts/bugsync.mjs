@@ -62,10 +62,10 @@ for (const label of [LABEL, ALABEL]) for (let page = 1; page <= 5; page++) {
    daily fixer never picks them up), routing by app + signature (a web signature can't land on an app issue or the other
    way round), families that fold only within one app, "Fixed in android-vN" (or plain "Fixed in vN", meaning the
    versionCode) and the newest android-vN GitHub release instead of index.html's APP_V, and proof only from the app's own
-   reports: the owner's web Chrome on the Fold also says "Android", and that must never prove an app fix. Three kinds are
-   for the log only and never make an issue: ran (once per app version: the proof that it ran), probe (the 120 Hz test's
+   reports: the owner's web Chrome on the Fold also says "Android", and that must never prove an app fix. Four kinds are
+   for the log only and never make an issue: tried (android-v44: "It works" on a release's Try it), ran (once per app version: the proof that it ran), probe (the 120 Hz test's
    numbers) and killed (Android ended the app for memory or resources). */
-const LOG_ONLY = new Set(["ran", "probe", "killed"]);
+const LOG_ONLY = new Set(["ran", "probe", "killed", "tried"]);
 const labelsOf = i => (i.labels || []).map(l => typeof l === "string" ? l : l.name);
 const appOf = b => b.app === "android" || (b.sample || {}).app === "android" || /^App /.test((b.sample || {}).dev || "") ? "android" : "web";
 const appI = i => labelsOf(i).includes(ALABEL) ? "android" : "web";

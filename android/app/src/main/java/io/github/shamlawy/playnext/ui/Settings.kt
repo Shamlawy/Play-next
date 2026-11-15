@@ -358,7 +358,10 @@ private fun BuildCards(openProbe: () -> Unit, openNews: () -> Unit) {
             else -> Unit
         }
         // every release's what changed and what to try (WhatsNew.kt, android-v41)
-        Btn("What's new") { Sounds.play(Sfx.Open); openNews() }
+        // how many of the newest releases are left to try (Show me, Guide.kt)
+        val news by androidx.compose.runtime.produceState(News.all) { value = News.load(ctx.applicationContext) }
+        val left = news?.let { Tried.left(it).size } ?: 0
+        Btn(if (left > 0) "What's new · $left to try" else "What's new") { Sounds.play(Sfx.Open); openNews() }
     }
 
     if (!canInstall) {

@@ -1,6 +1,9 @@
 # The Android app's what's new, the web app's WHATS_NEW for the app: one block per release, blocks split by blank lines.
-# v = the release (release= in android/version.properties), go = the screen the tour opens (home, probe), at = what it
-# points at (may be empty), say = one line pitch (release v's say= is also its GitHub release notes), tryIt = what to try.
+# v = the release (release= in android/version.properties), go = where What's new's Show me takes you (ui/Guide.kt):
+#   queue, card:out (a released game's card open on the Queue), flip (the Queue's first card turned over), settings,
+#   probe, news, game:<what> (a game page: playing, about = the longest About, unplayed, priced, next = On deck's first);
+#   home shows no Show me (every block before v33). at = what it points at (may be empty), say = one line pitch (release
+#   v's say= is also its GitHub release notes), tryIt = what to try.
 # release-guard holds a release without its block (go, say and tryIt filled in).
 
 v=1
@@ -196,67 +199,73 @@ say=The tickets on your Queue look like one ticket now: the dashed tear line sit
 tryIt=Open Games › Queue and look at a played game's row: the line is printed on the half that stays. Tap a game you're playing to open its card and look at the ticket bottom-left.
 
 v=33
-go=home
+go=game:playing
 at=
 say=Score a game right from its page, leave yourself a note about where you stopped, and finishing a game now lands a big PLAYED stamp.
 tryIt=Open a game you're playing and tap the card under its line ("Where are you up to?"): write where you stopped, or tap a quick chip, and Save note. Then tap I finished it: the stamp lands, the page shakes, and the Score sheet opens so you can score it. On a finished game tap Score it (or its score) to change it. It's a practice copy: everything resets when the app reopens.
 
 v=34
-go=home
+go=queue
 at=
 say=Your Queue tickets are one clean piece now: no torn stub, just a soft line in the middle that draws in when a card opens.
 tryIt=Open Games › Queue and look at any row's ticket. Then tap a row to open its card and watch the ticket at the bottom left land and its line draw in.
 
 v=35
-go=home
+go=card:out
 at=
 say=A released game's ticket really tears now: when its card opens, the stub rips off along the line, right on the cut sound.
 tryIt=Open Games › Queue and tap a game that's already out: watch the ticket at the bottom left land, its line draw in, then the stub tear off and hang at a slight tilt. Unfolded, its closed row shows the same torn stub. A game that's coming out stays whole.
 
 v=36
-go=home
+go=settings
 at=
 say=The ticket's tear sound now lands right on the cut: it plays on the very frame the stub rips off.
 tryIt=Turn on Sounds (Settings › Sounds), open Games › Queue and tap a game that's already out: the click comes exactly as the stub tears away. Settings › Sounds › Stub tears plays the cut on its own now.
 
 v=37
-go=home
+go=game:playing
 at=
 say=A game's page now works things out for you: when you'll finish, the story so far, how a finished game went, and when you're drifting from one.
 tryIt=Open a game you're playing (Games › Queue, tap its box art): under Your progress see "Done around" and a date, with a warning if a game you're hyped for comes out first, and after you leave a note, the story so far. A finished game shows Then & now: hype against your score, Nexi's guess, the days it took. A game you haven't touched in a while asks if you're drifting: Park it or Something short in between.
 
 v=38
-go=home
+go=game:about
 at=
 say=Long words on a game's page now open with a tap on the words themselves: no more Read more or Read less.
 tryIt=Open a game with a long About (Games › Queue, tap its box art), tap the four lines ending in "…" to read it all, and tap them again to fold it. The story so far under your note works the same way.
 
 v=39
-go=home
+go=game:next
 at=
 say=Tap a game's length to see how long it takes to beat, from real players' times on HowLongToBeat.
 tryIt=Open any game (Games › Queue, tap its box art) and tap its length tile, the one with the small arrow: the sheet shows the main story, story + extras and everything, with how you play lit. Games with no hours yet fill them in by themselves; ones you typed offer Use HowLongToBeat's.
 
 v=40
-go=home
+go=game:unplayed
 at=
 say=A game you haven't played now shows its reviews: the critics and Steam's players, and which way they tip Nexi's guess.
 tryIt=Open a game you haven't played yet (Games › Queue, tap its box art) and scroll past the screenshots to Reviews: the critics' score, the players' score and how long ago they were checked. A finished game shows the critics next to your own score instead. The likely score tile up top now leans on those reviews too.
 
 v=41
-go=home
+go=game:priced
 at=
 say=A game you're waiting for now shows what it costs on Steam, the PS Store and the eShop, with the best deal ringed.
 tryIt=Open a game you haven't played (Games › Queue, tap its box art) and scroll to Prices under Reviews: each store's price in your currency, a sale's discount, the cheapest one ringed. Tap a store to open its page, or the line under them for every store's details and Check this game now. A game you own says so instead.
 
 v=42
-go=home
+go=game:about
 at=
 say=Closing a game's About is smooth now, and every update shows you this: what changed and what to try.
 tryIt=Open a game with a long About (Games › Queue, tap its box art), tap the words to open it, scroll down to the screenshots and tap the words again to close it: the screenshots glide up and nothing jumps. This sheet comes back by itself after each update; Settings › Updates › What's new shows every release again.
 
 v=43
-go=home
+go=flip
 at=
 say=Turn a Queue card over: "Like this" shows your games most like it, and More like it opens a sheet of look-alikes with Steam players' picks.
 tryIt=In Games › Queue, double tap a card to turn it. At its foot, tap a game under Like this to open it, or More like it for the sheet: your games most like it (how alike), "show them in the Queue" for a Like tab, Steam players' picks for a game on Steam, and the trailer.
+
+v=44
+go=news
+at=
+say=What's new now takes you there: Show me opens the right screen with one of your games, and a Try it bar stays at the bottom while you test.
+tryIt=Open Settings › Updates › What's new and tap Show me on v43: the Queue opens with a card turned over and the Try it bar at the bottom. Follow it, then tap It works, or Something's off to tell Claude what's wrong in your own words. Next takes you to the next one to try; Hide folds the bar into a small pill.
