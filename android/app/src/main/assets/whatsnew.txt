@@ -248,3 +248,9 @@ go=home
 at=
 say=A game you're waiting for now shows what it costs on Steam, the PS Store and the eShop, with the best deal ringed.
 tryIt=Open a game you haven't played (Games › Queue, tap its box art) and scroll to Prices under Reviews: each store's price in your currency, a sale's discount, the cheapest one ringed. Tap a store to open its page, or the line under them for every store's details and Check this game now. A game you own says so instead.
+
+v=42
+go=home
+at=
+say=Closing a game's About is smooth now, and every update shows you this: what changed and what to try.
+tryIt=Open a game with a long About (Games › Queue, tap its box art), tap the words to open it, scroll down to the screenshots and tap the words again to close it: the screenshots glide up and nothing jumps. This sheet comes back by itself after each update; Settings › Updates › What's new shows every release again.

@@ -9,13 +9,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.shamlawy.playnext.Store
@@ -82,7 +85,7 @@ class StoryCardsTest {
            "lgH":[[${noon("2026-10-07")},3],[${noon("2026-10-09")},3],[${noon("2026-10-11")},3],[${noon("2026-10-13")},1],[${noon("2026-10-18")},0.5]]},
           {"id":"x","title":"Fallen Kite","state":"dropped","date":"2025-01-01","ord":5,"genres":"RPG, Action"},
           {"id":"s","title":"Pocket Comet","state":"backlog","date":"2026-01-01","ord":6,"colour":"#8A5CD0","hours":5,"genres":"Puzzle",
-           "desc":"$LONG"}
+           "desc":"$LONG","shots":[{"u":"https://example.invalid/one.jpg"},{"u":"https://example.invalid/two.jpg"}]}
         ],"duels":[],"played":[{"id":"a","real":8,"t":"2026-03-01"}]}
     """.trimIndent()
 
@@ -183,6 +186,44 @@ class StoryCardsTest {
         rule.onNode(label("Read less")).performClick()
         rule.waitForIdle()
         rule.onNode(label("Read more")).assertExists()
+    }
+
+    /**
+     * The owner (Nov 14): "when pressing on the text to close it … the screenshots and the window itself stutters".
+     * android-v38 shrank About first and pushed the screenshots back a coroutine later, so a frame showed them jumped
+     * (and a close near the foot jumped the whole page). Now the frame after the tap shows them where they were, and
+     * they glide up from there.
+     */
+    @Test fun closingAboutMovesNothingOnItsFirstFrame() {
+        show(listOf("game:s"))
+        fun label(l: String) = SemanticsMatcher("tap named $l") { n ->
+            n.config.getOrElseNullable(SemanticsActions.OnClick) { null }?.label == l && n.config.getOrElseNullable(SemanticsProperties.Text) { null }.orEmpty().any { it.text.startsWith("A small comet") }
+        }
+        rule.onNode(label("Read more")).performScrollTo().performClick()
+        rule.waitForIdle()
+        fun top(t: String) = rule.onNodeWithText(t).fetchSemanticsNode().positionInRoot.y
+        // the page's own scroll (the innermost one holding About)
+        val page = SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange) and hasAnyDescendant(hasText("About"))
+        for (spot in listOf("About", "Screenshots", "the foot")) {
+            if (spot == "the foot") rule.onAllNodes(page).onLast().performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+            else rule.onNodeWithText(spot).performScrollTo()
+            rule.waitForIdle()
+            val shots0 = top("Screenshots")
+            val about0 = top("About")
+            rule.mainClock.autoAdvance = false
+            rule.onNode(label("Read less")).performSemanticsAction(SemanticsActions.OnClick)
+            rule.mainClock.advanceTimeByFrame()
+            assertEquals("the screenshots stay put on the first frame (from $spot)", shots0, top("Screenshots"), 2f)
+            assertEquals("the page stays put on the first frame (from $spot)", about0, top("About"), 2f)
+            rule.mainClock.advanceTimeBy(200)
+            val mid = top("Screenshots")
+            rule.mainClock.autoAdvance = true
+            rule.waitForIdle()
+            val end = top("Screenshots")
+            assertTrue("they glide, never jump past ($spot: $shots0 → $mid → $end)", mid in minOf(end, shots0) - 2f..maxOf(end, shots0) + 2f)
+            rule.onNode(label("Read more")).performSemanticsAction(SemanticsActions.OnClick)
+            rule.waitForIdle()
+        }
     }
 
     /** The web's backup can hold a failed recap: once it's 6 hours old the page asks again and the card comes back. */

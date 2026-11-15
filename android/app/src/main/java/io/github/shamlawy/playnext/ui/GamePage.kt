@@ -54,6 +54,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -428,14 +429,16 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
     // what slides when the tag row unfolds or About opens (transform only): each part under it moves up by the height
     // change and settles back, so nothing jumps
     val tagSlide = remember(g.id) { Animatable(0f) }
-    val aboutSlide = remember(g.id) { Animatable(0f) }
+    // About and the story so far opening or closing: the page, what's under the text and the text's own clip (OpenText.kt)
+    val move = remember(g.id, scroll) { TextMove(scroll) }
     // the web keeps 104 / 110 from a 72-wide rail; Android's rail is 112 wide (the owner's Option B), so the body keeps
     // the room every other screen does (railRoom: RAIL_OUT + 12), or the tiles and cards run under it
     val padS = if (railL) RAIL_OUT + 12.dp else if (big) 28.dp else 16.dp
     val padE = if (railR) RAIL_OUT + 12.dp else if (big) 28.dp else 16.dp
     val top = LocalBottomRoom.current
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+        CompositionLocalProvider(LocalTextMove provides move) {
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).graphicsLayer { translationY = move.pageY }) {
             Hero(g, heroH, big, accent)
             Column(
                 Modifier.align(Alignment.CenterHorizontally).widthIn(max = 980.dp).fillMaxWidth().offset(y = (-30).dp)
@@ -455,15 +458,16 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 }
                 Progress(g, page, lib, still, volt, shift)
                 val about = page.about(g)
-                if (about.isNotEmpty()) About(about, still, aboutSlide, shift)
+                if (about.isNotEmpty()) About(about, still, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.STORY) })
                 // one list per game and copy, so the strip isn't redrawn on every pass of the page
                 val shots = remember(page, g) { page.shots(g) }
-                if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + aboutSlide.value })
+                if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
                 // the helper's cards (`gd-pair`): Reviews, then Prices
-                ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + aboutSlide.value })
-                PricesSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + aboutSlide.value })
+                ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
+                PricesSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
             }
             Spacer(Modifier.height(top))
+        }
         }
         // Back, top right (`#full .hub .fullx`, index.html 16523): 16 in, 100 unfolded where the rail sits
         BackPill(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.statusBars).padding(top = 8.dp, end = if (railR) RAIL_OUT + 8.dp else 8.dp)) { acts.leave(null) }
@@ -816,16 +820,21 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
 
 /** A page section (`gdSec`): a card with its drawn icon, title and a small meta on the right. */
 @Composable
-internal fun Section(icon: String, title: String, meta: String, modifier: Modifier, content: @Composable () -> Unit) {
+internal fun Section(icon: String, title: String, meta: String, modifier: Modifier, extra: (() -> Float)? = null, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(20.dp)
-    Column(modifier.padding(top = 12.dp).fillMaxWidth().background(Pn.card, shape).border(1.dp, Pn.line, shape).padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 15.dp)) {
-        Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PnIcon(icon, Pn.ice, 17.dp, label = null)
-            BasicText(title, style = Type.head.copy(fontSize = 13.sp, lineHeight = 16.sp).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
-            if (meta.isNotEmpty()) BasicText(meta, style = Type.note.copy(fontSize = 11.5.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.5.sp, stepSize = .5.sp))
+    // [extra]: a text inside is opening or closing (OpenText.kt), so the card's foot follows its drawn words, not its box
+    val body: @Composable (Modifier) -> Unit = { m ->
+        Column(m.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 15.dp)) {
+            Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PnIcon(icon, Pn.ice, 17.dp, label = null)
+                BasicText(title, style = Type.head.copy(fontSize = 13.sp, lineHeight = 16.sp).fixed(), maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
+                if (meta.isNotEmpty()) BasicText(meta, style = Type.note.copy(fontSize = 11.5.sp, lineHeight = 14.sp).fixed(), maxLines = 1, softWrap = false, autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.5.sp, stepSize = .5.sp))
+            }
+            content()
         }
-        content()
     }
+    if (extra == null) body(modifier.padding(top = 12.dp).fillMaxWidth().background(Pn.card, shape).border(1.dp, Pn.line, shape))
+    else GrowCard(extra, 20.dp, Pn.card, Pn.line, 1.dp, modifier.padding(top = 12.dp).fillMaxWidth()) { body(Modifier.fillMaxWidth()) }
 }
 
 /**
@@ -835,6 +844,7 @@ internal fun Section(icon: String, title: String, meta: String, modifier: Modifi
  */
 @Composable
 private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Color, modifier: Modifier) {
+    val move = LocalTextMove.current
     val st = page.state(g)
     val steps = page.steps(g)
     val litN = steps.count { it.c == "done" || it.c == "now" }
@@ -862,7 +872,8 @@ private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Co
             pops[i].animateTo(1f, keyframes { durationMillis = 380; .4f at 0 using POP; 1.3f at 220 using POP; 1f at 380 })
         }
     }
-    Section("ui:compass", "Your progress", page.stateWord(st), modifier) {
+    // the story so far opens inside this card: its edge follows the drawn words, as About's does
+    Section("ui:compass", "Your progress", page.stateWord(st), modifier, extra = move?.let { m -> { m.extra(TextMove.STORY) } }) {
         val grey = Pn.line2
         val lit = volt.copy(alpha = .55f)
         Box(Modifier.padding(top = 12.dp).fillMaxWidth()) {
@@ -916,7 +927,7 @@ private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Co
             }
         }
         // a game you're playing: the Finish forecast (its first date kept for Then & now), then the Drifting card
-        if (st == "playing") {
+        if (st == "playing") Column(Modifier.graphicsLayer { translationY = move?.below(TextMove.STORY) ?: 0f }) {
             val eta = remember(page, g) { page.eta(g) }
             val now = LocalNow.current
             LaunchedEffect(eta) { Forecast.seen(g, eta, now()) }
@@ -930,35 +941,19 @@ private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Co
 
 /**
  * About (`gdAbout`): four lines ending in "…" when there's more; a tap on the words opens and closes it (the owner,
- * Nov 14: "press on the text for it to expand and compress, not read more or less"); what's under it slides, the new
- * lines fade in. TalkBack still hears "Read more" / "Read less" as the tap's name.
+ * Nov 14: "press on the text for it to expand and compress, not read more or less"); its card, what's under it and
+ * the page move with it in the same frame (OpenText.kt, android-v41: the close stuttered).
  */
 @Composable
-private fun About(text: String, still: Boolean, slide: Animatable<Float, *>, modifier: Modifier) {
-    var open by remember(text) { mutableStateOf(false) }
-    var cut by remember(text) { mutableStateOf(false) }
-    var h0 by remember(text) { mutableIntStateOf(-1) }
-    val fade = remember(text) { Animatable(1f) }
-    val scope = rememberCoroutineScope()
-    val flip = {
-        Sounds.play(Sfx.Tap)
-        open = !open
-        if (open && !still) scope.launch { fade.snapTo(.45f); fade.animateTo(1f, tween(420, easing = EASE_OUT)) }
-    }
-    Section("ui:book", "About", "", modifier) {
-        val more = text.length > 170 && (cut || open)
-        BasicText(
+private fun About(text: String, still: Boolean, modifier: Modifier) {
+    val move = LocalTextMove.current
+    Section("ui:book", "About", "", modifier, extra = move?.let { m -> { m.extra(TextMove.ABOUT) } }) {
+        OpenText(
             text,
             style = Type.body.copy(fontSize = 13.5.sp, lineHeight = 20.9.sp, color = Color(Web.GD_DESC)).fixed(),
-            maxLines = if (open) Int.MAX_VALUE else 4,
-            overflow = TextOverflow.Ellipsis,
-            onTextLayout = { r -> if (!open) cut = r.hasVisualOverflow },
-            modifier = Modifier.padding(top = 10.dp).clickable(enabled = more, onClickLabel = if (open) "Read less" else "Read more", onClick = flip)
-                .graphicsLayer { alpha = fade.value }.onSizeChanged { s ->
-                val was = h0
-                h0 = s.height
-                if (was >= 0 && was != s.height && !still) scope.launch { slide.snapTo((was - s.height).toFloat()); slide.animateTo(0f, tween(420, easing = Ease.house)) }
-            },
+            still = still,
+            me = TextMove.ABOUT,
+            modifier = Modifier.padding(top = 10.dp),
         )
     }
 }

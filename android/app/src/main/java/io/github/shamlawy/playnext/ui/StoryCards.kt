@@ -1,6 +1,5 @@
 package io.github.shamlawy.playnext.ui
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -31,9 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -158,41 +155,27 @@ internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
     if (!Recap.shows(lib, g)) return
     val c = remember(tick, g, n.t) { Recap.of(lib, g) }
     val volt = LocalLook.current.volt
-    val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.padding(top = 10.dp).fillMaxWidth().background(Color(Web.GD_LIFT), shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
-        Row(Modifier.padding(bottom = 6.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PnIcon("ui:book", volt, 15.dp, null)
-            val head = if (c != null && c.x.isNotEmpty()) "The story so far" + (if (c.w.isNotEmpty()) " · " + c.w else "") else "Remembering the story so far…"
-            BasicText(head, style = Type.label.copy(fontSize = 12.sp, lineHeight = 16.sp, color = volt).fixed(), modifier = Modifier.weight(1f))
-        }
-        if (c == null || c.x.isEmpty()) {
-            Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                val pulse = if (still) null else rememberInfiniteTransition(label = "story")
-                for ((i, w) in listOf(1f, .86f, .6f).withIndex()) {
-                    val a = pulse?.animateFloat(.35f, 1f, infiniteRepeatable(tween(1200, delayMillis = 0), RepeatMode.Reverse, initialStartOffset = androidx.compose.animation.core.StartOffset(150 * i)), label = "bar$i")
-                    Box(Modifier.fillMaxWidth(w).height(10.dp).graphicsLayer { alpha = a?.value ?: 1f }.background(Color(Web.WIS_DOT), RoundedCornerShape(6.dp)))
-                }
+    val move = LocalTextMove.current
+    // the card's foot follows the recap's drawn words while it opens or closes (OpenText.kt)
+    GrowCard({ move?.extra(TextMove.STORY) ?: 0f }, 16.dp, Color(Web.GD_LIFT), null, 0.dp, Modifier.padding(top = 10.dp).fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(Modifier.padding(bottom = 6.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PnIcon("ui:book", volt, 15.dp, null)
+                val head = if (c != null && c.x.isNotEmpty()) "The story so far" + (if (c.w.isNotEmpty()) " · " + c.w else "") else "Remembering the story so far…"
+                BasicText(head, style = Type.label.copy(fontSize = 12.sp, lineHeight = 16.sp, color = volt).fixed(), modifier = Modifier.weight(1f))
             }
-        } else {
-            var open by remember(c.x) { mutableStateOf(false) }
-            var cut by remember(c.x) { mutableStateOf(false) }
-            val fade = remember(c.x) { Animatable(1f) }
-            LaunchedEffect(open) { if (open && !still) { fade.snapTo(.45f); fade.animateTo(1f, tween(420)) } }
-            val flip = {
-                if (cut || open) {
-                    Sounds.play(Sfx.Tap)
-                    open = !open
+            if (c == null || c.x.isEmpty()) {
+                Column(Modifier.fillMaxWidth().semantics { contentDescription = "Loading" }, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    val pulse = if (still) null else rememberInfiniteTransition(label = "story")
+                    for ((i, w) in listOf(1f, .86f, .6f).withIndex()) {
+                        val a = pulse?.animateFloat(.35f, 1f, infiniteRepeatable(tween(1200, delayMillis = 0), RepeatMode.Reverse, initialStartOffset = androidx.compose.animation.core.StartOffset(150 * i)), label = "bar$i")
+                        Box(Modifier.fillMaxWidth(w).height(10.dp).graphicsLayer { alpha = a?.value ?: 1f }.background(Color(Web.WIS_DOT), RoundedCornerShape(6.dp)))
+                    }
                 }
+            } else {
+                OpenText(c.x, style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(), still = still, me = TextMove.STORY)
+                if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.graphicsLayer { translationY = move?.extra(TextMove.STORY) ?: 0f }.padding(top = 6.dp))
             }
-            BasicText(
-                c.x,
-                style = Type.body.copy(fontSize = 14.sp, lineHeight = 21.7.sp, color = Color(Web.WIS_INK)).fixed(),
-                maxLines = if (open) Int.MAX_VALUE else 4,
-                overflow = TextOverflow.Ellipsis,
-                onTextLayout = { if (!open) cut = it.hasVisualOverflow },
-                modifier = Modifier.graphicsLayer { alpha = fade.value }.clickable(enabled = cut || open, onClickLabel = if (open) "Read less" else "Read more", onClick = flip),
-            )
-            if (c.sure < .5) BasicText("I'm not sure exactly where that is in the story, so I kept to what I know for certain.", style = Type.note.copy(fontSize = 12.sp, lineHeight = 17.sp).fixed(), modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

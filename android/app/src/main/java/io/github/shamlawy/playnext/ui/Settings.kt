@@ -96,13 +96,13 @@ import java.time.ZoneId
  * early.
  */
 @Composable
-fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit) {
+fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: () -> Unit, openProbe: () -> Unit, askCode: () -> Unit, openNews: () -> Unit = {}) {
     SheetFrame(modifier, close) {
         BasicText("Settings", style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
         BackupCard(games, askCode)
         SoundsCard()
         TaskbarCard(wide)
-        BuildCards(openProbe)
+        BuildCards(openProbe, openNews)
         Btn("Close", onClick = close)
     }
 }
@@ -299,7 +299,7 @@ internal fun lookedLine(ok: Boolean): String? {
 
 /** Piece 1's cards: updates, the one-time install switch, the 120 Hz test, Report a problem and the build line. */
 @Composable
-private fun BuildCards(openProbe: () -> Unit) {
+private fun BuildCards(openProbe: () -> Unit, openNews: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val update by Updater.state.collectAsStateWithLifecycle()
@@ -357,6 +357,8 @@ private fun BuildCards(openProbe: () -> Unit) {
             }
             else -> Unit
         }
+        // every release's what changed and what to try (WhatsNew.kt, android-v41)
+        Btn("What's new") { Sounds.play(Sfx.Open); openNews() }
     }
 
     if (!canInstall) {
