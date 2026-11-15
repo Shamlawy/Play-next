@@ -178,7 +178,9 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
                 BasicText("Steam players also like", style = DyType.q.copy(fontWeight = FontWeight.Bold, color = Pn.ice))
                 BasicText("  Steam's own “More like this”", style = DyType.small.copy(fontSize = 11.5.sp))
             }
-            val l = st?.filter { !Similar.nope(lib, it.name) }
+            // built once per answer (keyed by its Steam ids: the counter can already stand where the answer leaves it), so a redraw
+            // of the sheet doesn't hand every card a new Card (compared by identity)
+            val l = remember(st?.map { it.id }, lib, g) { st?.filter { !Similar.nope(lib, it.name) }?.map { Similar.card(it, g) } }
             when {
                 l == null && (busy || err.isEmpty()) -> BasicText("Asking Steam…", style = DyType.q)
                 l == null -> BasicText(if (err == "helper-old") "This switches on once Nexi's helper is updated." else "Couldn't reach Steam right now.", style = DyType.q)
@@ -188,7 +190,7 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
                     val cols = maxOf(1, ((maxWidth.value + 12) / (220 + 12)).toInt())
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         for (row in l.chunked(cols)) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            for (x in row) SteamCard(lib, Similar.card(x, g), Modifier.weight(1f), openGame)
+                            for (x in row) SteamCard(lib, x, Modifier.weight(1f), openGame)
                             repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
