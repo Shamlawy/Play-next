@@ -100,6 +100,23 @@ class SimilarTest {
         assertNull(Similar.cached(lib, g(lib, "a"), now))
     }
 
+    /** The web keeps only a non-empty list: an empty answer holds for 10 minutes, then Steam is asked again; a new ask clears the last failure. */
+    @Test fun anEmptyAnswerIsAskedAgainLater() = runBlocking {
+        var calls = 0
+        Similar.post = { calls++; throw java.io.IOException("offline") }
+        Similar.more(lib, g(lib, "a"), "ae", now)
+        assertTrue(Similar.err["a"].orEmpty().isNotEmpty())
+        Similar.post = { calls++; """{"ok":true,"more":{"games":[]}}""" }
+        Similar.more(lib, g(lib, "a"), "ae", now)
+        assertNull("the old failure is gone", Similar.err["a"])
+        assertEquals(emptyList<String>(), Similar.cached(lib, g(lib, "a"), now + 60_000)!!.map { it.name })
+        Similar.more(lib, g(lib, "a"), "ae", now + 60_000)
+        assertEquals("not asked again a minute on", 2, calls)
+        assertNull(Similar.cached(lib, g(lib, "a"), now + 10 * 60_000))
+        Similar.more(lib, g(lib, "a"), "ae", now + 10 * 60_000)
+        assertEquals("asked again ten minutes on", 3, calls)
+    }
+
     companion object {
         val LIB = """{"games":[
             {"id":"a","title":"Moonwell","state":"backlog","genres":["Metroidvania","Action"],"stId":7001,"stTags":["Metroidvania","Souls-like","Singleplayer","2D"]},

@@ -39,13 +39,14 @@ object Prices {
     val seen = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /** The helper's call; tests swap it. */
-    @Volatile internal var post: suspend (String) -> String = { body ->
+    private val realPost: suspend (String) -> String = { body ->
         io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(io.github.shamlawy.playnext.net.Net.helper("/prices"), body)) { r ->
             if (r.code == 404) throw Recap.HelperError("helper-old")
             if (!r.isSuccessful) throw Recap.HelperError("HTTP ${r.code}")
             r.body.string()
         }
     }
+    @Volatile internal var post = realPost
 
     fun busy(g: Game) = g.id in busy
 
@@ -392,5 +393,5 @@ object Prices {
         seen.value++
     }
 
-    internal fun forget() { mem.clear(); ids.clear(); tried.clear(); busy.clear(); fx = null; err = "" }
+    internal fun forget() { mem.clear(); ids.clear(); tried.clear(); busy.clear(); fx = null; err = ""; post = realPost }
 }

@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -27,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -136,7 +138,10 @@ class SimilarSheetTest {
         assertEquals("the sheet closed", emptyList<String>(), nav.stack)
         assertEquals("queue", nav.views["games"])
         rule.onNodeWithText("Like Moonwell").performScrollTo()
-        assertTrue("its one game", has("Glass Road"))
+        // the Like tab is the lit one (on All its chip is there too, just not selected; L301: found by its description)
+        assertEquals("the Like tab is lit", 1, rule.onAllNodes(hasContentDescription("Like Moonwell", substring = true) and isSelected()).fetchSemanticsNodes().size)
+        assertTrue("its game", has("Glass Road"))
+        assertFalse("games not like it are left out", has("Harbour Lights") || has("Tin Crown"))
     }
 
     @Test fun aGameInTheStripOpensItsPage() {

@@ -52,7 +52,9 @@ object Similar {
         }
         private val memo = ConcurrentHashMap<String, List<Hit>>()
 
-        private fun w(k: String) = ln((all.size + 1.0) / ((df[k] ?: 0) + .5))
+        // each tag's weight once, so a card's first flip doesn't take a log per tag per game on the frame
+        private val wt: Map<String, Double> by lazy { df.mapValues { (_, n) -> ln((all.size + 1.0) / (n + .5)) } }
+        private fun w(k: String) = wt[k] ?: ln((all.size + 1.0) / .5)
 
         /** The [n] games most like [g] (3 on the card back, 8 in the sheet, every one for the Queue's tab). */
         fun like(g: Game, n: Int): List<Hit> = memo.getOrPut(g.id) { score(g) }.take(n)
@@ -117,7 +119,9 @@ object Similar {
     /** A card in the sheet (`sgFromSteam`): its picture (and the fallback), why it's here and its first tags. */
     class Card(val name: String, val why: String, val img: String, val img2: String, val meta: String)
 
-    private val mem = ConcurrentHashMap<String, Pair<Long, List<St>>>()
+    /** This run's answers: Steam id, when, the list. An empty one is asked again after [EMPTY_FOR] (the web keeps only a non-empty list). */
+    private val mem = ConcurrentHashMap<String, Triple<Long, Long, List<St>>>()
+    private const val EMPTY_FOR = 10 * 60_000L
     private val busy = ConcurrentHashMap.newKeySet<String>()
 
     /** What changed (a counter), so the sheet redraws when Steam answers. */
@@ -126,13 +130,14 @@ object Similar {
     /** The last ask's failure for a game ("helper-old" for a helper from before Steam's list), empty when none. */
     val err = ConcurrentHashMap<String, String>()
 
-    @Volatile internal var post: suspend (String) -> String = { body ->
+    private val realPost: suspend (String) -> String = { body ->
         io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(io.github.shamlawy.playnext.net.Net.helper("/steam"), body)) { r ->
             if (r.code == 404) throw Recap.HelperError("helper-old")
             if (!r.isSuccessful) throw Recap.HelperError("HTTP ${r.code}")
             r.body.string()
         }
     }
+    @Volatile internal var post = realPost
 
     private fun st(o: JsonObject): St? {
         val id = Backup.num(o["id"], 0.0, 0.0, 1e12).toLong()
@@ -145,7 +150,7 @@ object Similar {
     fun cached(lib: Library, g: Game, now: Long): List<St>? {
         val id = Reviews.stId(g)
         if (id == 0L) return null
-        mem[g.id]?.let { (sid, l) -> if (sid == id) return l }
+        mem[g.id]?.let { (sid, t, l) -> if (sid == id && (l.isNotEmpty() || now - t < EMPTY_FOR)) return l }
         val c = (lib["stMore"] as? JsonObject)?.get(g.id) as? JsonObject ?: return null
         if (Backup.num(c["id"], 0.0, 0.0, 1e12).toLong() != id || now - Backup.num(c["t"], 0.0, 0.0, 1e15) >= 14 * JsDate.DAY) return null
         return (c["l"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::st) }
@@ -157,13 +162,13 @@ object Similar {
     suspend fun more(lib: Library, g: Game, cc: String, now: Long) {
         val id = Reviews.stId(g)
         if (id == 0L || cached(lib, g, now) != null || !busy.add(g.id)) return
+        err.remove(g.id)  // a failure from an earlier open never shows while this ask runs
         seen.value++
         try {
             val body = buildJsonObject { put("cc", cc); putJsonArray("items") {}; put("more", id) }.toString()
             val j = Json.parseToJsonElement(post(body)) as? JsonObject
             val l = (((j?.get("more") as? JsonObject)?.get("games")) as? JsonArray).orEmpty().take(14).mapNotNull { (it as? JsonObject)?.let(::st) }
-            mem[g.id] = id to l
-            err.remove(g.id)
+            mem[g.id] = Triple(id, now, l)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -186,5 +191,5 @@ object Similar {
         )
     }
 
-    internal fun forget() { mem.clear(); busy.clear(); err.clear() }
+    internal fun forget() { mem.clear(); busy.clear(); err.clear(); post = realPost }
 }

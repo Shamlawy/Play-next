@@ -135,10 +135,12 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
     val loc = remember(q, g) { q.sim.like(g, 8) }
     val onSteam = Reviews.stId(g) != 0L
     val cc = shopCC(lib)
-    LaunchedEffect(g.id) { if (onSteam) Similar.more(lib, g, cc, now()) }
+    // a failure shows only once this open's own ask has run (an earlier open's never flashes for a frame)
+    var asked by remember(g.id) { mutableStateOf(false) }
+    LaunchedEffect(g.id) { if (onSteam) Similar.more(lib, g, cc, now()); asked = true }
     val st = tick.let { Similar.cached(lib, g, now()) }
     val busy = tick.let { Similar.busy(g) }
-    val err = tick.let { Similar.err[g.id].orEmpty() }
+    val err = tick.let { if (asked) Similar.err[g.id].orEmpty() else "" }
     DyFrame(Modifier, "Like ${g.title}", close) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             PnIcon("ui:search", volt, 21.dp, null)
