@@ -868,7 +868,8 @@ private fun Progress(g: Game, page: Page, lib: Library, still: Boolean, volt: Co
             pops[i].animateTo(1f, keyframes { durationMillis = 380; .4f at 0 using POP; 1.3f at 220 using POP; 1f at 380 })
         }
     }
-    Section("ui:compass", "Your progress", page.stateWord(st), modifier) {
+    // the story so far opens inside this card: its edge follows the drawn words, as About's does
+    Section("ui:compass", "Your progress", page.stateWord(st), modifier, extra = move?.let { m -> { m.extra(TextMove.STORY) } }) {
         val grey = Pn.line2
         val lit = volt.copy(alpha = .55f)
         Box(Modifier.padding(top = 12.dp).fillMaxWidth()) {

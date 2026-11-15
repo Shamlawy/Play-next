@@ -75,12 +75,14 @@ internal class TextMove(private val scroll: ScrollState?) {
     fun start(me: Int, from: Int, to: Int, still: Boolean, scope: CoroutineScope) {
         if (still) { end(); return }
         val same = running && who == me
+        // the page's own offset carries over even when the other text was moving (its words and what's under it snap)
+        val page = if (running) c * k else 0f
         if (running && !same) end()
         val drawn = if (same) foot + d * k else from.toFloat()
         val boxWas = if (same) foot else from.toFloat()
-        val page = if (same) c * k else 0f
         val grow = to - boxWas
-        val clamp = scroll?.let { s -> max(0f, s.value - (s.maxValue + grow)) } ?: 0f
+        // the scroll can't go under 0: a page that only scrolled because the text was open drops to the top, no further
+        val clamp = scroll?.let { s -> max(0f, s.value - max(0f, s.maxValue + grow)) } ?: 0f
         who = me
         foot = to.toFloat()
         d = drawn - to
@@ -89,8 +91,14 @@ internal class TextMove(private val scroll: ScrollState?) {
         running = true
         job?.cancel()
         job = scope.launch {
-            animate(1f, 0f, animationSpec = tween(420, easing = Ease.house)) { v, _ -> k = v }
-            end()
+            val self = coroutineContext[Job]
+            try {
+                animate(1f, 0f, animationSpec = tween(420, easing = Ease.house)) { v, _ -> k = v }
+            } finally {
+                // ended, or cancelled because the text left the page mid-move: nothing stays shifted (a newer move owns
+                // [job] and keeps its own state)
+                if (job === self) { job = null; k = 0f; running = false }
+            }
         }
     }
 
@@ -137,8 +145,9 @@ internal fun OpenText(text: String, style: TextStyle, still: Boolean, me: Int, m
                 val all = measurer.measure(AnnotatedString(text), style, constraints = Constraints(maxWidth = cs.maxWidth))
                 val over = all.lineCount > lines
                 val p = m.measure(cs)
-                // closed and still: the real four-line box; else the fourth line's foot from the whole text's layout
-                val short = if (!whole) p.height else if (over) all.getLineBottom(lines - 1).roundToInt() else all.size.height
+                // the fourth line's foot from the whole text's layout, at rest and while moving alike, so a close never
+                // snaps by a rounding difference when it ends
+                val short = if (over) all.getLineBottom(lines - 1).roundToInt() else all.size.height
                 hs[0] = short
                 hs[1] = all.size.height
                 if (over != cut) cut = over
