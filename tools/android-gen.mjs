@@ -15,6 +15,7 @@ const OUT = path.resolve(arg("out") || path.join(ROOT, "android/app/build/genera
 const src = fs.readFileSync(PAGE, "utf8");
 const fail = m => { console.error("android-gen: " + m); process.exit(1); };
 
+function strMap(o) { return o && typeof o === "object" && !Array.isArray(o) && Object.values(o).every(v => typeof v === "string"); }
 /* ---------- top-level const statements, evaluated with nothing in scope ---------- */
 /* From "const NAME" to its ";" at depth 0, skipping strings, template literals and comments. */
 function statement(name) {
@@ -66,6 +67,16 @@ const setOf = name => {
   return l;
 };
 const PS_NONE = setOf("PS_NONE"), PS_ARAB = setOf("PS_ARAB");
+/* Prices (piece 4, slice 3; index.html 19418-19700): the stores' names and logos, the eShops that exist, each region's
+   currency, the pegged rates used until the helper's arrive, the currencies sent without cents, PS Plus's tiers, the
+   regions' names, and how long a "not on this store" lasts */
+const NS_OK = setOf("NS_OK"), PX_ZD = setOf("PX_ZD");
+const PX_CUR = table("PX_CUR"), FX_PEG = table("FX_PEG"), PS_PLUS = table("PS_PLUS"), PX_NAME = table("PX_NAME"), PX_LOGO = table("PX_LOGO");
+const PX_REGIONS = table("PX_REGIONS"), PX_RELOOK = table("PX_RELOOK");
+need(strMap(PX_CUR) && Object.values(FX_PEG).every(Number.isFinite) && FX_PEG.USD === 1, "PX_CUR: { cc: CUR }, FX_PEG: { CUR: rate } with USD 1");
+need(Array.isArray(PS_PLUS) && PS_PLUS.length === 4 && PS_PLUS.every(w => typeof w === "string"), "PS_PLUS: 4 tier names");
+need(strMap(PX_NAME) && ["st", "ps", "ns"].every(k => PX_NAME[k] && typeof PX_LOGO[k] === "string"), "PX_NAME / PX_LOGO: st, ps, ns");
+need(Array.isArray(PX_REGIONS) && PX_REGIONS.every(r => Array.isArray(r) && r.length === 2) && Number.isFinite(PX_RELOOK) && PX_RELOOK > 0, "PX_REGIONS: [cc, name]…, PX_RELOOK: ms");
 /* Score and notes (piece 3): Where was I's quick chips and how many notes a game keeps (v212), and the finish burst's
    colours (`celebrate`: the game's colour, or its fallback, then three more) */
 const WI_QUICK = table("WI_QUICK"), WI_MAX = table("WI_MAX");
@@ -213,6 +224,10 @@ const RULES = {
   CAP_CELL: cssColour(".cap-c", "background"), DW_LIFT: cssColour(".gd-sec .dwc", "background"),
   /* the finish moment (v120s: the PLAYED stamp, the burst's card) and the tier badges (`.tier`, v184) */
   STAMP: cssColour("#pnstamp b", "border"), STAMP_BG: cssColour("#pnstamp b", "background"), CELE_BG: cssColour("#cele .msg", "background"),
+  /* Prices (v224 chips): a chip's ground, the best one's far ground, the green of a sale badge / PS Plus and its ink */
+  PX_CHIP: cssColour(".px-c", "background"), PX_BEST_FAR: cssColour(".px-c.best", "background", 0),
+  PX_GREEN: cssColour(".px-c em", "background"), PX_GREEN_INK: cssColour(".px-c em", "color"),
+  PX_INCL_EDGE: cssColour(".px-c.incl", "border-color"), PX_INCL_NEAR: cssColour(".px-c.incl", "background", 0),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
 };
 /* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
@@ -344,12 +359,15 @@ const APP_DRAWN = {
   /* piece 4 (the web's ⏱ How long to beat): a stopwatch, its face lit */
   /* the web's ↗ (a link out, the length tile's corner) */
   out: '<path opacity=".35" d="M5 7.6h6.2v2.2H7.2v7h7v-4h2.2v6.2H5z"/><path d="M13 3.6h7.4V11h-2.2V7.4l-6.7 6.7-1.6-1.6 6.7-6.7H13z"/>',
+  /* the web's 💸 (Prices): a price tag, its hole cut and its body lit */
+  price: '<path opacity=".35" d="M2.6 4.4a1.8 1.8 0 0 1 1.8-1.8h7.4c.5 0 .9.2 1.3.5l8.6 8.6a1.8 1.8 0 0 1 0 2.6l-7.4 7.4a1.8 1.8 0 0 1-2.6 0L3.1 13.1a1.8 1.8 0 0 1-.5-1.3z"/><path d="M7.6 5.4a2.2 2.2 0 1 1 0 4.4a2.2 2.2 0 1 1 0-4.4zM11.2 15.6l5.2-5.2 1.6 1.6-5.2 5.2z"/>',
   clock: '<rect x="9.4" y="1" width="5.2" height="2.2" rx="1.1"/><circle opacity=".35" cx="12" cy="13.6" r="8.6"/><path d="M11 8.4h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
 const PLAT_LOGO = table("PLAT_LOGO");
 need(PLAT_LOGO && ["ps", "sw", "xb", "pc", "dk", "ap", "an", "lx"].every(k => typeof PLAT_LOGO[k] === "string"), "PLAT_LOGO: ps, sw, xb, pc, dk, ap, an, lx");
 const PLAT_ICONS = Object.entries(PLAT_LOGO).map(([k, d]) => ["plat:" + k, [{ d, alpha: 1, evenOdd: false }]]);
+const PX_ICONS = Object.entries(PX_LOGO).map(([k, d]) => ["px:" + k, [{ d, alpha: 1, evenOdd: false }]]);
 const QB_SRC = (/\nconst QB_IC = \{([\s\S]*?)\};/.exec(src) || [])[1];
 need(QB_SRC, "const QB_IC (the card back's icons)");
 const qbIcon = n => { const m = new RegExp(`\\b${n}: '([^']*)'`).exec(QB_SRC); need(m, `QB_IC.${n}`); return icon(`<svg viewBox="0 0 24 24">${m[1]}</svg>`, `QB_IC ${n}`); };
@@ -362,7 +380,6 @@ const EDIT_GROUPS = ["Name", "Release", "Where it stands", "Platforms", "Genres 
 const RATINGS = table("RATINGS"), SUBRATE = table("SUBRATE"), WHY_GROUPS = table("WHY_GROUPS"), GENRE_GROUPS = table("GENRE_GROUPS");
 const PLAY_STYLES = table("PLAY_STYLES"), PLATS = table("PLATS");
 const TAG_ALIAS = table("TAG_ALIAS"), GMAP = table("GMAP"), PX_TZ = table("PX_TZ");
-const strMap = o => o && typeof o === "object" && !Array.isArray(o) && Object.values(o).every(v => typeof v === "string");
 need(strMap(TAG_ALIAS) && strMap(GMAP) && strMap(PX_TZ), "TAG_ALIAS / GMAP / PX_TZ: { word: word }");
 /* gIcon's "Name" pencil is a <g transform="rotate(45 12 12)">: the same drawing with its corners turned here (the app
    draws paths, not transforms); a changed pencil on the web fails the build until this follows it */
@@ -376,7 +393,7 @@ need(Array.isArray(GENRE_GROUPS) && GENRE_GROUPS.length === 3 && GENRE_GROUPS.ev
 need(pairs(PLAY_STYLES) && PLAY_STYLES[0][0] === "main", "PLAY_STYLES: [key, label]…, main first");
 need(Array.isArray(PLATS) && PLATS.every(x => typeof x[0] === "string"), "PLATS: [name, …]…");
 const ICONS = [...TABS.map(t => [t.key, t.parts]), ["settings", icon(GEAR, "gear")], ...["list", "edit", "trash", "plus", "search"].map(n => ["ui:" + n, uicIcon(n)]),
-  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS,
+  ...Object.entries(APP_DRAWN).map(([n, d]) => ["ui:" + n, icon(`<svg viewBox="0 0 24 24">${d}</svg>`, `app icon ${n}`)]), ...LIST_ICONS, ...PLAT_ICONS, ...PX_ICONS,
   ...["edit", "more", "comp"].map(n => ["qb:" + n, qbIcon(n)]), ...["unsure", "spark", "star"].map(n => ["ui:" + n, uicIcon(n)]),
   ...EDIT_GROUPS.map(n => ["gi:" + n, n === "Name" ? NAME_PEN : giconIcon(n)])];
 
@@ -452,6 +469,16 @@ const lines = [
   `    val WI_QUICK: List<String> = ${kl(WI_QUICK.map(ks))}`,
   `    const val WI_MAX = ${WI_MAX}`,
   `    val CELE: List<Long> = ${kl(CELE.map(h => argb(h) + "L"))}`,
+  "",
+  "    // Prices (piece 4, slice 3)",
+  `    val NS_OK: Set<String> = setOf(${NS_OK.map(ks).join(", ")})`,
+  `    val PX_ZD: Set<String> = setOf(${PX_ZD.map(ks).join(", ")})`,
+  `    val PX_CUR: Map<String, String> = ${kmap(PX_CUR)}`,
+  `    val FX_PEG: Map<String, Double> = mapOf(${Object.entries(FX_PEG).map(([k, v]) => `${ks(k)} to ${+v}`.replace(/ to (\d+)$/, " to $1.0")).join(", ")})`,
+  `    val PS_PLUS: List<String> = ${kl(PS_PLUS.map(ks))}`,
+  `    val PX_NAME: Map<String, String> = ${kmap(PX_NAME)}`,
+  `    val PX_REGIONS: List<Pair<String, String>> = ${kl(PX_REGIONS.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`,
+  `    const val PX_RELOOK = ${PX_RELOOK}L`,
   "",
   "    // the views inside a tab, in the pill's order (SUBS after the later scripts' changes), each tab's default and its saved key",
   `    val VIEWS: Map<String, List<Pair<String, String>>> = mapOf(${Object.entries(VIEWS.subs).map(([t, l]) => `${ks(t)} to ${kl(l.map(([k, n]) => `${ks(k)} to ${ks(n)}`))}`).join(", ")})`,
