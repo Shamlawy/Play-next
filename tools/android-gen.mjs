@@ -360,6 +360,11 @@ const APP_DRAWN = {
   out: '<path opacity=".35" d="M5 7.6h6.2v2.2H7.2v7h7v-4h2.2v6.2H5z"/><path d="M13 3.6h7.4V11h-2.2V7.4l-6.7 6.7-1.6-1.6 6.7-6.7H13z"/>',
   /* Prices on a game's page (the web's 💸): a price tag */
   tag: '<path opacity=".35" d="M2.4 12.4V3.6c0-.66.54-1.2 1.2-1.2h8.8l9.2 9.2-10 10z"/><circle cx="7.6" cy="7.6" r="2"/>',
+  /* the page's ⋯ drawer (piece 5; the web's 🃏 Calling card, ↺ Reset scores, and Show in queue): a card with a second
+     behind it, an arrow round, the queue's rows with the first lit */
+  card: '<path opacity=".35" d="M8.4 2.4h10.8a2 2 0 0 1 2 2v13.4H19V4.6H8.4z"/><rect x="2.8" y="6.2" width="13.6" height="15.4" rx="2"/>',
+  reset: '<circle opacity=".35" cx="12" cy="12" r="3"/><path d="M12 4a8 8 0 1 1-7.6 5.5l2.1.7A5.8 5.8 0 1 0 12 6.2V9L7.6 5.1 12 1.2z"/>',
+  queue: '<rect x="3" y="3.8" width="18" height="4.6" rx="1.4"/><rect opacity=".35" x="3" y="9.8" width="18" height="4.4" rx="1.4"/><rect opacity=".35" x="3" y="15.6" width="18" height="4.4" rx="1.4"/>',
   clock: '<rect x="9.4" y="1" width="5.2" height="2.2" rx="1.1"/><circle opacity=".35" cx="12" cy="13.6" r="8.6"/><path d="M11 8.4h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */

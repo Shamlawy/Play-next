@@ -26,8 +26,15 @@ object Practice {
     /** `[gameId]`: games you deleted (the Queue's swipe, with Undo), gone with their finishes and duels (`qdel`). */
     const val GONE = "pn:gone"
 
+    /**
+     * `[gameId]`: games whose scores you reset (the page's ⋯ › Reset scores, `wipe([id])`): their finishes read as
+     * played, not scored yet (`real` 0, no `again` or `runs`), their duels are gone, and the backup's Why you'll love it
+     * answer for them isn't used. Left in the built copy so [wiped] can tell.
+     */
+    const val WIPED = "pn:wiped"
+
     /** The keys that change your games (not Customise's): a newer backup drops them ([Games] build). */
-    val KEYS = setOf(GAMES, RECS, GONE)
+    val KEYS = setOf(GAMES, RECS, GONE, WIPED)
 
     /** Left in the built copy (never in a backup): the games a practice change touched, for the page's thin line. */
     const val CHANGED = "pn:changed"
@@ -38,12 +45,16 @@ object Practice {
     /** The games a practice change touched in [lib] (fields or a record; a deleted game is gone from it). */
     fun changed(lib: Library): Set<String> = ids(lib[CHANGED]).toSet()
 
+    /** The games whose scores you reset in [lib]. */
+    fun wiped(lib: Library): Set<String> = ids(lib[WIPED]).toSet()
+
     /** The web's `S` with the practice keys laid over its games, finishes and duels, and the keys themselves gone. */
     fun laid(s: JsonObject): JsonObject {
         val edits = obj(s[GAMES])
         val recs = obj(s[RECS])
         val gone = ids(s[GONE]).toSet()
-        if (edits.isEmpty() && recs.isEmpty() && gone.isEmpty()) return JsonObject(s.filterKeys { it != GAMES && it != RECS && it != GONE })
+        val wiped = ids(s[WIPED]).toSet()
+        if (edits.isEmpty() && recs.isEmpty() && gone.isEmpty() && wiped.isEmpty()) return JsonObject(s.filterKeys { it != GAMES && it != RECS && it != GONE })
         val out = LinkedHashMap(s.filterKeys { it != GAMES && it != RECS && it != GONE })
         (s["games"] as? JsonArray)?.let { a ->
             out["games"] = JsonArray(a.mapNotNull { e ->
@@ -57,14 +68,18 @@ object Practice {
         val played = (s["played"] as? JsonArray).orEmpty().filter { e ->
             val id = (e as? JsonObject)?.get("id")?.let(Backup::str)
             id == null || (id !in gone && id !in recs)
-        } + recs.filter { (id, r) -> r is JsonObject && id !in gone }.values
+        }.map { e -> (e as? JsonObject)?.takeIf { Backup.str(it["id"]) in wiped }?.let(::unscored) ?: e } + recs.filter { (id, r) -> r is JsonObject && id !in gone }.values
         if (s["played"] != null || recs.isNotEmpty()) out["played"] = JsonArray(played)
         (s["duels"] as? JsonArray)?.let { a ->
-            out["duels"] = JsonArray(a.filter { e -> (e as? JsonObject)?.let { d -> Backup.str(d["a"]) !in gone && Backup.str(d["b"]) !in gone } ?: true })
+            val out2 = gone + wiped
+            out["duels"] = JsonArray(a.filter { e -> (e as? JsonObject)?.let { d -> Backup.str(d["a"]) !in out2 && Backup.str(d["b"]) !in out2 } ?: true })
         }
         out[CHANGED] = JsonArray((edits.keys + recs.keys - gone).distinct().map(::JsonPrimitive))
         return JsonObject(out)
     }
+
+    /** A finish as a reset leaves it (`wipe`): `real` 0, no `again` or `runs`; `z` and `dk` stay as they were. */
+    fun unscored(p: JsonObject): JsonObject = JsonObject(LinkedHashMap(p).apply { put("real", JsonPrimitive(0)); remove("again"); remove("runs") })
 
     /** [cur] (the practice [GAMES] now) with [fields] set on game [id]; a JsonNull takes a field away. */
     fun fields(cur: JsonElement?, id: String, fields: Map<String, JsonElement>): JsonObject {
@@ -105,6 +120,19 @@ object Practice {
         if (lib.played.none { it.id == g.id }) {
             out[RECS] = record(cur(RECS), g.id, JsonObject(mapOf("id" to JsonPrimitive(g.id), "real" to JsonPrimitive(0), "t" to JsonPrimitive(JsDate.todayLocal(now, zone)))))
         }
+        return out
+    }
+
+    /**
+     * "Reset scores" for one game (`wipe([id])`, index.html 14990): its rating, hype, the 8 areas and what got you go
+     * (`hype`, `mine`, `subs`, `why`), every finish of it reads played but not scored, its duels go. The game, its art,
+     * hours and notes stay; played stays played. The practice keys' new values.
+     */
+    fun reset(g: Game, cur: (String) -> JsonElement?): Map<String, JsonElement> {
+        val out = linkedMapOf<String, JsonElement>(GAMES to fields(cur(GAMES), g.id, listOf("hype", "mine", "subs", "why").associateWith { JsonNull }))
+        // a finish already in the practice copy (scored here, or finished here) is reset there too
+        (obj(cur(RECS))[g.id] as? JsonObject)?.let { out[RECS] = record(cur(RECS), g.id, unscored(it)) }
+        out[WIPED] = JsonArray((ids(cur(WIPED)) - g.id + g.id).map(::JsonPrimitive))
         return out
     }
 }

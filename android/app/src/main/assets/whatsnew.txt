@@ -269,3 +269,9 @@ go=news
 at=
 say=What's new now takes you there: Show me opens the right screen with one of your games, and a Try it bar stays at the bottom while you test.
 tryIt=Open Settings › Updates › What's new and tap Show me on v43: the Queue opens with a card turned over and the Try it bar at the bottom. Follow it, then tap It works, or Something's off to tell Claude what's wrong in your own words. Next takes you to the next one to try; Hide folds the bar into a small pill.
+
+v=45
+go=game:unplayed
+at=
+say=Every game page now has a ⋯ button: make a calling card to share, ask why you'd love it, put the game in your lists, or reset its scores.
+tryIt=Open a game and tap ⋯ next to Edit. Tap Calling card, then Share or Reshuffle. Tap Why you'll love it to see how it fits your taste. Tap Lists to put the game in a list. Tap Show in queue to go to its card. Try Reset scores on a game you don't mind: it asks first, and the reset goes away when the app reopens.
