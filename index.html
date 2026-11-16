@@ -26522,16 +26522,24 @@ function layerMakers() {
 /* the check: every screen today scores 0.08 at most (412/859); main's leftover #pnorbs scored 0.35-0.99
    (tools/plants/layer-pile.js). Small pieces held after their entry (a finished fill-both animation under nothing) don't
    show here: `node tools/kit.mjs layers` (every PR) catches those by the GPU's own count. */
+/* Nov 16 (L118): the wait coalesces. It used to restart on every pass and drop its run when a touch came in the last 1.2s,
+   so with passes under 700ms apart, or a scroll landing as it fired, it never ran (its plant missed on app-check 3 times):
+   one pending run that a newer pass never moves, and a run that lands during input waits for the quiet instead.
+   tools/scenarios/layer-pile-settle.mjs */
 { let t = 0;
+  const layerPileRun = () => {
+    t = 0;
+    if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
+    const quiet = performance.now() - bugLastIn;
+    if (quiet < 1200) { t = setTimeout(layerPileRun, 1300 - quiet); return; }
+    const r = layerMakers(); if (r.score < .25) return;
+    const big = r.list.filter(m => m.over);
+    bugReport("layout", `GPU layers pile up on this screen: ${Math.round(r.score * 100)}% of the screen is drawn over moving or held pieces`,
+      { at: big[0].at, screen: bugScreen(), note: big.slice(0, 4).map(m => `${m.why} ${Math.round(m.share * 100)}% ${m.at}`).join(" · ") });
+  };
   BUG_AFTER.push(function layerPileAfter() {
     if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
-    clearTimeout(t); t = setTimeout(() => {
-      if (performance.now() - bugLastIn < 1200 || document.hidden) return;
-      const r = layerMakers(); if (r.score < .25) return;
-      const big = r.list.filter(m => m.over);
-      bugReport("layout", `GPU layers pile up on this screen: ${Math.round(r.score * 100)}% of the screen is drawn over moving or held pieces`,
-        { at: big[0].at, screen: bugScreen(), note: big.slice(0, 4).map(m => `${m.why} ${Math.round(m.share * 100)}% ${m.at}`).join(" · ") });
-    }, 700);
+    if (!t) t = setTimeout(layerPileRun, 700);
   });
   BUG_NICE.push(["layout", /GPU layers pile up/, () => "Part of this screen sat on top of something moving behind it, which makes scrolling heavier to draw."]);
 }
