@@ -17929,8 +17929,10 @@ function bugBlurry() {
 BUG_AFTER.push(function blurryAfter() {
     if (!bugOn() || document.hidden || performance.now() - bugLastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return;
     const first = bugBlurry(); if (!first.length) return;
-    /* give the swap a fair chance first: only what's still soft 3s later counts */
-    clearTimeout(BUG.blt); BUG.blt = setTimeout(() => { if (document.hidden) return;
+    /* give the swap a fair chance first: only what's still soft 3s later counts. Nov 16 (L118): a pass while one look is
+       pending leaves it alone (a restart on every pass starved it when passes came under 3s apart) */
+    if (BUG.blt) return;
+    BUG.blt = setTimeout(() => { BUG.blt = 0; if (document.hidden) return;
       const now = bugBlurry(), hit = first.find(([el, s]) => el.isConnected && now.some(([e2, s2]) => e2 === el && s2 === s));
       if (hit) bugReport("layout", "A picture stayed blurry (its sharp copy never swapped in)", { at: bugPath(hit[0]), screen: bugScreen() }); }, 3000);
   });
@@ -18954,11 +18956,21 @@ BUG_AFTER.push(function lookReviewAfter() {
   if (!lookOk()) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   /* only after the screen has been on for 3s untouched, so it reviews what you actually look at */
-  const scr = bugScreen(); clearTimeout(BUG.rvT);
-  /* v283: "untouched" was never checked, so its one big look (~20ms on a phone) could land mid-scroll: wait for 3s with no finger */
-  const go = () => { if (bugScreen() !== scr || !lookOk()) return; if (performance.now() - bugLastIn < 3000) { BUG.rvT = setTimeout(go, 3000); return; } lookReview(root, scr).catch(() => {}); };
-  if (root) BUG.rvT = setTimeout(go, 3000);
+  const scr = bugScreen(); if (!root) return;
+  if (BUG.rvS !== scr) { BUG.rvS = scr; BUG.rvAt = performance.now(); }
+  /* Nov 16 (L118): one pending look, never restarted by a newer pass (passes under 3s apart starved it); it waits until the
+     screen has been on for 3s and (v283) 3s have gone by with no finger, then reviews whatever screen is on top */
+  if (!BUG.rvT) BUG.rvT = setTimeout(lookReviewGo, 3000);
 });
+function lookReviewGo() {
+  BUG.rvT = 0; if (!lookOk()) return;
+  const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
+  const scr = bugScreen(), now = performance.now(); if (!root) return;
+  if (BUG.rvS !== scr) { BUG.rvS = scr; BUG.rvAt = now; }
+  const wait = 3000 - Math.min(now - BUG.rvAt, now - bugLastIn);
+  if (wait > 0) { BUG.rvT = setTimeout(lookReviewGo, wait + 50); return; }
+  lookReview(root, scr).catch(() => {});
+}
 WHATS_NEW.push(
   { v: 208, go: () => { closeFull(); dyClose(); nxShut(); nxHome(); }, at: null,
     say: "I got a lot sharper at spotting problems myself: things that flicker, text cut short with no way to read it, text too faint to read, buttons too small for a finger, squashed or broken pictures, and taps that do nothing when you try twice. And once per screen per update I ask my AI for a designer's opinion.",
@@ -26346,15 +26358,25 @@ WHATS_NEW.push(
     }
     return out;
   };
-  let t = 0;
+  /* Nov 16 (L118): one pending look at a time, never restarted by a newer pass (passes under 0.7s apart starved it), and a
+     look that lands while you touch or scroll waits for the quiet instead of dropping; one whose screen is no longer on top
+     is dropped (it would lay out a hidden screen) and the new screen's next pass books its own */
+  const top = () => document.querySelector("#full.on .hub") || document.querySelector(".panel.on");
+  let t = 0, seen = null;
+  const stuckRun = () => {
+    t = 0; const { root, a } = seen; seen = null;
+    if (!bugOn() || document.hidden || !root.isConnected || top() !== root) return;
+    const quiet = performance.now() - bugLastIn;
+    if (quiet < 1200) { seen = { root, a }; t = setTimeout(stuckRun, 1300 - quiet); return; }
+    const b = stuck(root).filter(el => a.includes(el)); if (!b.length) return;
+    const an = b[0].getAnimations().map(x => (x.animationName || "script") + ":" + x.playState).join(", ");
+    bugReport("layout", "A card stayed invisible on screen (its entrance never ran)", { at: bugPath(b[0]), screen: bugScreen(), note: an + (b.length > 1 ? ` (+${b.length - 1} more)` : "") });
+  };
   BUG_AFTER.push(function stuckEntranceAfter() {
-    if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
-    const root = document.querySelector("#full.on .hub") || document.querySelector(".panel.on"); if (!root) return;
+    if (t || !bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
+    const root = top(); if (!root) return;
     const a = stuck(root); if (!a.length) return;
-    clearTimeout(t); t = setTimeout(() => { if (performance.now() - bugLastIn < 1200 || !root.isConnected) return;
-      const b = stuck(root).filter(el => a.includes(el)); if (!b.length) return;
-      const an = b[0].getAnimations().map(x => (x.animationName || "script") + ":" + x.playState).join(", ");
-      bugReport("layout", "A card stayed invisible on screen (its entrance never ran)", { at: bugPath(b[0]), screen: bugScreen(), note: an + (b.length > 1 ? ` (+${b.length - 1} more)` : "") }); }, 700);
+    seen = { root, a }; t = setTimeout(stuckRun, 700);
   });
   BUG_NICE.push(["layout", /stayed invisible on screen/, at => `A card on ${at} never faded in, so there was an empty space where it should be.`]);
 }
@@ -26525,7 +26547,7 @@ function layerMakers() {
 /* Nov 16 (L118): the wait coalesces. It used to restart on every pass and drop its run when a touch came in the last 1.2s,
    so with passes under 700ms apart, or a scroll landing as it fired, it never ran (its plant missed on app-check 3 times):
    one pending run that a newer pass never moves, and a run that lands during input waits for the quiet instead.
-   tools/scenarios/layer-pile-settle.mjs */
+   tools/scenarios/bug-after-settle.mjs */
 { let t = 0;
   const layerPileRun = () => {
     t = 0;
@@ -27766,15 +27788,20 @@ function scrollLinked() {
     n++; const k = a.animationName || "waapi"; by.set(k, (by.get(k) || 0) + 1); }
   return { n, by: [...by].sort((a, b) => b[1] - a[1]).map(([k, c]) => c + "× " + k).join(", ") };
 }
+/* Nov 16 (L118): one pending look, never restarted by a newer pass, and a look during input waits for the quiet */
+function scrollLinkedRun() {
+  SCRL.t = 0;
+  if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
+  const quiet = performance.now() - bugLastIn;
+  if (quiet < 1200) { SCRL.t = setTimeout(scrollLinkedRun, 1300 - quiet); return; }
+  const scr = bugScreen(); if (SCRL.seen.has(scr)) return;
+  const r = scrollLinked(); if (r.n <= 40) return;
+  SCRL.seen.add(scr);
+  bugReport("layout", `${r.n} pieces on this screen move with the scroll, and each one keeps its own GPU layer the whole time`, { screen: scr, note: r.by, sigAt: "" });
+}
 BUG_AFTER.push(function scrollLinkedAfter() {
   if (!bugOn() || document.hidden || (typeof nxTouring === "function" && nxTouring())) return;
-  clearTimeout(SCRL.t); SCRL.t = setTimeout(() => {
-    if (performance.now() - bugLastIn < 1200 || document.hidden) return;
-    const scr = bugScreen(); if (SCRL.seen.has(scr)) return;
-    const r = scrollLinked(); if (r.n <= 40) return;
-    SCRL.seen.add(scr);
-    bugReport("layout", `${r.n} pieces on this screen move with the scroll, and each one keeps its own GPU layer the whole time`, { screen: scr, note: r.by, sigAt: "" });
-  }, 900);
+  if (!SCRL.t) SCRL.t = setTimeout(scrollLinkedRun, 900);
 });
 BUG_NICE.push(["layout", /move with the scroll, and each one keeps/, () => "Too many pieces here move along with your finger, and the phone has to keep a separate layer for every one of them."]);
 </script>
@@ -27980,8 +28007,13 @@ onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", ()
 BUG_AFTER.push(function lookAfter() {
   const since = performance.now() - lookNavAt;
   /* too soon after a switch: walk once it has settled (no pass may come later: run 1 of zz-eyeorder had none) */
-  if (since < 1200) { clearTimeout(lookLaterT); lookLaterT = setTimeout(() => (window.requestIdleCallback || setTimeout)(lookAfter, { timeout: 1500 }), 1250 - since); return; }
-  if (!lookOk() || performance.now() - bugLastIn < 1200) return;
+  /* Nov 16 (L118): one pending later walk (a newer pass leaves it alone), and a walk that lands while you touch or scroll
+     books one for the quiet instead of dropping: the timer path has no BUG_AFTER pass behind it to try again */
+  const later = ms => { if (!lookLaterT) lookLaterT = setTimeout(() => { lookLaterT = 0; (window.requestIdleCallback || setTimeout)(lookAfter, { timeout: 1500 }); }, ms); };
+  if (since < 1200) { later(1250 - since); return; }
+  const quiet = performance.now() - bugLastIn;
+  if (quiet < 1200) { later(1300 - quiet); return; }
+  if (!lookOk()) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   if (!root) return;
   const scr = bugScreen(), sw = scr + "|" + innerWidth, key = sw + "|" + (root.closest("#full") ? hubAt + "|" : "") + root.getElementsByTagName("*").length;

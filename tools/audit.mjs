@@ -162,6 +162,12 @@ function measure() {
     "read it in requestAnimationFrame or a ResizeObserver (lfRO), or before the write");
   else if (process.env.CI) add("layoutAfterHtml", "v206 check could not run (tools/where.mjs failed: acorn missing?)", ["where.mjs failed"], "npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0");
   else console.log("  (layoutAfterHtml skipped: tools/where.mjs failed: " + ((wr.stderr || "").trim().split("\n").find(l => /Error/.test(l)) || "") + ")");
+  /* L118 (Nov 16, M91): a BUG_AFTER check that restarts its own wait on every pass starves when passes come fast (the
+     layer-pile plant flapped in CI for weeks; five more checks had the same shape) */
+  const lr2 = spawnSync(process.execPath, [path.join(ROOT, "tools/where.mjs"), "--list-rule=L118"], { encoding: "utf8", env: own ? process.env : { ...process.env, PN_MAP_FILE: FILE } });
+  if (lr2.status === 0) add("bugAfterRestart", "BUG_AFTER checks that restart their own wait on every pass (L118; node tools/where.mjs --list-rule=L118)", lr2.stdout.trim().split("\n").filter(Boolean),
+    "keep one pending run (if (!t) t = setTimeout(run, ms)) and re-arm a run that lands during input, as layerPileRun does");
+  else if (process.env.CI) add("bugAfterRestart", "L118 check could not run (tools/where.mjs failed: acorn missing?)", ["where.mjs failed"], "npm i --no-save eslint@9.36.0 globals@16.4.0 acorn@8.15.0");
   M._size = { lines: html.split("\n").length, kb: Math.round(html.length / 1024), scripts: scripts.length, styles: styles.length };
   return M;
 }
