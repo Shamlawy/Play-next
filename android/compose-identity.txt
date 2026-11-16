@@ -10,6 +10,8 @@ BackMenu.g: Game
 BackupCard.games: State
 CardLogo.enter: Animatable<Float, AnimationVector1D>
 CardLogo.g: Game
+CardSheet.g: Game
+CardSheet.lib: Library
 CardTicket.enter: Animatable<Float, AnimationVector1D>
 CardTicket.st: Stat
 Cells.cells: List<Cell>
@@ -36,6 +38,8 @@ Front.g: Game
 Front.q: Queue
 Front.st: Stat
 GameBody.g: Game
+GameLists.g: Game
+GameLists.lib: Library
 GamePage.from: FlyFrom?
 GamePage.g: Game
 Genres.tags: List<Pair<String, Int>>
@@ -57,6 +61,9 @@ MainRow.g: Game
 MainRow.lib: Library
 MainRow.page: Page
 MixBar.segs: List<Seg>
+MoreDrawer.g: Game
+MoreDrawer.page: Page
+MoreDrawer.unstable slide: Animatable<Float, *>
 NexiSeat.nexi: Nexi?
 NoteSheet.g: Game
 Numbers.h: Hl
@@ -95,6 +102,7 @@ Rail.views: List<Pair<String, String>>
 RailColumn.views: List<Pair<String, String>>
 RailViews.views: List<Pair<String, String>>
 RenameRow.l: QList
+ResetAsk.g: Game
 ReviewsSec.g: Game
 ReviewsSec.lib: Library
 ReviewsSec.page: Page
@@ -123,12 +131,14 @@ ShuffleDeck.games: State
 ShuffleDeck.pick: QueuePick?
 ShutGhost.g: Game
 ShutGhost.q: Queue
+SimCard.c: Card
+SimCard.lib: Library
+SimCards.l: List<Card>
+SimCards.lib: Library
 SimilarSheet.g: Game
 SimilarSheet.q: Queue
 Spotlight.l: Line
 Stats.stats: List<Stat>
-SteamCard.c: Card
-SteamCard.lib: Library
 StickyBar.g: Game
 StoryCard.g: Game
 StoryCard.lib: Library
@@ -150,3 +160,5 @@ Vessel.t: Animatable<Float, AnimationVector1D>
 ViewBar.views: List<Pair<String, String>>
 Waiting.f: Fetching?
 WhereCard.g: Game
+WhySheet.g: Game
+WhySheet.lib: Library
