@@ -1,5 +1,8 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.semantics.stateDescription
+import io.github.shamlawy.playnext.data.Why
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -57,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -154,6 +158,9 @@ fun LayoutCoordinates.boxInWindow(): Rect {
  * Opens a game's page; [from] is the cover that was tapped (null when nothing with a cover was: the page only grows).
  * The shell provides it, so a cover anywhere (the header cards now, the Queue and Library with their phases) can.
  */
+/** False on the neighbour pages the pager composes ahead: what writes to a game (HowLongToBeat's hours) waits for its page. */
+val LocalPageShown = compositionLocalOf { true }
+
 val LocalOpenGame = staticCompositionLocalOf<(String, FlyFrom?) -> Unit> { { _, _ -> } }
 
 /** The page's close (`cubic-bezier(.4,0,1,1)`) and the cover's flight (`cubic-bezier(.3,.9,.35,1)`). */
@@ -313,6 +320,8 @@ fun GamePage(
     }
     // the one line a button leaves ("… is now Playing"), at the foot for a moment
     var toast by remember { mutableStateOf<PageToast?>(null) }
+    // Reset scores' question (the web's `confirm()`), over the page
+    var asking by remember { mutableStateOf<Game?>(null) }
     // the screenshots full screen, over the page (it holds the swipe while it's open)
     var viewer by remember { mutableStateOf<Pair<List<Pair<String, String>>, Int>?>(null) }
     LaunchedEffect(toast) { val t = toast ?: return@LaunchedEffect; delay(2_400); if (toast === t) toast = null }
@@ -321,6 +330,7 @@ fun GamePage(
             leave = { t -> if (!closing) { after = t; closing = true } },
             say = { s -> toast = PageToast(s, (toast?.n ?: 0) + 1) },
             shots = { l, i -> viewer = l to i },
+            reset = { x -> asking = x },
         )
     }
     val firstPage = if (loop) n * (REPEAT / 2) + order.indexOfFirst { it.id == g.id }.coerceAtLeast(0) else 0
@@ -362,7 +372,7 @@ fun GamePage(
                 pager,
                 Modifier.fillMaxSize(),
                 beyondViewportPageCount = 1,
-                userScrollEnabled = loop && !closing && viewer == null,
+                userScrollEnabled = loop && !closing && viewer == null && asking == null,
                 key = { it },
                 flingBehavior = PagerDefaults.flingBehavior(pager, snapAnimationSpec = if (still) snap() else tween(360, easing = Ease.house), snapPositionalThreshold = .22f),
             ) { p ->
@@ -380,14 +390,26 @@ fun GamePage(
                         }
                     },
                 ) {
-                    GameBody(
-                        pg, view, pageW, pageH, wide, still, acts,
-                        cover = if (p == firstPage && pg.id == g.id) CoverSpot({ at[2] = it }, landed) else null,
-                    )
+                    CompositionLocalProvider(LocalPageShown provides shown) {
+                        GameBody(
+                            pg, view, pageW, pageH, wide, still, acts,
+                            cover = if (p == firstPage && pg.id == g.id) CoverSpot({ at[2] = it }, landed) else null,
+                        )
+                    }
                 }
             }
             toast?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalBottomRoom.current + 20.dp)) }
             viewer?.let { (l, i) -> ShotViewer(l, i) { viewer = null } }
+            asking?.let { x ->
+                ResetAsk(x, keep = { asking = null }) {
+                    Crumbs.tap("reset scores", "game page")
+                    Sounds.play(Sfx.Back)
+                    Games.change(Practice.reset(x) { Games.practiced(it) })
+                    Why.drop(x.id)
+                    asking = null
+                    acts.say("Scores reset for ${x.title}")
+                }
+            }
         }
         // the cover in flight goes with the page when it's closed mid-flight (it was left opaque over the fading page,
         // then cut off mid-air)
@@ -399,7 +421,7 @@ fun GamePage(
  * What a page's buttons can ask of the whole page: close it ([leave]: null back to what was under it, else into the
  * Queue's tab, a genre), a line at the foot ([say]), the screenshots full screen ([shots]).
  */
-private class PageActs(val leave: (String?) -> Unit, val say: (String) -> Unit, val shots: (List<Pair<String, String>>, Int) -> Unit)
+private class PageActs(val leave: (String?) -> Unit, val say: (String) -> Unit, val shots: (List<Pair<String, String>>, Int) -> Unit, val reset: (Game) -> Unit)
 
 /** The page cover the flight lands on: where it is laid out, and whether the flight has landed (it waits hidden till then). */
 private class CoverSpot(val placed: (LayoutCoordinates) -> Unit, val landed: Boolean)
@@ -429,6 +451,9 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
     // what slides when the tag row unfolds or About opens (transform only): each part under it moves up by the height
     // change and settles back, so nothing jumps
     val tagSlide = remember(g.id) { Animatable(0f) }
+    // the ⋯ drawer opening or closing: what's under it starts where it was and slides to its new place (transform only)
+    val moreSlide = remember(g.id) { Animatable(0f) }
+    var more by remember(g.id) { mutableStateOf(false) }
     // About and the story so far opening or closing: the page, what's under the text and the text's own clip (OpenText.kt)
     val move = remember(g.id, scroll) { TextMove(scroll) }
     // the web keeps 104 / 110 from a 72-wide rail; Android's rail is 112 wide (the owner's Option B), so the body keeps
@@ -448,23 +473,29 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 val shift = Modifier.graphicsLayer { translationY = tagSlide.value }
                 Tags(g, page, lib, still, acts, tagSlide)
                 Tiles(g, page, lib, pageW, big, shift)
-                MainRow(g, page, lib, big, acts, shift)
+                MainRow(g, page, lib, big, acts, shift, more) {
+                    Sounds.play(Sfx.Tap)
+                    Crumbs.tap("more", "game page")
+                    more = !more
+                }
+                MoreDrawer(g, page, lib, more, still, acts, moreSlide, shift)
+                val below = Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value }
                 if (g.id in view.changed) {
                     BasicText(
                         "Practice copy: changes reset when the app reopens",
                         style = Type.note.copy(fontSize = 11.5.sp).fixed(),
-                        modifier = shift.padding(top = 10.dp),
+                        modifier = below.padding(top = 10.dp),
                     )
                 }
-                Progress(g, page, lib, still, volt, shift)
+                Progress(g, page, lib, still, volt, below)
                 val about = page.about(g)
-                if (about.isNotEmpty()) About(about, still, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.STORY) })
+                if (about.isNotEmpty()) About(about, still, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.STORY) })
                 // one list per game and copy, so the strip isn't redrawn on every pass of the page
-                val shots = remember(page, g) { page.shots(g) }
-                if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
+                val shots = rememberShots(page, g)
+                if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.ABOUT) })
                 // the helper's cards (`gd-pair`): Reviews, then Prices
-                ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
-                PricesSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + move.below(TextMove.ABOUT) })
+                ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.ABOUT) })
+                PricesSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.ABOUT) })
             }
             Spacer(Modifier.height(top))
         }
@@ -695,7 +726,10 @@ private fun Tiles(g: Game, page: Page, lib: Library, pageW: Dp, big: Boolean, sh
     val volt = LocalLook.current.volt
     val edit = LocalEditActs.current
     val now = LocalNow.current
-    LaunchedEffect(g.id) {
+    // only the page showing: an auto-fill writes the hours into a practice copy, which a game you never opened mustn't get
+    val shownNow = LocalPageShown.current
+    LaunchedEffect(g.id, shownNow) {
+        if (!shownNow) return@LaunchedEffect
         delay(900)
         if (askOnOpen && Hours.due(lib, g, now())) Hours.fetch(lib, g, now, force = false, fill = practiceFill(g.id))
     }
@@ -750,10 +784,9 @@ private fun Tiles(g: Game, page: Page, lib: Library, pageW: Dp, big: Boolean, sh
  * drawn pencil, `.gd-main button.ic`). The ⋯ drawer comes with piece 5.
  */
 @Composable
-private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageActs, shift: Modifier) {
+private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageActs, shift: Modifier, more: Boolean, toggle: () -> Unit) {
     val next = page.next(g)
     val edit = LocalEditActs.current
-    if (next.isEmpty() && edit == null) return
     val volt = LocalLook.current.volt
     val ctx = LocalContext.current
     val now = LocalNow.current
@@ -814,6 +847,103 @@ private fun MainRow(g: Game, page: Page, lib: Library, big: Boolean, acts: PageA
                     .semantics { contentDescription = "Edit" },
                 contentAlignment = Alignment.Center,
             ) { PnIcon("ui:edit", Pn.ice, 18.dp, label = null) }
+        }
+        // ⋯ (`[data-gdx]`): the drawer of everything else, under the row; lit while it's open
+        val volt2 = LocalLook.current.volt
+        Box(
+            Modifier.width(50.dp).sizeIn(minHeight = Pn.touch).background(if (more) volt2.copy(alpha = .14f) else Pn.card, Pn.pill)
+                .border(1.dp, if (more) volt2.copy(alpha = .5f) else Pn.line2, Pn.pill)
+                .clickable(role = Role.Button, onClick = toggle)
+                .semantics { contentDescription = "More for this game"; stateDescription = if (more) "Open" else "Closed" },
+            contentAlignment = Alignment.Center,
+        ) { PnIcon("qb:more", if (more) volt2 else Pn.ice, 18.dp, label = null) }
+    }
+}
+
+/**
+ * The ⋯ drawer (`.gd-x`, index.html 21913 and 22113-22121): a wrap of pill buttons (drawn icon + words) under the main
+ * row; opening it slides what's below down from where it was (380 ms) and fades the buttons up 18 ms apart.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MoreDrawer(g: Game, page: Page, lib: Library, open: Boolean, still: Boolean, acts: PageActs, slide: Animatable<Float, *>, shift: Modifier) {
+    val scope = rememberCoroutineScope()
+    var h0 by remember(g.id) { mutableIntStateOf(-1) }
+    val edit = LocalEditActs.current
+    val ctx = LocalContext.current
+    val items = remember(g, page) { page.more(g) }
+    Box(
+        shift.fillMaxWidth().onSizeChanged { s ->
+            val was = h0
+            h0 = s.height
+            if (was >= 0 && was != s.height && !still) scope.launch { slide.snapTo((was - s.height).toFloat()); slide.animateTo(0f, tween(380, easing = Ease.house)) }
+        },
+    ) {
+        if (!open) return@Box
+        FlowRow(Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((i, m) in items.withIndex()) {
+                Rise(i.coerceAtMost(10), still) {
+                    Row(
+                        Modifier.sizeIn(minHeight = Pn.touch).clickable(role = Role.Button) {
+                            Crumbs.tap("more: " + m.kind, "game page")
+                            Sounds.play(Sfx.Tap)
+                            when (m.kind) {
+                                "score" -> edit?.score(g.id)
+                                "queue" -> acts.leave("id:" + g.id)
+                                "card" -> edit?.card(g.id)
+                                "trailer" -> {
+                                    val u = Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(g.title + " trailer"))
+                                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, u).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                }
+                                "similar" -> edit?.similar(g.id)
+                                "lists" -> edit?.lists(g.id)
+                                "prices" -> edit?.prices(g.id)
+                                "note" -> edit?.note(g.id)
+                                "why" -> edit?.why(g.id)
+                                "reset" -> acts.reset(g)
+                            }
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            Modifier.sizeIn(minHeight = 40.dp).background(Pn.card, Pn.pill).border(1.dp, Pn.line2, Pn.pill).padding(start = 11.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            PnIcon(m.icon, Pn.ice, 16.dp, label = null)
+                            BasicText(m.label, style = Type.body.copy(fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, color = Pn.ice).fixed(), maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Reset scores' question (the web's `confirm()`): the same words, Cancel and Reset, on a card over the page. A tap
+ * outside the card keeps the scores.
+ */
+@Composable
+private fun ResetAsk(g: Game, keep: () -> Unit, reset: () -> Unit) {
+    BackHandler { keep() }
+    Box(
+        Modifier.fillMaxSize().background(Pn.void.copy(alpha = .7f)).pointerInput(Unit) { detectTapGestures { keep() } }.semantics { paneTitle = "Reset scores" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.padding(24.dp).widthIn(max = 420.dp).background(Pn.card, RoundedCornerShape(20.dp)).border(1.dp, Pn.line2, RoundedCornerShape(20.dp))
+                .pointerInput(Unit) { detectTapGestures { } }.padding(20.dp),
+        ) {
+            BasicText("Reset every score for ${g.title}?", style = Type.body.copy(fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold, color = Pn.ice).fixed())
+            BasicText(
+                "Its rating, hype, category scores and duels are cleared. The game itself stays.",
+                style = Type.note.copy(fontSize = 13.5.sp, lineHeight = 19.sp).fixed(), modifier = Modifier.padding(top = 8.dp),
+            )
+            Row(Modifier.padding(top = 18.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                HBtn("Cancel", onClick = keep)
+                HBtn("Reset", main = true, onClick = reset)
+            }
         }
     }
 }
@@ -961,7 +1091,7 @@ private fun About(text: String, still: Boolean, modifier: Modifier) {
 /** Screenshots (`gdShots`): a strip of 16:9 pictures that snaps to each one's start; a tap opens them full screen. */
 @Composable
 private fun Shots(g: Game, shots: List<Pair<String, String>>, big: Boolean, acts: PageActs, modifier: Modifier) {
-    val src = Backup.str(g["shotsSrc"])
+    val src = io.github.shamlawy.playnext.data.Screenshots.src(g)
     Section("ui:camera", "Screenshots", if (src.isNotEmpty()) "from $src" else "", modifier) {
         val list = rememberLazyListState()
         BoxWithConstraints(Modifier.padding(top = 10.dp).fillMaxWidth()) {
@@ -975,7 +1105,7 @@ private fun Shots(g: Game, shots: List<Pair<String, String>>, big: Boolean, acts
                 // GamePageGestureTest), and the page's guard keeps it from the Shell's tab swipe
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                itemsIndexed(shots) { i, s ->
+                itemsIndexed(shots, key = { _, s -> s.first }) { i, s ->
                     val shape = RoundedCornerShape(14.dp)
                     Box(
                         Modifier.width(w).aspectRatio(16f / 9f).clip(shape).background(Color(Web.GD_BG))

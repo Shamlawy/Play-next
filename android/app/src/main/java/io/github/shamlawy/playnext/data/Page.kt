@@ -117,6 +117,33 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
         }
     }
 
+    /** One button in the ⋯ drawer: what it does ([kind]), its words and its drawn icon. */
+    data class More(val kind: String, val label: String, val icon: String)
+
+    /**
+     * The ⋯ drawer (`gdMarkup`'s `rest`, index.html 22084: `hubActs` 9482 minus Edit, minus what the main row already
+     * has, Score only for a game with a finish; Prices always, before Where was I? or first when that's on the main row).
+     * Not here yet: Duel (Phase 6), Diary and Sessions (their screens are Phase 5, and they show only with those on).
+     */
+    fun more(g: Game): List<More> {
+        val used = next(g).map { it.kind }
+        val p = rk.playedRec(g)
+        val out = mutableListOf<More>()
+        if (!g.comp && p != null && "score" !in used) out += More("score", if (p.scored) "Score · " + Queue.jsNum(p.real ?: 0.0) else "Score it", "ui:star")
+        out += More("queue", "Show in queue", "ui:queue")
+        out += More("card", "Calling card", "ui:card")
+        if ("trailer" !in used) out += More("trailer", "Trailer", "ui:play")
+        out += More("similar", "Similar", "ui:search")
+        val lists = (g["lists"] as? kotlinx.serialization.json.JsonArray)?.size ?: 0
+        out += More("lists", "Lists" + if (lists > 0) " · $lists" else "", "ui:list")
+        val notes = Notes.of(g).size
+        if ("note" !in used) out += More("note", "Where was I?" + if (notes > 0) " · $notes" else "", "ui:pin")
+        out += More("why", "Why you'll love it", "ui:spark")
+        out += More("reset", "Reset scores", "ui:reset")
+        out.add(out.indexOfFirst { it.kind == "note" }.coerceAtLeast(0), More("prices", "Prices", "ui:tag"))
+        return out
+    }
+
     /** Where was I's card goes under the line (`gdProgress`): every state but upcoming (index.html 21960-21964). */
     fun notes(g: Game): Boolean = state(g) != "upcoming"
 
@@ -205,8 +232,8 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
     /** The About text (`g.desc || g.about`), shown as plain words. */
     fun about(g: Game): String = Backup.str(g["desc"]).ifEmpty { Backup.str(g["about"]) }
 
-    /** The screenshots (`g.shots`, five at most): each one's small copy and big one. */
-    fun shots(g: Game): List<Pair<String, String>> = (g["shots"] as? JsonArray).orEmpty().mapNotNull { e ->
+    /** The screenshots (`g.shots`, five at most, or the ones [Screenshots] fetched this run): each one's small copy and big one. */
+    fun shots(g: Game): List<Pair<String, String>> = Screenshots.of(g) ?: (g["shots"] as? JsonArray).orEmpty().mapNotNull { e ->
         val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
         // the web keeps only entries with a `u` (`filter(x => x && x.u)`): the strip shows `t` or `u` (shotThumb), the
         // viewer `b` or `u`

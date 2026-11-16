@@ -81,7 +81,11 @@ class SimilarSheetTest {
         state.value = Games::class.java.getDeclaredMethod("ready", Library::class.java, Long::class.javaPrimitiveType).apply { isAccessible = true }
             .invoke(Games, lib, now - 3_600_000L) as Games.State.Ready
         Similar.post = { asked++; SimilarTest.ANSWER }
+        // Nexi's picks: no RAWG key here, so the names come without pictures
+        Similar.ask = { aiAsked++; """{"games":[{"name":"Velvet Lantern","why":"Same moody maps"},{"name":"Glass Road","why":"you have it"}]}""" }
     }
+
+    private var aiAsked = 0
 
     @After
     fun tearDown() {
@@ -143,6 +147,22 @@ class SimilarSheetTest {
         assertTrue("the others offer their trailer", said("Trailer for Tactics of the Tide") && said("Trailer for Northbound"))
         assertTrue(has("Watch the Moonwell trailer"))
         rule.onRoot().captureRoboImage("src/test/screenshots/similar-412.png")
+    }
+
+    @Test fun nexisPicksBetweenYourGamesAndSteams() {
+        show(listOf("similar:a"))
+        assertTrue(has("Picked by Nexi"))
+        waitFor("Nexi's picks came in; on screen: ${texts()}") { has("Velvet Lantern") }
+        assertEquals("asked once", 1, aiAsked)
+        assertTrue(has("Same moody maps"))
+        assertFalse("a game you have isn't picked", has("you have it"))
+        assertTrue(said("Trailer for Velvet Lantern"))
+    }
+
+    @Test fun nexisPicksFailingSaySo() {
+        Similar.ask = { throw io.github.shamlawy.playnext.data.Recap.HelperError("The helper said 500") }
+        show(listOf("similar:a"))
+        waitFor("the failure is said; on screen: ${texts()}") { has("Couldn't find new ones right now (The helper said 500).") }
     }
 
     @Test fun showThemInTheQueueLightsTheLikeTab() {

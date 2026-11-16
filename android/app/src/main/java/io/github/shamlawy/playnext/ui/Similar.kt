@@ -52,11 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.shamlawy.playnext.data.Game
+import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.data.Pic
 import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Reviews
 import io.github.shamlawy.playnext.data.Similar
+import io.github.shamlawy.playnext.data.Story
 import io.github.shamlawy.playnext.kit.Sfx
 import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.report.Crumbs
@@ -122,9 +124,10 @@ private fun SimChip(icon: String, text: String, on: Boolean, onClick: () -> Unit
 
 /**
  * The Similar sheet (`openSimilar`, the v236 rebuild at index.html 22331): "Like <title>", your games most like it as a
- * strip of covers with how alike (each opens its page; "show them in the Queue" lights the Queue's "Like" tab), Steam
- * players' "More like this" when the game is on Steam, and the trailer. Nexi's own picks (`/similar`, checked on RAWG)
- * come in the next release; Add and Not for me write your games, so they wait for switch day.
+ * strip of covers with how alike (each opens its page; "show them in the Queue" lights the Queue's "Like" tab), Nexi's
+ * own picks (`/similar`, each checked on RAWG), Steam players' "More like this" when the game is on Steam, and the
+ * trailer. Add and Not for me (and the preview a tap opens, `gpOpen`) write your games, so they wait for switch day: the
+ * web's hint about them ("swipe → to add") is left out with them.
  */
 @Composable
 internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit, toQueue: (String) -> Unit, openGame: (String) -> Unit) {
@@ -138,6 +141,8 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
     // a failure shows only once this open's own ask has run (an earlier open's never flashes for a frame)
     var asked by remember(g.id) { mutableStateOf(false) }
     LaunchedEffect(g.id) { if (onSteam) Similar.more(lib, g, cc, now()); asked = true }
+    var askedAi by remember(g.id) { mutableStateOf(false) }
+    LaunchedEffect(g.id) { Similar.find(lib, q.rk, g, Games.rawgKey, now()); askedAi = true }
     val st = tick.let { Similar.cached(lib, g, now()) }
     val busy = tick.let { Similar.busy(g) }
     val err = tick.let { if (asked) Similar.err[g.id].orEmpty() else "" }
@@ -173,8 +178,28 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
         } else {
             BasicText("Nothing in your library is close yet.", style = DyType.q, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
         }
+        // Picked by Nexi (`simFind`): the helper's names, each checked on RAWG
+        val nexi = remember(lib) { Story.nexi(lib) }
+        Row(Modifier.padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            BasicText("Picked by $nexi", style = DyType.q.copy(fontWeight = FontWeight.Bold, color = Pn.ice))
+            BasicText("  checked on RAWG", style = DyType.small.copy(fontSize = 11.5.sp))
+        }
+        val ai = tick.let { Similar.found(lib, g, now()) }
+        val finding = tick.let { Similar.finding(g) }
+        val aiErr = tick.let { if (askedAi) Similar.findErr[g.id] else null }
+        // built once per answer (keyed by the answer itself: a new one is a new object), so a redraw keeps the same cards
+        val picks = remember(ai, lib) { ai?.l?.filter { !Similar.nope(lib, it.name) }?.map { Similar.card(it) } }
+        when {
+            ai == null && (finding || aiErr == null) -> BasicText("$nexi is thinking…", style = DyType.q)
+            ai == null -> BasicText("Couldn't find new ones right now" + (if (!aiErr.isNullOrEmpty()) " ($aiErr)" else "") + ".", style = DyType.q)
+            else -> {
+                if (ai.how == "series") BasicText("Smarter picks switch on once the helper on Cloudflare is updated. For now, here's the same series.", style = DyType.q, modifier = Modifier.padding(bottom = 8.dp))
+                if (!picks.isNullOrEmpty()) SimCards(lib, picks, openGame)
+                else if (ai.how != "series") BasicText("Nothing close turned up.", style = DyType.q)
+            }
+        }
         if (onSteam) {
-            Row(Modifier.padding(top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 BasicText("Steam players also like", style = DyType.q.copy(fontWeight = FontWeight.Bold, color = Pn.ice))
                 BasicText("  Steam's own “More like this”", style = DyType.small.copy(fontSize = 11.5.sp))
             }
@@ -185,16 +210,7 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
                 l == null && (busy || err.isEmpty()) -> BasicText("Asking Steam…", style = DyType.q)
                 l == null -> BasicText(if (err == "helper-old") "This switches on once Nexi's helper is updated." else "Couldn't reach Steam right now.", style = DyType.q)
                 l.isEmpty() -> BasicText("Steam had nothing to add.", style = DyType.q)
-                else -> BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    // `.sgl`: columns at least 220 wide, 12 apart
-                    val cols = maxOf(1, ((maxWidth.value + 12) / (220 + 12)).toInt())
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        for (row in l.chunked(cols)) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            for (x in row) SteamCard(lib, x, Modifier.weight(1f), openGame)
-                            repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                    }
-                }
+                else -> SimCards(lib, l, openGame)
             }
         }
         // `.dy-more`: a dashed button the width of the sheet
@@ -214,23 +230,38 @@ internal fun SimilarSheet(q: Queue, g: Game, now: () -> Long, close: () -> Unit,
     }
 }
 
+/** `.sgl`: the cards in columns at least 220 wide, 12 apart (one on a folded phone, two unfolded). */
+@Composable
+private fun SimCards(lib: Library, l: List<Similar.Card>, openGame: (String) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val cols = maxOf(1, ((maxWidth.value + 12) / (220 + 12)).toInt())
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            for (row in l.chunked(cols)) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                for (x in row) SimCard(lib, x, Modifier.weight(1f), openGame)
+                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
 /**
- * One of Steam's picks (`sgCards`' card): its picture 16:9 (Steam's capsule, its header when that fails), a round ▶ for
- * its trailer or "In your library ›" when it's yours, the name, why (in your accent) and its first tags.
+ * One pick (`sgCards`' card), Nexi's or Steam's: its picture 16:9 (Steam's capsule, its header when that fails; none
+ * leaves the dark frame, as the web hides a broken one), a round ▶ for its trailer or "In your library ›" when it's
+ * yours, the name, why (in your accent) and its meta line.
  */
 @Composable
-private fun SteamCard(lib: Library, c: Similar.Card, modifier: Modifier, openGame: (String) -> Unit) {
+private fun SimCard(lib: Library, c: Similar.Card, modifier: Modifier, openGame: (String) -> Unit) {
     val ctx = LocalContext.current
     val volt = LocalLook.current.volt
     val have = remember(lib, c.name) { Similar.have(lib, c.name) }
     val shape = RoundedCornerShape(18.dp)
     var src by remember(c.img) { mutableStateOf(c.img) }
-    var gone by remember(c.img) { mutableStateOf(false) }
+    var gone by remember(c.img) { mutableStateOf(c.img.isEmpty()) }
     Column(modifier.clip(shape).background(Pn.card, shape).border(1.dp, Pn.line, shape)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Pn.void)) {
             if (!gone) AsyncImage(
                 model = src, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                onError = { if (src != c.img2) src = c.img2 else gone = true },
+                onError = { if (c.img2.isNotEmpty() && src != c.img2) src = c.img2 else gone = true },
             )
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(.55f to Color.Transparent, 1f to Pn.void.copy(alpha = .7f))))
             Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {

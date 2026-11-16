@@ -32,6 +32,9 @@ object ArtNet {
     /** Forget the stores' answers kept this session (tests). */
     internal fun forget() = storesKept.clear()
 
+    /** Forget the stores' answers for one title (the screenshot fetch's `forget()`: an answer where every store failed is asked again). */
+    fun drop(title: String) { val k0 = Art.normT(title) + "|"; storesKept.keys.removeAll { it.startsWith(k0) } }
+
     private fun parse(body: String?): JsonElement? = runCatching { json.parseToJsonElement(body.orEmpty()) }.getOrNull()
 
     /** `sgdbGet(path)`: SteamGridDB's `data` list. */

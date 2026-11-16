@@ -232,6 +232,9 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     val openHours by rememberUpdatedState { id: String -> step(nav.open("hours:$id")) }
     val openPrices by rememberUpdatedState { id: String -> step(nav.open("prices:$id")) }
     val openSimilar by rememberUpdatedState { id: String -> step(nav.open("similar:$id")) }
+    val openGLists by rememberUpdatedState { id: String -> step(nav.open("glists:$id")) }
+    val openWhy by rememberUpdatedState { id: String -> step(nav.open("why:$id")) }
+    val openCard by rememberUpdatedState { id: String -> step(nav.open("card:$id")) }
     val editActs = remember {
         EditActs(
             score = { id -> openScore(id) },
@@ -240,6 +243,9 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             hours = { id -> openHours(id) },
             prices = { id -> openPrices(id) },
             similar = { id -> openSimilar(id) },
+            lists = { id -> openGLists(id) },
+            why = { id -> openWhy(id) },
+            card = { id -> openCard(id) },
             finished = { g ->
                 Moment.finished(g)
                 // straight on to the verdict while it's fresh (`fnDone`: the Score sheet 1200 ms later)
@@ -445,6 +451,16 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                             // a genre's tap (`gtagFilter`): the Queue shows that genre's games, with how many there are
                             toQueue = { t ->
                                 val qp = queue.pick(ready.lib)
+                                if (t.startsWith("id:")) {
+                                    // ⋯ › Show in queue (`data-fullopen`): its row, open; the tab goes to All when the
+                                    // one showing doesn't hold it (the web just didn't find the row)
+                                    val id = t.removePrefix("id:")
+                                    val q = pv.page.q
+                                    if (q.list(q.tabNow(qp.tab)).none { it.id == id }) qp.show("all")
+                                    qp.open(id)
+                                    go(nav.go("games").view("games", "queue"))
+                                    return@GamePage
+                                }
                                 qp.show(t)
                                 val c = pv.page.q.count(t)
                                 qp.say("$c ${if (c == 1) "game" else "games"} tagged ${t.removePrefix("G:")} · tap All to see everything again")
@@ -492,7 +508,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 }
             }
             // the Score sheet and the note sheet, over the page they came from (newer than it, Edit and Settings)
-            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") || it.startsWith("hours:") || it.startsWith("prices:") || it.startsWith("similar:") }
+            val sc = nav.stack.indexOfLast { it.startsWith("score:") || it.startsWith("note:") || it.startsWith("short:") || it.startsWith("hours:") || it.startsWith("prices:") || it.startsWith("similar:") || it.startsWith("glists:") || it.startsWith("why:") || it.startsWith("card:") }
             val scLib = (games as? Games.State.Ready)?.lib
             if (sc >= 0 && sc > at && sc > s && sc > ed && scLib != null) {
                 val k = keys[sc]
@@ -547,6 +563,13 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                                 step(nav.closeAt(sc))
                                 nxScope.launch { delay(320); opener(id, null) }
                             }
+                        } else if (what.startsWith("glists:")) {
+                            GameLists(Modifier, scLib, sg, close = { step(nav.closeAt(sc)) })
+                        } else if (what.startsWith("why:")) {
+                            WhySheet(scLib, sg, close = { step(nav.closeAt(sc)) })
+                        } else if (what.startsWith("card:")) {
+                            val played = remember(scLib, sg.id) { Rank(scLib, clock(), java.time.ZoneId.systemDefault()).isPlayed(sg) }
+                            CardSheet(scLib, sg, played, clock, close = { step(nav.closeAt(sc)) })
                         } else if (what.startsWith("hours:")) {
                             HoursSheet(scLib, sg, clock, close = { step(nav.closeAt(sc)) }) { t ->
                                 edited = PageToast(t, (edited?.n ?: 0) + 1)

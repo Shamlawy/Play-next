@@ -1,13 +1,18 @@
 package io.github.shamlawy.playnext.data
 
 import io.github.shamlawy.playnext.gen.Web
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.ln
 
@@ -191,5 +196,160 @@ object Similar {
         )
     }
 
-    internal fun forget() { mem.clear(); busy.clear(); err.clear(); post = realPost }
+    // ---- Picked by Nexi (`simFind`, index.html 13498: the helper names games, RAWG checks that each one is real) ----
+
+    /** One of Nexi's picks as RAWG knows it (`simHit` + `why`): its RAWG id, name, why, picture, release date, genres, Metacritic. */
+    class Pick(val id: Long, val name: String, val why: String, val img: String, val released: String, val genres: List<String>, val mc: Int)
+
+    /** `simFind`'s answer: when, the picks and how they were found ("ai": the helper's names; "series": an old helper, the same series). */
+    class Found(val t: Long, val l: List<Pick>, val how: String)
+
+    /** This run's answers. A non-empty "ai" one holds 30 days (as the web's `S.simCache3`); any other one [EMPTY_FOR]. */
+    private val found = ConcurrentHashMap<String, Found>()
+    private val finding = ConcurrentHashMap.newKeySet<String>()
+    private const val KEEP = 30 * JsDate.DAY
+
+    /** The last ask's failure for a game ("Couldn't find new ones right now (<this>)."), empty for one without words. */
+    val findErr = ConcurrentHashMap<String, String>()
+
+    /** `nxPost("/similar")`: "helper-old" for a helper from before v187, the helper's own words for its other failures. */
+    private val realAsk: suspend (String) -> String = { body ->
+        io.github.shamlawy.playnext.net.Net.call(io.github.shamlawy.playnext.net.Net.postJson(io.github.shamlawy.playnext.net.Net.helper("/similar"), body)) { r ->
+            val text = r.body.string()
+            val e = runCatching { Backup.str((Json.parseToJsonElement(text) as? JsonObject)?.get("error")) }.getOrDefault("")
+            if (r.code == 404 && e.contains("not found", ignoreCase = true)) throw Recap.HelperError("helper-old")
+            if (!r.isSuccessful || e.isNotEmpty()) throw Recap.HelperError(e.ifEmpty { "The helper said ${r.code}" })
+            text
+        }
+    }
+    @Volatile internal var ask = realAsk
+
+    /** A GET to RAWG: the status and the body (a test hands in its own). */
+    private val realGet: suspend (String) -> Pair<Int, String> = { url ->
+        io.github.shamlawy.playnext.net.Net.call(okhttp3.Request.Builder().url(url).build()) { it.code to it.body.string() }
+    }
+    @Volatile internal var rawgGet = realGet
+
+    /** `rawgApi(p)`: RAWG's answer with your key; "RAWG said <status>" when it says no. */
+    private suspend fun rawg(key: String, path: String): JsonObject {
+        val url = ("https://api.rawg.io/api/$path").toHttpUrl().newBuilder().addQueryParameter("key", key).build()
+        val (code, text) = rawgGet(url.toString())
+        if (code !in 200..299) throw java.io.IOException("RAWG said $code")
+        return runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
+    }
+
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+
+    /** `simHit(h)` (+ its `why`): a RAWG result as a pick; null without a name. */
+    fun pick(h: JsonObject, why: String = Backup.str(h["why"])): Pick? {
+        val name = Backup.str(h["name"]).ifEmpty { return null }
+        val genres = (h["genres"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.get("name")?.let(Backup::str)?.takeIf(String::isNotEmpty) }
+        return Pick(
+            Backup.num(h["id"], 0.0, 0.0, 1e12).toLong(), name, why, Backup.str(h["background_image"]), Backup.str(h["released"]), genres,
+            Backup.num(h["metacritic"], 0.0, 0.0, 100.0).toInt(),
+        )
+    }
+
+    /** The closest of RAWG's results to [name] when `simSame` gives it .6 or more (numbers decide: "Star Rift" is never "Star Rift 3"). */
+    fun best(results: JsonArray?, name: String): JsonObject? =
+        results.orEmpty().mapNotNull { it as? JsonObject }.map { it to same(Backup.str(it["name"]), name) }.maxByOrNull { it.second }?.takeIf { it.second >= .6 }?.first
+
+    /** What the sheet shows for [g]: this run's answer, else the backup's `S.simCache3` when it's under 30 days old. */
+    fun found(lib: Library, g: Game, now: Long): Found? {
+        found[g.id]?.let { f -> if (now - f.t < (if (f.how == "ai" && f.l.isNotEmpty()) KEEP else EMPTY_FOR)) return f }
+        val c = (lib["simCache3"] as? JsonObject)?.get(g.id) as? JsonObject ?: return null
+        val t = Backup.num(c["t"], 0.0, 0.0, 1e15).toLong()
+        if (now - t >= KEEP) return null
+        return Found(t, (c["l"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let { h -> pick(h) } }, Backup.str(c["how"]).ifEmpty { "ai" })
+    }
+
+    fun finding(g: Game) = g.id in finding
+
+    /** The body of `POST /similar`: the title, year, first 4 genres, your 8 best-ranked games and the first 80 you have. */
+    fun askBody(lib: Library, rk: Rank, g: Game): String = buildJsonObject {
+        put("title", g.title)
+        put("year", g.date.take(4))
+        put("genres", Rank.platList(g["genres"]).take(4).joinToString(", "))
+        putJsonArray("favourites") { rk.ranked.take(8).forEach { add(it.title) } }
+        putJsonArray("exclude") { lib.games.take(80).forEach { add(it.title) } }
+    }.toString()
+
+    /**
+     * `simFind`: the helper names games like [g] (yours and [g] itself left out), each of the first 12 is checked on RAWG
+     * (`search_precise`, the closest name at .6 or more) and up to 10 real ones are kept, one per RAWG game. Without a RAWG
+     * key the names come without pictures. A helper from before `/similar` (or no network) gives the same series instead.
+     * Never throws: a failure lands in [findErr]. Nothing is written (the web's `S.simCache3` stays the backup's).
+     */
+    suspend fun find(lib: Library, rk: Rank, g: Game, rawgKey: String, now: Long) {
+        if (found(lib, g, now) != null || !finding.add(g.id)) return
+        findErr.remove(g.id)  // an earlier open's failure never shows while this ask runs
+        seen.value++
+        try {
+            val mine = lib.games.map { normT(it.title) }.toSet()
+            var how = "ai"
+            var names: List<Pair<String, String>> = emptyList()
+            try {
+                val j = ask(askBody(lib, rk, g)).let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
+                names = (j?.get("games") as? JsonArray).orEmpty().mapNotNull { e ->
+                    val o = e as? JsonObject ?: return@mapNotNull null
+                    Backup.str(o["name"]).takeIf { it.isNotEmpty() }?.let { it to Backup.str(o["why"]) }
+                }.filter { (n) -> normT(n) !in mine && same(n, g.title) < .99 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // the web's `e.message !== "helper-old" && !(e instanceof TypeError)`: an old helper or no network → the series
+                if (!(e is Recap.HelperError && e.message == "helper-old") && e !is java.io.IOException) throw e
+                how = "series"
+            }
+            val out: List<Pick> = if (how == "ai") {
+                if (rawgKey.isEmpty()) names.take(10).map { (n, w) -> Pick(0, n, w, "", "", emptyList(), 0) }
+                else {
+                    val hits = coroutineScope {
+                        names.take(12).map { (n, w) ->
+                            async {
+                                try {
+                                    best(rawg(rawgKey, "games?search=" + enc(n) + "&search_precise=true&page_size=5")["results"] as? JsonArray, n)?.let { pick(it, w) }
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+                        }.awaitAll()
+                    }
+                    val ids = HashSet<Long>()
+                    hits.filterNotNull().filter { normT(it.name) !in mine && ids.add(it.id) }.take(10)
+                }
+            } else if (rawgKey.isNotEmpty()) {
+                var id = if (Backup.truthy(g["rawgId"])) Backup.str(g["rawgId"]) else ""
+                if (id.isEmpty()) {
+                    val r = rawg(rawgKey, "games?search=" + enc(g.title) + "&search_precise=true&page_size=1")
+                    id = ((r["results"] as? JsonArray)?.firstOrNull() as? JsonObject)?.get("id")?.let(Backup::str).orEmpty()
+                }
+                if (id.isEmpty()) emptyList() else {
+                    val r = rawg(rawgKey, "games/" + enc(id) + "/game-series?page_size=20")
+                    (r["results"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.filter { normT(Backup.str(it["name"])) !in mine }.take(8).mapNotNull { pick(it, "Same series") }
+                }
+            } else emptyList()
+            found[g.id] = Found(now, out, how)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            findErr[g.id] = (e.message ?: "").take(120)
+        } finally {
+            finding.remove(g.id)
+            seen.value++
+        }
+    }
+
+    /** `sgFromRawg`: a pick as a card (its picture, why, and year · first 2 genres · Metacritic). */
+    fun card(p: Pick): Card = Card(
+        p.name, p.why, p.img, "",
+        listOf(p.released.take(4), p.genres.take(2).joinToString(", "), if (p.mc > 0) "MC ${p.mc}" else "").filter { it.isNotEmpty() }.joinToString(" · "),
+    )
+
+    internal fun forget() {
+        mem.clear(); busy.clear(); err.clear(); post = realPost
+        found.clear(); finding.clear(); findErr.clear(); ask = realAsk; rawgGet = realGet
+    }
 }

@@ -359,6 +359,10 @@ object Recap {
     /** Games whose fetch found another one busy (a note saved mid-call): asked again when that one ends. */
     private val again = ConcurrentHashMap.newKeySet<String>()
 
+    /** Per game, how many times [again] asked: its card's fetch restarts on this, not on [seen] (any game's answer). */
+    private val asks = ConcurrentHashMap<String, Int>()
+    fun asksOf(id: String): Int = asks[id] ?: 0
+
     /** The helper answered, but not with a recap (its HTTP error): kept as an error, unlike no network. */
     class HelperError(msg: String) : Exception(msg)
 
@@ -438,9 +442,9 @@ object Recap {
         } finally {
             busy.remove(g.id)
             // also when cancelled or offline: a card whose fetch found this one busy (a note saved mid-call) asks again
-            if (again.remove(g.id)) seen.value++
+            if (again.remove(g.id)) { asks.merge(g.id, 1, Int::plus); seen.value++ }
         }
     }
 
-    internal fun forget() { mem.clear(); busy.clear(); again.clear() }
+    internal fun forget() { mem.clear(); busy.clear(); again.clear(); asks.clear() }
 }

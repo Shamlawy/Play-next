@@ -197,6 +197,94 @@ fun ListsSheet(modifier: Modifier, games: Games.State, show: (String) -> Unit, c
     }
 }
 
+/**
+ * One game's lists (`openLists(gid)`, the game page's ⋯ › Lists): every list with its count and a tick when the game is
+ * in it; a tap puts it in or takes it out at once (`data-lt`). "Make + add" makes a list with this game already in it.
+ * A practice copy, like the lists sheet's own changes.
+ */
+@Composable
+fun GameLists(modifier: Modifier, lib: io.github.shamlawy.playnext.data.Library, g: io.github.shamlawy.playnext.data.Game, close: () -> Unit) {
+    val lists = remember(lib) { Lists.of(lib) }
+    var emo by rememberSaveable(lists.size) { mutableStateOf(Lists.nextEmo(lists)) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var nameless by remember { mutableStateOf(false) }
+    val over = { Games.practiced(Lists.IN) as? kotlinx.serialization.json.JsonObject }
+    // a tap shows at once; the copy rebuilds off Main a moment later and then agrees
+    val taps = remember(g.id) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    val made = remember(g.id) { androidx.compose.runtime.mutableStateListOf<Queue.QList>() }
+    val shown = lists + made.filter { m -> lists.none { it.id == m.id } }
+    val inIt = { id: String -> taps[id] ?: (id in Lists.inLists(over(), g)) }
+    val make = {
+        if (name.isBlank()) {
+            nameless = true
+        } else {
+            Sounds.play(Sfx.Add)
+            Crumbs.tap("make list for a game", "lists")
+            val id = Lists.newId(System.currentTimeMillis())
+            val all = Lists.made(Lists.of(lib) + made.filter { m -> lists.none { it.id == m.id } }, name, emo, id)
+            Games.customise("lists", Lists.json(all))
+            Games.customise(Lists.IN, Lists.flipped(over(), g, id))
+            taps[id] = true
+            made += all.last()
+            name = ""
+            nameless = false
+        }
+    }
+    DyFrame(modifier, "Lists for ${g.title}", close) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PnIcon("ui:list", LocalLook.current.volt, 21.dp, null)
+            BasicText("Lists for ${g.title}", style = DyType.head, maxLines = 2, modifier = Modifier.weight(1f).padding(start = 7.dp))
+            Box(
+                Modifier.size(Pn.touch).clickable(role = Role.Button, onClick = close).semantics { contentDescription = "Close" },
+                contentAlignment = Alignment.Center,
+            ) { BasicText("✕", style = DyType.x) }
+        }
+        BasicText(
+            "Tap a list to put this game in it (or take it out). A game can be in as many as you like.",
+            style = DyType.q, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
+        )
+        if (shown.isEmpty()) {
+            BasicText("No lists yet. Make your first one below.", style = DyType.q, modifier = Modifier.padding(top = 2.dp))
+        } else {
+            Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (l in shown) {
+                    val on = inIt(l.id)
+                    val n = Lists.count(lib, l.id) + (if (on && taps[l.id] == true && l.id !in Lists.inLists(null, g)) 1 else 0) - (if (!on && taps[l.id] == false && l.id in Lists.inLists(null, g)) 1 else 0)
+                    LsRow {
+                        Mark(l.e)
+                        Row(
+                            Modifier.weight(1f).sizeIn(minHeight = Pn.touch).clickable(role = Role.Button) {
+                                Sounds.play(Sfx.Tap)
+                                Crumbs.tap("game in list", "lists")
+                                taps[l.id] = !on
+                                Games.customise(Lists.IN, Lists.flipped(over(), g, l.id))
+                            }.semantics { contentDescription = "${l.n}, ${if (on) "has this game" else "doesn't have this game"}" },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                BasicText(l.n, style = DyType.name, maxLines = 1)
+                                BasicText("${n.coerceAtLeast(0)} game${if (n == 1) "" else "s"}", style = DyType.small, maxLines = 1)
+                            }
+                            PnIcon("ui:tick", if (on) LocalLook.current.volt else Pn.ice.copy(alpha = .22f), 22.dp, null)
+                        }
+                    }
+                }
+            }
+        }
+        Box(Modifier.padding(top = 18.dp).fillMaxWidth().height(1.dp).background(Pn.steel))
+        BasicText("New list", style = Type.kicker.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+        MarkGrid(emo) {
+            if (it != emo) Sounds.play(Sfx.Tap)
+            emo = it
+        }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LsField(name, { name = it; nameless = false }, "e.g. Co-op with a friend", "New list's name", Modifier.weight(1f), done = make)
+            LsBtn("Make + add", LsKind.Go, onClick = make)
+        }
+        if (nameless) BasicText("Give the list a name", style = Type.note.copy(color = Pn.hot), modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
 /** One list (`.ls-r`): its mark, its name over "N games · show in queue" (a tap shows it), Add games, Rename, Delete. */
 @Composable
 private fun ListRow(l: Queue.QList, n: Int, show: () -> Unit, rename: () -> Unit, drop: () -> Unit, add: () -> Unit) {

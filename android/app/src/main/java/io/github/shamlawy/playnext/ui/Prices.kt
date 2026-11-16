@@ -133,8 +133,10 @@ internal fun PricesSec(g: Game, page: Page, lib: Library, modifier: Modifier) {
 }
 
 /** `<u>`: a currency code beside the digits ("AED 249") drawn small, so the digits read. */
+private val PRICE_CODE = Regex("^([A-Z]{2,4})[\\s\\u00A0]?(?=\\d)|(?<=\\d)[\\s\\u00A0]?([A-Z]{2,4})$")
+
 private fun priceText(t: String): AnnotatedString = buildAnnotatedString {
-    val m = Regex("^([A-Z]{2,4})[\\s\\u00A0]?(?=\\d)|(?<=\\d)[\\s\\u00A0]?([A-Z]{2,4})$").findAll(t).toList()
+    val m = PRICE_CODE.findAll(t).toList()
     var at = 0
     for (x in m) {
         append(t.substring(at, x.range.first))

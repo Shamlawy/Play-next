@@ -146,9 +146,11 @@ internal fun StoryCard(lib: Library, g: Game, still: Boolean) {
     val tick by Recap.seen.collectAsState()
     val n = Notes.last(g) ?: return
     val now = LocalNow.current
-    // before the error check: an error 6 hours old is asked again (wiStoryGet on every page open), and [tick]
-    // re-asks when a fetch for an older note held this one off
-    LaunchedEffect(g.id, n.t, tick) {
+    // before the error check: an error 6 hours old is asked again (wiStoryGet on every page open), and [re]
+    // re-asks when a fetch for an older note held this one off. Not [tick]: a neighbour page's answer moves it too,
+    // and restarting here would cancel this card's own ask mid-call
+    val re = remember(tick, g.id) { Recap.asksOf(g.id) }
+    LaunchedEffect(g.id, n.t, re) {
         delay(600)
         Recap.fetch(lib, g, now)
     }
