@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,7 @@ import io.github.shamlawy.playnext.kit.Share
 import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.report.Crumbs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -69,10 +71,12 @@ internal fun CardSheet(lib: Library, g: Game, played: Boolean, now: () -> Long, 
     var card by remember(g.id) { mutableStateOf<Bitmap?>(null) }
     var failed by remember(g.id) { mutableStateOf(false) }
     val rise = remember(g.id) { Animatable(0f) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(shuffles) {
         failed = false
         val seed = if (shuffles == 0) CallingCard.seedOf(g.title) else (Math.random() * 4294967296.0).toLong()
-        val made = runCatching { make(ctx, lib, g, played, now(), seed) }.getOrNull()
+        // a Reshuffle mid-make cancels this run: that's no failure (rethrown, so "Couldn't make the card" never flashes)
+        val made = try { make(ctx, lib, g, played, now(), seed) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
         if (made == null) { failed = true; return@LaunchedEffect }
         card = made
         if (calm) rise.snapTo(1f) else { rise.snapTo(0f); rise.animateTo(1f, tween(if (shuffles == 0) 520 else 320, easing = Ease.house)) }
@@ -105,7 +109,7 @@ internal fun CardSheet(lib: Library, g: Game, played: Boolean, now: () -> Long, 
                     val bm = card ?: return@HBtn
                     Crumbs.tap("calling card: share", "calling card")
                     Sounds.play(Sfx.Tap)
-                    Share.image(ctx, bm, "calling-card-${now()}.png", "Calling card")
+                    scope.launch { Share.image(ctx, bm, "calling-card-${now()}.png", "Calling card") }
                 }
                 HBtn("Reshuffle", enabled = b != null || failed) {
                     Crumbs.tap("calling card: reshuffle", "calling card")

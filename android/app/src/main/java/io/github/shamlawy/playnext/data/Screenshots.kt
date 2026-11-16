@@ -178,6 +178,8 @@ object Screenshots {
             err.remove(g.id)
             mem[g.id] = Got(l.take(5), src, now())
         } catch (e: kotlinx.coroutines.CancellationException) {
+            // a neighbour page swiped away mid-fetch: coming back to it asks again, not after the minute's wait
+            tried.remove(g.id)
             throw e
         } catch (e: Exception) {
             err[g.id] = (e.message ?: e.toString()).take(80)

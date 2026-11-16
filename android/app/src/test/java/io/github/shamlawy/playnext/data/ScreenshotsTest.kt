@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.data
 
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -70,6 +71,20 @@ class ScreenshotsTest {
         Json.parseToJsonElement("""{${if (found.isNotEmpty()) "\"found\":$found," else ""}"pics":[${pics.joinToString(",")}]}""") as JsonObject
 
     private fun st(n: Int) = """{"s":"st","r":"shot","u":"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1/ss_a$n.jpg","w":1920,"h":1080,"k":"Screenshot"}"""
+
+    @Test fun aFetchCancelledMidwayIsAskedAgainAtOnce() = runBlocking {
+        // a neighbour page swiped away while its stores answer: coming back to it asks again, not a minute later
+        val (l, g) = one("""{"id":"a","title":"Moonwell","platforms":"PC"}""")
+        var calls = 0
+        val hold = kotlinx.coroutines.CompletableDeferred<Unit>()
+        Screenshots.stores = { _, _, _, _ -> calls++; if (calls == 1) hold.await(); stores(st(1), st(2), st(3)) }
+        val job = launch { Screenshots.fetch(l, g, "", "us", { now }) }
+        while (calls == 0) kotlinx.coroutines.yield()
+        job.cancel(); job.join()
+        Screenshots.fetch(l, g, "", "us", { now + 5_000 })
+        assertEquals("asked again within the minute", 2, calls)
+        assertEquals(3, Screenshots.of(g)?.size)
+    }
 
     @Test fun storesThenRawgToFillUp() = runBlocking {
         val (l, g) = one("""{"id":"a","title":"Moonwell","platforms":"PC","stId":7001}""")

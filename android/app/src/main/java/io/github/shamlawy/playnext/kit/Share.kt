@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URLDecoder
 
@@ -20,12 +22,20 @@ object Share {
         open(ctx, send, title)
     }
 
-    /** [bitmap] as a PNG named [name] in the cache, handed out through the app's FileProvider. */
-    fun image(ctx: Context, bitmap: Bitmap, name: String, title: String? = null) {
-        val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() } // only the newest one is ever waiting to be picked up
-        val f = File(dir, name.replace(Regex("[^\\w.-]"), "-").ifEmpty { "play-next.png" })
-        f.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    private val unsafe = Regex("[^\\w.-]")
+
+    /**
+     * [bitmap] as a PNG named [name] in the cache, handed out through the app's FileProvider. The PNG is written on the
+     * IO threads (a card-sized one takes 100 ms+, frames the 120 Hz screen would drop), the share sheet opens on Main.
+     */
+    suspend fun image(ctx: Context, bitmap: Bitmap, name: String, title: String? = null) {
+        val f = withContext(Dispatchers.IO) {
+            val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
+            dir.listFiles()?.forEach { it.delete() } // only the newest one is ever waiting to be picked up
+            File(dir, name.replace(unsafe, "-").ifEmpty { "play-next.png" }).also { f ->
+                f.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        }
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".share", f)
         val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

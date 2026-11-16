@@ -60,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -157,6 +158,9 @@ fun LayoutCoordinates.boxInWindow(): Rect {
  * Opens a game's page; [from] is the cover that was tapped (null when nothing with a cover was: the page only grows).
  * The shell provides it, so a cover anywhere (the header cards now, the Queue and Library with their phases) can.
  */
+/** False on the neighbour pages the pager composes ahead: what writes to a game (HowLongToBeat's hours) waits for its page. */
+val LocalPageShown = compositionLocalOf { true }
+
 val LocalOpenGame = staticCompositionLocalOf<(String, FlyFrom?) -> Unit> { { _, _ -> } }
 
 /** The page's close (`cubic-bezier(.4,0,1,1)`) and the cover's flight (`cubic-bezier(.3,.9,.35,1)`). */
@@ -386,10 +390,12 @@ fun GamePage(
                         }
                     },
                 ) {
-                    GameBody(
-                        pg, view, pageW, pageH, wide, still, acts,
-                        cover = if (p == firstPage && pg.id == g.id) CoverSpot({ at[2] = it }, landed) else null,
-                    )
+                    CompositionLocalProvider(LocalPageShown provides shown) {
+                        GameBody(
+                            pg, view, pageW, pageH, wide, still, acts,
+                            cover = if (p == firstPage && pg.id == g.id) CoverSpot({ at[2] = it }, landed) else null,
+                        )
+                    }
                 }
             }
             toast?.let { t -> PageNote(t, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalBottomRoom.current + 20.dp)) }
@@ -720,7 +726,10 @@ private fun Tiles(g: Game, page: Page, lib: Library, pageW: Dp, big: Boolean, sh
     val volt = LocalLook.current.volt
     val edit = LocalEditActs.current
     val now = LocalNow.current
-    LaunchedEffect(g.id) {
+    // only the page showing: an auto-fill writes the hours into a practice copy, which a game you never opened mustn't get
+    val shownNow = LocalPageShown.current
+    LaunchedEffect(g.id, shownNow) {
+        if (!shownNow) return@LaunchedEffect
         delay(900)
         if (askOnOpen && Hours.due(lib, g, now())) Hours.fetch(lib, g, now, force = false, fill = practiceFill(g.id))
     }
@@ -1096,7 +1105,7 @@ private fun Shots(g: Game, shots: List<Pair<String, String>>, big: Boolean, acts
                 // GamePageGestureTest), and the page's guard keeps it from the Shell's tab swipe
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                itemsIndexed(shots) { i, s ->
+                itemsIndexed(shots, key = { _, s -> s.first }) { i, s ->
                     val shape = RoundedCornerShape(14.dp)
                     Box(
                         Modifier.width(w).aspectRatio(16f / 9f).clip(shape).background(Color(Web.GD_BG))

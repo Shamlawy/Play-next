@@ -123,14 +123,16 @@ class GuideTest {
         // what each block's go says is a place the guide knows (a typo would leave its card without Show me)
         News.all!!.filter { it.v in 33..43 }.forEach { assertTrue("v${it.v} go=${it.go}", Guide.shows(it)) }
         assertFalse("v44's place is What's new itself: no Show me there", Guide.shows(entry(44)))
+        assertTrue("v45 opens a game you haven't played", Guide.shows(entry(45)))
         assertFalse("a typo is no place", Guide.known("game:abuot"))
         assertTrue(Guide.line(entry(43)).startsWith("Let's try v43: In Games › Queue, double tap a card to turn it"))
     }
 
     @Test fun showMeOpensTheQueueWithACardTurnedAndTheBarThenNext() {
+        Tried.mark(45, "ok") // tried already, so Next after v43 is v42
         show(Nav("games", listOf("news:0")))
         rule.onNodeWithText("What's new").assertExists()
-        // v44's place is What's new itself (no Show me), so v43's is the first
+        // v45 is marked tried (its card shows its answer, no Show me) and v44's place is What's new itself, so v43's is the first
         rule.onAllNodesWithText("Show me")[0].performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(600)
         assertEquals("What's new closed", emptyList<String>(), nav.stack)
@@ -163,7 +165,7 @@ class GuideTest {
 
     @Test fun somethingsOffGoesToClaudeInYourWords() {
         show(Nav("games", listOf("news:0")))
-        rule.onAllNodesWithText("Show me")[1].performScrollTo().performClick()
+        rule.onAllNodesWithText("Show me")[2].performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(600)
         assertTrue(has("Try it · v42"))
         rule.onNodeWithText("Something's off").performClick()
@@ -182,9 +184,9 @@ class GuideTest {
     }
 
     @Test fun settingsCountsWhatsLeftToTry() {
-        assertEquals("the last five releases, less the guide's own", listOf(43, 42, 41, 40), Tried.left(News.all!!).map(WhatsNew.Entry::v))
+        assertEquals("the last five releases, less the guide's own", listOf(45, 43, 42, 41), Tried.left(News.all!!).map(WhatsNew.Entry::v))
         Tried.mark(43, "ok")
-        assertEquals(listOf(42, 41, 40), Tried.left(News.all!!).map { it.v })
+        assertEquals(listOf(45, 42, 41), Tried.left(News.all!!).map { it.v })
     }
 
     companion object {
