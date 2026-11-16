@@ -265,9 +265,16 @@ function build() {
       if (!c || c.type !== "Identifier" || c.name !== "BUG_AFTER" || n.callee.property.name !== "push") return;
       for (const fn of n.arguments.filter(isFn)) {
         const name = fn.id ? fn.id.name : "a BUG_AFTER check", cleared = new Set();
-        walkAll(fn.body, x => {
-          if (x.type === "CallExpression" && x.callee.type === "Identifier" && x.callee.name === "clearTimeout" && x.arguments[0]) cleared.add(txt(sc, x.arguments[0]));
-          if (x.type === "AssignmentExpression" && x.right.type === "CallExpression" && x.right.callee.type === "Identifier" && x.right.callee.name === "setTimeout" && cleared.has(txt(sc, x.left)))
+        /* setTimeout / window.setTimeout, also as the last of a comma list (t = (clearTimeout(t), setTimeout(…))) */
+        const timer = (x, nm) => x && x.type === "CallExpression" && (x.callee.type === "Identifier" ? x.callee.name === nm
+          : x.callee.type === "MemberExpression" && x.callee.object.type === "Identifier" && x.callee.object.name === "window" && x.callee.property.name === nm);
+        const lastOf = x => x && x.type === "SequenceExpression" ? x.expressions[x.expressions.length - 1] : x;
+        /* the check's own body only: a run function inside it that re-arms itself (the right shape) isn't a restart per pass */
+        const walkOwn = (n, f) => { f(n); for (const c of kids(n)) if (!/Function/.test(c.type)) walkOwn(c, f); };
+        walkOwn(fn.body, x => {
+          if (timer(x, "clearTimeout") && x.arguments[0]) cleared.add(txt(sc, x.arguments[0]));
+          const inList = x.type === "AssignmentExpression" && x.right.type === "SequenceExpression" && x.right.expressions.some(e => timer(e, "clearTimeout") && e.arguments[0] && txt(sc, e.arguments[0]) === txt(sc, x.left));
+          if (x.type === "AssignmentExpression" && timer(lastOf(x.right), "setTimeout") && (inList || cleared.has(txt(sc, x.left))))
             hazards.push({ rule: "L118", line: L(x), s: sc.i, name, msg: `${name}: clearTimeout(${txt(sc, x.left)}) then ${txt(sc, x.left)} = setTimeout(…) restarts its wait on every BUG_AFTER pass, so passes closer than the wait starve it: keep one pending run (if (!${txt(sc, x.left)}) ${txt(sc, x.left)} = setTimeout(run, ms)) and re-arm a run that lands during input (L118, layerPileRun)` });
         });
       }

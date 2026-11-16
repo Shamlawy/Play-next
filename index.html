@@ -17927,15 +17927,22 @@ function bugBlurry() {
   return out;
 }
 BUG_AFTER.push(function blurryAfter() {
-    if (!bugOn() || document.hidden || performance.now() - bugLastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return;
-    const first = bugBlurry(); if (!first.length) return;
-    /* give the swap a fair chance first: only what's still soft 3s later counts. Nov 16 (L118): a pass while one look is
-       pending leaves it alone (a restart on every pass starved it when passes came under 3s apart) */
-    if (BUG.blt) return;
-    BUG.blt = setTimeout(() => { BUG.blt = 0; if (document.hidden) return;
-      const now = bugBlurry(), hit = first.find(([el, s]) => el.isConnected && now.some(([e2, s2]) => e2 === el && s2 === s));
-      if (hit) bugReport("layout", "A picture stayed blurry (its sharp copy never swapped in)", { at: bugPath(hit[0]), screen: bugScreen() }); }, 3000);
+    /* Nov 16 (L118): a pass while one look is pending leaves it alone (a restart on every pass starved it when passes came
+       under 3s apart), before any picture is measured */
+    if (BUG.blt || !bugOn() || document.hidden || performance.now() - bugLastIn < 1200 || (typeof nxTouring === "function" && nxTouring())) return;
+    blurryBook(bugBlurry());
   });
+/* give the swap a fair chance first: only what's still soft 3s later counts; a look whose screen changed meanwhile starts
+   over on the screen now on top (its pass came while this one was pending and was skipped) */
+function blurryBook(first) {
+  if (!first.length) return;
+  const scr = bugScreen();
+  BUG.blt = setTimeout(() => { BUG.blt = 0; if (document.hidden || !bugOn()) return;
+    const now = bugBlurry();
+    if (bugScreen() !== scr) { blurryBook(now); return; }
+    const hit = first.find(([el, s]) => el.isConnected && now.some(([e2, s2]) => e2 === el && s2 === s));
+    if (hit) bugReport("layout", "A picture stayed blurry (its sharp copy never swapped in)", { at: bugPath(hit[0]), screen: bugScreen() }); }, 3000);
+}
 WHATS_NEW.push(
   { v: 202, go: () => { closeFull(); dyClose(); nxShut(); const g = onDeck(1)[0] || S.games[0]; if (g) openFull(g.id); }, at: () => $("#full .gd-hero"),
     say: "Fixed: 4K pictures now really show in 4K. Every picture loads a small copy first and swaps in the sharp one when the screen settles, but the release countdown kept the screen from ever counting as settled, so the sharp copies never came.",
@@ -18958,16 +18965,21 @@ BUG_AFTER.push(function lookReviewAfter() {
   /* only after the screen has been on for 3s untouched, so it reviews what you actually look at */
   const scr = bugScreen(); if (!root) return;
   if (BUG.rvS !== scr) { BUG.rvS = scr; BUG.rvAt = performance.now(); }
+  BUG.rvPass = performance.now();
   /* Nov 16 (L118): one pending look, never restarted by a newer pass (passes under 3s apart starved it); it waits until the
      screen has been on for 3s and (v283) 3s have gone by with no finger, then reviews whatever screen is on top */
   if (!BUG.rvT) BUG.rvT = setTimeout(lookReviewGo, 3000);
 });
+/* a game page opening another is the same bugScreen(): its 3s start again (onNav, not paintTab: a tab change is a new bugScreen) */
+onNav("after", () => { BUG.rvAt = performance.now(); });
 function lookReviewGo() {
   BUG.rvT = 0; if (!lookOk()) return;
   const root = document.querySelector("#full.on .hub") || document.querySelector("#sheet.on #sheet-in") || document.querySelector("#diary.on .dy-in") || document.querySelector(".panel.on");
   const scr = bugScreen(), now = performance.now(); if (!root) return;
   if (BUG.rvS !== scr) { BUG.rvS = scr; BUG.rvAt = now; }
-  const wait = 3000 - Math.min(now - BUG.rvAt, now - bugLastIn);
+  /* and 1.5s with no layout pass, so late cards (reviews, hours, news) are in before its one look per version; after 12s on
+     the screen it looks anyway, so passes that never stop can't starve it */
+  const since = now - BUG.rvAt, wait = Math.max(3000 - since, 3000 - (now - bugLastIn), since < 12000 ? 1500 - (now - (BUG.rvPass || 0)) : 0);
   if (wait > 0) { BUG.rvT = setTimeout(lookReviewGo, wait + 50); return; }
   lookReview(root, scr).catch(() => {});
 }
@@ -26360,12 +26372,14 @@ WHATS_NEW.push(
   };
   /* Nov 16 (L118): one pending look at a time, never restarted by a newer pass (passes under 0.7s apart starved it), and a
      look that lands while you touch or scroll waits for the quiet instead of dropping; one whose screen is no longer on top
-     is dropped (it would lay out a hidden screen) and the new screen's next pass books its own */
+     isn't measured (it would lay out a hidden screen): the look starts over on the screen now on top, whose own pass was
+     skipped while this one was pending (review helper) */
   const top = () => document.querySelector("#full.on .hub") || document.querySelector(".panel.on");
   let t = 0, seen = null;
   const stuckRun = () => {
     t = 0; const { root, a } = seen; seen = null;
-    if (!bugOn() || document.hidden || !root.isConnected || top() !== root) return;
+    if (!bugOn() || document.hidden) return;
+    if (!root.isConnected || top() !== root) { const r2 = top(), a2 = r2 ? stuck(r2) : []; if (a2.length) { seen = { root: r2, a: a2 }; t = setTimeout(stuckRun, 700); } return; }
     const quiet = performance.now() - bugLastIn;
     if (quiet < 1200) { seen = { root, a }; t = setTimeout(stuckRun, 1300 - quiet); return; }
     const b = stuck(root).filter(el => a.includes(el)); if (!b.length) return;
@@ -28009,7 +28023,7 @@ BUG_AFTER.push(function lookAfter() {
   /* too soon after a switch: walk once it has settled (no pass may come later: run 1 of zz-eyeorder had none) */
   /* Nov 16 (L118): one pending later walk (a newer pass leaves it alone), and a walk that lands while you touch or scroll
      books one for the quiet instead of dropping: the timer path has no BUG_AFTER pass behind it to try again */
-  const later = ms => { if (!lookLaterT) lookLaterT = setTimeout(() => { lookLaterT = 0; (window.requestIdleCallback || setTimeout)(lookAfter, { timeout: 1500 }); }, ms); };
+  const later = ms => { if (!lookLaterT) lookLaterT = setTimeout(() => (window.requestIdleCallback || setTimeout)(() => { lookLaterT = 0; lookAfter(); }, { timeout: 1500 }), ms); };
   if (since < 1200) { later(1250 - since); return; }
   const quiet = performance.now() - bugLastIn;
   if (quiet < 1200) { later(1300 - quiet); return; }

@@ -6,6 +6,7 @@
    Per check, with its problem planted on the Queue and the check taken out of BUG_AFTER so only these calls drive it:
      A  a pass every 300ms for 4s (faster than the wait): the report must come while the passes are still coming
      B  one pass, then a touch 500ms later and nothing after: the report must still come once it's quiet
+     C  (stuck entrance) a look pending on the Queue, then Library opens with its own stuck card: Library is looked at
      node tools/kit.mjs run tools/scenarios/bug-after-settle.mjs --widths 412      (--file tools/.cache/old.html: the before) */
 import fs from "fs";
 const plant = f => fs.readFileSync(new URL("../plants/" + f, import.meta.url), "utf8");
@@ -16,7 +17,7 @@ const STUCK = `(() => { const r = document.querySelector(".panel.on"), d = docum
 const CHECKS = [
   { name: "layerPileAfter", plant: plant("layer-pile.js"), re: /GPU layers pile up/ },
   { name: "scrollLinkedAfter", plant: plant("scroll-pile.js"), re: /move with the scroll/ },
-  { name: "stuckEntranceAfter", plant: STUCK, re: /stayed invisible on screen/ },
+  { name: "stuckEntranceAfter", plant: STUCK, re: /stayed invisible on screen/, screenChange: true },
 ];
 export default async ({ p, w }) => {
   const pg = p.page; let ok = true;
@@ -51,6 +52,16 @@ export default async ({ p, w }) => {
     }));
     if (b < 0) { ok = false; console.log(`  ✗ ${w}px ${c.name} B: a touch came while the check waited, and it never ran`); }
     else console.log(`  ✓ ${w}px ${c.name} B: reported ${b}ms after the pass (a touch at 500ms)`);
+    if (c.screenChange) {   /* C (review helper): a look pending on the Queue, then Library opens with its own stuck card and no pass comes after */
+      await reset();
+      const cc = await pg.evaluate(plantNext => new Promise(done => {
+        const t0 = performance.now(); window.__f();
+        setTimeout(() => { goTab("games"); goSub("games", "lib"); setTimeout(() => { document.getElementById("zzstuck")?.remove(); eval(plantNext); }, 150); }, 200);
+        setTimeout(() => done(window.__hit.length ? Math.round(window.__hit[0] - t0) + "ms on " + bugScreen() : ""), 4500);
+      }), c.plant);
+      if (!cc || !/lib/.test(cc)) { ok = false; console.log(`  ✗ ${w}px ${c.name} C: the screen changed while a look was pending, and the new screen was never looked at${cc ? " (reported " + cc + ")" : ""}`); }
+      else console.log(`  ✓ ${w}px ${c.name} C: reported ${cc} after the screen changed under a pending look`);
+    }
     await pg.evaluate(f => { BUG_AFTER.push(window.__f); }, null);
     await pg.reload(); await pg.waitForTimeout(2500); await p.step("queue", `goTab("queue")`, 2600);   /* the next plant on a clean page */
   }
