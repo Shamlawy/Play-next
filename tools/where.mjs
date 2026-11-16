@@ -8,9 +8,11 @@
                                           assigning a top-level const (v216), wrapping goTab / goSub / openFull /
                                           openSettings again instead of onNav / onSettings (v269), a layout read right after an
                                           HTML write in one function (v206: also through top-level helpers, setTimeout <100ms and
-                                          extend() after/map hooks; budgeted by audit.mjs layoutAfterHtml, over it fails);
+                                          extend() after/map hooks; budgeted by audit.mjs layoutAfterHtml, over it fails), a
+                                          BUG_AFTER check that restarts its own wait on every pass (L118, audit.mjs bugAfterRestart);
                                           --base=<git ref> = only the ones new since that build
      node tools/where.mjs --list-v206     every v206 hit (audit.mjs counts them)
+     node tools/where.mjs --list-rule=L118  every hit of one rule (L118: a BUG_AFTER check restarting its own wait, M91)
      node tools/where.mjs --json [--at=N] the whole map, or the functions around line N (the learn mod reads this)
    Cached in tools/.cache/ by index.html's size + mtime. */
 import fs from "fs";
@@ -249,6 +251,35 @@ function build() {
     if (r) { const what = r.c ? `${r.c}() (reads ${reads.get(r.c)})` : r.what;
       hazards.push({ rule: "v206", line: r.line, s: f.s, name: f.name, msg: `${f.name}: ${what} at line ${r.line} after ${w.what} at line ${w.line}: a forced layout of the new markup; read it in requestAnimationFrame or a ResizeObserver (lfRO) instead (v206)` }); }
   }
+  /* L118 (Nov 16, L315, M91): a BUG_AFTER check that restarts its own wait on every pass (clearTimeout(t); t = setTimeout(…)):
+     with passes closer together than the wait it never runs (the layer-pile plant flapped in CI for weeks). Keep one pending
+     run instead (if (!t) t = setTimeout(run, ms)), and have a run that lands during input re-arm for the quiet, not return.
+     Counted by audit.mjs (bugAfterRestart, budget 0) so every PR runs it. */
+  const txt = (sc, n) => sc.code.slice(n.start, n.end).replace(/\s+/g, "");
+  const walkAll = (n, f) => { f(n); for (const c of kids(n)) walkAll(c, f); };
+  scripts.forEach((sc, si) => {
+    const ast = asts[si]; if (!ast) return;
+    const L = n => n.loc.start.line + sc.off;
+    walkAll(ast, n => {
+      const c = n.type === "CallExpression" && n.callee.type === "MemberExpression" && n.callee.object;
+      if (!c || c.type !== "Identifier" || c.name !== "BUG_AFTER" || n.callee.property.name !== "push") return;
+      for (const fn of n.arguments.filter(isFn)) {
+        const name = fn.id ? fn.id.name : "a BUG_AFTER check", cleared = new Set();
+        /* setTimeout / window.setTimeout, also as the last of a comma list (t = (clearTimeout(t), setTimeout(…))) */
+        const timer = (x, nm) => x && x.type === "CallExpression" && (x.callee.type === "Identifier" ? x.callee.name === nm
+          : x.callee.type === "MemberExpression" && x.callee.object.type === "Identifier" && x.callee.object.name === "window" && x.callee.property.name === nm);
+        const lastOf = x => x && x.type === "SequenceExpression" ? x.expressions[x.expressions.length - 1] : x;
+        /* the check's own body only: a run function inside it that re-arms itself (the right shape) isn't a restart per pass */
+        const walkOwn = (n, f) => { f(n); for (const c of kids(n)) if (!/Function/.test(c.type)) walkOwn(c, f); };
+        walkOwn(fn.body, x => {
+          if (timer(x, "clearTimeout") && x.arguments[0]) cleared.add(txt(sc, x.arguments[0]));
+          const inList = x.type === "AssignmentExpression" && x.right.type === "SequenceExpression" && x.right.expressions.some(e => timer(e, "clearTimeout") && e.arguments[0] && txt(sc, e.arguments[0]) === txt(sc, x.left));
+          if (x.type === "AssignmentExpression" && timer(lastOf(x.right), "setTimeout") && (inList || cleared.has(txt(sc, x.left))))
+            hazards.push({ rule: "L118", line: L(x), s: sc.i, name, msg: `${name}: clearTimeout(${txt(sc, x.left)}) then ${txt(sc, x.left)} = setTimeout(…) restarts its wait on every BUG_AFTER pass, so passes closer than the wait starve it: keep one pending run (if (!${txt(sc, x.left)}) ${txt(sc, x.left)} = setTimeout(run, ms)) and re-arm a run that lands during input (L118, layerPileRun)` });
+        });
+      }
+    });
+  });
   const seenH = new Set();
   hazards.splice(0, hazards.length, ...hazards.filter(h => { const k = h.line + h.msg; if (seenH.has(k)) return false; seenH.add(k); return true; }));
   const st = fs.statSync(FILE);
@@ -327,6 +358,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const h of hz.slice(0, 60)) console.log(`[${h.rule}] line ${h.line}: ${h.msg}`);
     process.exit(hz.length || parseErr.length ? 1 : 0);
   }
+  else if (opt["list-rule"]) { for (const h of map.hazards.filter(h => h.rule === opt["list-rule"])) console.log(`line ${h.line}: ${h.msg}`); }
   else if (opt["list-v206"]) {
     const hz = map.hazards.filter(h => h.rule === "v206");
     if (opt["list-v206"] === "count") console.log(hz.length); else for (const h of hz) console.log(`line ${h.line}: ${h.msg}`);
