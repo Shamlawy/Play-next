@@ -64,3 +64,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E58 | 2026-11-15 1:12 PM | kit | 15 min | 1 min | 0.07 | I'll find out why that one test fails and send you where v43 stands. | <!-- at=2026-11-15T09:12:37.724Z -->
 | E59 | 2026-11-15 1:21 PM | release | 25 min | 2 h | 4.80 | the Android checks should finish around 1:45 PM UAE time, and then I'll merge. | <!-- at=2026-11-15T09:21:05.674Z bg=1 -->
 | E61 | 2026-11-15 3:06 PM | ci | 20 min | 16 min | 0.80 | ▢ Android checks on the new head (e75f4d9) should finish around 3:25 PM UAE time. I'll merge v43 when they pass, and it reaches the p | <!-- at=2026-11-15T11:06:04.714Z bg=1 -->
+| E62 | 2026-11-16 12:35 PM | release | 40 min | open |  | I'll fix the check, prove it fails on the old code and passes on the new, run the checks, then merge. | <!-- at=2026-11-16T08:35:40.906Z -->

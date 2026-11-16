@@ -1,6 +1,6 @@
 # Code map of index.html
 
-Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28869 lines, 2245 KB, 125 scripts, 66 styles.
+Made by `node tools/map.mjs` (run it again after a release; line numbers move). 28877 lines, 2246 KB, 125 scripts, 66 styles.
 
 How the file is built: one core style (line 15) and one core script (the biggest block below), then one patch per release, oldest first. A patch adds its own code and often wraps a core function (`const _of = openFull; openFull = function () { ... _of.apply(this, arguments) ... }`), so the **last** wrap runs first. To change what a function does, read every layer listed under "Wrapped functions". New code goes in the last script/style.
 
@@ -47,15 +47,15 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 - 26257 v281: `onSettings("after", () => spSetWire());`
 - 26393 v285: `onSettings("after", () => {`
 - 26436 : `onNav("after", () => requestAnimationFrame(() => { try { cdTick(); } catch (e) {} }));`
-- 26722 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
-- 27144 v297: `onSettings("before", () => srlOff());`
-- 27145 v297: `onSettings("after", () => srlBuild());`
-- 27971 : `onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.`
-- 28022 : `onNav("after", () => { const p = P(); if (!p) return;`
-- 28806 v317: `onSettings("before", () => { if (SKB_MUS.g) skbMusStop(.5); });`
-- 28812 v317: `onSettings("after", () => { const c = $("#s-bkmus"); if (!c) return;`
-- 28827 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); if (SKB_MUS.g) skbMusStop(.5); });`
-- 28829 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
+- 26730 v288: `onNav("before", () => { TEA.nav = performance.now(); if (TEA.on) teaStop(); });`
+- 27152 v297: `onSettings("before", () => srlOff());`
+- 27153 v297: `onSettings("after", () => srlBuild());`
+- 27979 : `onNav("after", () => { lookNavAt = performance.now(); }); onSettings("after", () => { lookNavAt = performance.`
+- 28030 : `onNav("after", () => { const p = P(); if (!p) return;`
+- 28814 v317: `onSettings("before", () => { if (SKB_MUS.g) skbMusStop(.5); });`
+- 28820 v317: `onSettings("after", () => { const c = $("#s-bkmus"); if (!c) return;`
+- 28835 v317: `onNav("before", () => { if (SKB.intro) skbSkip(); if (SKB_MUS.g) skbMusStop(.5); });`
+- 28837 v317: `onNav("after", (k, args) => { if (k === "tab" && (args[0] === "taste" || args[0] === "book") && subOf("taste")`
 
 ## Blocks
 
@@ -238,17 +238,17 @@ goTab / goSub / openFull run every `onNav("before"|"after", fn)` hook and openSe
 | 26415–26445 | script | 3 | Oct 2026 clean-up (step 3b, work nobody sees). 1. A CSS loop that was held (its screen hidden, or resting) and set going again with play() no longer… |
 | 26445–26465 | style | 2 | ===== v287: fewer GPU layers (#60 Home, #62 game page, #207 Played, #116 blank on Queue). The phone's own timing of a Played stutter: "1 long frame,… |
 | 26465–26472 | script | 0 | the shelf's covers get their own layers while it's swiped, and give them back 400ms after it stops |
-| 26472–26569 | script | 8 | v287: Nexi spots GPU layers piling up on the screen you're on. The stutters that kept coming back (#60, #62, #207) were drawing, not code (the… |
-| 26569–26604 | style | 3 | ===== v288: Nexi's tea break. The owner (after a Spy x Family ending where the family never gets to drink their tea): now and then, when the app… |
-| 26604–26759 | script | 14 | ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s (no touch, scroll or screen… |
-| 26759–26913 | script | 13 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |
-| 26913–26954 | style | 4 | ===== v297: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise are one scroll of open… |
-| 26954–27174 | script | 25 | ===== v297: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |
-| 27174–27609 | style | 46 | ===== v299: the open Queue card, round 9 "Sweep" (the owner, after rounds 7-9: "Perfect"; they hated v298's fixed blue slab, the round stamp that… |
-| 27609–27696 | script | 9 | — |
-| 27696–27712 | script | 1 | v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium gives each scroll-linked… |
-| 27712–27773 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
-| 27773–27832 | script | 6 | — |
-| 27832–28124 | script | 29 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
-| 28124–28294 | style | 20 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
-| 28294–28869 | script | 68 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
+| 26472–26577 | script | 9 | v287: Nexi spots GPU layers piling up on the screen you're on. The stutters that kept coming back (#60, #62, #207) were drawing, not code (the… |
+| 26577–26612 | style | 3 | ===== v288: Nexi's tea break. The owner (after a Spy x Family ending where the family never gets to drink their tea): now and then, when the app… |
+| 26612–26767 | script | 14 | ===== v288: Nexi's tea break (`teaTry`). Every few seconds `teaTick` looks whether the app has been still for 25s (no touch, scroll or screen… |
+| 26767–26921 | script | 13 | ===== v290: Queue logos, look A (the owner picked it from four demos: "make A") ===== The row logo has its own upright slot inside the row (CSS at… |
+| 26921–26962 | style | 4 | ===== v297: Settings rail, look B (the owner picked it from four demos: "B looks very sick"). Settings and every Customise are one scroll of open… |
+| 26962–27182 | script | 25 | ===== v297: Settings rail (look B) and drawn group icons ===== GICON: one 24x24 drawing per Settings / Customise / Edit group and Most used… |
+| 27182–27617 | style | 46 | ===== v299: the open Queue card, round 9 "Sweep" (the owner, after rounds 7-9: "Perfect"; they hated v298's fixed blue slab, the round stamp that… |
+| 27617–27704 | script | 9 | — |
+| 27704–27720 | script | 1 | v305 (#207 Played): every finished game's row had its scroll-linked motion (view() timelines) all the time, and Chromium gives each scroll-linked… |
+| 27720–27781 | script | 4 | v305: Nexi learned two more kinds of drawing load (the stutters whose phone timing said "script 0, render 157ms"): 1. pictures drawn as url()… |
+| 27781–27840 | script | 6 | — |
+| 27840–28132 | script | 29 | ===== Oct 18 (the owner: "upgrade how you are testing the app and seeing glitches and ui problems … inside the app via nexi and you"; open idea… |
+| 28132–28302 | style | 20 | ===== v317: the skills book (Taste › Book, ideas M41/M42; the owner picked card look A "Perks" and the round 2 book: "Very good apply it now"). A… |
+| 28302–28877 | script | 68 | ===== v317: the skills book (Taste › Book). What each game you finished trained in you, as a book you leaf through. The words for each game are… |
