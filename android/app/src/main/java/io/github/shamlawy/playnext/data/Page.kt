@@ -232,8 +232,8 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
     /** The About text (`g.desc || g.about`), shown as plain words. */
     fun about(g: Game): String = Backup.str(g["desc"]).ifEmpty { Backup.str(g["about"]) }
 
-    /** The screenshots (`g.shots`, five at most): each one's small copy and big one. */
-    fun shots(g: Game): List<Pair<String, String>> = (g["shots"] as? JsonArray).orEmpty().mapNotNull { e ->
+    /** The screenshots (`g.shots`, five at most, or the ones [Screenshots] fetched this run): each one's small copy and big one. */
+    fun shots(g: Game): List<Pair<String, String>> = Screenshots.of(g) ?: (g["shots"] as? JsonArray).orEmpty().mapNotNull { e ->
         val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
         // the web keeps only entries with a `u` (`filter(x => x && x.u)`): the strip shows `t` or `u` (shotThumb), the
         // viewer `b` or `u`
