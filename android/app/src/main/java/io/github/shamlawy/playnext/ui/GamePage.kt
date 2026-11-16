@@ -485,7 +485,7 @@ private fun GameBody(g: Game, view: PageView, pageW: Dp, pageH: Dp, wide: Boolea
                 val about = page.about(g)
                 if (about.isNotEmpty()) About(about, still, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.STORY) })
                 // one list per game and copy, so the strip isn't redrawn on every pass of the page
-                val shots = remember(page, g) { page.shots(g) }
+                val shots = rememberShots(page, g)
                 if (shots.isNotEmpty()) Shots(g, shots, big, acts, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.ABOUT) })
                 // the helper's cards (`gd-pair`): Reviews, then Prices
                 ReviewsSec(g, page, lib, Modifier.graphicsLayer { translationY = tagSlide.value + moreSlide.value + move.below(TextMove.ABOUT) })
@@ -1082,7 +1082,7 @@ private fun About(text: String, still: Boolean, modifier: Modifier) {
 /** Screenshots (`gdShots`): a strip of 16:9 pictures that snaps to each one's start; a tap opens them full screen. */
 @Composable
 private fun Shots(g: Game, shots: List<Pair<String, String>>, big: Boolean, acts: PageActs, modifier: Modifier) {
-    val src = Backup.str(g["shotsSrc"])
+    val src = io.github.shamlawy.playnext.data.Screenshots.src(g)
     Section("ui:camera", "Screenshots", if (src.isNotEmpty()) "from $src" else "", modifier) {
         val list = rememberLazyListState()
         BoxWithConstraints(Modifier.padding(top = 10.dp).fillMaxWidth()) {
