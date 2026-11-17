@@ -72,6 +72,16 @@ class RevealTest {
         ).jsonObject,
     )
 
+    private fun two() = Library(
+        Json.parseToJsonElement(
+            """
+            {"theme":"midnight","lists":[],"userName":"Sam","duels":[],"played":[],"games":[
+               {"id":"a","title":"Starfall Lantern","state":"backlog","hype":8,"colour":"#7A3CFF"},
+               {"id":"e","title":"Moth Bell","state":"backlog","hype":3,"colour":"#2BB673"}]}
+            """.trimIndent(),
+        ).jsonObject,
+    )
+
     @Before
     fun setUp() {
         Store.init(ApplicationProvider.getApplicationContext())
@@ -212,7 +222,10 @@ class RevealTest {
     @Test fun shots859() = shots(859)
 
     private fun shots(w: Int) {
-        show(width = w)
+        // the same pick and the same crack every run: the last pick was a, so with two games the dice takes e
+        PickLast.set("a")
+        Reveal.seed = 7
+        show(two(), width = w)
         roll()
         step(1_300)
         rule.onRoot().captureRoboImage("src/test/screenshots/reveal-$w.png")

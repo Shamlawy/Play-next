@@ -173,3 +173,9 @@ Waiting.f: Fetching?
 WhereCard.g: Game
 WhySheet.g: Game
 WhySheet.lib: Library
+RevealScene.r: Run
+RevealScene.shards: List<Shard>
+RevealScene.unstable crack: Animatable<Float, *>
+RevealScene.unstable fly: Animatable<Float, *>
+RevealScene.unstable t: Animatable<Float, *>
+Slash.unstable t: Animatable<Float, *>

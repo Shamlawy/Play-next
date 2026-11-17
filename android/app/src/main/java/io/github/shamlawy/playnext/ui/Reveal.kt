@@ -110,7 +110,12 @@ object Reveal {
     /** Tests start from nothing playing. */
     internal fun reset() {
         run = null
+        seed = null
     }
+
+    /** Tests fix where it cracks (the screenshots); null is a new crack each time, as the web's. */
+    @androidx.annotation.VisibleForTesting
+    internal var seed: Long? = null
 }
 
 /** The scene's times (ms): its clock runs to [BREAK], where it cracks by itself. */
@@ -201,7 +206,7 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
         // the crack's centre and the 8 points round the edge (the corners stay, the edges' middles wander), then each
         // shard's flight: from the centre outwards, a third to a little more than the screen, turning up to 40° either way
         val shards = remember {
-            val rnd = java.util.Random()
+            val rnd = Reveal.seed?.let { java.util.Random(it) } ?: java.util.Random()
             val c = Offset(.48f + rnd.nextFloat() * .08f, .44f + rnd.nextFloat() * .1f)
             val e = listOf(0f to 0f, .5f to 0f, 1f to 0f, 1f to .5f, 1f to 1f, .5f to 1f, 0f to 1f, 0f to .5f).map { (x, y) ->
                 Offset(if (x == .5f) .35f + rnd.nextFloat() * .3f else x, if (y == .5f) .3f + rnd.nextFloat() * .4f else y)
