@@ -19,7 +19,6 @@ Chart.c: Chart
 Chart.t: Animatable<Float, AnimationVector1D>
 Chip.c: Chip
 Chips.items: List<Pair<String, String>>
-Counts.counts: List<Pair<String, Int>>
 CustomiseSheet.games: State
 DeckCard.g: Game
 DeckCard.q: Queue
@@ -48,7 +47,12 @@ Head.page: Page
 HeaderCard.cards: Cards?
 HeaderCard.lib: Library
 Hero.g: Game
+Hero.h: Home
+HomeGroups.lib: Library
+HomeHead.h: Home
 HomePage.games: State
+HomeSearch.h: Home
+HomeTop.ready: Ready
 HoursSheet.g: Game
 HoursSheet.lib: Library
 LikeThis.g: Game
@@ -64,7 +68,9 @@ MixBar.segs: List<Seg>
 MoreDrawer.g: Game
 MoreDrawer.page: Page
 MoreDrawer.unstable slide: Animatable<Float, *>
+NexiLine.h: Home
 NexiSeat.nexi: Nexi?
+NextFour.h: Home
 NoteSheet.g: Game
 Numbers.h: Hl
 OnDeck.deck: List<Game>
@@ -109,6 +115,8 @@ ReviewsSec.page: Page
 ScoreSheet.g: Game
 ScoreSheet.lib: Library
 ScoreSheet.ready: Rank?
+SearchResults.h: Home
+SearchResults.hits: List<Game>
 SelCell.g: Game
 SelCell.pick: QueuePick
 SelCell.q: Queue
@@ -155,6 +163,9 @@ Tiles.g: Game
 Tiles.lib: Library
 Tiles.page: Page
 Toggles.items: List<Pair<String, String>>
+Toggles.off: Set<String>
+TopPills.h: Home
+TopPills.top: List<Game>
 TryRow.items: List<Pair<String, Function0<Unit>>>
 Vessel.t: Animatable<Float, AnimationVector1D>
 ViewBar.views: List<Pair<String, String>>

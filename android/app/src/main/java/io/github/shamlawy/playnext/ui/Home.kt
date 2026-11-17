@@ -675,13 +675,17 @@ private fun NextFour(h: Home, wide: Boolean, modifier: Modifier) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     BasicText(g.title, style = ROW_NAME.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        // the date keeps its whole words ("No date yet", "14 Nov"); a narrow row shortens the genre
+                        // chip instead, which ends in "…"
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             val ink = if (lit) Pn.ice else Pn.mute
                             PnIcon("ui:hour", ink, 12.dp, null)
-                            BasicText(h.whenOf(g), style = ROW_WHEN.copy(color = ink).fixed(), maxLines = 1, overflow = TextOverflow.Clip, softWrap = false)
+                            BasicText(h.whenOf(g), style = ROW_WHEN.copy(color = ink).fixed(), maxLines = 1, softWrap = false)
                         }
                         val gp = h.genreOf(g)
-                        if (gp.isNotEmpty()) GenreTag(gp, Color(g.colour))
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                            if (gp.isNotEmpty()) GenreTag(gp, Color(g.colour))
+                        }
                     }
                 }
             }

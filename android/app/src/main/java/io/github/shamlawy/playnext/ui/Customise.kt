@@ -177,8 +177,9 @@ private fun HomeGroups(lib: Library) {
     Card {
         BasicText("Tiles on Home", style = Type.head)
         BasicText("Turn off anything you don't look at. A tile also hides itself when it has no data yet.", style = Type.note)
-        val off = (lib["homeHide"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
-        Toggles(HOME_TILES, off.toSet()) { k ->
+        val off = remember(lib) { (lib["homeHide"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content } }
+        val offSet = remember(off) { off.toSet() }
+        Toggles(HOME_TILES, offSet) { k ->
             // the order the web keeps: what was off, then the newly turned off one at the end
             set("homeHide", JsonArray((if (k in off) off - k else off + k).map(::JsonPrimitive)))
         }
