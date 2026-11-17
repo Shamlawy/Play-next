@@ -245,7 +245,24 @@ for (const [name, at] of CLOCKS) {
     const poolOf = last => base.filter(g => g.id !== last || (outs.length || live.length) < 2).map(g => g.id);
     const shuffle = { none: poolOf(undefined), last: base.length ? base[0].id : "", afterLast: poolOf(base.length ? base[0].id : undefined) };
     const boss = typeof window.bossHP === "function" ? window.bossHP() : null;
-    return { tabs, counts, sorts, per, shuffle, boss };
+    /* Home's top (Phase 3 piece 1): renderHome's ranked, dated and hours (its own lines, as it keeps them inside), the
+       search (dxWire's paint), each live game's row words (dxHome's when + genre) and Nexi's line's pick and top 3 */
+    const elo = eloTable(), deck = onDeckScores(), dv = g => deck[g.id] != null ? deck[g.id] : -1;
+    const ranked = live.slice().sort((a, b) => dv(b) - dv(a) || (elo[b.id] || 1500) - (elo[a.id] || 1500) || (b.hype || 0) - (a.hype || 0));
+    const dated = live.filter(g => g.date).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const fut = dated.filter(g => new Date(g.date + "T00:00:00") > new Date());
+    const genre = g => platList(g.genres)[0] || ((STATES.find(x => x[0] === (g.state || "upcoming")) || [, ""])[1]);
+    const when = g => g.date ? (days(g.date).startsWith("Out") ? days(g.date) : shortDate(g.date)) : hrsOf(g) ? "≈ " + num(hrsOf(g), 0, 0, 1000) + "h" : "No date yet";
+    const find = s => S.games.filter(g => (g.title || "").toLowerCase().includes(s))
+      .sort((a, b) => (a.title.toLowerCase().indexOf(s)) - (b.title.toLowerCase().indexOf(s))).slice(0, 6)
+      .map(g => [g.id, isPlayed(g) ? "Played" : g.date ? days(g.date) : ""]);
+    const words = {};
+    for (const g of live) words[g.id] = [when(g), genre(g)];
+    const home = { ranked: ranked.map(g => g.id), dated: dated.map(g => g.id), fut: fut.map(g => g.id),
+      hours: live.reduce((a, g) => a + (hrsOf(g) || 0), 0), settled: (S.duels || []).filter(d => d.w).length,
+      search: Object.fromEntries(["a", "e", "the", "zz", "ar"].map(s => [s, find(s)])), words,
+      nexi: (onDeck(1)[0] || {}).id || "", top: rankedGames().slice(0, 3).map(g => g.id) };
+    return { tabs, counts, sorts, per, shuffle, boss, home };
   });
   out.queue.push({ name, at, now: Date.parse(at), raw, ...q });
   await ctx.close();

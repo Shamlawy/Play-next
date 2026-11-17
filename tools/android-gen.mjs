@@ -124,9 +124,10 @@ need(VIEWS.subs.plan.some(v => v[0] === "timer"), "SUBS.plan holds timer (shown 
    "<selector> {" block with the property, its [n]th #hex, rgba() or rgb() (negative counts from the end) ---------- */
 const LITERAL = /#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)|rgb\(\d+(?:,\s*|\s+)\d+(?:,\s*|\s+)\d+\)/g;
 const lit = c => { const m = /^rgb\((\d+)(?:,\s*|\s+)(\d+)(?:,\s*|\s+)(\d+)\)$/.exec(c); return m ? `rgba(${m[1]},${m[2]},${m[3]},1)` : c.replace(/\s+/g, ""); };
-function cssColour(sel, prop, n = 0) {
+function cssColour(sel, prop, n = 0, lineStart = false) {
   const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  for (const m of src.matchAll(new RegExp("(?:^|[\\s},])" + esc + "\\s*\\{([^}]*)\\}", "g"))) {
+  /* lineStart: only a rule that starts a line (".gp {", not "#grumpop .gp {") */
+  for (const m of src.matchAll(new RegExp((lineStart ? "(?:^|\\n)" : "(?:^|[\\s},])") + esc + "\\s*\\{([^}]*)\\}", "g"))) {
     const d = new RegExp("(?:^|[;{\\s])" + prop + "\\s*:\\s*([^;}]+)").exec(m[1]);
     const c = d && [...d[1].matchAll(LITERAL)].map(x => x[0]).at(n);
     if (c) return argb(lit(c), `${sel} ${prop}`);
@@ -227,6 +228,14 @@ const RULES = {
   CAP_CELL: cssColour(".cap-c", "background"), DW_LIFT: cssColour(".gd-sec .dwc", "background"),
   /* the finish moment (v120s: the PLAYED stamp, the burst's card) and the tier badges (`.tier`, v184) */
   STAMP: cssColour("#pnstamp b", "border"), STAMP_BG: cssColour("#pnstamp b", "background"), CELE_BG: cssColour("#cele .msg", "background"),
+  /* Home's top (v174 `.dxw`, Phase 3 piece 1): the search box's edge and its results' ground, the big card's shade (top,
+     foot) and avatar shadow, its round buttons, the play button's mark, a row's genre tag veil, the empty card's two
+     colours, and Nexi's Home face (v131 `.nxh-face`: near, far, eyes) */
+  DX_SEARCH_EDGE: cssColour(".dxs", "border"), DX_RES: cssColour(".dxres", "background"),
+  DX_SHADE_TOP: cssColour(".dxhero::after", "background", 0), DX_SHADE_FOOT: cssColour(".dxhero::after", "background", -1),
+  DX_AV_SHADE: cssColour(".dxhero .av", "box-shadow"), DX_CB: cssColour(".cb", "background"), DX_PLAY_INK: cssColour(".play", "color"),
+  DX_GP_VEIL: cssColour(".gp", "background", 0, true), DX_EMPTY_A: cssColour(".dxhero.empty", "background", 0), DX_EMPTY_B: cssColour(".dxhero.empty", "background", 1),
+  NXH_FACE: cssColour(".nxh-face", "background", 0), NXH_FACE_FAR: cssColour(".nxh-face", "background", 1), NXH_EYE: cssColour(".nxh-face .eyes i", "background"),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
 };
 /* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
@@ -366,6 +375,14 @@ const APP_DRAWN = {
   reset: '<circle opacity=".35" cx="12" cy="12" r="3"/><path d="M12 4a8 8 0 1 1-7.6 5.5l2.1.7A5.8 5.8 0 1 0 12 6.2V9L7.6 5.1 12 1.2z"/>',
   queue: '<rect x="3" y="3.8" width="18" height="4.6" rx="1.4"/><rect opacity=".35" x="3" y="9.8" width="18" height="4.4" rx="1.4"/><rect opacity=".35" x="3" y="15.6" width="18" height="4.4" rx="1.4"/>',
   clock: '<rect x="9.4" y="1" width="5.2" height="2.2" rx="1.1"/><circle opacity=".35" cx="12" cy="13.6" r="8.6"/><path d="M11 8.4h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
+  /* Home's top (the web's stroke `DX_ICO`, v174, redrawn fill-only): Pick for me's dice, the hype flame, Shuffle's
+     crossing arrows, Customise's sliders, the big card's play mark and a row's clock */
+  dice: '<rect opacity=".35" x="3.2" y="3.2" width="17.6" height="17.6" rx="4"/><circle cx="8.4" cy="8.4" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="15.6" cy="15.6" r="1.8"/>',
+  flame: '<path opacity=".35" d="M12 2.4c1.2 3.8 5.8 6.1 5.8 11.2a5.8 5.8 0 0 1-11.6 0c0-2.6 1.4-4.2 2.6-5.3.3 1.6 1.1 2.7 2.2 3.2C10.8 8.4 11.1 5.4 12 2.4z"/><path d="M12.2 11.8c.9 1.5 2.6 2.4 2.6 4.4a2.7 2.7 0 0 1-5.4 0c0-1.1.6-1.8 1.2-2.3.2.7.6 1.1 1 1.3-.1-1.2.2-2.3.6-3.4z"/>',
+  shuffle: '<path opacity=".35" d="M3 6.2h4c2.5 0 3.6 1.4 4.8 3.4l1.2 2c1 1.8 2 3.8 4 3.8h.4v-3l4.6 4.2-4.6 4.2v-3h-.4c-3.2 0-4.6-2-6-4.4l-1.2-2C9 10 8.4 8.6 7 8.6H3z"/><path d="M3 15.4h4c1 0 1.6-.4 2.2-1.2l1.4 2c-1 1.1-2.1 1.6-3.6 1.6H3zm9.8-7.8c1-1 2.2-1.4 4.2-1.4h.4v-3L22 7.4l-4.6 4.2v-3H17c-1.2 0-2 .3-2.7 1z"/>',
+  sliders: '<path opacity=".35" d="M3 5.8h18v2.4H3zm0 10h18v2.4H3z"/><rect x="12.4" y="3.2" width="5" height="7.6" rx="2.5"/><rect x="6.6" y="13.2" width="5" height="7.6" rx="2.5"/>',
+  go: '<path d="M8 4.6v14.8c0 .8.9 1.3 1.6.9l11.2-7.4c.6-.4.6-1.3 0-1.7L9.6 3.7C8.9 3.3 8 3.8 8 4.6z"/>',
+  hour: '<circle opacity=".35" cx="12" cy="12" r="9.6"/><path d="M11 6.6h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
 const PLAT_LOGO = table("PLAT_LOGO");

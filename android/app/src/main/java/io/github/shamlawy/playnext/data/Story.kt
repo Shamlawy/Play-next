@@ -97,7 +97,7 @@ object Forecast {
         } else if (Story.daily(g) > 0) {
             pace = Story.daily(g); src = "your plan of ${Queue.jsNum(Story.daily(g))}h a day"
         } else {
-            val ev = Backup.num(lib["evening"], 4.0, 1.0, 12.0)
+            val ev = lib.evening
             pace = ev * 4 / 7; src = "about ${Queue.jsNum(ev)}h an evening, 4 evenings a week"
         }
         if (!(pace > .05)) return null

@@ -55,6 +55,12 @@ class Library(
     val bgTint: String get() = Backup.str(state["bgTint"])
     val bgGrad: Int get() = Backup.num(state["bgGrad"], Web.BG_GRAD.toDouble(), 0.0, 100.0).toInt()
 
+    /**
+     * Hours you play in an evening (`num(S.evening, 4, 1, 12)`): every "≈ N evenings", Tonight and forecast count on the
+     * web reads it this way (3-critic.md (c)). The card back and the Settings display keep `S.evening || 2` ([Queue.evening]).
+     */
+    val evening: Double get() = Backup.num(state["evening"], 4.0, 1.0, 12.0)
+
     /** Words that must never reach a problem report: game titles and your list names. */
     val privateNames: List<String>
         get() = games.map { it.title } + (state["lists"] as? JsonArray).orEmpty().mapNotNull { Backup.str((it as? JsonObject)?.get("n")).ifEmpty { null } }

@@ -1,7 +1,7 @@
 # The Android app's what's new, the web app's WHATS_NEW for the app: one block per release, blocks split by blank lines.
 # v = the release (release= in android/version.properties), go = where What's new's Show me takes you (ui/Guide.kt):
 #   queue, card:out (a released game's card open on the Queue), flip (the Queue's first card turned over), settings,
-#   probe, news, game:<what> (a game page: playing, about = the longest About, unplayed, priced, next = On deck's first);
+#   probe, news, top (Home), game:<what> (a game page: playing, about = the longest About, unplayed, priced, next = On deck's first);
 #   home shows no Show me (every block before v33). at = what it points at (may be empty), say = one line pitch (release
 #   v's say= is also its GitHub release notes), tryIt = what to try.
 # release-guard holds a release without its block (go, say and tryIt filled in).
@@ -275,3 +275,9 @@ go=game:unplayed
 at=
 say=Every game page now has a ⋯ button: make a calling card to share, ask why you'd love it, put the game in your lists, or reset its scores.
 tryIt=Open a game and tap ⋯ next to Edit. Tap Calling card, then Share or Reshuffle. Tap Why you'll love it to see how it fits your taste. Tap Lists to put the game in a list. Tap Show in queue to go to its card. Try Reset scores on a game you don't mind: it asks first, and the reset goes away when the app reopens.
+
+v=46
+go=top
+at=
+say=Home is here: Nexi's pick in his own voice, your next game on a big card with a dice to pick for you, the next four, and a search for every game.
+tryIt=Open Home. Tap the game's name in Nexi's line, then come back and tap the dice on the big card a few times: each time it opens one of your top games, never the same one twice running. Type part of a name in Game search and tap a result (or Go on the keyboard). Tap the sliders button for Customise Home, or Shuffle for the game shuffler. Unfold the phone: the big card and the next four sit side by side.

@@ -41,7 +41,7 @@ object Shuffler {
         }
         val hrs = q.rk.hrsOf(g)
         if (hrs > 0) {
-            val pace = Backup.num(q.lib["evening"], 4.0, 1.0, 12.0)
+            val pace = q.lib.evening
             val ev = maxOf(1, Rank.jsRound(hrs / pace).toInt())
             bits += "About $ev evening" + (if (ev == 1) "" else "s") + " at your usual pace."
         }

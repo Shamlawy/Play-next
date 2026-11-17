@@ -199,6 +199,10 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
         step(nav.open("customise:$scope"))
     }
     val customiser = remember { { scope: String -> openCustomise(scope) } }
+    // Home's Shuffle (the Game shuffler deck, a sheet over Home) and its empty card's way to Add
+    val openHomeSheet by rememberUpdatedState { o: String -> step(nav.open(o)) }
+    val goHomeTab by rememberUpdatedState { t: String -> go(nav.go(t)) }
+    val homeActs = remember { HomeActs(sheet = { o -> openHomeSheet(o) }, tab = { t -> goHomeTab(t) }) }
     // a game's Edit (the page's pencil, the card back's): a step over what's open, so back returns there
     val openEdit by rememberUpdatedState { id: String ->
         Sounds.play(Sfx.Open)
@@ -269,7 +273,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     // Your lists and the Game shuffler, from Sort's menu
     val openSheet = { o: String -> step(nav.open(o)) }
     val rail = spot.at
-    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalEditActs provides editActs, LocalCustomise provides customiser, LocalRailAt provides rail) {
+    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalEditActs provides editActs, LocalCustomise provides customiser, LocalRailAt provides rail, LocalHomeActs provides homeActs) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }.watchFinger(nx, rail.shown, calm, nxScope)) {
             val w = maxWidth
             val wide = w >= RAIL_FROM

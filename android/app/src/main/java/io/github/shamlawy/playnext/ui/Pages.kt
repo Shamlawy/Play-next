@@ -35,7 +35,7 @@ import java.time.ZoneId
 @Composable
 fun TabPage(tab: String, view: String?, games: Games.State, wide: Boolean, screen: Dp, askCode: () -> Unit) {
     if (tab == "home") {
-        HomePage(games, wide, askCode)
+        HomePage(games, wide, screen, askCode)
         return
     }
     val v = view ?: tab
@@ -76,7 +76,10 @@ private fun SharedCard(s: Shared) {
     }
 }
 
-/** Where each view is built (docs/ANDROID-PLAN.md, the phases). */
+/** The line for a part of the app a later update builds ([SOON]'s words, one place). */
+fun soon(key: String): String = SOON[key] ?: "That arrives in a later update."
+
+/** Where each view is built (docs/ANDROID-PLAN.md, the phases), and Home's taps into screens still to come. */
 private val SOON = mapOf(
     "lib" to "Your library arrives in phase 5.",
     "played" to "Played arrives in phase 5.",
@@ -90,11 +93,25 @@ private val SOON = mapOf(
     "friend" to "Friend arrives in phase 6.",
     "book" to "The skills book arrives in phase 6.",
     "add" to "Search, Discover and the art pickers arrive in phase 4.",
+    "wrapped" to "Year wrapped and the monthly recaps arrive in phase 5.",
+    "taste" to "Taste arrives in phase 6.",
+    "chat" to "Chatting with Nexi arrives in phase 8.",
 )
 
-/** Home's panel (`.dxw`: `--u-pan`, round 28): the folded tab bar's open tile runs into its top. */
+/**
+ * Home (Phase 3): your games at the top ([HomeTop]); until they've come, the panel (`.dxw`: `--u-pan`, round 28) says
+ * why. The folded tab bar's open tile runs into its top.
+ */
 @Composable
-private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
+private fun HomePage(games: Games.State, wide: Boolean, screen: Dp, askCode: () -> Unit) {
+    if (games is Games.State.Ready) {
+        HomeTop(games, wide, screen)
+        Card(Modifier.padding(bottom = 22.dp)) {
+            AsOf(games)
+            BasicText("Home's middle tiles and More for you come in the next updates. This app is a practice copy: it reads your games and changes nothing.", style = Type.note)
+        }
+        return
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -104,15 +121,7 @@ private fun HomePage(games: Games.State, wide: Boolean, askCode: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         when (games) {
-            is Games.State.Ready -> {
-                val all = games.lib.games
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    BasicText(if (all.size == 1) "1 game" else "${all.size} games", style = Type.title(wide))
-                    AsOf(games)
-                }
-                Counts(games.lib.counts())
-                BasicText("Home itself arrives in phase 3. This app is a practice copy: it reads your games and changes nothing.", style = Type.note)
-            }
+            is Games.State.Ready -> Unit
             is Games.State.Fetching -> Waiting(games, askCode)
             Games.State.Starting -> BasicText("Opening your games…", style = Type.note)
             Games.State.NoCode -> NoGames(askCode)
@@ -136,25 +145,6 @@ private fun AsOf(r: Games.State.Ready) {
 
 /** "Your games as of 2:05 PM" today, "as of Oct 25, 2:05 PM" before (the phone's own time, 12-hour). */
 fun asOfLine(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String = "Your games as of " + Times.at(at, now, zone)
-
-/** How many in each state (the web app's STATES words), as stat tiles. */
-@Composable
-private fun Counts(counts: List<Pair<String, Int>>) {
-    val shown = counts.filter { it.second > 0 }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (row in shown.chunked(2)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((label, n) in row) {
-                    Column(Modifier.weight(1f).background(Pn.card, RoundedCornerShape(16.dp)).padding(12.dp)) {
-                        BasicText(n.toString(), style = Type.stat, softWrap = false, maxLines = 1)
-                        BasicText(label, style = Type.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                if (row.size == 1) Box(Modifier.weight(1f))
-            }
-        }
-    }
-}
 
 /** A copy that hasn't come yet ([f] null while starting): why, when it last tried, and Try again. */
 @Composable

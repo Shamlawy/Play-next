@@ -70,10 +70,13 @@ class Shx(
             // a record the maths can't read leaves that screen a plain title, as the web's try/catch around shxData does
             val cards = KINDS.associateWith { k -> runCatching { Build(k, rk, now, zone, short).run() }.getOrNull() }
             // the Queue's own numbers too, with the same Rank, so opening it never works them out on Main
+            val queue = runCatching { Queue(lib, rk, now, zone).also { it.warm() } }.getOrNull()
             return Cards(
-                lib, cards, runCatching { Queue(lib, rk, now, zone).also { it.warm() } }.getOrNull(),
+                lib, cards, queue,
                 // and Nexi's (his badge, his lines, his ring), so his seat only draws
                 runCatching { Nexi(lib, rk, now, zone) }.getOrNull(),
+                // and Home's (its ranking, its dates, its line), on the same Queue
+                queue?.let { q -> runCatching { Home(q, now, zone).also { it.warm() } }.getOrNull() },
             )
         }
 
@@ -82,7 +85,7 @@ class Shx(
     }
 
     /** Each screen's card for one copy of your games ([lib]); null for a screen whose maths failed. */
-    class Cards(val lib: Library, private val got: Map<String, Shx?>, val queue: Queue? = null, val nexi: Nexi? = null) {
+    class Cards(val lib: Library, private val got: Map<String, Shx?>, val queue: Queue? = null, val nexi: Nexi? = null, val home: Home? = null) {
         operator fun get(kind: String): Shx? = got[kind]
     }
 

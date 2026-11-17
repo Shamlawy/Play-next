@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +52,8 @@ import io.github.shamlawy.playnext.data.Backup
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.data.Rank
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.roundToInt
 
@@ -61,7 +64,7 @@ import kotlin.math.roundToInt
 val LocalCustomise = staticCompositionLocalOf<((String) -> Unit)?> { null }
 
 /** The screens whose Customise is built: their header card carries the chip, and nowhere else (no dead taps, M10). */
-val CUSTOMISE = setOf("queue")
+val CUSTOMISE = setOf("queue", "home")
 
 /**
  * The header card's Customise chip (`html.ui2 .tabbar > .chip`, measured at 412 and 859): your accent's words and gear
@@ -100,11 +103,12 @@ fun CustomiseSheet(modifier: Modifier, scope: String, games: Games.State, close:
         BasicText("Customise " + (CUSTOMISE_NAME[scope] ?: scope), style = Type.sheetTitle, modifier = Modifier.padding(bottom = 2.dp))
         BasicText("Changes here show at once and last until the app closes. Your backup stays as it is until switch day.", style = Type.note)
         if (lib != null && scope == "queue") QueueGroups(lib)
+        if (lib != null && scope == "home") HomeGroups(lib)
         Btn("Close", onClick = close)
     }
 }
 
-private val CUSTOMISE_NAME = mapOf("queue" to "Queue")
+private val CUSTOMISE_NAME = mapOf("queue" to "Queue", "home" to "Home")
 
 /** The Queue's groups (index.html 6230-6330), the live controls only. */
 @Composable
@@ -161,6 +165,89 @@ internal fun PageGroup(lib: Library) {
         Chips(PLAT_TEXT, if (Backup.truthy(lib["platText"])) "text" else "logo") { set("platText", JsonPrimitive(it == "text")) }
     }
 }
+
+/**
+ * Home's four groups (index.html 6190-6232, `openSettings("home")`): which tiles show (`S.homeHide` holds the ones
+ * turned off), the game's colour on the Standings rows and the tab counts, Playing now's look (`S.dzX.play`: Classic)
+ * and how many places Standings lists. Every one is live now; the tiles they change come with Home's next updates.
+ */
+@Composable
+private fun HomeGroups(lib: Library) {
+    val set = Games::customise
+    Card {
+        BasicText("Tiles on Home", style = Type.head)
+        BasicText("Turn off anything you don't look at. A tile also hides itself when it has no data yet.", style = Type.note)
+        val off = (lib["homeHide"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
+        Toggles(HOME_TILES, off.toSet()) { k ->
+            // the order the web keeps: what was off, then the newly turned off one at the end
+            set("homeHide", JsonArray((if (k in off) off - k else off + k).map(::JsonPrimitive)))
+        }
+        BasicText("The tiles arrive over Home's next few updates; what you pick here already counts.", style = Type.note)
+    }
+    Card {
+        BasicText("How tiles look", style = Type.head)
+        Label("Tint tiles with the game's own colour")
+        Chips(YES_NO, if (lib.off("homeTint")) "off" else "on") { set("homeTint", JsonPrimitive(it == "on")) }
+        Label("The counts under the title")
+        Chips(SHOW_HIDE, if (lib.off("homeCount")) "off" else "on") { set("homeCount", JsonPrimitive(it == "on")) }
+    }
+    Card {
+        BasicText("Playing now cards", style = Type.head)
+        Label("Look")
+        // the web's note also promises the game's character in the card; that figure isn't ported (Nov 10, X5)
+        BasicText("Each game in its own colour and a big title.", style = Type.note)
+        val dz = lib["dzX"] as? JsonObject
+        Chips(DZ_LOOK, if (Backup.truthy(dz?.get("play"))) "off" else "on") { v ->
+            set("dzX", JsonObject(dz.orEmpty() + ("play" to JsonPrimitive(v == "off"))))
+        }
+    }
+    Card {
+        BasicText("The standings tile", style = Type.head)
+        Label("Places in the standings")
+        Range(Backup.num(lib["standN"], 4.0, 2.0, 10.0).roundToInt(), 2, 10, "", "Places in the standings") { set("standN", JsonPrimitive(it)) }
+    }
+}
+
+/**
+ * `.chips` where each is on or off by itself (`aria-pressed`): lit in your accent when on; [off] holds the keys that
+ * are off.
+ */
+@Composable
+private fun Toggles(items: List<Pair<String, String>>, off: Set<String>, toggle: (String) -> Unit) {
+    val volt = LocalLook.current.volt
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((v, label) in items) {
+            val on = v !in off
+            Box(
+                Modifier
+                    .sizeIn(minHeight = 40.dp)
+                    .background(if (on) volt else Pn.card, Pn.pill)
+                    .then(if (on) Modifier else Modifier.border(1.dp, Pn.line2, Pn.pill))
+                    .toggleable(on, role = Role.Switch) { toggle(v) }
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(
+                    label,
+                    style = Type.label.copy(color = if (on) Pn.void else Pn.ice, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium),
+                    softWrap = false, maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+/** `HOME_TILES` (index.html 6168): each tile's key and name, in the web's order. */
+private val HOME_TILES = listOf(
+    "soon" to "Next out", "read" to "Your read", "cat" to "What decides it", "duels" to "Duels", "stand" to "Standings",
+    "coverage" to "Settle a duel", "unrated" to "Needs a verdict", "tonight" to "Tonight", "trap" to "Hype trap",
+    "swing" to "Furthest from hype", "genre" to "Genre lean", "hours" to "Queue hours donut", "year" to "Year",
+    "queue" to "Queue count", "playing" to "Playing now", "sessions" to "Play sessions", "wrapped" to "Year wrapped",
+    "monthly" to "Monthly recap",
+)
+private val YES_NO = listOf("on" to "Yes", "off" to "No")
+private val SHOW_HIDE = listOf("on" to "Show", "off" to "Hide")
+private val DZ_LOOK = listOf("on" to "New", "off" to "Classic")
 
 // the chips' choices, made once (a list built while drawing would be a new object on every redraw)
 private val ON_OFF = listOf("on" to "On", "off" to "Off")
