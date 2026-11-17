@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -216,6 +218,20 @@ class HomeScreenTest {
         waitFor("on again leaves the others off") { hide() == listOf("monthly") }
         rule.onNodeWithText("Hide").performScrollTo().performClick()
         waitFor("the counts hidden") { lib()["homeCount"] == JsonPrimitive(false) }
+    }
+
+    /** A game opened from Home while the search is focused takes the focus (and the keyboard) away with it. */
+    @Test fun openingAGameLetsGoOfTheSearch() {
+        val nav = show()
+        val field = rule.onNodeWithContentDescription("Search your games")
+        field.performClick()
+        field.performTextInput("gate")
+        rule.waitForIdle()
+        field.assertIsFocused()
+        rule.onNode(hasText("Copper Meadow") and !inResults).performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("game:b"), nav().stack)
+        rule.onNodeWithContentDescription("Search your games").assertIsNotFocused()
     }
 
     @Test fun unfoldedNexisHomeFaceStepsAsideWhileHeSits() {

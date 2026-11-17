@@ -363,11 +363,14 @@ private fun HomeHead(h: Home, wide: Boolean, modifier: Modifier) {
             HeadPill("ui:sliders", "Customise Home", volt) { custom?.invoke("home") }
         }
     }
+    // what you typed, kept here above the split: the field sits in a different place folded and unfolded, so its own
+    // saved state would be dropped by every fold
+    var text by rememberSaveable { mutableStateOf("") }
     if (wide) {
         Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             tabs()
             // the tabs keep their words; the search takes the room left, at most 320, against the buttons
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { HomeSearch(h, Modifier.widthIn(max = 320.dp).fillMaxWidth()) }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { HomeSearch(h, text, { text = it }, Modifier.widthIn(max = 320.dp).fillMaxWidth()) }
             pills()
         }
     } else {
@@ -377,7 +380,7 @@ private fun HomeHead(h: Home, wide: Boolean, modifier: Modifier) {
                 Spacer(Modifier.weight(1f))
                 pills()
             }
-            HomeSearch(h, Modifier.fillMaxWidth())
+            HomeSearch(h, text, { text = it }, Modifier.fillMaxWidth())
         }
     }
 }
@@ -403,11 +406,10 @@ private fun HeadPill(icon: String, name: String, volt: Color, onClick: () -> Uni
  * it (not pushing it down), and what you typed stays when Home redraws (the web loses it, 3-critic.md M8).
  */
 @Composable
-private fun HomeSearch(h: Home, modifier: Modifier) {
+private fun HomeSearch(h: Home, text: String, onText: (String) -> Unit, modifier: Modifier) {
     val volt = LocalLook.current.volt
     val focus = LocalFocusManager.current
     val open = LocalOpenGame.current
-    var text by rememberSaveable { mutableStateOf("") }
     var focused by remember { mutableStateOf(false) }
     val hits = remember(h, text) { h.search(text) }
     // Back hides the keyboard but keeps the field focused, so the results would stay over the card and the next Back
@@ -433,7 +435,7 @@ private fun HomeSearch(h: Home, modifier: Modifier) {
                 val style = SEARCH.fixed()
                 BasicTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = onText,
                     singleLine = true,
                     textStyle = style,
                     cursorBrush = SolidColor(volt),
@@ -547,8 +549,9 @@ private fun Hero(h: Home, wide: Boolean, screen: Dp, modifier: Modifier) {
                 .fillMaxWidth()
                 .clip(shape)
                 .background(Pn.card)
-                .clickable(role = Role.Button, onClickLabel = "Open $title") { open(pick.id, null) }
-                .semantics { contentDescription = "Play this next: $title" },
+                // TalkBack reads the card's own words once (Play this next, the title or its logo's name, the hype,
+                // the place); a description on top read the title twice and hid the rest
+                .clickable(role = Role.Button, onClickLabel = "Open $title") { open(pick.id, null) },
         ) {
             PicBox(remember(pick) { Pic.backdrop(pick) ?: Pic.cover(pick) }, pick, Modifier.fillMaxSize(), ground = Pn.card)
             Box(Modifier.fillMaxSize().background(SHADE))

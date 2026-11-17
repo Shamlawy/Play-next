@@ -177,11 +177,18 @@ private fun HomeGroups(lib: Library) {
     Card {
         BasicText("Tiles on Home", style = Type.head)
         BasicText("Turn off anything you don't look at. A tile also hides itself when it has no data yet.", style = Type.note)
-        val off = remember(lib) { (lib["homeHide"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content } }
+        val stored = remember(lib) { (lib["homeHide"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content } }
+        // what this card last sent: your copy is rebuilt off Main, so a quick second tap would start from the old list
+        // and undo the first; the chips show (and each tap starts from) what was sent until the copy has caught up
+        var sent by remember { mutableStateOf<List<String>?>(null) }
+        LaunchedEffect(stored) { if (stored == sent) sent = null }
+        val off = sent ?: stored
         val offSet = remember(off) { off.toSet() }
         Toggles(HOME_TILES, offSet) { k ->
             // the order the web keeps: what was off, then the newly turned off one at the end
-            set("homeHide", JsonArray((if (k in off) off - k else off + k).map(::JsonPrimitive)))
+            val next = if (k in off) off - k else off + k
+            sent = next
+            set("homeHide", JsonArray(next.map(::JsonPrimitive)))
         }
         BasicText("The tiles arrive over Home's next few updates; what you pick here already counts.", style = Type.note)
     }

@@ -181,8 +181,14 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     // a tap that opens or closes something settles the screen for a moment: a quick second tap (a double tap) lands on
     // nothing, instead of closing what the first opened or opening what it closed (a game page closing after its shrink
     // needs none: it holds every touch while it shrinks)
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
     val step = { n: Nav ->
-        if (n.stack != nav.stack) guard.settle = guard.lastUp
+        if (n.stack != nav.stack) {
+            guard.settle = guard.lastUp
+            // a field on the screen being covered (Home's search) lets go, so the keyboard doesn't stay up over the new
+            // page typing into a field nobody sees
+            if (n.stack.size > nav.stack.size) focus.clearFocus()
+        }
         go(n)
     }
     val openGame by rememberUpdatedState { id: String, from: FlyFrom? ->
