@@ -172,6 +172,23 @@ class GoldenTest {
             assertEquals("$name: the Boss's HP", boss[0], q.boss.first, 1e-9)
             assertEquals("$name: the Boss's bar top", boss[1], q.boss.second, 1e-9)
             for ((k, ids) in c["sorts"]!!.jsonObject) assertEquals("$name order $k", ids.jsonArray.map { it.s }, q.sort(lib.games, k).map { it.id })
+            // Home's top (Phase 3 piece 1, android-v46)
+            val hw = c["home"]!!.jsonObject
+            val h = Home(q, now, zone)
+            assertEquals("$name: Home's ranked", hw["ranked"]!!.jsonArray.map { it.s }, h.ranked.map { it.id })
+            assertEquals("$name: Home's dated", hw["dated"]!!.jsonArray.map { it.s }, h.dated.map { it.id })
+            assertEquals("$name: Next out's count", hw["fut"]!!.jsonArray.map { it.s }, h.fut.map { it.id })
+            assertEquals("$name: the queue's hours", hw["hours"]!!.jsonPrimitive.double, h.hours, 1e-9)
+            assertEquals("$name: duels settled", hw["settled"]!!.jsonPrimitive.long.toInt(), h.settled)
+            assertEquals("$name: Nexi's pick", hw["nexi"]!!.s, h.nexiPick?.id ?: "")
+            assertEquals("$name: your top 3", hw["top"]!!.jsonArray.map { it.s }, h.top.map { it.id })
+            for ((t, hits) in hw["search"]!!.jsonObject) {
+                assertEquals("$name: search \"$t\"", hits.jsonArray.map { it.jsonArray.map { x -> x.s } }, h.search(t).map { listOf(it.id, h.found(it)) })
+            }
+            for ((id, w) in hw["words"]!!.jsonObject) {
+                val g = lib.games.first { it.id == id }
+                assertEquals("$name $id: Home's row words", w.jsonArray.map { it.s }, listOf(h.whenOf(g), h.genreOf(g)))
+            }
             for ((id, w0) in c["per"]!!.jsonObject) {
                 val w = w0.jsonObject
                 val g = lib.games.first { it.id == id }

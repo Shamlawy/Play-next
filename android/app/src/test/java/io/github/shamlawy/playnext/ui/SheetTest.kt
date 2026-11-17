@@ -6,8 +6,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
@@ -58,10 +59,14 @@ class SheetTest {
         assertTrue("\"Updates\" is ${b.height} tall: merged into the sheet", b.height < 200f)
     }
 
-    /** The game page too: its words were one node with the whole page's size. */
+    /**
+     * The game page too: its words were one node with the whole page's size. Its title is a heading, so this finds the
+     * page's own (Home's big card under it is one button holding the same name, android-v46); a page merged again
+     * would carry the heading into its page-sized node and still fail here.
+     */
     @Test fun aGamePageIsReadPartByPart() {
         rule.setContent { Frame(Look.of(lib), Prefs.of(lib)) { Shell(Nav("home", listOf("game:a")), Games.State.Ready(lib, 0), go = {}) } }
-        val b = rule.onAllNodesWithText("Starfall Lantern").fetchSemanticsNodes().maxBy { it.boundsInRoot.height }.boundsInRoot
+        val b = rule.onAllNodes(hasText("Starfall Lantern") and isHeading()).fetchSemanticsNodes().maxBy { it.boundsInRoot.height }.boundsInRoot
         assertTrue("the title is ${b.height} tall: merged into the page", b.height < 400f)
     }
 

@@ -64,4 +64,40 @@ class Nexi(private val lib: Library, private val rk: Rank, private val now: Long
 
     /** `pnEvo()`: 1-5, one more for each of [Web.PN_EVO]'s counts of finishes you've scored. */
     val stage: Int = lib.played.count { it.scored }.let { n -> Web.PN_EVO.count { n >= it }.coerceIn(1, 5) }
+
+    /** One of his lines with a game's name in it, the name a link ([before] + the game's title + [after]). */
+    data class Said(val before: String, val after: String)
+
+    companion object {
+        /**
+         * His six voices (`NX_PERSONAS`, index.html 13336), the key and its name; the web's emoji stay out (T56). Phase 8a
+         * brings the picker; until then the backup's `S.nxPersona` chooses, Hype Buddy when unset.
+         */
+        val PERSONAS = listOf(
+            "hype" to "Hype Buddy", "butler" to "Calm Butler", "coach" to "Chill Coach",
+            "rival" to "Sarcastic Rival", "bard" to "Story Bard", "nerd" to "Stats Nerd",
+        )
+
+        /** `nxP()`: the backup's voice when it's one of his six, else hype. */
+        fun persona(lib: Library): String = Backup.str(lib["nxPersona"]).takeIf { p -> PERSONAS.any { it.first == p } } ?: "hype"
+
+        /**
+         * Home's line in his voice (`extend("nxHomeLine", map)`, 13747): what comes before and after the game's name,
+         * [name] being what he calls you (`S.userName`, "" for nothing).
+         */
+        fun homeLine(persona: String, name: String): Said {
+            val nm = name.isNotEmpty()
+            return when (persona) {
+                "butler" -> Said("May I suggest ", " next" + (if (nm) ", $name" else "") + ".")
+                "coach" -> Said("Next up, no pressure: ", ".")
+                "rival" -> Said("Obviously it's ", " next. Try to keep up" + (if (nm) ", $name" else "") + ".")
+                "bard" -> Said("Your next quest" + (if (nm) ", $name" else "") + ": ", ".")
+                "nerd" -> Said("Best match for you next: ", ".")
+                else -> Said((if (nm) "$name, p" else "P") + "lay ", " next!")
+            }
+        }
+
+        /** His line with no pick yet. */
+        const val NO_PICK = "Score a game you've played and I'll start ranking."
+    }
 }

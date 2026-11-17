@@ -87,8 +87,11 @@ internal object Tried {
 
 /** Where Show me goes: whatsnew.txt's `go` words (its header lists them). */
 internal object Guide {
-    /** The words Show me knows; `home` (every block before android-v33) shows no button, it was never a place to test. */
-    private val PLACES = setOf("queue", "card:out", "flip", "settings", "probe", "news")
+    /**
+     * The words Show me knows; `home` (every block before android-v33) shows no button, it was never a place to test;
+     * `top` is Home's own top (Phase 3, android-v46), a place to test now.
+     */
+    private val PLACES = setOf("queue", "card:out", "flip", "settings", "probe", "news", "top")
     private val GAMES = setOf("playing", "about", "unplayed", "priced", "next")
 
     /** A `go` whatsnew.txt may use (ReleaseFeedTest holds every new block to it). */
@@ -134,6 +137,7 @@ internal object Guide {
         val queue = nav.go("games").view("games", "queue")
         return when {
             e.go == "queue" -> queue
+            e.go == "top" -> nav.go("home")
             e.go == "settings" -> here.open("settings")
             e.go == "probe" -> here.open("probe")
             e.go == "news" -> here.open("news:0")

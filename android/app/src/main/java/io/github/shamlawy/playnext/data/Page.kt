@@ -73,7 +73,7 @@ class Page(val q: Queue, private val now: Long, private val zone: ZoneId, privat
     fun tiles(g: Game): List<Tile> {
         val p = rk.playedRec(g)
         val h = rk.hrsOf(g)
-        val ev = Backup.num(lib["evening"], 4.0, 1.0, 12.0)
+        val ev = lib.evening
         val gs = guess(g)
         val critic = Backup.num(g["critic"], 0.0, -1e9, 1e9)
         val score = when {
