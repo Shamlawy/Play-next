@@ -37,12 +37,14 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -161,8 +163,12 @@ private fun shake(p: Float): Offset {
 }
 
 /** One shard: its corners as fractions of the screen, its way out (unit), how far, its turn and how long it flies. */
-private class Shard(val pts: List<Offset>, val dir: Offset, val dist: Float, val turn: Float, val ms: Float) {
+private class Shard(val pts: List<Offset>, val dist: Float, val turn: Float, val ms: Float) {
     val mid = Offset((pts[0].x + pts[1].x + pts[2].x) / 3, (pts[0].y + pts[1].y + pts[2].y) / 3)
+    val left = minOf(pts[0].x, pts[1].x, pts[2].x)
+    val top = minOf(pts[0].y, pts[1].y, pts[2].y)
+    val right = maxOf(pts[0].x, pts[1].x, pts[2].x)
+    val bottom = maxOf(pts[0].y, pts[1].y, pts[2].y)
 }
 
 /** The reveal over everything, with its sounds and buzzes; it opens the game through [open] (no sound of its own). */
@@ -201,11 +207,7 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
                 Offset(if (x == .5f) .35f + rnd.nextFloat() * .3f else x, if (y == .5f) .3f + rnd.nextFloat() * .4f else y)
             }
             c to e.indices.map { k ->
-                val pts = listOf(c, e[k], e[(k + 1) % e.size])
-                val mx = (pts[0].x + pts[1].x + pts[2].x) / 3 - c.x
-                val my = (pts[0].y + pts[1].y + pts[2].y) / 3 - c.y
-                val len = hypot(mx, my).takeIf { it > 0f } ?: 1f
-                Shard(pts, Offset(mx / len, my / len), .7f + rnd.nextFloat() * .4f, (rnd.nextFloat() - .5f) * 80f, 650f + rnd.nextFloat() * 150f)
+                Shard(listOf(c, e[k], e[(k + 1) % e.size]), .7f + rnd.nextFloat() * .4f, (rnd.nextFloat() - .5f) * 80f, 650f + rnd.nextFloat() * 150f)
             }
         }
         val shatter = {
@@ -215,13 +217,13 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
                 Sounds.play(Sfx.Crack)
                 Buzz.ms(40)
                 scope.launch {
-                    // the scene stops where it is: the shards are cut from its finished look, as the web draws them
-                    t.stop()
-                    t.snapTo(BREAK)
                     launch { crack.animateTo(1f, tween(160, easing = EASE_OUT)) }
-                    // the crack holds a moment, then the scene is the shards and a white blink hides the swap
+                    // the crack holds a moment over the scene as it plays on, then the scene is the shards (cut from its
+                    // finished look, as the web draws them) and a white blink hides the swap
                     val hold = Animatable(0f)
                     hold.animateTo(1f, tween(CRACKED, easing = LinearEasing))
+                    t.stop()
+                    t.snapTo(BREAK)
                     phase = 2
                     Sounds.play(Sfx.Shatter)
                     fly.animateTo(FLIGHT, tween(FLIGHT.toInt(), easing = LinearEasing))
@@ -249,8 +251,13 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
             }
             t.animateTo(BREAK, tween(BREAK.toInt(), easing = LinearEasing))
         }
-        // a reveal that leaves early (calm came on, the screen went) still opens its game
-        DisposableEffect(Unit) { onDispose { if (!opened) { opened = true; opener(r.g.id) } } }
+        // a reveal that leaves early (calm came on, the screen went) still opens its game, once, and never plays again
+        DisposableEffect(Unit) {
+            onDispose {
+                if (!opened) { opened = true; opener(r.g.id) }
+                Reveal.done(r)
+            }
+        }
         // back breaks it now, as a tap does; it never closes what's under it
         BackHandler { shatterNow() }
         RevealScene(r, t, crack, fly, phase, shards.first, shards.second) { shatterNow() }
@@ -394,18 +401,28 @@ private fun RevealScene(
                 ),
             )
         }
-        // in shards: 8 pieces of the scene as it was, each its own layer flying off from the crack's centre
+        // in shards: 8 pieces of the scene as it was, each in a layer the size of its triangle, drawn once and then only
+        // moved (`Offscreen` keeps the drawing while it fades), flying off from the crack's centre in screen px
         if (phase == 2) {
             val far = max(w, h)
             for (s in shards) {
+                val bx = s.left * w
+                val by = s.top * h
                 Box(
                     Modifier
-                        .fillMaxSize()
+                        .at(bx, by, (s.right - s.left) * w, (s.bottom - s.top) * h)
                         .graphicsLayer {
                             val p = FLY.transform(seg(fly.value, 0f, s.ms))
-                            transformOrigin = TransformOrigin(s.mid.x, s.mid.y)
-                            translationX = s.dir.x * far * s.dist * p
-                            translationY = s.dir.y * far * s.dist * p
+                            val dx = (s.mid.x - centre.x) * w
+                            val dy = (s.mid.y - centre.y) * h
+                            val len = hypot(dx, dy).takeIf { it > 0f } ?: 1f
+                            compositingStrategy = CompositingStrategy.Offscreen
+                            transformOrigin = TransformOrigin(
+                                ((s.mid.x * w - bx) / size.width).takeIf { it.isFinite() } ?: .5f,
+                                ((s.mid.y * h - by) / size.height).takeIf { it.isFinite() } ?: .5f,
+                            )
+                            translationX = dx / len * far * s.dist * p
+                            translationY = dy / len * far * s.dist * p
                             rotationZ = s.turn * p
                             scaleX = 1f + .1f * p
                             scaleY = 1f + .1f * p
@@ -413,10 +430,10 @@ private fun RevealScene(
                         }
                         .drawBehind {
                             val path = Path().apply {
-                                s.pts.forEachIndexed { i, q -> if (i == 0) moveTo(q.x * size.width, q.y * size.height) else lineTo(q.x * size.width, q.y * size.height) }
+                                s.pts.forEachIndexed { i, q -> if (i == 0) moveTo(q.x * w - bx, q.y * h - by) else lineTo(q.x * w - bx, q.y * h - by) }
                                 close()
                             }
-                            clipPath(path) { drawLayer(scene) }
+                            clipPath(path) { translate(-bx, -by) { drawLayer(scene) } }
                         },
                 )
             }

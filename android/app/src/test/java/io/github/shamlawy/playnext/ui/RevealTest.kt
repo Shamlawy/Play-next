@@ -159,6 +159,35 @@ class RevealTest {
         assertEquals("back broke the reveal, the page it opened stays", listOf("game:" + run.g.id), nav().stack)
     }
 
+    @Test fun backOverThePageItOpenedBreaksTheRevealNotThePage() {
+        val nav = show()
+        roll()
+        val run = Reveal.run!!
+        // past 950 ms the page is open under it: back is still the reveal's
+        step(1_000)
+        assertEquals(listOf("game:" + run.g.id), nav().stack)
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        step(300)
+        // and again while the shards fly
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        step(1_500)
+        assertNull(Reveal.run)
+        assertEquals("the page stays", listOf("game:" + run.g.id), nav().stack)
+    }
+
+    @Test fun backTwiceEarlyLeavesThePageOpen() {
+        val nav = show()
+        roll()
+        val run = Reveal.run!!
+        step(200)
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        step(400)
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        step(1_500)
+        assertNull(Reveal.run)
+        assertEquals(listOf("game:" + run.g.id), nav().stack)
+    }
+
     @Test fun aSwipeOverItNeverWalksTheTabs() {
         val nav = show()
         roll()
