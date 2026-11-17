@@ -21,3 +21,9 @@ calm ui/Nexi.kt val eyes = Animatable(Offset.Zero, Offset.VectorConverter) — N
 calm ui/Nexi.kt val pop = Animatable(1f) — NexiState only holds it; NexiSeat pops it only when not calm
 uppercase ui/Prices.kt (PlayStation: the ${psc.uppercase()} store) — a PlayStation Store country code ("AE"), shown in capitals as on the web (pxSheet), not a heading
 uppercase ui/Prices.kt ?.second ?: cc.uppercase() — a region with no name falls back to its country code in capitals, as the web does (pxSheet), not a heading
+italic ui/Reveal.kt Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic — Pick for me's reveal is a celebration: its name is Archivo italic 900 at wdth 72 (`.pvname`, allowed by v188)
+font-weight ui/Reveal.kt Font(R.font.archivo_italic, weight = FontWeight.Black, style = FontStyle.Italic — Archivo, not Poppins: the reveal's narrowed face
+italic ui/Reveal.kt fontFamily = Fonts.archivo, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, — the reveal's "TONIGHT'S PICK" tag is Archivo italic 900 (`.pvtag`)
+uppercase ui/Reveal.kt title.uppercase(Locale.ROOT), — the reveal's name is in capitals on the web (`.pvname` text-transform, a celebration)
+italic ui/Reveal.kt fontFamily = ARCHIVO_NARROW, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, — the reveal's name is Archivo italic 900 (`.pvname`)
+font-weight ui/Reveal.kt fontFamily = ARCHIVO_NARROW, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, — Archivo, not Poppins: the reveal's narrowed face

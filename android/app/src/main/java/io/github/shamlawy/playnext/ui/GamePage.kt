@@ -261,7 +261,8 @@ fun GamePage(
     }
     // back closes the page and shows what you opened it from (the owner, Oct 28); the back gesture shrinks it with the
     // finger (3-critic.md M9), a gesture let go of springs back, and a second back while it shrinks waits
-    PredictiveBackHandler(enabled = !closing) { events ->
+    // while Pick for me's reveal plays over the page it opened, back is the reveal's (it breaks it), never the page's
+    PredictiveBackHandler(enabled = !closing && Reveal.run == null) { events ->
         try {
             events.collect { e -> if (!still) shut.snapTo(e.progress * .35f) }
             closing = true
