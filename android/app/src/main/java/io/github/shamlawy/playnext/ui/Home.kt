@@ -1,5 +1,6 @@
 package io.github.shamlawy.playnext.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -202,7 +203,10 @@ private fun NexiLine(h: Home, wide: Boolean, screen: Dp) {
     val open = LocalOpenGame.current
     val say = rememberSay()
     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-        if (!(wide && !prefs.nxSeatOff)) {
+        // unfolded he sits in the rail, so Home's face steps aside; with the rail hidden he floats and the face is back
+        // (the web's seatOn(): wide, the seat on, and the rail shown)
+        val seated = wide && !prefs.nxSeatOff && LocalRailAt.current.shown
+        if (!seated) {
             HomeFace(Modifier.clickable(role = Role.Button, onClickLabel = "Chat with Nexi") {
                 Crumbs.tap("nexi face", "home")
                 say(soon("chat"))
@@ -406,6 +410,9 @@ private fun HomeSearch(h: Home, modifier: Modifier) {
     var text by rememberSaveable { mutableStateOf("") }
     var focused by remember { mutableStateOf(false) }
     val hits = remember(h, text) { h.search(text) }
+    // Back hides the keyboard but keeps the field focused, so the results would stay over the card and the next Back
+    // would leave Home: while it's focused, Back lets go of the field (the web hides its results on blur)
+    BackHandler(enabled = focused) { focus.clearFocus() }
     val go = { g: Game ->
         focus.clearFocus()
         open(g.id, null)

@@ -224,4 +224,37 @@ class HomeScreenTest {
         assertEquals(0, rule.onAllNodesWithContentDescription("Chat with Nexi").fetchSemanticsNodes().size)
         rule.onNode(hasText("Play next (5)")).assertExists()
     }
+
+    /** With the rail hidden he floats instead of sitting, so Home shows its own face again (the web's seatOn()). */
+    @Test fun unfoldedWithTheRailHiddenHomesFaceIsBack() {
+        RuntimeEnvironment.setQualifiers("w859dp-h915dp-xxhdpi")
+        show(lib(""","railHide":true"""))
+        assertEquals(1, rule.onAllNodesWithContentDescription("Chat with Nexi").fetchSemanticsNodes().size)
+    }
+
+    /**
+     * Back hides the keyboard but leaves the field focused: the results stayed over the card and the next Back left
+     * Home. Now Back lets go of the field, the results close, and Home stays.
+     */
+    @Test fun backClosesTheSearchAndStaysOnHome() {
+        lateinit var back: androidx.activity.OnBackPressedDispatcher
+        state.value = Games.State.Ready(lib(), now - 3_600_000L)
+        var nav by mutableStateOf(Nav("home"))
+        rule.setContent {
+            back = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            val games by Games.state.collectAsState()
+            Frame(Look.of(lib()), Prefs.of(lib()), now = { now }) { Shell(nav, games, go = { nav = it }) }
+        }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        val field = rule.onNodeWithContentDescription("Search your games")
+        field.performClick()
+        field.performTextInput("gate")
+        rule.waitForIdle()
+        rule.onNode(hasText("Ninefold Gate") and inResults).assertExists()
+        rule.runOnIdle { back.onBackPressed() }
+        rule.waitForIdle()
+        assertEquals(0, rule.onAllNodes(inResults).fetchSemanticsNodes().size)
+        assertEquals(Nav("home"), nav)
+    }
 }
