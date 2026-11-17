@@ -237,6 +237,11 @@ const RULES = {
   DX_GP_VEIL: cssColour(".gp", "background", 0, true), DX_EMPTY_A: cssColour(".dxhero.empty", "background", 0), DX_EMPTY_B: cssColour(".dxhero.empty", "background", 1),
   NXH_FACE: cssColour(".nxh-face", "background", 0), NXH_FACE_FAR: cssColour(".nxh-face", "background", 1), NXH_EYE: cssColour(".nxh-face .eyes i", "background"),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
+  /* Pick for me's reveal (`pnReveal`, Phase 3 piece 2): the black ground, the white flash (also the crack's lines and the
+     blink before the shards), the white slash, the picture's shade (foot, middle), the tag's ground and words, the name */
+  RV_BG: cssColour("#pnrev .pvbg", "background"), RV_FLASH: cssColour("#pnrev .pvflash", "background"), RV_SLASH_B: cssColour(".pvsl.b", "background"),
+  RV_SHADE_FOOT: cssColour(".pvart::after", "background", 0), RV_SHADE_MID: cssColour(".pvart::after", "background", 1),
+  RV_TAG: cssColour(".pvtag", "background"), RV_TAG_INK: cssColour(".pvtag", "color"), RV_NAME: cssColour(".pvname", "color"),
 };
 /* Nexi's distance from the screen's edge when he floats (v198) and the finished-and-scored counts each stage of his ring needs (v131) */
 const PN_EDGE = table("PN_EDGE"), PN_EVO = table("PN_EVO");

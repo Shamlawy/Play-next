@@ -199,6 +199,13 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
         step(n)
     }
     val opener = remember { { id: String, from: FlyFrom? -> openGame(id, from) } }
+    // Pick for me's reveal opens its game behind itself: its own sounds play, so none here, and nothing to grow from
+    val openPicked by rememberUpdatedState { id: String ->
+        Crumbs.add("pick for me opens a game")
+        val n = nav.open("game:$id")
+        launch = Launch(n.key(n.stack.lastIndex), Offset.Unspecified, null)
+        step(n)
+    }
     val openCustomise by rememberUpdatedState { scope: String ->
         Sounds.play(Sfx.Open)
         Crumbs.tap("customise", here)
@@ -624,6 +631,8 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             if (wipe && !wiped) {
                 key(nav.tab) { SlashWipe(Web.TABS.firstOrNull { it.key == nav.tab }?.label ?: nav.tab, nav.tab.hashCode()) { wiped = true } }
             }
+            // Pick for me's reveal: over everything, the rail too (`#pnrev`, z 90)
+            PickReveal(calm) { id -> openPicked(id) }
             }
         }
     }

@@ -125,17 +125,19 @@ class GuideTest {
         assertFalse("v44's place is What's new itself: no Show me there", Guide.shows(entry(44)))
         assertTrue("v45 opens a game you haven't played", Guide.shows(entry(45)))
         assertTrue("v46 opens Home", Guide.shows(entry(46)))
+        assertTrue("v47 opens Home (the dice)", Guide.shows(entry(47)))
         assertFalse("a typo is no place", Guide.known("game:abuot"))
         assertTrue(Guide.line(entry(43)).startsWith("Let's try v43: In Games › Queue, double tap a card to turn it"))
     }
 
     @Test fun showMeOpensTheQueueWithACardTurnedAndTheBarThenNext() {
-        Tried.mark(46, "ok")
-        Tried.mark(45, "ok") // tried already, so Next after v43 is v42
+        Tried.mark(47, "ok")
+        Tried.mark(46, "ok") // tried already, so Next after v43 is v45 (v42 is past the last five)
         show(Nav("games", listOf("news:0")))
         rule.onNodeWithText("What's new").assertExists()
-        // v46 and v45 are marked tried (their cards show the answer, no Show me) and v44's place is What's new itself, so v43's is the first
-        rule.onAllNodesWithText("Show me")[0].performScrollTo().performClick()
+        // v47 and v46 are marked tried (their cards show the answer, no Show me) and v44's place is What's new itself, so
+        // v45's is the first and v43's the second
+        rule.onAllNodesWithText("Show me")[1].performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(600)
         assertEquals("What's new closed", emptyList<String>(), nav.stack)
         assertEquals("queue", nav.views["games"])
@@ -152,23 +154,23 @@ class GuideTest {
         rule.mainClock.advanceTimeBy(400)
         assertEquals("ok", Tried.all()[43])
         assertTrue(has("Marked as working"))
-        rule.onNodeWithText("Next: v42").performClick()
+        rule.onNodeWithText("Next: v45").performClick()
         rule.mainClock.advanceTimeBy(600)
-        assertEquals("v42 is about a long About: that game's page", listOf("game:l"), nav.stack)
-        assertTrue(has("Try it · v42"))
+        assertEquals("v45 is about a game you haven't played: that game's page", listOf("game:l"), nav.stack)
+        assertTrue(has("Try it · v45"))
 
         rule.onNodeWithText("Hide").performClick()
         rule.mainClock.advanceTimeBy(400)
         assertFalse("folded into its pill", has("It works"))
-        rule.onNodeWithText("Try it · v42").performClick()
+        rule.onNodeWithText("Try it · v45").performClick()
         rule.mainClock.advanceTimeBy(400)
         assertTrue(has("It works"))
     }
 
     @Test fun somethingsOffGoesToClaudeInYourWords() {
         show(Nav("games", listOf("news:0")))
-        // v46, v45, v43, then v42
-        rule.onAllNodesWithText("Show me")[3].performScrollTo().performClick()
+        // v47, v46, v45, v43, then v42
+        rule.onAllNodesWithText("Show me")[4].performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(600)
         assertTrue(has("Try it · v42"))
         rule.onNodeWithText("Something's off").performClick()
@@ -187,9 +189,9 @@ class GuideTest {
     }
 
     @Test fun settingsCountsWhatsLeftToTry() {
-        assertEquals("the last five releases, less the guide's own", listOf(46, 45, 43, 42), Tried.left(News.all!!).map(WhatsNew.Entry::v))
+        assertEquals("the last five releases, less the guide's own", listOf(47, 46, 45, 43), Tried.left(News.all!!).map(WhatsNew.Entry::v))
         Tried.mark(43, "ok")
-        assertEquals(listOf(46, 45, 42), Tried.left(News.all!!).map { it.v })
+        assertEquals(listOf(47, 46, 45), Tried.left(News.all!!).map { it.v })
     }
 
     companion object {

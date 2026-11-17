@@ -94,6 +94,7 @@ class HomeScreenTest {
     fun tearDown() {
         put("practice", emptyMap<String, Any>())
         state.value = Games.State.Starting
+        Reveal.reset()
     }
 
     private lateinit var setNav: (Nav) -> Unit
@@ -154,6 +155,8 @@ class HomeScreenTest {
         var last: String? = null
         repeat(6) {
             rule.onNodeWithContentDescription("I'll pick one").performClick()
+            // the reveal plays (RevealTest), then the page is open under it
+            rule.mainClock.advanceTimeBy(3_000)
             rule.waitForIdle()
             val id = nav().stack.single().removePrefix("game:")
             // the web's r2: the ranking without the last pick, then one of its first three

@@ -99,8 +99,8 @@ import kotlinx.coroutines.launch
  * Home's top (Phase 3 piece 1; index.html `renderHome` 11250, `dxHome` 11115, `dxWire` 11222, Nexi's line 13316 +
  * 13747): Nexi's line in his voice with "Your top N", then the panel (`.dxw`): the Play next / Played tabs with their
  * counts, the search, Shuffle and Customise, the big card (Play this next, the dice, Hype, "#1 of N") and the next
- * four. The middle tiles (queue orb, Playing now, the donut, Next out) and More for you come in the next pieces; the
- * reveal behind the dice is piece 2, so for now the dice picks one and opens it straight away (the web's calm path).
+ * four. The middle tiles (queue orb, Playing now, the donut, Next out) and More for you come in the next pieces. The
+ * dice plays Pick for me's reveal (Reveal.kt, piece 2), which opens the game; calm opens it straight away.
  */
 @Composable
 internal fun HomeTop(ready: Games.State.Ready, wide: Boolean, screen: Dp) {
@@ -511,8 +511,8 @@ private fun SearchResults(h: Home, hits: List<Game>, go: (Game) -> Unit) {
 
 /**
  * `.dxhero`: the pick's wide picture under a shade, its cover as a round avatar, "Play this next" and its logo (or
- * name), then Hype, the dice (2+ games; it picks one of your top three, never the last pick, and opens it: the reveal
- * comes in the next update), the play mark, the duel button's place (Duels come in phase 6) and "#1 of N" or the
+ * name), then Hype, the dice (2+ games; it picks one of your top three, never the last pick, and plays the reveal,
+ * Reveal.kt, which opens it; calm opens it straight away), the play mark, the duel button's place (Duels come in phase 6) and "#1 of N" or the
  * duels settled. A tap anywhere else opens the game. No games: "Add a game and this fills in" and a way to Add.
  */
 @Composable
@@ -521,6 +521,7 @@ private fun Hero(h: Home, wide: Boolean, screen: Dp, modifier: Modifier) {
     val volt = LocalLook.current.volt
     val acts = LocalHomeActs.current
     val open = LocalOpenGame.current
+    val calm = LocalCalm.current
     val shape = RoundedCornerShape(24.dp)
     BoxWithConstraints(modifier.fillMaxWidth()) {
         // folded 16:10, at least 220 tall; unfolded the row sets it
@@ -580,7 +581,8 @@ private fun Hero(h: Home, wide: Boolean, screen: Dp, modifier: Modifier) {
                             Crumbs.tap("pick one", "home")
                             h.pickOne(PickLast.get(), Math.random())?.let { g ->
                                 PickLast.set(g.id)
-                                open(g.id, null)
+                                // the reveal plays and opens it (Reveal.kt); calm opens it straight away
+                                if (calm) open(g.id, null) else Reveal.start(g)
                             }
                         }
                     } else {
