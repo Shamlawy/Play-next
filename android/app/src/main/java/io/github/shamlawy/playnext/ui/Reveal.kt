@@ -90,7 +90,17 @@ import kotlin.math.sin
  * breaks into 8 shards that fly off, the page under them. None of it when calm: the page opens straight away.
  */
 object Reveal {
-    class Run(val g: Game, val colour: Color, val n: Int)
+    class Run(val g: Game, val colour: Color, val n: Int) {
+        // the page opens once, whichever path gets there first (the scene, its cleanup, or calm coming on mid-way)
+        private var opened by mutableStateOf(false)
+
+        internal fun openOnce(open: (String) -> Unit) {
+            if (!opened) {
+                opened = true
+                open(g.id)
+            }
+        }
+    }
 
     /** The reveal playing, or null. */
     var run by mutableStateOf<Run?>(null)
@@ -182,9 +192,9 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
     val r = Reveal.run ?: return
     val opener by rememberUpdatedState(open)
     if (calm) {
-        // calm came on before it showed: the page, as the dice does when calm
+        // calm came on: the page, as the dice does when calm (once: mid-way, the scene's cleanup may have opened it)
         LaunchedEffect(r) {
-            opener(r.g.id)
+            r.openOnce(opener)
             Reveal.done(r)
         }
         return
@@ -196,13 +206,7 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
         val fly = remember { Animatable(0f) }
         // 0 the live scene, 1 cracked, 2 in shards
         var phase by remember { mutableIntStateOf(0) }
-        var opened by remember { mutableStateOf(false) }
-        val openBehind = {
-            if (!opened) {
-                opened = true
-                opener(r.g.id)
-            }
-        }
+        val openBehind = { r.openOnce(opener) }
         // the crack's centre and the 8 points round the edge (the corners stay, the edges' middles wander), then each
         // shard's flight: from the centre outwards, a third to a little more than the screen, turning up to 40° either way
         val shards = remember {
@@ -259,7 +263,7 @@ fun PickReveal(calm: Boolean, open: (String) -> Unit) {
         // a reveal that leaves early (calm came on, the screen went) still opens its game, once, and never plays again
         DisposableEffect(Unit) {
             onDispose {
-                if (!opened) { opened = true; opener(r.g.id) }
+                r.openOnce(opener)
                 Reveal.done(r)
             }
         }

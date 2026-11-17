@@ -217,6 +217,28 @@ class RevealTest {
         assertTrue(nav().stack.single().startsWith("game:"))
     }
 
+    @Test fun calmComingOnMidWayOpensThePageOnce() {
+        // battery saver mid-reveal: the scene leaves (its cleanup opens the page) and the calm branch must not open it again
+        val l = lib()
+        val opened = mutableListOf<String>()
+        var calm by mutableStateOf(false)
+        rule.mainClock.autoAdvance = false
+        rule.setContent { Frame(Look.of(l), Prefs.of(l), now = { now }) { PickReveal(calm) { opened += it } } }
+        // before the page opens (the cleanup opens it) and after (it's open already)
+        for (at in listOf(300L, 1_200L)) {
+            Reveal.reset()
+            opened.clear()
+            calm = false
+            step(32)
+            rule.runOnUiThread { Reveal.start(l.games.first()) }
+            step(at)
+            calm = true
+            step(500)
+            assertNull("calm ends it ($at ms)", Reveal.run)
+            assertEquals("the page opens once ($at ms)", listOf(l.games.first().id), opened)
+        }
+    }
+
     @Test fun shots412() = shots(412)
 
     @Test fun shots859() = shots(859)
