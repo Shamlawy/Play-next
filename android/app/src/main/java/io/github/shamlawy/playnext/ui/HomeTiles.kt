@@ -46,7 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -215,7 +214,7 @@ private fun rememberLoopClock(): () -> Float {
         if (calm) return@LaunchedEffect
         var last = -1L
         while (true) {
-            withFrameMillis { ms ->
+            androidx.compose.animation.core.withInfiniteAnimationFrameMillis { ms ->
                 // under a game page nothing here draws: the clock holds (no frames asked for its sake are wasted
                 // after this one, as the next only comes once it shows again)
                 if (last >= 0 && !covered()) t.floatValue += (ms - last).coerceIn(0L, 100L)
@@ -275,8 +274,8 @@ private fun QueueTile(h: Home, wide: Boolean, screen: Dp, modifier: Modifier, fi
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (fill) Modifier.weight(1f) else Modifier)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Pn.card),
+                // no clip: the web's box lets the edge covers and the glow hang over it
+                .background(Pn.card, RoundedCornerShape(22.dp)),
         ) { ms, c ->
             val w = c.maxWidth
             val side = minOf((w * .74f).toInt(), 190.dp.roundToPx())
@@ -366,7 +365,8 @@ private fun Orb(n: Int, wide: Boolean, screen: Dp) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            val big = if (wide) (screen.value * .054f).coerceIn(40f, 60f) else (screen.value * .1f).coerceIn(34f, 58f)
+            // unfolded the web's later `.dxq .box b { clamp(56px, 8vw, 92px) }` wins over the orb's own size
+            val big = if (wide) (screen.value * .08f).coerceIn(56f, 92f) else (screen.value * .1f).coerceIn(34f, 58f)
             BasicText("$n", style = COUNT.copy(fontSize = big.sp, lineHeight = big.sp).fixed(), maxLines = 1, softWrap = false)
             BasicText(if (n == 1) "game waiting" else "games waiting", style = WAITING.fixed(), maxLines = 1, softWrap = false, modifier = Modifier.padding(top = 2.dp))
         }
@@ -812,6 +812,7 @@ private fun TicketButton(text: String, onClick: () -> Unit) {
 @Composable
 private fun Countdown(date: String, modifier: Modifier) {
     val now = LocalNow.current
+    val covered = LocalCovered.current
     val zone = remember { java.time.ZoneId.systemDefault() }
     var parts by remember(date) { mutableStateOf(Home.countdown(date, now(), zone)) }
     val life = LocalLifecycleOwner.current.lifecycle
@@ -819,7 +820,7 @@ private fun Countdown(date: String, modifier: Modifier) {
         life.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 val t = now()
-                parts = Home.countdown(date, t, zone)
+                if (!covered()) parts = Home.countdown(date, t, zone)
                 delay(1000 - t % 1000)
             }
         }
@@ -835,7 +836,7 @@ private fun Countdown(date: String, modifier: Modifier) {
         for ((i, u) in UNITS.withIndex()) {
             val v = if (i == 0) p[0].toString() else p[i].toString().padStart(2, '0')
             Column(
-                Modifier.widthIn(max = 50.dp).background(Color(Web.DX_CDB), RoundedCornerShape(12.dp)).padding(start = 2.dp, end = 2.dp, top = 7.dp, bottom = 5.dp).clearAndSetSemantics {},
+                Modifier.weight(1f, fill = false).width(50.dp).background(Color(Web.DX_CDB), RoundedCornerShape(12.dp)).padding(start = 2.dp, end = 2.dp, top = 7.dp, bottom = 5.dp).clearAndSetSemantics {},
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Digit(v, { seen })
