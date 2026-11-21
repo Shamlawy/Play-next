@@ -227,6 +227,7 @@ class HomeTest {
         assertTrue(!h.on("soon"))
         assertTrue(h.on("playing"))
         assertTrue(h.on("hours"))
-        assertEquals(h.ranked.take(5).map { it.id }, h.queueCovers.map { it.id })
+        // the first seven ranked (`ranked.slice(0, SPOT.length)`): all six here
+        assertEquals(h.ranked.take(7).map { it.id }, h.queueCovers.map { it.id })
     }
 }

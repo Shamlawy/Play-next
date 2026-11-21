@@ -11,6 +11,8 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -231,7 +233,8 @@ class HomeScreenTest {
         field.performTextInput("gate")
         rule.waitForIdle()
         field.assertIsFocused()
-        rule.onNode(hasText("Copper Meadow") and !inResults).performScrollTo().performClick()
+        // the big card (first); its Playing now card further down holds the same name
+        rule.onAllNodes(hasText("Copper Meadow") and !inResults).onFirst().performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals(listOf("game:b"), nav().stack)
         rule.onNodeWithContentDescription("Search your games").assertIsNotFocused()
@@ -288,7 +291,8 @@ class HomeScreenTest {
     @Test fun theTilesShowWhatTheWebShows() {
         show()
         // Copper Meadow is being played; the backlog's two wait; the ticket is the next dated one with how many are ahead
-        rule.onNodeWithText("Playing now").performScrollTo()
+        // the tile's title (the card's kicker says it too, as on the web)
+        rule.onNode(hasText("Playing now") and isHeading()).performScrollTo()
         rule.onNodeWithText("Next out (2)").performScrollTo()
         rule.onNodeWithText("7 days to go · 14 Nov").assertExists()
         rule.onNodeWithContentDescription("Queue hours: 30h, ≈ 8 evenings").performScrollTo()

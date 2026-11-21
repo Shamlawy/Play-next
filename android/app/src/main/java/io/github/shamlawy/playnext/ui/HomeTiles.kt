@@ -203,12 +203,14 @@ private fun TileTitle(text: String, count: String = "") {
 
 /**
  * What Home's endless loops (the orb's spin and glow) share: one clock in ms while Home shows, still in calm, under a
- * game page, or with the app away (frames stop by themselves then).
+ * game page, scrolled off the screen ([onScreen] false) or with the app away (frames stop by themselves then).
  */
 @Composable
-private fun rememberLoopClock(): () -> Float {
+private fun rememberLoopClock(onScreen: () -> Boolean): () -> Float {
     val calm = LocalCalm.current
     val covered = LocalCovered.current
+    val see by rememberUpdatedState(onScreen)
+    val held = { covered() || !see() }
     val t = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(calm) {
         if (calm) return@LaunchedEffect
@@ -217,12 +219,12 @@ private fun rememberLoopClock(): () -> Float {
             androidx.compose.animation.core.withInfiniteAnimationFrameMillis { ms ->
                 // under a game page nothing here draws: the clock holds (no frames asked for its sake are wasted
                 // after this one, as the next only comes once it shows again)
-                if (last >= 0 && !covered()) t.floatValue += (ms - last).coerceIn(0L, 100L)
+                if (last >= 0 && !held()) t.floatValue += (ms - last).coerceIn(0L, 100L)
                 last = ms
             }
-            if (covered()) {
+            if (held()) {
                 last = -1L
-                while (covered()) delay(250)
+                while (held()) delay(250)
             }
         }
     }
@@ -305,9 +307,11 @@ private val Q_SHADE = Color(Web.DX_Q_PIC_SHADE)
 private fun Orb(n: Int, wide: Boolean, screen: Dp) {
     val volt = LocalLook.current.volt
     val volt2 = LocalLook.current.volt2
-    val clock = rememberLoopClock()
+    // off the screen (scrolled past, or Home's page swiped away) the orb asks for no frames
+    var seen by remember { mutableStateOf(true) }
+    val clock = rememberLoopClock { seen }
     val calm = LocalCalm.current
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().onVisibilityChanged(minFractionVisible = .01f) { seen = it }, contentAlignment = Alignment.Center) {
         // the glow, 132% of the orb (drawn past its box)
         Box(
             Modifier
