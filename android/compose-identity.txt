@@ -189,3 +189,14 @@ PlayingTile.h: Home
 QueueTile.h: Home
 StatTile.h: Home
 TicketTile.h: Home
+BigWords.c: Big
+HoursBars.c: Hours
+MonthBars.c: Months
+MoreCard.c: More
+MoreForYou.h: Home
+Stack.h: Home
+StackPages.cards: List<More>
+StackPages.h: Home
+StackSheet.games: State
+StandRows.c: Stand
+WeekWords.c: Week
