@@ -219,6 +219,36 @@ class GoldenTest {
                     }
                 }
             }
+            // More for you's stacks (Phase 3 piece 4), as the web lays them out; the taste cards come in piece 5
+            ((c["tiles"] as? JsonObject)?.get("more") as? JsonObject)?.let { mw ->
+                for ((key, cards) in mw) {
+                    val web = cards.jsonArray.map { it.jsonObject }.filter { it["id"]!!.s !in TASTE }
+                    val mine = h.stack(key)
+                    val at = "$name stack $key"
+                    assertEquals("$at: cards", web.map { it["id"]!!.s }, mine.map { it.id })
+                    for ((w, m) in web.zip(mine)) {
+                        val ct = "$at ${m.id}"
+                        assertEquals("$ct: title", w["name"]!!.s, m.name)
+                        assertEquals("$ct: what it says", w["big"]!!.jsonArray.map { it.s.removeSuffix(" ✨") }, more(m).first)
+                        assertEquals("$ct: its lines", w["sub"]!!.jsonArray.map { dash(it.s) }, more(m).second.map(::dash))
+                        assertEquals("$ct: meter", w["meter"]!!.s, ((m as? Home.More.Big)?.meter?.let { Rank.jsRound(it * 100.0).toLong().toString() + "%" } ?: ""))
+                        assertEquals(
+                            "$ct: standings", w["rows"]!!.jsonArray.map { r -> r.jsonArray.map { it.s } },
+                            (m as? Home.More.Stand)?.rows?.map { (g, f) -> listOf(g.id, Rank.jsRound(f * 100.0).toLong().toString() + "%") }.orEmpty(),
+                        )
+                        assertEquals(
+                            "$ct: bars", w["bars"]!!.jsonArray.map { r -> r.jsonArray.map { it.s } },
+                            (m as? Home.More.Hours)?.bars?.map { b ->
+                                listOf(b.label, b.value, Rank.jsRound(b.h * 100.0).toLong().toString() + "%", listOf("hot", "cool", "dark")[b.kind])
+                            }.orEmpty(),
+                        )
+                        assertEquals(
+                            "$ct: months", w["months"]!!.jsonArray.map { it.s },
+                            (m as? Home.More.Months)?.counts?.map { n -> (if (n > 0) Rank.jsRound(n * 100.0 / m.peak).toLong() else 6L).toString() + "%" + if (n > 0 && n == m.peak) "*" else "" }.orEmpty(),
+                        )
+                    }
+                }
+            }
             for ((id, w0) in c["per"]!!.jsonObject) {
                 val w = w0.jsonObject
                 val g = lib.games.first { it.id == id }
@@ -249,5 +279,21 @@ class GoldenTest {
             is JsonObject -> e.mapValues { norm(it.value) }.toList()
         }
         assertEquals(what, norm(a), norm(b))
+    }
+
+    /** A More for you card's big words and its lines, as the web's `.big` and `.sub`/`.note` read. */
+    private fun more(m: Home.More): Pair<List<String>, List<String>> = when (m) {
+        is Home.More.Big -> listOf(m.big + m.em) to listOfNotNull(m.sub.ifEmpty { null })
+        is Home.More.Week -> listOf("${m.n} this week") to listOf(m.sub)
+        is Home.More.Hours -> emptyList<String>() to listOfNotNull(m.note, m.foot.ifEmpty { null })
+        else -> emptyList<String>() to emptyList()
+    }
+
+    /** A dash with or without spaces round it reads the same (the web's line breaks after its "—"). */
+    private fun dash(s: String) = s.replace(Regex("\\s*—\\s*"), "—")
+
+    private companion object {
+        /** The taste cards, piece 5's. */
+        val TASTE = setOf("Your read", "What decides it", "k-tonight", "k-trap", "k-swing", "k-far", "k-lean")
     }
 }

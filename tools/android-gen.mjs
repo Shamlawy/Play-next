@@ -255,6 +255,12 @@ const RULES = {
   DX_COMP: cssColour(".dxcomp", "background"),
   DX_DONUT_TRACK: cssColour(".donut circle.trk", "stroke"), DX_CORE_A: cssColour(".donut .core", "background", 0), DX_CORE_B: cssColour(".donut .core", "background", 1),
   DX_CDB: cssColour(".dxtick .cdb", "background"), DX_TK_BTN: cssColour(".dxtick .tk button", "background"),
+  /* More for you (piece 4): a card on its game's picture is darkened up from its foot (`.dxbg`: three stops), the
+     sideways stack's cards more evenly (`.stkw.sC`) */
+  MF_FOOT: cssColour(".dash .tile.dxbg", "background-image", 0), MF_MID: cssColour(".dash .tile.dxbg", "background-image", 1),
+  MF_TOP: cssColour(".dash .tile.dxbg", "background-image", 2),
+  MF_SC_FOOT: cssColour(".stkw.sC .stk > .tile.dxbg", "background-image", 0), MF_SC_MID: cssColour(".stkw.sC .stk > .tile.dxbg", "background-image", 1),
+  MF_SC_TOP: cssColour(".stkw.sC .stk > .tile.dxbg", "background-image", 2),
   NXH_FACE: cssColour(".nxh-face", "background", 0), NXH_FACE_FAR: cssColour(".nxh-face", "background", 1), NXH_EYE: cssColour(".nxh-face .eyes i", "background"),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
   /* Pick for me's reveal (`pnReveal`, Phase 3 piece 2): the black ground, the white flash (also the crack's lines and the

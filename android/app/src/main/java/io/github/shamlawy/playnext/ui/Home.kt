@@ -99,7 +99,8 @@ import kotlinx.coroutines.launch
  * Home's top (Phase 3 piece 1; index.html `renderHome` 11250, `dxHome` 11115, `dxWire` 11222, Nexi's line 13316 +
  * 13747): Nexi's line in his voice with "Your top N", then the panel (`.dxw`): the Play next / Played tabs with their
  * counts, the search, Shuffle and Customise, the big card (Play this next, the dice, Hype, "#1 of N") and the next
- * four, then the middle tiles (HomeTiles.kt: the queue orb, Playing now, the donut, Next out). More for you comes next. The
+ * four, then the middle tiles (HomeTiles.kt: the queue orb, Playing now, the donut, Next out), and under the panel More for you's
+ * two stacks (HomeStacks.kt). The
  * dice plays Pick for me's reveal (Reveal.kt, piece 2), which opens the game; calm opens it straight away.
  */
 @Composable
@@ -111,7 +112,7 @@ internal fun HomeTop(ready: Games.State.Ready, wide: Boolean, screen: Dp) {
     val rise = remember { if (HomeRise.done || calm) null else Animatable(0f) }
     LaunchedEffect(rise) {
         HomeRise.done = true
-        rise?.animateTo(RISE_MS + 4 * RISE_STEP, tween((RISE_MS + 4 * RISE_STEP).toInt(), easing = LinearEasing))
+        rise?.animateTo(RISE_MS + 5 * RISE_STEP, tween((RISE_MS + 5 * RISE_STEP).toInt(), easing = LinearEasing))
     }
     Column(Modifier.fillMaxWidth()) {
         if (!Backup.truthy(h.q.lib["nxHomeOff"])) NexiLine(h, wide, screen)
@@ -141,12 +142,14 @@ internal fun HomeTop(ready: Games.State.Ready, wide: Boolean, screen: Dp) {
             // the middle tiles (piece 3): the queue, Playing now, the donut and Next out
             HomeTiles(h, wide, screen) { n -> Modifier.rise(rise, n) }
         }
+        // under the panel: More for you's two stacks (piece 4, HomeStacks.kt)
+        MoreForYou(h, wide, Modifier.padding(bottom = 22.dp).rise(rise, 5))
     }
 }
 
 /** Home's numbers for this copy: the day build's (off Main) when it's for this copy and today, else made here once. */
 @Composable
-private fun rememberHome(ready: Games.State.Ready): Home {
+internal fun rememberHome(ready: Games.State.Ready): Home {
     val lib = ready.lib
     val now = LocalNow.current()
     val zone = java.time.ZoneId.systemDefault()

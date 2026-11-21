@@ -126,6 +126,11 @@ class ScreensTest {
     @Test fun homeTiles412() = shot("home-tiles", 412, ready = { rule.onNodeWithText("Open game").performScrollTo() }) { Shell(Nav("home"), ready, go = {}) }
     @Test fun homeTilesTop412() = shot("home-tiles-top", 412, ready = { rule.onNodeWithText("Plan evenings").performScrollTo() }) { Shell(Nav("home"), ready, go = {}) }
     @Test fun homeTiles859() = shot("home-tiles", 859, ready = { rule.onNodeWithText("Open game").performScrollTo() }) { Shell(Nav("home"), ready, go = {}) }
+    /** More for you (piece 4): folded the two stacks one above the other, unfolded side by side; Edit this stack. */
+    private val moreReady: () -> Unit = { rule.onAllNodes(hasContentDescription("Card 1 of", substring = true)).onLast().performScrollTo() }
+    @Test fun homeMore412() = shot("home-more", 412, ready = moreReady) { Shell(Nav("home"), ready, go = {}) }
+    @Test fun homeMore859() = shot("home-more", 859, ready = moreReady) { Shell(Nav("home"), ready, go = {}) }
+    @Test fun stackEdit412() = shot("stack-edit", 412) { Shell(Nav("home", stack = listOf("stack:sB")), ready, go = {}) }
     /** Customise › Playing now cards › Classic: the covers with the hype, stars and a progress pill. */
     private val classicLib = lib(""","dzX":{"play":true}""")
     @Test fun homeClassic412() = shot("home-classic", 412, l = classicLib, ready = { rule.onNodeWithText("Open game").performScrollTo() }) {

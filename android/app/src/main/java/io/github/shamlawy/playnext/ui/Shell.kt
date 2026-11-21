@@ -417,7 +417,7 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             }
             // Settings (or a screen's Customise, your lists or the Game shuffler) stays under what you open from it, so
             // back finds it where you left it
-            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it == "shuffle" || it.startsWith("customise:") || it.startsWith("news") }
+            val s = nav.stack.indexOfLast { it == "settings" || it == "lists" || it == "shuffle" || it.startsWith("customise:") || it.startsWith("stack:") || it.startsWith("news") }
             if (s >= 0) {
                 val k = keys[s]
                 val sheet = nav.stack[s]
@@ -446,6 +446,8 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                             )
                         } else if (sheet == "shuffle") {
                             ShuffleDeck(m, games, queue.made, close = { step(nav.closeAt(s)) })
+                        } else if (sheet.startsWith("stack:")) {
+                            StackSheet(m, sheet.removePrefix("stack:"), games, close = { step(nav.closeAt(s)) })
                         } else {
                             CustomiseSheet(m, sheet.removePrefix("customise:"), games, close = { step(nav.closeAt(s)) })
                         }

@@ -276,6 +276,16 @@ for (const [name, at] of CLOCKS) {
         stat: ph.querySelector(".dxstat") ? { head: one(".dxst small"), core: all(".donut .core > *"), lg: all(".dxstat .lg span") } : null,
         tick: ph.querySelector(".dxtick") ? { title: one(".dxtick .dxt"), name: one(".dxtick .tk b"), line: one(".dxtick .tk p"),
           open: (ph.querySelector(".dxtick [data-home-open]") || { dataset: {} }).dataset.homeOpen || "" } : null,
+        /* More for you (piece 4): each stack's cards as pnStack lays them out, and what each one says and draws */
+        more: Object.fromEntries([...ph.querySelectorAll(".stkw")].map(w => [w.dataset.key, [...w.querySelectorAll(".stk > .tile:not(.stkempty)")].map(x => {
+          const t = (e, s) => [...e.querySelectorAll(s)].map(n => n.textContent.replace(/\s+/g, " ").trim());
+          return { id: pnCardId(x), name: ((x.querySelector("h5") || {}).textContent || "").trim(), big: t(x, ".big"), sub: t(x, ".sub, .note"),
+            meter: t(x, ".meter").length ? x.querySelector(".meter i").style.width : "",
+            rows: [...x.querySelectorAll(".stand .r")].map(r => [r.dataset.homeOpen, r.querySelector(".bar i").style.width]),
+            bars: [...x.querySelectorAll(".pbar")].map(b => [b.querySelector(".pl").textContent, b.querySelector(".pv").textContent,
+              b.querySelector(".pcol").style.getPropertyValue("--h"), b.querySelector(".pb").className.replace("pb ", "")]),
+            months: [...x.querySelectorAll(".yearbar button")].map(b => b.style.getPropertyValue("--h") + (b.classList.contains("hot") ? "*" : "")) };
+        })])),
       };
     }
     return { tabs, counts, sorts, per, shuffle, boss, home, tiles };
