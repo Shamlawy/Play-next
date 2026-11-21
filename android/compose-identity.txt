@@ -179,3 +179,13 @@ RevealScene.unstable crack: Animatable<Float, *>
 RevealScene.unstable fly: Animatable<Float, *>
 RevealScene.unstable t: Animatable<Float, *>
 Slash.unstable t: Animatable<Float, *>
+ClassicCard.g: Game
+ClassicCard.h: Home
+ColourCard.g: Game
+ColourCard.h: Home
+Donut.segs: List<Slice>
+HomeTiles.h: Home
+PlayingTile.h: Home
+QueueTile.h: Home
+StatTile.h: Home
+TicketTile.h: Home

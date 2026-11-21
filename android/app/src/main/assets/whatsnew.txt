@@ -287,3 +287,9 @@ go=top
 at=
 say=Pick for me now has its reveal: tap the dice and your pick crashes in with its picture, its name and a slam, then shatters into its page.
 tryIt=Open Home and tap the dice on the big card. Watch it play to the end once (about two seconds), then tap the dice again and tap the screen early: it breaks at once. Try back mid-way too: it breaks instead of leaving Home. With battery saver on (or Android's Remove animations), the dice opens the game straight away instead.
+
+v=48
+go=top
+at=
+say=Home has its middle tiles: your queue in a glowing orb with its covers round it, Playing now cards, your hours as a donut, and a live countdown to the next release.
+tryIt=Open Home and scroll past the next four. Tap Your queue: the Queue opens. Tap a Playing now card to open its game. Watch the Next out ticket count down every second. In Customise Home, switch Playing now cards to Classic, or turn a tile off. Unfold the phone: the tiles sit side by side.

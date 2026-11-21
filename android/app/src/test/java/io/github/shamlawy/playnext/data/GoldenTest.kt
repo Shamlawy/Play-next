@@ -189,6 +189,36 @@ class GoldenTest {
                 val g = lib.games.first { it.id == id }
                 assertEquals("$name $id: Home's row words", w.jsonArray.map { it.s }, listOf(h.whenOf(g), h.genreOf(g)))
             }
+            // Home's middle tiles (Phase 3 piece 3), as the web draws them
+            (c["tiles"] as? JsonObject)?.let { t ->
+                (t["queue"] as? JsonArray)?.let { qw ->
+                    assertEquals("$name: the queue's count", qw[0].s, h.live.size.toString())
+                    assertEquals("$name: the queue's covers", qw[1].jsonPrimitive.long.toInt(), h.queueCovers.size)
+                }
+                (t["playing"] as? JsonObject)?.let { pw ->
+                    assertEquals("$name: Playing now's title", pw["title"]!!.s, h.playingTitle)
+                    assertEquals("$name: Playing now's cards", pw["ids"]!!.jsonArray.map { it.s }, h.playing.map { it.id })
+                    assertEquals("$name: the colour cards' kickers", pw["kick"]!!.jsonArray.map { it.s }, h.playing.map { h.card(it).kicker })
+                    assertEquals(
+                        "$name: the colour cards' bars", pw["bar"]!!.jsonArray.map { it.s },
+                        h.playing.map { g -> h.card(g).bar?.let { String.format(java.util.Locale.US, "%.3f", it) } ?: "" },
+                    )
+                }
+                (t["stat"] as? JsonObject)?.let { sw ->
+                    assertEquals("$name: the donut's head", sw["head"]!!.s, h.donutHead)
+                    assertEquals("$name: the donut's middle", sw["core"]!!.jsonArray.map { it.s }, listOf("Queue hours", h.donutHours, h.donutSmall))
+                    assertEquals("$name: the donut's legend", sw["lg"]!!.jsonArray.map { it.s }, h.donut.map { it.label + " " + Rank.jsRound(it.share * 100).toLong() + "%" })
+                }
+                (t["tick"] as? JsonObject)?.let { kw ->
+                    val g = h.ticket
+                    assertEquals("$name: Next out's title", kw["title"]!!.s, "Next out" + if (h.ticketAhead) " (${h.fut.size})" else "")
+                    assertEquals("$name: the ticket's game", kw["open"]!!.s, g?.id ?: "")
+                    if (g != null) {
+                        assertEquals("$name: the ticket's name", kw["name"]!!.s, g.title)
+                        assertEquals("$name: the ticket's line", kw["line"]!!.s, h.ticketLine(g))
+                    }
+                }
+            }
             for ((id, w0) in c["per"]!!.jsonObject) {
                 val w = w0.jsonObject
                 val g = lib.games.first { it.id == id }

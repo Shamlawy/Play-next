@@ -262,7 +262,23 @@ for (const [name, at] of CLOCKS) {
       hours: live.reduce((a, g) => a + (hrsOf(g) || 0), 0), settled: (S.duels || []).filter(d => d.w).length,
       search: Object.fromEntries(["a", "e", "the", "zz", "ar"].map(s => [s, find(s)])), words,
       nexi: (onDeck(1)[0] || {}).id || "", top: rankedGames().slice(0, 3).map(g => g.id) };
-    return { tabs, counts, sorts, per, shuffle, boss, home };
+    /* Home's middle tiles (Phase 3 piece 3): what the web itself draws (renderHome + dzPlay), read off #p-home */
+    let tiles = null;
+    if (typeof renderHome === "function") {
+      renderHome();
+      const ph = document.getElementById("p-home"), one = sel => { const e = ph.querySelector(sel); return e ? e.textContent.replace(/\s+/g, " ").trim() : null; };
+      const all = sel => [...ph.querySelectorAll(sel)].map(e => e.textContent.replace(/\s+/g, " ").trim());
+      const play = ph.querySelector(".dxplay");
+      tiles = {
+        queue: ph.querySelector(".dxq") ? [one(".dxq .dxorb b"), ph.querySelectorAll(".dxq .box img").length] : null,
+        playing: play ? { title: one(".dxplay .dxt"), ids: [...play.querySelectorAll("[data-home-open]")].map(b => b.dataset.homeOpen),
+          kick: all(".dxplay .dzp-k"), bar: [...play.querySelectorAll(".dzp")].map(c => { const i = c.querySelector(".dzp-bar i"); return i ? i.style.getPropertyValue("--p") : ""; }) } : null,
+        stat: ph.querySelector(".dxstat") ? { head: one(".dxst small"), core: all(".donut .core > *"), lg: all(".dxstat .lg span") } : null,
+        tick: ph.querySelector(".dxtick") ? { title: one(".dxtick .dxt"), name: one(".dxtick .tk b"), line: one(".dxtick .tk p"),
+          open: (ph.querySelector(".dxtick [data-home-open]") || { dataset: {} }).dataset.homeOpen || "" } : null,
+      };
+    }
+    return { tabs, counts, sorts, per, shuffle, boss, home, tiles };
   });
   out.queue.push({ name, at, now: Date.parse(at), raw, ...q });
   await ctx.close();

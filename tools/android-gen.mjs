@@ -45,6 +45,11 @@ function table(name) {
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const need = (ok, what) => { if (!ok) fail(what); };
 const PALETTE = table("PALETTE");
+const DX_RING = table("DX_RING");
+need(Array.isArray(DX_RING) && DX_RING.length === 4 && DX_RING.every(h => HEX.test(h)), "DX_RING: four #RRGGBB colours");
+/* SPOT lives inside dxHome (not a top-level const): read its literal straight from the line */
+const DX_SPOT = JSON.parse((/const SPOT = (\[\[[-\d, \[\]]+\]\]);/.exec(src) || [, "null"])[1]);
+need(Array.isArray(DX_SPOT) && DX_SPOT.length >= 1 && DX_SPOT.every(s => Array.isArray(s) && s.length === 4 && s.every(Number.isInteger)), "SPOT in dxHome: [x, y, size, turn]…");
 need(Array.isArray(PALETTE) && PALETTE.length >= 16 && PALETTE.every(h => HEX.test(h)), "PALETTE: a list of #RRGGBB colours (16+)");
 const THEMES = table("THEMES");
 need(THEMES && THEMES.midnight && Object.values(THEMES).every(t => typeof t.n === "string" && HEX.test(t.a) && HEX.test(t.b)),
@@ -235,6 +240,21 @@ const RULES = {
   DX_SHADE_TOP: cssColour(".dxhero::after", "background", 0), DX_SHADE_FOOT: cssColour(".dxhero::after", "background", -1),
   DX_AV_SHADE: cssColour(".dxhero .av", "box-shadow"), DX_CB: cssColour(".cb", "background"), DX_PLAY_INK: cssColour(".play", "color"),
   DX_GP_VEIL: cssColour(".gp", "background", 0, true), DX_EMPTY_A: cssColour(".dxhero.empty", "background", 0), DX_EMPTY_B: cssColour(".dxhero.empty", "background", 1),
+  /* Home's middle tiles (piece 3): Your queue's covers (ground, shadow) and its orb (the blob's three fixed colours after
+     the accent, its glow, the core's ring and shadow); Playing now's colour card (the dark it mixes the game's colour
+     into, its arrow chip, its bar's track) and the Classic card (its shade, the hype pill, stars on and off, the
+     progress pill's track, words and play chip, the Competitive pill); the donut (track, core near and far); the
+     ticket's countdown boxes and its Open game button */
+  DX_Q_PIC: cssColour(".dxq .box img", "background"), DX_Q_PIC_SHADE: cssColour(".dxq .box img", "box-shadow"),
+  DX_ORB_A: cssColour(".dxorb .blob", "background", 0), DX_ORB_B: cssColour(".dxorb .blob", "background", 1), DX_ORB_C: cssColour(".dxorb .blob", "background", 2),
+  DX_ORB_GLOW: cssColour(".dxorb .blob", "box-shadow"), DX_ORB_RING: cssColour(".dxorb .core", "box-shadow", 0), DX_ORB_SHADE: cssColour(".dxorb .core", "box-shadow", 1),
+  DZ_BASE: cssColour(".dzp", "background"), DZ_GO: cssColour(".dzp-go", "background"), DZ_TRACK: cssColour(".dzp-bar", "background"),
+  DX_C_SHADE: cssColour(".dxc::after", "background", 1), DX_VB: cssColour(".dxc .vb", "background"),
+  DX_STAR: cssColour(".dxc .stars", "color"), DX_STAR_OFF: cssColour(".dxc .stars i", "color"),
+  DX_PB_TRACK: cssColour(".dxpb .tr", "background"), DX_PB_INK: cssColour(".dxpb em", "color"), DX_PB_GO: cssColour(".dxpb .go", "background"),
+  DX_COMP: cssColour(".dxcomp", "background"),
+  DX_DONUT_TRACK: cssColour(".donut circle.trk", "stroke"), DX_CORE_A: cssColour(".donut .core", "background", 0), DX_CORE_B: cssColour(".donut .core", "background", 1),
+  DX_CDB: cssColour(".dxtick .cdb", "background"), DX_TK_BTN: cssColour(".dxtick .tk button", "background"),
   NXH_FACE: cssColour(".nxh-face", "background", 0), NXH_FACE_FAR: cssColour(".nxh-face", "background", 1), NXH_EYE: cssColour(".nxh-face .eyes i", "background"),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
   /* Pick for me's reveal (`pnReveal`, Phase 3 piece 2): the black ground, the white flash (also the crack's lines and the
@@ -388,6 +408,10 @@ const APP_DRAWN = {
   sliders: '<path opacity=".35" d="M3 5.8h18v2.4H3zm0 10h18v2.4H3z"/><rect x="12.4" y="3.2" width="5" height="7.6" rx="2.5"/><rect x="6.6" y="13.2" width="5" height="7.6" rx="2.5"/>',
   go: '<path d="M8 4.6v14.8c0 .8.9 1.3 1.6.9l11.2-7.4c.6-.4.6-1.3 0-1.7L9.6 3.7C8.9 3.3 8 3.8 8 4.6z"/>',
   hour: '<circle opacity=".35" cx="12" cy="12" r="9.6"/><path d="M11 6.6h2v5l3.4 2.1-1.1 1.7-4.3-2.7z"/>',
+  /* Home's middle tiles (piece 3): Your statistic's chart button (`DX_ICO.chart`) and a colour card's corner arrow
+     (`DZ_ARROW`), redrawn fill-only */
+  chart: '<rect opacity=".35" x="3" y="3" width="18" height="18" rx="5"/><path d="M6.2 14.8 10.4 9.9l2.6 2.1 3.2-4.1 1.6 1.2-4.4 5.6-2.6-2.1-3 3.5z"/>',
+  arrow: '<path d="M8.6 6.4h9v9h-2.2v-5.2l-8.2 8.2-1.6-1.6 8.2-8.2H8.6z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
 const PLAT_LOGO = table("PLAT_LOGO");
@@ -454,6 +478,10 @@ const lines = [
   `    const val BG_TINT = ${argb(BG_TINT)}L`,
   `    const val BG_GRAD = ${BG_GRAD}`,
   `    val PALETTE: List<Long> = ${kl(PALETTE.map(h => argb(h) + "L"))}`,
+  "    // Home's middle tiles (piece 3): the donut's four colours (`DX_RING`) and where Your queue's covers sit round the orb",
+  "    // (`SPOT` in dxHome: left %, top %, size px, turn in degrees)",
+  `    val DX_RING: List<Long> = ${kl(DX_RING.map(h => argb(h) + "L"))}`,
+  `    val DX_SPOT: List<List<Int>> = listOf(${DX_SPOT.map(s => "listOf(" + s.join(", ") + ")").join(", ")})`,
   `    val THEMES: List<WebTheme> = listOf(\n${Object.entries(THEMES).map(([k, t]) => `        WebTheme(${ks(k)}, ${ks(t.n)}, ${argb(t.a)}L, ${argb(t.b)}L),`).join("\n")}\n    )`,
   "",
   "    // pictures: Steam's picture store (bgSource's hero), and where the web app's own files live",

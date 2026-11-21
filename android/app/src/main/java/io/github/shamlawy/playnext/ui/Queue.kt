@@ -1757,12 +1757,12 @@ private object QType {
 }
 
 /**
- * A closed row's name in at most two lines that never breaks inside a word (the owner's screenshot, Nov 6: a long
+ * A name in at most [maxLines] lines (a closed row's: two; Home's Playing now card: three) that never breaks inside a word (the owner's screenshot, Nov 6: a long
  * one-word name split mid-word; the web keeps short things whole too): when its longest word is wider than the
  * line, the name shrinks until that word fits, to [NAME_LEAST] of its size at the least.
  */
 @Composable
-private fun WholeName(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+internal fun WholeName(text: String, style: TextStyle, modifier: Modifier = Modifier, maxLines: Int = 2) {
     val measurer = rememberTextMeasurer()
     BoxWithConstraints(modifier) {
         val wpx = constraints.maxWidth
@@ -1774,7 +1774,7 @@ private fun WholeName(text: String, style: TextStyle, modifier: Modifier = Modif
                 style.copy(fontSize = style.fontSize * k, lineHeight = style.lineHeight * k)
             }
         }
-        BasicText(text, style = sized, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        BasicText(text, style = sized, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
     }
 }
 

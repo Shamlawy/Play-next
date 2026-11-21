@@ -122,6 +122,15 @@ class ScreensTest {
     @Test fun restore859() = shot("restore", 859, yours = false) { RestoreScreen(onSkip = {}, onDone = {}) }
     @Test fun home412() = shot("home", 412) { Shell(Nav("home"), ready, go = {}) }
     @Test fun home859() = shot("home", 859) { Shell(Nav("home"), ready, go = {}) }
+    /** Home's middle tiles (piece 3): folded the queue and the donut, then Playing now and the ticket; unfolded two rows. */
+    @Test fun homeTiles412() = shot("home-tiles", 412, ready = { rule.onNodeWithText("Open game").performScrollTo() }) { Shell(Nav("home"), ready, go = {}) }
+    @Test fun homeTilesTop412() = shot("home-tiles-top", 412, ready = { rule.onNodeWithText("Plan evenings").performScrollTo() }) { Shell(Nav("home"), ready, go = {}) }
+    @Test fun homeTiles859() = shot("home-tiles", 859, ready = { rule.onNodeWithText("Open game").performScrollTo() }) { Shell(Nav("home"), ready, go = {}) }
+    /** Customise › Playing now cards › Classic: the covers with the hype, stars and a progress pill. */
+    private val classicLib = lib(""","dzX":{"play":true}""")
+    @Test fun homeClassic412() = shot("home-classic", 412, l = classicLib, ready = { rule.onNodeWithText("Open game").performScrollTo() }) {
+        Shell(Nav("home"), Games.State.Ready(classicLib, now - 3 * 3_600_000L), go = {})
+    }
     @Test fun games412() = shot("games", 412) { Shell(Nav("games"), ready, go = {}) }
     @Test fun games859() = shot("games", 859) { Shell(Nav("games"), ready, go = {}) }
     /** The Queue's rows with On deck off (On deck's cards are 410 tall: with them the rows start below the picture). */

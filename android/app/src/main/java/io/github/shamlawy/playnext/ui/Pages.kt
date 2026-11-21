@@ -108,7 +108,7 @@ private fun HomePage(games: Games.State, wide: Boolean, screen: Dp, askCode: () 
         HomeTop(games, wide, screen)
         Card(Modifier.padding(bottom = 22.dp)) {
             AsOf(games)
-            BasicText("Home's middle tiles and More for you come in the next updates. This app is a practice copy: it reads your games and changes nothing.", style = Type.note)
+            BasicText("More for you (the swipe stacks under these tiles) comes in the next update. This app is a practice copy: it reads your games and changes nothing.", style = Type.note)
         }
         return
     }
