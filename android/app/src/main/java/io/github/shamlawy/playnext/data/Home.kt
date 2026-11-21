@@ -277,7 +277,7 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
         val ev = lib.evening
         val other = bars.firstOrNull { it.third }
         val otherN = if (other != null) genreCount(if (useH) live else lib.games, useH) - 5 else 0
-        val fmt = { v: Double -> (if (v >= 10) Rank.jsRound(v).toLong().toString() else String.format(java.util.Locale.US, "%.1f", v)) + if (useH) "h" else "" }
+        val fmt = { v: Double -> (if (v >= 10) Rank.jsRound(v).toLong().toString() else fixed1(v)) + if (useH) "h" else "" }
         val max = maxOf(1.0, bars.maxOf { it.second })
         val hot = bars.filter { !it.third }.sortedByDescending { it.second }.take(3).map { it.first }
         val top = bars.filter { !it.third }.maxByOrNull { it.second }

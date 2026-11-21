@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -106,13 +107,21 @@ class HomeScreenTest {
 
     private lateinit var setNav: (Nav) -> Unit
 
-    private fun show(l: Library = lib()): () -> Nav {
+    /** [phoneSlop]: a phone's 8 dp touch slop (Robolectric's is 16, past the web's 10 for a hold). */
+    private fun show(l: Library = lib(), phoneSlop: Boolean = false): () -> Nav {
         state.value = Games.State.Ready(l, now - 3_600_000L)
         var nav by mutableStateOf(Nav("home"))
         setNav = { nav = it }
         rule.setContent {
             val games by Games.state.collectAsState()
-            Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, games, go = { nav = it }) }
+            val base = androidx.compose.ui.platform.LocalViewConfiguration.current
+            val slop = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.toPx() }
+            val vc = if (!phoneSlop) base else object : androidx.compose.ui.platform.ViewConfiguration by base {
+                override val touchSlop = slop
+            }
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalViewConfiguration provides vc) {
+                Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, games, go = { nav = it }) }
+            }
         }
         rule.waitForIdle()
         // a tap right after a step opens lands on nothing (Shell's settle)
@@ -415,6 +424,26 @@ class HomeScreenTest {
         rule.onAllNodesWithContentDescription("Card 1 of 3").onFirst().performScrollTo()
         assertEquals(0, rule.onAllNodes(hasText("Your year so far")).fetchSemanticsNodes().size)
         rule.onNodeWithText("none yet — go settle a few").assertExists()
+    }
+
+    /** A drift past the touch slop (where the pager starts dragging) then a still finger is no hold (review on #771). */
+    @Test fun aDriftThatStartsADragIsNoHold() {
+        val nav = show(phoneSlop = true)
+        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        val card = rule.onNodeWithText("Your year so far")
+        var slop = 0f
+        var ten = 0f
+        card.performTouchInput {
+            slop = 8.dp.toPx()
+            ten = 10.dp.toPx()
+            down(center)
+            moveBy(Offset(0f, -(slop + 1f)))
+        }
+        assertTrue("the drift ($slop + 1) stays under the web's 10 ($ten)", slop + 1f < ten)
+        rule.mainClock.advanceTimeBy(700)
+        card.performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals("no editor (slop $slop, 10dp $ten)", emptyList<String>(), nav().stack)
     }
 
     @Test fun resetForgetsAStacksOrder() {

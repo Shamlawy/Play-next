@@ -140,9 +140,12 @@ private fun Stack(h: Home, key: String, modifier: Modifier) {
     val cards = remember(h, key) { h.stack(key) }
     val acts = LocalHomeActs.current
     val edit by rememberUpdatedState {
-        Buzz.ms(18)
-        Crumbs.tap("stack edit $key", "home")
-        acts?.sheet?.invoke("stack:$key")
+        // the web's pnStackEdit has nothing to show for a stack with no cards at all (every one switched off)
+        if (h.stackAll(key).isNotEmpty()) {
+            Buzz.ms(18)
+            Crumbs.tap("stack edit $key", "home")
+            acts?.sheet?.invoke("stack:$key")
+        }
     }
     Box(
         modifier
@@ -207,7 +210,8 @@ private val CONTAIN = object : NestedScrollConnection {
  * in the same pass (L232).
  */
 private fun Modifier.holdToEdit(fire: () -> Unit): Modifier = pointerInput(Unit) {
-    val slop = 10.dp.toPx()
+    // the pager starts dragging at the touch slop (~8), before the web's 10: let go there too, as Queue's hold does
+    val slop = minOf(10.dp.toPx(), viewConfiguration.touchSlop)
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         val ended = withTimeoutOrNull(550L) {
@@ -564,10 +568,11 @@ internal fun StackSheet(modifier: Modifier, key: String, games: Games.State, clo
         BasicText("Order and pick which cards it holds.", style = Type.note)
         if (ready != null) {
             val h = rememberHome(ready)
-            val list = remember(h, key) { mutableStateListOf<Pair<String, String>>().apply { addAll(h.stackAll(key).map { it.id to it.name }) } }
-            var hid by remember(h, key) { mutableStateOf(h.stackHidden(key)) }
+            // seeded once: a library rewrite (sync, a save, midnight) rebuilds h, and must not wipe what's being edited
+            val list = remember(key) { mutableStateListOf<Pair<String, String>>().apply { addAll(h.stackAll(key).map { it.id to it.name }) } }
+            var hid by remember(key) { mutableStateOf(h.stackHidden(key)) }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                list.forEachIndexed { n, (id, name) ->
+                list.forEachIndexed { n, (id, name) -> androidx.compose.runtime.key(id) {
                     val off = id in hid
                     Row(
                         Modifier
@@ -595,7 +600,7 @@ internal fun StackSheet(modifier: Modifier, key: String, games: Games.State, clo
                             )
                         }
                     }
-                }
+                } }
             }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 Btn("Reset") {
