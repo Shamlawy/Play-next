@@ -27,3 +27,5 @@ italic ui/Reveal.kt fontFamily = Fonts.archivo, fontWeight = FontWeight.Black, f
 uppercase ui/Reveal.kt title.uppercase(Locale.ROOT), — the reveal's name is in capitals on the web (`.pvname` text-transform, a celebration)
 italic ui/Reveal.kt fontFamily = ARCHIVO_NARROW, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, — the reveal's name is Archivo italic 900 (`.pvname`)
 font-weight ui/Reveal.kt fontFamily = ARCHIVO_NARROW, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, — Archivo, not Poppins: the reveal's narrowed face
+uppercase ui/HomeStacks.kt BasicText(c.name.uppercase(), style = (if (pic != null) H5_SHADED else H5).fixed() — a More for you card's small kicker ("2026 SO FAR") is capitals on the web (.dash .tile h5, 9.5px, text-transform: uppercase), a label, not a heading
+uppercase ui/HomeStacks.kt BasicText(b.label.uppercase(), style = PL.fixed() — the bar charts' genre/month labels under each bar are capitals on the web (pillBars' label), not a heading

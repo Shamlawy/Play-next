@@ -293,3 +293,9 @@ go=top
 at=
 say=Home has its middle tiles: your queue in a glowing orb with its covers round it, Playing now cards, your hours as a donut, and a live countdown to the next release.
 tryIt=Open Home and scroll past the next four. Tap Your queue: the Queue opens. Tap a Playing now card to open its game. Watch the Next out ticket count down every second. In Customise Home, switch Playing now cards to Classic, or turn a tile off. Unfold the phone: the tiles sit side by side.
+
+v=49
+go=top
+at=
+say=Home has More for you: two stacks of cards you swipe through, each on its game's picture: your year and month, duels, where your hours go, the standings and where the year bunches up.
+tryIt=Open Home and scroll to the bottom. Swipe the top stack up and down and the bottom one sideways, or tap a dot. Hold a stack half a second: move a card up, hide one, tap Done. Tap a Standings row to open its game. Unfold the phone: the two stacks sit side by side.

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -101,17 +102,26 @@ class HomeScreenTest {
         put("practice", emptyMap<String, Any>())
         state.value = Games.State.Starting
         Reveal.reset()
+        StackPos.clear()
     }
 
     private lateinit var setNav: (Nav) -> Unit
 
-    private fun show(l: Library = lib()): () -> Nav {
+    /** [phoneSlop]: a phone's 8 dp touch slop (Robolectric's is 16, past the web's 10 for a hold). */
+    private fun show(l: Library = lib(), phoneSlop: Boolean = false): () -> Nav {
         state.value = Games.State.Ready(l, now - 3_600_000L)
         var nav by mutableStateOf(Nav("home"))
         setNav = { nav = it }
         rule.setContent {
             val games by Games.state.collectAsState()
-            Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, games, go = { nav = it }) }
+            val base = androidx.compose.ui.platform.LocalViewConfiguration.current
+            val slop = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.toPx() }
+            val vc = if (!phoneSlop) base else object : androidx.compose.ui.platform.ViewConfiguration by base {
+                override val touchSlop = slop
+            }
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalViewConfiguration provides vc) {
+                Frame(Look.of(l), Prefs.of(l), now = { now }) { Shell(nav, games, go = { nav = it }) }
+            }
         }
         rule.waitForIdle()
         // a tap right after a step opens lands on nothing (Shell's settle)
@@ -364,5 +374,105 @@ class HomeScreenTest {
         rule.onNodeWithText("Add a game").performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals("add", nav().tab)
+    }
+
+    // ---------------------------------------------------------------- More for you (piece 4)
+
+    private fun cfg(key: String): Pair<List<String>, List<String>>? {
+        val o = ((Games.state.value as Games.State.Ready).lib["stackCfg"] as? kotlinx.serialization.json.JsonObject)?.get(key) as? kotlinx.serialization.json.JsonObject ?: return null
+        val ids = { k: String -> (o[k] as JsonArray).map { (it as JsonPrimitive).content } }
+        return ids("order") to ids("hidden")
+    }
+
+    @Test fun theStacksShowAndATapSaysWhichUpdateBringsIt() {
+        show()
+        rule.onNode(hasText("More for you") and isHeading()).performScrollTo()
+        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithText("Your year so far").performClick()
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        rule.onNodeWithText("Year wrapped and the monthly recaps arrive in phase 5.").assertExists()
+        rule.mainClock.advanceTimeBy(3_000)
+        rule.mainClock.autoAdvance = true
+        // the sideways stack's second card is Standings: its dot turns to it, and a row opens its game
+        rule.onNodeWithContentDescription("Card 2 of 3").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("STANDINGS").assertExists()
+        assertEquals(1, StackPos["sC"])
+    }
+
+    @Test fun holdingAStackOpensItsEditorAndDoneKeepsYourOrder() {
+        val nav = show()
+        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        val card = rule.onNodeWithText("Your year so far")
+        card.performTouchInput { down(center) }
+        rule.mainClock.advanceTimeBy(700)
+        card.performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(listOf("stack:sB"), nav().stack)
+        assertEquals("the hold isn't also a tap", 0, rule.onAllNodes(hasText("Year wrapped", substring = true)).fetchSemanticsNodes().size)
+        rule.onNodeWithText("Edit this stack").assertExists()
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithContentDescription("Move Duels up").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("2026 so far: shown").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("2026 so far: hidden").assertExists()
+        rule.onNodeWithText("Done").performScrollTo().performClick()
+        waitFor("Done keeps the order and the hidden card") { cfg("sB") == (listOf("k-wrap", "Duels", "k-month", "Settle a duel") to listOf("k-wrap")) }
+        assertEquals(emptyList<String>(), nav().stack)
+        // Home now leads with Duels and leaves the year card out
+        rule.onAllNodesWithContentDescription("Card 1 of 3").onFirst().performScrollTo()
+        assertEquals(0, rule.onAllNodes(hasText("Your year so far")).fetchSemanticsNodes().size)
+        rule.onNodeWithText("none yet — go settle a few").assertExists()
+    }
+
+    /** A drift past the touch slop (where the pager starts dragging) then a still finger is no hold (review on #771). */
+    @Test fun aDriftThatStartsADragIsNoHold() {
+        val nav = show(phoneSlop = true)
+        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        val card = rule.onNodeWithText("Your year so far")
+        var slop = 0f
+        var ten = 0f
+        card.performTouchInput {
+            slop = 8.dp.toPx()
+            ten = 10.dp.toPx()
+            down(center)
+            moveBy(Offset(0f, -(slop + 1f)))
+        }
+        assertTrue("the drift ($slop + 1) stays under the web's 10 ($ten)", slop + 1f < ten)
+        rule.mainClock.advanceTimeBy(700)
+        card.performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals("no editor (slop $slop, 10dp $ten)", emptyList<String>(), nav().stack)
+    }
+
+    @Test fun resetForgetsAStacksOrder() {
+        val nav = show(lib(""","stackCfg":{"sC":{"order":["k-year","k-stand","k-hours"],"hidden":["k-hours"]}}"""))
+        rule.onNodeWithContentDescription("Card 1 of 2").performScrollTo()
+        rule.onNodeWithText("WHERE THE YEAR BUNCHES UP").assertExists()
+        rule.onNodeWithText("WHERE THE YEAR BUNCHES UP").performTouchInput { down(center) }
+        rule.mainClock.advanceTimeBy(700)
+        rule.onNodeWithText("WHERE THE YEAR BUNCHES UP").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(listOf("stack:sC"), nav().stack)
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithText("Reset").performScrollTo().performClick()
+        waitFor("Reset forgets it") { cfg("sC") == null }
+    }
+
+    @Test fun aFlickThroughTheSidewaysStackStaysOnHome() {
+        val nav = show()
+        // its dots sit at its foot: scroll the page to them (a card inside the pager doesn't scroll it, L331)
+        val dot = rule.onNodeWithContentDescription("Card 1 of 3").performScrollTo()
+        rule.waitForIdle()
+        val y = dot.fetchSemanticsNode().positionInRoot.y - 80f
+        val before = nav()
+        rule.onRoot().performTouchInput { swipe(Offset(width * .8f, y), Offset(width * .15f, y), 250) }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals("the stack turned", 1, StackPos["sC"])
+        assertEquals("still Home", before.tab, nav().tab)
+        assertEquals("no view changed", before.views, nav().views)
+        assertEquals("nothing opened", before.stack, nav().stack)
     }
 }

@@ -204,8 +204,219 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
     fun ticketLine(g: Game): String =
         if (g in fut) JsDate.days(g.date, now).removeSuffix(" away") + " to go · " + q.shortDate(g.date) else "It's out — go play it!"
 
+    // ------------------------------------------------------------ More for you (piece 4, `renderHome` 11309-11469)
+
+    /**
+     * One card in More for you's stacks. [id] is how the stack's order and hidden list name it (`pnCardId`: its `k-`
+     * class, else its title), [name] the title it shows and the stack editor lists, [bg] the game whose picture it sits
+     * on (`.dxbg`, 11476), [go] the "which update" key for a card whose tap leads to a screen still to come.
+     */
+    sealed class More(val id: String, val name: String, val bg: Game?, val go: String?) {
+        /** A number or a word over a line (`.big`, `em` after it), with a meter (0..1) or a warning tint. */
+        class Big(
+            id: String, name: String, bg: Game?, go: String?,
+            val big: String, val em: String, val word: Boolean, val sub: String,
+            val meter: Float? = null, val warn: Boolean = false,
+        ) : More(id, name, bg, go)
+
+        /** Play sessions: this week's count, a bar per day (0..1 of the busiest) with its weekday letter, and a line. */
+        class Week(bg: Game?, val n: Int, val bars: List<Float>, val days: List<String>, val sub: String) : More("k-sess", "Play sessions", bg, "timer")
+
+        /** Standings: the top of [ranked] with each one's Elo as a bar (0..1) and its colour when tinted. */
+        class Stand(bg: Game?, val rows: List<Pair<Game, Float>>, val tint: Boolean) : More("k-stand", "Standings", bg, null)
+
+        /** Where your hours go: a note, a pill bar per genre, and the biggest share's line. */
+        class Hours(bg: Game?, val note: String, val bars: List<Bar>, val foot: String) : More("k-hours", "Where your hours go", bg, null)
+
+        /** Where the year bunches up: how many dated games fall in each month, the busiest lit. */
+        class Months(bg: Game?, val counts: List<Int>, val peak: Int) : More("k-year", "Where the year bunches up", bg, "month")
+    }
+
+    /** One of [More.Hours]' pill bars: [h] 0..1 of the bar's column, [kind] hot (your top three), cool, or other. */
+    class Bar(val label: String, val value: String, val h: Float, val kind: Int) {
+        companion object { const val HOT = 0; const val COOL = 1; const val OTHER = 2 }
+    }
+
+    /** The day in your zone. */
+    private val today: java.time.LocalDate get() = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+
+    /** The Elo each standing reads (`elo[x.id] || 1500`). */
+    private fun eloOf(g: Game): Double = rk.elo[g.id].let { if (it == null || it == 0.0 || it.isNaN()) 1500.0 else it }
+
+    /** Live games by the month (0-11) their date falls in, read as JavaScript's `new Date(date).getMonth()`. */
+    private val months: IntArray by lazy {
+        val m = IntArray(12)
+        for (g in live) JsDate.utcMidnight(g.date)?.let { m[java.time.Instant.ofEpochMilli(it).atZone(zone).monthValue - 1]++ }
+        m
+    }
+
+    private fun monthOf(g: Game): Int? = JsDate.utcMidnight(g.date)?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).monthValue - 1 }
+
+    /** `genreSplit(games, key)`: hours (or games) by genre, a game in three genres lending each a third; top five + Other. */
+    private fun genreSplit(games: List<Game>, hours: Boolean): List<Triple<String, Double, Boolean>> {
+        val by = LinkedHashMap<String, Double>()
+        for (g in games) {
+            val v = if (hours) total(g) else 1.0
+            if (v == 0.0) continue
+            val ls = Rank.platList(g["genres"])
+            if (ls.isEmpty()) { by["Unsorted"] = (by["Unsorted"] ?: 0.0) + v; continue }
+            for (n in ls) by[n] = (by[n] ?: 0.0) + v / ls.size
+        }
+        val all = by.entries.sortedByDescending { it.value }
+        val top = all.take(5).map { Triple(it.key, it.value, false) }
+        val rest = all.drop(5).sumOf { it.value }
+        return if (rest > 0) top + Triple("Other", rest, true) else top
+    }
+
+    /** The card for Where your hours go (`genreChart("home")` 8446), or null with fewer than two bars. */
+    private fun hoursCard(): More.Hours? {
+        val byH = genreSplit(live, true)
+        val useH = byH.size >= 2 && hours > 0
+        val bars = if (useH) byH else genreSplit(lib.games, false)
+        if (bars.size < 2) return null
+        val ev = lib.evening
+        val other = bars.firstOrNull { it.third }
+        val otherN = if (other != null) genreCount(if (useH) live else lib.games, useH) - 5 else 0
+        val fmt = { v: Double -> (if (v >= 10) Rank.jsRound(v).toLong().toString() else fixed1(v)) + if (useH) "h" else "" }
+        val max = maxOf(1.0, bars.maxOf { it.second })
+        val hot = bars.filter { !it.third }.sortedByDescending { it.second }.take(3).map { it.first }
+        val top = bars.filter { !it.third }.maxByOrNull { it.second }
+        val sum = bars.sumOf { it.second }
+        val note = (if (useH) Queue.jsNum(hours) + "h waiting · about " + maxOf(1L, Rank.jsRound(hours / ev).toLong()) + " evenings at " + Queue.jsNum(ev) + "h"
+            else lib.games.size.toString() + " games, split across the genres on each one") +
+            if (other != null) " · Other = $otherN smaller genre" + (if (otherN == 1) "" else "s") else ""
+        // `want["Where your hours go"]`: the live game with the most hours written on it
+        val mostH = live.sortedByDescending { Backup.num(it["hours"], 0.0, 0.0, 1000.0) }.firstOrNull()
+        return More.Hours(
+            mostH ?: pick, note,
+            bars.map { (l, v, o) ->
+                Bar(l, fmt(v), (maxOf(9L, Rank.jsRound(v / max * 76).toLong()) / 100f), if (o) Bar.OTHER else if (l in hot) Bar.HOT else Bar.COOL)
+            },
+            if (top != null) top.first + " takes the biggest share of what you have queued — " + Rank.jsRound(top.second / sum * 100).toLong() + "% of it." else "",
+        )
+    }
+
+    /** How many genres [genreSplit] found before it cut to five (`all.length`). */
+    private fun genreCount(games: List<Game>, hours: Boolean): Int {
+        val names = LinkedHashSet<String>()
+        for (g in games) {
+            if ((if (hours) total(g) else 1.0) == 0.0) continue
+            val ls = Rank.platList(g["genres"])
+            if (ls.isEmpty()) names += "Unsorted" else names += ls
+        }
+        return names.size
+    }
+
+    /** The cards before your order and hidden list: the upright stack (`sB`) and the sideways one (`sC`). */
+    private val stacks: Pair<List<More>, List<More>> by lazy {
+        val b = ArrayList<More>()
+        val c = ArrayList<More>()
+        val runner = ranked.getOrNull(1)
+        val t = today
+        val timerOn = Backup.truthy(lib["timerOn"])
+        if (on("wrapped")) {
+            val y = t.year
+            val wd = Year.wr(lib, y, null, zone)
+            val late = t.monthValue == 12
+            b += More.Big(
+                "k-wrap", "$y " + (if (late) "wrapped" else "so far"), wd.top?.first ?: wd.best ?: wd.fin.firstOrNull() ?: pick, "wrapped",
+                if (late) "Your year in games" else "Your year so far", "", true,
+                "${wd.fin.size} finished" + (if (wd.thin) "" else " · " + Year.fmtH(wd.hours) + " played") + " · ${wd.duels} duels — tap to watch",
+            )
+        }
+        if (on("monthly")) {
+            // the first week of a month looks back at the one that just ended; after that, this month so far
+            val back = t.dayOfMonth <= 7
+            val dt = if (back) t.minusMonths(1) else t
+            val md = Year.wr(lib, dt.year, dt.monthValue - 1, zone)
+            val name = Year.MONTHS[dt.monthValue - 1] + if (back) " recap" else " so far"
+            val hero = md.top?.first ?: md.best ?: md.fin.firstOrNull() ?: pick
+            b += if (md.thin) More.Big("k-month", name, hero, "wrapped", "${md.fin.size}", " finished", false, "${md.duels} duels · ${md.added} added — tap to watch")
+            else More.Big(
+                "k-month", name, hero, "wrapped", Year.fmtH(md.hours), " played", false,
+                "${md.ses.size} sessions · ${md.fin.size} finished" + (md.top?.let { " · most: " + it.first.title } ?: "") + " — tap to watch",
+            )
+        }
+        if (on("sessions") && timerOn) {
+            val mid = t.atStartOfDay(zone).toInstant().toEpochMilli()
+            val from = mid - 6 * JsDate.DAY
+            val wk = Year.sessions(lib).filter { it.s >= from }
+            val per = DoubleArray(7)
+            for (x in wk) {
+                val k = Math.floorDiv(java.time.Instant.ofEpochMilli(x.s).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli() - from, JsDate.DAY).toInt()
+                if (k in 0..6) per[k] += x.h
+            }
+            val top = maxOf(.5, per.max())
+            val st = Year.stats(wk)
+            val byG = LinkedHashMap<String, Double>()
+            for (x in wk) byG[x.g] = (byG[x.g] ?: 0.0) + x.h
+            val gid = byG.entries.sortedByDescending { it.value }.firstOrNull()?.key
+            b += More.Week(
+                rk.find(gid) ?: pick, st.n, per.map { (it / top).toFloat() },
+                (0..6).map { java.time.Instant.ofEpochMilli(from + it * JsDate.DAY).atZone(zone).dayOfWeek.getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.UK) },
+                if (st.n > 0) Year.fmtH(st.tot) + " played · longest " + Year.fmtH(st.best) else "No sessions in the last 7 days — start the timer and they land here",
+            )
+        }
+        if (on("duels")) {
+            val last = rk.duels.lastOrNull { it.w.isNotEmpty() && it.w != "draw" }
+            b += More.Big(
+                "Duels", "Duels", rk.find(last?.w) ?: pick, "duels", "$settled", "", false,
+                if (settled > 0) "settled · ${live.size} still in the running" else "none yet — go settle a few",
+            )
+        }
+        if (on("coverage") && live.size > 1) {
+            val pairs = live.size * (live.size - 1) / 2
+            val judged = rk.duels.filter { it.w.isNotEmpty() }.map { listOf(it.a ?: "", it.b ?: "").sorted().joinToString("|") }.toSet().size
+            val covered = minOf(100L, Rank.jsRound(judged.toDouble() / pairs * 100).toLong())
+            b += More.Big(
+                "Settle a duel", "Settle a duel", runner ?: pick, "duels", "$covered", "% judged", true,
+                "$judged of $pairs pairs · tap to rank another", meter = covered / 100f,
+            )
+        }
+        val unrated = rk.played.filter { !it.scored }.mapNotNull { rk.find(it.id) }
+        if (on("unrated") && unrated.isNotEmpty()) {
+            b += More.Big(
+                "Needs a verdict", "Needs a verdict", unrated[0], "played", "${unrated.size}", "", false,
+                unrated.take(2).joinToString(", ") { it.title } + (if (unrated.size > 2) " +${unrated.size - 2} more" else "") + " — unscored, so they teach me nothing",
+                warn = true,
+            )
+        }
+        hoursCard()?.let { c += it }
+        if (on("stand") && ranked.size > 1) {
+            val top = ranked.take(Backup.num(lib["standN"], 4.0, 2.0, 10.0).toInt())
+            val hi = top.maxOf { eloOf(it) }
+            val lo = minOf(1400.0, top.minOf { eloOf(it) })
+            c += More.Stand(pick, top.map { it to (Rank.jsRound((eloOf(it) - lo) / maxOf(1.0, hi - lo) * 100) / 100).toFloat() }, !lib.off("homeTint"))
+        }
+        if (on("year")) {
+            val peakM = months.indices.maxBy { months[it] }
+            c += More.Months(live.firstOrNull { it.date.isNotEmpty() && monthOf(it) == peakM } ?: pick, months.toList(), maxOf(1, months.max()))
+        }
+        b to c
+    }
+
+    /** Your order and hidden cards for a stack (`S.stackCfg[key]`). */
+    private fun cfg(key: String): Pair<List<String>, Set<String>> {
+        val o = (lib["stackCfg"] as? kotlinx.serialization.json.JsonObject)?.get(key) as? kotlinx.serialization.json.JsonObject
+        val ids = { k: String -> (o?.get(k) as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } }
+        return ids("order") to ids("hidden").toSet()
+    }
+
+    /** Every card of stack [key] ("sB" or "sC") in your order, hidden ones too; one new since you ordered goes first. */
+    fun stackAll(key: String): List<More> {
+        val all = if (key == "sB") stacks.first else stacks.second
+        val ord = cfg(key).first
+        return all.sortedBy { ord.indexOf(it.id).let { i -> if (i < 0) -1 else i } }
+    }
+
+    /** The cards stack [key] shows. */
+    fun stack(key: String): List<More> = cfg(key).second.let { hid -> stackAll(key).filter { it.id !in hid } }
+
+    /** The cards stack [key] hides. */
+    fun stackHidden(key: String): Set<String> = cfg(key).second
+
     /** Worked out off Main, so the first draw only reads. */
-    fun warm() { ranked; dated; fut; hours; nexiPick; top; next; queueCovers; playing; donut }
+    fun warm() { ranked; dated; fut; hours; nexiPick; top; next; queueCovers; playing; donut; stacks }
 
     companion object {
         /**
