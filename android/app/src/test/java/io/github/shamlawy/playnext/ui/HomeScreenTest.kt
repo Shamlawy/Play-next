@@ -300,9 +300,12 @@ class HomeScreenTest {
         // three being played, so the folded row is wider than the screen
         val nav = show(lib(tweak = { it.replace(""""state":"backlog","hype":8""", """"state":"playing","hype":8""").replace(""""state":"backlog","hype":3""", """"state":"playing","hype":3""") }))
         val card = rule.onNode(hasText("Playing · 0%", substring = true))
-        card.performScrollTo()
+        // the page scrolls to the ticket's button under the cards (a card inside the sideways row doesn't scroll it)
+        rule.onNodeWithText("Open game").performScrollTo()
         rule.waitForIdle()
-        val b = card.fetchSemanticsNode().boundsInRoot
+        // positionInRoot and size, not boundsInRoot: that one is clipped by the scrolling page (L250)
+        val n = card.fetchSemanticsNode()
+        val b = androidx.compose.ui.geometry.Rect(n.positionInRoot, n.size.let { androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) })
         val before = nav()
         // across the card's top (away from anything floating at the foot), right to left
         rule.onRoot().performTouchInput { swipe(Offset(b.right - 10f, b.top + 60f), Offset(b.left - 200f, b.top + 60f), 300) }

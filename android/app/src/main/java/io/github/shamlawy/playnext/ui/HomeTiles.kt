@@ -5,8 +5,6 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +14,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -97,12 +100,13 @@ import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.kit.Sfx
 import io.github.shamlawy.playnext.kit.Sounds
 import io.github.shamlawy.playnext.report.Crumbs
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * Home's middle tiles (Phase 3 piece 3; index.html `dxHome` 11152-11214, `dzPlay` 24615, `cdTick` 11618): Your queue
@@ -224,7 +228,8 @@ private fun rememberLoopClock(onScreen: () -> Boolean): () -> Float {
             }
             if (held()) {
                 last = -1L
-                while (held()) delay(250)
+                // asleep until it shows again (both read snapshot state), no timer waking meanwhile
+                snapshotFlow { held() }.first { !it }
             }
         }
     }
@@ -429,12 +434,24 @@ private fun PlayingTile(h: Home, wide: Boolean, screen: Dp, modifier: Modifier) 
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val w = minOf(maxWidth * .64f, 240.dp)
                 val state = rememberLazyListState()
+                val guard = LocalSwipeGuard.current
                 LazyRow(
                     state = state,
                     flingBehavior = rememberSnapFlingBehavior(state, SnapPosition.Start),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 6.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // a touch that lands on the row while it can scroll is the row's own (the web's `sideScroller`):
+                        // Shell's tab swipe leaves it alone, marked in the same first pass it clears the mark in
+                        .pointerInput(state) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val e = awaitPointerEvent(PointerEventPass.Initial)
+                                    if ((state.canScrollForward || state.canScrollBackward) && e.changes.any { it.pressed && !it.previousPressed }) guard.inScroller = true
+                                }
+                            }
+                        },
                 ) {
                     itemsIndexed(h.playing, key = { _, g -> g.id }) { _, g -> ColourCard(h, g, Modifier.width(w)) }
                 }
