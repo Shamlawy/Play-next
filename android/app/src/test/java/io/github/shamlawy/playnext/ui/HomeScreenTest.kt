@@ -11,6 +11,10 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -68,7 +72,7 @@ class HomeScreenTest {
 
     private fun put(name: String, v: Any?) = Games::class.java.getDeclaredField(name).apply { isAccessible = true }.set(Games, v)
 
-    private fun lib(extra: String = "") = Library(
+    private fun lib(extra: String = "", tweak: (String) -> String = { it }) = Library(
         Json.parseToJsonElement(
             """
             {"theme":"midnight","lists":[],"userName":"Sam"$extra,
@@ -80,7 +84,7 @@ class HomeScreenTest {
                {"id":"f","title":"Reed Song","state":"upcoming","date":"2027-01-20","hype":2},
                {"id":"d","title":"Quiet Harbour","state":"played","genres":"Puzzle"}
              ],"duels":[],"played":[{"id":"d","real":8}]}
-            """.trimIndent(),
+            """.trimIndent().let(tweak),
         ).jsonObject,
     )
 
@@ -286,6 +290,30 @@ class HomeScreenTest {
         rule.onNodeWithContentDescription("Your queue: 5 games waiting").performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals("games", nav().tab)
+    }
+
+    /**
+     * Folded, the Playing now cards scroll sideways: a flick through them is the row's own (`LocalSwipeGuard`, the web's
+     * `sideScroller`), so Home stays and no tab or view changes.
+     */
+    @Test fun aFlickThroughThePlayingCardsStaysOnHome() {
+        // three being played, so the folded row is wider than the screen
+        val nav = show(lib(tweak = { it.replace(""""state":"backlog","hype":8""", """"state":"playing","hype":8""").replace(""""state":"backlog","hype":3""", """"state":"playing","hype":3""") }))
+        val card = rule.onNode(hasText("Playing · 0%", substring = true))
+        // the page scrolls to the ticket's button under the cards (a card inside the sideways row doesn't scroll it)
+        rule.onNodeWithText("Open game").performScrollTo()
+        rule.waitForIdle()
+        // positionInRoot and size, not boundsInRoot: that one is clipped by the scrolling page (L250)
+        val n = card.fetchSemanticsNode()
+        val b = androidx.compose.ui.geometry.Rect(n.positionInRoot, n.size.let { androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) })
+        val before = nav()
+        // across the card's top (away from anything floating at the foot), right to left
+        rule.onRoot().performTouchInput { swipe(Offset(b.right - 10f, b.top + 60f), Offset(b.left - 200f, b.top + 60f), 300) }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals("still Home", before.tab, nav().tab)
+        assertEquals("no view changed", before.views, nav().views)
+        assertEquals("nothing opened", before.stack, nav().stack)
     }
 
     @Test fun theTilesShowWhatTheWebShows() {
