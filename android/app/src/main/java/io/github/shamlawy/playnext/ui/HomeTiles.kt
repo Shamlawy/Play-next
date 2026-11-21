@@ -475,7 +475,9 @@ private fun ColourCard(h: Home, g: Game, modifier: Modifier) {
         )
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             BasicText(c.kicker, style = DZ_K.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(.82f).graphicsLayer { alpha = .8f })
-            BasicText(g.title, style = DZ_T.fixed(), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp).fillMaxWidth(.82f))
+            // a word never splits (the browser lets it run to the clipped edge; three cards unfolded leave ~90dp): a name
+            // whose longest word is wider shrinks until it fits, as the Queue's rows do
+            WholeName(g.title, DZ_T.fixed(), Modifier.padding(top = 6.dp).fillMaxWidth(.82f), maxLines = 3)
         }
         Box(
             Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 12.dp).size(34.dp).background(Color(Web.DZ_GO), CircleShape).clearAndSetSemantics {},
