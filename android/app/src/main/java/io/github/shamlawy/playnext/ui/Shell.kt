@@ -286,7 +286,9 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     // Your lists and the Game shuffler, from Sort's menu
     val openSheet = { o: String -> step(nav.open(o)) }
     val rail = spot.at
-    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalEditActs provides editActs, LocalCustomise provides customiser, LocalRailAt provides rail, LocalHomeActs provides homeActs) {
+    // what's under a fully grown game page stops drawing; its loops (Home's orb) hold still too
+    val coveredNow = remember { { covered } }
+    CompositionLocalProvider(LocalSwipeGuard provides guard, LocalOpenGame provides opener, LocalEditActs provides editActs, LocalCustomise provides customiser, LocalRailAt provides rail, LocalHomeActs provides homeActs, LocalCovered provides coveredNow) {
         BoxWithConstraints(Modifier.fillMaxSize().swipes(guard, { down[0] = it }) { two, dir -> swipe(two, dir) }.watchFinger(nx, rail.shown, calm, nxScope)) {
             val w = maxWidth
             val wide = w >= RAIL_FROM

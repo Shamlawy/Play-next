@@ -190,7 +190,7 @@ private fun HomeGroups(lib: Library) {
             sent = next
             set("homeHide", JsonArray(next.map(::JsonPrimitive)))
         }
-        BasicText("The tiles arrive over Home's next few updates; what you pick here already counts.", style = Type.note)
+        BasicText("Next out, the queue, Playing now and the donut are on Home now; the rest come with More for you, and what you pick here already counts.", style = Type.note)
     }
     Card {
         BasicText("How tiles look", style = Type.head)

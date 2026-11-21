@@ -276,4 +276,61 @@ class HomeScreenTest {
         assertEquals(0, rule.onAllNodes(inResults).fetchSemanticsNodes().size)
         assertEquals(Nav("home"), nav)
     }
+    // ---------------------------------------------------------------- the middle tiles (piece 3)
+
+    @Test fun theQueueTileOpensTheQueue() {
+        val nav = show()
+        rule.onNodeWithContentDescription("Your queue: 5 games waiting").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals("games", nav().tab)
+    }
+
+    @Test fun theTilesShowWhatTheWebShows() {
+        show()
+        // Copper Meadow is being played; the backlog's two wait; the ticket is the next dated one with how many are ahead
+        rule.onNodeWithText("Playing now").performScrollTo()
+        rule.onNodeWithText("Next out (2)").performScrollTo()
+        rule.onNodeWithText("7 days to go · 14 Nov").assertExists()
+        rule.onNodeWithContentDescription("Queue hours: 30h, ≈ 8 evenings").performScrollTo()
+        // to Ninefold Gate's midnight (UTC here) from 8 in the morning on 7 Nov: 6 days 16 hours
+        rule.onNodeWithContentDescription("6 days, 16 hours, 0 minutes, 0 seconds to go").performScrollTo()
+    }
+
+    @Test fun planAndTheTicketGoWhereTheySay() {
+        val nav = show()
+        // scroll first, then hold the clock (a scroll with the clock held never ends, L263)
+        rule.onNodeWithText("Plan evenings").performScrollTo()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithText("Plan evenings").performClick()
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        rule.onNodeWithText("Plan arrives in phase 5.").assertExists()
+        rule.mainClock.advanceTimeBy(3_000)
+        rule.mainClock.autoAdvance = true
+        rule.onNodeWithText("Open game").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("game:c"), nav().stack)
+    }
+
+    @Test fun switchedOffTilesStayAway() {
+        show(lib(""","homeHide":["queue","playing","hours","soon"]"""))
+        rule.onNodeWithText("Play next (5)").assertExists()
+        for (t in listOf("Your queue", "Playing now", "Your statistic", "Plan evenings", "Open game")) {
+            assertEquals(t, 0, rule.onAllNodes(hasText(t, substring = true)).fetchSemanticsNodes().size)
+        }
+    }
+
+    @Test fun nothingDatedSaysHowToGetACountdown() {
+        val nav = show(
+            Library(
+                Json.parseToJsonElement(
+                    """{"theme":"midnight","lists":[],"games":[{"id":"a","title":"Starfall Lantern","state":"backlog","hype":8}],"duels":[],"played":[]}""",
+                ).jsonObject,
+            ),
+        )
+        rule.onNodeWithText("Nothing dated yet").performScrollTo()
+        rule.onNodeWithText("Add a game").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals("add", nav().tab)
+    }
 }

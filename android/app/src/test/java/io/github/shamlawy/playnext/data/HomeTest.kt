@@ -135,4 +135,98 @@ class HomeTest {
         val q = lib("").let { Queue(it, Rank(it, now, zone), now, zone) }
         assertTrue(q.evening == 2.0)
     }
+    // ------------------------------------------------------------ the middle tiles (piece 3)
+
+    @Test fun playingNowTakesPlayingThenWaitingThenRanked() {
+        val h = home(five)
+        assertEquals("Playing now", h.playingTitle)
+        // c is played now; a and e are in the backlog (out and waiting); then the rest of ranked
+        assertEquals(listOf("c", "a", "e"), h.playing.map { it.id })
+        val none = home("""{"id":"x","title":"Kite Run","state":"upcoming","hype":3},{"id":"y","title":"Moth Bell","state":"backlog"}""")
+        assertEquals("Out & waiting", none.playingTitle)
+        assertEquals(listOf("y", "x"), none.playing.map { it.id })
+        assertEquals("Top of your list", home("""{"id":"x","title":"Kite Run","state":"upcoming"}""").playingTitle)
+    }
+
+    @Test fun cardWordsForEveryKindOfGame() {
+        val h = home(
+            five + """,{"id":"g","title":"Pale Orbit","state":"playing","hours":20,"logged":5},
+            {"id":"k","title":"Iron Arena","state":"playing","comp":true,"diary":[{"w":3,"l":1},{"d":1}]},
+            {"id":"m","title":"Glass Tide","state":"backlog","comp":true,"diary":[{"t":1}]},
+            {"id":"n","title":"Fresh Paint","state":"backlog","date":"2026-11-01","hype":5,"hours":8,"logged":10}""",
+        )
+        val g = { id: String -> h.card(h.live.first { it.id == id }) }
+        // playing with hours: how far through, a bar, hours left
+        assertEquals("Playing · 25%", g("g").kicker)
+        assertEquals(.25f, g("g").bar!!, 1e-6f)
+        assertEquals("15h left", g("g").small)
+        assertEquals("25%", g("g").pctText)
+        // playing without hours: no bar, the genre as its small line
+        assertEquals("Playing · 0%", g("c").kicker)
+        // competitive: no bar, the win rate, then the diary count
+        assertEquals("Competitive", g("k").kicker)
+        assertNull(g("k").bar)
+        assertEquals("60% wins", g("k").small)
+        assertEquals("1 diary entry", g("m").small)
+        // not playing: the genre, else "Out now" when fresh, else "Up next"
+        assertEquals("RPG", g("a").kicker)
+        assertEquals("Out now", g("n").kicker)
+        assertEquals("Up next", g("d").kicker)
+        // past its hours: 0h left, 100%; hype 5 is 3 stars (rounded half up), 10 is 5
+        assertEquals("0h left", g("n").small)
+        assertEquals(1f, g("n").pct, 0f)
+        assertEquals(3, g("n").stars)
+        assertEquals(5, g("e").stars)
+        // no hours: "—"
+        assertEquals("—", g("d").pctText)
+    }
+
+    @Test fun theDonutsSlicesAndMiddle() {
+        val h = home(
+            """{"id":"a","title":"A","hours":40},{"id":"b","title":"B","hours":30},{"id":"c","title":"C","hours":20},
+            {"id":"d","title":"D","hours":6},{"id":"e","title":"E","hours":4},{"id":"f","title":"F"}""",
+        )
+        assertEquals(listOf("A", "B", "C", "Other"), h.donut.map { it.label })
+        assertEquals(listOf(.4, .3, .2, .1), h.donut.map { it.share })
+        assertEquals(listOf(0, 1, 2, 3), h.donut.map { it.colour })
+        assertEquals("100h", h.donutHours)
+        // 100 hours at 4 an evening
+        assertEquals("≈ 25 evenings", h.donutSmall)
+        assertEquals("Queue hours", h.donutHead)
+        val big = home("""{"id":"a","title":"A","hours":900},{"id":"b","title":"B","hours":700}""", extra = ""","playStyle":"extras","evening":12""")
+        // extras: 1.5x each (1350 + 1050), the thousands with a comma, the style named
+        assertEquals("2,400h", big.donutHours)
+        assertEquals("≈ 200 evenings", big.donutSmall)
+        assertTrue(big.donutHead.startsWith("Queue hours · "))
+        val none = home("""{"id":"a","title":"A"}""")
+        assertTrue(none.donut.isEmpty())
+        assertEquals("—h", none.donutHours)
+        assertEquals("add hours to games", none.donutSmall)
+    }
+
+    @Test fun theTicketCountsDownThenSaysItsOut() {
+        val h = home(five)
+        assertEquals("b", h.ticket?.id)
+        assertTrue(h.ticketAhead)
+        assertEquals("3 days to go · 10 Nov", h.ticketLine(h.ticket!!))
+        val out = home("""{"id":"a","title":"A","date":"2026-10-01"},{"id":"b","title":"B","date":"2026-11-02"}""")
+        // none ahead: the latest dated one, already out
+        assertEquals("b", out.ticket?.id)
+        assertTrue(!out.ticketAhead)
+        assertEquals("It's out — go play it!", out.ticketLine(out.ticket!!))
+        assertNull(home("""{"id":"a","title":"A"}""").ticket)
+        // to the local midnight of 10 Nov in Dubai from noon on 7 Nov: 2 days 12 hours
+        assertEquals(listOf(2, 12, 0, 0), Home.countdown("2026-11-10", now, zone).toList())
+        assertEquals(listOf(2, 11, 58, 55), Home.countdown("2026-11-10", now + 65_000, zone).toList())
+        assertEquals(listOf(0, 0, 0, 0), Home.countdown("2026-11-01", now, zone).toList())
+    }
+
+    @Test fun theSwitchesHideTiles() {
+        val h = home(five, extra = ""","homeHide":["queue","soon",3]""")
+        assertTrue(!h.on("queue"))
+        assertTrue(!h.on("soon"))
+        assertTrue(h.on("playing"))
+        assertTrue(h.on("hours"))
+        assertEquals(h.ranked.take(5).map { it.id }, h.queueCovers.map { it.id })
+    }
 }
