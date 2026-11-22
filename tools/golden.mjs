@@ -293,7 +293,19 @@ for (const [name, at] of CLOCKS) {
         })])),
       };
     }
-    return { tabs, counts, sorts, per, shuffle, boss, home, tiles };
+    /* the rail's live strip (Phase 3 piece 6): rlvItems after renderHome (pnRail keeps Home's ranking), then again with
+       made-up prices on three games (a 50% drop on Steam, a 3% one that doesn't count, a 20% eShop drop) */
+    let rail = null, railSale = null;
+    const railPx = { q16: { st: { now: 1499, base: 2999 } }, s1: { st: { now: 970, base: 1000 } }, s13: { ns: { now: 40, base: 50 } } };
+    if (typeof rlvItems === "function") {
+      const tile = o => [o.g ? o.g.id : "", o.k, String(o.v), o.s, Math.round(o.p * 100)];
+      rail = rlvItems().map(tile);
+      const keep = {};
+      for (const [id, px] of Object.entries(railPx)) { const g = S.games.find(x => x.id === id); keep[id] = g.px; g.px = px; }
+      railSale = rlvItems().map(tile);
+      for (const id of Object.keys(railPx)) { const g = S.games.find(x => x.id === id); if (keep[id] === undefined) delete g.px; else g.px = keep[id]; }
+    }
+    return { tabs, counts, sorts, per, shuffle, boss, home, tiles, rail, railSale, railPx };
   });
   out.queue.push({ name, at, now: Date.parse(at), raw, ...q });
   await ctx.close();

@@ -85,6 +85,7 @@ import io.github.shamlawy.playnext.data.Home
 import io.github.shamlawy.playnext.data.JsDate
 import io.github.shamlawy.playnext.data.Nexi
 import io.github.shamlawy.playnext.data.Pic
+import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Rank
 import io.github.shamlawy.playnext.gen.Web
@@ -155,7 +156,20 @@ internal fun rememberHome(ready: Games.State.Ready): Home {
     val zone = java.time.ZoneId.systemDefault()
     val made = ready.cards?.home?.takeIf { it.q.lib === lib && it.q.covers(now, zone) }
     val day = JsDate.todayLocal(now, zone)
-    return remember(lib, made, day) { made ?: Home(Queue(lib, Rank(lib, now, zone), now, zone), now, zone) }
+    return remember(lib, made, day) { made ?: HomeMade.get(lib, day) { Home(Queue(lib, Rank(lib, now, zone), now, zone), now, zone) } }
+}
+
+/** The Home made on Main for a copy and day, shared by Home's screen and the unfolded rail, so it's made once. */
+private object HomeMade {
+    private var lib: Library? = null
+    private var day: Any? = null
+    private var home: Home? = null
+
+    @Synchronized
+    fun get(lib: Library, day: Any, make: () -> Home): Home {
+        home?.let { if (this.lib === lib && this.day == day) return it }
+        return make().also { this.lib = lib; this.day = day; home = it }
+    }
 }
 
 /** The first Home of this app run has risen (the web's `html.first`, dropped after the first open). */

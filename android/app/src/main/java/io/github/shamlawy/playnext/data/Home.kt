@@ -521,7 +521,10 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
     fun stackHidden(key: String): Set<String> = cfg(key).second
 
     /** Worked out off Main, so the first draw only reads. */
-    fun warm() { ranked; dated; fut; hours; nexiPick; top; next; queueCovers; playing; donut; stacks }
+    /** The unfolded rail's live strip at this copy's clock ([Strip.items]); the rail works it out again each minute. */
+    val strip: List<Strip.Tile> by lazy { Strip.items(this, now, zone) }
+
+    fun warm() { ranked; dated; fut; hours; nexiPick; top; next; queueCovers; playing; donut; stacks; strip }
 
     companion object {
         /** Tonight's hours to pick from (`[1, 2, 3, 4, 6]`). */

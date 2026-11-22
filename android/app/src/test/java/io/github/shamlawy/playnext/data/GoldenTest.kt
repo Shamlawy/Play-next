@@ -189,6 +189,19 @@ class GoldenTest {
                 val g = lib.games.first { it.id == id }
                 assertEquals("$name $id: Home's row words", w.jsonArray.map { it.s }, listOf(h.whenOf(g), h.genreOf(g)))
             }
+            // the rail's live strip (Phase 3 piece 6, android-v51), then again with made-up prices on three games
+            // (golden.mjs writes null when the web has no rlvItems: fail rather than skip)
+            (c["rail"] as? JsonArray ?: throw AssertionError("$name: golden.mjs wrote no rail strip")).let { wr ->
+                val tile = { t: Strip.Tile -> listOf(t.g?.id ?: "", t.k + if (t.soon) " soon" else "", t.v, t.s, Rank.jsRound(t.p * 100).toLong().toString()) }
+                val web = { a: JsonArray -> a.map { x -> x.jsonArray.mapIndexed { i, e -> if (i == 4) e.jsonPrimitive.long.toString() else e.s } } }
+                assertEquals("$name: the rail's strip", web(wr), Strip.items(h, now, zone).map(tile))
+                val px = c["railPx"]!!.jsonObject
+                val o = Json.parseToJsonElement(c["raw"]!!.s).jsonObject
+                val withPx = JsonObject(o + ("games" to JsonArray(o["games"]!!.jsonArray.map { g -> px[g.jsonObject["id"]?.s]?.let { p -> JsonObject(g.jsonObject + ("px" to p)) } ?: g })))
+                val lib2 = Library(Backup.load(Backup.apply(Backup.read(withPx.toString()).data!!), now, zone))
+                val h2 = Home(Queue(lib2, Rank(lib2, now, zone), now, zone), now, zone)
+                assertEquals("$name: the rail's strip with price drops", web(c["railSale"]!!.jsonArray), Strip.items(h2, now, zone).map(tile))
+            }
             // Home's middle tiles (Phase 3 piece 3), as the web draws them
             (c["tiles"] as? JsonObject)?.let { t ->
                 (t["queue"] as? JsonArray)?.let { qw ->

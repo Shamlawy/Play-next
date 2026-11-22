@@ -305,3 +305,9 @@ go=top
 at=
 say=Home's More for you now reads your taste: how well you call your hype, what decides your scores, a pick for tonight's hours, and the hype traps to watch.
 tryIt=Open Home and scroll to More for you. Swipe the top stack to Your read, then to the card named after the last game you scored. Swipe the bottom stack to Tonight and tap another hour: the pick changes; tap Open it. In a played game's Edit › Played, under What got you about it, see what that game turned out to be.
+
+v=51
+go=top
+at=
+say=Unfolded, the rail has a live strip now: how far you are in what you're playing, countdowns to your next releases, price drops, what's up next and your backlog, drifting up on its own. Its dice picks you a game from any tab.
+tryIt=Unfold the phone and look at the rail under the dice. Touch the strip to hold it, drag it up or down, let go and it carries on 2 seconds later. Tap a tile to open its game, or the backlog tile for Games. Then open another tab and tap the dice.

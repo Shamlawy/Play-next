@@ -202,3 +202,7 @@ FarRows.c: Far
 StandRows.c: Stand
 TonightWords.c: Tonight
 WeekWords.c: Week
+LiveStrip.tiles: List<Tile>
+Rail.strip: List<Tile>?
+StripCopy.tiles: List<Tile>
+StripTile.t: Tile
