@@ -198,5 +198,7 @@ Stack.h: Home
 StackPages.cards: List<More>
 StackPages.h: Home
 StackSheet.games: State
+FarRows.c: Far
 StandRows.c: Stand
+TonightWords.c: Tonight
 WeekWords.c: Week

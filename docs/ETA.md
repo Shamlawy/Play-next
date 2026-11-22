@@ -75,4 +75,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E70 | 2026-11-21 1:06 PM | release | 25 min | 21 min | 0.84 | for #770's checks and merge (should be done around 1:35 PM UAE); Phase 3 piece 4 (▢ for you's stacks) about 2 h on top, ending in its own | <!-- at=2026-11-21T09:06:56.965Z bg=1 -->
 | E71 | 2026-11-21 1:28 PM | release | 60 min | 59 min | 0.98 | I'll rebase, record screenshots, run the checks and a review, then merge android-v49 and tell you it's out (should be done around 2:30 PM ▢ | <!-- at=2026-11-21T09:28:14.985Z bg=1 -->
 | E72 | 2026-11-22 6:28 PM | kit | 2 h | 13 min | 0.11 | I'll build Phase 3 piece 5 (▢ taste cards in ▢ for you) for the Android app, test it, release it as android-v50 and send a short sum | <!-- at=2026-11-22T14:28:43.612Z -->
-| E73 | 2026-11-22 6:47 PM | release | 45 min | open |  | fix the ▢, run the Android checks, open and merge the android-v50 PR. | <!-- at=2026-11-22T14:47:51.325Z -->
+| E73 | 2026-11-22 6:47 PM | release | 45 min | 1 min | 0.02 | fix the ▢, run the Android checks, open and merge the android-v50 PR. | <!-- at=2026-11-22T14:47:51.325Z -->
