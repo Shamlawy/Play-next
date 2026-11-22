@@ -421,6 +421,10 @@ const APP_DRAWN = {
      (`DZ_ARROW`), redrawn fill-only */
   chart: '<rect opacity=".35" x="3" y="3" width="18" height="18" rx="5"/><path d="M6.2 14.8 10.4 9.9l2.6 2.1 3.2-4.1 1.6 1.2-4.4 5.6-2.6-2.1-3 3.5z"/>',
   arrow: '<path d="M8.6 6.4h9v9h-2.2v-5.2l-8.2 8.2-1.6-1.6 8.2-8.2H8.6z"/>',
+  /* the rail's live strip (Phase 3 piece 6): a release tile's 📅 (a calendar, its day lit) and the backlog's ⏳ (an
+     hourglass, the sand at its foot lit) */
+  cal: '<rect opacity=".35" x="3" y="4.6" width="18" height="16.6" rx="3"/><rect x="6.6" y="2.2" width="2.4" height="5" rx="1.2"/><rect x="15" y="2.2" width="2.4" height="5" rx="1.2"/><rect x="6.4" y="11.2" width="4.6" height="4.6" rx="1"/>',
+  hglass: '<path opacity=".35" d="M5.6 2.4h12.8v2.2h-1.3c-.1 3.3-2 5.4-3.5 7.4 1.5 2 3.4 4.1 3.5 7.4h1.3v2.2H5.6v-2.2h1.3c.1-3.3 2-5.4 3.5-7.4-1.5-2-3.4-4.1-3.5-7.4H5.6z"/><path d="M8.9 19.4c.3-1.9 1.6-3.2 3.1-4.6 1.5 1.4 2.8 2.7 3.1 4.6z"/>',
 };
 /* the platforms' logos (`PLAT_LOGO`, one path each, 24x24) and the card back's drawn buttons (`QB_IC`: Edit, ⋯) */
 const PLAT_LOGO = table("PLAT_LOGO");

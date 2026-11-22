@@ -54,6 +54,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,6 +95,7 @@ import io.github.shamlawy.playnext.data.Drift
 import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Rank
 import io.github.shamlawy.playnext.data.Score
+import io.github.shamlawy.playnext.data.Strip
 import kotlinx.coroutines.launch
 import io.github.shamlawy.playnext.gen.Web
 import io.github.shamlawy.playnext.kit.Sfx
@@ -627,7 +630,32 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             // tap away
             // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden
             val seated = !prefs.nxSeatOff
-            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, rail, seated, calm, Modifier.align(if (rail.left) Alignment.CenterStart else Alignment.CenterEnd))
+            // the live strip (piece 6): this copy's tiles, worked out again each minute while the rail shows (not calm)
+            val homeData = (games as? Games.State.Ready)?.cards?.home
+            var stripTick by remember { mutableIntStateOf(0) }
+            val ticking = wide && rail.shown && !calm
+            LaunchedEffect(ticking) {
+                while (ticking) {
+                    delay(60_000)
+                    stripTick++
+                }
+            }
+            val strip = remember(homeData, stripTick) {
+                homeData?.let { h -> if (stripTick == 0) h.strip else runCatching { Strip.items(h, clock(), java.time.ZoneId.systemDefault()) }.getOrDefault(h.strip) }
+            }
+            // the rail's dice: Pick for me as Home's big card plays it (dimmed with under two games)
+            val dice = homeData?.takeIf { it.live.size > 1 }?.let { h ->
+                {
+                    Crumbs.tap("pick one", "rail")
+                    h.pickOne(PickLast.get(), Math.random())?.let { g ->
+                        PickLast.set(g.id)
+                        if (calm) opener(g.id, null) else Reveal.start(g)
+                    }
+                    Unit
+                }
+            }
+            val toGames = { pick("games") }
+            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, rail, seated, calm, strip, dice, { id -> opener(id, null) }, toGames, Modifier.align(if (rail.left) Alignment.CenterStart else Alignment.CenterEnd))
             // the Game shuffler is his place to stay out of (`html.shuffling #pnbub`)
             if (wide && "shuffle" !in nav.stack) {
                 NexiSeat(nx, spot, seated, w, maxHeight, room, (games as? Games.State.Ready)?.cards?.nexi, prefs, calm)
@@ -889,6 +917,10 @@ fun Rail(
     at: RailAt,
     seat: Boolean,
     calm: Boolean,
+    strip: List<Strip.Tile>?,
+    dice: (() -> Unit)?,
+    openTile: (String) -> Unit,
+    toGames: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val look = LocalLook.current
@@ -920,13 +952,19 @@ fun Rail(
         // so Settings is never squashed to a sliver
         val shown = if (view != null) views else emptyList()
         // the views are one more item in the column, so one more 10 gap; Nexi's seat takes its room in place of the 14 at the foot
-        val roomy = maxHeight >= RAIL_TALL + (if (seat) SEAT_ROOM - 14.dp else 0.dp) + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
-        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy, if (seat) SEAT_ROOM else 0.dp)
+        // the dice, its line and the LIVE label count too; the strip takes what's left (nothing in a rail that scrolls)
+        val roomy = maxHeight >= RAIL_TALL + RAIL_LIVE + (if (seat) SEAT_ROOM - 14.dp else 0.dp) + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
+        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy, if (seat) SEAT_ROOM else 0.dp, dice) {
+            if (strip != null) LiveStrip(strip, look.volt, calm, at.shown, openTile, toGames, it)
+        }
     }
 }
 
 /** The rail's height with its usual gaps: four tabs, the gap, a line, Add and Settings. */
 private val RAIL_TALL = 14.dp * 2 + 48.dp * 6 + 1.dp + 10.dp * 7
+
+/** What the live part adds over [RAIL_TALL]: a line, the dice and the LIVE label, and their gaps. */
+private val RAIL_LIVE = 1.dp + 48.dp + LIVE_LABEL_H + 10.dp * 3
 
 /** One view's line in the rail (a 48 touch). */
 private val RAIL_VIEW_H = 48.dp
@@ -943,6 +981,8 @@ private fun RailColumn(
     shape: RoundedCornerShape,
     roomy: Boolean,
     seat: Dp,
+    dice: (() -> Unit)?,
+    live: @Composable (Modifier) -> Unit,
 ) {
     Column(
         Modifier
@@ -973,7 +1013,13 @@ private fun RailColumn(
             }
             if (on && views.isNotEmpty()) RailViews(views, view, volt, pickView)
         }
-        if (roomy) Spacer(Modifier.weight(1f))
+        // `.sep`, the dice (`.act.hot`, "Pick one for me"), then the LIVE label over the strip, which takes the room left
+        Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
+        RailDice(volt, dice)
+        if (roomy) {
+            LiveLabel(volt, still = LocalCalm.current)
+            live(Modifier.weight(1f))
+        }
         Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
         RailButton("add", "Add a game", on = tab == "add") { pick("add") }
         RailButton("settings", "Settings", on = false, onClick = settings)
@@ -1041,6 +1087,28 @@ private val RAIL_TRAY_PAD = 4.dp
 
 /** A view's word in the rail: Poppins 13. */
 private val RAIL_VIEW = androidx.compose.ui.text.TextStyle(fontFamily = Fonts.poppins, fontSize = 13.sp, lineHeight = 18.sp)
+
+/**
+ * The rail's dice (`.act.hot`): a 44 round in your accent, Pick for me's reveal from any tab. With under two games to
+ * pick from it's dimmed and does nothing (the web's has no pill to click then).
+ */
+@Composable
+private fun RailDice(volt: Color, dice: (() -> Unit)?) {
+    Box(
+        Modifier
+            .size(48.dp)
+            .then(if (dice != null) Modifier.clickable(role = Role.Button, onClick = dice) else Modifier)
+            .semantics {
+                contentDescription = "Pick one for me"
+                if (dice == null) disabled()
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(44.dp).graphicsLayer { alpha = if (dice != null) 1f else .35f }.background(volt, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+            PnIcon("ui:dice", Pn.void, 22.dp, null)
+        }
+    }
+}
 
 @Composable
 private fun RailButton(icon: String, label: String, on: Boolean, onClick: () -> Unit) {

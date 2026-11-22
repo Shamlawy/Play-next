@@ -209,9 +209,11 @@ class RevealTest {
     }
 
     @Test fun calmOpensThePageWithNoReveal() {
-        val nav = show(lib(""","motion":"off""""))
+        // Animations off is `"motion": false` (a "motion":"off" here once let the reveal run to its end and still pass)
+        val nav = show(lib(""","motion":false"""))
+        rule.mainClock.autoAdvance = false
         rule.onNodeWithContentDescription("I'll pick one").performClick()
-        rule.waitForIdle()
+        step(32)
         assertNull("no reveal when calm", Reveal.run)
         assertEquals(1, nav().stack.size)
         assertTrue(nav().stack.single().startsWith("game:"))
