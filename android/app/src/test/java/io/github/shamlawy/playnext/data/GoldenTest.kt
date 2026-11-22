@@ -190,7 +190,8 @@ class GoldenTest {
                 assertEquals("$name $id: Home's row words", w.jsonArray.map { it.s }, listOf(h.whenOf(g), h.genreOf(g)))
             }
             // the rail's live strip (Phase 3 piece 6, android-v51), then again with made-up prices on three games
-            (c["rail"] as? JsonArray)?.let { wr ->
+            // (golden.mjs writes null when the web has no rlvItems: fail rather than skip)
+            (c["rail"] as? JsonArray ?: throw AssertionError("$name: golden.mjs wrote no rail strip")).let { wr ->
                 val tile = { t: Strip.Tile -> listOf(t.g?.id ?: "", t.k + if (t.soon) " soon" else "", t.v, t.s, Rank.jsRound(t.p * 100).toLong().toString()) }
                 val web = { a: JsonArray -> a.map { x -> x.jsonArray.mapIndexed { i, e -> if (i == 4) e.jsonPrimitive.long.toString() else e.s } } }
                 assertEquals("$name: the rail's strip", web(wr), Strip.items(h, now, zone).map(tile))

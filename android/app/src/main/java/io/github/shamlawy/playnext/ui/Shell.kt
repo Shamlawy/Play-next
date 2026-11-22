@@ -630,11 +630,12 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             // tap away
             // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden
             val seated = !prefs.nxSeatOff
-            // the live strip (piece 6): this copy's tiles, worked out again each minute while the rail shows (not calm)
+            // the live strip (piece 6): this copy's tiles, worked out again each minute while the rail shows (calm too:
+            // calm is about motion, and the countdowns still change)
             // the day build's Home when it's for this copy and today, else made here once, the way Home's own screen gets it
             val homeData = (games as? Games.State.Ready)?.let { r -> if (wide) rememberHome(r) else null }
             var stripTick by remember { mutableIntStateOf(0) }
-            val ticking = wide && rail.shown && !calm
+            val ticking = wide && rail.shown
             LaunchedEffect(ticking) {
                 while (ticking) {
                     delay(60_000)
@@ -645,18 +646,22 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                 homeData?.let { h -> if (stripTick == 0) h.strip else runCatching { Strip.items(h, clock(), java.time.ZoneId.systemDefault()) }.getOrDefault(h.strip) }
             }
             // the rail's dice: Pick for me as Home's big card plays it (dimmed with under two games)
-            val dice = homeData?.takeIf { it.live.size > 1 }?.let { h ->
-                {
-                    Crumbs.tap("pick one", "rail")
-                    h.pickOne(PickLast.get(), Math.random())?.let { g ->
-                        PickLast.set(g.id)
-                        if (calm) opener(g.id, null) else Reveal.start(g)
+            // (remembered, like the two below, so the rail can skip a Shell pass that changes none of them)
+            val dice = remember(homeData, calm) {
+                homeData?.takeIf { it.live.size > 1 }?.let { h ->
+                    {
+                        Crumbs.tap("pick one", "rail")
+                        h.pickOne(PickLast.get(), Math.random())?.let { g ->
+                            PickLast.set(g.id)
+                            if (calm) opener(g.id, null) else Reveal.start(g)
+                        }
+                        Unit
                     }
-                    Unit
                 }
             }
-            val toGames = { pick("games") }
-            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, rail, seated, calm, strip, dice, { id -> opener(id, null) }, toGames, Modifier.align(if (rail.left) Alignment.CenterStart else Alignment.CenterEnd))
+            val toGames = remember(pick) { { pick("games") } }
+            val openTile = remember(opener) { { id: String -> opener(id, null) } }
+            if (wide) Rail(nav.tab, views, view, pick, pickView, settings, rail, seated, calm, strip, dice, openTile, toGames, Modifier.align(if (rail.left) Alignment.CenterStart else Alignment.CenterEnd))
             // the Game shuffler is his place to stay out of (`html.shuffling #pnbub`)
             if (wide && "shuffle" !in nav.stack) {
                 NexiSeat(nx, spot, seated, w, maxHeight, room, (games as? Games.State.Ready)?.cards?.nexi, prefs, calm)
@@ -954,17 +959,21 @@ fun Rail(
         val shown = if (view != null) views else emptyList()
         // the views are one more item in the column, so one more 10 gap; Nexi's seat takes its room in place of the 14 at the foot
         // the dice, its line and the LIVE label count too; the strip takes what's left (nothing in a rail that scrolls)
-        val roomy = maxHeight >= RAIL_TALL + RAIL_LIVE + (if (seat) SEAT_ROOM - 14.dp else 0.dp) + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
-        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy, if (seat) SEAT_ROOM else 0.dp, dice) {
-            if (strip != null) LiveStrip(strip, look.volt, calm, at.shown, openTile, toGames, it)
-        }
+        val need = RAIL_TALL + RAIL_LIVE + (if (seat) SEAT_ROOM - 14.dp else 0.dp) + if (shown.isEmpty()) 0.dp else RAIL_VIEW_H * shown.size + RAIL_TRAY_PAD * 2 + 10.dp
+        val roomy = maxHeight >= need
+        // the LIVE label and the strip only when one tile fits under it, and once there are tiles to show (not while
+        // your games are still loading); otherwise the room stays empty, keeping Add and Settings at the foot
+        val live: (@Composable (Modifier) -> Unit)? = if (strip != null && maxHeight >= need + STRIP_TILE_H + 10.dp) {
+            { m -> LiveStrip(strip, look.volt, calm, at.shown, openTile, toGames, m) }
+        } else null
+        RailColumn(tab, shown, view, pick, pickView, settings, look.volt, shape, roomy, if (seat) SEAT_ROOM else 0.dp, dice, still = calm || !at.shown, live)
     }
 }
 
 /** The rail's height with its usual gaps: four tabs, the gap, a line, Add and Settings. */
 private val RAIL_TALL = 14.dp * 2 + 48.dp * 6 + 1.dp + 10.dp * 7
 
-/** What the live part adds over [RAIL_TALL]: a line, the dice and the LIVE label, and their gaps. */
+/** What the live part adds over [RAIL_TALL]: a line, the dice and the LIVE label, and their gaps (the strip itself, one [STRIP_TILE_H] at least, is asked for apart). */
 private val RAIL_LIVE = 1.dp + 48.dp + LIVE_LABEL_H + 10.dp * 3
 
 /** One view's line in the rail (a 48 touch). */
@@ -983,7 +992,8 @@ private fun RailColumn(
     roomy: Boolean,
     seat: Dp,
     dice: (() -> Unit)?,
-    live: @Composable (Modifier) -> Unit,
+    still: Boolean,
+    live: (@Composable (Modifier) -> Unit)?,
 ) {
     Column(
         Modifier
@@ -1017,10 +1027,11 @@ private fun RailColumn(
         // `.sep`, the dice (`.act.hot`, "Pick one for me"), then the LIVE label over the strip, which takes the room left
         Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
         RailDice(volt, dice)
-        if (roomy) {
-            LiveLabel(volt, still = LocalCalm.current)
+        if (roomy && live != null) {
+            // the dot keeps still when calm or while the rail is hidden
+            LiveLabel(volt, still)
             live(Modifier.weight(1f))
-        }
+        } else if (roomy) Spacer(Modifier.weight(1f))
         Box(Modifier.size(36.dp, 1.dp).background(Pn.edge))
         RailButton("add", "Add a game", on = tab == "add") { pick("add") }
         RailButton("settings", "Settings", on = false, onClick = settings)

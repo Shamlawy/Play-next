@@ -135,16 +135,20 @@ class RailStripTest {
         val nav = show()
         rule.mainClock.autoAdvance = false
         val y0 = top("Ninefold Gate")
-        tile("Ninefold Gate").performTouchInput {
-            down(Offset(width / 2f, 10f))
-            moveBy(Offset(0f, -20f))
-            moveBy(Offset(0f, -60f))
-            up()
+        val strip = tile("Ninefold Gate")
+        strip.performTouchInput { down(Offset(width / 2f, 10f)) }
+        // a frame between moves, so the strip has moved under the finger before the next one (a finger read in the
+        // moving layer would see less than it moved)
+        for (dy in listOf(-20f, -20f, -20f, -20f)) {
+            step(16)
+            strip.performTouchInput { moveBy(Offset(0f, dy)) }
         }
+        step(16)
+        val withFinger = y0 - top("Ninefold Gate")
+        strip.performTouchInput { up() }
         step(500)
         assertTrue("nothing opened", nav().stack.isEmpty())
-        val moved = (y0 - top("Ninefold Gate")) / rule.density.density
-        assertTrue("the strip followed the finger up (moved $moved dp)", moved > 20f)
+        assertEquals("the strip followed the finger 80 px up", 80f, withFinger, 3f)
         // held for 2 s after the lift, then it carries on
         val held = top("Ninefold Gate")
         step(1_000)
@@ -196,7 +200,7 @@ class RailStripTest {
         val nav = show(built = false)
         tile("Copper Meadow").assertExists()
         val dice = rule.onNodeWithContentDescription("Pick one for me")
-        dice.assert(SemanticsMatcher.keyIsNotDefined(SemanticsProperties.Disabled))
+        dice.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled))
         rule.mainClock.autoAdvance = false
         dice.performClick()
         step(32)

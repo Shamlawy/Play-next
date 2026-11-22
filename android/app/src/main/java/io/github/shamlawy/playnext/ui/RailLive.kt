@@ -67,6 +67,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import android.view.accessibility.AccessibilityManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
 import io.github.shamlawy.playnext.data.Pic
 import io.github.shamlawy.playnext.data.Strip
 import kotlinx.coroutines.Job
@@ -164,7 +167,18 @@ internal fun LiveStrip(
         }
         if (maxHeight < STRIP_TILE_H) return@BoxWithConstraints
         val copy = (STRIP_TILE_H + STRIP_GAP) * tiles.size
-        if (calm) {
+        // with TalkBack exploring by touch, the still strip: only one copy can be read, and a drifting one slides away
+        // from under the finger
+        val ctx = LocalContext.current
+        var exploring by remember { mutableStateOf(false) }
+        DisposableEffect(ctx) {
+            val am = ctx.getSystemService(AccessibilityManager::class.java)
+            exploring = am?.isTouchExplorationEnabled == true
+            val l = AccessibilityManager.TouchExplorationStateChangeListener { exploring = it }
+            am?.addTouchExplorationStateChangeListener(l)
+            onDispose { am?.removeTouchExplorationStateChangeListener(l) }
+        }
+        if (calm || exploring) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
                 StripCopy(tiles, volt, open, toGames)
             }
@@ -193,31 +207,36 @@ internal fun LiveStrip(
         Column(
             Modifier
                 .fillMaxWidth()
-                .wrapContentHeight(Alignment.Top, unbounded = true)
-                .graphicsLayer { translationY = -at.floatValue * copyPx }
-                // touch: a finger down holds it, a drag scrubs it (and is never a tap), 2 s after the lift it carries on
+                // touch: a finger down holds it, a drag scrubs it (and is never a tap), 2 s after the lift it carries on.
+                // Read outside the moving layer, so the finger's place isn't measured against the strip it moves
                 .pointerInput(copyPx) {
                     val slop = 8.dp.toPx()
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                         resume[0]?.cancel()
                         held = true
-                        val from = at.floatValue
-                        var moved = false
-                        while (true) {
-                            val ev = awaitPointerEvent(PointerEventPass.Initial)
-                            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
-                            val dy = c.position.y - down.position.y
-                            if (!moved && abs(dy) >= slop) moved = true
-                            if (moved) {
-                                at.floatValue = (((from - dy / copyPx) % 1f) + 1f) % 1f
-                                c.consume()
+                        // a gesture cut short (the strip's size changed under the finger) still lets it carry on
+                        try {
+                            val from = at.floatValue
+                            var moved = false
+                            while (true) {
+                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                val dy = c.position.y - down.position.y
+                                if (!moved && abs(dy) >= slop) moved = true
+                                if (moved) {
+                                    at.floatValue = (((from - dy / copyPx) % 1f) + 1f) % 1f
+                                    c.consume()
+                                }
+                                if (!c.pressed) break
                             }
-                            if (!c.pressed) break
+                        } finally {
+                            resume[0] = scope.launch { delay(2000); held = false }
                         }
-                        resume[0] = scope.launch { delay(2000); held = false }
                     }
-                },
+                }
+                .wrapContentHeight(Alignment.Top, unbounded = true)
+                .graphicsLayer { translationY = -at.floatValue * copyPx },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             for (i in 0 until n) {
