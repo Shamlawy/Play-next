@@ -62,6 +62,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -96,7 +97,9 @@ import kotlinx.serialization.json.JsonPrimitive
  * settle a duel, needs a verdict) and a sideways one (`sC`: where your hours go, standings, where the year bunches
  * up). Folded one above the other, 250 tall each; unfolded side by side, 290 tall. Each card sits on its game's
  * picture, darkened so its words read; dots show where you are. Hold a stack half a second to order and hide its
- * cards. The taste cards (your read, tonight, the hype trap…) join these stacks in piece 5.
+ * cards. The taste cards (piece 5, data/Taste.kt) join them: your read, what decides it, the last game you scored and
+ * what it turned out to be, the hype trap and the genre you lean on upright; Tonight and furthest from your hype
+ * sideways.
  */
 @Composable
 internal fun MoreForYou(h: Home, wide: Boolean, modifier: Modifier = Modifier) {
@@ -278,14 +281,16 @@ private val DOT = Pn.ice.copy(alpha = .28f)
  * picture the tile's own gradient. The line round it is `--edge`, `--hot` for a warning.
  */
 @Composable
-private fun Modifier.tileGround(g: Game?, upright: Boolean, warn: Boolean): Modifier {
+private fun Modifier.tileGround(g: Game?, upright: Boolean, warn: Boolean, accent: Boolean = false): Modifier {
+    val volt = LocalLook.current.volt
     val pic = remember(g) { g?.let { Pic.backdrop(it) ?: (Pic.cover(it) as? Pic.Url) } }
     return this
         .then(
             if (pic != null) Modifier.background(Pn.ink)
             else Modifier.drawBehind { drawRect(Brush.linearGradient(TILE, start = Offset(size.width * .33f, 0f), end = Offset(size.width * .67f, size.height))) },
         )
-        .border(1.dp, if (warn) Pn.hot else Pn.edge, STACK_SHAPE)
+        // `.tile.accent` (Tonight): the line round it in your accent
+        .border(1.dp, if (warn) Pn.hot else if (accent) volt else Pn.edge, STACK_SHAPE)
 }
 
 private val HEX = Regex("^#[0-9a-fA-F]{6}$")
@@ -295,28 +300,36 @@ private val TILE = listOf(Pn.steel, Pn.ink, Pn.ink)
 @Composable
 private fun MoreCard(h: Home, c: Home.More, upright: Boolean) {
     val say = rememberSay()
+    val open = LocalOpenGame.current
     val warn = (c as? Home.More.Big)?.warn == true
     val go = c.go?.takeIf { c !is Home.More.Months }
+    // the swing card and the hype trap open their game (`data-home-open`: no sound, W7)
+    val opens = (c as? Home.More.Big)?.open
+    val night = c is Home.More.Tonight
     Box(
         Modifier
             .fillMaxSize()
             .clip(STACK_SHAPE)
-            .tileGround(c.bg, upright, warn)
+            .tileGround(c.bg, upright, warn, accent = night)
             .then(
-                if (go != null) Modifier.clickable(role = Role.Button, onClickLabel = c.name) {
+                if (opens != null) Modifier.clickable(role = Role.Button, onClickLabel = "Open ${opens.title}") {
+                    Crumbs.tap("more ${c.id}", "home")
+                    open(opens.id, null)
+                } else if (go != null) Modifier.clickable(role = Role.Button, onClickLabel = c.name) {
                     Sounds.play(Sfx.Open)
                     Crumbs.tap("more ${c.id}", "home")
                     say(soon(go))
                 } else Modifier,
             ),
     ) {
+        // Tonight takes its pick's picture centred (`.imgcard`), the rest frame theirs 30% down (`.dxbg`)
         val pic = remember(c.bg) { c.bg?.let { Pic.backdrop(it) ?: (Pic.cover(it) as? Pic.Url) } }
         if (pic != null) {
             // under the shade (drawn over the content's ground by tileGround's drawWithCache, so the picture goes first)
-            PicBox(pic, c.bg, Modifier.fillMaxSize().clearAndSetSemantics {}, align = BiasAlignment(0f, -.4f))
-            Box(Modifier.fillMaxSize().shadeOver(upright, c.bg))
+            PicBox(pic, c.bg, Modifier.fillMaxSize().clearAndSetSemantics {}, align = if (night) Alignment.Center else BiasAlignment(0f, -.4f))
+            Box(Modifier.fillMaxSize().then(if (night) Modifier.nightShade() else Modifier.shadeOver(upright, c.bg)))
         }
-        if (go != null) {
+        if (go != null || opens != null) {
             // `.tile.go2::after`: an arrow in the top right corner
             BasicText(
                 "→", style = ARROW.fixed().copy(color = if (warn) Pn.hot else LocalLook.current.volt),
@@ -337,6 +350,8 @@ private fun MoreCard(h: Home, c: Home.More, upright: Boolean) {
                 is Home.More.Stand -> StandRows(c)
                 is Home.More.Hours -> HoursBars(c)
                 is Home.More.Months -> MonthBars(c, say)
+                is Home.More.Tonight -> TonightWords(c)
+                is Home.More.Far -> FarRows(c)
             }
         }
     }
@@ -358,12 +373,19 @@ private fun Modifier.shadeOver(upright: Boolean, g: Game?): Modifier {
     }
 }
 
+/** Tonight's shade over its pick's picture (`.imgcard`: three stops up from the foot, no colour from the corner). */
+private fun Modifier.nightShade(): Modifier = drawWithCache {
+    val shade = Brush.verticalGradient(0f to Color(Web.MF_IMG_TOP), .3f to Color(Web.MF_IMG_MID), .7f to Color(Web.MF_IMG_FOOT))
+    onDrawBehind { drawRect(shade) }
+}
+
 /** `.big` (24, black weight) with its small grey `em`, a meter when there is one, then `.sub`. */
 @Composable
 private fun ColumnScope.BigWords(c: Home.More.Big) {
     val big = BIG.fixed()
     val em = EM.fixed()
-    BasicText(
+    // a card that only has its line (Your read before a score, What decides it before three rated) draws no `.big`
+    if (c.big.isNotEmpty() || c.em.isNotEmpty()) BasicText(
         buildAnnotatedString {
             append(c.big)
             if (c.em.isNotEmpty()) withStyle(SpanStyle(fontSize = em.fontSize, fontWeight = em.fontWeight, color = em.color, letterSpacing = em.letterSpacing)) { append(c.em) }
@@ -553,6 +575,104 @@ private fun MonthBars(c: Home.More.Months, say: (String) -> Unit) {
 
 private val MONTH_NAMES = io.github.shamlawy.playnext.data.Year.MONTHS
 
+/**
+ * Tonight (`k-tonight`): the pick's name, its first two reasons, the hours you have as chips (`.tonight-h`: 1h 2h 3h
+ * 4h 6h, the one you're on in your accent; a tap keeps it as `S.tonightH` and Home works it out again), Open it in
+ * your accent, and the next two.
+ */
+@Composable
+private fun TonightWords(c: Home.More.Tonight) {
+    val open = LocalOpenGame.current
+    val volt = LocalLook.current.volt
+    BasicText(c.top.title, style = BIG.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    BasicText(c.why, style = SUB.fixed(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Row(Modifier.padding(top = 1.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        for (n in c.chips) {
+            val on = n.toDouble() == c.hrs
+            Box(
+                Modifier
+                    .heightIn(min = 26.dp)
+                    .background(if (on) volt else Pn.card, Pn.pill)
+                    .then(if (on) Modifier else Modifier.border(1.dp, Pn.line2, Pn.pill))
+                    .clickable(role = Role.RadioButton, onClickLabel = "${n} hours tonight") {
+                        Sounds.play(Sfx.Tap)
+                        Crumbs.tap("tonight $n", "home")
+                        if (!on) Games.customise("tonightH", JsonPrimitive(n))
+                    }
+                    .semantics { selected = on }
+                    .padding(horizontal = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText("${n}h", style = CHIP.fixed().copy(color = if (on) Pn.void else Pn.ice, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), maxLines = 1, softWrap = false)
+            }
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            Modifier
+                .heightIn(min = 26.dp)
+                .background(volt, Pn.pill)
+                .clickable(role = Role.Button, onClickLabel = "Open ${c.top.title}") {
+                    Crumbs.tap("tonight open", "home")
+                    open(c.top.id, null)
+                }
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicText("Open it →", style = CHIP.fixed().copy(color = Pn.void, fontWeight = FontWeight.SemiBold), maxLines = 1, softWrap = false)
+        }
+        if (c.rest.isNotEmpty()) BasicText(c.rest, style = SUB.fixed(), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+    }
+}
+
+/**
+ * Furthest from your hype (`k-far`): two offer rows (`.orow`: the box art in its colour's frame, the name, what you
+ * said and how far it landed in sentence case (the web's caps and black weights left out: house style), your hype crossed out over the score in the game's colour, an arrow); a tap opens it.
+ */
+@Composable
+private fun FarRows(c: Home.More.Far) {
+    val open = LocalOpenGame.current
+    val volt = LocalLook.current.volt
+    Column(Modifier.fillMaxWidth().padding(top = 3.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (o in c.rows) {
+            val tint = if (Backup.str(o.g["colour"]).matches(HEX)) Color(o.g.colour) else volt
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Pn.ink)
+                    .border(1.dp, Pn.edge, RoundedCornerShape(16.dp))
+                    .clickable(role = Role.Button, onClickLabel = "Open ${o.g.title}") {
+                        Crumbs.tap("far ${o.g.id}", "home")
+                        open(o.g.id, null)
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // `.gcard`: 3:4, a 2 frame from the game's colour into `--edge`
+                Box(
+                    Modifier
+                        .size(30.dp, 40.dp)
+                        .background(Brush.linearGradient(0f to tint, .62f to Pn.edge), RoundedCornerShape(8.dp))
+                        .padding(2.dp)
+                        .clearAndSetSemantics {},
+                ) {
+                    PicBox(remember(o.g) { Pic.cover(o.g) }, o.g, Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)), ground = Pn.steel)
+                }
+                Column(Modifier.weight(1f)) {
+                    BasicText(o.g.title, style = OR_T.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    BasicText(o.cap, style = OR_CAP.fixed(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    BasicText(o.was, style = OR_WAS.fixed())
+                    BasicText(o.now, style = OR_NOW.fixed().copy(color = tint))
+                }
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- Edit this stack
 
 /**
@@ -676,3 +796,11 @@ private val PL = P.copy(fontSize = 9.5.sp, lineHeight = 13.8.sp, fontWeight = Fo
 private val YEAR_L = P.copy(fontSize = 8.5.sp, lineHeight = 12.3.sp, color = Pn.mute, textAlign = TextAlign.Center)
 private val ER = P.copy(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
 private val ER_BTN = P.copy(fontSize = 13.sp, lineHeight = 18.sp)
+private val CHIP = P.copy(fontSize = 11.sp, lineHeight = 15.sp)
+private val OR_T = P.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold)
+private val OR_CAP = P.copy(fontSize = 10.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = Pn.mute)
+private val OR_WAS = P.copy(
+    fontSize = 11.sp, lineHeight = 13.sp, color = Pn.mute.copy(alpha = .75f),
+    textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+)
+private val OR_NOW = P.copy(fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)

@@ -261,6 +261,9 @@ const RULES = {
   MF_TOP: cssColour(".dash .tile.dxbg", "background-image", 2),
   MF_SC_FOOT: cssColour(".stkw.sC .stk > .tile.dxbg", "background-image", 0), MF_SC_MID: cssColour(".stkw.sC .stk > .tile.dxbg", "background-image", 1),
   MF_SC_TOP: cssColour(".stkw.sC .stk > .tile.dxbg", "background-image", 2),
+  /* Tonight (piece 5) sits on its pick's picture under its own shade (`.imgcard`: three stops) */
+  MF_IMG_FOOT: cssColour(".imgcard", "background-image", 0), MF_IMG_MID: cssColour(".imgcard", "background-image", 1),
+  MF_IMG_TOP: cssColour(".imgcard", "background-image", 2),
   NXH_FACE: cssColour(".nxh-face", "background", 0), NXH_FACE_FAR: cssColour(".nxh-face", "background", 1), NXH_EYE: cssColour(".nxh-face .eyes i", "background"),
   TIER_S: cssColour(":root", "--tS"), TIER_S_INK: cssColour(".tier.tS", "color"), GD_DOT_EDGE: cssColour(".gd-st i", "border"), GD_VIEWER: cssColour("#shv", "background"),
   /* Pick for me's reveal (`pnReveal`, Phase 3 piece 2): the black ground, the white flash (also the crack's lines and the

@@ -217,7 +217,19 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
             id: String, name: String, bg: Game?, go: String?,
             val big: String, val em: String, val word: Boolean, val sub: String,
             val meter: Float? = null, val warn: Boolean = false,
+            /** The game a tap opens (`data-home-open`: the swing card, the hype trap), else null. */
+            val open: Game? = null,
         ) : More(id, name, bg, go)
+
+        /**
+         * Tonight (`k-tonight`): for [hrs] hours ([chips], the one you're on lit), the best of what's out ([top]), why
+         * ([why]), and the next two ([rest], "" when none). It sits on [top]'s picture under its own shade (`.imgcard`).
+         */
+        class Tonight(val hrs: Double, val chips: List<Int>, val top: Game, val why: String, val rest: String) :
+            More("k-tonight", "With " + Queue.jsNum(hrs) + "h tonight", top, null)
+
+        /** Furthest from your hype (`k-far`): your best surprise and your biggest letdown, each a row that opens it. */
+        class Far(bg: Game?, val rows: List<Offer>) : More("k-far", "Furthest from your hype", bg, null)
 
         /** Play sessions: this week's count, a bar per day (0..1 of the busiest) with its weekday letter, and a line. */
         class Week(bg: Game?, val n: Int, val bars: List<Float>, val days: List<String>, val sub: String) : More("k-sess", "Play sessions", bg, "timer")
@@ -231,6 +243,12 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
         /** Where the year bunches up: how many dated games fall in each month, the busiest lit. */
         class Months(bg: Game?, val counts: List<Int>, val peak: Int) : More("k-year", "Where the year bunches up", bg, "month")
     }
+
+    /** `offerRow`: a game, your hype for it ([was]) crossed out, the score it got ([now]) and a line ([cap]). */
+    class Offer(val g: Game, val was: String, val now: String, val cap: String)
+
+    /** What your scores say about you (`hypeBias`, `relationship`, `tonight`…), shared with the screens to come. */
+    val taste = Taste(q)
 
     /** One of [More.Hours]' pill bars: [h] 0..1 of the bar's column, [kind] hot (your top three), cool, or other. */
     class Bar(val label: String, val value: String, val h: Float, val kind: Int) {
@@ -357,6 +375,32 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
                 if (st.n > 0) Year.fmtH(st.tot) + " played · longest " + Year.fmtH(st.best) else "No sessions in the last 7 days — start the timer and they land here",
             )
         }
+        val tr = taste.ready
+        val b0 = taste.bias
+        // the scored games with a hype, each with how far the verdict landed from it (`rows` in renderHome)
+        val off = taste.rows.filter { q.hype(it.second) > 0 }.map { (p, g) -> Triple(g, p.real!! - q.hype(g), p.real) }
+        val best = off.sortedByDescending { it.second }.firstOrNull()
+        val worst = off.sortedBy { it.second }.firstOrNull()
+        val topReal = rk.played.filter { it.scored }.sortedByDescending { it.real!! }.firstOrNull()?.let { rk.find(it.id) }
+        if (on("read")) {
+            // `want["Your read"]`: the game furthest from its hype, else your top-scored one
+            val bg = off.sortedByDescending { Math.abs(it.second) }.firstOrNull()?.first ?: topReal ?: pick
+            b += if (!tr.ok) More.Big("Your read", "Your read", bg, "played", "${tr.have}", "/${tr.need}", false, "games scored. This opens at ${tr.need}.")
+            else if (b0.n > 0) More.Big(
+                "Your read", "Your read", bg, "taste",
+                (if (b0.mean > 0) "+" else if (b0.mean < 0) "−" else "") + Taste.fixed(Math.abs(b0.mean), 1), "", false,
+                if (Math.abs(b0.mean) < .5) "You call it about right." else if (b0.mean < 0) "You run hot — games land below your hype." else "You undersell them.",
+            )
+            else More.Big("Your read", "Your read", bg, "played", "", "", false, "Score a finished game to start this.")
+        }
+        if (on("cat") && tr.ok) {
+            val top = taste.topPull
+            b += if (top != null) More.Big(
+                "What decides it", "What decides it", topReal ?: pick, "taste", top.label, "", true, "tracks your final score closest",
+                meter = (Rank.jsRound(Math.abs(top.r!!) * 100) / 100).toFloat(),
+            )
+            else More.Big("What decides it", "What decides it", topReal ?: pick, "played", "", "", false, "Rate the categories on three games and this works itself out.")
+        }
         if (on("duels")) {
             val last = rk.duels.lastOrNull { it.w.isNotEmpty() && it.w != "draw" }
             b += More.Big(
@@ -381,12 +425,73 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
                 warn = true,
             )
         }
+        if (on("swing")) {
+            // the last game you scored, and what it turned out to be (`relationship`)
+            val last = rk.played.lastOrNull { it.scored }
+            val lg = rk.find(last?.id)
+            val rel = if (lg != null) Taste.relationship(lg, last!!, rk.isDropped(lg)) else null
+            if (rel != null) b += More.Big("k-swing", lg!!.title, lg, null, rel.first, "", true, rel.second, open = lg)
+        }
+        val hrs = Backup.num(lib["tonightH"], lib.evening, 1.0, 12.0)
+        val ton = if (on("tonight")) taste.tonight(hrs, now) else null
+        // with nothing out, Tonight is a plain card (no `k-` class), so it sits in the upright stack
+        if (on("tonight") && ton == null) {
+            b += More.Big("Tonight", "Tonight", pick, null, "", "", false, "Nothing in the queue is out yet. This wakes up when a game you own is waiting.")
+        }
+        if (on("trap")) {
+            val cand = live.mapNotNull { g -> taste.expected(g)?.let { g to it } }
+                .filter { (g, x) -> q.hype(g) >= 7 && Math.abs(x.drift) >= 1 }
+                .sortedByDescending { Math.abs(it.second.drift) }.firstOrNull()
+            if (cand != null) {
+                val (g, x) = cand
+                val down = x.drift < 0
+                b += More.Big(
+                    "k-trap", if (down) "Hype trap" else "You're underselling it", g, null,
+                    Queue.jsNum(q.hype(g)), " → " + Taste.fixed(x.score, 1), false,
+                    g.title + " — " + (
+                        if (down) "on ${x.n} finished games you tend to land " + Taste.fixed(Math.abs(x.drift), 1) + " under your hype"
+                        else "you usually end up " + Taste.fixed(x.drift, 1) + " above what you expected"
+                        ) + (if (x.genre != null && x.genreN >= 2) ", and more so with " + x.genre else "") + ". Give or take " + Taste.fixed(x.spread, 1) + ".",
+                    warn = down, open = g,
+                )
+            }
+        }
+        val gen = taste.genres
+        val up = gen.lastOrNull()
+        if (on("genre") && tr.ok && up != null) {
+            val dn = if (gen.size > 1) gen[0] else null
+            b += More.Big(
+                "k-lean", "Genre lean", lib.games.firstOrNull { up.name in Rank.platList(it["genres"]) } ?: pick, null, up.name, "", true,
+                "beats your hype by " + (if (up.mean > 0) "+" else "") + Taste.fixed(up.mean, 1) + " across ${up.n} game" + (if (up.n == 1) "" else "s") +
+                    (if (dn != null) " · ${dn.name} lands " + Taste.fixed(dn.mean, 1) else ""),
+            )
+        }
         hoursCard()?.let { c += it }
         if (on("stand") && ranked.size > 1) {
             val top = ranked.take(Backup.num(lib["standN"], 4.0, 2.0, 10.0).toInt())
             val hi = top.maxOf { eloOf(it) }
             val lo = minOf(1400.0, top.minOf { eloOf(it) })
             c += More.Stand(pick, top.map { it to (Rank.jsRound((eloOf(it) - lo) / maxOf(1.0, hi - lo) * 100) / 100).toFloat() }, !lib.off("homeTint"))
+        }
+        if (ton != null) {
+            val t0 = ton.top
+            c += More.Tonight(
+                hrs, TONIGHT_H, t0.g, t0.why.take(2).joinToString(" · ").ifEmpty { "top of your ranking" },
+                if (ton.rest.isNotEmpty()) "Otherwise: " + ton.rest.joinToString(", ") { it.g.title } else "",
+            )
+        }
+        if (on("swing") && tr.ok && best != null && worst != null && best.first.id != worst.first.id) {
+            val said = { g: Game -> "you said " + Queue.jsNum(q.hype(g)) + " · " }
+            c += More.Far(
+                best.first,
+                listOf(
+                    Offer(best.first, Queue.jsNum(q.hype(best.first)), Queue.jsNum(best.third!!), said(best.first) + "+" + Taste.fixed(best.second, 1) + " better"),
+                    Offer(
+                        worst.first, Queue.jsNum(q.hype(worst.first)), Queue.jsNum(worst.third!!),
+                        said(worst.first) + if (worst.second < 0) Taste.fixed(worst.second, 1) + " short" else "+" + Taste.fixed(worst.second, 1) + " better",
+                    ),
+                ),
+            )
         }
         if (on("year")) {
             val peakM = months.indices.maxBy { months[it] }
@@ -419,6 +524,9 @@ class Home(val q: Queue, private val now: Long, private val zone: ZoneId) {
     fun warm() { ranked; dated; fut; hours; nexiPick; top; next; queueCovers; playing; donut; stacks }
 
     companion object {
+        /** Tonight's hours to pick from (`[1, 2, 3, 4, 6]`). */
+        val TONIGHT_H = listOf(1, 2, 3, 4, 6)
+
         /**
          * The countdown's four numbers to [date]'s local midnight from [now] (`cdTick`): days, hours, minutes, seconds,
          * all 0 once it's there (or for a date the phone can't read).
