@@ -299,3 +299,9 @@ go=top
 at=
 say=Home has More for you: two stacks of cards you swipe through, each on its game's picture: your year and month, duels, where your hours go, the standings and where the year bunches up.
 tryIt=Open Home and scroll to the bottom. Swipe the top stack up and down and the bottom one sideways, or tap a dot. Hold a stack half a second: move a card up, hide one, tap Done. Tap a Standings row to open its game. Unfold the phone: the two stacks sit side by side.
+
+v=50
+go=top
+at=
+say=Home's More for you now reads your taste: how well you call your hype, what decides your scores, a pick for tonight's hours, and the hype traps to watch.
+tryIt=Open Home and scroll to More for you. Swipe the top stack to Your read, then to the card named after the last game you scored. Swipe the bottom stack to Tonight and tap another hour: the pick changes; tap Open it. In a played game's Edit › Played, under What got you about it, see what that game turned out to be.

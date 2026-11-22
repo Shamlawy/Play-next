@@ -732,6 +732,16 @@ private fun PlayedGroup(c: Ctx, rec: io.github.shamlawy.playnext.data.Played, no
         }
     }
     Edit.taggedSay(c.lib)?.let { Note(it) }
+    // what it turned out to be (`relationship(g, played)`, from what's saved: the web reads it once as Edit opens)
+    remember(c.g, rec) { io.github.shamlawy.playnext.data.Taste.relationship(c.g, rec, c.g.rawState == "dropped") }?.let { (name, line) ->
+        BasicText(
+            buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Pn.ice)) { append(name) }
+                append(" — $line")
+            },
+            style = Type.note,
+        )
+    }
     Label("Want another run at it")
     val again = p["again"]?.let { Backup.truthy(it) } ?: Backup.truthy(rec.o["again"])
     Chips(AGAIN, if (again) "yes" else "no") { c.set(c.d.rec("again", JsonPrimitive(it == "yes"))) }

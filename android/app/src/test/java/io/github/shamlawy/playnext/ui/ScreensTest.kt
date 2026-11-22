@@ -130,6 +130,42 @@ class ScreensTest {
     private val moreReady: () -> Unit = { rule.onAllNodes(hasContentDescription("Card 1 of", substring = true)).onLast().performScrollTo() }
     @Test fun homeMore412() = shot("home-more", 412, ready = moreReady) { Shell(Nav("home"), ready, go = {}) }
     @Test fun homeMore859() = shot("home-more", 859, ready = moreReady) { Shell(Nav("home"), ready, go = {}) }
+    /**
+     * The taste cards (piece 5) on games with hype and area scores: the upright stack turned to [b] and the sideways one
+     * to [c] (`StackPos`, as a stack you'd swiped there).
+     */
+    private val tasteLib = Library(
+        Json.parseToJsonElement(
+            lib().state.toString()
+                .replace("\"id\":\"a\",", "\"id\":\"a\",\"hype\":9,")
+                .replace("\"id\":\"b\",", "\"id\":\"b\",\"hype\":6,")
+                .replace("\"id\":\"c\",", "\"id\":\"c\",\"hype\":7,")
+                .replace("\"id\":\"f\",", "\"id\":\"f\",\"hype\":7,\"mine\":{\"story\":9,\"gameplay\":8},")
+                .replace("\"id\":\"g\",", "\"id\":\"g\",\"hype\":9,\"mine\":{\"story\":6,\"gameplay\":7},")
+                .replace(
+                    "\"played\":[",
+                    "\"played\":[{\"id\":\"h\",\"real\":5,\"t\":\"2026-10-02\"},",
+                )
+                .replace(
+                    "\"games\":[",
+                    "\"games\":[{\"id\":\"h\",\"title\":\"Ember Coil\",\"state\":\"played\",\"hype\":8,\"colour\":\"#D8603A\",\"genres\":[\"Action\"],\"mine\":{\"story\":5,\"gameplay\":6}},",
+                ),
+        ).jsonObject,
+    )
+    private fun taste(name: String, width: Int, b: String, c: String) {
+        val z = java.time.ZoneId.systemDefault()
+        val h = io.github.shamlawy.playnext.data.Home(io.github.shamlawy.playnext.data.Queue(tasteLib, io.github.shamlawy.playnext.data.Rank(tasteLib, now, z), now, z), now, z)
+        StackPos["sB"] = h.stack("sB").indexOfFirst { it.id == b }.also { assertTrue("$b in the upright stack", it >= 0) }
+        StackPos["sC"] = h.stack("sC").indexOfFirst { it.id == c }.also { assertTrue("$c in the sideways stack", it >= 0) }
+        try {
+            shot(name, width, l = tasteLib, ready = moreReady) { Shell(Nav("home"), Games.State.Ready(tasteLib, now - 3 * 3_600_000L), go = {}) }
+        } finally {
+            StackPos.clear()
+        }
+    }
+    @Test fun homeTaste412() = taste("home-taste", 412, "k-trap", "k-tonight")
+    @Test fun homeTaste859() = taste("home-taste", 859, "Your read", "k-far")
+    @Test fun homeTasteFar412() = taste("home-taste-far", 412, "k-swing", "k-far")
     @Test fun stackEdit412() = shot("stack-edit", 412) { Shell(Nav("home", stack = listOf("stack:sB")), ready, go = {}) }
     /** Customise › Playing now cards › Classic: the covers with the hype, stars and a progress pill. */
     private val classicLib = lib(""","dzX":{"play":true}""")

@@ -219,10 +219,10 @@ class GoldenTest {
                     }
                 }
             }
-            // More for you's stacks (Phase 3 piece 4), as the web lays them out; the taste cards come in piece 5
+            // More for you's stacks (Phase 3 pieces 4 and 5), as the web lays them out, the taste cards too
             ((c["tiles"] as? JsonObject)?.get("more") as? JsonObject)?.let { mw ->
                 for ((key, cards) in mw) {
-                    val web = cards.jsonArray.map { it.jsonObject }.filter { it["id"]!!.s !in TASTE }
+                    val web = cards.jsonArray.map { it.jsonObject }
                     val mine = h.stack(key)
                     val at = "$name stack $key"
                     assertEquals("$at: cards", web.map { it["id"]!!.s }, mine.map { it.id })
@@ -245,6 +245,15 @@ class GoldenTest {
                         assertEquals(
                             "$ct: months", w["months"]!!.jsonArray.map { it.s },
                             (m as? Home.More.Months)?.counts?.map { n -> (if (n > 0) Rank.jsRound(n * 100.0 / m.peak).toLong() else 6L).toString() + "%" + if (n > 0 && n == m.peak) "*" else "" }.orEmpty(),
+                        )
+                        assertEquals("$ct: opens", w["open"]!!.s, ((m as? Home.More.Big)?.open ?: (m as? Home.More.Tonight)?.top)?.id ?: "")
+                        assertEquals(
+                            "$ct: offer rows", w["offers"]!!.jsonArray.map { r -> r.jsonArray.map { it.s } },
+                            (m as? Home.More.Far)?.rows?.map { listOf(it.g.id, it.cap, it.was, it.now) }.orEmpty(),
+                        )
+                        assertEquals(
+                            "$ct: chips", w["chips"]!!.jsonArray.map { it.s },
+                            (m as? Home.More.Tonight)?.let { t -> t.chips.map { n -> "${n}h" + if (n.toDouble() == t.hrs) "*" else "" } }.orEmpty(),
                         )
                     }
                 }
@@ -283,7 +292,8 @@ class GoldenTest {
 
     /** A More for you card's big words and its lines, as the web's `.big` and `.sub`/`.note` read. */
     private fun more(m: Home.More): Pair<List<String>, List<String>> = when (m) {
-        is Home.More.Big -> listOf(m.big + m.em) to listOfNotNull(m.sub.ifEmpty { null })
+        is Home.More.Big -> listOfNotNull((m.big + m.em).ifEmpty { null }) to listOfNotNull(m.sub.ifEmpty { null })
+        is Home.More.Tonight -> listOf(m.top.title) to listOfNotNull(m.why, m.rest.ifEmpty { null })
         is Home.More.Week -> listOf("${m.n} this week") to listOf(m.sub)
         is Home.More.Hours -> emptyList<String>() to listOfNotNull(m.note, m.foot.ifEmpty { null })
         else -> emptyList<String>() to emptyList()
@@ -291,9 +301,4 @@ class GoldenTest {
 
     /** A dash with or without spaces round it reads the same (the web's line breaks after its "—"). */
     private fun dash(s: String) = s.replace(Regex("\\s*—\\s*"), "—")
-
-    private companion object {
-        /** The taste cards, piece 5's. */
-        val TASTE = setOf("Your read", "What decides it", "k-tonight", "k-trap", "k-swing", "k-far", "k-lean")
-    }
 }

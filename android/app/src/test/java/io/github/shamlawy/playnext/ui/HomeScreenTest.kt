@@ -387,7 +387,7 @@ class HomeScreenTest {
     @Test fun theStacksShowAndATapSaysWhichUpdateBringsIt() {
         show()
         rule.onNode(hasText("More for you") and isHeading()).performScrollTo()
-        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        rule.onNodeWithContentDescription("Card 1 of 6").performScrollTo()
         rule.mainClock.autoAdvance = false
         rule.onNodeWithText("Your year so far").performClick()
         Snapshot.sendApplyNotifications()
@@ -396,7 +396,7 @@ class HomeScreenTest {
         rule.mainClock.advanceTimeBy(3_000)
         rule.mainClock.autoAdvance = true
         // the sideways stack's second card is Standings: its dot turns to it, and a row opens its game
-        rule.onNodeWithContentDescription("Card 2 of 3").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Card 2 of 4").performScrollTo().performClick()
         rule.waitForIdle()
         rule.onNodeWithText("STANDINGS").assertExists()
         assertEquals(1, StackPos["sC"])
@@ -404,7 +404,7 @@ class HomeScreenTest {
 
     @Test fun holdingAStackOpensItsEditorAndDoneKeepsYourOrder() {
         val nav = show()
-        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        rule.onNodeWithContentDescription("Card 1 of 6").performScrollTo()
         val card = rule.onNodeWithText("Your year so far")
         card.performTouchInput { down(center) }
         rule.mainClock.advanceTimeBy(700)
@@ -414,14 +414,16 @@ class HomeScreenTest {
         assertEquals("the hold isn't also a tap", 0, rule.onAllNodes(hasText("Year wrapped", substring = true)).fetchSemanticsNodes().size)
         rule.onNodeWithText("Edit this stack").assertExists()
         rule.mainClock.advanceTimeBy(1_000)
+        // twice: past Your read (piece 5) and the month card
+        rule.onNodeWithContentDescription("Move Duels up").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Move Duels up").performScrollTo().performClick()
         rule.onNodeWithContentDescription("2026 so far: shown").performScrollTo().performClick()
         rule.onNodeWithContentDescription("2026 so far: hidden").assertExists()
         rule.onNodeWithText("Done").performScrollTo().performClick()
-        waitFor("Done keeps the order and the hidden card") { cfg("sB") == (listOf("k-wrap", "Duels", "k-month", "Settle a duel") to listOf("k-wrap")) }
+        waitFor("Done keeps the order and the hidden card") { cfg("sB") == (listOf("k-wrap", "Duels", "k-month", "Your read", "Settle a duel", "k-swing") to listOf("k-wrap")) }
         assertEquals(emptyList<String>(), nav().stack)
         // Home now leads with Duels and leaves the year card out
-        rule.onAllNodesWithContentDescription("Card 1 of 3").onFirst().performScrollTo()
+        rule.onAllNodesWithContentDescription("Card 1 of 5").onFirst().performScrollTo()
         assertEquals(0, rule.onAllNodes(hasText("Your year so far")).fetchSemanticsNodes().size)
         rule.onNodeWithText("none yet — go settle a few").assertExists()
     }
@@ -429,7 +431,7 @@ class HomeScreenTest {
     /** A drift past the touch slop (where the pager starts dragging) then a still finger is no hold (review on #771). */
     @Test fun aDriftThatStartsADragIsNoHold() {
         val nav = show(phoneSlop = true)
-        rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
+        rule.onNodeWithContentDescription("Card 1 of 6").performScrollTo()
         val card = rule.onNodeWithText("Your year so far")
         var slop = 0f
         var ten = 0f
@@ -447,8 +449,8 @@ class HomeScreenTest {
     }
 
     @Test fun resetForgetsAStacksOrder() {
-        val nav = show(lib(""","stackCfg":{"sC":{"order":["k-year","k-stand","k-hours"],"hidden":["k-hours"]}}"""))
-        rule.onNodeWithContentDescription("Card 1 of 2").performScrollTo()
+        val nav = show(lib(""","stackCfg":{"sC":{"order":["k-year","k-stand","k-hours","k-tonight"],"hidden":["k-hours"]}}"""))
+        rule.onNodeWithContentDescription("Card 1 of 3").performScrollTo()
         rule.onNodeWithText("WHERE THE YEAR BUNCHES UP").assertExists()
         rule.onNodeWithText("WHERE THE YEAR BUNCHES UP").performTouchInput { down(center) }
         rule.mainClock.advanceTimeBy(700)
@@ -463,7 +465,7 @@ class HomeScreenTest {
     @Test fun aFlickThroughTheSidewaysStackStaysOnHome() {
         val nav = show()
         // its dots sit at its foot: scroll the page to them (a card inside the pager doesn't scroll it, L331)
-        val dot = rule.onNodeWithContentDescription("Card 1 of 3").performScrollTo()
+        val dot = rule.onNodeWithContentDescription("Card 1 of 4").performScrollTo()
         rule.waitForIdle()
         val y = dot.fetchSemanticsNode().positionInRoot.y - 80f
         val before = nav()

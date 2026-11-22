@@ -238,20 +238,21 @@ class HomeTest {
     @Test fun theStacksHoldTheirCardsInTheWebsOrder() {
         val h = home(five, played = """[{"id":"f","real":9,"t":"2026-10-12"}]""", duels = """[{"a":"a","b":"c","w":"a","t":"2026-10-20"}]""")
         // the 7th: the month card looks back at October; Play sessions only with the timer on
-        assertEquals(listOf("k-wrap", "k-month", "Duels", "Settle a duel"), h.stack("sB").map { it.id })
-        assertEquals(listOf("2026 so far", "October recap", "Duels", "Settle a duel"), h.stack("sB").map { it.name })
-        assertEquals(listOf("k-hours", "k-stand", "k-year"), h.stack("sC").map { it.id })
+        // with the taste cards (piece 5): Your read (1 of 3 scored) and the last scored game's card; Tonight sideways
+        assertEquals(listOf("k-wrap", "k-month", "Your read", "Duels", "Settle a duel", "k-swing"), h.stack("sB").map { it.id })
+        assertEquals(listOf("2026 so far", "October recap", "Your read", "Duels", "Settle a duel", "Old Lighthouse"), h.stack("sB").map { it.name })
+        assertEquals(listOf("k-hours", "k-stand", "k-tonight", "k-year"), h.stack("sC").map { it.id })
         val wrap = h.stack("sB")[0] as Home.More.Big
         assertEquals("Your year so far", wrap.big)
         assertEquals("1 finished · 1 duels — tap to watch", wrap.sub)
         assertEquals("the finished game's picture", "f", wrap.bg?.id)
         val month = h.stack("sB")[1] as Home.More.Big
         assertEquals(listOf("1", " finished", "1 duels · 0 added — tap to watch"), listOf(month.big, month.em, month.sub))
-        val cover = h.stack("sB")[3] as Home.More.Big
+        val cover = h.stack("sB").first { it.id == "Settle a duel" } as Home.More.Big
         // five live games, ten pairs, one judged
         assertEquals(listOf("10", "% judged", "1 of 10 pairs · tap to rank another"), listOf(cover.big, cover.em, cover.sub))
         assertEquals(.1f, cover.meter!!, 1e-6f)
-        val duels = h.stack("sB")[2] as Home.More.Big
+        val duels = h.stack("sB").first { it.id == "Duels" } as Home.More.Big
         assertEquals("the last duel's winner", "a", duels.bg?.id)
         assertEquals("settled · 5 still in the running", duels.sub)
     }
@@ -287,11 +288,11 @@ class HomeTest {
     @Test fun yourOrderAndHiddenCardsAreKept() {
         val cfg = ""","stackCfg":{"sB":{"order":["Duels","k-wrap"],"hidden":["k-month"]},"sC":{"order":["k-year","k-stand","k-hours"],"hidden":[]}}"""
         val h = home(five, extra = cfg)
-        // a card new since you ordered (Settle a duel) goes first; the hidden one is left out but the editor lists it
-        assertEquals(listOf("Settle a duel", "Duels", "k-wrap"), h.stack("sB").map { it.id })
-        assertEquals(listOf("k-month", "Settle a duel", "Duels", "k-wrap").toSet(), h.stackAll("sB").map { it.id }.toSet())
+        // cards new since you ordered (Your read, Settle a duel) go first; the hidden one is left out but the editor lists it
+        assertEquals(listOf("Your read", "Settle a duel", "Duels", "k-wrap"), h.stack("sB").map { it.id })
+        assertEquals(listOf("k-month", "Your read", "Settle a duel", "Duels", "k-wrap").toSet(), h.stackAll("sB").map { it.id }.toSet())
         assertEquals(setOf("k-month"), h.stackHidden("sB"))
-        assertEquals(listOf("k-year", "k-stand", "k-hours"), h.stack("sC").map { it.id })
+        assertEquals(listOf("k-tonight", "k-year", "k-stand", "k-hours"), h.stack("sC").map { it.id })
     }
 
     @Test fun theYearAndStandingsCards() {

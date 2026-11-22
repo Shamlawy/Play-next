@@ -284,7 +284,12 @@ for (const [name, at] of CLOCKS) {
             rows: [...x.querySelectorAll(".stand .r")].map(r => [r.dataset.homeOpen, r.querySelector(".bar i").style.width]),
             bars: [...x.querySelectorAll(".pbar")].map(b => [b.querySelector(".pl").textContent, b.querySelector(".pv").textContent,
               b.querySelector(".pcol").style.getPropertyValue("--h"), b.querySelector(".pb").className.replace("pb ", "")]),
-            months: [...x.querySelectorAll(".yearbar button")].map(b => b.style.getPropertyValue("--h") + (b.classList.contains("hot") ? "*" : "")) };
+            months: [...x.querySelectorAll(".yearbar button")].map(b => b.style.getPropertyValue("--h") + (b.classList.contains("hot") ? "*" : "")),
+            /* the taste cards (piece 5): what a tap on the card opens, Furthest from your hype's rows, Tonight's chips */
+            open: x.dataset.homeOpen || ((x.querySelector(".chip.go") || { dataset: {} }).dataset.homeOpen || ""),
+            offers: [...x.querySelectorAll(".orow")].map(r => [r.dataset.homeOpen, r.querySelector(".oin small").textContent,
+              r.querySelector(".ovals s").textContent, r.querySelector(".ovals b").textContent]),
+            chips: [...x.querySelectorAll(".tonight-h .chip")].map(c => c.textContent.trim() + (c.getAttribute("aria-pressed") === "true" ? "*" : "")) };
         })])),
       };
     }
