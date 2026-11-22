@@ -631,7 +631,8 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
             // Nexi sits at its foot (Settings › Extra features › Nexi sits in the rail), or floats when it's hidden
             val seated = !prefs.nxSeatOff
             // the live strip (piece 6): this copy's tiles, worked out again each minute while the rail shows (not calm)
-            val homeData = (games as? Games.State.Ready)?.cards?.home
+            // the day build's Home when it's for this copy and today, else made here once, the way Home's own screen gets it
+            val homeData = (games as? Games.State.Ready)?.let { r -> if (wide) rememberHome(r) else null }
             var stripTick by remember { mutableIntStateOf(0) }
             val ticking = wide && rail.shown && !calm
             LaunchedEffect(ticking) {

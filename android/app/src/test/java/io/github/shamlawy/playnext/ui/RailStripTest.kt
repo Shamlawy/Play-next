@@ -84,8 +84,8 @@ class RailStripTest {
      * Shows the Shell at 859. [held] stops the test clock first: while it advances by itself the test rule cancels every
      * endless loop (Compose's InfiniteAnimationPolicy in tests), so the drift only runs on a held clock.
      */
-    private fun show(l: Library = lib(), held: Boolean = false): () -> Nav {
-        state.value = Games.State.Ready(l, now - 3_600_000L, cards = Shx.all(l, now, ZoneId.of("UTC")))
+    private fun show(l: Library = lib(), held: Boolean = false, built: Boolean = true): () -> Nav {
+        state.value = Games.State.Ready(l, now - 3_600_000L, cards = if (built) Shx.all(l, now, ZoneId.of("UTC")) else null)
         var nav by mutableStateOf(Nav("home"))
         if (held) rule.mainClock.autoAdvance = false
         rule.setContent {
@@ -189,6 +189,20 @@ class RailStripTest {
         rule.waitForIdle()
         assertNull(Reveal.run)
         assertTrue(nav().stack.isEmpty())
+    }
+
+    @Test fun withoutTheDayBuildTheStripAndDiceStillWork() {
+        // Ready before the off-Main build has made Home (no cards): the rail makes its own, as Home's screen does
+        val nav = show(built = false)
+        tile("Copper Meadow").assertExists()
+        val dice = rule.onNodeWithContentDescription("Pick one for me")
+        dice.assert(SemanticsMatcher.keyIsNotDefined(SemanticsProperties.Disabled))
+        rule.mainClock.autoAdvance = false
+        dice.performClick()
+        step(32)
+        assertNotNull("the dice starts the reveal", Reveal.run)
+        step(1_000)
+        assertEquals(1, nav().stack.size)
     }
 
     @Test fun rail859() {
