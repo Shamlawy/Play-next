@@ -58,11 +58,13 @@ class PriceTagsTest {
         val old = Library(Json.parseToJsonElement("""{"games":[
             {"id":"ds","title":"x","state":"backlog","platforms":"Nintendo 3DS"},
             {"id":"n64","title":"x","state":"backlog","platforms":"Nintendo 64, Wii"},
-            {"id":"ns","title":"x","state":"backlog","platforms":"Nintendo Switch 2"}
+            {"id":"ns","title":"x","state":"backlog","platforms":"Nintendo Switch 2"},
+            {"id":"bare","title":"x","state":"backlog","platforms":"Nintendo"}
         ],"played":[]}""").jsonObject)
         assertEquals(emptyList<String>(), PriceTags.stores(old, old.games[0]))
         assertEquals(emptyList<String>(), PriceTags.stores(old, old.games[1]))
         assertEquals(listOf("ns"), PriceTags.stores(old, old.games[2]))
+        assertEquals("a bare Nintendo still asks the eShop", listOf("ns"), PriceTags.stores(old, old.games[3]))
     }
 
     @Test fun aPs5AnswerTheHelperHasntCheckedNeverShows() {
