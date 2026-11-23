@@ -108,6 +108,18 @@ class PriceTagsTest {
         assertTrue(second, "\"ns\":\"\"" in second)
     }
 
+    @Test fun aStoreThatKeepsFailingIsAskedOnceAnHour() = runBlocking {
+        var calls = 0
+        Prices.post = { calls++; """{"ok":true,"res":{"full":{"ps":{"err":"PS Store said 500"}}}}""" }
+        PriceTags.refresh(lib, rk, "ae", null) { now }
+        val first = calls
+        assertEquals("one pass: nothing was answered, so no second ask", 1, first)
+        PriceTags.refresh(lib, rk, "ae", null) { now + 60_000 }
+        assertEquals("the next Queue open asks nothing", first, calls)
+        PriceTags.refresh(lib, rk, "ae", null) { now + 3_700_000 }
+        assertTrue("an hour on it tries again", calls > first)
+    }
+
     @Test fun pricesComeBackFromThePhonesOwnFile() = runBlocking {
         val dir = Files.createTempDirectory("prices").toFile()
         Prices.post = { ANSWERS.let { a -> """{"ok":true,"res":$a}""" } }

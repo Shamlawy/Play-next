@@ -1091,9 +1091,9 @@ async function pxPs5Check(cc, it, stName) {
   if (id && it.p5 === 1) {
     const pr = ((await psGql(cc, "metGetProductById", { productId: id })) || {}).data?.productRetrieve;
     if (pr && (pr.platforms || []).includes("PS5")) {
-      keep = { id, cid: pr.concept && pr.concept.id || "", name: pr.name || "" };
-      const f = px5Fit(it.t, keep.name);
-      if (f.sc >= .55 && !f.sub) { pc = keep.cid; name = keep.name; } else { id = ""; pc = ""; }
+      const was = { id, cid: pr.concept && pr.concept.id || "", name: pr.name || "" }, f = px5Fit(it.t, was.name);
+      /* a saved product that doesn't fit is never the fallback: it may be the cheap mode this check exists to catch */
+      if (f.sc >= .55 && !f.sub) { pc = was.cid; name = was.name; } else { if (f.sc >= .55) keep = was; id = ""; pc = ""; }
     } else { id = ""; pc = ""; }
   } else if (id && !/-PPSA\d/.test(id)) { id = ""; pc = ""; }
   /* a concept saved without a product: the search's plainer pick first, that concept if it finds nothing */

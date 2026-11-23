@@ -42,6 +42,7 @@ object PriceTags {
 
     private val running = AtomicBoolean(false)
     private val loaded = AtomicBoolean(false)
+    private val asked = java.util.concurrent.ConcurrentHashMap<String, Long>()
     @Volatile private var failedAt = 0L
 
     /** The shop region, as the game page's prices use it. */
@@ -107,23 +108,26 @@ object PriceTags {
     // ---- asking ----
 
     private fun stale(g: Game, s: String, now: Long): Boolean {
-        if (s == "ps" && !Prices.p5Checked(g)) return true
         val p = Prices.px(g, s) ?: return true
-        return now - p.at > when {
-            p.err.isNotEmpty() -> RETRY
-            p.none -> Web.PX_RELOOK.toLong()
-            else -> Web.PX_GAP.toLong()
-        }
+        if (p.err.isNotEmpty()) return now - p.at > RETRY
+        if (s == "ps" && !Prices.p5Checked(g)) return true
+        return now - p.at > if (p.none) Web.PX_RELOOK else Web.PX_GAP
     }
+
+    /** Stale and not asked in the last hour: a store that keeps failing can't be asked on every Queue open. */
+    private fun due(g: Game, s: String, now: Long) = stale(g, s, now) && now - (asked[g.id + ":" + s] ?: 0L) >= RETRY
+
+    /** PS5 has a price (or is only failing for now): the eShop isn't needed. */
+    private fun psHolds(lib: Library, p: Prices.Px?) = p != null && (p.err.isNotEmpty() || p.free || Prices.incl(lib, p) || !p.bad)
 
     /** One game for the helper, or null when its card is up to date: Steam never, the eShop only once PS5 has said no. */
     internal fun ask(lib: Library, rk: Rank, g: Game, now: Long): JsonObject? {
         if (!Prices.watched(lib, rk, g)) return null
         val st = stores(lib, g)
         if (st.isEmpty()) return null
-        val psAsk = "ps" in st && stale(g, "ps", now)
-        val psHas = "ps" in st && Prices.p5Checked(g) && Prices.px(g, "ps").let { it != null && !it.none && !it.nosale }
-        val nsAsk = "ns" in st && !psAsk && !psHas && stale(g, "ns", now)
+        val psAsk = "ps" in st && due(g, "ps", now)
+        val psSaidNo = "ps" !in st || Prices.p5Checked(g) && !psHolds(lib, Prices.px(g, "ps"))
+        val nsAsk = "ns" in st && !psAsk && psSaidNo && due(g, "ns", now)
         if (!psAsk && !nsAsk) return null
         val base = Prices.item(lib, g, now)
         val ps = if (psAsk) Backup.str(base["ps"]).takeIf { it != "-" } ?: "" else "-"
@@ -149,6 +153,7 @@ object PriceTags {
             repeat(2) {
                 val due = lib.games.asSequence().mapNotNull { g -> ask(lib, rk, g, now())?.let { g to it } }.take(MOST).toList()
                 for (c in due.chunked(BATCH)) {
+                    for ((g, item) in c) for (s in listOf("ps", "ns")) if (Backup.str(item[s]) != "-") asked[g.id + ":" + s] = now()
                     val res = Prices.askMany(lib, cc, c.map { it.second }, now)
                     for ((g, _) in c) Prices.take(lib, g, res, now())
                     got = true
@@ -180,5 +185,5 @@ object PriceTags {
         }
     }
 
-    internal fun forget() { loaded.set(false); failedAt = 0L }
+    internal fun forget() { loaded.set(false); failedAt = 0L; asked.clear() }
 }
