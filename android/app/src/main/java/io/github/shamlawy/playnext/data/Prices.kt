@@ -112,6 +112,8 @@ object Prices {
             put("pc", JsonPrimitive(if (ps != "-") psC else "")); put("ns", JsonPrimitive(ns))
             put("sw2", JsonPrimitive(pl(g).any { Regex("switch\\s*2").containsMatchIn(it) }))
             if (n2 != null) put("n2", JsonPrimitive(n2))
+            // android-v52: a game on PS5 is priced as its PS5 version (2: the helper already checked this id)
+            if (ps != "-" && PriceTags.onPs5(g)) put("p5", JsonPrimitive(if (ps.isNotEmpty() && ps == str(g, "pxPsV")) 2 else 1))
         })
     }
 
@@ -344,6 +346,7 @@ object Prices {
             val p = r[s] as? JsonObject ?: continue
             if (Backup.truthy(p["none"])) {
                 I[mapOf("st" to "pxStNo", "ps" to "pxPsNo", "ns" to "pxNsNo")[s]!!] = t
+                if (s == "ps" && Backup.truthy(p["p5"])) I["pxPsV"] = JsonPrimitive("-")
                 P[s] = JsonObject(mapOf("none" to JsonPrimitive(1), "at" to t))
                 continue
             }
@@ -355,7 +358,9 @@ object Prices {
             val id = p["id"]
             if (id != null && id !is JsonNull && Backup.str(id).isNotEmpty()) {
                 if (s == "st" && !(n(f(g, "pxSt")) > 0)) I["pxSt"] = Backup.jsNumber(n(id))
-                if (s == "ps" && str(g, "pxPs").isEmpty()) I["pxPs"] = JsonPrimitive(Backup.str(id))
+                // a PS5 answer replaces an older pick (which may have been another product) and marks the id as checked
+                if (s == "ps" && (str(g, "pxPs").isEmpty() || Backup.truthy(p["p5"]))) I["pxPs"] = JsonPrimitive(Backup.str(id))
+                if (s == "ps" && Backup.truthy(p["p5"])) I["pxPsV"] = JsonPrimitive(Backup.str(id))
                 if (s == "ns" && str(g, "pxNs").isEmpty()) I["pxNs"] = JsonPrimitive(Backup.str(id))
             }
             if (s == "ns" && Backup.str(p["url"]).isNotEmpty()) I["pxNsU"] = JsonPrimitive(Backup.str(p["url"]))
@@ -393,5 +398,27 @@ object Prices {
         seen.value++
     }
 
-    internal fun forget() { mem.clear(); ids.clear(); tried.clear(); busy.clear(); fx = null; err = ""; post = realPost }
+    /** The helper has answered for this game's PS5 version: the id it checked, or "-" for not on PS5. */
+    fun p5Checked(g: Game): Boolean = str(g, "pxPsV").let { it == "-" || (it.isNotEmpty() && it == str(g, "pxPs")) }
+
+    /** Several games in one call ([PriceTags.refresh]); the answers go through [take]. */
+    internal suspend fun askMany(lib: Library, cc: String, items: List<JsonObject>, now: () -> Long): JsonObject? = ask(body(lib, cc, items, fxOld(lib, now())), now)
+
+    /** This run's answers as text, for the phone's own price file (never the backup). */
+    internal fun dump(): String = JsonObject(mapOf(
+        "m" to JsonObject(mem.mapValues { JsonObject(it.value) }),
+        "i" to JsonObject(ids.mapValues { JsonObject(it.value) }),
+        "f" to (fx ?: JsonNull),
+    )).toString()
+
+    /** The price file back into memory; an answer already here is newer and stays. */
+    internal fun restore(s: String) {
+        val o = Json.parseToJsonElement(s) as? JsonObject ?: return
+        (o["m"] as? JsonObject)?.forEach { (k, v) -> (v as? JsonObject)?.let { mem.putIfAbsent(k, it) } }
+        (o["i"] as? JsonObject)?.forEach { (k, v) -> (v as? JsonObject)?.let { ids.putIfAbsent(k, it) } }
+        if (fx == null) fx = o["f"] as? JsonObject
+        seen.value++
+    }
+
+    internal fun forget() { mem.clear(); ids.clear(); tried.clear(); busy.clear(); fx = null; err = ""; post = realPost; PriceTags.forget() }
 }

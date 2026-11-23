@@ -36,11 +36,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.shamlawy.playnext.data.Art
@@ -48,7 +50,9 @@ import io.github.shamlawy.playnext.data.Backup
 import io.github.shamlawy.playnext.data.Game
 import io.github.shamlawy.playnext.data.Library
 import io.github.shamlawy.playnext.data.Page
+import io.github.shamlawy.playnext.data.PriceTags
 import io.github.shamlawy.playnext.data.Prices
+import io.github.shamlawy.playnext.data.Queue
 import io.github.shamlawy.playnext.data.Rank
 import io.github.shamlawy.playnext.data.Reviews
 import io.github.shamlawy.playnext.gen.Web
@@ -129,6 +133,67 @@ internal fun PricesSec(g: Game, page: Page, lib: Library, modifier: Modifier) {
             BasicText(card.cap, style = Type.note.copy(fontSize = 12.5.sp, lineHeight = 16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             BasicText("Price alerts ›", style = Type.note.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = volt), maxLines = 1, softWrap = false)
         }
+    }
+}
+
+/**
+ * The price on a Queue row or card (android-v52): the store's logo, the price, the old one when there's room ([old]) and
+ * the sale's "−N%". It draws nothing until the game has a price, and only this piece redraws as prices land.
+ */
+@Composable
+internal fun QueuePrice(q: Queue, g: Game, size: TextUnit, old: Boolean, modifier: Modifier = Modifier) {
+    val landed = PriceTags.v
+    val t = remember(landed, q, g) { q.priceTag(g) } ?: return
+    val green = Color(Web.PX_GREEN)
+    val words = TextStyle(fontFamily = Fonts.poppins, fontSize = size, lineHeight = size * 1.25f, fontWeight = FontWeight.Bold, color = Pn.ice, fontFeatureSettings = "tnum").fixed()
+    Row(
+        modifier.clearAndSetSemantics { contentDescription = PriceTags.say(t) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        PnIcon("px:" + t.s, Pn.ice, (size.value + 3).dp, null)
+        when {
+            t.plus -> BasicText("In your PS Plus", style = words.copy(color = green), maxLines = 1, softWrap = false)
+            t.free -> BasicText("Free", style = words.copy(color = green), maxLines = 1, softWrap = false)
+            else -> {
+                BasicText(t.now, style = words, maxLines = 1, softWrap = false)
+                if (old && t.old.isNotEmpty()) BasicText(
+                    t.old,
+                    style = words.copy(fontWeight = FontWeight.Medium, color = Pn.mute, textDecoration = TextDecoration.LineThrough),
+                    maxLines = 1, softWrap = false,
+                )
+                if (t.pct > 0) Box(Modifier.background(green.copy(alpha = .2f), Pn.pill).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                    BasicText("−${t.pct}%", style = words.copy(color = green), maxLines = 1, softWrap = false)
+                }
+            }
+        }
+    }
+}
+
+/** The card's back: the price in full and when its sale ends; a tap opens the game in that store. */
+@Composable
+internal fun QueuePriceLine(q: Queue, g: Game, active: Boolean) {
+    val landed = PriceTags.v
+    val t = remember(landed, q, g) { q.priceTag(g) } ?: return
+    val ctx = LocalContext.current
+    val volt = LocalLook.current.volt
+    val note = Type.note.copy(fontSize = 12.5.sp, lineHeight = 16.sp)
+    Row(
+        Modifier.fillMaxWidth().sizeIn(minHeight = Pn.touch).then(
+            if (active) Modifier.clickable(role = Role.Button) {
+                Crumbs.tap("price line " + t.s, "queue card")
+                Sounds.play(Sfx.Tap)
+                openUrl(ctx, Prices.url(q.lib, g, t.s, PriceTags.cc(q.lib)))
+            } else Modifier,
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        QueuePrice(q, g, 14.sp, old = true)
+        Box(Modifier.weight(1f))
+        val end = if (t.end > 0) "ends " + Prices.endDay(t.end) else if (t.pre) "pre-order" else ""
+        if (end.isNotEmpty()) BasicText(end, style = note, maxLines = 1, softWrap = false)
+        BasicText((Web.PX_NAME[t.s] ?: "Store") + " ›", style = note.copy(fontWeight = FontWeight.SemiBold, color = volt), maxLines = 1, softWrap = false)
     }
 }
 

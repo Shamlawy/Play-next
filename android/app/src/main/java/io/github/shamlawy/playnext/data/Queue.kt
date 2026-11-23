@@ -130,6 +130,9 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
             AREAS.any { it.first == key } -> byNum { mine(it, key).takeIf { v -> v > 0 } ?: -1.0 }
             key == "longest" -> byNum { rk.hrsOf(it) }
             key == "shortest" -> byNum { rk.hrsOf(it).let { h -> if (h != 0.0) -h else -99999.0 } }
+            // android-v52, Android only: each game's rank worked out once, so the order is total and a long list stays quick
+            key == "sale" -> priceRanks(list, PriceTags::saleRank).let { r -> byNum { r.getValue(it.id) } }
+            key == "cheap" -> priceRanks(list, PriceTags::cheapRank).let { r -> byNum { r.getValue(it.id) } }
             key == "date" -> {
                 val tier = { g: Game -> if (g.date.isEmpty()) 1 else if ((JsDate.utcMidnight(g.date) ?: Long.MIN_VALUE) >= now) 0 else 2 }
                 list.sortedWith { x, y ->
@@ -149,6 +152,14 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
     }
 
     private fun sign(d: Double) = if (d > 0) 1 else if (d < 0) -1 else 0
+
+    private fun priceRanks(list: List<Game>, rank: (PriceTags.Tag?) -> Double): Map<String, Double> {
+        val cc = PriceTags.cc(lib)
+        return list.associate { it.id to rank(PriceTags.of(lib, rk, it, cc, now)) }
+    }
+
+    /** The price a card shows for [g] (PS5, else Switch), null when it has none. */
+    fun priceTag(g: Game): PriceTags.Tag? = PriceTags.of(lib, rk, g, PriceTags.cc(lib), now)
 
     fun hype(g: Game): Double = Backup.num(g["hype"], 0.0, -Double.MAX_VALUE, Double.MAX_VALUE)
 
@@ -464,11 +475,16 @@ class Queue(val lib: Library, val rk: Rank, private val now: Long, val zone: Zon
             "duel" to "Duel order", "overall" to "My rating", "story" to "Story", "music" to "Music", "gameplay" to "Gameplay",
             "replay" to "Replayability", "visuals" to "Visuals", "world" to "World", "chars" to "Characters", "pace" to "Pacing",
             "longest" to "Longest", "shortest" to "Shortest",
+            "sale" to "Biggest discount", "cheap" to "Cheapest",
         )
 
-        /** `QD_GROUPS`: the Order menu's three groups. */
+        /** The orders that follow the cards' prices (android-v52): they sort again as prices arrive. */
+        val PRICE_SORTS = setOf("sale", "cheap")
+
+        /** `QD_GROUPS`: the Order menu's groups, with Price (Android only, android-v52). */
         val GROUPS = listOf(
             "Order" to listOf("manual", "date", "hype", "ondeck", "shortest", "longest"),
+            "Price" to listOf("sale", "cheap"),
             "Your scores" to listOf("overall", "expect", "duel"),
             "One area" to listOf("story", "music", "gameplay", "replay", "visuals", "world", "chars", "pace"),
         )

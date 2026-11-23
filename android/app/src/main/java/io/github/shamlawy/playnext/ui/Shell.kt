@@ -332,6 +332,12 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
                     // the Queue's rows are many: a lazy page draws only the ones on screen
                     val qpick = queue.pick(ready.lib)
                     val qv = rememberQueueView(ready.lib, qpick, ready.cards?.queue)
+                    // the cards' prices (PS5, else Switch): the phone's saved ones at once, then whatever is over 12 hours old
+                    val priceDir = androidx.compose.ui.platform.LocalContext.current.filesDir
+                    val priceClock = LocalNow.current
+                    LaunchedEffect(ready.lib, qv.q.rk) {
+                        if (askOnOpen) io.github.shamlawy.playnext.data.PriceTags.run { refresh(ready.lib, qv.q.rk, cc(ready.lib), priceDir, priceClock) }
+                    }
                     val folded = w <= 500.dp
                     // Character select's covers per line: the page's width inside its gutters and the rail's room
                     val qcols = selCols(minOf(880.dp, pageRoom(w, rail)))
