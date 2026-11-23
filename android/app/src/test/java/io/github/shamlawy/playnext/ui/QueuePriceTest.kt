@@ -30,7 +30,7 @@ import java.util.TimeZone
 /** The price on the Queue's closed rows and open card, folded and unfolded (android-v52; made-up games and prices). */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [36], qualifiers = "w412dp-h915dp-xxhdpi")
+@Config(application = android.app.Application::class, sdk = [36], qualifiers = "w412dp-h915dp-xxhdpi")
 class QueuePriceTest {
     @get:Rule val rule = createComposeRule()
 
