@@ -196,7 +196,9 @@ fun rememberQueueView(lib: Library, pick: QueuePick, made: Queue? = null): Queue
     val sort = pick.sort
     val all = pick.moved // read every time, so a first drop redraws
     val moved = if (pick.movedFor === lib.from) all else emptyMap()
-    val shown = remember(q, tab, sort, moved) { q.sort(q.list(tab), sort, moved) }
+    // a price order sorts again as prices land; any other order doesn't read them, so it never redraws for them
+    val priced = if (sort in Queue.PRICE_SORTS) io.github.shamlawy.playnext.data.PriceTags.v else 0
+    val shown = remember(q, tab, sort, moved, priced) { q.sort(q.list(tab), sort, moved) }
     return QueueView(q, tab, sort, shown, now, lib)
 }
 
@@ -1407,7 +1409,10 @@ private fun QueueRow(q: Queue, g: Game, n: Int, sort: String, folded: Boolean, m
                         )
                     }
                     q.sortValue(g, sort)?.let { SortPill(Queue.sortName(sort), it, folded) }
+                    if (!folded) QueuePrice(q, g, 13.sp, old = true)
                 }
+                // folded there's no room beside the headline: the price has its own line (no old price, the sale's % says it)
+                if (folded) QueuePrice(q, g, 12.sp, old = false, Modifier.padding(top = 3.dp))
             }
             if (!folded) Ticket(st, accent, Modifier.padding(start = 18.dp))
         }

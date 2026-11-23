@@ -28,7 +28,7 @@ const SGDB = "https://www.steamgriddb.com/api/v2";
 /* tried in order; Cloudflare retires models now and then */
 /* the bigger models know far more games and follow instructions better; used for chat and similar games,
    falling back down the list if one is missing or the free daily allowance runs out */
-const HELPER_V = 24;
+const HELPER_V = 25;
 /* KV expirationTtl is in SECONDS (and must fit a 32-bit int): 60 days. It was 60 * 864e5 (milliseconds), which KV refused
    with "Value out of range", so no phone could ever sign up for nudges. */
 const SUB_TTL = 60 * 86400;
@@ -1044,7 +1044,70 @@ function psCtas(j) {
   return out.map(c => { const P = (c.action || {}).param || [], v = n => ((P.find(x => x.name === n) || {}).values || [])[0];
     return { type: c.type || "", sku: v("skuId") || "", tier: +v("tierNumber") || 0, p: c.price || {} }; });
 }
-async function pxPsPrice(cc, id, cid) {
+/* android-v52: the Queue's PS5 price. A wrong product here reads as a bargain in a price sort (real answers, Nov 2026: a
+   game's cheap multiplayer mode, a sequel), so an item with p5 only takes a product the store lists for PS5, whose name
+   adds nothing but edition words; a name with a subtitle you didn't write counts only when nothing plainer exists
+   ("Some Game 2" = "Some Game 2: The Subtitle"). p5 = 1: check a saved id first; 2: the phone already had it checked. */
+const PS5_ED = /^(deluxe|complete|ultimate|gold|premium|definitive|collector|special|anniversary|director|cut|version|remaster|remastered|launch|enhanced)$/;
+function px5Fit(title, name) {
+  const T = new Set(pxNorm(title).split(" ")), extra = pxNorm(name).split(" ").filter(w => w && !T.has(w) && !PS5_ED.test(w));
+  /* a subtitle's words cost nothing here: it already ranks below every plainer name */
+  const sub = extra.length > 0 && /[:–—]|\s-\s/.test(String(name));
+  let sc = pxSame(title, name) - (sub ? 0 : extra.length * .1);
+  if (PS_JUNK.test(name) && !PS_JUNK.test(title)) sc -= .5;
+  if (PS_ED.test(name) && !PS_ED.test(title)) sc -= .08;
+  return { sc, sub };
+}
+async function pxPs5Search(cc, q, title) {
+  const j = await psGql(cc, "getSearchResults", { countryCode: cc.toUpperCase(), languageCode: "en", nextCursor: "", pageOffset: 0, pageSize: 24, searchTerm: String(q).slice(0, 80) });
+  let best = null, bs = 0, sub = null, ss = 0;
+  for (const r of ((j || {}).data || {}).universalSearch?.results || []) {
+    const name = r.name || r.invariantName || "", cls = String(r.localizedStoreDisplayClassification || r.storeDisplayClassification || "");
+    const prod = PS_ID.test(r.id || ""), con = /^\d{4,12}$/.test(String(r.id || ""));
+    if (!name || (!prod && !con)) continue;
+    if (prod && (!(r.platforms || []).includes("PS5") || (cls && !/full.game|bundle|edition|^game$/i.test(cls)))) continue;
+    const f = px5Fit(title, name);
+    if (f.sc < .55) continue;
+    const hit = prod ? { id: r.id, name } : { cid: String(r.id), name };
+    if (f.sub) { if (prod && f.sc > ss) { ss = f.sc; sub = hit; } }
+    else if (f.sc > bs || (f.sc === bs && prod && best && !best.id)) { bs = f.sc; best = hit; }
+  }
+  return best || sub;
+}
+async function pxPs5Find(cc, title, alts) {
+  const before = String(title).split(":")[0].trim();
+  const asks = [[title, title], [pxExpand(title), title], ...alts.map(a => [a, a]), [before.length > 3 ? before : "", title]];
+  const seen = new Set();
+  for (const [q, t] of asks) {
+    if (!q || seen.has(q) || seen.size >= 3) continue;
+    seen.add(q);
+    const f = await pxPs5Search(cc, q, t);
+    if (f) return f;
+  }
+  return null;
+}
+async function pxPs5Check(cc, it, stName) {
+  let id = it.ps, pc = it.pc, name = "", keep = null;
+  if (id && it.p5 === 1) {
+    const pr = ((await psGql(cc, "metGetProductById", { productId: id })) || {}).data?.productRetrieve;
+    if (pr && (pr.platforms || []).includes("PS5")) {
+      const was = { id, cid: pr.concept && pr.concept.id || "", name: pr.name || "" }, f = px5Fit(it.t, was.name);
+      /* a saved product that doesn't fit is never the fallback: it may be the cheap mode this check exists to catch */
+      if (f.sc >= .55 && !f.sub) { pc = was.cid; name = was.name; } else { if (f.sc >= .55) keep = was; id = ""; pc = ""; }
+    } else { id = ""; pc = ""; }
+  } else if (id && !/-PPSA\d/.test(id)) { id = ""; pc = ""; }
+  /* a concept saved without a product: the search's plainer pick first, that concept if it finds nothing */
+  else if (!id && pc && it.p5 === 1) { keep = { id: "", cid: pc, name: "" }; pc = ""; }
+  if (!id && !pc) {
+    const alts = [stName, it.n2].filter(n => n && pxNorm(n) !== pxNorm(it.t));
+    const hit = await pxPs5Find(cc, it.t, alts) || keep;
+    if (!hit) return { none: 1, p5: 1 };
+    id = hit.id || ""; pc = hit.cid || ""; name = hit.name;
+  }
+  const p = await pxPsPrice(cc, id, pc, true);
+  return Object.assign({ id }, p, { id: id || p.id, name: p.name || name, pcc: cc, p5: 1 });
+}
+async function pxPsPrice(cc, id, cid, p5) {
   let name = "";
   if (!cid) {
     const pj = await psGql(cc, "metGetProductById", { productId: id }), pr = pj && pj.data && pj.data.productRetrieve;
@@ -1054,7 +1117,9 @@ async function pxPsPrice(cc, id, cid) {
   }
   const cj = await psGql(cc, "metGetPricingDataByConceptId", { conceptId: cid });
   if (!(cj && cj.data && cj.data.conceptRetrieve)) return { nosale: 1 };
-  const all = psCtas(cj), mine = all.filter(c => c.sku.startsWith(id)), C = mine.length ? mine : all;
+  const all = psCtas(cj), mine = all.filter(c => c.sku.startsWith(id));
+  let C = mine.length ? mine : all;
+  if (p5) { C = C.filter(c => /-PPSA\d/.test(c.sku)); if (!C.length) return { none: 1 }; }
   const buy = C.filter(c => !c.p.isTiedToSubscription && /ADD_TO_CART|PREORDER|DOWNLOAD/.test(c.type) && c.p.basePriceValue != null)
     .sort((a, b) => (a.p.discountedValue ?? a.p.basePriceValue) - (b.p.discountedValue ?? b.p.basePriceValue))[0];
   const cat = C.find(c => /CATALOG/.test(c.type)), trial = C.find(c => /TRIAL/.test(c.type));
@@ -1182,6 +1247,7 @@ async function pxCheck(cc, items, nscc, pscc) {
   for (const it of items) {
     if (it.ps === "-" || look.ps >= 8) continue;
     look.ps++;
+    if (it.p5) { try { res[it.k].ps = await pxPs5Check(pcc, it, res[it.k].stName); } catch (e) { res[it.k].ps = { err: String(e.message || e).slice(0, 60) }; } continue; }
     try {
       let id = it.ps, name = "";
       /* v227: a concept with no product id (the phone found the game's store page some other way, e.g. RAWG's link) is
@@ -1223,7 +1289,7 @@ async function pxRoute(req, env, h) {
   const items = (Array.isArray(b && b.items) ? b.items : []).slice(0, 40).map(x => ({ k: String(x.k || "").slice(0, 24), t: String(x.t || "").slice(0, 100),
     st: Number.isFinite(+x.st) ? Math.trunc(+x.st) : 0, ps: x.ps === "-" ? "-" : (String(x.ps || "").match(PS_ID) || [""])[0],
     pc: /^\d{4,12}$/.test(String(x.pc || "")) ? String(x.pc) : "",
-    ns: x.ns === "-" || x.ns == null ? "-" : /^\d{14}$/.test(String(x.ns)) ? String(x.ns) : "", sw2: !!x.sw2, n2: String(x.n2 || "").slice(0, 100) })).filter(x => x.k && x.t);
+    ns: x.ns === "-" || x.ns == null ? "-" : /^\d{14}$/.test(String(x.ns)) ? String(x.ns) : "", sw2: !!x.sw2, n2: String(x.n2 || "").slice(0, 100), p5: x.p5 === 2 ? 2 : x.p5 ? 1 : 0 })).filter(x => x.k && x.t);
   const cc = pxCC(b.cc), nscc = nsCC(b.nscc || cc), pscc = psCC(cc, b.pscc), tier = Math.max(0, Math.min(3, +b.tier || 0)), res = await pxCheck(cc, items, nscc, pscc);
   /* keep the list for the daily check (only what was found), with the prices seen now as the baseline */
   if (okId && env.NUDGE && b.watch) {

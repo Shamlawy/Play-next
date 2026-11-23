@@ -311,3 +311,9 @@ go=top
 at=
 say=Unfolded, the rail has a live strip now: how far you are in what you're playing, countdowns to your next releases, price drops, what's up next and your backlog, drifting up on its own. Its dice picks you a game from any tab.
 tryIt=Unfold the phone and look at the rail under the dice. Touch the strip to hold it, drag it up or down, let go and it carries on 2 seconds later. Tap a tile to open its game, or the backlog tile for Games. Then open another tab and tap the dice.
+
+v=52
+go=queue
+at=
+say=Your Queue now shows what each game you don't own costs on PS5, or on Switch when it isn't on PS5, and can sort by the biggest discount.
+tryIt=Open Games › Queue and look under a game's name for its price and any sale. Tap Order and pick Biggest discount or Cheapest. Open a card and turn it over: the price line shows when the sale ends, and a tap opens the store.

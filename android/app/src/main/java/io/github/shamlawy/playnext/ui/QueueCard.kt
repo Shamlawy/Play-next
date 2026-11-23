@@ -438,6 +438,7 @@ private fun Front(q: Queue, g: Game, n: Int, st: Queue.Stat, accent: Color, d: C
             // a short headline never ends in "…" (the design eye): it steps down a little to fit the strap first
             val hs = CType.base.copy(fontSize = d.head, lineHeight = d.head * 1.1f, fontWeight = FontWeight.Bold, letterSpacing = (-.02).em, color = Color.White, shadow = CType.shadow).fixed()
             BasicText(st.head, style = hs, maxLines = 1, overflow = TextOverflow.Ellipsis, autoSize = fits(hs.fontSize, .78f), modifier = line(1))
+            QueuePrice(q, g, d.genre, old = d.cols == 8, line(1))
             val chips = remember(g) { Plat.chips(g["platforms"]) }
             if (chips.isNotEmpty()) PlatRow(chips, d.logo, d.logoGap, d.ver, d.verUp, Color.White, line(2).padding(top = 3.dp))
             val gn = Rank.platList(g["genres"]).take(2).joinToString(" · ")
@@ -813,6 +814,8 @@ private fun Back(q: Queue, g: Game, n: Int, accent: Color, d: CardDims, t: Anima
                     }
                 }
             }
+            // the price with its old price and when the sale ends; a tap opens the store (the front has no buttons)
+            QueuePriceLine(q, g, onBack)
             // the platforms and how many evenings it takes
             val chips = remember(g) { Plat.chips(g["platforms"]) }
             if (chips.isNotEmpty() || hrs != 0.0) {

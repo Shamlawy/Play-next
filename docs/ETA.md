@@ -77,3 +77,5 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E72 | 2026-11-22 6:28 PM | kit | 2 h | 13 min | 0.11 | I'll build Phase 3 piece 5 (▢ taste cards in ▢ for you) for the Android app, test it, release it as android-v50 and send a short sum | <!-- at=2026-11-22T14:28:43.612Z -->
 | E73 | 2026-11-22 6:47 PM | release | 45 min | 1 min | 0.02 | fix the ▢, run the Android checks, open and merge the android-v50 PR. | <!-- at=2026-11-22T14:47:51.325Z -->
 | E74 | 2026-11-22 10:31 PM | release | 75 min | 49 min | 0.65 | finishing android-v51 from the earlier chat (dice fix, ▢ checks, a fresh review, PR, merge). I'll report back when it's released. | <!-- at=2026-11-22T18:31:41.398Z -->
+| E75 | 2026-11-23 11:33 AM | other | 1.5 h | 1 min | 0.01 | I'll add ▢ prices (▢ when a game isn't on ▢) to closed and open cards, plus a sort for discounts, then ship it and send you a scree | <!-- at=2026-11-23T07:33:21.232Z -->
+| E76 | 2026-11-23 1:20 PM | other | 15 min | 1 min | 0.07 | install ▢, record shots, push. | <!-- at=2026-11-23T09:20:58.932Z -->
