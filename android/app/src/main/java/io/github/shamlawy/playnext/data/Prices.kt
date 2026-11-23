@@ -362,7 +362,7 @@ object Prices {
                 if (s == "ps" && (str(g, "pxPs").isEmpty() || Backup.truthy(p["p5"]))) I["pxPs"] = JsonPrimitive(Backup.str(id))
                 if (s == "ps" && Backup.truthy(p["p5"])) I["pxPsV"] = JsonPrimitive(Backup.str(id))
                 if (s == "ns" && str(g, "pxNs").isEmpty()) I["pxNs"] = JsonPrimitive(Backup.str(id))
-            }
+            } else if (s == "ps" && Backup.truthy(p["p5"])) I["pxPsV"] = JsonPrimitive("-") // answered, with no product to price
             if (s == "ns" && Backup.str(p["url"]).isNotEmpty()) I["pxNsU"] = JsonPrimitive(Backup.str(p["url"]))
             if (s == "ps" && Backup.str(p["cid"]).isNotEmpty()) I["pxPsC"] = JsonPrimitive(Backup.str(p["cid"]))
             val extra: Map<String, JsonElement> = when (s) {
