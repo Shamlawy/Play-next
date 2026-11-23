@@ -33,8 +33,8 @@ object PriceTags {
         private set
 
     private val PS5 = Regex("ps\\s*5|playstation\\s*5")
-    // Switch and Switch 2 only: a 3DS, DS, Wii or N64 game has no eShop price of its own today
-    private val SWITCH = Regex("switch|\\bns2?\\b")
+    // Switch, Switch 2 or a bare "Nintendo"; never an older console (3DS, DS, Wii, N64…), which has no eShop price today
+    private val SWITCH = Regex("switch|\\bns2?\\b|^nintendo(?!.*(\\bds\\b|3ds|wii|64|gamecube|game ?boy|gba|nes))")
     private const val BATCH = 5
     private const val MOST = 60
     private const val TOO_OLD = 7 * 86_400_000L
