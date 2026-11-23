@@ -54,6 +54,17 @@ class PriceTagsTest {
         assertNull("PS4 only", q.priceTag(g("ps4")))
     }
 
+    @Test fun olderNintendoGamesAreNeverAskedAnEshopPrice() {
+        val old = Library(Json.parseToJsonElement("""{"games":[
+            {"id":"ds","title":"x","state":"backlog","platforms":"Nintendo 3DS"},
+            {"id":"n64","title":"x","state":"backlog","platforms":"Nintendo 64, Wii"},
+            {"id":"ns","title":"x","state":"backlog","platforms":"Nintendo Switch 2"}
+        ],"played":[]}""").jsonObject)
+        assertEquals(emptyList<String>(), PriceTags.stores(old, old.games[0]))
+        assertEquals(emptyList<String>(), PriceTags.stores(old, old.games[1]))
+        assertEquals(listOf("ns"), PriceTags.stores(old, old.games[2]))
+    }
+
     @Test fun aPs5AnswerTheHelperHasntCheckedNeverShows() {
         // the backup's older pick could be another product: a false bargain in the price orders
         Prices.take(lib, g("sale"), res("""{"sale":{"ps":{"id":"EP0001-PPSA00001_00-CHEAPMODE0000000","name":"Mode","cur":"AED","base":8598,"now":8598,"pct":0,"baseF":"85.98 AED","nowF":"85.98 AED"}}}"""), now)
