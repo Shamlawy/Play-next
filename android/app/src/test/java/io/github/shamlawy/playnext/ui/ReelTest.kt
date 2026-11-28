@@ -6,6 +6,10 @@ import android.graphics.Canvas
 import android.graphics.Typeface
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -99,6 +103,25 @@ class ReelTest {
         assertTrue("still playing at 14 s", Reel.up)
         rule.mainClock.advanceTimeBy(1_500)
         assertFalse("it leaves by itself after 15 s", Reel.up)
+    }
+
+    @Test fun aTapBeforeYourGamesOpenPlaysOnceTheyDo() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-xxhdpi")
+        Reel.arm()
+        val l = lib()
+        var st by mutableStateOf<Games.State>(Games.State.Starting)
+        rule.setContent { Frame(Look.of(l), Prefs.of(l)) { OpeningReel(st, Prefs.of(l), false) } }
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performClick()
+        rule.mainClock.advanceTimeBy(500)
+        // your settings aren't known yet: it waits on the pixel
+        rule.onNodeWithContentDescription("Play the opening reel").assertExists()
+        st = Games.State.Ready(l, 0L)
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onNodeWithContentDescription("The opening reel").assertExists()
+        assertTrue(Reel.up)
     }
 
     @Test fun aTapWhileItPlaysEndsIt() {

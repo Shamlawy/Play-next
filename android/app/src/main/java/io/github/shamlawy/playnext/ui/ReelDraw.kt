@@ -106,8 +106,8 @@ object ReelDraw {
     private fun ry(p: FloatArray, a: Float): FloatArray { val c = cos(a); val s = sin(a); return floatArrayOf(p[0] * c + p[2] * s, p[1], -p[0] * s + p[2] * c) }
     private val CARDC = arrayOf(arrayOf(B, W, P), arrayOf(P, D, B), arrayOf(D, W, P))
 
-    /** Where everything sits for this frame, made once per [frame] call. */
-    private class Pen(val c: Canvas, face: Typeface) {
+    /** Where everything sits for this frame: one per typeface, kept between frames (nothing new each frame), its canvas set per [frame] call. */
+    private class Pen(var c: Canvas, val face: Typeface) {
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = face }
         val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.BUTT }
@@ -175,13 +175,15 @@ object ReelDraw {
     private val FACES = listOf(intArrayOf(0, 1, 2, 3) to .88f, intArrayOf(4, 5, 1, 0) to 1f, intArrayOf(1, 5, 6, 2) to .5f, intArrayOf(3, 2, 6, 7) to .35f, intArrayOf(7, 4, 0, 3) to .5f)
     private val HS = floatArrayOf(.42f, .7f, .5f, .95f, .62f, .36f, .8f, .55f, .66f)
 
+    private var pen: Pen? = null
+
     /** Paints the frame at [t0] seconds on [c] ([wPx] x [hPx], 0,0 top left) in [face] (Poppins 700). */
     fun frame(c: Canvas, t0: Float, wPx: Float, hPx: Float, face: Typeface, art: Art? = null) {
         val t = ((t0 % LEN) + LEN) % LEN
         val u = min(wPx, hPx) / 1000f
         val hw = wPx / 2 / u
         val hh = hPx / 2 / u
-        val p = Pen(c, face)
+        val p = pen?.takeIf { it.face === face }?.also { it.c = c } ?: Pen(c, face).also { pen = it }
         // lay: the phone panel the centre card becomes
         val ar = 200f / 260f
         val ph = min(hh * 2 * .8f, hw * 2 * .86f / ar)

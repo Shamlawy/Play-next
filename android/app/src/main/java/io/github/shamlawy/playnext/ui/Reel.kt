@@ -234,8 +234,12 @@ fun BoxScope.OpeningReel(games: Games.State, prefs: Prefs, calm: Boolean) {
             }
         }
     }
+    // your settings (Sounds, the backup's Off) are known once your games open: a tap before that plays when they are
+    val starting = games is Games.State.Starting
+    var want by remember { mutableStateOf(false) }
     val play = {
-        if (!playing && !leaving) {
+        if (starting) want = true
+        else if (!playing && !leaving) {
             playing = true
             Crumbs.tap("opening reel", "reel")
             // the covers ready at the tap play; the loader stops, so nothing loads under the reel
@@ -262,6 +266,7 @@ fun BoxScope.OpeningReel(games: Games.State, prefs: Prefs, calm: Boolean) {
     // the touch and TalkBack handlers are made once: they call the newest play and leave (Sounds may have come on since)
     val playNow by rememberUpdatedState(play)
     val leaveNow by rememberUpdatedState(leave)
+    LaunchedEffect(starting, want) { if (!starting && want) playNow() }
     DisposableEffect(Unit) { onDispose { music?.release() } }
     // leaving the app ends it (the music would play on from a hidden app, and the clock would jump on return)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
@@ -348,7 +353,7 @@ private fun Skip(playing: Boolean, modifier: Modifier, skip: () -> Unit) {
                     if (up != null) skip()
                 }
             }
-            .semantics { role = Role.Button; onClick { skip(); true } }
+            .semantics(mergeDescendants = true) { role = Role.Button; onClick { skip(); true } }
             .padding(horizontal = 22.dp),
         contentAlignment = Alignment.Center,
     ) {

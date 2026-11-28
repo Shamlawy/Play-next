@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import io.github.shamlawy.playnext.kit.Synth.Filter
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,9 +37,9 @@ object ReelMusic {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var making: Deferred<File?>? = null
 
-    /** The file, made in the background the first time it's asked for (null when it couldn't be made). */
+    /** The file, made in the background the first time it's asked for (null when it couldn't be made: the next launch tries again). */
     @Synchronized
-    fun warm(ctx: Context): Deferred<File?> = making ?: scope.async {
+    fun warm(ctx: Context): Deferred<File?> = making ?: scope.async(start = CoroutineStart.LAZY) {
         runCatching {
             val f = File(ctx.cacheDir, "reel-$VERSION.wav")
             ctx.cacheDir.listFiles { x -> x.name.startsWith("reel-") && x != f }?.forEach { it.delete() }
@@ -48,8 +49,16 @@ object ReelMusic {
                 tmp.renameTo(f)
             }
             f
-        }.getOrNull()
-    }.also { making = it }
+        }.getOrNull().also { f -> if (f == null) forget() }
+    }.also {
+        making = it
+        it.start()
+    }
+
+    @Synchronized
+    private fun forget() {
+        making = null
+    }
 
     /** The music playing (with [play]'s own fade). */
     class Playing internal constructor(private val mp: MediaPlayer) {
