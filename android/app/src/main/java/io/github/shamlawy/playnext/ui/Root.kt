@@ -225,6 +225,8 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                     }
                 }
             }
+            // the opening reel on a cold launch, over everything (the restore screen too): its back goes first
+            OpeningReel(games, prefs, LocalCalm.current)
     }
 }
 

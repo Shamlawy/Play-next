@@ -29,3 +29,6 @@ italic ui/Reveal.kt fontFamily = ARCHIVO_NARROW, fontWeight = FontWeight.Black, 
 font-weight ui/Reveal.kt fontFamily = ARCHIVO_NARROW, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, — Archivo, not Poppins: the reveal's narrowed face
 uppercase ui/HomeStacks.kt BasicText(c.name.uppercase(), style = (if (pic != null) H5_SHADED else H5).fixed() — a More for you card's small kicker ("2026 SO FAR") is capitals on the web (.dash .tile h5, 9.5px, text-transform: uppercase), a label, not a heading
 uppercase ui/HomeStacks.kt BasicText(b.label.uppercase(), style = PL.fixed() — the bar charts' genre/month labels under each bar are capitals on the web (pillBars' label), not a heading
+calm ui/Reel.kt val breath = rememberInfiniteTransition(label = "reel glow") — the opening reel never shows when calm (OpeningReel returns and drops it), so its waiting glow only breathes when not calm
+calm ui/Reel.kt val say = remember { Animatable(0f) } — the opening reel never shows when calm, so "Tap to play" only fades in when not calm
+calm ui/Reel.kt val a = remember { Animatable(1f) } — the opening reel never shows when calm, so Skip's fade-in 2 s into the reel only runs when not calm
