@@ -86,6 +86,8 @@ data class Prefs(
     /** What his badge counts (`S.nxBadge`, the countdown when never set) and what he calls you (`S.userName`). */
     val nxBadge: String = "count",
     val userName: String = "",
+    /** Settings › This build › Opening reel: Off (`S.reelOff`); this phone's own choice ([Reel.choice]) wins. */
+    val reelOff: Boolean = false,
 ) {
     /** A tab's views in their order (Plan's Timer only while it's switched on); empty for Home and Add. */
     fun views(tab: String): List<Pair<String, String>> = Web.VIEWS[tab].orEmpty().filter { it.first != "timer" || timerOn }
@@ -140,6 +142,7 @@ data class Prefs(
                 bubY = ((lib["bubPos"] as? JsonObject)?.get("y") as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toFloatOrNull()?.takeIf { it.isFinite() },
                 nxBadge = Backup.str(lib["nxBadge"]).ifEmpty { "count" },
                 userName = Backup.str(lib["userName"]).trim(),
+                reelOff = Backup.truthy(lib["reelOff"]),
             )
         }
     }

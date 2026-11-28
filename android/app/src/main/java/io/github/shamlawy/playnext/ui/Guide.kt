@@ -89,9 +89,10 @@ internal object Tried {
 internal object Guide {
     /**
      * The words Show me knows; `home` (every block before android-v33) shows no button, it was never a place to test;
-     * `top` is Home's own top (Phase 3, android-v46), a place to test now.
+     * `top` is Home's own top (Phase 3, android-v46), a place to test now; `reel` plays the opening reel where you are
+     * (android-v53, [Reel.replay]).
      */
-    private val PLACES = setOf("queue", "card:out", "flip", "settings", "probe", "news", "top")
+    private val PLACES = setOf("queue", "card:out", "flip", "settings", "probe", "news", "top", "reel")
     private val GAMES = setOf("playing", "about", "unplayed", "priced", "next")
 
     /** A `go` whatsnew.txt may use (ReleaseFeedTest holds every new block to it). */

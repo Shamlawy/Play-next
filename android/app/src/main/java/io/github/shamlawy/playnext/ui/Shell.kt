@@ -228,7 +228,8 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
     val showNews by rememberUpdatedState { from: Int -> step(nav.open("news:$from")) }
     val ready = games is Games.State.Ready
     val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    LaunchedEffect(ready) { if (ready) News.since()?.let { from -> News.load(appCtx); News.seen(); showNews(from) } }
+    // (after the opening reel, as the web's tour waits for #pnboot)
+    LaunchedEffect(ready, Reel.up) { if (ready && !Reel.up) News.since()?.let { from -> News.load(appCtx); News.seen(); showNews(from) } }
     // Show me (Guide.kt): a release's card in What's new takes you to what it changed, and its Try it bar stays at the
     // foot while you test it (kept over a fold or Android recreating the app)
     var trying by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -239,6 +240,8 @@ fun Shell(nav: Nav, games: Games.State, queue: QueueHold = remember { QueueHold(
         Crumbs.add("show me v${e.v}")
         trying = e.v
         step(Guide.nav(e, nav, lib, lib?.let { queue.pick(it) }))
+        // the opening reel's release: it plays now, over where you are (no cold launch needed to try it)
+        if (e.go == "reel") Reel.replay()
         // unfolded he says the first step from his seat (folded, the bar alone says it)
         nx.say(Guide.line(e))
     }

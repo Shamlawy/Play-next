@@ -1,7 +1,7 @@
 # The Android app's what's new, the web app's WHATS_NEW for the app: one block per release, blocks split by blank lines.
 # v = the release (release= in android/version.properties), go = where What's new's Show me takes you (ui/Guide.kt):
 #   queue, card:out (a released game's card open on the Queue), flip (the Queue's first card turned over), settings,
-#   probe, news, top (Home), game:<what> (a game page: playing, about = the longest About, unplayed, priced, next = On deck's first);
+#   probe, news, top (Home), reel (plays the opening reel where you are), game:<what> (a game page: playing, about = the longest About, unplayed, priced, next = On deck's first);
 #   home shows no Show me (every block before v33). at = what it points at (may be empty), say = one line pitch (release
 #   v's say= is also its GitHub release notes), tryIt = what to try.
 # release-guard holds a release without its block (go, say and tryIt filled in).
@@ -317,3 +317,9 @@ go=queue
 at=
 say=Your Queue now shows what each game you don't own costs on PS5, or on Switch when it isn't on PS5, and can sort by the biggest discount.
 tryIt=Open Games › Queue and look under a game's name for its price and any sale. Tap Order and pick Biggest discount or Cheapest. Open a card and turn it over: the price line shows when the sale ends, and a tap opens the store.
+
+v=53
+go=reel
+at=
+say=Play next now opens like the web app: a glowing pixel waits for your tap, then the 15-second reel plays on the beat with your own games on its cards.
+tryIt=Swipe Play next away from your recent apps and open it again: tap the glowing pixel and watch your covers turn into the game you play next. With Sounds on it has its music. A tap or Skip ends it, and Settings › Opening reel turns it off.

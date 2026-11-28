@@ -19,6 +19,7 @@ import io.github.shamlawy.playnext.crash.SafeModeActivity
 import io.github.shamlawy.playnext.data.Games
 import io.github.shamlawy.playnext.report.FrameGate
 import io.github.shamlawy.playnext.ui.PlayNextRoot
+import io.github.shamlawy.playnext.ui.Reel
 import io.github.shamlawy.playnext.ui.Route
 import io.github.shamlawy.playnext.update.Updater
 import kotlinx.coroutines.launch
@@ -46,6 +47,10 @@ class MainActivity : ComponentActivity() {
         // a launch link counts once: unfolding, turning or coming back after Android let the app go recreates it with
         // the same intent, and reading it again would jump back to where the link pointed
         if (savedInstanceState == null) link = Links.of(intent)
+        // a cold launch plays the opening reel (once a run of the app: never on a return, a fold or a turn)
+        // (not when a link, a shortcut or something shared opened it: the screen you asked for comes straight away)
+        // (nor on CI's emulators with the made-up backup: the speed runs and the release walk tap the tabs straight away)
+        if (savedInstanceState == null && link == null && !io.github.shamlawy.playnext.data.Demo.on(this)) Reel.arm()
         // the last back (on your tab) is the app's own, added first so every screen's back goes before it: Android then
         // has no back of its own to preview, so the app doesn't shrink under the finger as it leaves (#309: nothing
         // shrinks; the plan's "shrinking preview off"). It leaves the way Android's own back would, to the background.

@@ -102,6 +102,7 @@ fun SettingsSheet(modifier: Modifier, games: Games.State, wide: Boolean, close: 
         BackupCard(games, askCode)
         SoundsCard()
         TaskbarCard(wide)
+        ReelCard()
         BuildCards(openProbe, openNews)
         Btn("Close", onClick = close)
     }
@@ -489,6 +490,22 @@ private fun TaskbarCard(wide: Boolean) {
         Chips(TASKBAR_CHOICES, if (choice == Taskbar.AUTO) "auto" else choice.toString()) { Taskbar.pick(it.toIntOrNull() ?: Taskbar.AUTO) }
     }
 }
+
+/**
+ * Settings › This build › Opening reel on the web (3-critic.md M7): the 15-second reel when the app opens from cold,
+ * Every launch or Off. Kept on this phone; until you pick, it's what your backup says.
+ */
+@Composable
+private fun ReelCard() {
+    val prefs = LocalPrefs.current
+    Card {
+        BasicText("Opening reel", style = Type.head)
+        BasicText("The 15-second reel when the app opens from cold: a tap on the glowing pixel plays it, Skip ends it. It never plays while animations are calm.", style = Type.note)
+        Chips(REEL_CHOICES, if (Reel.off(prefs)) "off" else "on") { Reel.pick(it == "off") }
+    }
+}
+
+private val REEL_CHOICES = listOf("on" to "Every launch", "off" to "Off")
 
 /** Taskbar room's chips: Auto, None, then the sizes. */
 private val TASKBAR_CHOICES = listOf("auto" to "Auto") + Taskbar.CHOICES.map { it.toString() to if (it == 0) "None" else it.toString() }

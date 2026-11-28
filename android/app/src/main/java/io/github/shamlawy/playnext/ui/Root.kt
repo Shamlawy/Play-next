@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -188,6 +189,8 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
     // app in the background keeps the tab, order, open card, its side and Character select's pick (Phase 1 check A4, C1)
     val queue = rememberSaveable(saver = QueueHold.Saver) { QueueHold() }
     Frame(look, prefs) {
+        // while the opening reel is up, TalkBack reads only the reel (the screen under it is black to the eye too)
+        Box(Modifier.fillMaxSize().then(if (Reel.up) Modifier.clearAndSetSemantics { } else Modifier)) {
             when {
                 nav.overlay == "probe" -> {
                     BackHandler { nav = nav.back() }
@@ -225,6 +228,9 @@ fun PlayNextRoot(link: Route?, linkDone: () -> Unit) {
                     }
                 }
             }
+        }
+            // the opening reel on a cold launch, over everything (the restore screen too): its back goes first
+            OpeningReel(games, prefs, LocalCalm.current)
     }
 }
 
