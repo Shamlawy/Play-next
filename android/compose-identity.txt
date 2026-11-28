@@ -75,6 +75,7 @@ NoteSheet.g: Game
 Numbers.h: Hl
 OnDeck.deck: List<Game>
 OnDeck.q: Queue
+OpeningReel.games: State
 PageGroup.lib: Library
 Panel.lines: List<String>
 PicBox.g: Game?

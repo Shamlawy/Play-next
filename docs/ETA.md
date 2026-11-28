@@ -79,3 +79,4 @@ took ÷ said, so under 1 means faster than promised. The first message of each c
 | E74 | 2026-11-22 10:31 PM | release | 75 min | 49 min | 0.65 | finishing android-v51 from the earlier chat (dice fix, ▢ checks, a fresh review, PR, merge). I'll report back when it's released. | <!-- at=2026-11-22T18:31:41.398Z -->
 | E75 | 2026-11-23 11:33 AM | other | 1.5 h | 1 min | 0.01 | I'll add ▢ prices (▢ when a game isn't on ▢) to closed and open cards, plus a sort for discounts, then ship it and send you a scree | <!-- at=2026-11-23T07:33:21.232Z -->
 | E76 | 2026-11-23 1:20 PM | other | 15 min | 1 min | 0.07 | install ▢, record shots, push. | <!-- at=2026-11-23T09:20:58.932Z -->
+| E77 | 2026-11-28 3:21 PM | video | 45 min | 6 min | 0.13 | install the Android ▢, run the build/screenshot/lint checks, open the PR, wait for CI, merge android-v53. | <!-- at=2026-11-28T11:21:08.745Z -->
