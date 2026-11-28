@@ -81,15 +81,21 @@ object ReelMusic {
     }
 
     /** Starts [f] at .75 now; null when the phone can't play it. */
-    fun play(f: File): Playing? = runCatching {
+    fun play(f: File): Playing? {
         val mp = MediaPlayer()
+        return runCatching {
         mp.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
         mp.setDataSource(f.path)
         mp.prepare()
         mp.setVolume(.75f, .75f)
         mp.start()
         Playing(mp)
-    }.getOrNull()
+        }.getOrElse {
+            // the player is let go when it can't play (prepare failed), never left holding the file
+            runCatching { mp.release() }
+            null
+        }
+    }
 
     // ---- the recipe ----
 

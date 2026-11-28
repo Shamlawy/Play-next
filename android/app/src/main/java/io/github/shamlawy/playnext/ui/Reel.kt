@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.res.ResourcesCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
@@ -261,6 +263,11 @@ fun BoxScope.OpeningReel(games: Games.State, prefs: Prefs, calm: Boolean) {
     val playNow by rememberUpdatedState(play)
     val leaveNow by rememberUpdatedState(leave)
     DisposableEffect(Unit) { onDispose { music?.release() } }
+    // leaving the app ends it (the music would play on from a hidden app, and the clock would jump on return)
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        music?.release()
+        Reel.gone()
+    }
     BackHandler { leaveNow() }
 
     Box(
